@@ -93,7 +93,7 @@ export function SharedUserForm({
         order_pay: values.order_pay || false,
         taxPreference: values.taxPreference || "Taxable",
         currency: values.currency || "USD",
-        paymentTerms: values.paymentTerms || "DueOnReceipt",
+        paymentTerms: values.paymentTerms || "prepay",
         enablePortal: values.enablePortal || false,
         portalLanguage: values.portalLanguage || "English",
         alternativeEmail: values.alternativeEmail,

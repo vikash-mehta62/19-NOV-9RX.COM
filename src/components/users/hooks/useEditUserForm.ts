@@ -60,7 +60,7 @@ export const useEditUserForm = ({
       taxPercantage:"",
       taxPreference: "Taxable",
       currency: "USD",
-      paymentTerms: "DueOnReceipt",
+      paymentTerms: "prepay",
       enablePortal: false,
       portalLanguage: "English",
       email_notifaction:false
@@ -109,7 +109,7 @@ export const useEditUserForm = ({
           order_pay: data.order_pay || false,
           taxPreference: data.tax_preference || "Taxable",
           currency: data.currency || "USD",
-          paymentTerms: data.payment_terms || "DueOnReceipt",
+          paymentTerms: data.payment_terms || "prepay",
           enablePortal: data.enable_portal || false,
           portalLanguage: data.portal_language || "English",
           email_notifaction:data.email_notifaction

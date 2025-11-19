@@ -45,7 +45,7 @@ export const baseUserSchema = z.object({
   order_pay: z.boolean().default(false),
   taxPreference: z.string().default("Taxable"),
   currency: z.string().default("USD"),
-  paymentTerms: z.string().default("DueOnReceipt"),
+  paymentTerms: z.enum(["prepay", "credit", "net_30"]).default("prepay"),
   enablePortal: z.boolean().default(false),
   portalLanguage: z.string().default("English"),
   alternativeEmail: z.string().email("Invalid email").optional(),

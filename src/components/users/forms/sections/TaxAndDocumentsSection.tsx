@@ -68,7 +68,7 @@ export function TaxAndDocumentsSection({ form }: TaxAndDocumentsSectionProps) {
       </CardHeader>
       <CardContent className="space-y-4">
 
-        {/* <FormField
+        <FormField
           control={form.control}
           name="paymentTerms"
           render={({ field }) => (
@@ -84,17 +84,15 @@ export function TaxAndDocumentsSection({ form }: TaxAndDocumentsSectionProps) {
                   </SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="DueOnReceipt">Due on Receipt</SelectItem>
-                  <SelectItem value="Net15">Net 15</SelectItem>
-                  <SelectItem value="Net30">Net 30</SelectItem>
-                  <SelectItem value="Net45">Net 45</SelectItem>
-                  <SelectItem value="Net60">Net 60</SelectItem>
+                  <SelectItem value="prepay">Prepay</SelectItem>
+                  <SelectItem value="credit">Credit</SelectItem>
+                  <SelectItem value="net_30">Net 30</SelectItem>
                 </SelectContent>
               </Select>
               <FormMessage />
             </FormItem>
           )}
-        /> */}
+        />
 
 
         <FormField

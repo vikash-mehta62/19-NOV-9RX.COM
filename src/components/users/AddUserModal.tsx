@@ -75,7 +75,7 @@ export function AddUserModal({
       order_pay: false,
       taxPreference: "Taxable",
       currency: "USD",
-      paymentTerms: "DueOnReceipt",
+      paymentTerms: "prepay",
       enablePortal: false,
       portalLanguage: "English",
       taxPercantage: "0",
@@ -140,10 +140,10 @@ console.log(session)
         {
           method: "POST",
           headers: {
-            'Authorization': `Bearer ${session.access_token}`,
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc`,
             "Content-Type": "application/json",
             apikey:
-              session.access_token,
+              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc',
           },
           body: JSON.stringify({
             email: values.email,
