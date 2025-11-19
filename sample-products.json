@@ -1,0 +1,26 @@
+[
+  {
+    "PRODUCT": "RX VIALS W CAPS",
+    "SIZE": "9DR",
+    "QTY_CASE": "385",
+    "RATE_CS": "33.49",
+    "RATE_PIECE": "0.086987",
+    "CATEGORY": "RX VIALS"
+  },
+  {
+    "PRODUCT": "LIQUID OVALS W CAPS",
+    "SIZE": "2OZ",
+    "QTY_CASE": "200",
+    "RATE_CS": "41.29",
+    "RATE_PIECE": "0.20645",
+    "CATEGORY": "LIQUID OVALS"
+  },
+  {
+    "PRODUCT": "OINTMENT JARS W CR CAPS",
+    "SIZE": "0.5OZ",
+    "QTY_CASE": "81",
+    "RATE_CS": "35.81",
+    "RATE_PIECE": "0.44210",
+    "CATEGORY": "OINTMENT JARS"
+  }
+]
