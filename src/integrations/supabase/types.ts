@@ -1089,6 +1089,125 @@ export type Database = {
         };
         Relationships: [];
       };
+
+       customer_notes: {
+        Row: {
+          id: string;
+          customer_id: string;
+          title: string;
+          content: string;
+          category: string;
+          is_pinned: boolean;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id: string;
+          title: string;
+          content: string;
+          category?: string;
+          is_pinned?: boolean;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string;
+          title?: string;
+          content?: string;
+          category?: string;
+          is_pinned?: boolean;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_notes_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_notes_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      customer_tasks: {
+        Row: {
+          id: string;
+          customer_id: string;
+          title: string;
+          description: string | null;
+          priority: string;
+          status: string;
+          due_date: string;
+          reminder_date: string | null;
+          assigned_to: string;
+          created_by: string;
+          created_at: string;
+          completed_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          customer_id: string;
+          title: string;
+          description?: string | null;
+          priority?: string;
+          status?: string;
+          due_date: string;
+          reminder_date?: string | null;
+          assigned_to: string;
+          created_by: string;
+          created_at?: string;
+          completed_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          customer_id?: string;
+          title?: string;
+          description?: string | null;
+          priority?: string;
+          status?: string;
+          due_date?: string;
+          reminder_date?: string | null;
+          assigned_to?: string;
+          created_by?: string;
+          created_at?: string;
+          completed_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "customer_tasks_customer_id_fkey";
+            columns: ["customer_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_tasks_assigned_to_fkey";
+            columns: ["assigned_to"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "customer_tasks_created_by_fkey";
+            columns: ["created_by"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
     };
     Views: {
       [_ in never]: never;

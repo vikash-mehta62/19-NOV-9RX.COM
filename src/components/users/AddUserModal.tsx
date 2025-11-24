@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { baseUserSchema, BaseUserFormData } from "./schemas/sharedFormSchema";
-import { SharedUserForm } from "./forms/SharedUserForm";
+import { TabbedUserForm } from "./forms/TabbedUserForm";
 import { supabase } from "@/supabaseClient";
 import { useState } from "react";
 import { v4 as uuidv4 } from "uuid";
@@ -295,14 +295,14 @@ console.log(session)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[725px] max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Customer</DialogTitle>
           <DialogDescription>
             Create a new customer account with the following details.
           </DialogDescription>
         </DialogHeader>
-        <SharedUserForm
+        <TabbedUserForm
           form={form}
           onSubmit={onSubmit}
           submitLabel="Create Customer"

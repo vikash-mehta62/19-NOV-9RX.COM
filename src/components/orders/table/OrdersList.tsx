@@ -416,9 +416,9 @@ export function OrdersList({
           {poIs && <TableHead className="font-semibold text-center border-gray-300">
             Order Number
           </TableHead>}
-           <TableHead className="font-semibold text-center border-gray-300">
+           {poIs &&<TableHead className="font-semibold text-center border-gray-300">
             Notes
-          </TableHead>
+          </TableHead>}
           <TableHead className="font-semibold text-center border-gray-300">
             {poIs ? "Vendor" : "Customer"} Name
           </TableHead>
@@ -434,6 +434,9 @@ export function OrdersList({
             <>
               <TableHead className="font-semibold text-center border-gray-300">
                 Status
+              </TableHead>
+                  <TableHead className="font-semibold text-center border-gray-300">
+                Payment Status
               </TableHead>
               <TableHead className="font-semibold text-center border-gray-300">
                 Tracking
@@ -548,6 +551,27 @@ export function OrdersList({
                     >
                       {order.status.toUpperCase() || "pending"}
                     </Badge>
+                  </TableCell>
+
+
+                   <TableCell className="text-center border-gray-300">
+                    <div className="flex items-center justify-center gap-2">
+                      <Badge variant="secondary" className={getStatusColor(order?.payment_status || "")}>
+                        {order?.payment_status.toUpperCase() || "UNPAID"}
+                      </Badge>
+                      {order?.payment_status.toLowerCase() === "unpaid" &&  !order.void && (
+                        <button
+                          onClick={() => {
+                            console.log("Cliced")
+                            setSelectCustomerInfo(order);
+                            setModalIsOpen(true);
+                          }}
+                          className="bg-green-600 text-[14px] text-white px-5 py-1 rounded-md transition"
+                        >
+                          Pay
+                        </button>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-center border-gray-300">
                     {order.shipping?.trackingNumber &&

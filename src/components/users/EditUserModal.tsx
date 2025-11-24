@@ -1,6 +1,6 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SharedUserForm } from "./forms/SharedUserForm";
+import { TabbedUserForm } from "./forms/TabbedUserForm";
 import { useEditUserForm } from "./hooks/useEditUserForm";
 import { useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -99,7 +99,7 @@ export function EditUserModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+        className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto"
         aria-describedby="edit-user-description"
       >
         <DialogHeader>
@@ -127,7 +127,7 @@ export function EditUserModal({
         )}
 
         {!formState.isLoading && (
-          <SharedUserForm
+          <TabbedUserForm
             form={form}
             onSubmit={handleSubmit}
             submitLabel={formState.isSaving ? "Saving..." : "Save changes"}

@@ -6,9 +6,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, UserCheck, UserMinus, UserPen, X } from "lucide-react";
+import { MoreVertical, UserCheck, UserMinus, UserPen, X, Eye } from "lucide-react";
 import { useState } from "react";
 import { EditUserModal } from "./EditUserModal";
+import { ViewProfileModal } from "./ViewProfileModal";
 import { activateUser } from "./actions/activateUser";
 import { deactivateUser } from "./actions/deactivateUser";
 import { deleteUser } from "./actions/deleteUser";
@@ -31,6 +32,7 @@ const UserActions = ({
   onUserUpdated,
 }: UserActionsProps) => {
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [viewModalOpen, setViewModalOpen] = useState(false);
 
   const handleAction = async (action: string) => {
     try {
@@ -44,6 +46,9 @@ const UserActions = ({
       let success = false;
       
       switch (action) {
+        case "view":
+          setViewModalOpen(true);
+          return;
         case "edit":
           setEditModalOpen(true);
           return;
@@ -77,6 +82,10 @@ const UserActions = ({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => handleAction("view")}>
+            <Eye className="mr-2 h-4 w-4" />
+            View Profile
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={() => handleAction("edit")}>
             <UserPen className="mr-2 h-4 w-4" />
             Edit
@@ -101,6 +110,12 @@ const UserActions = ({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <ViewProfileModal
+        userId={userId}
+        open={viewModalOpen}
+        onOpenChange={setViewModalOpen}
+      />
 
       <EditUserModal
         user={{
