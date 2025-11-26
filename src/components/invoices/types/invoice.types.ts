@@ -10,11 +10,15 @@ export interface InvoiceItem {
 }
 
 export interface CustomerInfo {
-  name: any;
+  fullName?: string; // or name?: string; depending on what you use
   phone: string;
   email: string;
-  street?: string;
-  city?: string;
+  address?: {
+    street?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+  };
 }
 
 export const InvoiceStatusEnum = {

@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { Invoice, InvoiceStatus, isInvoice, InvoiceRealtimePayload } from "../types/invoice.types";
+import { Invoice, InvoiceStatus, isInvoice, InvoiceRealtimePayload, CustomerInfo } from "../types/invoice.types";
 import { InvoicePreview } from "../InvoicePreview";
 import { Sheet } from "@/components/ui/sheet";
 import { InvoiceTableContent } from "./InvoiceTableContent";
@@ -83,7 +83,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         } else {
           setInvoices([]);
           setTotalInvoices(0);
-     
+
           setLoading(false);
           return;
         }
@@ -136,7 +136,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
 
       // Update pagination info
       setTotalInvoices(count || 0);
-      
+
     } catch (error) {
       console.error("Error in fetchInvoices:", error);
       toast({
@@ -192,7 +192,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
 
   useEffect(() => {
     fetchInvoices();
-  }, [filters, refreshTrigger,limit,page]);
+  }, [filters, refreshTrigger, limit, page]);
 
   const handleSort = (key: string) => {
     setSortConfig((currentSort) => {
@@ -272,21 +272,28 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
       (invoice) => invoice.void === false
     );
 
-    const csvData = filteredInvoices?.map((invoice) => ({
-      "Invoice Number": invoice.invoice_number,
-      "Order Number": invoice.orders?.order_number || "",
-      "Customer Name": `${invoice.profiles?.first_name || ""} ${invoice.profiles?.last_name || ""}`,
-      "Email": invoice.profiles?.email || "",
-      "Company Name": (invoice.profiles as any)?.company_name || "",
+    const csvData = filteredInvoices?.map((invoice) => {
+      const shippingInfo =
+        typeof invoice.shipping_info === "string"
+          ? (JSON.parse(invoice.shipping_info) as CustomerInfo)
+          : (invoice.shipping_info as CustomerInfo);
 
-      "Tax": invoice.tax_amount,
-      "Subtotal": invoice.subtotal,
-      "Payment Status": invoice.payment_status,
-      "Created At": invoice.created_at,
-      "Shipping Address": invoice.shipping_info
-        ? `${invoice.shipping_info.street}, ${invoice.shipping_info.city}, ${invoice.shipping_info.state}, ${invoice.shipping_info.zip_code}`
-        : "",
-    }));
+      return {
+        "Invoice Number": invoice.invoice_number,
+        "Order Number": invoice.orders?.order_number || "",
+        "Customer Name": `${invoice.profiles?.first_name || ""} ${invoice.profiles?.last_name || ""
+          }`,
+        Email: invoice.profiles?.email || "",
+        "Company Name": (invoice.profiles as any)?.company_name || "",
+        Tax: invoice.tax_amount,
+        Subtotal: invoice.subtotal,
+        "Payment Status": invoice.payment_status,
+        "Created At": invoice.created_at,
+        "Shipping Address": shippingInfo?.address
+          ? `${shippingInfo.address.street ?? ""}, ${shippingInfo.address.city ?? ""}, ${shippingInfo.address.state ?? ""}, ${shippingInfo.address.zip_code ?? ""}`
+          : "",
+      };
+    });
 
     return csvData;
   };
@@ -341,12 +348,12 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
       </Sheet>
 
       <Pagination
-              totalOrders={totalInvoices}
-              page={page}
-              setPage={setPage}
-              limit={limit}
-              setLimit={setLimit}
-            />
+        totalOrders={totalInvoices}
+        page={page}
+        setPage={setPage}
+        limit={limit}
+        setLimit={setLimit}
+      />
     </>
   );
 }

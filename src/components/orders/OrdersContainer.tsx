@@ -512,11 +512,11 @@ export const OrdersContainer = ({
                     </SheetTitle>
                   </SheetHeader>
 
-                  {!orderData && (
+                  {/* {!orderData && (
                     <div className="flex justify-center items-center h-64">
                       <LoaderCircle className="animate-spin w-8 h-8 text-gray-500" />
                     </div>
-                  )}
+                  )} */}
 
                   {(
                     <div className="mb-4 mt-2">

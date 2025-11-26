@@ -66,7 +66,7 @@ export function InvoiceTableContent({
                     {typeof invoice.customer_info === "object" &&
                       invoice.customer_info !== null &&
                       "name" in invoice.customer_info
-                      ? invoice.customer_info.name
+                      ? String(invoice.customer_info.name)
                       : `${invoice.profiles?.first_name ?? ""} ${invoice.profiles?.last_name ?? ""}`.trim()}
                   </span>
 

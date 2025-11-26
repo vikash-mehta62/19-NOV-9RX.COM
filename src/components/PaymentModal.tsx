@@ -198,6 +198,79 @@ function getCardIcon(cardType) {
   }
 }
 
+// Helper function to Generate invoice after payment.
+async function createInvoice(order: any, totalAmount: number, newTax: number) {
+  // ✅ STEP 1: Check customer payment terms
+  const { data: customerProfile, error: profileError } = await supabase
+    .from("profiles")
+    .select("payment_terms")
+    .eq("id", order.profile_id)
+    .single();
+
+  if (profileError) {
+    console.error("Error fetching customer profile:", profileError);
+    throw new Error(profileError.message);
+  }
+
+  // ✅ STEP 2. Skip invoice generation for credit customers
+  const isCreditCustomer = customerProfile.payment_terms === 'credit' || customerProfile.payment_terms === 'net_30';
+  if (isCreditCustomer) {
+    console.log(`⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`);
+    return;
+  }
+
+  // ✅ STEP 3. Generate invoice for prepay customers
+  const year = new Date().getFullYear();
+  const { data: inData, error: fetchError } = await supabase
+    .from("centerize_data")
+    .select("id, invoice_no, invoice_start")
+    .order("id", { ascending: false })
+    .limit(1);
+  if (fetchError) throw new Error(fetchError.message);
+  const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+  const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+  // Update invoice number
+  if (inData?.[0]?.id) {
+    const { error: updateError } = await supabase
+      .from("centerize_data")
+      .update({ invoice_no: newInvNo })
+      .eq("id", inData[0].id);
+    if (updateError) throw new Error(updateError.message);
+  }
+
+  const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+  const dueDate = new Date(new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+  // Prepare invoice data
+  const invoiceData = {
+    invoice_number: invoiceNumber,
+    order_id: order.id,
+    due_date: dueDate,
+    profile_id: order.profile_id,
+    status: "pending",
+    amount: totalAmount,
+    tax_amount: newTax,
+    total_amount: totalAmount,
+    payment_status: order.payment_status || "paid",
+    payment_method: order.paymentMethod || "card",
+    notes: order.notes || null,
+    purchase_number_external: order.purchase_number_external,
+    items: order.items,
+    customer_info: order.customerInfo,
+    shipping_info: order.shippingAddress,
+    shippin_cost: order.shipping_cost,
+    subtotal: totalAmount
+  };
+  
+  const { error: invoiceError } = await supabase
+    .from("invoices")
+    .insert(invoiceData);
+  if (invoiceError) throw new Error(invoiceError.message);
+
+  console.log(`✅ Invoice ${invoiceNumber} created successfully for prepay customer`);
+}
+
 const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false }) => {
   const [paymentType, setPaymentType] = useState("credit_card")
   const { toast } = useToast()
@@ -206,8 +279,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
   const [cardType, setCardType] = useState({ type: "unknown", name: "Credit Card", cvvLength: 3 })
 
-console.log(  orders
-)
+  console.log(orders
+  )
   const [formData, setFormData] = useState({
     amount: 0,
     cardNumber: "",
@@ -226,65 +299,48 @@ console.log(  orders
     notes: "",
   })
 
-
-
   const [selectedMonth, setSelectedMonth] = useState("")
-const [selectedYear, setSelectedYear] = useState("")
+  const [selectedYear, setSelectedYear] = useState("")
 
-useEffect(() => {
-  if (selectedMonth && selectedYear) {
-    const expiration = `${selectedMonth}/${selectedYear.slice(2)}` // Format MM/YY
-    setFormData((prev) => ({
-      ...prev,
-      expirationDate: expiration,
-    }))
+  useEffect(() => {
+    if (selectedMonth && selectedYear) {
+      const expiration = `${selectedMonth}/${selectedYear.slice(2)}` // Format MM/YY
+      setFormData((prev) => ({
+        ...prev,
+        expirationDate: expiration,
+      }))
+    }
+  }, [selectedMonth, selectedYear])
+
+
+
+  useEffect(() => {
+    if (formData.expirationDate) {
+      const [mm, yy] = formData.expirationDate.split("/")
+      setSelectedMonth(mm)
+      setSelectedYear("20" + yy) // Assuming format is MM/YY
+    }
+  }, [])
+
+  const getYears = (range = 10) => {
+    const currentYear = new Date().getFullYear()
+    return Array.from({ length: range }, (_, i) => currentYear + i)
   }
-}, [selectedMonth, selectedYear])
 
-
-
-useEffect(() => {
-  if (formData.expirationDate) {
-    const [mm, yy] = formData.expirationDate.split("/")
-    setSelectedMonth(mm)
-    setSelectedYear("20" + yy) // Assuming format is MM/YY
-  }
-}, [])
-
-
-
-
-
-
-
-
-
-
-
-const getYears = (range = 10) => {
-  const currentYear = new Date().getFullYear()
-  return Array.from({ length: range }, (_, i) => currentYear + i)
-}
-
-const months = [
-  { value: "01", label: "January" },
-  { value: "02", label: "February" },
-  { value: "03", label: "March" },
-  { value: "04", label: "April" },
-  { value: "05", label: "May" },
-  { value: "06", label: "June" },
-  { value: "07", label: "July" },
-  { value: "08", label: "August" },
-  { value: "09", label: "September" },
-  { value: "10", label: "October" },
-  { value: "11", label: "November" },
-  { value: "12", label: "December" },
-]
-
-
-
-
-
+  const months = [
+    { value: "01", label: "January" },
+    { value: "02", label: "February" },
+    { value: "03", label: "March" },
+    { value: "04", label: "April" },
+    { value: "05", label: "May" },
+    { value: "06", label: "June" },
+    { value: "07", label: "July" },
+    { value: "08", label: "August" },
+    { value: "09", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" },
+  ]
 
   const [errors, setErrors] = useState({
     cardNumber: null,
@@ -373,12 +429,26 @@ const months = [
     console.log("Current payment type:", paymentType)
   }, [paymentType])
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e:any) => {
     e.preventDefault()
 
-    
+
     // Initialize validation errors
-    const newErrors = {}
+    const newErrors = {
+      cardNumber: null as string | null,
+      cvv: null as string | null,
+      expirationDate: null as string | null,
+      cardholderName: null as string | null,
+      address: null as string | null,
+      city: null as string | null,
+      state: null as string | null,
+      zip: null as string | null,
+      country: null as string | null,
+      routingNumber: null as string | null,
+      accountNumber: null as string | null,
+      nameOnAccount: null as string | null,
+      notes: null as string | null,
+    }
     let hasErrors = false
 
     // Validate fields based on payment type
@@ -481,7 +551,28 @@ const months = [
       return
     }
 
+
+    // Check if invoice exists for this order
     const { data, error } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
+
+
+    // If invoice does not exist, generate it (using order info)
+    let invoiceNumber = data?.invoice_number;
+    if (!data) {
+      // Try to get order info for invoice creation
+      let orderInfo = orders;
+      let totalAmount = formData.amount;
+      let newTax = 0; // You may want to calculate tax if needed
+      try {
+        await createInvoice(orderInfo, totalAmount, newTax);
+        // Fetch the new invoice number
+        const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
+        invoiceNumber = newInvoice?.invoice_number;
+      } catch (err) {
+        console.error("Invoice generation after payment failed:", err);
+        toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
+      }
+    }
 
     const paymentData =
       paymentType === "credit_card"
@@ -497,7 +588,7 @@ const months = [
           state: formData.state,
           zip: formData.zip,
           country: formData.country,
-          invoiceNumber: data.invoice_number,
+          orderNumber: orders.order_number,
         }
         : {
           paymentType,
@@ -511,7 +602,7 @@ const months = [
           state: formData.state,
           zip: formData.zip,
           country: formData.country,
-          invoiceNumber: data.invoice_number,
+          orderNumber: orders.order_number,
         }
 
     try {
@@ -624,6 +715,8 @@ const months = [
       })
     }
   }
+
+
   console.log(orders)
   return (
     <div className="flex justify-center items-center min-h-screen z-[99999]">
@@ -652,28 +745,28 @@ const months = [
             <div className="mb-4">
               <Label htmlFor="paymentType">Payment Method</Label>
 
-          <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 w-full max-w-md space-y-4">
-      <h4 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-        <CreditCard className="h-5 w-5 text-indigo-600" />
-        Payment Summary
-      </h4>
+              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 w-full max-w-md space-y-4">
+                <h4 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                  <CreditCard className="h-5 w-5 text-indigo-600" />
+                  Payment Summary
+                </h4>
 
-      <div className="flex items-center justify-between text-sm text-gray-700">
-        <span className="flex items-center gap-2">
-          <DollarSign className="h-4 w-4 text-green-500" />
-          Amount Due:
-        </span>
-        <span className="font-medium">${formData.amount}</span>
-      </div>
+                <div className="flex items-center justify-between text-sm text-gray-700">
+                  <span className="flex items-center gap-2">
+                    <DollarSign className="h-4 w-4 text-green-500" />
+                    Amount Due:
+                  </span>
+                  <span className="font-medium">${formData.amount}</span>
+                </div>
 
-      <div className="flex items-center justify-between text-sm text-gray-700">
-        <span className="flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-blue-500" />
-          Order Number:
-        </span>
-        <span className="font-medium">{orders?.order_number || "N/A"}</span>
-      </div>
-    </div>
+                <div className="flex items-center justify-between text-sm text-gray-700">
+                  <span className="flex items-center gap-2">
+                    <Receipt className="h-4 w-4 text-blue-500" />
+                    Order Number:
+                  </span>
+                  <span className="font-medium">{orders?.order_number || "N/A"}</span>
+                </div>
+              </div>
               <div className="mt-1">
                 <select
                   id="paymentType"
@@ -728,72 +821,72 @@ const months = [
                     {errors.cardNumber && <p className="text-sm font-medium text-destructive">{errors.cardNumber}</p>}
                   </div>
 
-                   <div className="grid grid-cols-2 gap-4">
-      <div className="space-y-2">
-        <Label htmlFor="expirationMonth" className={cn(errors.expirationDate && "text-destructive")}>
-          Expiration Month / Year
-        </Label>
-        <div className="flex gap-2">
-          <select
-            id="expirationMonth"
-            name="expirationMonth"
-            value={selectedMonth}
-            onChange={(e) => setSelectedMonth(e.target.value)}
-            className={cn(
-              "w-1/2 rounded border px-2 py-2",
-              errors.expirationDate && "border-destructive focus-visible:ring-destructive"
-            )}
-          >
-            <option value="">Month</option>
-            {months.map((month) => (
-              <option key={month.value} value={month.value}>
-                {month.label}
-              </option>
-            ))}
-          </select>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="expirationMonth" className={cn(errors.expirationDate && "text-destructive")}>
+                        Expiration Month / Year
+                      </Label>
+                      <div className="flex gap-2">
+                        <select
+                          id="expirationMonth"
+                          name="expirationMonth"
+                          value={selectedMonth}
+                          onChange={(e) => setSelectedMonth(e.target.value)}
+                          className={cn(
+                            "w-1/2 rounded border px-2 py-2",
+                            errors.expirationDate && "border-destructive focus-visible:ring-destructive"
+                          )}
+                        >
+                          <option value="">Month</option>
+                          {months.map((month) => (
+                            <option key={month.value} value={month.value}>
+                              {month.label}
+                            </option>
+                          ))}
+                        </select>
 
-          <select
-            id="expirationYear"
-            name="expirationYear"
-            value={selectedYear}
-            onChange={(e) => setSelectedYear(e.target.value)}
-            className={cn(
-              "w-1/2 rounded border px-2 py-2",
-              errors.expirationDate && "border-destructive focus-visible:ring-destructive"
-            )}
-          >
-            <option value="">Year</option>
-            {getYears().map((year) => (
-              <option key={year} value={year.toString()}>
-                {year}
-              </option>
-            ))}
-          </select>
-        </div>
-        {errors.expirationDate && (
-          <p className="text-sm font-medium text-destructive">{errors.expirationDate}</p>
-        )}
-      </div>
+                        <select
+                          id="expirationYear"
+                          name="expirationYear"
+                          value={selectedYear}
+                          onChange={(e) => setSelectedYear(e.target.value)}
+                          className={cn(
+                            "w-1/2 rounded border px-2 py-2",
+                            errors.expirationDate && "border-destructive focus-visible:ring-destructive"
+                          )}
+                        >
+                          <option value="">Year</option>
+                          {getYears().map((year) => (
+                            <option key={year} value={year.toString()}>
+                              {year}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      {errors.expirationDate && (
+                        <p className="text-sm font-medium text-destructive">{errors.expirationDate}</p>
+                      )}
+                    </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="cvv" className={cn(errors.cvv && "text-destructive")}>
-          CVV ({cardType.cvvLength} digits)
-        </Label>
-        <div className="relative">
-          <input
-            id="cvv"
-            type="text"
-            name="cvv"
-            placeholder={cardType.cvvLength === 4 ? "1234" : "123"}
-            value={formData.cvv}
-            onChange={handleChange}
-            className={cn("pl-2 w-full rounded border py-2", errors.cvv && "border-destructive focus:ring-destructive")}
-            required
-          />
-        </div>
-        {errors.cvv && <p className="text-sm font-medium text-destructive">{errors.cvv}</p>}
-      </div>
-    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cvv" className={cn(errors.cvv && "text-destructive")}>
+                        CVV ({cardType.cvvLength} digits)
+                      </Label>
+                      <div className="relative">
+                        <input
+                          id="cvv"
+                          type="text"
+                          name="cvv"
+                          placeholder={cardType.cvvLength === 4 ? "1234" : "123"}
+                          value={formData.cvv}
+                          onChange={handleChange}
+                          className={cn("pl-2 w-full rounded border py-2", errors.cvv && "border-destructive focus:ring-destructive")}
+                          required
+                        />
+                      </div>
+                      {errors.cvv && <p className="text-sm font-medium text-destructive">{errors.cvv}</p>}
+                    </div>
+                  </div>
 
                   <div className="space-y-2">
                     <Label htmlFor="cardholderName" className={cn(errors.cardholderName && "text-destructive")}>

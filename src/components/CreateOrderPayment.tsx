@@ -325,7 +325,7 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
 
           console.log("Creating invoice with data:", invoiceData);
 
-          const { invoicedata2, error } = await supabase
+          const { data: invoicedata2, error } = await supabase
             .from("invoices")
             .insert(invoiceData)
             .select()
