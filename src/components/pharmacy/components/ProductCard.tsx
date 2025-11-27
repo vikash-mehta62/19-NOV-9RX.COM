@@ -19,7 +19,11 @@ interface ProductCardProps {
   form?: any;
 }
 
-export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCardProps) => {
+export const ProductCard = ({
+  product,
+  isEditing = false,
+  form = {},
+}: ProductCardProps) => {
   const { toast } = useToast();
   const { addToCart, cartItems } = useCart();
   const [isAddingToCart, setIsAddingToCart] = useState(false);
@@ -37,8 +41,8 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
 
   const formItems = isEditing ? form.getValues()?.items || [] : cartItems;
   const [selectedTypeBySize, setSelectedTypeBySize] = useState<{
-    [sizeId: string]: "case" | "unit"
-  }>({})
+    [sizeId: string]: "case" | "unit";
+  }>({});
   const isInCart = formItems.some(
     (item: any) => item.productId?.toString() === product.id?.toString()
   );
@@ -61,50 +65,52 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
     }
   };
 
- const handleAddToCart = async () => {
-  setIsAddingToCart(true);
+  const handleAddToCart = async () => {
+    setIsAddingToCart(true);
 
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-    if (!session) {
-      navigate("/login");
-      return;
-    }
+      if (!session) {
+        navigate("/login");
+        return;
+      }
 
-    if (product.stock < 1) {
-      throw new Error("Product is out of stock");
-    }
+      if (product.stock < 1) {
+        throw new Error("Product is out of stock");
+      }
 
-    const imageUrl = product.images[0] || product.image_url;
+      const imageUrl = product.images[0] || product.image_url;
 
-    // 🔥 Get all selected sizes
-    const updatedSizes = product.sizes
-      .filter((size) =>
-        selectedSizes.includes(`${size.size_value}-${size.size_unit}`)
-      )
-      .map((size) => {
-        const quantityValue = quantity[size.id] || 1;
-        const type = selectedTypeBySize[`${size.size_value}-${size.size_unit}`] || "case";
-        console.log(type)
-        const price =
-          type === "unit" && size.price_per_case
-            ? size.price_per_case
-            : size.price;
+      // 🔥 Get all selected sizes
+      const updatedSizes = product.sizes
+        .filter((size) =>
+          selectedSizes.includes(`${size.size_value}-${size.size_unit}`)
+        )
+        .map((size) => {
+          const quantityValue = quantity[size.id] || 1;
+          const type =
+            selectedTypeBySize[`${size.size_value}-${size.size_unit}`] ||
+            "case";
+          console.log(type);
+          const price =
+            type === "unit" && size.price_per_case
+              ? size.price_per_case
+              : size.price;
 
-        return {
-          ...size,
-          quantity: quantityValue,
-          type: type, // ✅ Include selected type
-          price: price,   // ✅ Add calculated unit price
-          total_price: price * quantityValue, // ✅ Precalculate
-        };
-      })
-      .filter((size) => size.quantity > 0);
+          return {
+            ...size,
+            quantity: quantityValue,
+            type: type, // ✅ Include selected type
+            price: price, // ✅ Add calculated unit price
+            total_price: price * quantityValue, // ✅ Precalculate
+          };
+        })
+        .filter((size) => size.quantity > 0);
 
-      console.log(updatedSizes)
+      console.log(updatedSizes);
       const totalPrice = updatedSizes.reduce(
         (sum, size) => sum + size.price * size.quantity,
         0
@@ -115,7 +121,7 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
         0
       );
 
-      console.log(highestShippingCost)
+      console.log(highestShippingCost);
       const cartItem = {
         productId: product.id.toString(),
         name: product.name,
@@ -132,7 +138,6 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
       };
 
       console.log("Cart Item:", cartItem);
-
 
       if (isEditing && form) {
         const currentItems = form.getValues("items") || [];
@@ -172,7 +177,6 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
           throw new Error("Failed to add to cart");
         }
       }
-
     } catch (error: any) {
       console.error("Error adding to cart:", error);
       toast({
@@ -189,31 +193,49 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Card className="group hover:shadow-lg transition-all duration-300 cursor-pointer">
-          <CardContent className="p-6">
+        <Card
+          className="
+        group cursor-pointer 
+        rounded-2xl border border-gray-200 bg-white 
+        shadow-sm hover:shadow-md 
+        transition-all duration-300
+        p-4 flex items-center gap-4
+      "
+        >
+          {/* LEFT — IMAGE */}
+          <div
+            className="
+          w-24 h-24 rounded-xl overflow-hidden 
+          bg-gray-100 flex-shrink-0
+          group-hover:scale-105 transition-all duration-300
+        "
+          >
             <ProductImage
               image={product.images[0] || product.image}
               name={product.name}
               offer={product.offer}
               stockStatus={stockStatus}
             />
+          </div>
 
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-lg text-center font-semibold mb-1">
-                  {product.name}
-                </h3>
+          {/* RIGHT — TEXT DETAILS */}
+          <div className="flex flex-col justify-center flex-1">
+            <h3
+              className="
+            text-base font-semibold text-gray-800 
+            mb-1 group-hover:text-purple-600
+            transition-all
+          "
+            >
+              {product.name}
+            </h3>
 
-                {/* <p className="text-gray-600 text-sm">{product.description}</p> */}
-              </div>
+            {/* optional description */}
+            {/* <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p> */}
 
-              {/* <ProductPricing
-                basePrice={product.base_price || product.price}
-                offer={product.offer}
-                tierPricing={product.tierPricing}
-              /> */}
-            </div>
-          </CardContent>
+            {/* PRICE SECTION (optional) */}
+            {/* <div className="mt-2 text-sm font-bold text-green-600">₹{product.price}</div> */}
+          </div>
         </Card>
       </DialogTrigger>
 
@@ -231,8 +253,8 @@ export const ProductCard = ({ product, isEditing = false, form = {} }: ProductCa
         setSelectedSizesSKU={setSelectedSizesSKU}
         selectedSizes={selectedSizes}
         selectedSizesSKU={selectedSizesSKU}
-         selectedTypeBySize={selectedTypeBySize}
-                setSelectedTypeBySize={setSelectedTypeBySize}
+        selectedTypeBySize={selectedTypeBySize}
+        setSelectedTypeBySize={setSelectedTypeBySize}
       />
     </Dialog>
   );

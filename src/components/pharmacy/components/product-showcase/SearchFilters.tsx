@@ -1,6 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Search, Filter } from "lucide-react";
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,25 +24,30 @@ export const SearchFilters = ({
   selectedCategory,
   setSelectedCategory,
   priceRange,
-  setPriceRange
+  setPriceRange,
 }: SearchFiltersProps) => {
   return (
-    <div className="flex flex-col md:flex-row gap-4 items-center bg-white p-4 rounded-lg shadow-sm">
-      <div className="relative flex-1 w-full">
-        <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+    <div className="bg-gradient-to-r from-purple-500/10 via-pink-500/10 to-blue-500/10 p-6 rounded-2xl shadow-md border border-gray-200 space-y-4">
+      <h2 className="text-xl font-semibold text-gray-800">Filter Products</h2>
+
+      {/* SEARCH BOX */}
+      <div className="relative">
+        <Search className="absolute left-4 top-3.5 h-5 w-5 text-gray-500" />
         <Input
-          placeholder="Search products by name, description, or ID..."
-          className="pl-8"
+          placeholder="Search products..."
+          className="pl-12 py-6 rounded-xl border-gray-300 focus:ring-2 focus:ring-purple-500"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
       </div>
-      
-      <div className="flex gap-4 w-full md:w-auto">
+
+      {/* FILTERS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* CATEGORY */}
         <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-[200px]">
-            <Filter className="w-4 h-4 mr-2" />
-            <SelectValue placeholder="Category" />
+          <SelectTrigger className="py-6 rounded-xl border-gray-300 text-gray-700 font-medium shadow-sm bg-white">
+            <Filter className="w-4 h-4 mr-2 text-purple-600" />
+            <SelectValue placeholder="Select Category" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
@@ -54,8 +59,9 @@ export const SearchFilters = ({
           </SelectContent>
         </Select>
 
+        {/* PRICE RANGE */}
         <Select value={priceRange} onValueChange={setPriceRange}>
-          <SelectTrigger className="w-[200px]">
+          <SelectTrigger className="py-6 rounded-xl border-gray-300 text-gray-700 font-medium shadow-sm bg-white">
             <SelectValue placeholder="Price Range" />
           </SelectTrigger>
           <SelectContent>

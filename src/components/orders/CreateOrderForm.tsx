@@ -10,7 +10,11 @@ import { PaymentSection } from "./sections/PaymentSection";
 import { ShippingSection } from "./sections/ShippingSection";
 import { OrderFormActions } from "./form/OrderFormActions";
 import { useLocation, useNavigate } from "react-router-dom";
-import { generateOrderId, calculateOrderTotal, generatePurchaseOrderId } from "./utils/orderUtils";
+import {
+  generateOrderId,
+  calculateOrderTotal,
+  generatePurchaseOrderId,
+} from "./utils/orderUtils";
 import {
   validateOrderItems,
   useOrderValidation,
@@ -34,7 +38,6 @@ export interface CreateOrderFormProps {
   poIs?: boolean;
   use?: string;
   locationId?: any;
-
 }
 
 export function CreateOrderForm({
@@ -43,7 +46,6 @@ export function CreateOrderForm({
   isEditing,
   use,
   locationId,
-  
 }: CreateOrderFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -55,25 +57,21 @@ export function CreateOrderForm({
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [isCus, setIsCus] = useState<boolean>(false);
   const [isPriceChange, setIsPriceChange] = useState<boolean>(false);
-const location = useLocation();
+  const location = useLocation();
   const [poIs, setPoIs] = useState(false);
-console.log(initialData?.customerInfo)
+  console.log(initialData?.customerInfo);
   useEffect(() => {
-   
-    if (location.pathname.startsWith('/admin/po')) {
+    if (location.pathname.startsWith("/admin/po")) {
       setPoIs(true);
     } else {
       setPoIs(false);
     }
   }, [location.pathname]);
 
-  
   console.log(userProfile);
-  const [pId, setPId] = useState(
-    initialData?.customerInfo.cusid || ""
-  );
-  const userTypeRole = sessionStorage.getItem('userType');
-  console.log(initialData)
+  const [pId, setPId] = useState(initialData?.customerInfo.cusid || "");
+  const userTypeRole = sessionStorage.getItem("userType");
+  console.log(initialData);
   useEffect(() => {
     setPId(initialData?.customerInfo.cusid || initialData?.customer);
   }, [initialData, userProfile]);
@@ -96,20 +94,36 @@ console.log(initialData?.customerInfo)
       poAccept: !poIs,
 
       customerInfo: {
-        name: initialData?.customerInfo?.name || `${initialData?.customerInfo?.name || ""} ${userProfile?.last_name || ""}`,
+        name:
+          initialData?.customerInfo?.name ||
+          `${initialData?.customerInfo?.name || ""} ${
+            userProfile?.last_name || ""
+          }`,
         email: initialData?.customerInfo?.email || "",
         phone: userProfile?.mobile_phone || "",
-        type: initialData?.customerInfo?.type ||  "Pharmacy",
+        type: initialData?.customerInfo?.type || "Pharmacy",
         address: {
-          street: initialData?.customerInfo?.address?.street || userProfile?.company_name || "",
-          city: initialData?.customerInfo?.address?.city || userProfile?.city || "",
-          state: initialData?.customerInfo?.address?.state || userProfile?.state || "",
-          zip_code: initialData?.customerInfo?.address?.zip_code || userProfile?.zip_code || "",
+          street:
+            initialData?.customerInfo?.address?.street ||
+            userProfile?.company_name ||
+            "",
+          city:
+            initialData?.customerInfo?.address?.city || userProfile?.city || "",
+          state:
+            initialData?.customerInfo?.address?.state ||
+            userProfile?.state ||
+            "",
+          zip_code:
+            initialData?.customerInfo?.address?.zip_code ||
+            userProfile?.zip_code ||
+            "",
         },
       },
 
       shippingAddress: {
-        fullName: initialData?.customerInfo?.name || `${userProfile?.first_name || ""} ${userProfile?.last_name || ""}`,
+        fullName:
+          initialData?.customerInfo?.name ||
+          `${userProfile?.first_name || ""} ${userProfile?.last_name || ""}`,
         email: initialData?.customerInfo?.email || "",
         phone: userProfile?.mobile_phone || "",
         address: {
@@ -170,13 +184,12 @@ console.log(initialData?.customerInfo)
     return () => subscription.unsubscribe();
   }, [form, validateForm]);
 
-
   function cleanCartItems(cartItems) {
-    const cleanedItems = cartItems.map(item => {
-      const updatedSizes = item.sizes.map(size => ({
+    const cleanedItems = cartItems.map((item) => {
+      const updatedSizes = item.sizes.map((size) => ({
         ...size,
         quantity: Number(size.quantity),
-        price: Number(size.price)
+        price: Number(size.price),
       }));
 
       const updatedPrice = updatedSizes.reduce(
@@ -203,14 +216,8 @@ console.log(initialData?.customerInfo)
     return cleanedItems;
   }
 
-
-
-
   // const onSubmit = async (data: OrderFormValues) => {
   //   console.log(cartItems);
-
-
-
 
   //   try {
   //     setIsSubmitting(true);
@@ -221,22 +228,16 @@ console.log(initialData?.customerInfo)
   //     // Validate order items
   //     validateOrderItems(data.items);
 
-
   //     // Calculate order total
   //     const calculatedTotal = calculateOrderTotal(
   //       cleanedCartItems,
   //       totalShippingCost || 0
   //     );
 
-
-
   //     const newtax = ((calculatedTotal - totalShippingCost) * Number(taxper)) / 100;
-
-
 
   //     console.log(cleanedCartItems)
   //     console.log(calculatedTotal + newtax)
-
 
   //     if (userProfile?.id == null) {
   //       toast({
@@ -247,7 +248,6 @@ console.log(initialData?.customerInfo)
   //       });
   //       return;
   //     }
-
 
   //     const defaultEstimatedDelivery = new Date();
   //     defaultEstimatedDelivery.setDate(defaultEstimatedDelivery.getDate() + 10);
@@ -270,7 +270,6 @@ console.log(initialData?.customerInfo)
   //     sessionStorage.getItem('userType') === "group" ? profileID = pId : userProfile?.id
   //     console.log(profileID)
 
-
   //     const orderData = {
   //       order_number: orderNumber,
   //       profile_id: profileID,
@@ -292,8 +291,6 @@ console.log(initialData?.customerInfo)
   //       poAccept: !poIs
   //     };
 
-
-
   //     // Save order to Supabase
   //     const { data: orderResponse, error: orderError } = await supabase
   //       .from("orders")
@@ -309,11 +306,9 @@ console.log(initialData?.customerInfo)
   //     const newOrder = orderResponse[0];
   //     console.log("Order saved:", newOrder);
 
-
   //     // !poIs
   //     if (!poIs) {
   //       const year = new Date().getFullYear(); // Get current year (e.g., 2025)
-
 
   //       const { data: inData, error: erroIn } = await supabase
   //         .from("centerize_data")
@@ -329,17 +324,13 @@ console.log(initialData?.customerInfo)
   //       let newInvNo = 1; // Default to 1 if no previous order exists
   //       let invoiceStart = "INV"; // Default order prefix
 
-
   //       if (inData && inData.length > 0) {
   //         newInvNo = (inData[0].invoice_no || 0) + 1; // Increment last order number
   //         invoiceStart = inData[0].invoice_start || "INV"; // Use existing order_start
   //       }
 
-
   //       const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
   //       // const invoiceNumber = "DEV-TEST123";
-
-
 
   //       const { error: updateError } = await supabase
   //         .from("centerize_data")
@@ -386,7 +377,6 @@ console.log(initialData?.customerInfo)
   //           parseFloat(calculatedTotal + newtax + (isCus ? 0.5 : 0)),
   //       };
 
-
   //       const { invoicedata2, error } = await supabase
   //         .from("invoices")
   //         .insert(invoiceData)
@@ -397,8 +387,6 @@ console.log(initialData?.customerInfo)
   //         console.error("Error creating invoice:", error);
   //         throw error;
   //       }
-
-
 
   //       // Prepare and save order items
   //       const orderItemsData = cleanedCartItems.map((item) => ({
@@ -418,8 +406,6 @@ console.log(initialData?.customerInfo)
   //         throw new Error(itemsError.message);
   //       }
 
-
-
   //       // Update product stock
   //       for (const item of data.items) {
   //         // console.log("Updating stock for quantity ID:", item.quantity);
@@ -435,10 +421,6 @@ console.log(initialData?.customerInfo)
   //         }
   //       }
 
-
-
-
-
   //       const { data: orderResponse2, error: orderError2 } = await supabase
   //         .from("orders")
   //         .select()
@@ -448,7 +430,6 @@ console.log(initialData?.customerInfo)
   //         console.error("Order creation error:", orderError2);
   //         throw new Error(orderError2.message);
   //       }
-
 
   //       const { data: profileData, error: profileEror } = await supabase
   //         .from("profiles")
@@ -471,9 +452,7 @@ console.log(initialData?.customerInfo)
   //       }
   //     }
 
-
   //     if(poIs && false){
-
 
   //         const estimatedDeliveryDate = new Date(newOrder.estimated_delivery);
 
@@ -509,7 +488,6 @@ console.log(initialData?.customerInfo)
   //           parseFloat(calculatedTotal + newtax + (isCus ? 0.5 : 0)),
   //       };
 
-
   //       const { invoicedata2, error } = await supabase
   //         .from("invoices")
   //         .insert(invoiceData)
@@ -520,8 +498,6 @@ console.log(initialData?.customerInfo)
   //         console.error("Error creating invoice:", error);
   //         throw error;
   //       }
-
-
 
   //       // Prepare and save order items
   //       const orderItemsData = cleanedCartItems.map((item) => ({
@@ -542,8 +518,6 @@ console.log(initialData?.customerInfo)
   //       }
 
   //     }
-
-
 
   //     if (!poIs) {
   //       for (const item of data.items) {
@@ -585,13 +559,10 @@ console.log(initialData?.customerInfo)
   //     localStorage.removeItem("cartItems");
   //     window.location.reload();
 
-
   //     toast({
   //       title: "Order Created Successfully",
   //       description: `Order ID: ${newOrder.id} has been created.`,
   //     });
-
-
 
   //     const logsData = {
   //       user_id: newOrder.profile_id,
@@ -609,7 +580,6 @@ console.log(initialData?.customerInfo)
   //     } catch (apiError) {
   //       console.error("Failed to store logs:", apiError);
   //     }
-
 
   //     form.reset();
   //     // setOrderItems([{ id: 1 }]);
@@ -632,7 +602,6 @@ console.log(initialData?.customerInfo)
   //       }
   //     }
 
-
   //     await clearCart();
   //   } catch (error) {
   //     console.error("Order creation error:", error);
@@ -649,9 +618,6 @@ console.log(initialData?.customerInfo)
   //   }
   // };
 
-
-
-
   const onSubmit = async (data: OrderFormValues) => {
     try {
       setIsSubmitting(true);
@@ -659,27 +625,37 @@ console.log(initialData?.customerInfo)
 
       // Early validation
       if (!userProfile?.id) {
-        toast({ title: "User profile not found", description: "Please log in to create an order.", duration: 5000, variant: "destructive" });
+        toast({
+          title: "User profile not found",
+          description: "Please log in to create an order.",
+          duration: 5000,
+          variant: "destructive",
+        });
         return;
       }
 
       // Parallel data preparation
       const [taxPer, cleanedCartItems] = await Promise.all([
         Promise.resolve(Number(sessionStorage.getItem("taxper") || 0)),
-        Promise.resolve(cleanCartItems(cartItems))
+        Promise.resolve(cleanCartItems(cartItems)),
       ]);
 
       validateOrderItems(data.items);
 
-      const calculatedTotal = calculateOrderTotal(cleanedCartItems, totalShippingCost || 0);
+      const calculatedTotal = calculateOrderTotal(
+        cleanedCartItems,
+        totalShippingCost || 0
+      );
       const newTax = ((calculatedTotal - totalShippingCost) * taxPer) / 100;
       const totalAmount = calculatedTotal + newTax;
 
       // Determine profile ID
       const profileID =
-        sessionStorage.getItem('userType') === "admin" ? data.customer :
-          sessionStorage.getItem('userType') === "group" ? pId :
-            userProfile.id;
+        sessionStorage.getItem("userType") === "admin"
+          ? data.customer
+          : sessionStorage.getItem("userType") === "group"
+          ? pId
+          : userProfile.id;
 
       // Generate order number
       const orderNumber = poIs
@@ -702,10 +678,11 @@ console.log(initialData?.customerInfo)
         customerInfo: data.customerInfo,
         shippingAddress: data.shippingAddress,
         tracking_number: data.shipping?.trackingNumber,
-        estimated_delivery: data.shipping?.estimatedDelivery ||
+        estimated_delivery:
+          data.shipping?.estimatedDelivery ||
           new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
         location_id: pId,
-        poAccept: !poIs
+        poAccept: !poIs,
       };
 
       // Create order
@@ -723,11 +700,19 @@ console.log(initialData?.customerInfo)
         await Promise.all([
           createInvoice(orderResponse, totalAmount, newTax),
           updateStock(data.items),
-          handlePostOrderProcessing(orderResponse, cleanedCartItems, totalAmount)
+          handlePostOrderProcessing(
+            orderResponse,
+            cleanedCartItems,
+            totalAmount
+          ),
         ]);
       } else {
         // For PO orders, just handle post-processing
-        await handlePostOrderProcessing(orderResponse, cleanedCartItems, totalAmount);
+        await handlePostOrderProcessing(
+          orderResponse,
+          cleanedCartItems,
+          totalAmount
+        );
       }
 
       // Final cleanup
@@ -737,16 +722,16 @@ console.log(initialData?.customerInfo)
       await clearCart();
 
       // Navigation
-      const userType = sessionStorage.getItem('userType');
+      const userType = sessionStorage.getItem("userType");
       const routes = {
         group: "/group/orders",
         pharmacy: "/pharmacy/orders",
-        admin: poIs ? "/admin/po" : "/admin/orders"
+        admin: poIs ? "/admin/po" : "/admin/orders",
       };
 
       if (routes[userType as keyof typeof routes]) {
         navigate(routes[userType as keyof typeof routes], {
-          state: { createOrder: false }
+          state: { createOrder: false },
         });
       }
       window.location.reload();
@@ -754,12 +739,14 @@ console.log(initialData?.customerInfo)
         title: "Order Created Successfully",
         description: `Order ID: ${orderResponse.id} has been created.`,
       });
-
     } catch (error) {
       console.error("Order creation error:", error);
       toast({
         title: "Error Creating Order",
-        description: error instanceof Error ? error.message : "There was a problem creating your order.",
+        description:
+          error instanceof Error
+            ? error.message
+            : "There was a problem creating your order.",
         variant: "destructive",
       });
     } finally {
@@ -768,113 +755,128 @@ console.log(initialData?.customerInfo)
   };
 
   // Optimized helper functions
-  const createInvoice = async (order: any, totalAmount: number, newTax: number) => {
-  // ✅ STEP 1: Check customer payment terms
-  const { data: customerProfile, error: profileError } = await supabase
-    .from("profiles")
-    .select("payment_terms")
-    .eq("id", order.profile_id)
-    .single();
+  const createInvoice = async (
+    order: any,
+    totalAmount: number,
+    newTax: number
+  ) => {
+    // ✅ STEP 1: Check customer payment terms
+    const { data: customerProfile, error: profileError } = await supabase
+      .from("profiles")
+      .select("payment_terms")
+      .eq("id", order.profile_id)
+      .single();
 
-  if (profileError) {
-    console.error("Error fetching customer profile:", profileError);
-    throw new Error(profileError.message);
-  }
+    if (profileError) {
+      console.error("Error fetching customer profile:", profileError);
+      throw new Error(profileError.message);
+    }
 
-  // ✅ STEP 2: Skip invoice generation for credit customers
-  const isCreditCustomer = customerProfile.payment_terms === 'credit' || customerProfile.payment_terms === 'net_30';
-  
-  if (isCreditCustomer) {
-    console.log(`⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`);
-    return; // Exit early - no invoice created
-  }
+    // ✅ STEP 2: Skip invoice generation for credit customers
+    const isCreditCustomer =
+      customerProfile.payment_terms === "credit" ||
+      customerProfile.payment_terms === "net_30";
 
-  // ✅ STEP 3: Generate invoice ONLY for prepay customers
-  console.log(`✅ Creating invoice for prepay customer: ${order.profile_id}`);
-  
-  const year = new Date().getFullYear();
+    if (isCreditCustomer) {
+      console.log(
+        `⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`
+      );
+      return; // Exit early - no invoice created
+    }
 
-  // Get invoice number
-  const { data: inData, error: fetchError } = await supabase
-    .from("centerize_data")
-    .select("id, invoice_no, invoice_start")
-    .order("id", { ascending: false })
-    .limit(1);
+    // ✅ STEP 3: Generate invoice ONLY for prepay customers
+    console.log(`✅ Creating invoice for prepay customer: ${order.profile_id}`);
 
-  if (fetchError) throw new Error(fetchError.message);
+    const year = new Date().getFullYear();
 
-  const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-  const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-  // Update invoice number
-  if (inData?.[0]?.id) {
-    const { error: updateError } = await supabase
+    // Get invoice number
+    const { data: inData, error: fetchError } = await supabase
       .from("centerize_data")
-      .update({ invoice_no: newInvNo })
-      .eq("id", inData[0].id);
+      .select("id, invoice_no, invoice_start")
+      .order("id", { ascending: false })
+      .limit(1);
 
-    if (updateError) throw new Error(updateError.message);
-  }
+    if (fetchError) throw new Error(fetchError.message);
 
-  const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
-  const dueDate = new Date(new Date(order.estimated_delivery).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+    const invoiceStart = inData?.[0]?.invoice_start || "INV";
 
-  // Create invoice
-  const invoiceData = {
-    invoice_number: invoiceNumber,
-    order_id: order.id,
-    due_date: dueDate,
-    profile_id: order.profile_id,
-    status: "pending" as InvoiceStatus,
-    amount: totalAmount,
-    tax_amount: newTax,
-    total_amount: totalAmount,
-    payment_status: order.payment_status,
-    payment_method: order.paymentMethod as PaymentMethod,
-    notes: order.notes || null,
-    purchase_number_external: order.purchase_number_external,
-    items: order.items,
-    customer_info: order.customerInfo,
-    shipping_info: order.shippingAddress,
-    shippin_cost: order.shipping_cost,
-    subtotal: totalAmount + (isCus ? 0.5 : 0)
+    // Update invoice number
+    if (inData?.[0]?.id) {
+      const { error: updateError } = await supabase
+        .from("centerize_data")
+        .update({ invoice_no: newInvNo })
+        .eq("id", inData[0].id);
+
+      if (updateError) throw new Error(updateError.message);
+    }
+
+    const invoiceNumber = `${invoiceStart}-${year}${newInvNo
+      .toString()
+      .padStart(6, "0")}`;
+    const dueDate = new Date(
+      new Date(order.estimated_delivery).getTime() + 30 * 24 * 60 * 60 * 1000
+    ).toISOString();
+
+    // Create invoice
+    const invoiceData = {
+      invoice_number: invoiceNumber,
+      order_id: order.id,
+      due_date: dueDate,
+      profile_id: order.profile_id,
+      status: "pending" as InvoiceStatus,
+      amount: totalAmount,
+      tax_amount: newTax,
+      total_amount: totalAmount,
+      payment_status: order.payment_status,
+      payment_method: order.paymentMethod as PaymentMethod,
+      notes: order.notes || null,
+      purchase_number_external: order.purchase_number_external,
+      items: order.items,
+      customer_info: order.customerInfo,
+      shipping_info: order.shippingAddress,
+      shippin_cost: order.shipping_cost,
+      subtotal: totalAmount + (isCus ? 0.5 : 0),
+    };
+
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .insert(invoiceData);
+
+    if (invoiceError) throw new Error(invoiceError.message);
+
+    console.log(
+      `✅ Invoice ${invoiceNumber} created successfully for prepay customer`
+    );
   };
-
-  const { error: invoiceError } = await supabase
-    .from("invoices")
-    .insert(invoiceData);
-
-  if (invoiceError) throw new Error(invoiceError.message);
-  
-  console.log(`✅ Invoice ${invoiceNumber} created successfully for prepay customer`);
-};
-
 
   const updateStock = async (items: any[]) => {
     // Batch product updates
-    const productUpdates = items.map(item =>
+    const productUpdates = items.map((item) =>
       supabase.rpc("decrement_stock", {
         product_id: item.productId,
-        quantity: item.quantity
+        quantity: item.quantity,
       })
     );
 
     // Batch size updates
-    const sizeUpdates = items.flatMap(item =>
-      item.sizes?.map(size =>
-        supabase
-          .from("product_sizes")
-          .select("stock")
-          .eq("id", size.id)
-          .single()
-          .then(({ data, error }) => {
-            if (error || !data) throw new Error(`Size not found for ID: ${size.id}`);
-            return supabase
-              .from("product_sizes")
-              .update({ stock: data.stock - size.quantity })
-              .eq("id", size.id);
-          })
-      ) || []
+    const sizeUpdates = items.flatMap(
+      (item) =>
+        item.sizes?.map((size) =>
+          supabase
+            .from("product_sizes")
+            .select("stock")
+            .eq("id", size.id)
+            .single()
+            .then(({ data, error }) => {
+              if (error || !data)
+                throw new Error(`Size not found for ID: ${size.id}`);
+              return supabase
+                .from("product_sizes")
+                .update({ stock: data.stock - size.quantity })
+                .eq("id", size.id);
+            })
+        ) || []
     );
 
     // Execute all updates in parallel
@@ -882,13 +884,17 @@ console.log(initialData?.customerInfo)
     const results = await Promise.allSettled(updatePromises);
 
     // Check for errors
-    const errors = results.filter(r => r.status === 'rejected');
+    const errors = results.filter((r) => r.status === "rejected");
     if (errors.length > 0) {
       throw new Error("Stock update failed for some items");
     }
   };
 
-  const handlePostOrderProcessing = async (order: any, cartItems: any[], totalAmount: number) => {
+  const handlePostOrderProcessing = async (
+    order: any,
+    cartItems: any[],
+    totalAmount: number
+  ) => {
     // Get profile data
     const { data: profileData } = await supabase
       .from("profiles")
@@ -901,7 +907,8 @@ console.log(initialData?.customerInfo)
       // Send email notification
       (async () => {
         if (profileData?.email_notifaction && !poIs) {
-          await axios.post("/order-place", order)
+          await axios
+            .post("/order-place", order)
             .then(() => {
               console.log("Order status sent successfully to backend.");
             })
@@ -916,12 +923,12 @@ console.log(initialData?.customerInfo)
         const logsData = {
           user_id: order.profile_id,
           order_id: order.order_number,
-          action: 'order_created',
+          action: "order_created",
           details: {
             message: `Order Created: ${order.order_number}`,
             items: cartItems,
-            orderCreateBY: userProfile
-          }
+            orderCreateBY: userProfile,
+          },
         };
 
         try {
@@ -929,24 +936,20 @@ console.log(initialData?.customerInfo)
         } catch (err) {
           console.error("Failed to store logs:", err);
         }
-      })()
+      })(),
     ]);
   };
-
 
   useEffect(() => {
     const VVV = form.getValues();
     console.log(VVV);
   }, []);
 
-
   const [isOpen, setIsOpen] = useState(false);
 
-  const [isCustom, setIsCustom] = useState(false)
+  const [isCustom, setIsCustom] = useState(false);
   return (
     <>
-
-
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
           <CustomerSelectionField
@@ -956,40 +959,50 @@ console.log(initialData?.customerInfo)
             poIs={poIs}
           />
 
-
           <div className="">
+            {userTypeRole === "admin" && (
+              <div className="flex justify-end w-full gap-5">
+                <p
+                  onClick={(e) => {
+                    e.preventDefault(); // Form submit hone se rokne ke liye
+                    setIsPriceChange(!isPriceChange);
+                  }}
+                  className="cursor-pointer px-4 py-2 bg-green-600 text-white font-medium rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition-all inline-block text-center"
+                >
+                  {isPriceChange ? "Close Edit Price" : "Edit Price"}
+                </p>
 
-            {userTypeRole === "admin" && <div className="flex justify-end w-full gap-5">
-              <p
-                onClick={(e) => {
-                  e.preventDefault(); // Form submit hone se rokne ke liye
-                  setIsPriceChange(!isPriceChange);
-                }}
-                className="cursor-pointer px-4 py-2 bg-green-600 text-white font-medium rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition-all inline-block text-center"
-              >
-                {isPriceChange ? "Close Edit Price" : "Edit Price"}
-              </p>
+                {
+                  <div>
+                    <div className=" flex gap-4">
+                      <p
+                        onClick={() => setIsOpen(true)}
+                        className="p-2 cursor-pointer bg-blue-600 text-white rounded"
+                      >
+                        Add Items
+                      </p>
+                      {
+                        <p
+                          onClick={() => setIsCustom(true)}
+                          className="p-2 cursor-pointer bg-gray-600 text-white rounded"
+                        >
+                          Add Additional Items
+                        </p>
+                      }
+                    </div>
 
-              {<div>
-                <div className=" flex gap-4">
-                  <p onClick={() => setIsOpen(true)} className="p-2 cursor-pointer bg-blue-600 text-white rounded">
-                    Add Items
-                  </p>
-                  {<p onClick={() => setIsCustom(true)} className="p-2 cursor-pointer bg-gray-600 text-white rounded">
-                    Add Additional Items
-                  </p>}
-                </div>
+                    <CustomProductForm
+                      isOpen={isCustom}
+                      onClose={() => setIsCustom(false)}
+                      isEditing={isEditing}
+                      form={form}
+                    />
+                  </div>
+                }
+              </div>
+            )}
 
-                <CustomProductForm isOpen={isCustom} onClose={() => setIsCustom(false)} isEditing={isEditing} form={form} />
-              </div>}
-
-            </div>}
-
-
-
-            {
-              isPriceChange && <CartItemsPricing />
-            }
+            {isPriceChange && <CartItemsPricing />}
 
             {isOpen && (
               <div className="fixed -inset-4 flex items-center justify-center bg-black bg-opacity-50 h-screen z-[50]">
@@ -1004,23 +1017,26 @@ console.log(initialData?.customerInfo)
 
                   {/* Modal Content */}
 
-                  <ProductShowcase groupShow={true} isEditing={isEditing} form={form} />
+                  <ProductShowcase
+                    groupShow={true}
+                    isEditing={isEditing}
+                    form={form}
+                  />
                 </div>
               </div>
             )}
             <OrderItemsSection
-              orderItems={form.getValues('items') || cartItems}
+              orderItems={form.getValues("items") || cartItems}
               form={form}
               setIsCus={setIsCus}
               isCus={isCus}
               isEditing={isEditing}
-
               poIs={poIs}
             />
           </div>
           <ShippingSection form={form} />
 
-          { <PaymentSection form={form} isEditing={isEditing} poIs={poIs} />}
+          {<PaymentSection form={form} isEditing={isEditing} poIs={poIs} />}
 
           <OrderFormActions
             orderData={form.getValues()}
