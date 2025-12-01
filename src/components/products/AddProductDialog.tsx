@@ -97,22 +97,32 @@ export function AddProductDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[95vh] p-0">
-        <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
-          <DialogTitle className="text-xl font-semibold flex items-center gap-2">
-            <Package className="h-5 w-5 text-blue-600" />
+      <DialogContent className="sm:max-w-5xl max-h-[95vh] p-0 gap-0">
+        <DialogHeader className="px-8 py-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600">
+          <DialogTitle className="text-2xl font-bold flex items-center gap-3 text-white">
+            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
+              <Package className="h-6 w-6 text-white" />
+            </div>
             {initialData ? "Edit Product" : "Add New Product"}
           </DialogTitle>
+          <p className="text-blue-100 text-sm mt-1">
+            {initialData ? "Update product information and details" : "Fill in the details to add a new product to your inventory"}
+          </p>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(95vh-140px)]">
+        <ScrollArea className="max-h-[calc(95vh-180px)]">
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6 p-6">
+            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8 p-8 bg-gray-50">
               {/* Basic Information */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 bg-blue-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-gray-900">Basic Information</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg">
+                    <span className="text-blue-600 font-bold text-sm">1</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Basic Information</h3>
+                    <p className="text-sm text-gray-500">Product category, name, and description</p>
+                  </div>
                 </div>
                 <BasicInfoSection
                   form={form}
@@ -124,13 +134,18 @@ export function AddProductDialog({
                 />
               </div>
 
-              <Separator />
+              <Separator className="bg-gray-300" />
 
               {/* Product Images */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 bg-green-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-gray-900">Product Images</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-lg">
+                    <span className="text-green-600 font-bold text-sm">2</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Product Images</h3>
+                    <p className="text-sm text-gray-500">Upload high-quality product images</p>
+                  </div>
                 </div>
                 <ImageUploadField
                   form={form}
@@ -148,44 +163,48 @@ export function AddProductDialog({
                 />
               </div>
 
-              <Separator />
+              <Separator className="bg-gray-300" />
 
               {/* Size Options */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 bg-purple-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-gray-900">Size Options & Pricing</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-lg">
+                    <span className="text-purple-600 font-bold text-sm">3</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Size Options & Pricing</h3>
+                    <p className="text-sm text-gray-500">Configure available sizes and their prices</p>
+                  </div>
                 </div>
                 <SizeOptionsField form={form} isEditing={initialData ? true : false} />
               </div>
 
-              <Separator />
+              <Separator className="bg-gray-300" />
 
               {/* Customization */}
               <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 bg-orange-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-gray-900">Customization Options</h3>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-lg">
+                    <span className="text-orange-600 font-bold text-sm">4</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900">Customization Options</h3>
+                    <p className="text-sm text-gray-500">Add custom options for this product</p>
+                  </div>
                 </div>
                 <CustomizationSection form={form} />
               </div>
-
-              <Separator />
-
-              {/* Inventory */}
-              {/* <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="h-2 w-2 bg-red-500 rounded-full"></div>
-                  <h3 className="text-lg font-semibold text-gray-900">Inventory Management</h3>
-                </div>
-                <InventorySection form={form} />
-              </div> */}
             </form>
           </Form>
         </ScrollArea>
 
-        <DialogFooter className="px-6 py-4 border-t bg-gray-50 flex-col sm:flex-row gap-2">
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="w-full sm:w-auto">
+        <DialogFooter className="px-8 py-5 border-t bg-white flex-col sm:flex-row gap-3 shadow-lg">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={() => onOpenChange(false)} 
+            className="w-full sm:w-auto h-11 border-gray-300 hover:bg-gray-50"
+          >
             <X className="h-4 w-4 mr-2" />
             Cancel
           </Button>
@@ -193,7 +212,7 @@ export function AddProductDialog({
             type="submit"
             disabled={loading}
             onClick={form.handleSubmit(handleSubmit)}
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
+            className="w-full sm:w-auto h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
           >
             {loading ? (
               <>

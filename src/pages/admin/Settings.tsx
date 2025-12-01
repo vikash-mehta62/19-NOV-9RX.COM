@@ -18,6 +18,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
+import { CategoryManagement } from "@/components/admin/CategoryManagement";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface PaymentSettings {
   enabled: boolean;
@@ -231,6 +233,16 @@ export default function Settings() {
             </div>
           </form>
         </Form>
+
+        {/* Category Management Section */}
+        <Card className="mt-8">
+          <CardHeader>
+            <CardTitle>Category & Subcategory Management</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <CategoryManagement />
+          </CardContent>
+        </Card>
       </div>
     </DashboardLayout>
   );

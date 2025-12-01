@@ -864,7 +864,8 @@ export function OrdersList({
                       >
                         {order?.payment_status.toUpperCase() || "UNPAID"}
                       </Badge>
-                      {order?.payment_status.toLowerCase() === "unpaid" &&
+                      {(order?.payment_status.toLowerCase() === "unpaid" ||
+                      order?.payment_status.toLowerCase() === "pending" )&&
                         order.status !== "credit_approval_processing" &&
                         !order.void && (
                           <button
