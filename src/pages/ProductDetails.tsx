@@ -1,17 +1,53 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
-import { supabase } from "@/supabaseClient"
+import { supabase } from "@/integrations/supabase/client"
 import type { Product } from "@/types/product"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
+
 import { Skeleton } from "@/components/ui/skeleton"
-import { ArrowLeft, Package, Info, Layers, Lock, LogIn, UserPlus, ImageIcon, Loader2 } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Navbar } from "@/components/landing/HeroSection"
+import { useCart } from "@/hooks/use-cart"
+import { useSelector } from "react-redux"
+import { RootState } from "@/store/store"
+
+// Apply group pricing to sizes - SAME LOGIC AS PRODUCT SHOWCASE
+const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string) => {
+  return sizes.map((size) => {
+    let newPrice = size.price;
+
+    // Find applicable group
+    const applicableGroup = groupData.find(
+      (group: any) =>
+        group.group_ids.includes(userId) &&
+        group.product_arrayjson.some((p: any) => p.product_id === size.id)
+    );
+
+    if (applicableGroup) {
+      const groupProduct = applicableGroup.product_arrayjson.find(
+        (p: any) => p.product_id === size.id
+      );
+
+      if (groupProduct?.new_price) {
+        newPrice = parseFloat(groupProduct.new_price);
+      }
+    }
+
+    return {
+      ...size,
+      price: newPrice,
+      originalPrice: size.price !== newPrice ? size.price : 0,
+    };
+  });
+};
 
 // Image Loading Component
 const ImageWithLoader = ({
@@ -122,12 +158,17 @@ const ProductDetails = () => {
   const { id } = useParams()
   const navigate = useNavigate()
   const { toast } = useToast()
+  const { addToCart, cartItems } = useCart()
+  const userProfile = useSelector((state: RootState) => state.user.profile)
+  const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true'
+  
   const [product, setProduct] = useState<Product | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedImage, setSelectedImage] = useState<string>("")
-  const [selectedSize, setSelectedSize] = useState<string | null>(null)
+  const [selectedSizes, setSelectedSizes] = useState<Map<string, number>>(new Map()) // Map of size.id -> quantity
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
+  const [addingToCart, setAddingToCart] = useState(false)
 
   const getSupabaseImageUrl = async (path: string): Promise<string> => {
     if (!path || path === "/placeholder.svg") return "/placeholder.svg"
@@ -139,10 +180,10 @@ const ProductDetails = () => {
     try {
       setLoadingImages((prev) => ({ ...prev, [path]: true }))
 
-      const { data, error } = supabase.storage.from("product-images").getPublicUrl(path)
+      const { data } = supabase.storage.from("product-images").getPublicUrl(path)
 
-      if (error || !data?.publicUrl) {
-        console.error("Error getting image URL:", error)
+      if (!data?.publicUrl) {
+        console.error("Error getting image URL")
         return "/placeholder.svg"
       }
 
@@ -157,6 +198,116 @@ const ProductDetails = () => {
     }
   }
 
+  // Get price for a size - Simple getter since pricing already applied
+  const getSizePrice = (size: any) => {
+    if (!isLoggedIn) return null
+    return size.price || 0
+  }
+
+  // Handle add to cart - Multiple sizes (Same logic as ProductCard)
+  const handleAddToCart = async () => {
+    if (!isLoggedIn) {
+      toast({
+        title: "Login Required",
+        description: "Please login to add items to cart",
+        variant: "destructive"
+      })
+      navigate('/login')
+      return
+    }
+
+    if (selectedSizes.size === 0) {
+      toast({
+        title: "Select Size",
+        description: "Please select at least one size before adding to cart",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setAddingToCart(true)
+
+    try {
+      const imageUrl = imageUrls[product!.image_url] || product!.image_url
+
+      // Get all selected sizes with their quantities
+      const updatedSizes = Array.from(selectedSizes.entries())
+        .map(([sizeId, quantity]) => {
+          const size = product!.sizes.find(s => s.id === sizeId)
+          if (!size || quantity < 1) return null
+
+          const price = getSizePrice(size) || 0
+
+          return {
+            id: size.id,
+            size_value: size.size_value,
+            size_unit: size.size_unit,
+            price: price,
+            quantity: quantity,
+            sku: size.sku,
+            total_price: price * quantity,
+            shipping_cost: product!.shipping_cost || 0
+          }
+        })
+        .filter(Boolean) as any[]
+
+      // Calculate total price for all sizes
+      const totalPrice = updatedSizes.reduce(
+        (sum, size) => sum + size.price * size.quantity,
+        0
+      )
+
+      // Get highest shipping cost
+      const highestShippingCost = updatedSizes.reduce(
+        (max, size) => (size.shipping_cost > max ? size.shipping_cost : max),
+        0
+      )
+
+      // Create single cart item with multiple sizes (Same as ProductCard)
+      const cartItem = {
+        productId: product!.id.toString(),
+        name: product!.name,
+        price: totalPrice,
+        image: imageUrl,
+        shipping_cost: Number(highestShippingCost) || 0,
+        sizes: updatedSizes,
+        quantity: updatedSizes.reduce((total, size) => total + size.quantity, 0),
+        customizations: {},
+        notes: ''
+      }
+
+      console.log('Adding to cart:', cartItem)
+      const success = await addToCart(cartItem)
+
+      if (success) {
+        toast({
+          title: "✅ Added to Cart",
+          description: `${product!.name} with ${selectedSizes.size} size(s) added successfully!`,
+        })
+        setSelectedSizes(new Map()) // Clear selections
+      } else {
+        throw new Error('Failed to add to cart')
+      }
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add items to cart",
+        variant: "destructive"
+      })
+    } finally {
+      setAddingToCart(false)
+    }
+  }
+
+  // Check if a size is already in cart
+  const isSizeInCart = (sizeId: string) => {
+    return cartItems.some(item => 
+      item.productId === product?.id.toString() && 
+      item.sizes.some((s: any) => s.id === sizeId)
+    )
+  }
+
   useEffect(() => {
     const fetchProduct = async () => {
       if (!id) {
@@ -166,13 +317,30 @@ const ProductDetails = () => {
       }
 
       try {
-        console.log("Fetching product with ID:", id)
+        console.log("Fetching product with ID or SKU:", id)
 
-        const { data: productData, error } = await supabase
-          .from("products")
-          .select("*, product_sizes(*)")
-          .eq("id", id)
-          .single()
+        // Try to fetch by ID first, then by SKU
+        let productData, error;
+        
+        // Check if id is a UUID (contains hyphens)
+        if (id.includes('-')) {
+          const result = await supabase
+            .from("products")
+            .select("*, product_sizes(*)")
+            .eq("id", id)
+            .single()
+          productData = result.data
+          error = result.error
+        } else {
+          // Try by SKU
+          const result = await supabase
+            .from("products")
+            .select("*, product_sizes(*)")
+            .eq("sku", id)
+            .single()
+          productData = result.data
+          error = result.error
+        }
 
         if (error) {
           console.error("Error fetching product:", error)
@@ -264,6 +432,24 @@ const ProductDetails = () => {
 
         setImageUrls(urlMap)
         setSelectedImage(urlMap[mappedProduct.image_url] || mappedProduct.image_url)
+
+        // Apply group pricing if logged in - SAME LOGIC AS PRODUCT SHOWCASE
+        if (isLoggedIn && userProfile?.id && mappedProduct.sizes.length > 0) {
+          const { data: groupData, error: groupErr } = await supabase
+            .from("group_pricing")
+            .select("*");
+
+          if (!groupErr && groupData) {
+            console.log("Applying group pricing to sizes:", groupData);
+            mappedProduct.sizes = applyGroupPricingToSizes(
+              mappedProduct.sizes,
+              groupData,
+              userProfile.id
+            );
+          }
+        }
+
+        setProduct(mappedProduct)
       } catch (error) {
         console.error("Error fetching product:", error)
         toast({
@@ -277,20 +463,32 @@ const ProductDetails = () => {
     }
 
     fetchProduct()
-  }, [id, navigate, toast])
+  }, [id, navigate, toast, isLoggedIn, userProfile])
 
-  const handleSizeClick = async (sizeId: string, sizeImage?: string) => {
-    console.log("Size clicked:", sizeId, "Image:", sizeImage)
-    setSelectedSize(sizeId)
-
-    if (sizeImage && sizeImage.trim() !== "") {
-      const imageUrl = imageUrls[sizeImage] || (await getSupabaseImageUrl(sizeImage))
-      setSelectedImage(imageUrl)
+  const handleSizeClick = async (size: any) => {
+    console.log("Size clicked:", size)
+    
+    // Toggle selection
+    const newSelectedSizes = new Map(selectedSizes)
+    if (newSelectedSizes.has(size.id)) {
+      newSelectedSizes.delete(size.id)
     } else {
-      // If no size image, keep the main product image
-      const mainImageUrl = imageUrls[product?.image_url || ""] || product?.image_url || ""
-      setSelectedImage(mainImageUrl)
+      newSelectedSizes.set(size.id, 1) // Default quantity 1
     }
+    setSelectedSizes(newSelectedSizes)
+
+    // Update image if size has one
+    if (size.image && size.image.trim() !== "") {
+      const imageUrl = imageUrls[size.image] || (await getSupabaseImageUrl(size.image))
+      setSelectedImage(imageUrl)
+    }
+  }
+
+  const updateSizeQuantity = (sizeId: string, quantity: number) => {
+    if (quantity < 1) return
+    const newSelectedSizes = new Map(selectedSizes)
+    newSelectedSizes.set(sizeId, quantity)
+    setSelectedSizes(newSelectedSizes)
   }
 
   const handleImageClick = (imageUrl: string) => {
@@ -382,186 +580,102 @@ const ProductDetails = () => {
       })) || []),
   ]
 
-  return (
-<>
-      <Navbar />
+return (
+  <>
+    <Navbar />
 
     <div className="min-h-screen bg-gray-50 pt-16">
       {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
-          <Button variant="ghost" onClick={() => navigate("/")} className="mb-4">
+      <div className="bg-white border-b">
+        <div className="container mx-auto px-4 py-6">
+          <Button
+            variant="ghost"
+            onClick={() => navigate("/")}
+            className="mb-4 hover:bg-emerald-50 hover:text-emerald-700 transition"
+          >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Products
           </Button>
 
-          <div className="flex items-center gap-4">
-            {product.category && (
-              <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200">{product.category}</Badge>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3">
+              {product.category && (
+                <Badge className="bg-emerald-600 text-white px-3 py-1">
+                  {product.category}
+                </Badge>
+              )}
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                {product.name}
+              </h1>
+            </div>
+
+            {product.sku && (
+              <div className="text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded-lg">
+                SKU: {product.sku}
+              </div>
             )}
-            <h1 className="text-3xl font-bold text-gray-900">{product.name}</h1>
           </div>
         </div>
       </div>
 
+      {/* ---------------- MAIN CONTENT ---------------- */}
       <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          {/* Product Images */}
-          <div className="space-y-6">
-            {/* Main Image Display */}
-            <div className="aspect-square bg-white rounded-2xl p-8 shadow-lg relative">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+
+          {/* ---------------- LEFT IMAGE SECTION ---------------- */}
+          <div className="lg:col-span-3 space-y-6 lg:sticky lg:top-24">
+
+            {/* Main Image */}
+            <div className="aspect-square bg-white rounded-3xl p-6 shadow-xl border">
               <ImageWithLoader
-                src={selectedImage || imageUrls[product.image_url] || product.image_url}
+                src={selectedImage}
                 alt={product.name}
                 className="w-full h-full object-contain"
               />
-
-              <div className="absolute top-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg px-3 py-2 text-sm font-medium text-gray-700">
-                {allImages.find((img) => img.url === selectedImage)?.label || "Main Product"}
-              </div>
             </div>
 
-            {/* Image Thumbnails */}
+            {/* Thumbnails */}
             {allImages.length > 1 && (
-              <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900 flex items-center">
-                  <ImageIcon className="w-5 h-5 mr-2" />
-                  Product Images
-                </h3>
-                <div className="grid grid-cols-4 gap-3">
-                  {allImages.map((image, index) => (
-                    <ThumbnailImage
-                      key={`${image.type}-${index}`}
-                      image={image}
-                      isSelected={selectedImage === image.url}
-                      onClick={() => handleImageClick(image.url)}
-                    />
-                  ))}
-                </div>
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                {allImages.map((image, index) => (
+                  <ThumbnailImage
+                    key={index}
+                    image={image}
+                    isSelected={selectedImage === image.url}
+                    onClick={() => handleImageClick(image.url)}
+                  />
+                ))}
               </div>
             )}
-          </div>
 
-          {/* Product Details */}
-          <div className="space-y-8">
-            {/* Basic Info */}
-            <Card>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">{product.name}</h2>
-                    {product.sku && <p className="text-gray-600">SKU: {product.sku}</p>}
-                  </div>
-                  <div className="text-right">
-                    <div className="flex items-center text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg">
-                      <Lock className="w-4 h-4 mr-2" />
-                      <span className="font-semibold">Login for Pricing</span>
-                    </div>
-                  </div>
-                </div>
-
-                <Separator className="my-4" />
-
-                {product.description && (
-                  <div>
-                    <h3 className="font-semibold text-gray-900 mb-2 flex items-center">
-                      <Info className="w-4 h-4 mr-2" />
-                      Description
-                    </h3>
-                    <p className="text-gray-600 leading-relaxed">{product.description}</p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Available Sizes - Enhanced */}
-            {product.sizes && product.sizes.length > 0 && (
-              <Card>
+            {/* Description */}
+            {product.description && (
+              <Card className="shadow-md border">
                 <CardContent className="p-6">
-                  <h3 className="font-semibold text-gray-900 mb-6 flex items-center">
-                    <Package className="w-4 h-4 mr-2" />
-                    Available Sizes ({product.sizes.length} options)
+                  <h3 className="font-bold text-lg flex items-center mb-3">
+                    <Info className="w-5 h-5 mr-2 text-emerald-600" />
+                    Product Description
                   </h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {product.sizes.map((size) => (
-                      <div
-                        key={size.id}
-                        className={`border rounded-xl p-4 cursor-pointer transition-all duration-300 hover:shadow-md ${
-                          selectedSize === size.id
-                            ? "border-emerald-500 bg-emerald-50 shadow-lg ring-2 ring-emerald-200"
-                            : "border-gray-200 hover:border-emerald-300 bg-white"
-                        }`}
-                        onClick={() => handleSizeClick(size.id, size.image)}
-                      >
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="flex items-center space-x-4">
-                            {/* Size Image Thumbnail */}
-                            {size.image && size.image.trim() !== "" && (
-                              <div className="w-12 h-12 bg-gray-100 rounded-lg p-1 flex-shrink-0 relative">
-                                <ImageWithLoader
-                                  src={imageUrls[size.image] || size.image}
-                                  alt={`${size.size_value}${size.size_unit}`}
-                                  className="w-full h-full object-contain rounded"
-                                />
-                              </div>
-                            )}
-
-                            <div>
-                              <p className="text-lg font-bold text-gray-900">
-                                {size.size_value}
-                                {size.size_unit}
-                              </p>
-                              {size.sku && <p className="text-sm text-gray-500">SKU: {size.sku}</p>}
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <div className="flex items-center text-emerald-600">
-                              <Lock className="w-3 h-3 mr-1" />
-                              <span className="text-xs font-medium">Login Required</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-2 gap-4 text-sm">
-                         
-                          {size.quantity_per_case > 0 && (
-                            <div>
-                              <span className="text-gray-500">Per Case:</span>
-                              <span className="ml-1 font-medium text-gray-700">{size.quantity_per_case}</span>
-                            </div>
-                          )}
-                        </div>
-
-                        {size.image && size.image.trim() !== "" && (
-                          <div className="mt-3 flex items-center text-emerald-600 text-sm">
-                            <ImageIcon className="w-4 h-4 mr-1" />
-                            <span>Click to view size image</span>
-                          </div>
-                        )}
-
-                        {selectedSize === size.id && (
-                          <div className="mt-3 text-sm text-emerald-700 font-medium">✓ Size selected</div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-gray-700 leading-relaxed">
+                    {product.description}
+                  </p>
                 </CardContent>
               </Card>
             )}
 
             {/* Key Features */}
             {product.key_features && (
-              <Card>
+              <Card className="shadow-md border">
                 <CardContent className="p-6">
-                  <h3 className="font-semibold text-gray-900 mb-4 flex items-center">
-                    <Layers className="w-4 h-4 mr-2" />
+                  <h3 className="font-bold text-lg flex items-center mb-3">
+                    <Layers className="w-5 h-5 mr-2 text-emerald-600" />
                     Key Features
                   </h3>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {product.key_features.split(",").map((feature, index) => (
-                      <div key={index} className="flex items-center">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full mr-3"></div>
+                      <div key={index} className="flex items-start gap-2">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
                         <span className="text-gray-700">{feature.trim()}</span>
                       </div>
                     ))}
@@ -569,45 +683,259 @@ const ProductDetails = () => {
                 </CardContent>
               </Card>
             )}
-
-          
-
-            {/* Login CTA */}
-            <Card className="bg-gradient-to-r from-emerald-50 to-blue-50 border-emerald-200">
-              <CardContent className="p-6 text-center">
-                <div className="flex justify-center mb-4">
-                  <div className="p-3 bg-emerald-100 rounded-full">
-                    <Lock className="w-6 h-6 text-emerald-600" />
-                  </div>
-                </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-3">Access Exclusive Pricing</h3>
-                <p className="text-gray-600 mb-6">
-                  Create your free account to view competitive wholesale pricing and place orders.
-                </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <Button
-                    onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
-                    className="bg-gradient-to-r from-emerald-600 to-blue-600 hover:from-emerald-700 hover:to-blue-700 text-white font-semibold px-6 py-3 rounded-xl"
-                  >
-                    <UserPlus className="w-4 h-4 mr-2" />
-                    Sign Up Free
-                  </Button>
-                  <Button
-                    onClick={() => navigate("/login")}
-                    variant="outline"
-                    className="border-2 border-emerald-500 text-emerald-600 hover:bg-emerald-50 font-semibold px-6 py-3 rounded-xl"
-                  >
-                    <LogIn className="w-4 h-4 mr-2" />
-                    Login
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
+
+          {/* ---------------- RIGHT SIDEBAR SECTION ---------------- */}
+          <div className="lg:col-span-2">
+            <div className="lg:sticky lg:top-24 space-y-6">
+
+              {/* ------------- SIZE SELECT BOX ------------- */}
+              {product.sizes && product.sizes.length > 0 && (
+                <Card className="shadow-xl border">
+                  <CardContent className="p-6">
+                    <h3 className="font-bold text-lg flex items-center">
+                      <Package className="w-5 h-5 mr-2 text-emerald-600" />
+                      Select Size
+                      <Badge variant="secondary" className="ml-auto">
+                        {product.sizes.length} options
+                      </Badge>
+                    </h3>
+
+                    <div className="space-y-3 mt-4 max-h-[400px] overflow-y-auto pr-2">
+                      {product.sizes.map((size) => {
+                        const isSelected = selectedSizes.has(size.id)
+                        const quantity = selectedSizes.get(size.id) || 1
+                        const price = getSizePrice(size)
+                        const inCart = isSizeInCart(size.id)
+
+                        return (
+                          <div
+                            key={size.id}
+                            className={`border-2 rounded-xl p-4 transition-all relative ${
+                              isSelected
+                                ? "border-emerald-500 bg-emerald-50 shadow-md"
+                                : inCart
+                                ? "border-blue-300 bg-blue-50"
+                                : "border-gray-200 hover:border-emerald-300 bg-white"
+                            }`}
+                          >
+                            {/* Already in Cart Badge */}
+                            {inCart && (
+                              <div className="absolute top-2 right-2">
+                                <Badge className="bg-blue-500 text-white text-xs">
+                                  In Cart
+                                </Badge>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-start gap-3">
+                              {/* Left Side - Checkbox + Image + Name */}
+                              <div className="flex items-center gap-3 flex-1">
+                                <div
+                                  onClick={() => handleSizeClick(size)}
+                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
+                                    isSelected
+                                      ? "bg-emerald-600 border-emerald-600"
+                                      : "border-gray-300 hover:border-emerald-400"
+                                  }`}
+                                >
+                                  {isSelected && <Check className="w-3 h-3 text-white" />}
+                                </div>
+
+                                {size.image && (
+                                  <img
+                                    src={imageUrls[size.image] || size.image}
+                                    className="w-12 h-12 object-contain border rounded p-1"
+                                    alt={`${size.size_value}${size.size_unit}`}
+                                  />
+                                )}
+                                <div className="flex flex-col">
+                                  <p className="text-lg font-bold text-gray-900">
+                                    {size.size_value}{size.size_unit}
+                                  </p>
+                                  {inCart && (
+                                    <p className="text-xs text-blue-600 font-medium">
+                                      Already in your cart
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Right Price */}
+                              <div className="text-right">
+                                {isLoggedIn ? (
+                                  <>
+                                    <p className="text-xl font-bold text-emerald-600">
+                                      ₹{price?.toFixed(2)}
+                                    </p>
+                                    {size.originalPrice > 0 && (
+                                      <p className="text-xs line-through text-gray-400">
+                                        ₹{size.originalPrice.toFixed(2)}
+                                      </p>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="text-emerald-600 text-xs font-bold">
+                                    Login to View
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Quantity Controls - Show only when selected */}
+                            {isSelected && isLoggedIn && (
+                              <div className="mt-3 pt-3 border-t flex items-center gap-2">
+                                <Label className="text-sm font-medium">Qty:</Label>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      updateSizeQuantity(size.id, quantity - 1)
+                                    }}
+                                  >
+                                    <Minus className="w-3 h-3" />
+                                  </Button>
+
+                                  <Input
+                                    type="number"
+                                    min={1}
+                                    value={quantity}
+                                    onChange={(e) => {
+                                      e.stopPropagation()
+                                      updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
+                                    }}
+                                    className="w-16 h-8 text-center font-bold text-sm"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+
+                                  <Button
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      updateSizeQuantity(size.id, quantity + 1)
+                                    }}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                </div>
+                                <span className="ml-auto text-sm font-bold text-emerald-600">
+                                  ₹{(price * quantity).toFixed(2)}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ------------- ADD TO CART BOX ------------- */}
+              {isLoggedIn && selectedSizes.size > 0 && (
+                <Card className="shadow-xl border bg-emerald-50">
+                  <CardContent className="p-6 space-y-4">
+
+                    <h3 className="text-lg font-bold flex items-center justify-between">
+                      <span className="flex items-center">
+                        <ShoppingCart className="w-5 h-5 mr-2 text-emerald-600" />
+                        Add to Cart
+                      </span>
+                      <Badge className="bg-emerald-600">
+                        {selectedSizes.size} size(s)
+                      </Badge>
+                    </h3>
+
+                    {/* Selected sizes summary */}
+                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                      {Array.from(selectedSizes.entries()).map(([sizeId, quantity]) => {
+                        const size = product.sizes.find(s => s.id === sizeId)
+                        if (!size) return null
+                        const price = getSizePrice(size) || 0
+
+                        return (
+                          <div key={sizeId} className="flex justify-between items-center p-3 bg-white rounded-lg border text-sm">
+                            <div>
+                              <p className="font-medium">
+                                {size.size_value}{size.size_unit}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Qty: {quantity} × ₹{price.toFixed(2)}
+                              </p>
+                            </div>
+                            <p className="font-bold text-emerald-600">
+                              ₹{(price * quantity).toFixed(2)}
+                            </p>
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex justify-between p-4 bg-emerald-100 rounded-lg">
+                      <span className="font-bold">Total</span>
+                      <span className="text-2xl font-bold text-emerald-600">
+                        ₹{Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
+                          const size = product.sizes.find(s => s.id === sizeId)
+                          if (!size) return total
+                          const price = getSizePrice(size) || 0
+                          return total + (price * quantity)
+                        }, 0).toFixed(2)}
+                      </span>
+                    </div>
+
+                    {/* Button */}
+                    <Button
+                      className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                      onClick={handleAddToCart}
+                      disabled={addingToCart}
+                    >
+                      {addingToCart ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Adding...
+                        </>
+                      ) : (
+                        `Add ${selectedSizes.size} Size(s) to Cart`
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* ------------- LOGIN REQUIRED ------------- */}
+              {!isLoggedIn && (
+                <Card className="shadow-xl border text-center p-6 bg-gradient-to-br from-emerald-50 to-blue-50">
+                  <UserPlus className="mx-auto w-10 h-10 text-emerald-600" />
+
+                  <p className="font-bold text-xl mt-2">Login Required</p>
+
+                  <p className="text-sm text-gray-600 mt-1">
+                    Sign in to view wholesale prices.
+                  </p>
+
+                  <Button
+                    className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white h-12"
+                    onClick={() => navigate("/login")}
+                  >
+                    Login / Signup
+                  </Button>
+                </Card>
+              )}
+            </div>
+          </div>
+
         </div>
       </div>
-    </div></>
-  )
+    </div>
+  </>
+)
+
 }
 
 export default ProductDetails

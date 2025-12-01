@@ -213,11 +213,11 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
   }
 
   // ✅ STEP 2. Skip invoice generation for credit customers
-  const isCreditCustomer = customerProfile.payment_terms === 'credit' || customerProfile.payment_terms === 'net_30';
-  if (isCreditCustomer) {
-    console.log(`⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`);
-    return;
-  }
+  // const isCreditCustomer = customerProfile.payment_terms === 'credit' || customerProfile.payment_terms === 'net_30';
+  // if (isCreditCustomer) {
+  //   console.log(`⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`);
+  //   return;
+  // }
 
   // ✅ STEP 3. Generate invoice for prepay customers
   const year = new Date().getFullYear();
@@ -494,59 +494,105 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     setLoading(true)
 
     if (paymentType === "manaul_payemnt") {
-      const { data: dateOrder, error: updateError } = await supabase
-        .from("orders")
-        .update({
-          payment_status: "paid",
-          notes: formData.notes,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", orderId)
-        .select("*")
-        .maybeSingle()
-
-      if (updateError) throw updateError
-
-      const { data, error } = await supabase
-        .from("invoices")
-        .update({
-          payment_status: "paid",
-          updated_at: new Date().toISOString(),
-          payment_method: "manual",
-          payment_notes: formData.notes,
-        })
-        .eq("order_id", orderId)
-        .select("*")
-
-      if (error) {
-        console.error("Error creating invoice:", error)
-        throw error
-      }
-
-      console.log("Invoice created successfully:", data)
-      setModalIsOpen(false)
-      toast({
-        title: "Payment Successful",
-        description: "",
-      })
-
-
-      const logsData = {
-        user_id: orders.customer,
-        order_id: orders.order_number,
-        action: 'payment_success',
-        details: {
-          message: `Payment Successful For: ${orders.order_number}, manaul_payemnt, Note:- ${formData.notes}`,
-
-        },
-      };
       try {
-        await axios.post("/logs/create", logsData);
-        console.log("LOGS STORED SUCCESSFULLYY");
-      } catch (apiError) {
-        console.error("Failed to store logs:", apiError);
+        const { data: dateOrder, error: updateError } = await supabase
+          .from("orders")
+          .update({
+            payment_status: "paid",
+            notes: formData.notes,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", orderId)
+          .select("*")
+          .maybeSingle()
+
+        if (updateError) throw updateError
+
+        // Check if invoice exists for this order
+        const { data: existingInvoice, error: invoiceCheckError } = await supabase
+          .from("invoices")
+          .select("*")
+          .eq("order_id", orderId)
+          .maybeSingle()
+
+        let invoiceNumber = existingInvoice?.invoice_number;
+
+        // If invoice does not exist, create it
+        if (!existingInvoice) {
+          // Map order structure to match what createInvoice expects
+          let orderInfo = {
+            ...orders,
+            profile_id: orders.customer, // Map customer to profile_id
+            id: orderId,
+            paymentMethod: "manual",
+            payment_status: "paid"
+          };
+          let totalAmount = formData.amount;
+          let newTax = orders.tax_amount || 0;
+          try {
+            await createInvoice(orderInfo, totalAmount, newTax);
+            // Fetch the new invoice number
+            const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
+            invoiceNumber = newInvoice?.invoice_number;
+            console.log(`✅ Invoice created: ${invoiceNumber}`);
+          } catch (err) {
+            console.error("Invoice generation after manual payment failed:", err);
+            toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Update the invoice with payment info
+        const { data, error } = await supabase
+          .from("invoices")
+          .update({
+            payment_status: "paid",
+            updated_at: new Date().toISOString(),
+            payment_method: "manual",
+            payment_notes: formData.notes,
+          })
+          .eq("order_id", orderId)
+          .select("*")
+
+        if (error) {
+          console.error("Error updating invoice:", error)
+          throw error
+        }
+
+        console.log("Invoice updated successfully:", data)
+        const logsData = {
+          user_id: orders.customer,
+          order_id: orders.order_number,
+          action: 'payment_success',
+          details: {
+            message: `Payment Successful For: ${orders.order_number}, manual_payment, Note:- ${formData.notes}`,
+          },
+        };
+        
+        try {
+          await axios.post("/logs/create", logsData);
+          console.log("LOGS STORED SUCCESSFULLY");
+        } catch (apiError) {
+          console.error("Failed to store logs:", apiError);
+        }
+
+        setModalIsOpen(false)
+        toast({
+          title: "Payment Successful",
+          description: "Manual payment processed and invoice created successfully",
+        })
+
+        window.location.reload()
+      } catch (error) {
+        console.error("Manual payment error:", error);
+        setLoading(false);
+        toast({
+          title: "Payment Failed",
+          description: error.message || "Failed to process manual payment",
+          variant: "destructive",
+        });
       }
-      window.location.reload()
 
       return
     }

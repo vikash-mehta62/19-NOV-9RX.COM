@@ -7,7 +7,7 @@ export interface ProductSize {
   price: number;
   price_per_case: number;
   stock: number;
-  quantity_per_case: number; // ✅ Added this field
+  quantity_per_case: number;
   image?: any;
   created_at: string;
   updated_at: string;
@@ -16,6 +16,7 @@ export interface ProductSize {
   upcCode?: string;
   lotNumber?: string;
   exipry?: string;
+  originalPrice?: number; // For group pricing - shows original price if discounted
 }
 
 export interface Product {
