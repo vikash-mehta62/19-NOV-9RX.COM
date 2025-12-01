@@ -242,6 +242,18 @@ export function PaymentSection({
                             Credit Card
                           </div>
                         </SelectItem>
+                        <SelectItem value="credit">
+                          <div className="flex items-center gap-2">
+                            <svg
+                              className="w-4 h-4"
+                              fill="currentColor"
+                              viewBox="0 0 20 20"
+                            >
+                              <path d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a1 1 0 11-2 0 1 1 0 012 0z" />
+                            </svg>
+                            Credit Limit
+                          </div>
+                        </SelectItem>
                       </SelectContent>
                     </Select>
                   </FormControl>

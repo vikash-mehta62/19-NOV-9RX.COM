@@ -29,6 +29,10 @@ export const cartReducer = createReducer(initialState, (builder) => {
         if (size) {
           size.quantity = +quantity;
         }
+        // ✅ Recalculate product price based on all sizes
+        product.price = product.sizes.reduce((total, size) => total + (size.quantity * size.price), 0);
+        // ✅ Recalculate total quantity
+        product.quantity = product.sizes.reduce((total, size) => total + size.quantity, 0);
       }
       localStorage.setItem("cartItems", JSON.stringify(state.items)); // ✅ Save to localStorage
     })

@@ -7,6 +7,7 @@ import AdminUsers from "./pages/admin/Users";
 import AdminProducts from "./pages/admin/Products";
 import AdminInventory from "./pages/admin/Inventory";
 import AdminOrders from "./pages/admin/Orders";
+import AdminCreateOrder from "./pages/admin/CreateOrder";
 import AdminInvoices from "./pages/admin/Invoices";
 import PharmacyInvoices from "./pages/pharmacy/Invoices";
 import AdminGroupPricing from "./pages/admin/GroupPricing";
@@ -170,6 +171,11 @@ function App() {
       <Route path="/admin/orders" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminOrders />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/orders/create" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminCreateOrder />
         </ProtectedRoute>
       } />
       <Route path="/admin/logs" element={

@@ -48,8 +48,8 @@ app.use(
 
 const API_LOGIN_ID = process.env.AUTHORIZE_NET_API_LOGIN_ID;
 const TRANSACTION_KEY = process.env.AUTHORIZE_NET_TRANSACTION_KEY;
-const ENVIRONMENT = SDKConstants.endpoint.production; 
-// const ENVIRONMENT = SDKConstants.endpoint.sandbox;
+// const ENVIRONMENT = SDKConstants.endpoint.production; 
+const ENVIRONMENT = SDKConstants.endpoint.sandbox;
 
 if (!API_LOGIN_ID || !TRANSACTION_KEY) {
   console.error("Missing Authorize.Net API credentials");

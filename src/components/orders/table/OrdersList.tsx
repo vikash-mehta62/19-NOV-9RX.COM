@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import Swal from "sweetalert2";
 
 interface OrdersListProps {
   orders: OrderFormValues[];
@@ -288,7 +289,7 @@ export function OrdersList({
         invoice_number: invoiceNumber,
         order_id: newOrder.id,
         due_date: formattedDueDate,
-        profile_id: newOrder.profile_id,
+        profile_id: newOrder.customer,
         status: "pending" as InvoiceStatus,
         amount: newOrder.total_amount,
         tax_amount: newOrder.tax_amount || 0,
@@ -325,7 +326,7 @@ export function OrdersList({
       const { data: profileData, error: profileEror } = await supabase
         .from("profiles")
         .select()
-        .eq("id", newOrder.profile_id)
+        .eq("id", newOrder.customer)
         .maybeSingle();
 
       if (profileEror) {
@@ -397,6 +398,286 @@ export function OrdersList({
     );
   }
 
+  const handleApproveCredit = async (order) => {
+    // Confirm first
+    const result = await Swal.fire({
+      title: "Confirm Credit Order?",
+      text: "Do you want to confirm this credit order?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonText: "Yes, Confirm",
+      cancelButtonText: "Cancel",
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+      // Show loading inside Swal
+      Swal.fire({
+        title: "Processing...",
+        text: "Approving credit order and creating invoice...",
+        allowOutsideClick: false,
+        didOpen: () => {
+          Swal.showLoading();
+        },
+      });
+
+      // Credit verification + approval
+      await verifyCreditLimit(order);
+
+      // Close loading Swal
+      Swal.close();
+
+      // Show success alert, then reload after 2s
+      await Swal.fire({
+        title: "Success",
+        text: "Credit order approved and invoice created successfully!",
+        icon: "success",
+        timer: 2000,
+        showConfirmButton: false,
+      });
+
+      // Reload page after 2 seconds
+      window.location.reload();
+    } catch (err: any) {
+      Swal.close();
+      Swal.fire({
+        title: "Error",
+        text: `Failed to approve credit order: ${err.message}`,
+        icon: "error",
+      });
+    }
+  };
+
+  const verifyCreditLimit = async (order) => {
+    const profileId = order.customer;
+
+    // Fetch customer credit info
+    const { data: profile, error: profileErr } = await supabase
+      .from("profiles")
+      .select("credit_used, credit_limit")
+      .eq("id", profileId)
+      .single();
+
+    if (profileErr) {
+      toast({
+        title: "Error",
+        description: "Failed to load customer credit info.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const creditUsed = Number(profile.credit_used || 0);
+    const creditLimit = Number(profile.credit_limit || 0);
+    const availableCredit = creditLimit - creditUsed;
+    const total = Number(order.total);
+
+    if (availableCredit < total) {
+      toast({
+        title: "Credit Limit Exceeded",
+        description: `Available credit $${availableCredit} is less than order amount $${total}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // If eligible -> update order
+    await approveCreditOrder(
+      order,
+      Number(order.total),
+      Number(order.tax_amount || 0),
+      order.customer
+    );
+  };
+
+  const createInvoice = async (
+    order: any,
+    totalAmount: number,
+    newTax: number
+  ) => {
+    try {
+      console.log(`🧾 Creating invoice for order: ${order.id}`);
+
+      // --------------------------------------------
+      //  STEP 1: Fetch centerize invoice number
+      // --------------------------------------------
+      const year = new Date().getFullYear();
+
+      const { data: inData, error: fetchError } = await supabase
+        .from("centerize_data")
+        .select("id, invoice_no, invoice_start")
+        .order("id", { ascending: false })
+        .limit(1);
+
+      if (fetchError) throw new Error(fetchError.message);
+
+      const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+      const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+      // Update invoice_no to next
+      if (inData?.[0]?.id) {
+        const { error: updateError } = await supabase
+          .from("centerize_data")
+          .update({ invoice_no: newInvNo })
+          .eq("id", inData[0].id);
+
+        if (updateError) throw new Error(updateError.message);
+      }
+
+      // Create full invoice number
+      const invoiceNumber = `${invoiceStart}-${year}${newInvNo
+        .toString()
+        .padStart(6, "0")}`;
+
+      // --------------------------------------------
+      //  STEP 2: Create invoice object
+      // --------------------------------------------
+      const estimatedDeliveryStr =
+        order.shipping?.estimatedDelivery ||
+        order.estimated_delivery ||
+        new Date().toISOString();
+      let estimatedDeliveryDate = new Date(estimatedDeliveryStr);
+
+      if (isNaN(estimatedDeliveryDate.getTime())) {
+        console.warn("Invalid estimated delivery date, using today instead");
+        estimatedDeliveryDate = new Date();
+      }
+
+      const dueDate = new Date(
+        estimatedDeliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000
+      ).toISOString();
+
+      const invoiceData = {
+        invoice_number: invoiceNumber,
+        order_id: order.id,
+        profile_id: order.customer,
+        due_date: dueDate,
+        status: "pending",
+        amount: totalAmount,
+        tax_amount: newTax,
+        total_amount: totalAmount,
+        payment_status: "paid",
+        payment_method: order.payment_method,
+        notes: order.notes || null,
+        purchase_number_external: order.purchase_number_external,
+        items: order.items,
+        customer_info: order.customerInfo,
+        shipping_info: order.shippingAddress,
+        shippin_cost: order.shipping_cost,
+        subtotal: totalAmount,
+      };
+
+      // Insert invoice
+      const { error: invoiceError } = await supabase
+        .from("invoices")
+        .insert(invoiceData);
+
+      if (invoiceError) throw new Error(invoiceError.message);
+
+      console.log(`✅ Invoice Created Successfully: ${invoiceNumber}`);
+
+      // --------------------------------------------
+      // STEP 3: Update order to set invoice_created = true
+      // --------------------------------------------
+      const { error: orderUpdateError } = await supabase
+        .from("orders")
+        .update({
+          invoice_created: true,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", order.id);
+
+      if (orderUpdateError) throw new Error(orderUpdateError.message);
+
+      console.log("🟢 Order updated with invoice_created = true");
+    } catch (err: any) {
+      console.error("❌ Invoice create error:", err.message);
+      throw new Error(err.message);
+    }
+  };
+
+  const approveCreditOrder = async (
+    order: any,
+    totalAmount: number,
+    newTax: number,
+    userId: string
+  ) => {
+    try {
+      // 1️⃣ Confirm via SweetAlert
+
+      // 2️⃣ Update order status to "new" + mark credit_approval_processing -> new
+      const { data: updatedOrder, error: orderUpdateError } = await supabase
+        .from("orders")
+        .update({
+          status: "new",
+          updated_at: new Date().toISOString(),
+          payment_status: "paid",
+        })
+        .eq("id", order.id)
+        .select()
+        .single();
+
+      if (orderUpdateError) throw new Error(orderUpdateError.message);
+
+      console.log("✅ Order status updated to NEW:", updatedOrder.id);
+
+      // 3️⃣ Create Invoice using existing order data
+      await createInvoice(order, totalAmount, newTax);
+
+      // 4️⃣ Optional: Add entry in account_transactions history
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("credit_used, credit_limit")
+        .eq("id", order.customer)
+        .single();
+
+      if (profileError) throw new Error(profileError.message);
+
+      const newBalance = (profileData.credit_used || 0) + totalAmount;
+
+      await supabase.from("account_transactions").insert({
+        customer_id: order.customer,
+        transaction_date: new Date().toISOString(),
+        transaction_type: "debit",
+        reference_type: "order",
+        reference_id: order.id,
+        description: "Credit order approved",
+        debit_amount: totalAmount,
+        credit_amount: 0,
+        balance: profileData.credit_limit - newBalance,
+        created_by: userId,
+      });
+
+      // Update profiles.credit_used
+      const { error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({ credit_used: newBalance })
+        .eq("id", order.customer);
+
+      if (profileUpdateError) {
+        throw new Error(
+          `Failed to update credit used: ${profileUpdateError.message}`
+        );
+      }
+
+      console.log("🟢 Account transaction added for credit order");
+
+      Swal.fire({
+        title: "Success",
+        text: `Credit order approved and invoice created successfully!`,
+        icon: "success",
+      });
+    } catch (error: any) {
+      console.error("❌ Error approving credit order:", error.message);
+      Swal.fire({
+        title: "Error",
+        text: `Failed to approve credit order: ${error.message}`,
+        icon: "error",
+      });
+    }
+  };
+
   if (!orders || orders.length === 0) {
     return (
       <div className="text-center py-8 text-gray-500">No orders found</div>
@@ -413,17 +694,20 @@ export function OrdersList({
               <span className="sr-only">Select</span>
             </TableHead>
           )}
-          {poIs && <TableHead className="font-semibold text-center border-gray-300">
-            Order Number
-          </TableHead>}
-           {poIs &&<TableHead className="font-semibold text-center border-gray-300">
-            Notes
-          </TableHead>}
+          {poIs && (
+            <TableHead className="font-semibold text-center border-gray-300">
+              Order Number
+            </TableHead>
+          )}
+          {poIs && (
+            <TableHead className="font-semibold text-center border-gray-300">
+              Notes
+            </TableHead>
+          )}
           <TableHead className="font-semibold text-center border-gray-300">
             {poIs ? "Vendor" : "Customer"} Name
           </TableHead>
 
-         
           <TableHead className="font-semibold text-center border-gray-300">
             Order Date
           </TableHead>
@@ -435,7 +719,7 @@ export function OrdersList({
               <TableHead className="font-semibold text-center border-gray-300">
                 Status
               </TableHead>
-                  <TableHead className="font-semibold text-center border-gray-300">
+              <TableHead className="font-semibold text-center border-gray-300">
                 Payment Status
               </TableHead>
               <TableHead className="font-semibold text-center border-gray-300">
@@ -474,24 +758,29 @@ export function OrdersList({
                 </TableCell>
               )}
 
-              {
-                poIs && <TableCell className="text-center border-gray-300" onClick={async () => {
-                  onOrderClick(order);
-                  await clearCart();
-                }}>
+              {poIs && (
+                <TableCell
+                  className="text-center border-gray-300"
+                  onClick={async () => {
+                    onOrderClick(order);
+                    await clearCart();
+                  }}
+                >
                   {order.order_number}
                 </TableCell>
-              }
+              )}
 
-
-              {
-                poIs && <TableCell className="text-center border-gray-300" onClick={async () => {
-                  onOrderClick(order);
-                  await clearCart();
-                }}>
+              {poIs && (
+                <TableCell
+                  className="text-center border-gray-300"
+                  onClick={async () => {
+                    onOrderClick(order);
+                    await clearCart();
+                  }}
+                >
                   {order.specialInstructions}
                 </TableCell>
-              }
+              )}
 
               <TableCell
                 onClick={async () => {
@@ -536,7 +825,9 @@ export function OrdersList({
                 })()}
               </TableCell>
               <TableCell className="text-center border-gray-300">
-                {formatTotal(parseFloat(order.total ?? "0") - (order.tax_amount ?? 0))}
+                {formatTotal(
+                  parseFloat(order.total ?? "0") - (order.tax_amount ?? 0)
+                )}
                 {order.tax_amount > 0 && (
                   <> + {formatTotal(order.tax_amount)}</>
                 )}
@@ -545,37 +836,53 @@ export function OrdersList({
               {!poIs && (
                 <>
                   <TableCell className="text-center border-gray-300">
-                    <Badge
-                      variant="secondary"
-                      className={getStatusColor(order.status || "")}
-                    >
-                      {order.status.toUpperCase() || "pending"}
-                    </Badge>
-                  </TableCell>
-
-
-                   <TableCell className="text-center border-gray-300">
-                    <div className="flex items-center justify-center gap-2">
-                      <Badge variant="secondary" className={getStatusColor(order?.payment_status || "")}>
-                        {order?.payment_status.toUpperCase() || "UNPAID"}
+                    <div className="flex flex-col items-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={getStatusColor(order.status || "")}
+                      >
+                        {order.status.toUpperCase() || "PENDING"}
                       </Badge>
-                      {order?.payment_status.toLowerCase() === "unpaid" &&  !order.void && (
+
+                      {order.status === "credit_approval_processing" && (
                         <button
-                          onClick={() => {
-                            console.log("Cliced")
-                            setSelectCustomerInfo(order);
-                            setModalIsOpen(true);
-                          }}
-                          className="bg-green-600 text-[14px] text-white px-5 py-1 rounded-md transition"
+                          onClick={() => handleApproveCredit(order)}
+                          className="bg-blue-600 text-white px-5 py-1 text-[14px] rounded-md transition 
+                   hover:bg-blue-700 active:scale-95"
                         >
-                          Pay
+                          Approve Credit
                         </button>
                       )}
                     </div>
                   </TableCell>
+
+                  <TableCell className="text-center border-gray-300">
+                    <div className="flex items-center justify-center gap-2">
+                      <Badge
+                        variant="secondary"
+                        className={getStatusColor(order?.payment_status || "")}
+                      >
+                        {order?.payment_status.toUpperCase() || "UNPAID"}
+                      </Badge>
+                      {order?.payment_status.toLowerCase() === "unpaid" &&
+                        order.status !== "credit_approval_processing" &&
+                        !order.void && (
+                          <button
+                            onClick={() => {
+                              console.log("Cliced");
+                              setSelectCustomerInfo(order);
+                              setModalIsOpen(true);
+                            }}
+                            className="bg-green-600 text-[14px] text-white px-5 py-1 rounded-md transition"
+                          >
+                            Pay
+                          </button>
+                        )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-center border-gray-300">
                     {order.shipping?.trackingNumber &&
-                      order?.shipping.method !== "custom" ? (
+                    order?.shipping.method !== "custom" ? (
                       <Button
                         variant="link"
                         className="p-0 h-auto font-normal"
@@ -594,7 +901,10 @@ export function OrdersList({
                         <ExternalLink className="ml-1 h-3 w-3" />
                       </Button>
                     ) : (
-                      <Button variant="secondary" className="p-0 h-auto font-normal">
+                      <Button
+                        variant="secondary"
+                        className="p-0 h-auto font-normal"
+                      >
                         Manually
                       </Button>
                     )}
@@ -612,12 +922,14 @@ export function OrdersList({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          {order.status !== "cancelled" && <DropdownMenuItem
-                            onClick={() => handleCancelOrderClick(order.id)}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            Cancel Order
-                          </DropdownMenuItem>}
+                          {order.status !== "cancelled" && (
+                            <DropdownMenuItem
+                              onClick={() => handleCancelOrderClick(order.id)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              Cancel Order
+                            </DropdownMenuItem>
+                          )}
                           {/* Your existing OrderActions items can go here if needed, or OrderActions can be modified to include this */}
                           <OrderActions
                             order={order}
@@ -700,7 +1012,10 @@ export function OrdersList({
       </TableBody>
 
       {/* Cancel Order AlertDialog */}
-      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+      <AlertDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Order</AlertDialogTitle>

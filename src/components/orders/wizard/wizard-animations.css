@@ -1,0 +1,231 @@
+/* Wizard Animation Styles */
+
+/* Smooth step transitions with hardware acceleration */
+.wizard-step-transition {
+  transition: opacity 0.3s ease-in-out, transform 0.3s ease-out;
+  will-change: opacity, transform;
+}
+
+/* Loading spinner animation */
+@keyframes wizard-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.wizard-loading-spinner {
+  animation: wizard-spin 1s linear infinite;
+}
+
+/* Pulse animation for active step */
+@keyframes wizard-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.05);
+  }
+}
+
+.wizard-active-pulse {
+  animation: wizard-pulse 2s ease-in-out infinite;
+}
+
+/* Smooth hover effects with GPU acceleration */
+.wizard-hover-lift {
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+  will-change: transform, box-shadow;
+}
+
+.wizard-hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Button press effect */
+.wizard-button-press:active {
+  transform: scale(0.95);
+  transition: transform 0.1s ease-out;
+}
+
+/* Fade in animation for cards */
+@keyframes wizard-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.wizard-fade-in-up {
+  animation: wizard-fade-in-up 0.4s ease-out;
+}
+
+/* Stagger animation for list items */
+.wizard-stagger-item {
+  animation: wizard-fade-in-up 0.3s ease-out;
+  animation-fill-mode: both;
+}
+
+.wizard-stagger-item:nth-child(1) { animation-delay: 0.05s; }
+.wizard-stagger-item:nth-child(2) { animation-delay: 0.1s; }
+.wizard-stagger-item:nth-child(3) { animation-delay: 0.15s; }
+.wizard-stagger-item:nth-child(4) { animation-delay: 0.2s; }
+.wizard-stagger-item:nth-child(5) { animation-delay: 0.25s; }
+
+/* Progress bar fill animation */
+@keyframes wizard-progress-fill {
+  from {
+    transform: scaleX(0);
+    transform-origin: left;
+  }
+  to {
+    transform: scaleX(1);
+    transform-origin: left;
+  }
+}
+
+.wizard-progress-bar {
+  animation: wizard-progress-fill 0.5s ease-out;
+}
+
+/* Shimmer effect for loading states */
+@keyframes wizard-shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.wizard-shimmer {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  background-size: 1000px 100%;
+  animation: wizard-shimmer 2s infinite;
+}
+
+/* Smooth modal transitions */
+.wizard-modal-overlay {
+  animation: wizard-fade-in 0.2s ease-out;
+}
+
+@keyframes wizard-modal-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(50px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.wizard-modal-content {
+  animation: wizard-modal-slide-up 0.3s ease-out;
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Performance optimizations */
+.wizard-gpu-accelerated {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  perspective: 1000px;
+}
+
+/* Optimized fade-in animation */
+@keyframes animate-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: animate-fade-in 0.3s ease-in-out;
+}
+
+/* Optimized slide-up animation */
+@keyframes animate-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: animate-slide-up 0.3s ease-out;
+}
+
+/* Optimized scale-in animation */
+@keyframes animate-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-scale-in {
+  animation: animate-scale-in 0.2s ease-out;
+}
+
+/* Optimized pulse animation */
+@keyframes animate-pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.animate-pulse-subtle {
+  animation: animate-pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Optimized progress fill animation */
+@keyframes animate-progress-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.animate-progress-fill {
+  animation: animate-progress-fill 0.5s ease-out forwards;
+}

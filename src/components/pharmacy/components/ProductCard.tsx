@@ -234,7 +234,7 @@ export const ProductCard = ({
             {/* <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p> */}
 
             {/* PRICE SECTION (optional) */}
-            {/* <div className="mt-2 text-sm font-bold text-green-600">₹{product.price}</div> */}
+            {/* <div className="mt-2 text-sm font-bold text-green-600">${product.price}</div> */}
           </div>
         </Card>
       </DialogTrigger>

@@ -25,7 +25,7 @@ import { useNavigate } from "react-router-dom";
 
 Modal.setAppElement(document.getElementById("body"));
 
-const CreateOrderPaymentForm = ({
+const   CreateOrderPaymentForm = ({
   modalIsOpen,
   setModalIsOpen,
   form,
@@ -42,7 +42,7 @@ const CreateOrderPaymentForm = ({
   const [loading, setLoading] = useState(false); // Loading state
   const [tax, settax] = useState(0);
   const taxper = sessionStorage.getItem("taxper")
-
+console.log(formDataa)
 
   const [formData, setFormData] = useState({
     amount: 0,
@@ -234,21 +234,28 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
           );
 
           const orderNumber = await generateOrderId()
-          let profileID = userProfile.id
-
-          sessionStorage.getItem('userType') === "admin" ? profileID = data.customer : userProfile.id
-          console.log(profileID)
+          
+          // Determine profile ID based on user type
+          let profileID = userProfile?.id;
+          if (sessionStorage.getItem('userType') === "admin") {
+            profileID = pId || data.customer;
+          } else if (sessionStorage.getItem('userType') === "group") {
+            profileID = pId;
+          }
+          
+          console.log("Profile ID for order:", profileID)
           // Prepare order data
           const orderData = {
             order_number: orderNumber,
             profile_id: profileID,
-            status: data.status,
+            location_id: pId, // Customer/location ID
+            status: data.status || "new",
             total_amount: calculatedTotal + tax,
             shipping_cost: totalShippingCost || 0,
             tax_amount: Number(tax),
             items: cleanedCartItems,
             payment_status: "paid", // Use correct column name
-
+            payment_method: "card",
             notes: data.specialInstructions,
             shipping_method: data.shipping?.method,
             customerInfo: data.customerInfo,
@@ -257,6 +264,8 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
             estimated_delivery:
               data.shipping?.estimatedDelivery ||
               defaultEstimatedDelivery.toISOString(),
+            customization: isCus || false,
+            void: false,
           };
 
           console.log(orderData);
@@ -378,18 +387,37 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
 
           // console.log("Order items saved:", orderItemsData);
 
-          // Update product stock
-          for (const item of data.items) {
-            // console.log("Updating stock for quantity ID:", item.quantity);
-            const { error: stockUpdateError } = await supabase.rpc(
-              "decrement_stock",
-              { product_id: item.productId, quantity: item.quantity }
-            );
-            // console.log("stockUpdateError", stockUpdateError);
-            if (stockUpdateError) {
-              throw new Error(
-                `Failed to update stock for product ID: ${item.productId}`
-              );
+          // Update product stock at size level
+          for (const item of cleanedCartItems) {
+            if (item.sizes && item.sizes.length > 0) {
+              for (const size of item.sizes) {
+                // Step 1: Fetch current size stock
+                const { data: currentSize, error: fetchError } = await supabase
+                  .from("product_sizes")
+                  .select("stock")
+                  .eq("id", size.id)
+                  .single();
+
+                if (fetchError || !currentSize) {
+                  console.warn(`⚠️ Size not found in Supabase for ID: ${size.id}, skipping...`);
+                  continue; // ✅ Skip this size if not found
+                }
+
+                const newQuantity = currentSize.stock - size.quantity;
+
+                // Step 2: Update with new quantity
+                const { error: updateError } = await supabase
+                  .from("product_sizes")
+                  .update({ stock: newQuantity })
+                  .eq("id", size.id);
+
+                if (updateError) {
+                  console.error(`❌ Failed to update size quantity for ID: ${size.id}`, updateError);
+                  throw new Error(`Failed to update size quantity`);
+                } else {
+                  console.log(`✅ Updated size quantity for ID: ${size.id}`);
+                }
+              }
             }
           }
 
@@ -403,7 +431,7 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
             description: `Order ID: ${newOrder.id} has been created.`,
           });
 
-          form.reset();
+          // form.reset();
           // setOrderItems([{ id: 1 }]);
 
 

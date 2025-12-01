@@ -1,7 +1,31 @@
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Loader2, Mail, Phone, Building2, MapPin, FileText, User, ShoppingCart, BarChart3, StickyNote, CheckSquare, Plus, Pin, Calendar, AlertTriangle, DollarSign } from "lucide-react";
+import {
+  AlertCircle,
+  Loader2,
+  Mail,
+  Phone,
+  Building2,
+  MapPin,
+  FileText,
+  User,
+  ShoppingCart,
+  BarChart3,
+  StickyNote,
+  CheckSquare,
+  Plus,
+  Pin,
+  Calendar,
+  AlertTriangle,
+  DollarSign,
+  CreditCard,
+} from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -9,9 +33,23 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { EnhancedPaymentTab } from "./EnhancedPaymentTab";
 
 interface ViewProfileModalProps {
   userId: string;
@@ -19,7 +57,11 @@ interface ViewProfileModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
-export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModalProps) {
+export function ViewProfileModal({
+  userId,
+  open,
+  onOpenChange,
+}: ViewProfileModalProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -30,13 +72,13 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
   const [notes, setNotes] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   // Orders pagination and filters
   const [currentPage, setCurrentPage] = useState(1);
   const [ordersPerPage] = useState(20);
   const [orderFilter, setOrderFilter] = useState("all");
   const [orderSort, setOrderSort] = useState("newest");
-  
+
   // Dialog states
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
@@ -72,7 +114,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
       setError(null);
 
       // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       setCurrentUser(user);
 
       // Fetch profile
@@ -98,11 +142,21 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
 
       // Calculate analytics from orders
       const totalOrders = ordersData?.length || 0;
-      const totalAmount = ordersData?.reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
-      
+      const totalAmount =
+        ordersData?.reduce(
+          (sum, order) => sum + (order.total_amount || 0),
+          0
+        ) || 0;
+
       // Calculate paid and pending amounts from orders based on payment_status
-      const paidAmount = ordersData?.filter(order => order.payment_status === "paid").reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
-      const pendingAmount = ordersData?.filter(order => order.payment_status !== "paid").reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      const paidAmount =
+        ordersData
+          ?.filter((order) => order.payment_status === "paid")
+          .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
+      const pendingAmount =
+        ordersData
+          ?.filter((order) => order.payment_status !== "paid")
+          .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
       setAnalytics({
         totalOrders,
@@ -114,7 +168,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
       // Fetch notes
       const { data: notesData, error: notesError } = await supabase
         .from("customer_notes")
-        .select("*, created_by_profile:profiles!customer_notes_created_by_fkey(first_name, last_name)")
+        .select(
+          "*, created_by_profile:profiles!customer_notes_created_by_fkey(first_name, last_name)"
+        )
         .eq("customer_id", userId)
         .order("is_pinned", { ascending: false })
         .order("created_at", { ascending: false });
@@ -124,12 +180,13 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
       // Fetch tasks
       const { data: tasksData, error: tasksError } = await supabase
         .from("customer_tasks")
-        .select("*, assigned_to_profile:profiles!customer_tasks_assigned_to_fkey(first_name, last_name)")
+        .select(
+          "*, assigned_to_profile:profiles!customer_tasks_assigned_to_fkey(first_name, last_name)"
+        )
         .eq("customer_id", userId)
         .order("due_date", { ascending: true });
 
       if (!tasksError) setTasks(tasksData || []);
-
     } catch (err: any) {
       setError(err.message || "Failed to load profile");
     } finally {
@@ -164,7 +221,12 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
         description: "Note added successfully",
       });
 
-      setNoteForm({ title: "", content: "", category: "general", is_pinned: false });
+      setNoteForm({
+        title: "",
+        content: "",
+        category: "general",
+        is_pinned: false,
+      });
       setIsNoteDialogOpen(false);
       fetchAllData();
     } catch (err: any) {
@@ -264,21 +326,31 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case "urgent": return "bg-red-500";
-      case "high": return "bg-orange-500";
-      case "medium": return "bg-yellow-500";
-      case "low": return "bg-green-500";
-      default: return "bg-gray-500";
+      case "urgent":
+        return "bg-red-500";
+      case "high":
+        return "bg-orange-500";
+      case "medium":
+        return "bg-yellow-500";
+      case "low":
+        return "bg-green-500";
+      default:
+        return "bg-gray-500";
     }
   };
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case "completed": return "bg-green-500";
-      case "in_progress": return "bg-blue-500";
-      case "pending": return "bg-yellow-500";
-      case "cancelled": return "bg-gray-500";
-      default: return "bg-gray-500";
+      case "completed":
+        return "bg-green-500";
+      case "in_progress":
+        return "bg-blue-500";
+      case "pending":
+        return "bg-yellow-500";
+      case "cancelled":
+        return "bg-gray-500";
+      default:
+        return "bg-gray-500";
     }
   };
 
@@ -288,18 +360,26 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
 
     // Apply filter
     if (orderFilter === "paid") {
-      filtered = filtered.filter(order => order.payment_status === "paid");
+      filtered = filtered.filter((order) => order.payment_status === "paid");
     } else if (orderFilter === "pending") {
-      filtered = filtered.filter(order => order.payment_status !== "paid");
+      filtered = filtered.filter((order) => order.payment_status !== "paid");
     } else if (orderFilter === "shipped") {
-      filtered = filtered.filter(order => order.status === "shipped" || order.status === "delivered");
+      filtered = filtered.filter(
+        (order) => order.status === "shipped" || order.status === "delivered"
+      );
     }
 
     // Apply sort
     if (orderSort === "newest") {
-      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      filtered.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
     } else if (orderSort === "oldest") {
-      filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      filtered.sort(
+        (a, b) =>
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      );
     } else if (orderSort === "amount_high") {
       filtered.sort((a, b) => b.total_amount - a.total_amount);
     } else if (orderSort === "amount_low") {
@@ -320,7 +400,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Customer Profile - {profile?.display_name || profile?.first_name}</DialogTitle>
+          <DialogTitle>
+            Customer Profile - {profile?.display_name || profile?.first_name}
+          </DialogTitle>
         </DialogHeader>
 
         {isLoading && (
@@ -339,7 +421,7 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
 
         {!isLoading && profile && (
           <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-7">
               <TabsTrigger value="basic">
                 <User className="h-4 w-4 mr-2" />
                 Basic
@@ -351,6 +433,11 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
               <TabsTrigger value="analytics">
                 <BarChart3 className="h-4 w-4 mr-2" />
                 Analytics
+              </TabsTrigger>
+
+              <TabsTrigger value="payments" className="flex items-center gap-2">
+                <CreditCard className="h-4 w-4" />
+                Payments
               </TabsTrigger>
               <TabsTrigger value="orders">
                 <ShoppingCart className="h-4 w-4 mr-2" />
@@ -371,34 +458,50 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Orders
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">{analytics?.totalOrders || 0}</div>
+                    <div className="text-2xl font-bold">
+                      {analytics?.totalOrders || 0}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Total Amount</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Total Amount
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold">${analytics?.totalAmount?.toFixed(2) || "0.00"}</div>
+                    <div className="text-2xl font-bold">
+                      ${analytics?.totalAmount?.toFixed(2) || "0.00"}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Paid Amount</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Paid Amount
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-green-600">${analytics?.paidAmount?.toFixed(2) || "0.00"}</div>
+                    <div className="text-2xl font-bold text-green-600">
+                      ${analytics?.paidAmount?.toFixed(2) || "0.00"}
+                    </div>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardHeader className="pb-2">
-                    <CardTitle className="text-sm font-medium text-muted-foreground">Pending Amount</CardTitle>
+                    <CardTitle className="text-sm font-medium text-muted-foreground">
+                      Pending Amount
+                    </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold text-orange-600">${analytics?.pendingAmount?.toFixed(2) || "0.00"}</div>
+                    <div className="text-2xl font-bold text-orange-600">
+                      ${analytics?.pendingAmount?.toFixed(2) || "0.00"}
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -410,16 +513,34 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <CardContent>
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Last Order</span>
-                      <span className="font-medium">{orders[0]?.created_at ? new Date(orders[0].created_at).toLocaleDateString() : "N/A"}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Last Order
+                      </span>
+                      <span className="font-medium">
+                        {orders[0]?.created_at
+                          ? new Date(orders[0].created_at).toLocaleDateString()
+                          : "N/A"}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Account Created</span>
-                      <span className="font-medium">{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : "N/A"}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Account Created
+                      </span>
+                      <span className="font-medium">
+                        {profile.created_at
+                          ? new Date(profile.created_at).toLocaleDateString()
+                          : "N/A"}
+                      </span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-sm text-muted-foreground">Last Updated</span>
-                      <span className="font-medium">{profile.updated_at ? new Date(profile.updated_at).toLocaleDateString() : "N/A"}</span>
+                      <span className="text-sm text-muted-foreground">
+                        Last Updated
+                      </span>
+                      <span className="font-medium">
+                        {profile.updated_at
+                          ? new Date(profile.updated_at).toLocaleDateString()
+                          : "N/A"}
+                      </span>
                     </div>
                   </div>
                 </CardContent>
@@ -442,7 +563,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                     <p className="font-medium">{profile.last_name || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Display Name</p>
+                    <p className="text-sm text-muted-foreground">
+                      Display Name
+                    </p>
                     <p className="font-medium">{profile.display_name || "-"}</p>
                   </div>
                   <div>
@@ -458,7 +581,11 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Status</p>
-                    <Badge variant={profile.status === "active" ? "default" : "secondary"}>
+                    <Badge
+                      variant={
+                        profile.status === "active" ? "default" : "secondary"
+                      }
+                    >
                       {profile.status || "-"}
                     </Badge>
                   </div>
@@ -467,7 +594,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                     <Badge variant="outline">{profile.role || "-"}</Badge>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Company Name</p>
+                    <p className="text-sm text-muted-foreground">
+                      Company Name
+                    </p>
                     <p className="font-medium">{profile.company_name || "-"}</p>
                   </div>
                 </CardContent>
@@ -479,58 +608,100 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">Tax Preference</p>
-                    <p className="font-medium">{profile.tax_preference || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Tax Preference
+                    </p>
+                    <p className="font-medium">
+                      {profile.tax_preference || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Tax Percentage</p>
-                    <p className="font-medium">{profile.taxPercantage || "0"}%</p>
+                    <p className="text-sm text-muted-foreground">
+                      Tax Percentage
+                    </p>
+                    <p className="font-medium">
+                      {profile.taxPercantage || "0"}%
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Tax ID</p>
                     <p className="font-medium">{profile.tax_id || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Payment Terms</p>
-                    <Badge variant="outline">{profile.payment_terms || "-"}</Badge>
+                    <p className="text-sm text-muted-foreground">
+                      Payment Terms
+                    </p>
+                    <Badge variant="outline">
+                      {profile.payment_terms || "-"}
+                    </Badge>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Currency</p>
                     <p className="font-medium">{profile.currency || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Credit Limit</p>
-                    <p className="font-medium">{profile.credit_limit ? `$${profile.credit_limit}` : "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Credit Limit
+                    </p>
+                    <p className="font-medium">
+                      {profile.credit_limit ? `$${profile.credit_limit}` : "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Payment Method</p>
-                    <p className="font-medium">{profile.payment_method || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Payment Method
+                    </p>
+                    <p className="font-medium">
+                      {profile.payment_method || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Free Shipping</p>
-                    <Badge variant={profile.freeShipping ? "default" : "secondary"}>
+                    <p className="text-sm text-muted-foreground">
+                      Free Shipping
+                    </p>
+                    <Badge
+                      variant={profile.freeShipping ? "default" : "secondary"}
+                    >
                       {profile.freeShipping ? "Yes" : "No"}
                     </Badge>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Order Pay</p>
-                    <Badge variant={profile.order_pay ? "default" : "secondary"}>
+                    <Badge
+                      variant={profile.order_pay ? "default" : "secondary"}
+                    >
                       {profile.order_pay ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Portal Enabled</p>
-                    <Badge variant={profile.enable_portal ? "default" : "secondary"}>
+                    <p className="text-sm text-muted-foreground">
+                      Portal Enabled
+                    </p>
+                    <Badge
+                      variant={profile.enable_portal ? "default" : "secondary"}
+                    >
                       {profile.enable_portal ? "Yes" : "No"}
                     </Badge>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Portal Language</p>
-                    <p className="font-medium">{profile.portal_language || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Portal Language
+                    </p>
+                    <p className="font-medium">
+                      {profile.portal_language || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Account Status</p>
-                    <Badge variant={profile.account_status === "active" ? "default" : "secondary"}>
+                    <p className="text-sm text-muted-foreground">
+                      Account Status
+                    </p>
+                    <Badge
+                      variant={
+                        profile.account_status === "active"
+                          ? "default"
+                          : "secondary"
+                      }
+                    >
                       {profile.account_status || "-"}
                     </Badge>
                   </div>
@@ -543,40 +714,70 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 </CardHeader>
                 <CardContent className="grid grid-cols-2 gap-4">
                   <div>
-                    <p className="text-sm text-muted-foreground">Pharmacy License</p>
-                    <p className="font-medium">{profile.pharmacy_license || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Pharmacy License
+                    </p>
+                    <p className="font-medium">
+                      {profile.pharmacy_license || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Group Station</p>
-                    <p className="font-medium">{profile.group_station || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Group Station
+                    </p>
+                    <p className="font-medium">
+                      {profile.group_station || "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Department</p>
                     <p className="font-medium">{profile.department || "-"}</p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Language Preference</p>
-                    <p className="font-medium">{profile.language_preference || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Language Preference
+                    </p>
+                    <p className="font-medium">
+                      {profile.language_preference || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Preferred Contact Method</p>
-                    <p className="font-medium">{profile.preferred_contact_method || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Preferred Contact Method
+                    </p>
+                    <p className="font-medium">
+                      {profile.preferred_contact_method || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Email Notifications</p>
-                    <Badge variant={profile.email_notifaction ? "default" : "secondary"}>
+                    <p className="text-sm text-muted-foreground">
+                      Email Notifications
+                    </p>
+                    <Badge
+                      variant={
+                        profile.email_notifaction ? "default" : "secondary"
+                      }
+                    >
                       {profile.email_notifaction ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Order Updates</p>
-                    <Badge variant={profile.order_updates ? "default" : "secondary"}>
+                    <p className="text-sm text-muted-foreground">
+                      Order Updates
+                    </p>
+                    <Badge
+                      variant={profile.order_updates ? "default" : "secondary"}
+                    >
                       {profile.order_updates ? "Enabled" : "Disabled"}
                     </Badge>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Last Login</p>
-                    <p className="font-medium">{profile.last_login ? new Date(profile.last_login).toLocaleDateString() : "-"}</p>
+                    <p className="font-medium">
+                      {profile.last_login
+                        ? new Date(profile.last_login).toLocaleDateString()
+                        : "-"}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -608,19 +809,29 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Mobile Phone</p>
+                    <p className="text-sm text-muted-foreground">
+                      Mobile Phone
+                    </p>
                     <p className="font-medium flex items-center gap-2">
                       <Phone className="h-4 w-4" />
                       {profile.mobile_phone || "-"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Contact Person</p>
-                    <p className="font-medium">{profile.contact_person || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Contact Person
+                    </p>
+                    <p className="font-medium">
+                      {profile.contact_person || "-"}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-muted-foreground">Alternative Email</p>
-                    <p className="font-medium">{profile.alternative_email || "-"}</p>
+                    <p className="text-sm text-muted-foreground">
+                      Alternative Email
+                    </p>
+                    <p className="font-medium">
+                      {profile.alternative_email || "-"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Website</p>
@@ -640,9 +851,12 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   </CardHeader>
                   <CardContent className="space-y-2">
                     <p>{profile.billing_address?.street1 || "-"}</p>
-                    {profile.billing_address?.street2 && <p>{profile.billing_address.street2}</p>}
+                    {profile.billing_address?.street2 && (
+                      <p>{profile.billing_address.street2}</p>
+                    )}
                     <p>
-                      {profile.billing_address?.city || "-"}, {profile.billing_address?.state || "-"}{" "}
+                      {profile.billing_address?.city || "-"},{" "}
+                      {profile.billing_address?.state || "-"}{" "}
                       {profile.billing_address?.zip_code || "-"}
                     </p>
                     <p>{profile.billing_address?.phone || "-"}</p>
@@ -655,13 +869,18 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {profile.same_as_shipping ? (
-                      <p className="text-muted-foreground">Same as billing address</p>
+                      <p className="text-muted-foreground">
+                        Same as billing address
+                      </p>
                     ) : (
                       <>
                         <p>{profile.shipping_address?.street1 || "-"}</p>
-                        {profile.shipping_address?.street2 && <p>{profile.shipping_address.street2}</p>}
+                        {profile.shipping_address?.street2 && (
+                          <p>{profile.shipping_address.street2}</p>
+                        )}
                         <p>
-                          {profile.shipping_address?.city || "-"}, {profile.shipping_address?.state || "-"}{" "}
+                          {profile.shipping_address?.city || "-"},{" "}
+                          {profile.shipping_address?.state || "-"}{" "}
                           {profile.shipping_address?.zip_code || "-"}
                         </p>
                         <p>{profile.shipping_address?.phone || "-"}</p>
@@ -679,14 +898,19 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   <div className="flex items-center justify-between">
                     <CardTitle>Order History</CardTitle>
                     <div className="flex gap-2">
-                      <Select value={orderFilter} onValueChange={setOrderFilter}>
+                      <Select
+                        value={orderFilter}
+                        onValueChange={setOrderFilter}
+                      >
                         <SelectTrigger className="w-[150px]">
                           <SelectValue placeholder="Filter" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Orders</SelectItem>
                           <SelectItem value="paid">Paid</SelectItem>
-                          <SelectItem value="pending">Pending Payment</SelectItem>
+                          <SelectItem value="pending">
+                            Pending Payment
+                          </SelectItem>
                           <SelectItem value="shipped">Shipped</SelectItem>
                         </SelectContent>
                       </Select>
@@ -697,8 +921,12 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                         <SelectContent>
                           <SelectItem value="newest">Newest First</SelectItem>
                           <SelectItem value="oldest">Oldest First</SelectItem>
-                          <SelectItem value="amount_high">Amount: High to Low</SelectItem>
-                          <SelectItem value="amount_low">Amount: Low to High</SelectItem>
+                          <SelectItem value="amount_high">
+                            Amount: High to Low
+                          </SelectItem>
+                          <SelectItem value="amount_low">
+                            Amount: Low to High
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -719,51 +947,79 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                       {currentOrders.length > 0 ? (
                         currentOrders.map((order) => (
                           <TableRow key={order.id}>
-                            <TableCell className="font-medium">{order.order_number}</TableCell>
-                            <TableCell>{new Date(order.created_at).toLocaleDateString()}</TableCell>
+                            <TableCell className="font-medium">
+                              {order.order_number}
+                            </TableCell>
+                            <TableCell>
+                              {new Date(order.created_at).toLocaleDateString()}
+                            </TableCell>
                             <TableCell>
                               <Badge>{order.status}</Badge>
                             </TableCell>
                             <TableCell>
-                              <Badge variant={order.payment_status === "paid" ? "default" : "secondary"}>
+                              <Badge
+                                variant={
+                                  order.payment_status === "paid"
+                                    ? "default"
+                                    : "secondary"
+                                }
+                              >
                                 {order.payment_status || "unpaid"}
                               </Badge>
                             </TableCell>
-                            <TableCell className={order.payment_status === "paid" ? "text-green-600 font-semibold" : "text-orange-600 font-semibold"}>
+                            <TableCell
+                              className={
+                                order.payment_status === "paid"
+                                  ? "text-green-600 font-semibold"
+                                  : "text-orange-600 font-semibold"
+                              }
+                            >
                               ${order.total_amount?.toFixed(2)}
                             </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center text-muted-foreground">
+                          <TableCell
+                            colSpan={5}
+                            className="text-center text-muted-foreground"
+                          >
                             No orders found
                           </TableCell>
                         </TableRow>
                       )}
                     </TableBody>
                   </Table>
-                  
+
                   {/* Pagination */}
                   {totalPages > 1 && (
                     <div className="flex items-center justify-between mt-4">
                       <div className="text-sm text-muted-foreground">
-                        Showing {indexOfFirstOrder + 1} to {Math.min(indexOfLastOrder, orders.length)} of {orders.length} orders
+                        Showing {indexOfFirstOrder + 1} to{" "}
+                        {Math.min(indexOfLastOrder, orders.length)} of{" "}
+                        {orders.length} orders
                       </div>
                       <div className="flex gap-2">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                          onClick={() =>
+                            setCurrentPage((prev) => Math.max(prev - 1, 1))
+                          }
                           disabled={currentPage === 1}
                         >
                           Previous
                         </Button>
                         <div className="flex items-center gap-1">
-                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                          {Array.from(
+                            { length: totalPages },
+                            (_, i) => i + 1
+                          ).map((page) => (
                             <Button
                               key={page}
-                              variant={currentPage === page ? "default" : "outline"}
+                              variant={
+                                currentPage === page ? "default" : "outline"
+                              }
                               size="sm"
                               onClick={() => setCurrentPage(page)}
                               className="w-8"
@@ -775,7 +1031,11 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                          onClick={() =>
+                            setCurrentPage((prev) =>
+                              Math.min(prev + 1, totalPages)
+                            )
+                          }
                           disabled={currentPage === totalPages}
                         >
                           Next
@@ -785,6 +1045,10 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   )}
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="payments" className="mt-6">
+              <EnhancedPaymentTab userId={userId} />
             </TabsContent>
 
             {/* Notes Tab */}
@@ -802,7 +1066,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">{note.title}</CardTitle>
+                          <CardTitle className="text-base">
+                            {note.title}
+                          </CardTitle>
                           <Badge variant="outline">{note.category}</Badge>
                         </div>
                         <Button
@@ -810,21 +1076,28 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                           size="sm"
                           onClick={() => togglePinNote(note.id, note.is_pinned)}
                         >
-                          <Pin className={`h-4 w-4 ${note.is_pinned ? "fill-current" : ""}`} />
+                          <Pin
+                            className={`h-4 w-4 ${
+                              note.is_pinned ? "fill-current" : ""
+                            }`}
+                          />
                         </Button>
                       </div>
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm">{note.content}</p>
                       <p className="text-xs text-muted-foreground mt-2">
-                        By {note.created_by_profile?.first_name} {note.created_by_profile?.last_name} on{" "}
+                        By {note.created_by_profile?.first_name}{" "}
+                        {note.created_by_profile?.last_name} on{" "}
                         {new Date(note.created_at).toLocaleDateString()}
                       </p>
                     </CardContent>
                   </Card>
                 ))}
                 {notes.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">No notes yet</p>
+                  <p className="text-center text-muted-foreground py-8">
+                    No notes yet
+                  </p>
                 )}
               </div>
             </TabsContent>
@@ -844,19 +1117,27 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">{task.title}</CardTitle>
-                          <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                          <CardTitle className="text-base">
+                            {task.title}
+                          </CardTitle>
+                          <Badge className={getPriorityColor(task.priority)}>
+                            {task.priority}
+                          </Badge>
                         </div>
                         <Select
                           value={task.status}
-                          onValueChange={(value) => updateTaskStatus(task.id, value)}
+                          onValueChange={(value) =>
+                            updateTaskStatus(task.id, value)
+                          }
                         >
                           <SelectTrigger className="w-[150px]">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
+                            <SelectItem value="in_progress">
+                              In Progress
+                            </SelectItem>
                             <SelectItem value="completed">Completed</SelectItem>
                             <SelectItem value="cancelled">Cancelled</SelectItem>
                           </SelectContent>
@@ -864,7 +1145,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {task.description && <p className="text-sm mb-2">{task.description}</p>}
+                      {task.description && (
+                        <p className="text-sm mb-2">{task.description}</p>
+                      )}
                       <div className="flex items-center gap-4 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -873,18 +1156,22 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                         {task.reminder_date && (
                           <span className="flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" />
-                            Reminder: {new Date(task.reminder_date).toLocaleDateString()}
+                            Reminder:{" "}
+                            {new Date(task.reminder_date).toLocaleDateString()}
                           </span>
                         )}
                         <span>
-                          Assigned to: {task.assigned_to_profile?.first_name} {task.assigned_to_profile?.last_name}
+                          Assigned to: {task.assigned_to_profile?.first_name}{" "}
+                          {task.assigned_to_profile?.last_name}
                         </span>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
                 {tasks.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">No tasks yet</p>
+                  <p className="text-center text-muted-foreground py-8">
+                    No tasks yet
+                  </p>
                 )}
               </div>
             </TabsContent>
@@ -903,7 +1190,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <Input
                   placeholder="Note Title"
                   value={noteForm.title}
-                  onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                  onChange={(e) =>
+                    setNoteForm({ ...noteForm, title: e.target.value })
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -911,7 +1200,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <Textarea
                   placeholder="Note Content"
                   value={noteForm.content}
-                  onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })}
+                  onChange={(e) =>
+                    setNoteForm({ ...noteForm, content: e.target.value })
+                  }
                   rows={4}
                 />
               </div>
@@ -919,7 +1210,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <label className="text-sm font-medium">Category</label>
                 <Select
                   value={noteForm.category}
-                  onValueChange={(value) => setNoteForm({ ...noteForm, category: value })}
+                  onValueChange={(value) =>
+                    setNoteForm({ ...noteForm, category: value })
+                  }
                 >
                   <SelectTrigger>
                     <SelectValue />
@@ -938,7 +1231,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   type="checkbox"
                   id="pin-note"
                   checked={noteForm.is_pinned}
-                  onChange={(e) => setNoteForm({ ...noteForm, is_pinned: e.target.checked })}
+                  onChange={(e) =>
+                    setNoteForm({ ...noteForm, is_pinned: e.target.checked })
+                  }
                   className="h-4 w-4"
                 />
                 <label htmlFor="pin-note" className="text-sm font-medium">
@@ -946,7 +1241,10 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 </label>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsNoteDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsNoteDialogOpen(false)}
+                >
                   Cancel
                 </Button>
                 <Button onClick={handleAddNote}>
@@ -970,7 +1268,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <Input
                   placeholder="Task Title"
                   value={taskForm.title}
-                  onChange={(e) => setTaskForm({ ...taskForm, title: e.target.value })}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, title: e.target.value })
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -978,7 +1278,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                 <Textarea
                   placeholder="Task Description"
                   value={taskForm.description}
-                  onChange={(e) => setTaskForm({ ...taskForm, description: e.target.value })}
+                  onChange={(e) =>
+                    setTaskForm({ ...taskForm, description: e.target.value })
+                  }
                   rows={3}
                 />
               </div>
@@ -987,7 +1289,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   <label className="text-sm font-medium">Priority</label>
                   <Select
                     value={taskForm.priority}
-                    onValueChange={(value) => setTaskForm({ ...taskForm, priority: value })}
+                    onValueChange={(value) =>
+                      setTaskForm({ ...taskForm, priority: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Priority" />
@@ -1004,7 +1308,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   <label className="text-sm font-medium">Status</label>
                   <Select
                     value={taskForm.status}
-                    onValueChange={(value) => setTaskForm({ ...taskForm, status: value })}
+                    onValueChange={(value) =>
+                      setTaskForm({ ...taskForm, status: value })
+                    }
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Status" />
@@ -1024,7 +1330,9 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   <Input
                     type="date"
                     value={taskForm.due_date}
-                    onChange={(e) => setTaskForm({ ...taskForm, due_date: e.target.value })}
+                    onChange={(e) =>
+                      setTaskForm({ ...taskForm, due_date: e.target.value })
+                    }
                   />
                 </div>
                 <div className="space-y-2">
@@ -1032,21 +1340,34 @@ export function ViewProfileModal({ userId, open, onOpenChange }: ViewProfileModa
                   <Input
                     type="date"
                     value={taskForm.reminder_date}
-                    onChange={(e) => setTaskForm({ ...taskForm, reminder_date: e.target.value })}
+                    onChange={(e) =>
+                      setTaskForm({
+                        ...taskForm,
+                        reminder_date: e.target.value,
+                      })
+                    }
                   />
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Assigned To</label>
                 <Input
-                  value={profile?.display_name || `${profile?.first_name} ${profile?.last_name}`}
+                  value={
+                    profile?.display_name ||
+                    `${profile?.first_name} ${profile?.last_name}`
+                  }
                   disabled
                   className="bg-muted"
                 />
-                <p className="text-xs text-muted-foreground">Task will be assigned to this customer</p>
+                <p className="text-xs text-muted-foreground">
+                  Task will be assigned to this customer
+                </p>
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsTaskDialogOpen(false)}>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsTaskDialogOpen(false)}
+                >
                   Cancel
                 </Button>
                 <Button onClick={handleAddTask}>
