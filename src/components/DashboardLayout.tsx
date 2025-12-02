@@ -97,7 +97,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       <div className="min-h-screen flex w-full bg-gray-50/50">
         <Sidebar
           collapsible="icon"
-          className={`border-r border-gray-200 bg-white z-50 transition-all duration-300 ${
+          className={`border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 transition-all duration-300 shadow-xl ${
             isMobile ? "w-full max-w-[280px]" : ""
           }`}
         >

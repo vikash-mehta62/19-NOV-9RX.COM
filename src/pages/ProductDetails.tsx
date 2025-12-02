@@ -584,79 +584,103 @@ return (
   <>
     <Navbar />
 
-    <div className="min-h-screen bg-gray-50 pt-16">
-      {/* Header */}
-      <div className="bg-white border-b">
-        <div className="container mx-auto px-4 py-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 pt-16">
+      {/* Enhanced Header with Modern Design */}
+      <div className="bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 overflow-hidden">
+        {/* Decorative Background Elements */}
+        <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-blue-500/5 to-purple-500/5"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-br from-emerald-400/10 to-blue-400/10 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"></div>
+        
+        <div className="relative container mx-auto px-4 py-3">
+          {/* Back Button */}
           <Button
             variant="ghost"
             onClick={() => navigate("/")}
-            className="mb-4 hover:bg-emerald-50 hover:text-emerald-700 transition"
+            className="mb-2 hover:bg-gray-100 transition-all duration-200 rounded-lg group text-sm h-8"
           >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Products
+            <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform duration-300" />
+            <span className="font-medium">Back to Products</span>
           </Button>
 
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
+          {/* Product Info Section */}
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+            {/* Left: Category + Product Name */}
+            <div className="flex-1 space-y-2">
               {product.category && (
-                <Badge className="bg-emerald-600 text-white px-3 py-1">
+                <Badge className="bg-emerald-600 text-white px-2.5 py-0.5 text-xs font-semibold rounded">
                   {product.category}
                 </Badge>
               )}
-              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+              
+              <h1 className="text-xl sm:text-2xl font-bold leading-tight text-gray-900">
                 {product.name}
               </h1>
+
+              {/* Additional Info Pills */}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                {product.sku && (
+                  <div className="flex items-center gap-1.5">
+                    <Package className="w-3 h-3" />
+                    <span>SKU: <span className="font-medium text-gray-800">{product.sku}</span></span>
+                  </div>
+                )}
+                
+                {product.sizes && product.sizes.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-gray-400">•</span>
+                    <Layers className="w-3 h-3 text-purple-600" />
+                    <span className="font-medium text-purple-700">{product.sizes.length} Sizes Available</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            {product.sku && (
-              <div className="text-sm text-gray-500 font-mono bg-gray-100 px-3 py-1 rounded-lg">
-                SKU: {product.sku}
+            {/* Right: Stock Status / Availability */}
+            <div className="lg:text-right">
+              <div className="inline-flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
+                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-semibold text-green-700">In Stock</span>
               </div>
-            )}
+              {!isLoggedIn && (
+                <div className="text-xs text-gray-500 mt-1">
+                  Login to view prices
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* ---------------- MAIN CONTENT ---------------- */}
-      <div className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-
-          {/* ---------------- LEFT IMAGE SECTION ---------------- */}
-          <div className="lg:col-span-3 space-y-6 lg:sticky lg:top-24">
-
-            {/* Main Image */}
-            <div className="aspect-square bg-white rounded-3xl p-6 shadow-xl border">
+      <div className="container mx-auto px-4 py-6">
+        
+        {/* ---------------- TOP: IMAGE LEFT | DESCRIPTION RIGHT ---------------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+          
+          {/* LEFT: MAIN PRODUCT IMAGE */}
+          <div>
+            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200 sticky top-24">
               <ImageWithLoader
                 src={selectedImage}
                 alt={product.name}
-                className="w-full h-full object-contain"
+                className="w-full h-auto object-contain max-h-[500px]"
               />
             </div>
+          </div>
 
-            {/* Thumbnails */}
-            {allImages.length > 1 && (
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                {allImages.map((image, index) => (
-                  <ThumbnailImage
-                    key={index}
-                    image={image}
-                    isSelected={selectedImage === image.url}
-                    onClick={() => handleImageClick(image.url)}
-                  />
-                ))}
-              </div>
-            )}
+          {/* RIGHT: DESCRIPTION & KEY FEATURES */}
+          <div className="space-y-6">
 
             {/* Description */}
             {product.description && (
-              <Card className="shadow-md border">
+              <Card className="shadow-sm border border-gray-200 bg-white">
                 <CardContent className="p-6">
-                  <h3 className="font-bold text-lg flex items-center mb-3">
-                    <Info className="w-5 h-5 mr-2 text-emerald-600" />
+                  <h3 className="font-bold text-lg flex items-center mb-3 text-gray-900">
+                    <Info className="w-5 h-5 mr-2 text-indigo-600" />
                     Product Description
                   </h3>
-                  <p className="text-gray-700 leading-relaxed">
+                  <p className="text-gray-700 leading-relaxed text-sm">
                     {product.description}
                   </p>
                 </CardContent>
@@ -665,18 +689,17 @@ return (
 
             {/* Key Features */}
             {product.key_features && (
-              <Card className="shadow-md border">
+              <Card className="shadow-sm border border-gray-200 bg-white">
                 <CardContent className="p-6">
-                  <h3 className="font-bold text-lg flex items-center mb-3">
-                    <Layers className="w-5 h-5 mr-2 text-emerald-600" />
+                  <h3 className="shadow-ld text-lg flex items-center mb-3 text-gray-900">
+                    <Layers className="w-5 h-5 mr-2 text-purple-600" />
                     Key Features
                   </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="space-y-2">
                     {product.key_features.split(",").map((feature, index) => (
                       <div key={index} className="flex items-start gap-2">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full mt-2"></div>
-                        <span className="text-gray-700">{feature.trim()}</span>
+                        <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
+                        <span className="text-gray-700 text-sm">{feature.trim()}</span>
                       </div>
                     ))}
                   </div>
@@ -684,24 +707,26 @@ return (
               </Card>
             )}
           </div>
+        </div>
 
-          {/* ---------------- RIGHT SIDEBAR SECTION ---------------- */}
-          <div className="lg:col-span-2">
-            <div className="lg:sticky lg:top-24 space-y-6">
-
-              {/* ------------- SIZE SELECT BOX ------------- */}
-              {product.sizes && product.sizes.length > 0 && (
-                <Card className="shadow-xl border">
-                  <CardContent className="p-6">
-                    <h3 className="font-bold text-lg flex items-center">
-                      <Package className="w-5 h-5 mr-2 text-emerald-600" />
-                      Select Size
-                      <Badge variant="secondary" className="ml-auto">
+        {/* ---------------- BOTTOM: SIZES LEFT | SELECTED SIZE IMAGES RIGHT ---------------- */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          
+          {/* LEFT: SIZE SELECTION */}
+          <div>
+            {/* ---------------- SIZE SELECT BOX ---------------- */}
+            {product.sizes && product.sizes.length > 0 && (
+                <Card className="shadow-sm border border-gray-200 bg-white">
+                  <CardContent className="p-3">
+                    <h3 className="font-semibold text-sm flex items-center mb-2">
+                      <Package className="w-4 h-4 mr-1.5 text-purple-600" />
+                      <span className="text-gray-800">Select Size</span>
+                      <Badge className="ml-auto bg-purple-100 text-purple-700 text-xs px-1.5 py-0">
                         {product.sizes.length} options
                       </Badge>
                     </h3>
 
-                    <div className="space-y-3 mt-4 max-h-[400px] overflow-y-auto pr-2">
+                    <div className="space-y-2 mt-2 max-h-[400px] overflow-y-auto pr-1 sidebar-scroll">
                       {product.sizes.map((size) => {
                         const isSelected = selectedSizes.has(size.id)
                         const quantity = selectedSizes.get(size.id) || 1
@@ -711,121 +736,165 @@ return (
                         return (
                           <div
                             key={size.id}
-                            className={`border-2 rounded-xl p-4 transition-all relative ${
+                            onClick={() => !inCart && handleSizeClick(size)}
+                            className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 cursor-pointer ${
                               isSelected
-                                ? "border-emerald-500 bg-emerald-50 shadow-md"
+                                ? "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-400 shadow-xl shadow-indigo-200/50 scale-[1.02]"
                                 : inCart
-                                ? "border-blue-300 bg-blue-50"
-                                : "border-gray-200 hover:border-emerald-300 bg-white"
+                                ? "bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-300 shadow-lg opacity-75"
+                                : "bg-white border-2 border-gray-200 hover:border-indigo-300 hover:shadow-xl hover:scale-[1.01]"
                             }`}
                           >
+                            {/* Animated Background Effect */}
+                            {isSelected && (
+                              <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/10 via-purple-400/10 to-pink-400/10 animate-pulse"></div>
+                            )}
+
                             {/* Already in Cart Badge */}
                             {inCart && (
-                              <div className="absolute top-2 right-2">
-                                <Badge className="bg-blue-500 text-white text-xs">
-                                  In Cart
-                                </Badge>
+                              <div className="absolute top-3 right-3 z-10">
+                                <div className="relative">
+                                  <div className="absolute inset-0 bg-blue-400 rounded-full blur-md animate-pulse"></div>
+                                  <Badge className="relative bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs font-bold shadow-lg px-3 py-1">
+                                    ✓ Added
+                                  </Badge>
+                                </div>
                               </div>
                             )}
 
-                            <div className="flex justify-between items-start gap-3">
-                              {/* Left Side - Checkbox + Image + Name */}
-                              <div className="flex items-center gap-3 flex-1">
-                                <div
-                                  onClick={() => handleSizeClick(size)}
-                                  className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer transition-all ${
-                                    isSelected
-                                      ? "bg-emerald-600 border-emerald-600"
-                                      : "border-gray-300 hover:border-emerald-400"
-                                  }`}
-                                >
-                                  {isSelected && <Check className="w-3 h-3 text-white" />}
-                                </div>
-
-                                {size.image && (
-                                  <img
-                                    src={imageUrls[size.image] || size.image}
-                                    className="w-12 h-12 object-contain border rounded p-1"
-                                    alt={`${size.size_value}${size.size_unit}`}
-                                  />
-                                )}
-                                <div className="flex flex-col">
-                                  <p className="text-lg font-bold text-gray-900">
-                                    {size.size_value}{size.size_unit}
-                                  </p>
-                                  {inCart && (
-                                    <p className="text-xs text-blue-600 font-medium">
-                                      Already in your cart
-                                    </p>
+                            <div className="relative flex items-center gap-4">
+                              {/* Custom Radio/Checkbox */}
+                              <div className="flex-shrink-0">
+                                <div className={`relative w-6 h-6 rounded-full border-3 transition-all duration-300 ${
+                                  isSelected 
+                                    ? "border-indigo-500 bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/50" 
+                                    : "border-gray-300 bg-white group-hover:border-indigo-400"
+                                }`}>
+                                  {isSelected && (
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                      <Check className="w-4 h-4 text-white font-bold animate-in zoom-in duration-200" />
+                                    </div>
+                                  )}
+                                  {!isSelected && (
+                                    <div className="absolute inset-1 rounded-full bg-gray-100 group-hover:bg-indigo-50 transition-colors"></div>
                                   )}
                                 </div>
                               </div>
 
-                              {/* Right Price */}
-                              <div className="text-right">
-                                {isLoggedIn ? (
-                                  <>
-                                    <p className="text-xl font-bold text-emerald-600">
-                                      ₹{price?.toFixed(2)}
-                                    </p>
-                                    {size.originalPrice > 0 && (
-                                      <p className="text-xs line-through text-gray-400">
-                                        ₹{size.originalPrice.toFixed(2)}
-                                      </p>
-                                    )}
-                                  </>
-                                ) : (
-                                  <span className="text-emerald-600 text-xs font-bold">
-                                    Login to View
+                              {/* Size Image */}
+                              {size.image && (
+                                <div className="relative flex-shrink-0">
+                                  <div className={`absolute inset-0 rounded-xl blur-lg transition-opacity duration-300 ${
+                                    isSelected ? "bg-gradient-to-br from-indigo-400 to-purple-400 opacity-30" : "opacity-0"
+                                  }`}></div>
+                                  <div className="relative w-16 h-16 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 p-2 group-hover:border-indigo-300 transition-all duration-300">
+                                    <img
+                                      src={imageUrls[size.image] || size.image}
+                                      className="w-full h-full object-contain"
+                                      alt={`${size.size_value}${size.size_unit}`}
+                                    />
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Size Info */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-baseline gap-2">
+                                  <h4 className="text-xl font-bold text-gray-900 truncate">
+                                    {size.size_value}
+                                  </h4>
+                                  <span className="text-sm font-semibold text-gray-500">
+                                    {size.size_unit}
                                   </span>
+                                </div>
+                                {inCart && (
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                                    <p className="text-xs text-blue-600 font-semibold">
+                                      Already in cart
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Price Section */}
+                              <div className="flex-shrink-0 text-right">
+                                {isLoggedIn ? (
+                                  <div className="space-y-1">
+                                    <div className="text-2xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                      ₹{price?.toFixed(2)}
+                                    </div>
+                                    {size.originalPrice > 0 && (
+                                      <div className="flex items-center gap-1.5 justify-end">
+                                        <span className="text-xs line-through text-gray-400 font-medium">
+                                          ₹{size.originalPrice.toFixed(2)}
+                                        </span>
+                                        <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] px-1.5 py-0.5 font-bold">
+                                          {Math.round(((size.originalPrice - price) / size.originalPrice) * 100)}% OFF
+                                        </Badge>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="bg-gradient-to-r from-indigo-100 to-purple-100 px-3 py-2 rounded-lg">
+                                    <span className="text-xs font-bold text-indigo-700">🔒 Login</span>
+                                  </div>
                                 )}
                               </div>
                             </div>
 
-                            {/* Quantity Controls - Show only when selected */}
+                            {/* Quantity Controls - Expanded View */}
                             {isSelected && isLoggedIn && (
-                              <div className="mt-3 pt-3 border-t flex items-center gap-2">
-                                <Label className="text-sm font-medium">Qty:</Label>
-                                <div className="flex gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      updateSizeQuantity(size.id, quantity - 1)
-                                    }}
-                                  >
-                                    <Minus className="w-3 h-3" />
-                                  </Button>
+                              <div className="relative mt-4 pt-4 border-t-2 border-dashed border-indigo-200">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-3">
+                                    <span className="text-sm font-bold text-gray-700">Quantity:</span>
+                                    <div className="flex items-center gap-2 bg-white rounded-xl border-2 border-indigo-200 shadow-inner p-1">
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          updateSizeQuantity(size.id, quantity - 1)
+                                        }}
+                                      >
+                                        <Minus className="w-4 h-4" />
+                                      </Button>
 
-                                  <Input
-                                    type="number"
-                                    min={1}
-                                    value={quantity}
-                                    onChange={(e) => {
-                                      e.stopPropagation()
-                                      updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
-                                    }}
-                                    className="w-16 h-8 text-center font-bold text-sm"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
+                                      <div className="w-16 h-8 flex items-center justify-center">
+                                        <Input
+                                          type="number"
+                                          min={1}
+                                          value={quantity}
+                                          onChange={(e) => {
+                                            e.stopPropagation()
+                                            updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
+                                          }}
+                                          className="w-full h-full text-center font-bold text-base border-0 focus-visible:ring-0 bg-transparent"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
 
-                                  <Button
-                                    variant="outline"
-                                    size="icon"
-                                    className="h-8 w-8"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      updateSizeQuantity(size.id, quantity + 1)
-                                    }}
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation()
+                                          updateSizeQuantity(size.id, quantity + 1)
+                                        }}
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </Button>
+                                    </div>
+                                  </div>
+
+                                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl shadow-lg">
+                                    <div className="text-xs font-medium opacity-90">Subtotal</div>
+                                    <div className="text-lg font-black">₹{(price * quantity).toFixed(2)}</div>
+                                  </div>
                                 </div>
-                                <span className="ml-auto text-sm font-bold text-emerald-600">
-                                  ₹{(price * quantity).toFixed(2)}
-                                </span>
                               </div>
                             )}
                           </div>
@@ -835,102 +904,111 @@ return (
                   </CardContent>
                 </Card>
               )}
+            </div>
 
-              {/* ------------- ADD TO CART BOX ------------- */}
-              {isLoggedIn && selectedSizes.size > 0 && (
-                <Card className="shadow-xl border bg-emerald-50">
-                  <CardContent className="p-6 space-y-4">
+          {/* RIGHT: SELECTED SIZE IMAGES */}
+          <div>
+            {selectedSizes.size > 0 && (
+              <Card className="shadow-sm border border-gray-200 bg-white sticky top-24">
+                <CardContent className="p-6">
+                  <h3 className="font-bold text-lg flex items-center mb-4 text-gray-900">
+                    <Package className="w-5 h-5 mr-2 text-indigo-600" />
+                    Selected Sizes
+                    <Badge className="ml-auto bg-indigo-100 text-indigo-700 text-sm px-2 py-1">
+                      {selectedSizes.size} selected
+                    </Badge>
+                  </h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    {Array.from(selectedSizes.entries()).map(([sizeId, quantity]) => {
+                      const size = product.sizes.find(s => s.id === sizeId)
+                      if (!size) return null
 
-                    <h3 className="text-lg font-bold flex items-center justify-between">
-                      <span className="flex items-center">
-                        <ShoppingCart className="w-5 h-5 mr-2 text-emerald-600" />
-                        Add to Cart
-                      </span>
-                      <Badge className="bg-emerald-600">
-                        {selectedSizes.size} size(s)
-                      </Badge>
-                    </h3>
-
-                    {/* Selected sizes summary */}
-                    <div className="space-y-2 max-h-[200px] overflow-y-auto">
-                      {Array.from(selectedSizes.entries()).map(([sizeId, quantity]) => {
-                        const size = product.sizes.find(s => s.id === sizeId)
-                        if (!size) return null
-                        const price = getSizePrice(size) || 0
-
-                        return (
-                          <div key={sizeId} className="flex justify-between items-center p-3 bg-white rounded-lg border text-sm">
-                            <div>
-                              <p className="font-medium">
-                                {size.size_value}{size.size_unit}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Qty: {quantity} × ₹{price.toFixed(2)}
-                              </p>
+                      return (
+                        <div key={sizeId} className="relative bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-3 border-2 border-indigo-200">
+                          {size.image && (
+                            <div className="aspect-square bg-white rounded-lg p-2 mb-2">
+                              <img
+                                src={imageUrls[size.image] || size.image}
+                                alt={`${size.size_value}${size.size_unit}`}
+                                className="w-full h-full object-contain"
+                              />
                             </div>
-                            <p className="font-bold text-emerald-600">
-                              ₹{(price * quantity).toFixed(2)}
+                          )}
+                          <div className="text-center">
+                            <p className="font-bold text-sm text-gray-900">
+                              {size.size_value}{size.size_unit}
                             </p>
+                            <p className="text-xs text-gray-600">Qty: {quantity}</p>
                           </div>
-                        )
-                      })}
-                    </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
-                    {/* Total */}
-                    <div className="flex justify-between p-4 bg-emerald-100 rounded-lg">
-                      <span className="font-bold">Total</span>
-                      <span className="text-2xl font-bold text-emerald-600">
-                        ₹{Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
-                          const size = product.sizes.find(s => s.id === sizeId)
-                          if (!size) return total
-                          const price = getSizePrice(size) || 0
-                          return total + (price * quantity)
-                        }, 0).toFixed(2)}
-                      </span>
-                    </div>
-
-                    {/* Button */}
-                    <Button
-                      className="w-full h-12 text-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                      onClick={handleAddToCart}
-                      disabled={addingToCart}
-                    >
-                      {addingToCart ? (
-                        <>
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Adding...
-                        </>
-                      ) : (
-                        `Add ${selectedSizes.size} Size(s) to Cart`
-                      )}
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
-
-              {/* ------------- LOGIN REQUIRED ------------- */}
-              {!isLoggedIn && (
-                <Card className="shadow-xl border text-center p-6 bg-gradient-to-br from-emerald-50 to-blue-50">
-                  <UserPlus className="mx-auto w-10 h-10 text-emerald-600" />
-
-                  <p className="font-bold text-xl mt-2">Login Required</p>
-
-                  <p className="text-sm text-gray-600 mt-1">
-                    Sign in to view wholesale prices.
+        {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) ------------- */}
+        {isLoggedIn && selectedSizes.size > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50 p-4">
+            <div className="container mx-auto">
+              <div className="flex items-center justify-between gap-4">
+                <div className="flex-1">
+                  <p className="text-sm text-gray-600 mb-1">{selectedSizes.size} size(s) selected</p>
+                  <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    ₹{Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
+                      const size = product.sizes.find(s => s.id === sizeId)
+                      if (!size) return total
+                      const price = getSizePrice(size) || 0
+                      return total + (price * quantity)
+                    }, 0).toFixed(2)}
                   </p>
-
-                  <Button
-                    className="w-full mt-4 bg-emerald-600 hover:bg-emerald-700 text-white h-12"
-                    onClick={() => navigate("/login")}
-                  >
-                    Login / Signup
-                  </Button>
-                </Card>
-              )}
+                </div>
+                
+                <Button
+                  className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl"
+                  onClick={handleAddToCart}
+                  disabled={addingToCart}
+                >
+                  {addingToCart ? (
+                    <>
+                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    <>
+                      <ShoppingCart className="w-5 h-5 mr-2" />
+                      Add to Cart
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
+        )}
 
-        </div>
+        {/* ------------- LOGIN REQUIRED ------------- */}
+        {!isLoggedIn && (
+          <div className="mt-8">
+            <Card className="shadow-lg border-2 border-indigo-200 text-center p-8 bg-gradient-to-br from-indigo-50 to-purple-50">
+              <UserPlus className="w-12 h-12 mx-auto mb-3 text-indigo-600" />
+              <p className="font-bold text-xl text-gray-900 mb-2">Login Required</p>
+              <p className="text-sm text-gray-600 mb-4">
+                Sign in to view prices and add items to cart
+              </p>
+              <Button
+                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white h-12 px-8 font-bold rounded-xl"
+                onClick={() => navigate("/login")}
+              >
+                <UserPlus className="w-5 h-5 mr-2" />
+                Login / Signup
+              </Button>
+            </Card>
+          </div>
+        )}
       </div>
     </div>
   </>

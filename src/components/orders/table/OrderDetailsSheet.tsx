@@ -5,7 +5,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { Edit, CreditCard, Download, LoaderCircle, CheckCircle, XCircle } from "lucide-react";
+import { Edit, CreditCard, Download, LoaderCircle, CheckCircle, XCircle, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CreateOrderForm } from "../CreateOrderForm";
 import { OrderFormValues } from "../schemas/orderSchema";
@@ -28,6 +28,8 @@ import { current } from "@reduxjs/toolkit";
 import JsBarcode from "jsbarcode"
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
+import { generateWorkOrderPDF } from "@/utils/packing-slip";
+import { PackingSlipModal } from "../PackingSlipModal";
 
 interface OrderDetailsSheetProps {
   order: OrderFormValues;
@@ -64,6 +66,7 @@ export const OrderDetailsSheet = ({
   const pdfTemplateRef = useRef<HTMLDivElement>(null);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [isPackingSlipModalOpen, setIsPackingSlipModalOpen] = useState(false);
 
   // Update currentOrder when order prop changes
   useEffect(() => {
@@ -257,6 +260,11 @@ export const OrderDetailsSheet = ({
 
 
 
+
+  const handleDownloadPackingSlip = () => {
+    // Open modal instead of directly downloading
+    setIsPackingSlipModalOpen(true);
+  };
 
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true);
@@ -609,6 +617,7 @@ export const OrderDetailsSheet = ({
   if (!currentOrder) return null;
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full max-w-full md:max-w-3xl overflow-y-auto z-50 p-4 md:p-6">
         <SheetHeader>
@@ -713,7 +722,16 @@ export const OrderDetailsSheet = ({
             )}
 
             {userRole === "admin" && !poIs && (
-              <div className="flex justify-end">
+              <div className="flex justify-end gap-3">
+                {/* Packing Slip Button */}
+                <button
+                  onClick={handleDownloadPackingSlip}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300"
+                >
+                  <Package size={18} />
+                  Packing Slip
+                </button>
+
                 <OrderActions
                   order={currentOrder}
                   onProcessOrder={() => handleStatusUpdate("process")}
@@ -754,6 +772,15 @@ export const OrderDetailsSheet = ({
 
         {poIs && (
           <div className="flex w-full justify-end mt-6 gap-3">
+            {/* Download Packing Slip */}
+            <button
+              onClick={handleDownloadPackingSlip}
+              className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300"
+            >
+              <Package size={18} />
+              Packing Slip
+            </button>
+
             {/* Download PDF */}
             <button
               onClick={handleDownloadPDF}
@@ -795,5 +822,13 @@ export const OrderDetailsSheet = ({
 
       </SheetContent>
     </Sheet>
+
+    {/* Packing Slip Modal */}
+    <PackingSlipModal
+      open={isPackingSlipModalOpen}
+      onOpenChange={setIsPackingSlipModalOpen}
+      orderData={currentOrder}
+    />
+  </>
   );
 };
