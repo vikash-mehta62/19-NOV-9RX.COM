@@ -182,7 +182,7 @@ export const PackingSlipModal = ({
             <div className="bg-gray-50 p-4 rounded-lg">
               <h3 className="text-lg font-semibold mb-3">Packing Information</h3>
               <div className="space-y-2 text-sm">
-                <p><span className="font-medium">Packing Slip #:</span> PS-{orderData?.order_number}</p>
+                <p><span className="font-medium">Packing Slip #:</span> {orderData?.order_number}</p>
                 <p><span className="font-medium">Date:</span> {new Date().toLocaleDateString()}</p>
                 <p><span className="font-medium">Items:</span> {orderData?.items?.length || 0}</p>
               </div>
