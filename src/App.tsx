@@ -178,6 +178,16 @@ function App() {
           <AdminCreateOrder />
         </ProtectedRoute>
       } />
+      <Route path="/admin/orders/edit/:orderId" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminCreateOrder />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/po/edit/:orderId" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminCreateOrder />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/logs" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminLogs />

@@ -59,6 +59,7 @@ export const PaymentConfirmationStep = ({
   initialPONumber = "",
   initialTermsAccepted = false,
   initialAccuracyConfirmed = false,
+  isEditMode = false,
 }: PaymentConfirmationStepProps) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(
     initialPaymentMethod
@@ -144,8 +145,15 @@ export const PaymentConfirmationStep = ({
       {/* Payment Method Selection */}
       <div>
         <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">
-          Select Payment Method
+          {isEditMode ? "Payment Method (Locked)" : "Select Payment Method"}
         </h3>
+        {isEditMode && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-sm text-blue-700">
+              Payment method cannot be changed in edit mode
+            </p>
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           {paymentMethods.map((method) => {
             const Icon = method.icon;
@@ -154,12 +162,12 @@ export const PaymentConfirmationStep = ({
             return (
               <Card
                 key={method.id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 active:scale-95 ${
+                className={`${isEditMode ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:shadow-md hover:scale-105 active:scale-95'} transition-all duration-200 ${
                   isSelected
                     ? "border-2 border-blue-500 bg-blue-50"
                     : "border border-gray-200 hover:border-gray-300"
                 }`}
-                onClick={() => handlePaymentMethodSelect(method.id)}
+                onClick={() => !isEditMode && handlePaymentMethodSelect(method.id)}
               >
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-start gap-3 sm:gap-4">

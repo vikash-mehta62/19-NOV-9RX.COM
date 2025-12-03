@@ -44,6 +44,7 @@ export interface WizardNavigationProps {
 
 export interface OrderCreationWizardProps {
   initialData?: any;
+  isEditMode?: boolean;
   onComplete?: (data: any) => void;
   onCancel?: () => void;
 }
@@ -87,6 +88,8 @@ export interface CustomerSelectionStepProps {
   selectedCustomerId?: string;
   onCustomerSelect: (customer: Customer) => void;
   onAddNewCustomer?: () => void;
+  isEditMode?: boolean;
+  lockedCustomer?: Customer;
 }
 
 export interface Address {
@@ -135,4 +138,5 @@ export interface PaymentConfirmationStepProps {
   initialPONumber?: string;
   initialTermsAccepted?: boolean;
   initialAccuracyConfirmed?: boolean;
+  isEditMode?: boolean;
 }

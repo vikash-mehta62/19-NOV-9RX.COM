@@ -327,7 +327,7 @@ export const OrderDetailsSheet = ({
       const tableHead = [["Description", "Size", "Qty", "Price/Unit", "Total"]];
       const tableBody = [];
 
-      currentOrder.items.forEach((item) => {
+      currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size, sizeIndex) => {
           const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
           const quantity = size.quantity.toString();
@@ -369,11 +369,11 @@ export const OrderDetailsSheet = ({
 
       const finalY = (doc as any).lastAutoTable.finalY + 10;
 
-      const subtotal = currentOrder.items.reduce((sum, item) => {
+      const subtotal = currentOrder.items.reduce((sum, item: any) => {
         return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
       }, 0);
-      const handling = Number(currentOrder?.po_handling_charges || 0);
-      const fred = Number(currentOrder?.po_fred_charges || 0);
+      const handling = Number((currentOrder as any)?.po_handling_charges || 0);
+      const fred = Number((currentOrder as any)?.po_fred_charges || 0);
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
       const total = subtotal + handling + fred + shipping + tax;
@@ -575,10 +575,17 @@ export const OrderDetailsSheet = ({
 
           {isEditing ? (
             <div className="mt-6">
-              <CreateOrderForm initialData={currentOrder} isEditing={isEditing} />
+              <CreateOrderForm 
+                initialData={currentOrder} 
+                isEditing={isEditing}
+                poIs={poIs}
+              />
               <Button
                 variant="outline"
-                onClick={() => setIsEditing(false)}
+                onClick={() => {
+                  setIsEditing(false);
+                  setCurrentOrder(order); // Reset to original order data
+                }}
                 className="mt-4 w-full md:w-auto"
               >
                 Cancel Edit
@@ -589,7 +596,11 @@ export const OrderDetailsSheet = ({
               {/* Order Header */}
               <OrderHeader
                 order={currentOrder}
-                onEdit={() => setIsEditing(true)}
+                onEdit={() => {
+                  // Navigate to new flow for editing
+                  const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
+                  window.location.href = editUrl;
+                }}
                 onDownload={handleDownloadPDF}
                 onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
                 isGeneratingPDF={isGeneratingPDF}

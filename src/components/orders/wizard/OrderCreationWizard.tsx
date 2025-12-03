@@ -27,6 +27,7 @@ import "./wizard-animations.css";
 
 const OrderCreationWizardComponent = ({
   initialData,
+  isEditMode = false,
   onComplete,
   onCancel,
 }: OrderCreationWizardProps) => {
@@ -34,7 +35,10 @@ const OrderCreationWizardComponent = ({
   const wizardState = useWizardState(totalSteps);
   const [formData, setFormData] = useState(initialData || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    initialData?.customer || null
+  );
   const [billingAddress, setBillingAddress] = useState<BillingAddress | undefined>(
     initialData?.billingAddress
   );
@@ -47,8 +51,68 @@ const OrderCreationWizardComponent = ({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const { cartItems } = useCart();
+  const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
+
+  // Load initial data in edit mode - only run once
+  useEffect(() => {
+    const loadInitialData = async () => {
+      if (isInitialized) return; // Prevent multiple runs
+      
+      if (!isEditMode || !initialData) {
+        setIsInitialized(true);
+        return;
+      }
+      
+      console.log("Loading initial data in edit mode:", initialData);
+      
+      // Set customer
+      if (initialData.customer) {
+        setSelectedCustomer(initialData.customer);
+      }
+
+      // Set addresses
+      if (initialData.billingAddress) {
+        setBillingAddress(initialData.billingAddress);
+      }
+      if (initialData.shippingAddress) {
+        setShippingAddress(initialData.shippingAddress);
+      }
+
+      // Set payment method
+      if (initialData.paymentMethod) {
+        setPaymentMethod(initialData.paymentMethod);
+      }
+
+      // Set special instructions and PO number
+      if (initialData.specialInstructions) {
+        setSpecialInstructions(initialData.specialInstructions);
+      }
+      if (initialData.poNumber) {
+        setPONumber(initialData.poNumber);
+      }
+
+      // Load cart items
+      if (initialData.cartItems && initialData.cartItems.length > 0) {
+        console.log("Loading cart items:", initialData.cartItems);
+        await clearCart();
+        
+        // Add each item to cart
+        for (const item of initialData.cartItems) {
+          await addToCart(item);
+        }
+      }
+
+      // Mark step 1 as complete and move to step 2 (addresses)
+      wizardState.markStepComplete(1);
+      wizardState.goToStep(2);
+      
+      setIsInitialized(true);
+    };
+
+    loadInitialData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditMode, initialData, isInitialized]); // Run when these change
 
   // Calculate order totals - memoized to prevent unnecessary recalculations
   const { subtotal, tax, shipping, total } = useMemo(() => {
@@ -469,6 +533,8 @@ const OrderCreationWizardComponent = ({
             selectedCustomerId={selectedCustomer?.id}
             onCustomerSelect={handleCustomerSelect}
             onAddNewCustomer={handleAddNewCustomer}
+            isEditMode={isEditMode}
+            lockedCustomer={isEditMode ? selectedCustomer : undefined}
           />
         );
       case 2:
@@ -519,6 +585,7 @@ const OrderCreationWizardComponent = ({
             initialPONumber={poNumber}
             initialTermsAccepted={termsAccepted}
             initialAccuracyConfirmed={accuracyConfirmed}
+            isEditMode={isEditMode}
           />
         );
       default:

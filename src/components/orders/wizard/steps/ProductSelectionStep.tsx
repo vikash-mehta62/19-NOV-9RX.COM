@@ -4,18 +4,25 @@ import { useCart } from "@/hooks/use-cart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Package, ShoppingCart } from "lucide-react";
+import { Trash2, Package, ShoppingCart, FileText, Plus } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import CustomProductForm from "@/components/orders/Customitems";
 
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
 }
 
 const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepProps) => {
-  const { cartItems, removeFromCart, updateQuantity } = useCart();
+  const { cartItems, removeFromCart, updateQuantity, updateDescription } = useCart();
   const [showCustomization, setShowCustomization] = useState(false);
+  const [showDescriptionDialog, setShowDescriptionDialog] = useState(false);
+  const [showCustomProductDialog, setShowCustomProductDialog] = useState(false);
+  const [selectedItemForDescription, setSelectedItemForDescription] = useState<any>(null);
+  const [tempDescription, setTempDescription] = useState("");
   const { toast } = useToast();
 
   // Memoize total item count to prevent unnecessary recalculations
@@ -55,6 +62,32 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
     }
   }, [updateQuantity, onCartUpdate, toast]);
 
+  const handleOpenDescriptionDialog = useCallback((item: any) => {
+    setSelectedItemForDescription(item);
+    setTempDescription(item.description || "");
+    setShowDescriptionDialog(true);
+  }, []);
+
+  const handleSaveDescription = useCallback(async () => {
+    if (!selectedItemForDescription) return;
+    
+    try {
+      await updateDescription(selectedItemForDescription.productId, tempDescription);
+      onCartUpdate?.();
+      setShowDescriptionDialog(false);
+      toast({
+        title: "Description Updated",
+        description: "Product description has been updated",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update description",
+        variant: "destructive",
+      });
+    }
+  }, [selectedItemForDescription, tempDescription, updateDescription, onCartUpdate, toast]);
+
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header */}
@@ -65,12 +98,23 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             Browse and add products to your order
           </p>
         </div>
-        {cartItems.length > 0 && (
-          <Badge variant="secondary" className="text-sm sm:text-lg px-3 py-1 sm:px-4 sm:py-2 self-start sm:self-auto" aria-label={`${totalItemCount} ${totalItemCount === 1 ? "item" : "items"} in cart`}>
-            <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" aria-hidden="true" />
-            {totalItemCount} {totalItemCount === 1 ? "Item" : "Items"}
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => setShowCustomProductDialog(true)}
+            variant="outline"
+            size="sm"
+            className="gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Add Custom Item
+          </Button>
+          {cartItems.length > 0 && (
+            <Badge variant="secondary" className="text-sm sm:text-lg px-3 py-1 sm:px-4 sm:py-2" aria-label={`${totalItemCount} ${totalItemCount === 1 ? "item" : "items"} in cart`}>
+              <ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" aria-hidden="true" />
+              {totalItemCount} {totalItemCount === 1 ? "Item" : "Items"}
+            </Badge>
+          )}
+        </div>
       </div>
 
       <Separator />
@@ -108,9 +152,26 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
 
                     {/* Product Details */}
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-gray-900 truncate">
-                        {item.name}
-                      </h4>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-semibold text-gray-900 truncate">
+                          {item.name}
+                        </h4>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleOpenDescriptionDialog(item)}
+                          className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        >
+                          <FileText className="w-4 h-4 mr-1" />
+                          {item.description ? "Edit" : "Add"} Note
+                        </Button>
+                      </div>
+                      
+                      {item.description && (
+                        <p className="text-sm text-gray-600 italic mt-1">
+                          {item.description}
+                        </p>
+                      )}
                       
                       {/* Size Details */}
                       <div className="mt-2 space-y-2">
@@ -208,6 +269,46 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           <ProductShowcase groupShow={true} isEditing={false} />
         </CardContent>
       </Card>
+
+      {/* Description Dialog */}
+      <Dialog open={showDescriptionDialog} onOpenChange={setShowDescriptionDialog}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add/Edit Product Note</DialogTitle>
+          </DialogHeader>
+          
+          {selectedItemForDescription && (
+            <div>
+              <p className="text-sm text-gray-700 font-medium mb-2">
+                Product: {selectedItemForDescription.name}
+              </p>
+              <Textarea
+                value={tempDescription}
+                onChange={(e) => setTempDescription(e.target.value)}
+                placeholder="Enter special instructions or notes for this product..."
+                className="mt-2 min-h-[100px]"
+              />
+            </div>
+          )}
+
+          <DialogFooter className="mt-4">
+            <Button variant="ghost" onClick={() => setShowDescriptionDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveDescription}>
+              Save Note
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Custom Product Dialog */}
+      <CustomProductForm
+        isOpen={showCustomProductDialog}
+        onClose={() => setShowCustomProductDialog(false)}
+        isEditing={false}
+        form={null}
+      />
     </div>
   );
 };

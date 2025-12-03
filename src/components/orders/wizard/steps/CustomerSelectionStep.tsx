@@ -41,12 +41,16 @@ interface CustomerSelectionStepProps {
   selectedCustomerId?: string;
   onCustomerSelect: (customer: Customer) => void;
   onAddNewCustomer?: () => void;
+  isEditMode?: boolean;
+  lockedCustomer?: Customer;
 }
 
 const CustomerSelectionStepComponent = ({
   selectedCustomerId,
   onCustomerSelect,
   onAddNewCustomer,
+  isEditMode = false,
+  lockedCustomer,
 }: CustomerSelectionStepProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -154,6 +158,62 @@ const CustomerSelectionStepComponent = ({
         <AlertCircle className="h-4 w-4" />
         <AlertDescription>{error}</AlertDescription>
       </Alert>
+    );
+  }
+
+  // If in edit mode, show locked customer
+  if (isEditMode && lockedCustomer) {
+    return (
+      <div className="space-y-4 sm:space-y-6">
+        {/* Header */}
+        <div>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Customer Information</h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+            Customer selection is locked in edit mode
+          </p>
+        </div>
+
+        {/* Locked Customer Card */}
+        <Card className="border-2 border-blue-500 bg-blue-50">
+          <CardContent className="p-4 sm:p-6">
+            <div className="flex items-start justify-between mb-3 sm:mb-4">
+              <div>
+                <h3 className="text-base sm:text-lg font-semibold text-gray-900">Order Customer (Locked)</h3>
+                <p className="text-xs sm:text-sm text-gray-500">This customer cannot be changed in edit mode</p>
+              </div>
+              <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs">
+                Locked
+              </Badge>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Name</p>
+                <p className="text-xs sm:text-sm text-gray-900">{lockedCustomer.name}</p>
+              </div>
+              {lockedCustomer.company_name && (
+                <div>
+                  <p className="text-xs sm:text-sm font-medium text-gray-700">Company</p>
+                  <p className="text-xs sm:text-sm text-gray-900">{lockedCustomer.company_name}</p>
+                </div>
+              )}
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Email</p>
+                <p className="text-xs sm:text-sm text-gray-900 break-all">{lockedCustomer.email}</p>
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Phone</p>
+                <p className="text-xs sm:text-sm text-gray-900">{lockedCustomer.phone || "N/A"}</p>
+              </div>
+              <div>
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Type</p>
+                <Badge className={`${getTypeBadgeColor(lockedCustomer.type)} text-xs`}>
+                  {lockedCustomer.type}
+                </Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
