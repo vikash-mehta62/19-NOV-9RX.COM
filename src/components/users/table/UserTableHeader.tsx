@@ -19,11 +19,9 @@ export function UserTableHeader({ onSelectAll, isAllSelected }: UserTableHeaderP
         </TableHead>
         <TableHead className="min-w-[150px]">Name</TableHead>
         <TableHead className="min-w-[200px] hidden md:table-cell">Email</TableHead>
-        <TableHead className="hidden lg:table-cell">Type</TableHead>
-        <TableHead className="hidden sm:table-cell">Role</TableHead>
-        <TableHead className="hidden xl:table-cell">Locations</TableHead>
+        <TableHead className="hidden lg:table-cell">Company</TableHead>
+        <TableHead className="hidden sm:table-cell">Type</TableHead>
         <TableHead>Status</TableHead>
-        <TableHead className="hidden lg:table-cell">Last Active</TableHead>
         <TableHead className="text-right">Actions</TableHead>
       </TableRow>
     </TableHeader>

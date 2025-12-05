@@ -43,6 +43,7 @@ import ResetPasswordPage from "./components/ResetPassowrdPage";
 import Expenses from "./pages/admin/Expenses";
 import AdminLogs from "./pages/admin/AdminLogs";
 import ProductDetails from "./pages/ProductDetails";
+import AccessRequests from "./pages/AccessRequests";
 
 export let CATEGORY_CONFIGS: Record<
   string,
@@ -61,7 +62,7 @@ export async function fetchCategoryConfigs() {
     .from('category_configs')
     .select('*');
 
-    console.log(data,"DATA")
+  console.log(data, "DATA")
   if (error) {
     console.error('❌ Failed to load CATEGORY_CONFIGS:', error.message);
     return;
@@ -106,7 +107,7 @@ function App() {
   useEffect(() => {
 
 
-  fetchCategoryConfigs();
+    fetchCategoryConfigs();
 
 
     // Clear any expired sessions
@@ -176,6 +177,12 @@ function App() {
       <Route path="/admin/orders/create" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminCreateOrder />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/admin/access-requests" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AccessRequests />
         </ProtectedRoute>
       } />
       <Route path="/admin/orders/edit/:orderId" element={

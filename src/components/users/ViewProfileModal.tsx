@@ -50,6 +50,7 @@ import {
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedPaymentTab } from "./EnhancedPaymentTab";
+import { AnalyticsTab } from "./tabs/AnalyticsTab";
 
 interface ViewProfileModalProps {
   userId: string;
@@ -455,7 +456,7 @@ export function ViewProfileModal({
 
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-4 mt-4">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Card>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-sm font-medium text-muted-foreground">
@@ -544,7 +545,9 @@ export function ViewProfileModal({
                     </div>
                   </div>
                 </CardContent>
-              </Card>
+              </Card> */}
+
+              <AnalyticsTab userId={userId} />
             </TabsContent>
 
             {/* Basic Info Tab */}

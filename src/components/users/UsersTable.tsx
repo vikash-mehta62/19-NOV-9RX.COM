@@ -9,12 +9,13 @@ import { UserRole } from "./schemas/userFormSchemas";
 import { PendingUserReview } from "./pending/PendingUserReview";
 import { UserTableHeader } from "./table/UserTableHeader";
 import { UserTableRow } from "./table/UserTableRow";
-import { getStatusBadgeColor, getRoleBadgeColor, getLocationDetails, getLocationTypeIcon } from "./utils/userTableUtils";
+import { getStatusBadgeColor } from "./utils/userTableUtils";
 
 export interface User {
   id: string;
   name: string;
   email: string;
+  company?: string;
   type: "Pharmacy" | "Hospital" | "Group";
   status: string;
   role: UserRole;
@@ -73,9 +74,6 @@ const UsersTable = ({ users, selectedUsers, onSelectionChange }: UsersTableProps
                 onSelectChange={(checked) => handleSelectOne(checked, user.id)}
                 onUserUpdated={handleUserUpdated}
                 getStatusBadgeColor={getStatusBadgeColor}
-                getRoleBadgeColor={getRoleBadgeColor}
-                getLocationDetails={getLocationDetails}
-                getLocationTypeIcon={getLocationTypeIcon}
                 handleStatusBadgeClick={handleStatusBadgeClick}
               />
             ))}

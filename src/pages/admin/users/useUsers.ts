@@ -71,6 +71,7 @@ async function fetchUsers() {
     id: profile.id,
     name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
     email: profile.email || '',
+    company: profile.company_name || profile.display_name || '-',
     locations : 10,
     type: profile.type || "Pharmacy",
     status: profile.status || "pending",

@@ -30,11 +30,11 @@ const Users = () => {
     setFilterType,
     setFilterStatus,
   } = useUsers();
-
   // Calculate statistics
-  const activeUsers = users.filter((user) => user.status === "active").length;
-  const pendingUsers = users.filter((user) => user.status === "pending").length;
   const totalUsers = users.length;
+  const pharmacies = users.filter((user) => user.type.toLowerCase() === "pharmacy").length;
+  const hospitals = users.filter((user) => user.type.toLowerCase() === "hospital").length;
+  const groups = users.filter((user) => user.type.toLowerCase() === "group").length;
 
 
   useEffect(() => {
@@ -52,9 +52,9 @@ const Users = () => {
   };
 
   const handleExportCSV = () => {
-    const headers = ["Name", "Email", "Type", "Status", "Locations", "Last Active"];
+    const headers = ["Name", "Email", "Company", "Type", "Status"];
     const csvContent = users.map(user =>
-      [user.name, user.email, user.type, user.status, user.locations || "", user.lastActive].join(",")
+      [user.name, user.email, user.company || "-", user.type, user.status].join(",")
     );
 
     const csv = [headers.join(","), ...csvContent].join("\n");
@@ -102,11 +102,12 @@ const Users = () => {
 
     return (
       <>
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <UserStatsCards
             totalUsers={totalUsers}
-            activeUsers={activeUsers}
-            pendingUsers={pendingUsers}
+            pharmacies={pharmacies}
+            hospitals={hospitals}
+            groups={groups}
           />
         </div>
 

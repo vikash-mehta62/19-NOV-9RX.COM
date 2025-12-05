@@ -607,30 +607,45 @@ return (
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
             {/* Left: Category + Product Name */}
             <div className="flex-1 space-y-2">
-              {product.category && (
-                <Badge className="bg-emerald-600 text-white px-2.5 py-0.5 text-xs font-semibold rounded">
-                  {product.category}
-                </Badge>
-              )}
+              {/* Category & Subcategory Badges */}
+              <div className="flex flex-wrap items-center gap-2">
+                {product.category && (
+                  <Badge className="bg-emerald-600 text-white px-2 py-0.5 text-[10px] font-semibold rounded">
+                    {product.category}
+                  </Badge>
+                )}
+                {/* Subcategory - placeholder for future implementation */}
+                {product.category && (
+                  <Badge className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-semibold rounded">
+                    {product.category.split(' ')[0]} Series
+                  </Badge>
+                )}
+              </div>
               
-              <h1 className="text-xl sm:text-2xl font-bold leading-tight text-gray-900">
+              <h1 className="text-lg sm:text-xl font-bold leading-tight text-gray-900">
                 {product.name}
               </h1>
 
               {/* Additional Info Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
                 {product.sku && (
-                  <div className="flex items-center gap-1.5">
-                    <Package className="w-3 h-3" />
-                    <span>SKU: <span className="font-medium text-gray-800">{product.sku}</span></span>
+                  <div className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
+                    <Package className="w-3 h-3 text-gray-600" />
+                    <span className="text-[11px]">SKU: <span className="font-semibold text-gray-800">{product.sku}</span></span>
                   </div>
                 )}
                 
-                {product.sizes && product.sizes.length > 0 && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-gray-400">•</span>
+                {product.quantity_per_case && (
+                  <div className="flex items-center gap-1 bg-purple-50 px-2 py-0.5 rounded">
                     <Layers className="w-3 h-3 text-purple-600" />
-                    <span className="font-medium text-purple-700">{product.sizes.length} Sizes Available</span>
+                    <span className="text-[11px] font-semibold text-purple-700">{product.quantity_per_case}/case</span>
+                  </div>
+                )}
+
+                {product.sizes && product.sizes.length > 0 && (
+                  <div className="flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded">
+                    <Layers className="w-3 h-3 text-indigo-600" />
+                    <span className="text-[11px] font-semibold text-indigo-700">{product.sizes.length} Sizes</span>
                   </div>
                 )}
               </div>
@@ -656,31 +671,31 @@ return (
       <div className="container mx-auto px-4 py-6">
         
         {/* ---------------- TOP: IMAGE LEFT | DESCRIPTION RIGHT ---------------- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 mb-4 lg:mb-8">
           
           {/* LEFT: MAIN PRODUCT IMAGE */}
           <div>
-            <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200 sticky top-24">
+            <div className="bg-white rounded-lg lg:rounded-2xl p-4 lg:p-8 shadow-lg border border-gray-200 lg:sticky lg:top-24">
               <ImageWithLoader
                 src={selectedImage}
                 alt={product.name}
-                className="w-full h-auto object-contain max-h-[500px]"
+                className="w-full h-auto object-contain max-h-[300px] lg:max-h-[500px]"
               />
             </div>
           </div>
 
           {/* RIGHT: DESCRIPTION & KEY FEATURES */}
-          <div className="space-y-6">
+          <div className="space-y-3 lg:space-y-6">
 
             {/* Description */}
             {product.description && (
               <Card className="shadow-sm border border-gray-200 bg-white">
-                <CardContent className="p-6">
-                  <h3 className="font-bold text-lg flex items-center mb-3 text-gray-900">
-                    <Info className="w-5 h-5 mr-2 text-indigo-600" />
-                    Product Description
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-sm flex items-center mb-2 text-gray-900">
+                    <Info className="w-4 h-4 mr-1.5 text-indigo-600" />
+                    Description
                   </h3>
-                  <p className="text-gray-700 leading-relaxed text-sm">
+                  <p className="text-gray-700 leading-relaxed text-xs">
                     {product.description}
                   </p>
                 </CardContent>
@@ -690,16 +705,16 @@ return (
             {/* Key Features */}
             {product.key_features && (
               <Card className="shadow-sm border border-gray-200 bg-white">
-                <CardContent className="p-6">
-                  <h3 className="shadow-ld text-lg flex items-center mb-3 text-gray-900">
-                    <Layers className="w-5 h-5 mr-2 text-purple-600" />
+                <CardContent className="p-4">
+                  <h3 className="font-semibold text-sm flex items-center mb-2 text-gray-900">
+                    <Layers className="w-4 h-4 mr-1.5 text-purple-600" />
                     Key Features
                   </h3>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     {product.key_features.split(",").map((feature, index) => (
                       <div key={index} className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 bg-purple-500 rounded-full mt-2 flex-shrink-0"></div>
-                        <span className="text-gray-700 text-sm">{feature.trim()}</span>
+                        <div className="w-1 h-1 bg-purple-500 rounded-full mt-1.5 flex-shrink-0"></div>
+                        <span className="text-gray-700 text-xs">{feature.trim()}</span>
                       </div>
                     ))}
                   </div>
@@ -710,7 +725,7 @@ return (
         </div>
 
         {/* ---------------- BOTTOM: SIZES LEFT | SELECTED SIZE IMAGES RIGHT ---------------- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 pb-20 lg:pb-8">
           
           {/* LEFT: SIZE SELECTION */}
           <div>
@@ -718,15 +733,15 @@ return (
             {product.sizes && product.sizes.length > 0 && (
                 <Card className="shadow-sm border border-gray-200 bg-white">
                   <CardContent className="p-3">
-                    <h3 className="font-semibold text-sm flex items-center mb-2">
-                      <Package className="w-4 h-4 mr-1.5 text-purple-600" />
+                    <h3 className="font-semibold text-xs flex items-center mb-2">
+                      <Package className="w-3.5 h-3.5 mr-1 text-purple-600" />
                       <span className="text-gray-800">Select Size</span>
-                      <Badge className="ml-auto bg-purple-100 text-purple-700 text-xs px-1.5 py-0">
+                      <Badge className="ml-auto bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5">
                         {product.sizes.length} options
                       </Badge>
                     </h3>
 
-                    <div className="space-y-2 mt-2 max-h-[400px] overflow-y-auto pr-1 sidebar-scroll">
+                    <div className="space-y-2 mt-2 max-h-[300px] lg:max-h-[400px] overflow-y-auto pr-1 sidebar-scroll">
                       {product.sizes.map((size) => {
                         const isSelected = selectedSizes.has(size.id)
                         const quantity = selectedSizes.get(size.id) || 1
@@ -737,7 +752,7 @@ return (
                           <div
                             key={size.id}
                             onClick={() => !inCart && handleSizeClick(size)}
-                            className={`group relative overflow-hidden rounded-2xl p-4 transition-all duration-300 cursor-pointer ${
+                            className={`group relative overflow-hidden rounded-xl lg:rounded-2xl p-3 lg:p-4 transition-all duration-300 cursor-pointer ${
                               isSelected
                                 ? "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-400 shadow-xl shadow-indigo-200/50 scale-[1.02]"
                                 : inCart
@@ -762,10 +777,10 @@ return (
                               </div>
                             )}
 
-                            <div className="relative flex items-center gap-4">
+                            <div className="relative flex items-center gap-2 lg:gap-4">
                               {/* Custom Radio/Checkbox */}
                               <div className="flex-shrink-0">
-                                <div className={`relative w-6 h-6 rounded-full border-3 transition-all duration-300 ${
+                                <div className={`relative w-5 h-5 lg:w-6 lg:h-6 rounded-full border-3 transition-all duration-300 ${
                                   isSelected 
                                     ? "border-indigo-500 bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/50" 
                                     : "border-gray-300 bg-white group-hover:border-indigo-400"
@@ -784,10 +799,10 @@ return (
                               {/* Size Image */}
                               {size.image && (
                                 <div className="relative flex-shrink-0">
-                                  <div className={`absolute inset-0 rounded-xl blur-lg transition-opacity duration-300 ${
+                                  <div className={`absolute inset-0 rounded-lg lg:rounded-xl blur-lg transition-opacity duration-300 ${
                                     isSelected ? "bg-gradient-to-br from-indigo-400 to-purple-400 opacity-30" : "opacity-0"
                                   }`}></div>
-                                  <div className="relative w-16 h-16 bg-gradient-to-br from-gray-50 to-white rounded-xl border-2 border-gray-200 p-2 group-hover:border-indigo-300 transition-all duration-300">
+                                  <div className="relative w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-gray-50 to-white rounded-lg lg:rounded-xl border-2 border-gray-200 p-1.5 lg:p-2 group-hover:border-indigo-300 transition-all duration-300">
                                     <img
                                       src={imageUrls[size.image] || size.image}
                                       className="w-full h-full object-contain"
@@ -799,19 +814,19 @@ return (
 
                               {/* Size Info */}
                               <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-2">
-                                  <h4 className="text-xl font-bold text-gray-900 truncate">
+                                <div className="flex items-baseline gap-1">
+                                  <h4 className="text-sm lg:text-base font-bold text-gray-900 truncate">
                                     {size.size_value}
                                   </h4>
-                                  <span className="text-sm font-semibold text-gray-500">
+                                  <span className="text-[10px] lg:text-xs font-semibold text-gray-500">
                                     {size.size_unit}
                                   </span>
                                 </div>
                                 {inCart && (
-                                  <div className="flex items-center gap-1.5 mt-1">
-                                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                                    <p className="text-xs text-blue-600 font-semibold">
-                                      Already in cart
+                                  <div className="flex items-center gap-1 mt-0.5">
+                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
+                                    <p className="text-[10px] text-blue-600 font-semibold">
+                                      In cart
                                     </p>
                                   </div>
                                 )}
@@ -820,24 +835,24 @@ return (
                               {/* Price Section */}
                               <div className="flex-shrink-0 text-right">
                                 {isLoggedIn ? (
-                                  <div className="space-y-1">
-                                    <div className="text-2xl font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                      ₹{price?.toFixed(2)}
+                                  <div className="space-y-0.5">
+                                    <div className="text-base lg:text-lg font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                                      ${price?.toFixed(2)}
                                     </div>
                                     {size.originalPrice > 0 && (
-                                      <div className="flex items-center gap-1.5 justify-end">
-                                        <span className="text-xs line-through text-gray-400 font-medium">
-                                          ₹{size.originalPrice.toFixed(2)}
+                                      <div className="flex items-center gap-1 justify-end">
+                                        <span className="text-[10px] line-through text-gray-400 font-medium">
+                                          ${size.originalPrice.toFixed(2)}
                                         </span>
-                                        <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] px-1.5 py-0.5 font-bold">
+                                        <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[9px] px-1 py-0 font-bold">
                                           {Math.round(((size.originalPrice - price) / size.originalPrice) * 100)}% OFF
                                         </Badge>
                                       </div>
                                     )}
                                   </div>
                                 ) : (
-                                  <div className="bg-gradient-to-r from-indigo-100 to-purple-100 px-3 py-2 rounded-lg">
-                                    <span className="text-xs font-bold text-indigo-700">🔒 Login</span>
+                                  <div className="bg-gradient-to-r from-indigo-100 to-purple-100 px-2 py-1 rounded">
+                                    <span className="text-[10px] font-bold text-indigo-700">🔒 Login</span>
                                   </div>
                                 )}
                               </div>
@@ -845,24 +860,24 @@ return (
 
                             {/* Quantity Controls - Expanded View */}
                             {isSelected && isLoggedIn && (
-                              <div className="relative mt-4 pt-4 border-t-2 border-dashed border-indigo-200">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-3">
-                                    <span className="text-sm font-bold text-gray-700">Quantity:</span>
-                                    <div className="flex items-center gap-2 bg-white rounded-xl border-2 border-indigo-200 shadow-inner p-1">
+                              <div className="relative mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-dashed border-indigo-200">
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-1.5 lg:gap-2">
+                                    <span className="text-[10px] lg:text-xs font-semibold text-gray-700">Qty:</span>
+                                    <div className="flex items-center gap-0.5 lg:gap-1 bg-white rounded border border-indigo-200 p-0.5">
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                                        className="h-6 w-6 rounded hover:bg-indigo-100 hover:text-indigo-700"
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           updateSizeQuantity(size.id, quantity - 1)
                                         }}
                                       >
-                                        <Minus className="w-4 h-4" />
+                                        <Minus className="w-3 h-3" />
                                       </Button>
 
-                                      <div className="w-16 h-8 flex items-center justify-center">
+                                      <div className="w-12 h-6 flex items-center justify-center">
                                         <Input
                                           type="number"
                                           min={1}
@@ -871,7 +886,7 @@ return (
                                             e.stopPropagation()
                                             updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
                                           }}
-                                          className="w-full h-full text-center font-bold text-base border-0 focus-visible:ring-0 bg-transparent"
+                                          className="w-full h-full text-center font-semibold text-xs border-0 focus-visible:ring-0 bg-transparent p-0"
                                           onClick={(e) => e.stopPropagation()}
                                         />
                                       </div>
@@ -879,20 +894,20 @@ return (
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-8 w-8 rounded-lg hover:bg-indigo-100 hover:text-indigo-700 transition-colors"
+                                        className="h-6 w-6 rounded hover:bg-indigo-100 hover:text-indigo-700"
                                         onClick={(e) => {
                                           e.stopPropagation()
                                           updateSizeQuantity(size.id, quantity + 1)
                                         }}
                                       >
-                                        <Plus className="w-4 h-4" />
+                                        <Plus className="w-3 h-3" />
                                       </Button>
                                     </div>
                                   </div>
 
-                                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl shadow-lg">
-                                    <div className="text-xs font-medium opacity-90">Subtotal</div>
-                                    <div className="text-lg font-black">₹{(price * quantity).toFixed(2)}</div>
+                                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 lg:px-3 py-1 lg:py-1.5 rounded shadow">
+                                    <div className="text-[8px] lg:text-[9px] font-medium opacity-90">Subtotal</div>
+                                    <div className="text-xs lg:text-sm font-bold">${(price * quantity).toFixed(2)}</div>
                                   </div>
                                 </div>
                               </div>
@@ -909,25 +924,25 @@ return (
           {/* RIGHT: SELECTED SIZE IMAGES */}
           <div>
             {selectedSizes.size > 0 && (
-              <Card className="shadow-sm border border-gray-200 bg-white sticky top-24">
-                <CardContent className="p-6">
-                  <h3 className="font-bold text-lg flex items-center mb-4 text-gray-900">
-                    <Package className="w-5 h-5 mr-2 text-indigo-600" />
+              <Card className="shadow-sm border border-gray-200 bg-white lg:sticky lg:top-24">
+                <CardContent className="p-3 lg:p-4">
+                  <h3 className="font-semibold text-sm flex items-center mb-3 text-gray-900">
+                    <Package className="w-4 h-4 mr-1.5 text-indigo-600" />
                     Selected Sizes
-                    <Badge className="ml-auto bg-indigo-100 text-indigo-700 text-sm px-2 py-1">
+                    <Badge className="ml-auto bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5">
                       {selectedSizes.size} selected
                     </Badge>
                   </h3>
                   
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2">
                     {Array.from(selectedSizes.entries()).map(([sizeId, quantity]) => {
                       const size = product.sizes.find(s => s.id === sizeId)
                       if (!size) return null
 
                       return (
-                        <div key={sizeId} className="relative bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-3 border-2 border-indigo-200">
+                        <div key={sizeId} className="relative bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-2 border border-indigo-200">
                           {size.image && (
-                            <div className="aspect-square bg-white rounded-lg p-2 mb-2">
+                            <div className="aspect-square bg-white rounded p-1.5 mb-1.5">
                               <img
                                 src={imageUrls[size.image] || size.image}
                                 alt={`${size.size_value}${size.size_unit}`}
@@ -936,10 +951,10 @@ return (
                             </div>
                           )}
                           <div className="text-center">
-                            <p className="font-bold text-sm text-gray-900">
+                            <p className="font-semibold text-xs text-gray-900">
                               {size.size_value}{size.size_unit}
                             </p>
-                            <p className="text-xs text-gray-600">Qty: {quantity}</p>
+                            <p className="text-[10px] text-gray-600">Qty: {quantity}</p>
                           </div>
                         </div>
                       )
@@ -953,13 +968,13 @@ return (
 
         {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) ------------- */}
         {isLoggedIn && selectedSizes.size > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-gray-200 shadow-2xl z-50 p-4">
+          <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 p-2 lg:p-3">
             <div className="container mx-auto">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex-1">
-                  <p className="text-sm text-gray-600 mb-1">{selectedSizes.size} size(s) selected</p>
-                  <p className="text-2xl font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                    ₹{Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
+              <div className="flex items-center justify-between gap-2 lg:gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] lg:text-xs text-gray-600 mb-0.5 truncate">{selectedSizes.size} size(s)</p>
+                  <p className="text-base lg:text-lg font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent truncate">
+                    ${Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
                       const size = product.sizes.find(s => s.id === sizeId)
                       if (!size) return total
                       const price = getSizePrice(size) || 0
@@ -969,19 +984,21 @@ return (
                 </div>
                 
                 <Button
-                  className="h-14 px-8 text-lg bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white font-bold shadow-xl hover:shadow-2xl transition-all duration-300 rounded-xl"
+                  className="h-9 lg:h-10 px-4 lg:px-6 text-xs lg:text-sm bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-700 hover:via-purple-700 hover:to-pink-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg whitespace-nowrap"
                   onClick={handleAddToCart}
                   disabled={addingToCart}
                 >
                   {addingToCart ? (
                     <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Adding...
+                      <Loader2 className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5 animate-spin" />
+                      <span className="hidden sm:inline">Adding...</span>
+                      <span className="sm:hidden">...</span>
                     </>
                   ) : (
                     <>
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Add to Cart
+                      <ShoppingCart className="w-3.5 h-3.5 lg:w-4 lg:h-4 mr-1 lg:mr-1.5" />
+                      <span className="hidden sm:inline">Add to Cart</span>
+                      <span className="sm:hidden">Add</span>
                     </>
                   )}
                 </Button>
