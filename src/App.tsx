@@ -14,6 +14,7 @@ import AdminGroupPricing from "./pages/admin/GroupPricing";
 import AdminSettings from "./pages/admin/Settings";
 import PharmacyDashboard from "./pages/pharmacy/Dashboard";
 import PharmacyOrder from "./pages/pharmacy/Order";
+import PharmacyCreateOrder from "./pages/pharmacy/CreateOrder";
 import PharmacyOrders from "./pages/pharmacy/Orders";
 import PharmacySettings from "./pages/pharmacy/Settings";
 import PharmacyProducts from "./pages/pharmacy/Products";
@@ -238,6 +239,11 @@ function App() {
       <Route path="/pharmacy/order" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyOrder />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/order/create" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyCreateOrder />
         </ProtectedRoute>
       } />
       <Route path="/pharmacy/orders" element={

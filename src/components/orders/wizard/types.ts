@@ -45,6 +45,7 @@ export interface WizardNavigationProps {
 export interface OrderCreationWizardProps {
   initialData?: any;
   isEditMode?: boolean;
+  isPharmacyMode?: boolean;
   onComplete?: (data: any) => void;
   onCancel?: () => void;
 }

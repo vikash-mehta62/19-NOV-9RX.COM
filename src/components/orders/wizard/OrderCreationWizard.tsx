@@ -28,6 +28,7 @@ import "./wizard-animations.css";
 const OrderCreationWizardComponent = ({
   initialData,
   isEditMode = false,
+  isPharmacyMode = false,
   onComplete,
   onCancel,
 }: OrderCreationWizardProps) => {
@@ -54,17 +55,18 @@ const OrderCreationWizardComponent = ({
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
 
-  // Load initial data in edit mode - only run once
+  // Load initial data in edit mode or pharmacy mode - only run once
   useEffect(() => {
     const loadInitialData = async () => {
       if (isInitialized) return; // Prevent multiple runs
       
-      if (!isEditMode || !initialData) {
+      // If neither edit mode nor pharmacy mode, or no initial data, just mark as initialized
+      if ((!isEditMode && !isPharmacyMode) || !initialData) {
         setIsInitialized(true);
         return;
       }
       
-      console.log("Loading initial data in edit mode:", initialData);
+      console.log("Loading initial data:", { isEditMode, isPharmacyMode, initialData });
       
       // Set customer
       if (initialData.customer) {
@@ -92,8 +94,8 @@ const OrderCreationWizardComponent = ({
         setPONumber(initialData.poNumber);
       }
 
-      // Load cart items
-      if (initialData.cartItems && initialData.cartItems.length > 0) {
+      // Load cart items (only in edit mode, not pharmacy mode)
+      if (isEditMode && initialData.cartItems && initialData.cartItems.length > 0) {
         console.log("Loading cart items:", initialData.cartItems);
         await clearCart();
         
@@ -104,6 +106,7 @@ const OrderCreationWizardComponent = ({
       }
 
       // Mark step 1 as complete and move to step 2 (addresses)
+      // This happens in both edit mode and pharmacy mode since customer is already selected
       wizardState.markStepComplete(1);
       wizardState.goToStep(2);
       
@@ -112,7 +115,7 @@ const OrderCreationWizardComponent = ({
 
     loadInitialData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isEditMode, initialData, isInitialized]); // Run when these change
+  }, [isEditMode, isPharmacyMode, initialData, isInitialized]); // Run when these change
 
   // Calculate order totals - memoized to prevent unnecessary recalculations
   const { subtotal, tax, shipping, total } = useMemo(() => {
@@ -533,8 +536,8 @@ const OrderCreationWizardComponent = ({
             selectedCustomerId={selectedCustomer?.id}
             onCustomerSelect={handleCustomerSelect}
             onAddNewCustomer={handleAddNewCustomer}
-            isEditMode={isEditMode}
-            lockedCustomer={isEditMode ? selectedCustomer : undefined}
+            isEditMode={isEditMode || isPharmacyMode}
+            lockedCustomer={(isEditMode || isPharmacyMode) ? selectedCustomer : undefined}
           />
         );
       case 2:

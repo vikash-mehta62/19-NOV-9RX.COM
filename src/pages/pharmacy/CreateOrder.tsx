@@ -1,49 +1,37 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OrderCreationWizard } from "@/components/orders/wizard/OrderCreationWizard";
-import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
+import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 
-export default function PharmacyOrder() {
+export default function PharmacyCreateOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [prefilledData, setPrefilledData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUserId, setCurrentUserId] = useState<string>("");
 
+  // Load current user's profile data to prefill customer info
   useEffect(() => {
-    const loadUserData = async () => {
-      // Verify user is logged in and is a pharmacy
-      const userType = sessionStorage.getItem("userType");
-      const isLoggedIn = sessionStorage.getItem("isLoggedIn");
-
-      if (!isLoggedIn || userType !== "pharmacy") {
-        toast({
-          title: "Unauthorized Access",
-          description: "Please log in as a pharmacy to access this page.",
-          variant: "destructive",
-        });
-        navigate("/login");
-        return;
-      }
-
+    const loadUserProfile = async () => {
       try {
-        // Get current user session
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
+          toast({
+            title: "Authentication Required",
+            description: "Please log in to create an order",
+            variant: "destructive",
+          });
           navigate("/login");
           return;
         }
 
-        setCurrentUserId(session.user.id);
-
-        // Fetch user profile data
+        // Fetch user profile
         const { data: profile, error } = await supabase
           .from("profiles")
           .select("*")
@@ -61,7 +49,7 @@ export default function PharmacyOrder() {
           const prefilled = {
             customer: {
               id: profile.id,
-              name: `${profile.first_name || ""} ${profile.last_name || ""}`.trim(),
+              name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name || "",
               email: profile.email || "",
               phone: profile.mobile_phone || profile.work_phone || "",
               type: profile.type || "Pharmacy",
@@ -79,7 +67,7 @@ export default function PharmacyOrder() {
               zip_code: profile.billing_address?.zip_code || "",
             },
             shippingAddress: {
-              fullName: `${profile.first_name || ""} ${profile.last_name || ""}`.trim(),
+              fullName: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.display_name || "",
               email: profile.email || "",
               phone: profile.mobile_phone || profile.work_phone || "",
               street: profile.shipping_address?.street1 || profile.billing_address?.street1 || "",
@@ -96,10 +84,10 @@ export default function PharmacyOrder() {
           setPrefilledData(prefilled);
         }
       } catch (error) {
-        console.error("Error loading user data:", error);
+        console.error("Error loading user profile:", error);
         toast({
           title: "Error",
-          description: "Failed to load user data",
+          description: "Failed to load your profile information",
           variant: "destructive",
         });
       } finally {
@@ -107,7 +95,7 @@ export default function PharmacyOrder() {
       }
     };
 
-    loadUserData();
+    loadUserProfile();
   }, [navigate, toast]);
 
   const handleComplete = async (orderData: any) => {
@@ -129,8 +117,9 @@ export default function PharmacyOrder() {
       // Check payment method
       const paymentMethod = orderData.paymentMethod;
       
-      // If payment method is "card", open payment modal
+      // If payment method is "card", open payment modal instead of creating order directly
       if (paymentMethod === "card") {
+        // Store order data and open payment modal
         setPendingOrderData(orderData);
         setIsPaymentModalOpen(true);
         return;
@@ -153,6 +142,7 @@ export default function PharmacyOrder() {
         const creditLimit = customerProfile.credit_limit || 0;
         const availableCredit = creditLimit - creditUsed;
 
+        // Check if order total exceeds available credit
         if (orderData.total > availableCredit) {
           toast({
             title: "Credit Limit Exceeded",
@@ -170,7 +160,7 @@ export default function PharmacyOrder() {
         throw new Error("Failed to generate order ID");
       }
 
-      // Prepare customer info
+      // Prepare customer info in the format expected by database
       const customerInfo = {
         name: orderData.customer?.name || "",
         email: orderData.customer?.email || "",
@@ -184,7 +174,7 @@ export default function PharmacyOrder() {
         },
       };
 
-      // Prepare shipping address
+      // Prepare shipping address in the format expected by database
       const shippingAddressData = {
         fullName: orderData.shippingAddress?.fullName || "",
         email: orderData.shippingAddress?.email || "",
@@ -197,7 +187,7 @@ export default function PharmacyOrder() {
         },
       };
 
-      // Prepare order data
+      // Prepare order data for database
       const orderToSubmit = {
         order_number: newOrderId,
         profile_id: session.user.id,
@@ -217,7 +207,7 @@ export default function PharmacyOrder() {
         void: false,
       };
 
-      // Insert order
+      // Insert order into database
       const { data: insertedOrder, error } = await supabase
         .from("orders")
         .insert([orderToSubmit])
@@ -229,7 +219,7 @@ export default function PharmacyOrder() {
         throw error;
       }
 
-      // If credit payment, update credit_used
+      // If credit payment, update customer's credit_used
       if (paymentMethod === "credit") {
         const { data: customerProfile } = await supabase
           .from("profiles")
@@ -252,6 +242,7 @@ export default function PharmacyOrder() {
         description: `Order ${newOrderId} has been created and is ready for processing`,
       });
 
+      // Navigate back to orders list
       navigate("/pharmacy/orders");
     } catch (error) {
       console.error("Error in handleComplete:", error);
@@ -264,12 +255,14 @@ export default function PharmacyOrder() {
   };
 
   const handleCancel = () => {
+    // Navigate back to orders list
     navigate("/pharmacy/orders");
   };
 
   const handlePaymentModalClose = () => {
     setIsPaymentModalOpen(false);
     setPendingOrderData(null);
+    // Navigate to orders page after payment
     navigate("/pharmacy/orders");
   };
 
@@ -279,7 +272,7 @@ export default function PharmacyOrder() {
         <div className="flex items-center justify-center min-h-screen">
           <div className="text-center">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
+            <p className="mt-4 text-gray-600">Loading your information...</p>
           </div>
         </div>
       </DashboardLayout>
@@ -288,6 +281,14 @@ export default function PharmacyOrder() {
 
   return (
     <DashboardLayout role="pharmacy">
+      <div className="mb-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <h2 className="text-lg font-semibold text-blue-900">Create New Order</h2>
+          <p className="text-sm text-blue-700 mt-1">
+            Your customer information is pre-filled. You can modify addresses and add products.
+          </p>
+        </div>
+      </div>
       <OrderCreationWizard
         initialData={prefilledData}
         isEditMode={false}
@@ -332,7 +333,7 @@ export default function PharmacyOrder() {
             },
           }}
           form={null}
-          pId={currentUserId}
+          pId={pendingOrderData.customerId}
           setIsCus={() => {}}
           isCus={false}
         />

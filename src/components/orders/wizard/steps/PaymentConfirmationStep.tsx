@@ -81,12 +81,12 @@ export const PaymentConfirmationStep = ({
       description: "Pay with credit or debit card",
       icon: CreditCard,
     },
-    {
-      id: "ach",
-      label: "ACH Transfer",
-      description: "Direct bank transfer",
-      icon: Building2,
-    },
+    // {
+    //   id: "ach",
+    //   label: "ACH Transfer",
+    //   description: "Direct bank transfer",
+    //   icon: Building2,
+    // },
     {
       id: "credit",
       label: "Credit Account",
