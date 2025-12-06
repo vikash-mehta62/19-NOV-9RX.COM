@@ -251,6 +251,9 @@ const OrderCreationWizardComponent = ({
 
   // Handle customer selection - memoized to prevent recreation
   const handleCustomerSelect = useCallback((customer: Customer) => {
+    console.log("Customer selected:", customer);
+    console.log("Customer ID:", customer.id);
+    
     setSelectedCustomer(customer);
     
     // Set tax percentage in sessionStorage (purane code ke according)
@@ -391,6 +394,10 @@ const OrderCreationWizardComponent = ({
           total,
           createdAt: new Date().toISOString(),
         };
+
+        console.log("Final order data being sent:", orderData);
+        console.log("Selected customer ID:", selectedCustomer?.id);
+        console.log("Customer ID in orderData:", orderData.customerId);
 
         // Note: Actual order submission is handled by the parent component (CreateOrder.tsx)
         // This simulates processing time for better UX

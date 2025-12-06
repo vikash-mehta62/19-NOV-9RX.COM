@@ -85,7 +85,7 @@ const CustomerSelectionStepComponent = ({
           billing_address: profile.billing_address || undefined,
           shipping_address: profile.shipping_address || undefined,
           freeShipping: profile.freeShipping || false,
-          tax_percentage: profile.tax_percentage || profile.taxPercantage || 0,
+          tax_percentage: profile.taxPercantage || 0,
         }));
 
         setCustomers(formattedCustomers);

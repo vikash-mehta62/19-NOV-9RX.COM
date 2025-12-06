@@ -6,6 +6,7 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export default function CreateOrder() {
   const navigate = useNavigate();
@@ -110,6 +111,9 @@ export default function CreateOrder() {
 
   const handleComplete = async (orderData: any) => {
     console.log("Order completed:", orderData);
+    console.log("Customer ID from orderData:", orderData.customerId);
+    console.log("Customer object from orderData:", orderData.customer);
+    
     
     try {
       // Get current session
@@ -125,6 +129,14 @@ export default function CreateOrder() {
         });
         return;
       }
+console.log(sessionStorage.getItem("userType") )
+console.log(session)
+
+const profileID =
+        sessionStorage.getItem("userType") === "admin"
+          ? orderData.customerId : session.user.id;
+    
+
 
       // Check if we're in edit mode
       if (isEditMode && orderId) {
@@ -153,12 +165,38 @@ export default function CreateOrder() {
           purchase_number_external: orderData.poNumber,
         };
 
+        // Get old order data for comparison
+        const { data: oldOrderData } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("id", orderId)
+          .single();
+
         const { error: updateError } = await supabase
           .from("orders")
           .update(updateData)
           .eq("id", orderId);
 
         if (updateError) throw updateError;
+
+        // Log order update activity
+        const { data: { user } } = await supabase.auth.getUser();
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, email")
+          .eq("id", user?.id || "")
+          .single();
+
+        await OrderActivityService.logOrderUpdate({
+          orderId: orderId,
+          orderNumber: oldOrderData?.order_number || "",
+          description: "Order details updated ",
+          oldData: oldOrderData,
+          newData: updateData,
+          performedBy: user?.id,
+          performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : undefined,
+          performedByEmail: userProfile?.email,
+        });
 
         // Update invoice if exists
         const { data: invoiceData } = await supabase
@@ -199,6 +237,8 @@ export default function CreateOrder() {
       // If payment method is "card", open payment modal instead of creating order directly
       if (paymentMethod === "card") {
         // Store order data and open payment modal
+        console.log("Opening payment modal with orderData:", orderData);
+        console.log("Customer ID being passed to payment modal:", orderData.customerId);
         setPendingOrderData(orderData);
         setIsPaymentModalOpen(true);
         return;
@@ -269,7 +309,7 @@ export default function CreateOrder() {
       // Prepare order data for database
       const orderToSubmit = {
         order_number: newOrderId,
-        profile_id: session.user.id,
+        profile_id: profileID,
         location_id: orderData.customerId,
         customerInfo: customerInfo,
         shippingAddress: shippingAddressData,
@@ -297,6 +337,25 @@ export default function CreateOrder() {
         console.error("Error creating order:", error);
         throw error;
       }
+
+      // Log order creation activity
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("id", user?.id || "")
+        .single();
+
+      await OrderActivityService.logOrderCreation({
+        orderId: insertedOrder.id,
+        orderNumber: newOrderId,
+        totalAmount: orderData.total,
+        status: orderToSubmit.status,
+        paymentMethod: paymentMethod,
+        performedBy: user?.id,
+        performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : undefined,
+        performedByEmail: userProfile?.email,
+      });
 
       // If credit payment, update customer's credit_used
       if (paymentMethod === "credit") {
@@ -379,44 +438,48 @@ export default function CreateOrder() {
       
       {/* Payment Modal */}
       {isPaymentModalOpen && pendingOrderData && (
-        <CreateOrderPaymentForm
-          modalIsOpen={isPaymentModalOpen}
-          setModalIsOpen={handlePaymentModalClose}
-          formDataa={{
-            status: "new",
-            customerInfo: {
-              name: pendingOrderData.customer?.name || "",
-              email: pendingOrderData.customer?.email || "",
-              phone: pendingOrderData.customer?.phone || "",
-              address: {
-                street: pendingOrderData.billingAddress?.street || "",
-                city: pendingOrderData.billingAddress?.city || "",
-                state: pendingOrderData.billingAddress?.state || "",
-                zip_code: pendingOrderData.billingAddress?.zip_code || "",
+        <>
+          {console.log("Rendering payment modal with pId:", pendingOrderData.customerId)}
+          {console.log("Full pendingOrderData:", pendingOrderData)}
+          <CreateOrderPaymentForm
+            modalIsOpen={isPaymentModalOpen}
+            setModalIsOpen={handlePaymentModalClose}
+            formDataa={{
+              status: "new",
+              customerInfo: {
+                name: pendingOrderData.customer?.name || "",
+                email: pendingOrderData.customer?.email || "",
+                phone: pendingOrderData.customer?.phone || "",
+                address: {
+                  street: pendingOrderData.billingAddress?.street || "",
+                  city: pendingOrderData.billingAddress?.city || "",
+                  state: pendingOrderData.billingAddress?.state || "",
+                  zip_code: pendingOrderData.billingAddress?.zip_code || "",
+                },
               },
-            },
-            shippingAddress: {
-              fullName: pendingOrderData.shippingAddress?.fullName || "",
-              email: pendingOrderData.shippingAddress?.email || "",
-              phone: pendingOrderData.shippingAddress?.phone || "",
-              address: {
-                street: pendingOrderData.shippingAddress?.street || "",
-                city: pendingOrderData.shippingAddress?.city || "",
-                state: pendingOrderData.shippingAddress?.state || "",
-                zip_code: pendingOrderData.shippingAddress?.zip_code || "",
+              shippingAddress: {
+                fullName: pendingOrderData.shippingAddress?.fullName || "",
+                email: pendingOrderData.shippingAddress?.email || "",
+                phone: pendingOrderData.shippingAddress?.phone || "",
+                address: {
+                  street: pendingOrderData.shippingAddress?.street || "",
+                  city: pendingOrderData.shippingAddress?.city || "",
+                  state: pendingOrderData.shippingAddress?.state || "",
+                  zip_code: pendingOrderData.shippingAddress?.zip_code || "",
+                },
               },
-            },
-            items: pendingOrderData.cartItems,
-            specialInstructions: pendingOrderData.specialInstructions || "",
-            shipping: {
-              method: "FedEx",
-            },
-          }}
-          form={null}
-          pId={pendingOrderData.customerId}
-          setIsCus={() => {}}
-          isCus={false}
-        />
+              items: pendingOrderData.cartItems,
+              specialInstructions: pendingOrderData.specialInstructions || "",
+              shipping: {
+                method: "FedEx",
+              },
+            }}
+            form={null}
+            pId={pendingOrderData.customerId}
+            setIsCus={() => {}}
+            isCus={false}
+          />
+        </>
       )}
     </DashboardLayout>
   );

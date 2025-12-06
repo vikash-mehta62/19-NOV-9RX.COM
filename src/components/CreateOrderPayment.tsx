@@ -22,6 +22,7 @@ import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { InvoiceStatus, PaymentMethod } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 Modal.setAppElement(document.getElementById("body"));
 
@@ -243,7 +244,10 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
             profileID = pId;
           }
           
-          console.log("Profile ID for order:", profileID)
+          console.log("Profile ID for order:", profileID);
+          console.log("pId prop received:", pId);
+          console.log("data.customer:", data.customer);
+          console.log("userType from sessionStorage:", sessionStorage.getItem('userType'));
           // Prepare order data
           const orderData = {
             order_number: orderNumber,
@@ -347,6 +351,65 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
 
           console.log("Invoice created successfully:", invoicedata2);
 
+          // Log order creation activity
+          try {
+            console.log("🔵 Logging order creation activity for:", newOrder.id);
+            
+            const { data: { session } } = await supabase.auth.getSession();
+            const { data: userProfile } = await supabase
+              .from("profiles")
+              .select("first_name, last_name, email")
+              .eq("id", session?.user?.id || "")
+              .single();
+
+            const activityResult = await OrderActivityService.logOrderCreation({
+              orderId: newOrder.id,
+              orderNumber: orderNumber,
+              totalAmount: calculatedTotal + tax,
+              status: orderData.status,
+              paymentMethod: "card",
+              performedBy: session?.user?.id,
+              performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "User",
+              performedByEmail: userProfile?.email,
+            });
+
+            console.log("🔵 Order creation activity result:", activityResult);
+
+            // Log invoice creation activity
+            const invoiceActivityResult = await OrderActivityService.logActivity({
+              orderId: newOrder.id,
+              activityType: "updated",
+              description: `Invoice ${invoiceNumber} created for order`,
+              performedBy: session?.user?.id,
+              performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "User",
+              performedByEmail: userProfile?.email,
+              metadata: {
+                invoice_number: invoiceNumber,
+                invoice_id: invoicedata2?.id,
+                amount: calculatedTotal + tax,
+              },
+            });
+
+            console.log("🔵 Invoice creation activity result:", invoiceActivityResult);
+
+            // Log payment activity
+            const paymentActivityResult = await OrderActivityService.logPaymentReceived({
+              orderId: newOrder.id,
+              orderNumber: orderNumber,
+              amount: calculatedTotal + tax,
+              paymentMethod: "card",
+              paymentId: response.data.transactionId,
+              performedBy: session?.user?.id,
+              performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "User",
+              performedByEmail: userProfile?.email,
+            });
+
+            console.log("🔵 Payment activity result:", paymentActivityResult);
+          } catch (activityError) {
+            console.error("❌ Failed to log activities:", activityError);
+            // Don't throw - continue with order creation
+          }
+
 
           const { data: profileData, error: profileEror } = await supabase
             .from("profiles")
@@ -434,6 +497,25 @@ const cleanedCartItems = cleanCartItems(cartItems); // ✅ fixed items
           // form.reset();
           // setOrderItems([{ id: 1 }]);
 
+
+          // Log payment activity
+          const { data: { user } } = await supabase.auth.getUser();
+          const { data: userProfileData } = await supabase
+            .from("profiles")
+            .select("first_name, last_name, email")
+            .eq("id", user?.id || "")
+            .single();
+
+          await OrderActivityService.logPaymentReceived({
+            orderId: newOrder.id,
+            orderNumber: orderNumber,
+            amount: parseFloat(calculatedTotal + (isCus ? 0.5 : 0)),
+            paymentMethod: "card",
+            paymentId: response.data.transactionId || "",
+            performedBy: user?.id,
+            performedByName: userProfileData ? `${userProfileData.first_name} ${userProfileData.last_name}` : undefined,
+            performedByEmail: userProfileData?.email,
+          });
 
           const logsData = {
             user_id: newOrder.profile_id,

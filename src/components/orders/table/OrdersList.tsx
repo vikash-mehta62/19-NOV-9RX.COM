@@ -29,6 +29,7 @@ import {
   PaymentMethod,
 } from "@/components/invoices/types/invoice.types";
 import { useCart } from "@/hooks/use-cart";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 // Import UI components for the cancel dialog
 import {
@@ -346,7 +347,7 @@ export function OrdersList({
 
       console.log("Updated Order:", updatedOrder);
 
-      window.location.reload();
+       // window.location.reload();
     } catch (error) {
       console.log(error);
     }
@@ -376,7 +377,7 @@ export function OrdersList({
         title: "Success",
         description: "Order deleted successfully",
       });
-      window.location.reload();
+      // window.location.reload();
     } catch (error) {
       console.error("Error deleting order:", error);
       toast({
@@ -438,7 +439,7 @@ export function OrdersList({
       });
 
       // Reload page after 2 seconds
-      window.location.reload();
+      // window.location.reload();
     } catch (err: any) {
       Swal.close();
       Swal.fire({
@@ -662,6 +663,27 @@ export function OrdersList({
       }
 
       console.log("🟢 Account transaction added for credit order");
+
+      // Log credit approval activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logActivity({
+          orderId: order.id,
+          activityType: "updated",
+          description: `Credit order approved - Amount: $${totalAmount.toFixed(2)}`,
+          performedBy: userId,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+          metadata: {
+            order_number: order.order_number,
+            credit_amount: totalAmount,
+            previous_status: "credit_approval_processing",
+            new_status: "new",
+          },
+        });
+      } catch (activityError) {
+        console.error("Failed to log credit approval activity:", activityError);
+      }
 
       Swal.fire({
         title: "Success",

@@ -28,6 +28,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
+import { OrderActivityService } from "@/services/orderActivityService"
 
 Modal.setAppElement(document.getElementById("body"))
 
@@ -561,6 +562,19 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }
 
         console.log("Invoice updated successfully:", data)
+
+        // Log payment activity
+        try {
+          await OrderActivityService.logPaymentReceived({
+            orderId: orderId,
+            orderNumber: orders.order_number,
+            amount: formData.amount,
+            paymentMethod: "manual",
+            performedByName: "Admin",
+          });
+        } catch (activityError) {
+          console.error("Failed to log payment activity:", activityError);
+        }
         const logsData = {
           user_id: orders.customer,
           order_id: orders.order_number,
@@ -583,7 +597,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           description: "Manual payment processed and invoice created successfully",
         })
 
-        window.location.reload()
+        // window.location.reload()
       } catch (error) {
         console.error("Manual payment error:", error);
         setLoading(false);
@@ -697,11 +711,26 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
         console.log("Invoice created successfully:", data)
 
-        if (payNow) {
-          navigate("/pharmacy/orders")
+        // Log payment activity
+        try {
+          await OrderActivityService.logPaymentReceived({
+            orderId: orderId,
+            orderNumber: orders.order_number,
+            amount: formData.amount,
+            paymentMethod: "card",
+            paymentId: response?.data?.transactionId,
+            performedByName: customer.name || "Customer",
+            performedByEmail: customer.email,
+          });
+        } catch (activityError) {
+          console.error("Failed to log payment activity:", activityError);
         }
 
-        setModalIsOpen(false)
+        // if (payNow) {
+        //   navigate("/pharmacy/orders")
+        // }
+
+        // setModalIsOpen(false)
         toast({
           title: "Payment Successful",
           description: response.data.message,
@@ -723,11 +752,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         } catch (apiError) {
           console.error("Failed to store logs:", apiError);
         }
-        window.location.reload()
+        // window.location.reload()
 
         setTimeout(() => {
           if (payNow) {
-            navigate("/pharmacy/orders")
+            // navigate("/pharmacy/orders")
           }
         }, 500)
       } else {

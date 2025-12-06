@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export default function PharmacyOrder() {
   const navigate = useNavigate();
@@ -111,7 +112,7 @@ export default function PharmacyOrder() {
   }, [navigate, toast]);
 
   const handleComplete = async (orderData: any) => {
-    console.log("Order completed:", orderData);
+    console.log("🔵 Pharmacy Order completed:", orderData);
     
     try {
       // Get current session
@@ -227,6 +228,43 @@ export default function PharmacyOrder() {
       if (error) {
         console.error("Error creating order:", error);
         throw error;
+      }
+
+      console.log("✅ Order created successfully:", insertedOrder);
+
+      // Log order creation activity
+      try {
+        console.log("🔵 Starting activity logging for pharmacy order:", insertedOrder.id);
+        
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, email")
+          .eq("id", session.user.id)
+          .single();
+
+        console.log("🔵 User profile for activity:", userProfile);
+
+        const activityResult = await OrderActivityService.logOrderCreation({
+          orderId: insertedOrder.id,
+          orderNumber: newOrderId,
+          totalAmount: orderData.total,
+          status: orderToSubmit.status,
+          paymentMethod: paymentMethod,
+          performedBy: session.user.id,
+          performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "Pharmacy User",
+          performedByEmail: userProfile?.email,
+        });
+
+        console.log("🔵 Activity logging result:", activityResult);
+        
+        if (!activityResult.success) {
+          console.error("❌ Activity logging failed:", activityResult.error);
+        } else {
+          console.log("✅ Activity logged successfully for pharmacy order");
+        }
+      } catch (activityError) {
+        console.error("❌ Failed to log order creation activity:", activityError);
+        // Don't throw - continue with order creation
       }
 
       // If credit payment, update credit_used

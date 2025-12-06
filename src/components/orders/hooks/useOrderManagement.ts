@@ -3,6 +3,7 @@ import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import axios from "../../../../axiosconfig";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export const useOrderManagement = () => {
   const { toast } = useToast();
@@ -475,6 +476,16 @@ setOrders([])
   const updateOrderStatus = async (orderId: string, newStatus: string) => {
     console.log(newStatus);
     try {
+      // Get old status first
+      const { data: oldOrder } = await supabase
+        .from("orders")
+        .select("status, order_number")
+        .eq("id", orderId)
+        .single();
+
+      const oldStatus = oldOrder?.status || "unknown";
+      const orderNumber = oldOrder?.order_number || "N/A";
+
       // Update order and get the updated order in response
       const { data: updatedOrder, error } = await supabase
         .from("orders")
@@ -490,6 +501,22 @@ setOrders([])
 
       // Log the updated order
       console.log("Updated Order:", updatedOrder);
+
+      // Log status change activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logStatusChange({
+          orderId: orderId,
+          orderNumber: orderNumber,
+          oldStatus: oldStatus,
+          newStatus: newStatus,
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+        });
+      } catch (activityError) {
+        console.error("Failed to log status change activity:", activityError);
+      }
 
       // Send the updated order to the backend
       if (

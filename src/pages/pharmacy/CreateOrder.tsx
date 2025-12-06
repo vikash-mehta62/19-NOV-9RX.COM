@@ -6,6 +6,7 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export default function PharmacyCreateOrder() {
   const navigate = useNavigate();
@@ -219,6 +220,41 @@ export default function PharmacyCreateOrder() {
         throw error;
       }
 
+      // Log order creation activity
+      try {
+        console.log("🔵 Starting activity logging for order:", insertedOrder.id);
+        
+        const { data: userProfile } = await supabase
+          .from("profiles")
+          .select("first_name, last_name, email")
+          .eq("id", session.user.id)
+          .single();
+
+        console.log("🔵 User profile for activity:", userProfile);
+
+        const activityResult = await OrderActivityService.logOrderCreation({
+          orderId: insertedOrder.id,
+          orderNumber: newOrderId,
+          totalAmount: orderData.total,
+          status: orderToSubmit.status,
+          paymentMethod: paymentMethod,
+          performedBy: session.user.id,
+          performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "Pharmacy User",
+          performedByEmail: userProfile?.email,
+        });
+
+        console.log("🔵 Activity logging result:", activityResult);
+        
+        if (!activityResult.success) {
+          console.error("❌ Activity logging failed:", activityResult.error);
+        } else {
+          console.log("✅ Activity logged successfully");
+        }
+      } catch (activityError) {
+        console.error("❌ Failed to log order creation activity:", activityError);
+        // Don't throw - continue with order creation
+      }
+
       // If credit payment, update customer's credit_used
       if (paymentMethod === "credit") {
         const { data: customerProfile } = await supabase
@@ -281,6 +317,8 @@ export default function PharmacyCreateOrder() {
 
   return (
     <DashboardLayout role="pharmacy">
+        
+
       <div className="mb-4">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h2 className="text-lg font-semibold text-blue-900">Create New Order</h2>

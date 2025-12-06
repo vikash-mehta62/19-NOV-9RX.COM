@@ -30,6 +30,7 @@ import { pid } from "process";
 import CartItemsPricing from "../CartItemsPricing";
 import CustomProductForm from "./Customitems";
 import ProductShowcase from "../pharmacy/ProductShowcase";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export interface CreateOrderFormProps {
   initialData?: Partial<OrderFormValues>;
@@ -694,6 +695,23 @@ export function CreateOrderForm({
 
       if (orderError) throw new Error(orderError.message);
 
+      // Log order creation activity
+      try {
+        await OrderActivityService.logOrderCreation({
+          orderId: orderResponse.id,
+          orderNumber: orderNumber,
+          totalAmount: totalAmount,
+          status: data.status,
+          paymentMethod: data.payment?.method || "N/A",
+          performedBy: userProfile?.id,
+          performedByName: `${userProfile?.first_name || ""} ${userProfile?.last_name || ""}`.trim() || "User",
+          performedByEmail: userProfile?.email,
+        });
+      } catch (activityError) {
+        console.error("Failed to log order creation activity:", activityError);
+        // Don't throw - continue with order creation
+      }
+
       // Parallel processing for non-PO orders
       if (!poIs) {
         // Parallel operations
@@ -729,12 +747,12 @@ export function CreateOrderForm({
         admin: poIs ? "/admin/po" : "/admin/orders",
       };
 
-      if (routes[userType as keyof typeof routes]) {
-        navigate(routes[userType as keyof typeof routes], {
-          state: { createOrder: false },
-        });
-      }
-      window.location.reload();
+      // if (routes[userType as keyof typeof routes]) {
+      //   navigate(routes[userType as keyof typeof routes], {
+      //     state: { createOrder: false },
+      //   });
+      // }
+      // window.location.reload();
       toast({
         title: "Order Created Successfully",
         description: `Order ID: ${orderResponse.id} has been created.`,
@@ -839,15 +857,37 @@ export function CreateOrderForm({
       subtotal: totalAmount + (isCus ? 0.5 : 0),
     };
 
-    const { error: invoiceError } = await supabase
+    const { data: invoiceResult, error: invoiceError } = await supabase
       .from("invoices")
-      .insert(invoiceData);
+      .insert(invoiceData)
+      .select()
+      .single();
 
     if (invoiceError) throw new Error(invoiceError.message);
 
     console.log(
       `✅ Invoice ${invoiceNumber} created successfully for prepay customer`
     );
+
+    // Log invoice creation activity
+    try {
+      await OrderActivityService.logActivity({
+        orderId: order.id,
+        activityType: "updated",
+        description: `Invoice ${invoiceNumber} created for order`,
+        performedBy: userProfile?.id,
+        performedByName: `${userProfile?.first_name || ""} ${userProfile?.last_name || ""}`.trim() || "System",
+        performedByEmail: userProfile?.email,
+        metadata: {
+          invoice_number: invoiceNumber,
+          invoice_id: invoiceResult?.id,
+          amount: totalAmount,
+        },
+      });
+    } catch (activityError) {
+      console.error("Failed to log invoice creation activity:", activityError);
+      // Don't throw - continue with invoice creation
+    }
   };
 
   const updateStock = async (items: any[]) => {
