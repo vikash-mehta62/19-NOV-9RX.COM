@@ -264,3 +264,36 @@ INSERT INTO subcategory_configs (category_name, subcategory_name) VALUES
   ('OTHER SUPPLY', 'MEDICINE SHIPPING SUPPLY'),
   ('OTHER SUPPLY', 'CORRUGATED BOXES')
 ON CONFLICT DO NOTHING;
+
+
+-- =====================================================
+-- ADD SUBCATEGORY COLUMN TO PRODUCTS TABLE
+-- =====================================================
+
+-- Add subcategory column to products table if it doesn't exist
+DO $$ 
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name = 'products' 
+        AND column_name = 'subcategory'
+    ) THEN
+        ALTER TABLE products ADD COLUMN subcategory TEXT;
+        RAISE NOTICE 'Column subcategory added to products table';
+    ELSE
+        RAISE NOTICE 'Column subcategory already exists in products table';
+    END IF;
+END $$;
+
+-- Create index on subcategory for better query performance
+CREATE INDEX IF NOT EXISTS idx_products_subcategory ON products(subcategory);
+
+-- Create composite index for category and subcategory
+CREATE INDEX IF NOT EXISTS idx_products_category_subcategory ON products(category, subcategory);
+
+-- Verify the column was added
+-- SELECT column_name, data_type 
+-- FROM information_schema.columns 
+-- WHERE table_name = 'products' 
+-- AND column_name = 'subcategory';

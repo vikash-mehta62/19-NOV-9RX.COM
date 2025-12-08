@@ -24,6 +24,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [selectedSubcategory, setSelectedSubcategory] = useState("all");
   const [priceRange, setPriceRange] = useState("all");
   const userProfile = useSelector(selectUserProfile);
 
@@ -71,6 +72,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
             price: item.base_price || 0,
             base_price: item.base_price || 0,
             category: item.category || "",
+            subcategory: item.subcategory || "",
             shipping_cost: item.shipping_cost || "",
             stock: item.current_stock || 0,
             minOrder: item.min_stock || 0,
@@ -183,10 +185,45 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
     fetchProducts();
   }, [userProfile]);
 
-  const filteredProducts = useMemo(
-    () => filterProducts(products, searchQuery, selectedCategory, priceRange),
-    [products, searchQuery, selectedCategory, priceRange]
-  );
+  const filteredProducts = useMemo(() => {
+    let filtered = products;
+
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (product) =>
+          product.name.toLowerCase().includes(query) ||
+          product.description.toLowerCase().includes(query) ||
+          product.sku?.toLowerCase().includes(query)
+      );
+    }
+
+    // Category filter
+    if (selectedCategory !== "all") {
+      filtered = filtered.filter(
+        (product) => product.category?.toLowerCase() === selectedCategory.toLowerCase()
+      );
+    }
+
+    // Subcategory filter
+    if (selectedSubcategory !== "all") {
+      filtered = filtered.filter(
+        (product) => product.subcategory?.toLowerCase() === selectedSubcategory.toLowerCase()
+      );
+    }
+
+    // Price filter
+    if (priceRange !== "all") {
+      const [min, max] = priceRange.split("-").map((v) => (v === "+" ? Infinity : parseInt(v)));
+      filtered = filtered.filter((product) => {
+        const price = product.base_price || 0;
+        return price >= min && (max === Infinity || price <= max);
+      });
+    }
+
+    return filtered;
+  }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange]);
 
   return (
     <div className="space-y-8">
@@ -201,6 +238,8 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
         setSearchQuery={setSearchQuery}
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
+        selectedSubcategory={selectedSubcategory}
+        setSelectedSubcategory={setSelectedSubcategory}
         priceRange={priceRange}
         setPriceRange={setPriceRange}
       />

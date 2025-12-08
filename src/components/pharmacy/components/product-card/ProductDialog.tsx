@@ -5,16 +5,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { ProductCustomization } from "./ProductCustomization";
 import { ProductActions } from "./ProductActions";
 import { ProductSizeOptions } from "./ProductSizeOptions";
 import type { ProductDetails } from "../../types/product.types";
-import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Swiper, SwiperSlide } from "swiper/react"; // Import Swiper components
+import { Swiper, SwiperSlide } from "swiper/react";
+import { Package, Tag, CheckCircle2, FileText } from "lucide-react";
 
 interface ProductDialogProps {
   product: ProductDetails;
@@ -64,9 +63,8 @@ export const ProductDialog = ({
       for (const image of product.images) {
         try {
           if (image.startsWith("http")) {
-            loadedUrls.push(image); // If image is already a full URL, add directly
+            loadedUrls.push(image);
           } else {
-            // Get public URL from Supabase storage
             const { data } = supabase.storage
               .from("product-images")
               .getPublicUrl(image);
@@ -76,7 +74,7 @@ export const ProductDialog = ({
           }
         } catch (error) {
           console.error("Error loading image:", error);
-          loadedUrls.push("/placeholder.svg"); // Fallback to placeholder
+          loadedUrls.push("/placeholder.svg");
         }
       }
 
@@ -86,30 +84,22 @@ export const ProductDialog = ({
     loadImages();
   }, [product.images]);
 
-  // Find size objects based on selected sizes
-  const findSizeObjects = (sizeList, targetIds) => {
-    return sizeList.filter((size) =>
-      targetIds.includes(`${size.size_value}-${size.size_unit}`)
-    );
-  };
-
-  // Update selected size images when sizes change
+  // Update selected size images
   useEffect(() => {
     if (selectedSizes.length > 0) {
-      // Get all size objects for selected sizes
-      const sizeObjects = findSizeObjects(product.sizes, selectedSizes);
+      const sizeObjects = product.sizes.filter((size: any) =>
+        selectedSizes.includes(`${size.size_value}-${size.size_unit}`)
+      );
 
-      // Extract images from size objects
       const sizeImages = sizeObjects
-        .filter((size) => size.image) // Only include sizes with images
+        .filter((size: any) => size.image)
         .map(
-          (size) =>
+          (size: any) =>
             `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${size.image}`
         );
 
       setSelectedSizeImages(sizeImages);
 
-      // Set the current size image to the most recently selected size's image
       if (sizeImages.length > 0) {
         setCurrentSizeImage(sizeImages[sizeImages.length - 1]);
       } else {
@@ -122,152 +112,232 @@ export const ProductDialog = ({
   }, [selectedSizes, product.sizes]);
 
   return (
-    <DialogContent className="max-w-4xl max-h-[95vh] overflow-y-auto">
-      <DialogHeader>
-        <DialogTitle className="text-2xl font-bold">{product.name}</DialogTitle>
-      </DialogHeader>
+    <DialogContent className="max-w-7xl max-h-[95vh] p-0 gap-0">
+      {/* Header - Fixed */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-5 border-b border-emerald-700">
+        <DialogHeader>
+          <DialogTitle className="text-2xl font-bold text-white drop-shadow-sm">
+            {product.name}
+          </DialogTitle>
+          {product.subcategory && (
+            <p className="text-emerald-100 text-sm mt-1 font-medium">
+              {product.category} • {product.subcategory}
+            </p>
+          )}
+        </DialogHeader>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4 h-[calc(90vh-10rem)] overflow-hidden">
-        {/* Left Column - Product Image Carousel */}
-        <div className="h-full overflow-hidden">
-          {/* Image Carousel / Selected Size Image */}
-          {currentSizeImage ? (
-            <div className="aspect-square rounded-xl bg-gray-100/30 flex items-center justify-center p-8 transition-all duration-300 group hover:bg-white h-[60%]">
-              <img
-                src={currentSizeImage || "/placeholder.svg"}
-                alt={`${product.name} - Selected Size`}
-                className="w-full h-full object-contain transform transition-transform duration-300 group-hover:scale-105"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "/placeholder.svg";
-                }}
-              />
-            </div>
-          ) : (
-            <Swiper
-              spaceBetween={10}
-              slidesPerView={1}
-              loop
-              autoplay={{ delay: 3000, disableOnInteraction: false }}
-              className="h-[60%]"
-            >
-              {imageUrls.map((url, index) => (
-                <SwiperSlide key={index}>
-                  <div className="aspect-square rounded-xl bg-gray-100/30 flex items-center justify-center p-8 transition-all duration-300 group hover:bg-white">
+      {/* Main Content - Scrollable */}
+      <div className="grid md:grid-cols-5 gap-0" style={{ height: 'calc(95vh - 140px)' }}>
+        {/* Left Side - Images & Key Features - Scrollable */}
+        <div className="md:col-span-2 bg-gradient-to-br from-gray-50 to-gray-100 overflow-y-auto" style={{ maxHeight: 'calc(95vh - 140px)' }}>
+            <div className="p-6 space-y-5">
+              {/* Main Image */}
+              <div className="bg-white rounded-2xl p-5 shadow-md border border-gray-200 hover:shadow-xl transition-shadow">
+                {currentSizeImage ? (
+                  <div className="aspect-square flex items-center justify-center bg-gray-50 rounded-xl">
                     <img
-                      src={url || "/placeholder.svg"}
+                      src={currentSizeImage}
                       alt={product.name}
-                      className="w-full h-full object-contain transform transition-transform duration-300 group-hover:scale-105"
+                      className="w-full h-full object-contain p-2"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/placeholder.svg";
                       }}
                     />
                   </div>
-                </SwiperSlide>
-              ))}
-            </Swiper>
-          )}
-
-          {/* Selected Size Thumbnails */}
-          {selectedSizeImages.length > 0 && (
-            <div className="mt-4">
-              <h4 className="text-sm font-medium mb-2">Selected Size Images</h4>
-              <div className="flex gap-2 overflow-x-auto pb-2">
-                {selectedSizeImages.map((imageUrl, index) => (
-                  <button
-                    key={index}
-                    className={`w-16 h-16 rounded-md border-2 flex-shrink-0 overflow-hidden ${
-                      imageUrl === currentSizeImage
-                        ? "border-primary"
-                        : "border-gray-200"
-                    }`}
-                    onClick={() => setCurrentSizeImage(imageUrl)}
-                  >
-                    <img
-                      src={imageUrl || "/placeholder.svg"}
-                      alt={`Size ${index + 1}`}
-                      className="w-full h-full object-contain"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholder.svg";
-                      }}
-                    />
-                  </button>
-                ))}
+                ) : (
+                  <Swiper spaceBetween={10} slidesPerView={1} loop className="aspect-square rounded-xl overflow-hidden">
+                    {imageUrls.map((url, index) => (
+                      <SwiperSlide key={index}>
+                        <div className="w-full h-full flex items-center justify-center bg-gray-50">
+                          <img
+                            src={url || "/placeholder.svg"}
+                            alt={product.name}
+                            className="w-full h-full object-contain p-2"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = "/placeholder.svg";
+                            }}
+                          />
+                        </div>
+                      </SwiperSlide>
+                    ))}
+                  </Swiper>
+                )}
               </div>
-            </div>
-          )}
 
-          {/* Badges and SKU / Category */}
-          <div className="flex flex-wrap gap-2 mt-4">
-            {product.key_features?.split(",").map((feature) => (
-              <Badge
-                key={feature.trim()}
-                variant="secondary"
-                className="bg-emerald-50 text-emerald-700 border border-emerald-200"
-              >
-                {feature.trim()}
-              </Badge>
-            ))}
+              {/* Thumbnail Gallery */}
+              {selectedSizeImages.length > 0 && (
+                <div className="bg-white rounded-xl p-4 shadow-md border border-gray-200">
+                  <p className="text-xs font-bold text-gray-700 mb-3 uppercase tracking-wide">Selected Size Images</p>
+                  <div className="grid grid-cols-4 gap-3">
+                    {selectedSizeImages.map((imageUrl, index) => (
+                      <button
+                        key={index}
+                        className={`aspect-square rounded-xl border-2 overflow-hidden transition-all hover:scale-105 ${
+                          imageUrl === currentSizeImage
+                            ? "border-emerald-500 ring-2 ring-emerald-300 shadow-lg"
+                            : "border-gray-300 hover:border-emerald-400"
+                        }`}
+                        onClick={() => setCurrentSizeImage(imageUrl)}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`Size ${index + 1}`}
+                          className="w-full h-full object-contain p-1.5 bg-gray-50"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = "/placeholder.svg";
+                          }}
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Key Features */}
+              {product.key_features && (
+                <div className="bg-white rounded-xl p-5 shadow-md border border-gray-200">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="p-2 bg-emerald-100 rounded-lg">
+                      <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <span className="text-sm font-bold text-gray-900 uppercase tracking-wide">Key Features</span>
+                  </div>
+                  <div className="space-y-3">
+                    {product.key_features.split(",").map((feature, idx) => (
+                      <div key={idx} className="flex items-start gap-3 group">
+                        <div className="mt-1.5 h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0 group-hover:scale-125 transition-transform" />
+                        <span className="text-sm text-gray-700 leading-relaxed">{feature.trim()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Right Column - Product Details */}
-        <ScrollArea className="h-full pr-4 overflow-hidden">
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4 mt-4">
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <span className="font-semibold block mb-1">SKU:</span>
-                {selectedSizesSKU.map((size, index) => (
-                  <span key={index}>
-                    {size.split(" ")[0]} <br />
-                  </span>
-                ))}
-              </div>
-              <div className="bg-gray-50 p-3 rounded-lg">
-                <span className="font-semibold block mb-1">Category:</span>
-                <p className="text-gray-600">{product.category}</p>
+          {/* Right Side - Product Info & Details - Scrollable */}
+          <div className="md:col-span-3 bg-white relative" style={{ maxHeight: 'calc(95vh - 140px)' }}>
+            {/* Scrollable Content Area */}
+            <div className="overflow-y-auto" style={{ height: 'calc(95vh - 220px)' }}>
+              <div className="px-6 py-6 space-y-6">
+                {/* Product Information Cards */}
+                <div className="grid grid-cols-3 gap-4">
+                  {/* SKU */}
+                  <div className="bg-gradient-to-br from-emerald-50 via-emerald-100 to-teal-100 rounded-xl p-4 border-2 border-emerald-300 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-white rounded-lg">
+                        <Tag className="h-4 w-4 text-emerald-600" />
+                      </div>
+                      <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">SKU</span>
+                    </div>
+                    {selectedSizesSKU.length > 0 ? (
+                      <div className="space-y-1 max-h-20 overflow-y-auto">
+                        {selectedSizesSKU.map((sku, index) => (
+                          <p key={index} className="text-sm font-bold text-emerald-900 bg-white/50 px-2 py-1 rounded">
+                            {sku.split(" ")[0]}
+                          </p>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm font-bold text-emerald-900">{product.sku}</p>
+                    )}
+                  </div>
+
+                  {/* Category */}
+                  <div className="bg-gradient-to-br from-blue-50 via-blue-100 to-cyan-100 rounded-xl p-4 border-2 border-blue-300 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="p-1.5 bg-white rounded-lg">
+                        <Package className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <span className="text-xs font-bold text-blue-900 uppercase tracking-wider">Category</span>
+                    </div>
+                    <p className="text-sm font-bold text-blue-900">{product.category}</p>
+                  </div>
+
+                  {/* Subcategory */}
+                  {product.subcategory && (
+                    <div className="bg-gradient-to-br from-purple-50 via-purple-100 to-pink-100 rounded-xl p-4 border-2 border-purple-300 shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="p-1.5 bg-white rounded-lg">
+                          <Tag className="h-4 w-4 text-purple-600" />
+                        </div>
+                        <span className="text-xs font-bold text-purple-900 uppercase tracking-wider">Subcategory</span>
+                      </div>
+                      <p className="text-sm font-bold text-purple-900">{product.subcategory}</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Description */}
+                {product.description && (
+                  <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-5 border border-gray-300 shadow-sm">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div className="p-2 bg-white rounded-lg shadow-sm">
+                        <FileText className="h-4 w-4 text-gray-700" />
+                      </div>
+                      <span className="text-sm font-bold text-gray-900 uppercase tracking-wide">Description</span>
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{product.description}</p>
+                  </div>
+                )}
+
+                <Separator className="my-6" />
+
+                {/* Size Selection */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                    <span className="h-1 w-1 rounded-full bg-emerald-500"></span>
+                    Select Size(s)
+                  </h3>
+                  <ProductSizeOptions
+                    quantity={quantity}
+                    onIncreaseQuantity={onIncreaseQuantity}
+                    onDecreaseQuantity={onDecreaseQuantity}
+                    product={product}
+                    selectedSizes={selectedSizes}
+                    onSizeSelect={setSelectedSizes}
+                    selectedSizesSKU={selectedSizesSKU}
+                    onSizeSelectSKU={setSelectedSizesSKU}
+                    selectedTypeBySize={selectedTypeBySize}
+                    setSelectedTypeBySize={setSelectedTypeBySize}
+                  />
+                </div>
+
+                {/* Customization */}
+                {product.customization?.allowed && (
+                  <>
+                    <Separator className="my-6" />
+                    <div className="bg-amber-50 rounded-xl p-5 border border-amber-200">
+                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <span className="h-1 w-1 rounded-full bg-amber-500"></span>
+                        Customization Options
+                      </h3>
+                      <ProductCustomization
+                        onCustomizationChange={onCustomizationChange}
+                        sizes={product.sizes}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {/* Extra padding at bottom for scroll */}
+                <div className="h-4"></div>
               </div>
             </div>
-            {/* Size Options */}
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Select Size(s)</h3>
-              <ProductSizeOptions
-                quantity={quantity}
-                onIncreaseQuantity={onIncreaseQuantity}
-                onDecreaseQuantity={onDecreaseQuantity}
-                product={product}
-                selectedSizes={selectedSizes}
-                onSizeSelect={setSelectedSizes}
+
+            {/* Sticky Footer - Add to Cart */}
+            <div className="absolute bottom-0 left-0 right-0 border-t-2 border-gray-200 bg-white px-6 py-4 shadow-2xl">
+              <ProductActions
+                isInCart={isInCart}
+                isAddingToCart={isAddingToCart}
+                onAddToCart={onAddToCart}
                 selectedSizesSKU={selectedSizesSKU}
-                onSizeSelectSKU={setSelectedSizesSKU}
-                selectedTypeBySize={selectedTypeBySize}
-                setSelectedTypeBySize={setSelectedTypeBySize}
+                disabled={selectedSizes.length === 0}
               />
             </div>
-
-            {product.customization?.allowed && (
-              <>
-                <Separator />
-                <ProductCustomization
-                  onCustomizationChange={onCustomizationChange}
-                  sizes={product.sizes}
-                />
-              </>
-            )}
           </div>
-        </ScrollArea>
-      </div>
-
-      {/* Full-width Add to Cart Button at bottom */}
-      <div className="mt-6 w-full flex justify-center">
-        <ProductActions
-          isInCart={isInCart}
-          isAddingToCart={isAddingToCart}
-          onAddToCart={onAddToCart}
-          selectedSizesSKU={selectedSizesSKU}
-          disabled={selectedSizes.length === 0}
-          className="w-full md:w-3/4 lg:w-2/3"
-        />
-      </div>
+        </div>
     </DialogContent>
   );
 };

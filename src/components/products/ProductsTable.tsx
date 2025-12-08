@@ -101,6 +101,7 @@ export const ProductsTable = ({
                   <TableHead className="font-semibold text-gray-900">Sizes & Prices</TableHead>
                   {groupId && <TableHead className="font-semibold text-gray-900">Group Price</TableHead>}
                   <TableHead className="font-semibold text-gray-900">Category</TableHead>
+                  <TableHead className="font-semibold text-gray-900">Subcategory</TableHead>
                   <TableHead className="font-semibold text-gray-900 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -138,6 +139,15 @@ export const ProductsTable = ({
                       <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200">
                         {product.category}
                       </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {product.subcategory ? (
+                        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                          {product.subcategory}
+                        </Badge>
+                      ) : (
+                        <span className="text-gray-400 text-sm">—</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <ProductActions product={product} onEdit={onEdit} onDelete={onDelete} />

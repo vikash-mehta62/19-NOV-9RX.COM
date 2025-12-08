@@ -66,6 +66,7 @@ export interface ProductDetails {
   customizations: Record<string, any> | null; // ✅ Fixed JSON issue
 
   category: string;
+  subcategory?: string;
   stock?: number;
   minOrder?: number;
   specifications?: ProductSpecifications;

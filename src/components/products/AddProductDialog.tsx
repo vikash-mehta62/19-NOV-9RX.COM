@@ -50,6 +50,7 @@ export function AddProductDialog({
 
       description: initialData?.description || "",
       category: initialData?.category || "",
+      subcategory: initialData?.subcategory || "",
       images: initialData?.images || [],
       sizes: initialData?.sizes
         ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))

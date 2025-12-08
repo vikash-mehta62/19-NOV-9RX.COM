@@ -32,6 +32,7 @@ export interface Product {
   description: string;
   unitToggle?: boolean;
   category: string;
+  subcategory?: string;
   current_stock: number;
   min_stock: number;
   reorder_point: number;

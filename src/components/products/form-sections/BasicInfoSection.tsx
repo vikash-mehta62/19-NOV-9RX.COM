@@ -29,7 +29,15 @@ interface Subcategory {
 export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) => {
   const [openDialog, setOpenDialog] = useState(false);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>(form.getValues("category") || "");
+
+  // Set initial category from form when component mounts or form values change
+  useEffect(() => {
+    const currentCategory = form.getValues("category");
+    if (currentCategory && currentCategory !== selectedCategory) {
+      setSelectedCategory(currentCategory);
+    }
+  }, [form.watch("category")]);
 
   // Fetch subcategories when category changes
   useEffect(() => {
@@ -84,14 +92,17 @@ export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) =
                   <Select
                     onValueChange={(value) => {
                       field.onChange(value)
-                      setSelectedCategory(value)
-                      form.setValue("subcategory", "")
+                      // Only reset subcategory if category actually changed
+                      if (value !== selectedCategory) {
+                        setSelectedCategory(value)
+                        form.setValue("subcategory", "")
+                      }
                       form.setValue("name", value)
                       if (!form.getValues("sku")) {
                         form.setValue("sku", generateSKU(value))
                       }
                     }}
-                    defaultValue={field.value}
+                    value={field.value}
                   >
                     <FormControl>
                       <SelectTrigger className="h-12 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 transition-all">

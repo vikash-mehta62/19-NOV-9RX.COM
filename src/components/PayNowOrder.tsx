@@ -31,7 +31,7 @@ function PayNowOrder() {
   }, [orderID]);
 
   if (!orderData) return <p className="text-center text-gray-500 flex items-center justify-center"><Loader className="animate-spin" size={24} /> Loading...</p>;
-
+console.log(orderData)
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-xl rounded-xl border border-gray-200">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center flex items-center gap-2">
@@ -41,7 +41,7 @@ function PayNowOrder() {
       <div className="p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-200 mb-4 flex items-center gap-2">
         <strong>Order Number:</strong> {orderData.order_number}
       </div>
-      {orderData?.payment_status.toLowerCase() === "unpaid" && (
+      {(orderData?.payment_status.toLowerCase() === "unpaid" || orderData?.payment_status.toLowerCase() === "pending") && (
         <button
           onClick={() => setModalIsOpen(true)}
           className="bg-green-600 flex items-center gap-2 justify-center text-[14px] text-white px-5 py-2 rounded-md transition hover:bg-green-700 w-full"
