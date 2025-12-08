@@ -277,7 +277,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-
+const[paymentSuccess, setPaymentSuccess] =  useState(false)
   const [cardType, setCardType] = useState({ type: "unknown", name: "Credit Card", cvvLength: 3 })
 
   console.log(orders
@@ -430,6 +430,24 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     console.log("Current payment type:", paymentType)
   }, [paymentType])
 
+
+
+
+
+  const authorizeErrorMap: Record<string, string> = {
+  E00003: "Invalid XML request: malformed or incorrect data structure.",
+  E00007: "User authentication failed: Invalid API Login ID or Transaction Key.",
+  E00012: "A duplicate subscription already exists.",
+  E00015: "Invalid field length: One or more fields exceed allowed character limits.",
+  E00020: "Account not enabled for eCheck.Net subscriptions.",
+  E00027: "The transaction was unsuccessful: card details or required fields invalid.",
+  E00039: "Duplicate record detected in Customer Information Manager (CIM).",
+  E00040: "Record not found: Invalid profile ID or payment/shipping profile.",
+  E00099: "Customer profile creation failed: Transaction ID is older than 30 days."
+};
+
+
+
   const handleSubmit = async (e:any) => {
     e.preventDefault()
 
@@ -451,6 +469,15 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       notes: null as string | null,
     }
     let hasErrors = false
+    if (hasErrors) {
+  toast({
+    title: "Validation Error",
+    description: "Please fill all required fields correctly.",
+    variant: "destructive",
+  });
+  return;
+}
+
 
     // Validate fields based on payment type
     if (paymentType === "credit_card") {
@@ -530,17 +557,25 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           };
           let totalAmount = formData.amount;
           let newTax = orders.tax_amount || 0;
-          try {
+          if(paymentSuccess){
+            try {
             await createInvoice(orderInfo, totalAmount, newTax);
             // Fetch the new invoice number
             const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
             invoiceNumber = newInvoice?.invoice_number;
-            console.log(`✅ Invoice created: ${invoiceNumber}`);
+            toast({
+  title: "Payment Successful ",
+  description: `Manual payment processed successfully. Invoice created: ${invoiceNumber}`,
+});
+            console.log(`✅Invoice created: ${invoiceNumber} `);
           } catch (err) {
             console.error("Invoice generation after manual payment failed:", err);
             toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
             setLoading(false);
+          
+
             return;
+          }
           }
         }
 
@@ -613,26 +648,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
 
     // Check if invoice exists for this order
-    const { data, error } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
 
 
-    // If invoice does not exist, generate it (using order info)
-    let invoiceNumber = data?.invoice_number;
-    if (!data) {
-      // Try to get order info for invoice creation
-      let orderInfo = orders;
-      let totalAmount = formData.amount;
-      let newTax = 0; // You may want to calculate tax if needed
-      try {
-        await createInvoice(orderInfo, totalAmount, newTax);
-        // Fetch the new invoice number
-        const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
-        invoiceNumber = newInvoice?.invoice_number;
-      } catch (err) {
-        console.error("Invoice generation after payment failed:", err);
-        toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
-      }
-    }
+  
 
     const paymentData =
       paymentType === "credit_card"
@@ -669,6 +687,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       const response = await axios.post("/pay", paymentData)
 
       if (response.status === 200) {
+
+        setPaymentSuccess(true);
         const { data: dateOrder, error: updateError } = await supabase
           .from("orders")
           .update({
@@ -681,6 +701,29 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
         if (updateError) throw updateError
 
+
+          // If invoice does not exist, generate it (using order info)
+
+    const { data:invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
+
+    let invoiceNumber = invoiceData?.invoice_number;
+    if (!invoiceData) {
+      // Try to get order info for invoice creation
+      let orderInfo = orders;
+      let totalAmount = formData.amount;
+      let newTax = 0; // You may want to calculate tax if needed
+      if(paymentSuccess){
+        try {
+        await createInvoice(orderInfo, totalAmount, newTax);
+        // Fetch the new invoice number
+        const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
+        invoiceNumber = newInvoice?.invoice_number;
+      } catch (err) {
+        console.error("Invoice generation after payment failed:", err);
+        toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
+      }
+      }
+    }
         try {
           const response2 = await axios.post("/pay-successfull", {
             name: customer.name || "N/A",
@@ -736,7 +779,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           description: response.data.message,
         })
 
-
+setLoading(false)
         const logsData = {
           user_id: orders.customer,
           order_id: orders.order_number,
@@ -773,23 +816,68 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         order_id: orders.order_number,
         action: 'payment_failed',
         details: {
-          message: `Payment Failed For: ${orders.order_number}, Credit Card, Error Code:- ${error?.response.data.errocode}`,
+          message: `Payment Failed For: ${orders?.order_number}, Credit Card, Error Code:- ${error?.response?.data?.errocode}`,
 
         },
       };
+
+
       try {
         await axios.post("/logs/create", logsData);
         console.log("LOGS STORED SUCCESSFULLYY");
       } catch (apiError) {
         console.error("Failed to store logs:", apiError);
       }
-      toast({
-        title: "Payment failed",
-        description: error.response.data.message || "Failed ",
-        variant: "destructive",
-      })
+//       toast({
+//   title: "Payment Failed",
+//   description:
+//     error?.response?.data?.message ||
+//     error?.message ||
+//     "Something went wrong. Please try again.",
+//   variant: "destructive",
+// });
+
+
+
+const errorCode = error?.response?.data?.errocode;
+const backendMessage = error?.response?.data?.message;
+const backendError = error?.response?.data?.error;
+
+let finalMessage = "";
+
+// 1️⃣ Agar Authorize.Net ka error code match hota hai
+if (errorCode && authorizeErrorMap[errorCode]) {
+  finalMessage = `${authorizeErrorMap[errorCode]} (${errorCode})`;
+
+// 2️⃣ Agar error code hai but docs me list me nahi hai
+} else if (errorCode) {
+  finalMessage = `${backendError || backendMessage || "Unknown Authorize.Net error"} (${errorCode})`;
+
+// 3️⃣ Agar server response hai but error code nahi mila
+} else if (backendError || backendMessage) {
+  finalMessage = backendError || backendMessage;
+
+// 4️⃣ Agar server hi band hai (Network error)
+} else if (error?.message) {
+  finalMessage = error.message;
+
+// 5️⃣ Fully fallback
+} else {
+  finalMessage = "Something went wrong. Please try again.";
+}
+
+toast({
+  title: "Payment Failed",
+  description: finalMessage,
+  variant: "destructive",
+});
+
     }
   }
+
+  useEffect(() =>{
+console.log(paymentSuccess, "test")
+  },[paymentSuccess])
 
 
   console.log(orders)
