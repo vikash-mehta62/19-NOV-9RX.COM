@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, memo, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { Search, Plus, User, Building2, Hospital } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,8 @@ const CustomerSelectionStepComponent = ({
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
   const { toast } = useToast();
+  const location = useLocation();
+  const isPharmacyRoute = location.pathname?.startsWith("/pharmacy");
 
   // Fetch customers from Supabase
   useEffect(() => {
@@ -179,7 +182,10 @@ const CustomerSelectionStepComponent = ({
             <div className="flex items-start justify-between mb-3 sm:mb-4">
               <div>
                 <h3 className="text-base sm:text-lg font-semibold text-gray-900">Order Customer (Locked)</h3>
-                <p className="text-xs sm:text-sm text-gray-500">This customer cannot be changed in edit mode</p>
+                {/* Hide this message when route starts with /pharmacy */}
+                {!isPharmacyRoute && (
+                  <p className="text-xs sm:text-sm text-gray-500">This customer cannot be changed in edit mode</p>
+                )}
               </div>
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs">
                 Locked
