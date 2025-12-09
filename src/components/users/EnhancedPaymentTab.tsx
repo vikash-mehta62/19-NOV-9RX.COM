@@ -238,6 +238,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         .eq("customer_id", userId)
         .order("transaction_date", { ascending: false });
 
+        console.log(data, "fetch Transection")
       if (!error && data) {
         setTransactions(data);
       }
@@ -559,58 +560,66 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
 
       {/* Credit History */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5" />
-            Credit History
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <p>Loading credit history...</p>
+  <CardHeader>
+    <CardTitle className="flex items-center gap-2">
+      <TrendingUp className="w-5 h-5" />
+      Credit History
+    </CardTitle>
+  </CardHeader>
+  <CardContent>
+    {loading ? (
+      <div className="text-center py-8 text-muted-foreground">
+        <p>Loading credit history...</p>
+      </div>
+    ) : transactions.length === 0 ? (
+      <div className="text-center py-8 text-muted-foreground">
+        <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
+        <p>No credit history yet</p>
+        <p className="text-sm mt-1">
+          View payment history and credit usage over time
+        </p>
+      </div>
+    ) : (
+      <div className="space-y-2">
+        {transactions.map((tx) => (
+          <div
+            key={tx.id}
+            className="flex justify-between items-center p-2 border rounded-md hover:bg-gray-50"
+          >
+            <div className="flex flex-col">
+              <span className="text-sm font-medium">{tx.description}</span>
+              <span className="text-xs text-muted-foreground">
+                {new Date(tx.created_at).toLocaleString()}
+              </span>
+              {/* Display transactionId or admin notes */}
+              {tx.transectionId ? (
+                <span className="text-xs text-blue-600">
+                  Transaction ID: {tx.transectionId}
+                </span>
+              ) : tx.admin_pay_notes ? (
+                <span className="text-xs text-purple-600">
+                  Notes: {tx.admin_pay_notes}
+                </span>
+              ) : null}
             </div>
-          ) : transactions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No credit history yet</p>
-              <p className="text-sm mt-1">
-                View payment history and credit usage over time
-              </p>
+            <div className="flex flex-col text-right">
+              <span className="text-sm text-red-600">
+                {tx.debit_amount > 0 ? `-$${tx.debit_amount}` : ""}
+              </span>
+              <span className="text-sm text-green-600">
+                {tx.credit_amount > 0 ? `+$${tx.credit_amount}` : ""}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Balance: ${tx.balance}
+              </span>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {transactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex justify-between items-center p-2 border rounded-md hover:bg-gray-50"
-                >
-                  <div className="flex flex-col">
-                    <span className="text-sm font-medium">
-                      {tx.description}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                    {new Date(tx.created_at).toLocaleString()}
+          </div>
+        ))}
+      </div>
+    )}
+  </CardContent>
+</Card>
 
-                    </span>
-                  </div>
-                  <div className="flex flex-col text-right">
-                    <span className="text-sm text-red-600">
-                      {tx.debit_amount > 0 ? `-$${tx.debit_amount}` : ""}
-                    </span>
-                    <span className="text-sm text-green-600">
-                      {tx.credit_amount > 0 ? `+$${tx.credit_amount}` : ""}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      Balance: ${tx.balance}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
