@@ -63,7 +63,8 @@ export const useEditUserForm = ({
       paymentTerms: "prepay",
       enablePortal: false,
       portalLanguage: "English",
-      email_notifaction:false
+      email_notifaction:false,
+      referralName: "",
     },
   });
 
@@ -112,7 +113,8 @@ export const useEditUserForm = ({
           paymentTerms: data.payment_terms || "prepay",
           enablePortal: data.enable_portal || false,
           portalLanguage: data.portal_language || "English",
-          email_notifaction:data.email_notifaction
+          email_notifaction:data.email_notifaction,
+          referralName: data.referral_name || "",
         });
       }
     } catch (error: any) {

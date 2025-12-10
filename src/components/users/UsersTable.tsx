@@ -2,14 +2,22 @@ import {
   Table,
   TableBody,
 } from "@/components/ui/table";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog } from "@/components/ui/dialog";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { UserRole } from "./schemas/userFormSchemas";
 import { PendingUserReview } from "./pending/PendingUserReview";
 import { UserTableHeader } from "./table/UserTableHeader";
 import { UserTableRow } from "./table/UserTableRow";
 import { getStatusBadgeColor } from "./utils/userTableUtils";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Users } from "lucide-react";
 
 export interface User {
   id: string;
@@ -26,20 +34,68 @@ export interface User {
 
 interface UsersTableProps {
   users: User[];
-  selectedUsers: string[];  // Changed from number[] to string[]
-  onSelectionChange: (selectedIds: string[]) => void;  // Changed parameter type
+  selectedUsers: string[];
+  onSelectionChange: (selectedIds: string[]) => void;
+  searchTerm?: string;
 }
 
-const UsersTable = ({ users, selectedUsers, onSelectionChange }: UsersTableProps) => {
-  const [refreshKey, setRefreshKey] = useState(0);
+export type SortField = "name" | "email" | "company" | "type" | "status" | "lastActive";
+export type SortDirection = "asc" | "desc";
+
+const UsersTable = ({ users, selectedUsers, onSelectionChange, searchTerm = "" }: UsersTableProps) => {
   const [selectedPendingUser, setSelectedPendingUser] = useState<User | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>("name");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
+
+  // Sort users
+  const sortedUsers = useMemo(() => {
+    return [...users].sort((a, b) => {
+      let aValue = a[sortField] || "";
+      let bValue = b[sortField] || "";
+      
+      if (typeof aValue === "string") aValue = aValue.toLowerCase();
+      if (typeof bValue === "string") bValue = bValue.toLowerCase();
+      
+      if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+      if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+      return 0;
+    });
+  }, [users, sortField, sortDirection]);
+
+  // Paginate users
+  const totalPages = Math.ceil(sortedUsers.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedUsers = sortedUsers.slice(startIndex, endIndex);
+
+  // Reset to page 1 when users change
+  useMemo(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [users.length, pageSize]);
 
   const handleUserUpdated = () => {
-    setRefreshKey((prev) => prev + 1);
+    // Trigger re-render by updating parent state
   };
 
   const handleSelectAll = (checked: boolean) => {
-    onSelectionChange(checked ? users.map(user => user.id) : []);
+    if (checked) {
+      // Select all users on current page
+      const currentPageIds = paginatedUsers.map(user => user.id);
+      const newSelection = [...new Set([...selectedUsers, ...currentPageIds])];
+      onSelectionChange(newSelection);
+    } else {
+      // Deselect all users on current page
+      const currentPageIds = new Set(paginatedUsers.map(user => user.id));
+      onSelectionChange(selectedUsers.filter(id => !currentPageIds.has(id)));
+    }
   };
 
   const handleSelectOne = (checked: boolean, userId: string) => {
@@ -56,45 +112,159 @@ const UsersTable = ({ users, selectedUsers, onSelectionChange }: UsersTableProps
     }
   };
 
-  
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("asc");
+    }
+  };
+
+  const handlePageSizeChange = (value: string) => {
+    setPageSize(Number(value));
+    setCurrentPage(1);
+  };
+
+  // Check if all users on current page are selected
+  const isAllCurrentPageSelected = paginatedUsers.length > 0 && 
+    paginatedUsers.every(user => selectedUsers.includes(user.id));
+
+  // Check if some users on current page are selected
+  const isSomeCurrentPageSelected = paginatedUsers.some(user => selectedUsers.includes(user.id));
+
   return (
-    <>
-      <ScrollArea className="h-[600px]">
-        <Table>
-          <UserTableHeader 
-            onSelectAll={handleSelectAll}
-            isAllSelected={users.length > 0 && selectedUsers.length === users.length}
-          />
-          <TableBody>
-            {users.map((user) => (
-              <UserTableRow
-                key={user.id}
-                user={user}
-                isSelected={selectedUsers.includes(user.id)}
-                onSelectChange={(checked) => handleSelectOne(checked, user.id)}
-                onUserUpdated={handleUserUpdated}
-                getStatusBadgeColor={getStatusBadgeColor}
-                handleStatusBadgeClick={handleStatusBadgeClick}
+    <div className="space-y-4">
+      {/* Empty State */}
+      {users.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">
+            <Users className="h-8 w-8 text-muted-foreground" />
+          </div>
+          <h3 className="text-lg font-semibold">No customers found</h3>
+          <p className="text-sm text-muted-foreground mt-1 max-w-sm">
+            No customers match your current filters. Try adjusting your search or filter criteria.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-md border overflow-hidden">
+            <Table>
+              <UserTableHeader 
+                onSelectAll={handleSelectAll}
+                isAllSelected={isAllCurrentPageSelected}
+                isIndeterminate={isSomeCurrentPageSelected && !isAllCurrentPageSelected}
+                sortField={sortField}
+                sortDirection={sortDirection}
+                onSort={handleSort}
               />
-            ))}
-          </TableBody>
-        </Table>
-      </ScrollArea>
+              <TableBody>
+                {paginatedUsers.map((user) => (
+                  <UserTableRow
+                    key={user.id}
+                    user={user}
+                    isSelected={selectedUsers.includes(user.id)}
+                    onSelectChange={(checked) => handleSelectOne(checked, user.id)}
+                    onUserUpdated={handleUserUpdated}
+                    getStatusBadgeColor={getStatusBadgeColor}
+                    handleStatusBadgeClick={handleStatusBadgeClick}
+                    searchTerm={searchTerm}
+                  />
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+
+          {/* Pagination Controls */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>
+                Showing {startIndex + 1}-{Math.min(endIndex, sortedUsers.length)} of {sortedUsers.length} customers
+              </span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              {/* Page Size Selector */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">Rows per page:</span>
+                <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                  <SelectTrigger className="w-[70px] h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="10">10</SelectItem>
+                    <SelectItem value="25">25</SelectItem>
+                    <SelectItem value="50">50</SelectItem>
+                    <SelectItem value="100">100</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Page Navigation */}
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={currentPage === 1}
+                  aria-label="First page"
+                >
+                  <ChevronsLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                  disabled={currentPage === 1}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                
+                <span className="text-sm px-2 min-w-[100px] text-center">
+                  Page {currentPage} of {totalPages}
+                </span>
+                
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                  disabled={currentPage === totalPages}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={currentPage === totalPages}
+                  aria-label="Last page"
+                >
+                  <ChevronsRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       <Dialog open={!!selectedPendingUser} onOpenChange={() => setSelectedPendingUser(null)}>
-       
         {selectedPendingUser && (
           <PendingUserReview
             user={selectedPendingUser}
             onClose={() => setSelectedPendingUser(null)}
             onStatusUpdate={() => {
-              setRefreshKey(prev => prev + 1);
               setSelectedPendingUser(null);
             }}
           />
         )}
       </Dialog>
-    </>
+    </div>
   );
 };
 

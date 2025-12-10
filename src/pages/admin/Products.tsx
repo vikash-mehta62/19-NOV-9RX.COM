@@ -1,7 +1,6 @@
 
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { ProductsTable } from "@/components/products/ProductsTable";
-import { ProductFilters } from "@/components/products/ProductFilters";
+import { ProductCatalog } from "@/components/products/ProductCatalog";
 import { AddProductDialog } from "@/components/products/AddProductDialog";
 import { ProductHeader } from "@/components/products/ProductHeader";
 import { useProducts } from "@/hooks/use-products";
@@ -53,36 +52,39 @@ const Products = () => {
   }, [isEditDialogOpen])
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-6">
-        <ProductHeader
-          onUploadComplete={handleBulkAddProducts}
-          onAddProduct={() => setIsAddDialogOpen(true)}
-        />
+      <div className="space-y-4">
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <ProductHeader
+            onUploadComplete={handleBulkAddProducts}
+            onAddProduct={() => setIsAddDialogOpen(true)}
+          />
+        </div>
 
-        <ProductFilters
-          searchQuery={searchQuery}
-          selectedCategory={selectedCategory}
-          onSearchChange={setSearchQuery}
-          onCategoryChange={setSelectedCategory}
-        />
-
-        {loading ? <>
-          <div className="flex items-center justify-center h-[400px]">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent" />
+        {loading ? (
+          <div className="flex items-center justify-center h-[400px] bg-white rounded-lg shadow-sm">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-orange-500 border-t-transparent mx-auto mb-4" />
+              <p className="text-gray-500">Loading products...</p>
+            </div>
           </div>
-
-        </> : <ProductsTable
-          products={products}
-          currentPage={currentPage}
-          totalProducts={totalProducts}
-          pageSize={PAGE_SIZE}
-          onPageChange={setCurrentPage}
-          onEdit={(product) => {
-            setEditingProduct(product);
-            setIsEditDialogOpen(true);
-          }}
-          onDelete={handleDeleteProduct}
-        />}
+        ) : (
+          <ProductCatalog
+            products={products}
+            currentPage={currentPage}
+            totalProducts={totalProducts}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            searchQuery={searchQuery}
+            selectedCategory={selectedCategory}
+            onSearchChange={setSearchQuery}
+            onCategoryChange={setSelectedCategory}
+            onEdit={(product) => {
+              setEditingProduct(product);
+              setIsEditDialogOpen(true);
+            }}
+            onDelete={handleDeleteProduct}
+          />
+        )}
 
         <AddProductDialog
           open={isAddDialogOpen}

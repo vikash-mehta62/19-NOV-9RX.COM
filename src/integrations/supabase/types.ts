@@ -9,6 +9,75 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      festival_themes: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          description: string | null;
+          start_date: string;
+          end_date: string;
+          primary_color: string;
+          secondary_color: string;
+          accent_color: string;
+          background_color: string;
+          text_color: string;
+          icon: string | null;
+          banner_image_url: string | null;
+          banner_text: string | null;
+          effects: Json;
+          is_active: boolean;
+          auto_activate: boolean;
+          priority: number;
+          created_at: string | null;
+          updated_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          slug: string;
+          description?: string | null;
+          start_date: string;
+          end_date: string;
+          primary_color?: string;
+          secondary_color?: string;
+          accent_color?: string;
+          background_color?: string;
+          text_color?: string;
+          icon?: string | null;
+          banner_image_url?: string | null;
+          banner_text?: string | null;
+          effects?: Json;
+          is_active?: boolean;
+          auto_activate?: boolean;
+          priority?: number;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          slug?: string;
+          description?: string | null;
+          start_date?: string;
+          end_date?: string;
+          primary_color?: string;
+          secondary_color?: string;
+          accent_color?: string;
+          background_color?: string;
+          text_color?: string;
+          icon?: string | null;
+          banner_image_url?: string | null;
+          banner_text?: string | null;
+          effects?: Json;
+          is_active?: boolean;
+          auto_activate?: boolean;
+          priority?: number;
+          created_at?: string | null;
+          updated_at?: string | null;
+        };
+        Relationships: [];
+      };
       addresses: {
         Row: {
           attention: string | null;

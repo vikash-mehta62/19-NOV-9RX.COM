@@ -1,16 +1,17 @@
 import { useState, useEffect, useMemo } from "react";
-import { HeroSection } from "./components/HeroSection";
-import { CartDrawer } from "./components/CartDrawer";
-import { SearchFilters } from "./components/product-showcase/SearchFilters";
-import { ProductGrid } from "./components/product-showcase/ProductGrid";
-import { filterProducts } from "./utils/productFilters";
+import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar";
+import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { ProductDetails } from "./types/product.types";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { useSelector } from "react-redux";
-import { Loader2 } from "lucide-react";
-import { number } from "zod";
+import { Loader2, Search, Filter, Package, Truck, Star } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface ProductShowcaseProps {
 
@@ -225,33 +226,170 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
     return filtered;
   }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange]);
 
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [sortBy, setSortBy] = useState("featured");
+  const [viewMode, setViewMode] = useState<"grid" | "compact">("grid");
+
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center">
-        {!groupShow && <HeroSection />}
-
-
-      </div>
-
-      <SearchFilters
-        searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
-        selectedCategory={selectedCategory}
-        setSelectedCategory={setSelectedCategory}
-        selectedSubcategory={selectedSubcategory}
-        setSelectedSubcategory={setSelectedSubcategory}
-        priceRange={priceRange}
-        setPriceRange={setPriceRange}
-      />
-      {
-        products.length > 0 ? (
-          <ProductGrid products={filteredProducts} isEditing={isEditing} form={form}  />
-        ) : (
-          <div className="flex justify-center items-center h-40">
-            <Loader2 className="animate-spin text-gray-500" size={32} />
+    <div className="min-h-screen bg-gray-50/50 -m-6 p-6">
+      {/* Promotional Banner - Elegant & Eye-catching */}
+      {!groupShow && (
+        <div className="mb-6 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 p-6 shadow-xl">
+          {/* Decorative Elements */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
+          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
+          <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full"></div>
+          
+          <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full">
+                  🎉 SPECIAL OFFER
+                </span>
+              </div>
+              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
+                Premium Pharmacy Supplies
+              </h2>
+              <p className="text-emerald-100 text-sm md:text-base max-w-lg">
+                Quality products at competitive prices. Free delivery on all orders!
+              </p>
+            </div>
+            
+            <div className="flex flex-wrap gap-3">
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
+                <Package className="w-6 h-6 text-white mx-auto mb-1" />
+                <div className="text-white font-bold text-lg">{filteredProducts.length}</div>
+                <div className="text-emerald-100 text-xs">Products</div>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
+                <Truck className="w-6 h-6 text-white mx-auto mb-1" />
+                <div className="text-white font-bold text-lg">FREE</div>
+                <div className="text-emerald-100 text-xs">Delivery</div>
+              </div>
+              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
+                <Star className="w-6 h-6 text-white mx-auto mb-1" />
+                <div className="text-white font-bold text-lg">BULK</div>
+                <div className="text-emerald-100 text-xs">Discounts</div>
+              </div>
+            </div>
           </div>
-        )
-      }
+        </div>
+      )}
+
+      {/* Main Layout */}
+      <div className="flex gap-6">
+        {/* Desktop Sidebar */}
+        <aside className="hidden lg:block w-64 flex-shrink-0">
+          <div className="sticky top-4">
+            <PharmacyFilterSidebar
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              selectedCategory={selectedCategory}
+              setSelectedCategory={setSelectedCategory}
+              selectedSubcategory={selectedSubcategory}
+              setSelectedSubcategory={setSelectedSubcategory}
+              priceRange={priceRange}
+              setPriceRange={setPriceRange}
+            />
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 space-y-4">
+          {/* Toolbar */}
+          <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+            <div className="flex items-center gap-3">
+              {/* Mobile Filter Button */}
+              <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
+                <SheetTrigger asChild>
+                  <Button variant="outline" size="sm" className="lg:hidden border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                    <Filter className="w-4 h-4 mr-2" />
+                    Filters
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-[300px] p-0">
+                  <SheetHeader className="p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
+                    <SheetTitle className="text-white">Filters</SheetTitle>
+                  </SheetHeader>
+                  <ScrollArea className="h-[calc(100vh-60px)]">
+                    <div className="p-4">
+                      <PharmacyFilterSidebar
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        selectedCategory={selectedCategory}
+                        setSelectedCategory={setSelectedCategory}
+                        selectedSubcategory={selectedSubcategory}
+                        setSelectedSubcategory={setSelectedSubcategory}
+                        priceRange={priceRange}
+                        setPriceRange={setPriceRange}
+                      />
+                    </div>
+                  </ScrollArea>
+                </SheetContent>
+              </Sheet>
+
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <span className="text-sm text-gray-700">
+                  <span className="font-semibold text-emerald-600">{filteredProducts.length}</span> products
+                  {selectedCategory !== "all" && (
+                    <span className="hidden sm:inline text-gray-500"> in "{selectedCategory}"</span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* View Toggle */}
+              <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                <button
+                  onClick={() => setViewMode("grid")}
+                  className={`p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode("compact")}
+                  className={`p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* Sort */}
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[140px] text-sm h-9 border-gray-200">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="featured">Featured</SelectItem>
+                  <SelectItem value="price-low">Price: Low to High</SelectItem>
+                  <SelectItem value="price-high">Price: High to Low</SelectItem>
+                  <SelectItem value="newest">Newest</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Products Grid */}
+          {products.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl shadow-sm border border-gray-100">
+              <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
+              <p className="text-gray-600">Loading products...</p>
+            </div>
+          ) : (
+            <PharmacyProductGrid 
+              products={filteredProducts} 
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
+        </main>
+      </div>
     </div>
   );
 };

@@ -80,6 +80,7 @@ export const updateUserProfile = async (
       portal_language: values.portalLanguage || "English",
       email_notifaction:values.email_notifaction,
       taxPercantage: Number(values.taxPercantage) || 0,
+      referral_name: values.referralName?.trim() || null,
       updated_at: new Date().toISOString(),
     };
 

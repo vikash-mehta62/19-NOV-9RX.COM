@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { AuthorizeNetCredentials } from "./payment/AuthorizeNetCredentials";
 import { ACHPaymentFields } from "./payment/ACHPaymentFields";
-import { processACHPayment } from "../utils/authorizeNetUtils";
+import { processACHPayment } from "@/services/paymentService";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -147,16 +147,14 @@ export function PaymentSection({
     });
 
     try {
+      // Use Supabase Edge Function for ACH payment
       const response = await processACHPayment({
-        accountType: data.payment.achAccountType,
-        accountName: data.payment.achAccountName,
+        accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
         routingNumber: data.payment.achRoutingNumber,
         accountNumber: data.payment.achAccountNumber,
+        nameOnAccount: data.payment.achAccountName,
         amount: Number.parseFloat(data.total),
         customerEmail: data.customerInfo.email,
-        customerName: data.customerInfo.name,
-        apiLoginId: apiCredentials.apiLoginId,
-        transactionKey: apiCredentials.transactionKey,
         testMode: apiCredentials.testMode,
       });
 
@@ -166,9 +164,7 @@ export function PaymentSection({
           description: `ACH payment processed successfully. Transaction ID: ${response.transactionId}`,
         });
       } else {
-        throw new Error(
-          response.error?.text || "Failed to process ACH payment"
-        );
+        throw new Error(response.error || "Failed to process ACH payment");
       }
     } catch (error) {
       console.error("Payment processing error:", error);

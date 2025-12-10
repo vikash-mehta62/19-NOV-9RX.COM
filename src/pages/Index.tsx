@@ -2,6 +2,7 @@ import HeroSection from "@/components/landing/HeroSection";
 import ProductCategories from "@/components/landing/ProductCategories";
 import AboutUsSection from "@/components/landing/AboutUsSection";
 import TrustSection from "@/components/landing/TrustSection";
+import { FestivalBanner } from "@/components/festival/FestivalBanner";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Phone, ShieldQuestion } from "lucide-react";
@@ -68,6 +69,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen">
+      <FestivalBanner position="top" />
       <HeroSection />
       <ProductCategories />
       <TestimonialsSection />

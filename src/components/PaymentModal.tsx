@@ -1,8 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import Modal from "react-modal"
+import { createPortal } from "react-dom"
 import axios from "../../axiosconfig"
+import { processPayment, PaymentResponse } from "@/services/paymentService"
 import {
   CreditCard,
   Landmark,
@@ -12,238 +13,253 @@ import {
   Building,
   Globe,
   DollarSign,
-  Calendar,
-  KeyRound,
   Loader2,
-  Receipt
+  Receipt,
+  ShieldCheck,
+  Lock,
+  ArrowLeft,
+  X,
+  CheckCircle2,
+  AlertCircle,
+  Package,
+  FileText,
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
 import { useNavigate } from "react-router-dom"
-import { useOrderManagement } from "./orders/hooks/useOrderManagement"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { OrderActivityService } from "@/services/orderActivityService"
 
-Modal.setAppElement(document.getElementById("body"))
-
-function validateCardNumber(cardNumber) {
-  // Remove spaces and non-numeric characters
+// Validation functions
+function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
   const cleaned = cardNumber.replace(/\D/g, "")
-
-  // Most cards have 16 digits, Amex has 15
-  const isValidLength = cleaned.length === 16 || cleaned.length === 15
-
-  if (!isValidLength) {
-    return "Card number must be 15-16 digits"
+  const expectedLength = cardType?.maxLength || 16
+  
+  if (cleaned.length < 13) return "Card number too short"
+  if (cleaned.length !== expectedLength) return `${cardType?.name || "Card"} requires ${expectedLength} digits`
+  
+  // Luhn algorithm check
+  let sum = 0
+  let isEven = false
+  for (let i = cleaned.length - 1; i >= 0; i--) {
+    let digit = parseInt(cleaned[i], 10)
+    if (isEven) {
+      digit *= 2
+      if (digit > 9) digit -= 9
+    }
+    sum += digit
+    isEven = !isEven
   }
-
+  if (sum % 10 !== 0) return "Invalid card number"
+  
   return null
 }
 
-function validateCVV(cvv, expectedLength = 3) {
+function validateCVV(cvv: string, expectedLength = 3) {
   const cleaned = cvv.replace(/\D/g, "")
-
-  if (cleaned.length !== expectedLength) {
-    return `CVV must be ${expectedLength} digits`
-  }
-
+  if (cleaned.length !== expectedLength) return `CVV must be ${expectedLength} digits`
   return null
 }
 
-function validateCardholderName(name) {
-  if (!name || name.trim().length < 3) {
-    return "Cardholder name must be at least 3 characters"
-  }
+function validateCardholderName(name: string) {
+  if (!name || name.trim().length < 3) return "Name must be at least 3 characters"
   return null
 }
 
-function validateExpirationDate(date) {
+function validateExpirationDate(date: string) {
   if (!date) return "Expiration date is required"
-
-  // Check format
-  if (!date.match(/^\d{2}\/\d{2}$/)) {
-    return "Expiration date must be in MM/YY format"
-  }
-
+  if (!date.match(/^\d{2}\/\d{2}$/)) return "Use MM/YY format"
   const [month, year] = date.split("/")
   const currentDate = new Date()
-  const currentYear = currentDate.getFullYear() % 100 // Get last two digits
-  const currentMonth = currentDate.getMonth() + 1 // January is 0
-
-  // Convert to numbers
-  const monthNum = Number.parseInt(month, 10)
-  const yearNum = Number.parseInt(year, 10)
-
-  // Validate month
-  if (monthNum < 1 || monthNum > 12) {
-    return "Invalid month"
-  }
-
-  // Check if card is expired
-  if (yearNum < currentYear || (yearNum === currentYear && monthNum < currentMonth)) {
-    return "Card has expired"
-  }
-
+  const currentYear = currentDate.getFullYear() % 100
+  const currentMonth = currentDate.getMonth() + 1
+  const monthNum = parseInt(month, 10)
+  const yearNum = parseInt(year, 10)
+  if (monthNum < 1 || monthNum > 12) return "Invalid month"
+  if (yearNum < currentYear || (yearNum === currentYear && monthNum < currentMonth)) return "Card expired"
   return null
 }
 
-function validateAddress(address) {
-  if (!address || address.trim().length < 5) {
-    return "Address must be at least 5 characters"
-  }
+function validateAddress(address: string) {
+  if (!address || address.trim().length < 5) return "Address required (min 5 chars)"
   return null
 }
 
-function validateCity(city) {
-  if (!city || city.trim().length < 2) {
-    return "City name is required"
-  }
+function validateCity(city: string) {
+  if (!city || city.trim().length < 2) return "City required"
   return null
 }
 
-function validateState(state) {
-  if (!state || state.trim().length < 2) {
-    return "State is required"
-  }
+function validateState(state: string) {
+  if (!state || state.trim().length < 2) return "State required"
   return null
 }
 
-function validateZip(zip) {
-  // Basic US zip code validation
-  if (!zip || !zip.match(/^\d{5}(-\d{4})?$/)) {
-    return "Enter a valid ZIP code (e.g., 12345 or 12345-6789)"
-  }
+function validateZip(zip: string) {
+  if (!zip || !zip.match(/^\d{5}(-\d{4})?$/)) return "Valid ZIP required"
   return null
 }
 
-function validateCountry(country) {
-  if (!country || country.trim().length < 2) {
-    return "Country is required"
-  }
+function validateCountry(country: string) {
+  if (!country || country.trim().length < 2) return "Country required"
   return null
 }
 
-function validateRoutingNumber(number) {
-  // US routing numbers are 9 digits
-  if (!number || !number.match(/^\d{9}$/)) {
-    return "Routing number must be 9 digits"
-  }
+function validateRoutingNumber(number: string) {
+  if (!number || !number.match(/^\d{9}$/)) return "9 digits required"
+  
+  // ABA routing number checksum validation
+  const digits = number.split("").map(Number)
+  const checksum = (3 * (digits[0] + digits[3] + digits[6]) +
+                    7 * (digits[1] + digits[4] + digits[7]) +
+                    1 * (digits[2] + digits[5] + digits[8])) % 10
+  if (checksum !== 0) return "Invalid routing number"
+  
   return null
 }
 
-function validateAccountNumber(number) {
-  // Account numbers are typically 8-12 digits
-  if (!number || !number.match(/^\d{8,17}$/)) {
-    return "Account number must be 8-17 digits"
-  }
+function validateAccountNumber(number: string) {
+  if (!number || !number.match(/^\d{8,17}$/)) return "8-17 digits required"
   return null
 }
 
-function validateNotes(notes) {
-  if (!notes || notes.trim().length < 5) {
-    return "Please provide payment details (minimum 5 characters)"
-  }
+function validateNotes(notes: string) {
+  if (!notes || notes.trim().length < 5) return "Min 5 characters required"
   return null
 }
 
-function detectCardType(cardNumber) {
+// Enhanced card detection with more card types
+function detectCardType(cardNumber: string) {
   const cleaned = cardNumber.replace(/\D/g, "")
-
+  
   // Visa: starts with 4
   if (/^4/.test(cleaned)) {
-    return { type: "visa", name: "Visa", cvvLength: 3 }
+    return { type: "visa", name: "Visa", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
   }
-
-  // Mastercard: starts with 5 or 2221-2720
-  if (/^5[1-5]/.test(cleaned) || /^2(22[1-9]|2[3-9]|[3-6]|7[0-1]|720)/.test(cleaned)) {
-    return { type: "mastercard", name: "Mastercard", cvvLength: 3 }
+  
+  // Mastercard: starts with 51-55 or 2221-2720
+  if (/^5[1-5]/.test(cleaned) || /^2(2[2-9][1-9]|2[3-9]\d|[3-6]\d{2}|7[0-1]\d|720)/.test(cleaned)) {
+    return { type: "mastercard", name: "Mastercard", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
   }
-
+  
   // American Express: starts with 34 or 37
   if (/^3[47]/.test(cleaned)) {
-    return { type: "amex", name: "American Express", cvvLength: 4 }
+    return { type: "amex", name: "American Express", cvvLength: 4, maxLength: 15, format: [4, 6, 5] }
   }
-
-  return { type: "unknown", name: "Credit Card", cvvLength: 3 }
+  
+  // Discover: starts with 6011, 622126-622925, 644-649, 65
+  if (/^6011/.test(cleaned) || /^62[24-68]/.test(cleaned) || /^6[45]/.test(cleaned)) {
+    return { type: "discover", name: "Discover", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
+  }
+  
+  // Diners Club: starts with 300-305, 36, 38-39
+  if (/^3(0[0-5]|[68])/.test(cleaned)) {
+    return { type: "diners", name: "Diners Club", cvvLength: 3, maxLength: 14, format: [4, 6, 4] }
+  }
+  
+  // JCB: starts with 35
+  if (/^35/.test(cleaned)) {
+    return { type: "jcb", name: "JCB", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
+  }
+  
+  return { type: "unknown", name: "Credit Card", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
 }
 
-function getCardIcon(cardType) {
+// Format card number based on card type
+function formatCardNumberByType(num: string, cardType: { format: number[] }) {
+  const cleaned = num.replace(/\D/g, "")
+  const format = cardType.format
+  let result = ""
+  let index = 0
+  
+  for (let i = 0; i < format.length && index < cleaned.length; i++) {
+    const chunk = cleaned.slice(index, index + format[i])
+    result += chunk
+    index += format[i]
+    if (index < cleaned.length && i < format.length - 1) {
+      result += " "
+    }
+  }
+  
+  return result
+}
+
+function getCardIcon(cardType: { type: string }) {
   switch (cardType.type) {
     case "visa":
       return (
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-6 bg-blue-600 text-white text-xs font-bold flex items-center justify-center rounded">
-          VISA
+        <div className="flex items-center gap-1">
+          <div className="px-1.5 py-0.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white text-[10px] font-bold rounded shadow-sm">VISA</div>
         </div>
       )
     case "mastercard":
       return (
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-6 flex items-center justify-center">
-          <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-          <div className="w-2 h-2 bg-yellow-500 rounded-full -ml-1"></div>
+        <div className="flex items-center">
+          <div className="w-4 h-4 bg-red-500 rounded-full opacity-90"></div>
+          <div className="w-4 h-4 bg-yellow-400 rounded-full -ml-2 opacity-90"></div>
         </div>
       )
     case "amex":
       return (
-        <div className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-6 bg-blue-500 text-white text-xs font-bold flex items-center justify-center rounded">
-          AMEX
-        </div>
+        <div className="px-1.5 py-0.5 bg-gradient-to-r from-blue-400 to-blue-600 text-white text-[10px] font-bold rounded shadow-sm">AMEX</div>
+      )
+    case "discover":
+      return (
+        <div className="px-1.5 py-0.5 bg-gradient-to-r from-orange-500 to-orange-600 text-white text-[10px] font-bold rounded shadow-sm">DISC</div>
+      )
+    case "diners":
+      return (
+        <div className="px-1.5 py-0.5 bg-gradient-to-r from-gray-600 to-gray-700 text-white text-[10px] font-bold rounded shadow-sm">DC</div>
+      )
+    case "jcb":
+      return (
+        <div className="px-1.5 py-0.5 bg-gradient-to-r from-green-600 to-blue-600 text-white text-[10px] font-bold rounded shadow-sm">JCB</div>
       )
     default:
-      return <CreditCard className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+      return <CreditCard className="w-5 h-5 text-gray-400" />
   }
 }
 
-// Helper function to Generate invoice after payment.
+// Helper function to create invoice after payment
 async function createInvoice(order: any, totalAmount: number, newTax: number) {
-  // ✅ STEP 1: Check customer payment terms
   const { data: customerProfile, error: profileError } = await supabase
     .from("profiles")
     .select("payment_terms")
     .eq("id", order.profile_id)
-    .single();
+    .single()
 
-  if (profileError) {
-    console.error("Error fetching customer profile:", profileError);
-    throw new Error(profileError.message);
-  }
+  if (profileError) throw new Error(profileError.message)
 
-  // ✅ STEP 2. Skip invoice generation for credit customers
-  // const isCreditCustomer = customerProfile.payment_terms === 'credit' || customerProfile.payment_terms === 'net_30';
-  // if (isCreditCustomer) {
-  //   console.log(`⏭️ Skipping invoice generation for credit customer: ${order.profile_id}`);
-  //   return;
-  // }
-
-  // ✅ STEP 3. Generate invoice for prepay customers
-  const year = new Date().getFullYear();
+  const year = new Date().getFullYear()
   const { data: inData, error: fetchError } = await supabase
     .from("centerize_data")
     .select("id, invoice_no, invoice_start")
     .order("id", { ascending: false })
-    .limit(1);
-  if (fetchError) throw new Error(fetchError.message);
-  const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-  const invoiceStart = inData?.[0]?.invoice_start || "INV";
+    .limit(1)
+  if (fetchError) throw new Error(fetchError.message)
 
-  // Update invoice number
+  const newInvNo = (inData?.[0]?.invoice_no || 0) + 1
+  const invoiceStart = inData?.[0]?.invoice_start || "INV"
+
   if (inData?.[0]?.id) {
     const { error: updateError } = await supabase
       .from("centerize_data")
       .update({ invoice_no: newInvNo })
-      .eq("id", inData[0].id);
-    if (updateError) throw new Error(updateError.message);
+      .eq("id", inData[0].id)
+    if (updateError) throw new Error(updateError.message)
   }
 
-  const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
-  const dueDate = new Date(new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`
+  const dueDate = new Date(new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Prepare invoice data
   const invoiceData = {
     invoice_number: invoiceNumber,
     order_id: order.id,
@@ -262,33 +278,37 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
     shipping_info: order.shippingAddress,
     shippin_cost: order.shipping_cost,
     subtotal: totalAmount
-  };
-  
-  const { error: invoiceError } = await supabase
-    .from("invoices")
-    .insert(invoiceData);
-  if (invoiceError) throw new Error(invoiceError.message);
+  }
 
-  console.log(`✅ Invoice ${invoiceNumber} created successfully for prepay customer`);
+  const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
+  if (invoiceError) throw new Error(invoiceError.message)
 }
 
-const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false }) => {
+interface PaymentFormProps {
+  modalIsOpen: boolean
+  setModalIsOpen: (open: boolean) => void
+  customer: any
+  amountP: number
+  orderId: string
+  orders: any
+  payNow?: boolean
+}
+
+const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false }: PaymentFormProps) => {
   const [paymentType, setPaymentType] = useState("credit_card")
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
-const[paymentSuccess, setPaymentSuccess] =  useState(false)
-  const [cardType, setCardType] = useState({ type: "unknown", name: "Credit Card", cvvLength: 3 })
+  const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [cardType, setCardType] = useState({ type: "unknown", name: "Credit Card", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] })
 
-  console.log(orders
-  )
   const [formData, setFormData] = useState({
     amount: 0,
     cardNumber: "",
     expirationDate: "",
     cvv: "",
     cardholderName: "",
-    accountType: "",
+    accountType: "checking",
     routingNumber: "",
     accountNumber: "",
     nameOnAccount: "",
@@ -296,68 +316,49 @@ const[paymentSuccess, setPaymentSuccess] =  useState(false)
     city: "",
     state: "",
     zip: "",
-    country: "",
+    country: "USA",
     notes: "",
   })
 
   const [selectedMonth, setSelectedMonth] = useState("")
   const [selectedYear, setSelectedYear] = useState("")
 
-  useEffect(() => {
-    if (selectedMonth && selectedYear) {
-      const expiration = `${selectedMonth}/${selectedYear.slice(2)}` // Format MM/YY
-      setFormData((prev) => ({
-        ...prev,
-        expirationDate: expiration,
-      }))
-    }
-  }, [selectedMonth, selectedYear])
+  const [errors, setErrors] = useState<Record<string, string | null>>({})
 
-
-
-  useEffect(() => {
-    if (formData.expirationDate) {
-      const [mm, yy] = formData.expirationDate.split("/")
-      setSelectedMonth(mm)
-      setSelectedYear("20" + yy) // Assuming format is MM/YY
-    }
-  }, [])
+  const months = [
+    { value: "01", label: "01 - Jan" },
+    { value: "02", label: "02 - Feb" },
+    { value: "03", label: "03 - Mar" },
+    { value: "04", label: "04 - Apr" },
+    { value: "05", label: "05 - May" },
+    { value: "06", label: "06 - Jun" },
+    { value: "07", label: "07 - Jul" },
+    { value: "08", label: "08 - Aug" },
+    { value: "09", label: "09 - Sep" },
+    { value: "10", label: "10 - Oct" },
+    { value: "11", label: "11 - Nov" },
+    { value: "12", label: "12 - Dec" },
+  ]
 
   const getYears = (range = 10) => {
     const currentYear = new Date().getFullYear()
     return Array.from({ length: range }, (_, i) => currentYear + i)
   }
 
-  const months = [
-    { value: "01", label: "January" },
-    { value: "02", label: "February" },
-    { value: "03", label: "March" },
-    { value: "04", label: "April" },
-    { value: "05", label: "May" },
-    { value: "06", label: "June" },
-    { value: "07", label: "July" },
-    { value: "08", label: "August" },
-    { value: "09", label: "September" },
-    { value: "10", label: "October" },
-    { value: "11", label: "November" },
-    { value: "12", label: "December" },
-  ]
+  useEffect(() => {
+    if (selectedMonth && selectedYear) {
+      const expiration = `${selectedMonth}/${selectedYear.slice(2)}`
+      setFormData((prev) => ({ ...prev, expirationDate: expiration }))
+    }
+  }, [selectedMonth, selectedYear])
 
-  const [errors, setErrors] = useState({
-    cardNumber: null,
-    cvv: null,
-    expirationDate: null,
-    cardholderName: null,
-    address: null,
-    city: null,
-    state: null,
-    zip: null,
-    country: null,
-    routingNumber: null,
-    accountNumber: null,
-    nameOnAccount: null,
-    notes: null,
-  })
+  useEffect(() => {
+    if (formData.expirationDate) {
+      const [mm, yy] = formData.expirationDate.split("/")
+      setSelectedMonth(mm)
+      setSelectedYear("20" + yy)
+    }
+  }, [])
 
   useEffect(() => {
     if (customer) {
@@ -369,119 +370,56 @@ const[paymentSuccess, setPaymentSuccess] =  useState(false)
         city: customer.address?.city || "",
         state: customer.address?.state || "",
         zip: customer.address?.zip_code || "",
-        email: customer.email || "",
-        phone: customer.phone || "",
-        amount: amountP || 0,
+        amount: Number(amountP) || 0,
       }))
     }
-  }, [customer])
-  console.log(orders)
-  const handleChange = (e) => {
+  }, [customer, amountP])
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
+    setErrors({ ...errors, [name]: null })
 
-    // Clear error when user starts typing
-    setErrors({
-      ...errors,
-      [name]: null,
-    })
-
-    if (name === "expirationDate") {
-      let formattedValue = value.replace(/[^0-9]/g, "")
-
-      // Add separator after month (after 2 digits)
-      if (formattedValue.length > 2) {
-        formattedValue = formattedValue.slice(0, 2) + "/" + formattedValue.slice(2)
-      }
-
-      // Limit to MM/YY format (5 characters total)
-      if (formattedValue.length <= 5) {
-        setFormData({ ...formData, [name]: formattedValue })
-      }
-    } else if (name === "cardNumber") {
-      // Only allow numbers and limit to 16 digits
-      const formattedValue = value.replace(/\D/g, "").slice(0, 16)
+    if (name === "cardNumber") {
+      const cleaned = value.replace(/\D/g, "")
+      const detected = detectCardType(cleaned)
+      const formattedValue = cleaned.slice(0, detected.maxLength)
       setFormData({ ...formData, [name]: formattedValue })
-
-      // Detect card type
-      const detectedCardType = detectCardType(formattedValue)
-      setCardType(detectedCardType)
+      setCardType(detected)
     } else if (name === "cvv") {
-      // Only allow numbers and limit based on card type
       const formattedValue = value.replace(/\D/g, "").slice(0, cardType.cvvLength)
       setFormData({ ...formData, [name]: formattedValue })
     } else if (name === "zip") {
-      // Allow only numbers and hyphen for ZIP codes
       const formattedValue = value.replace(/[^0-9-]/g, "").slice(0, 10)
       setFormData({ ...formData, [name]: formattedValue })
-    } else if (name === "routingNumber" || name === "accountNumber") {
-      // Only allow numbers for banking information
-      const formattedValue = value.replace(/\D/g, "")
+    } else if (name === "routingNumber") {
+      const formattedValue = value.replace(/\D/g, "").slice(0, 9)
+      setFormData({ ...formData, [name]: formattedValue })
+    } else if (name === "accountNumber") {
+      const formattedValue = value.replace(/\D/g, "").slice(0, 17)
       setFormData({ ...formData, [name]: formattedValue })
     } else {
       setFormData({ ...formData, [name]: value })
     }
   }
 
-  const handleSelectChange = (name, value) => {
-    setFormData({ ...formData, [name]: value })
+  const authorizeErrorMap: Record<string, string> = {
+    E00003: "Invalid request data structure.",
+    E00007: "Authentication failed.",
+    E00012: "Duplicate subscription exists.",
+    E00015: "Field length exceeded.",
+    E00020: "Account not enabled for eCheck.",
+    E00027: "Transaction unsuccessful.",
+    E00039: "Duplicate record detected.",
+    E00040: "Record not found.",
+    E00099: "Profile creation failed."
   }
 
-  useEffect(() => {
-    console.log("Current payment type:", paymentType)
-  }, [paymentType])
-
-
-
-
-
-  const authorizeErrorMap: Record<string, string> = {
-  E00003: "Invalid XML request: malformed or incorrect data structure.",
-  E00007: "User authentication failed: Invalid API Login ID or Transaction Key.",
-  E00012: "A duplicate subscription already exists.",
-  E00015: "Invalid field length: One or more fields exceed allowed character limits.",
-  E00020: "Account not enabled for eCheck.Net subscriptions.",
-  E00027: "The transaction was unsuccessful: card details or required fields invalid.",
-  E00039: "Duplicate record detected in Customer Information Manager (CIM).",
-  E00040: "Record not found: Invalid profile ID or payment/shipping profile.",
-  E00099: "Customer profile creation failed: Transaction ID is older than 30 days."
-};
-
-
-
-  const handleSubmit = async (e:any) => {
-    e.preventDefault()
-
-
-    // Initialize validation errors
-    const newErrors = {
-      cardNumber: null as string | null,
-      cvv: null as string | null,
-      expirationDate: null as string | null,
-      cardholderName: null as string | null,
-      address: null as string | null,
-      city: null as string | null,
-      state: null as string | null,
-      zip: null as string | null,
-      country: null as string | null,
-      routingNumber: null as string | null,
-      accountNumber: null as string | null,
-      nameOnAccount: null as string | null,
-      notes: null as string | null,
-    }
+  const validateForm = () => {
+    const newErrors: Record<string, string | null> = {}
     let hasErrors = false
-    if (hasErrors) {
-  toast({
-    title: "Validation Error",
-    description: "Please fill all required fields correctly.",
-    variant: "destructive",
-  });
-  return;
-}
 
-
-    // Validate fields based on payment type
     if (paymentType === "credit_card") {
-      newErrors.cardNumber = validateCardNumber(formData.cardNumber)
+      newErrors.cardNumber = validateCardNumber(formData.cardNumber, cardType)
       newErrors.cvv = validateCVV(formData.cvv, cardType.cvvLength)
       newErrors.expirationDate = validateExpirationDate(formData.expirationDate)
       newErrors.cardholderName = validateCardholderName(formData.cardholderName)
@@ -503,950 +441,631 @@ const[paymentSuccess, setPaymentSuccess] =  useState(false)
       newErrors.country = validateCountry(formData.country)
     }
 
-    // Check if there are any validation errors
     for (const key in newErrors) {
-      if (newErrors[key]) {
-        hasErrors = true
-        break
-      }
+      if (newErrors[key]) hasErrors = true
     }
 
-    // Update errors state
     setErrors(newErrors)
+    return !hasErrors
+  }
 
-    // If any errors, don't proceed
-    if (hasErrors) {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    
+    // Prevent double submission
+    if (loading) return
+    
+    if (!validateForm()) {
+      toast({ title: "Validation Error", description: "Please fill all required fields correctly.", variant: "destructive" })
+      return
+    }
+
+    // Validate amount
+    if (!formData.amount || formData.amount <= 0) {
+      toast({ title: "Invalid Amount", description: "Payment amount must be greater than zero.", variant: "destructive" })
       return
     }
 
     setLoading(true)
 
+    // Manual payment handling
     if (paymentType === "manaul_payemnt") {
       try {
-        const { data: dateOrder, error: updateError } = await supabase
-          .from("orders")
-          .update({
-            payment_status: "paid",
-            notes: formData.notes,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", orderId)
-          .select("*")
-          .maybeSingle()
+        await supabase.from("orders").update({
+          payment_status: "paid",
+          notes: formData.notes,
+          updated_at: new Date().toISOString(),
+        }).eq("id", orderId)
 
-        if (updateError) throw updateError
+        const { data: existingInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).maybeSingle()
 
-        // Check if invoice exists for this order
-        const { data: existingInvoice, error: invoiceCheckError } = await supabase
-          .from("invoices")
-          .select("*")
-          .eq("order_id", orderId)
-          .maybeSingle()
-
-        let invoiceNumber = existingInvoice?.invoice_number;
-
-        // If invoice does not exist, create it
         if (!existingInvoice) {
-          // Map order structure to match what createInvoice expects
-          let orderInfo = {
-            ...orders,
-            profile_id: orders.customer, // Map customer to profile_id
-            id: orderId,
-            paymentMethod: "manual",
-            payment_status: "paid"
-          };
-          let totalAmount = formData.amount;
-          let newTax = orders.tax_amount || 0;
-          if(paymentSuccess){
-            try {
-            await createInvoice(orderInfo, totalAmount, newTax);
-            // Fetch the new invoice number
-            const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
-            invoiceNumber = newInvoice?.invoice_number;
-            toast({
-  title: "Payment Successful ",
-  description: `Manual payment processed successfully. Invoice created: ${invoiceNumber}`,
-});
-            console.log(`✅Invoice created: ${invoiceNumber} `);
-          } catch (err) {
-            console.error("Invoice generation after manual payment failed:", err);
-            toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
-            setLoading(false);
-          
-
-            return;
-          }
-          }
+          const orderInfo = { ...orders, profile_id: orders.customer, id: orderId, paymentMethod: "manual", payment_status: "paid" }
+          await createInvoice(orderInfo, formData.amount, orders.tax_amount || 0)
         }
 
-        // Update the invoice with payment info
-        const { data, error } = await supabase
-          .from("invoices")
-          .update({
-            payment_status: "paid",
-            updated_at: new Date().toISOString(),
-            payment_method: "manual",
-            payment_notes: formData.notes,
-          })
-          .eq("order_id", orderId)
-          .select("*")
+        await supabase.from("invoices").update({
+          payment_status: "paid",
+          updated_at: new Date().toISOString(),
+          payment_method: "manual",
+          payment_notes: formData.notes,
+        }).eq("order_id", orderId)
 
-        if (error) {
-          console.error("Error updating invoice:", error)
-          throw error
-        }
-
-        console.log("Invoice updated successfully:", data)
-
-        // Log payment activity
-        try {
-          await OrderActivityService.logPaymentReceived({
-            orderId: orderId,
-            orderNumber: orders.order_number,
-            amount: formData.amount,
-            paymentMethod: "manual",
-            performedByName: "Admin",
-          });
-        } catch (activityError) {
-          console.error("Failed to log payment activity:", activityError);
-        }
-        const logsData = {
-          user_id: orders.customer,
-          order_id: orders.order_number,
-          action: 'payment_success',
-          details: {
-            message: `Payment Successful For: ${orders.order_number}, manual_payment, Note:- ${formData.notes}`,
-          },
-        };
-        
-        try {
-          await axios.post("/logs/create", logsData);
-          console.log("LOGS STORED SUCCESSFULLY");
-        } catch (apiError) {
-          console.error("Failed to store logs:", apiError);
-        }
-
-        setModalIsOpen(false)
-        toast({
-          title: "Payment Successful",
-          description: "Manual payment processed and invoice created successfully",
+        await OrderActivityService.logPaymentReceived({
+          orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: "manual", performedByName: "Admin",
         })
 
-        // window.location.reload()
-      } catch (error) {
-        console.error("Manual payment error:", error);
-        setLoading(false);
-        toast({
-          title: "Payment Failed",
-          description: error.message || "Failed to process manual payment",
-          variant: "destructive",
-        });
+        toast({ title: "Payment Successful", description: "Manual payment processed successfully" })
+        setModalIsOpen(false)
+        setLoading(false)
+        return
+      } catch (error: any) {
+        setLoading(false)
+        toast({ title: "Payment Failed", description: error.message || "Failed to process manual payment", variant: "destructive" })
+        return
       }
-
-      return
     }
 
-
-    // Check if invoice exists for this order
-
-
-  
-
-    const paymentData =
-      paymentType === "credit_card"
-        ? {
-          paymentType,
+    // Card/ACH payment
+    const paymentRequest = paymentType === "credit_card"
+      ? {
+          payment: { type: "card" as const, cardNumber: formData.cardNumber, expirationDate: formData.expirationDate.replace("/", ""), cvv: formData.cvv, cardholderName: formData.cardholderName },
           amount: formData.amount,
-          cardNumber: formData.cardNumber,
-          expirationDate: formData.expirationDate,
-          cvv: formData.cvv,
-          cardholderName: formData.cardholderName,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-          country: formData.country,
-          orderNumber: orders.order_number,
+          invoiceNumber: orders?.order_number,
+          orderId,
+          customerEmail: customer?.email,
+          billing: { firstName: formData.cardholderName?.split(" ")[0] || "Customer", lastName: formData.cardholderName?.split(" ").slice(1).join(" ") || "", address: formData.address, city: formData.city, state: formData.state, zip: formData.zip, country: formData.country },
         }
-        : {
-          paymentType,
+      : {
+          payment: { type: "ach" as const, accountType: formData.accountType as "checking" | "savings", routingNumber: formData.routingNumber, accountNumber: formData.accountNumber, nameOnAccount: formData.nameOnAccount, echeckType: "WEB" as const },
           amount: formData.amount,
-          accountType: formData.accountType,
-          routingNumber: formData.routingNumber,
-          accountNumber: formData.accountNumber,
-          nameOnAccount: formData.nameOnAccount,
-          address: formData.address,
-          city: formData.city,
-          state: formData.state,
-          zip: formData.zip,
-          country: formData.country,
-          orderNumber: orders.order_number,
+          invoiceNumber: orders?.order_number,
+          orderId,
+          customerEmail: customer?.email,
+          billing: { firstName: formData.nameOnAccount?.split(" ")[0] || "Customer", lastName: formData.nameOnAccount?.split(" ").slice(1).join(" ") || "", address: formData.address, city: formData.city, state: formData.state, zip: formData.zip, country: formData.country },
         }
 
     try {
-      const response = await axios.post("/pay", paymentData)
+      const response: PaymentResponse = await processPayment(paymentRequest)
 
-      if (response.status === 200) {
+      if (response.success) {
+        setPaymentSuccess(true)
+        await supabase.from("orders").update({ payment_status: "paid", updated_at: new Date().toISOString() }).eq("id", orderId)
 
-        setPaymentSuccess(true);
-        const { data: dateOrder, error: updateError } = await supabase
-          .from("orders")
-          .update({
-            payment_status: "paid",
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", orderId)
-          .select("*")
-          .maybeSingle()
-
-        if (updateError) throw updateError
-
-
-          // If invoice does not exist, generate it (using order info)
-
-    const { data:invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
-
-    let invoiceNumber = invoiceData?.invoice_number;
-    if (!invoiceData) {
-      // Try to get order info for invoice creation
-      let orderInfo = orders;
-      let totalAmount = formData.amount;
-      let newTax = 0; // You may want to calculate tax if needed
-      if(paymentSuccess){
-        try {
-        await createInvoice(orderInfo, totalAmount, newTax);
-        // Fetch the new invoice number
-        const { data: newInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).single();
-        invoiceNumber = newInvoice?.invoice_number;
-      } catch (err) {
-        console.error("Invoice generation after payment failed:", err);
-        toast({ title: "Invoice Generation Failed", description: err.message, variant: "destructive" });
-      }
-      }
-    }
-        try {
-          const response2 = await axios.post("/pay-successfull", {
-            name: customer.name || "N/A",
-            email: customer.email,
-            orderNumber: dateOrder.order_number,
-            transactionId: response?.data.transactionId || "1234",
-          })
-
-          console.log("Payment Successful:", response2.data)
-        } catch (error) {
-          console.error("Error in user verification:", error.response?.data || error.message)
+        const { data: invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
+        if (!invoiceData) {
+          await createInvoice(orders, formData.amount, 0)
         }
 
-        const { data, error } = await supabase
-          .from("invoices")
-          .update({
-            payment_status: "paid",
-            updated_at: new Date().toISOString(),
-            payment_transication: response?.data?.transactionId || "",
-            payment_method: "card",
-          })
-          .eq("order_id", orderId)
+        await supabase.from("invoices").update({
+          payment_status: "paid",
+          updated_at: new Date().toISOString(),
+          payment_transication: response.transactionId || "",
+          payment_method: paymentType === "credit_card" ? "card" : "ach",
+        }).eq("order_id", orderId)
 
-        if (error) {
-          console.error("Error creating invoice:", error)
-          throw error
-        }
-
-        console.log("Invoice created successfully:", data)
-
-        // Log payment activity
-        try {
-          await OrderActivityService.logPaymentReceived({
-            orderId: orderId,
-            orderNumber: orders.order_number,
-            amount: formData.amount,
-            paymentMethod: "card",
-            paymentId: response?.data?.transactionId,
-            performedByName: customer.name || "Customer",
-            performedByEmail: customer.email,
-          });
-        } catch (activityError) {
-          console.error("Failed to log payment activity:", activityError);
-        }
-
-        // if (payNow) {
-        //   navigate("/pharmacy/orders")
-        // }
-
-        // setModalIsOpen(false)
-        toast({
-          title: "Payment Successful",
-          description: response.data.message,
+        await OrderActivityService.logPaymentReceived({
+          orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: paymentType === "credit_card" ? "card" : "ach", paymentId: response.transactionId, performedByName: customer.name || "Customer", performedByEmail: customer.email,
         })
 
-setLoading(false)
-        const logsData = {
-          user_id: orders.customer,
-          order_id: orders.order_number,
-          action: 'payment_success',
-          details: {
-            message: `Payment Successful For: ${orders.order_number}, Credit Card, Transaction Id:- ${response?.data?.transactionId}`,
-
-          },
-        };
-        try {
-          await axios.post("/logs/create", logsData);
-          console.log("LOGS STORED SUCCESSFULLYY");
-        } catch (apiError) {
-          console.error("Failed to store logs:", apiError);
-        }
-        // window.location.reload()
-
-        setTimeout(() => {
-          if (payNow) {
-            // navigate("/pharmacy/orders")
-          }
-        }, 500)
-      } else {
-        console.log(response)
+        toast({ title: "Payment Successful", description: response.message || "Payment processed successfully" })
         setLoading(false)
+        setModalIsOpen(false)
+      } else {
+        setLoading(false)
+        const errorCode = response.errorCode
+        const finalMessage = errorCode && authorizeErrorMap[errorCode] ? `${authorizeErrorMap[errorCode]} (${errorCode})` : response.error || "Payment failed. Please try again."
+        toast({ title: "Payment Failed", description: finalMessage, variant: "destructive" })
       }
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false)
-      console.log(error)
-
-
-      const logsData = {
-        user_id: orders.customer,
-        order_id: orders.order_number,
-        action: 'payment_failed',
-        details: {
-          message: `Payment Failed For: ${orders?.order_number}, Credit Card, Error Code:- ${error?.response?.data?.errocode}`,
-
-        },
-      };
-
-
-      try {
-        await axios.post("/logs/create", logsData);
-        console.log("LOGS STORED SUCCESSFULLYY");
-      } catch (apiError) {
-        console.error("Failed to store logs:", apiError);
-      }
-//       toast({
-//   title: "Payment Failed",
-//   description:
-//     error?.response?.data?.message ||
-//     error?.message ||
-//     "Something went wrong. Please try again.",
-//   variant: "destructive",
-// });
-
-
-
-const errorCode = error?.response?.data?.errocode;
-const backendMessage = error?.response?.data?.message;
-const backendError = error?.response?.data?.error;
-
-let finalMessage = "";
-
-// 1️⃣ Agar Authorize.Net ka error code match hota hai
-if (errorCode && authorizeErrorMap[errorCode]) {
-  finalMessage = `${authorizeErrorMap[errorCode]} (${errorCode})`;
-
-// 2️⃣ Agar error code hai but docs me list me nahi hai
-} else if (errorCode) {
-  finalMessage = `${backendError || backendMessage || "Unknown Authorize.Net error"} (${errorCode})`;
-
-// 3️⃣ Agar server response hai but error code nahi mila
-} else if (backendError || backendMessage) {
-  finalMessage = backendError || backendMessage;
-
-// 4️⃣ Agar server hi band hai (Network error)
-} else if (error?.message) {
-  finalMessage = error.message;
-
-// 5️⃣ Fully fallback
-} else {
-  finalMessage = "Something went wrong. Please try again.";
-}
-
-toast({
-  title: "Payment Failed",
-  description: finalMessage,
-  variant: "destructive",
-});
-
+      toast({ title: "Payment Failed", description: error?.message || "Something went wrong.", variant: "destructive" })
     }
   }
 
-  useEffect(() =>{
-console.log(paymentSuccess, "test")
-  },[paymentSuccess])
+  if (!modalIsOpen) return null
 
+  // Helper to safely format amount
+  const formatAmount = (amt: number | string) => {
+    const num = typeof amt === 'string' ? parseFloat(amt) : amt
+    return isNaN(num) ? '0.00' : num.toFixed(2)
+  }
 
-  console.log(orders)
-  return (
-    <div className="flex justify-center items-center min-h-screen z-[99999]">
-      <Modal
-        isOpen={modalIsOpen}
-        shouldCloseOnOverlayClick={false}
-        onRequestClose={() => setModalIsOpen(false)}
-        className="bg-white p-0 rounded-lg shadow-xl w-[450px] mx-auto mt-20 z-[99] max-h-[85vh] overflow-y-auto"
-        overlayClassName="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-[99] pointer-events-auto"
-      >
-        <Card className="border-0 shadow-none">
-          <CardHeader className="pb-4 relative">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="absolute right-2 top-2 rounded-full h-8 w-8"
-              onClick={() => setModalIsOpen(false)}
-            >
-              <span className="sr-only">Close</span>✕
-            </Button>
-            <CardTitle className="text-xl font-semibold">Make a Payment</CardTitle>
-            <CardDescription>Complete your payment securely</CardDescription>
-          </CardHeader>
-
-          <CardContent className="px-6">
-            <div className="mb-4">
-              <Label htmlFor="paymentType">Payment Method</Label>
-
-              <div className="rounded-xl border border-gray-200 bg-white shadow-sm p-6 w-full max-w-md space-y-4">
-                <h4 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-indigo-600" />
-                  Payment Summary
-                </h4>
-
-                <div className="flex items-center justify-between text-sm text-gray-700">
-                  <span className="flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-green-500" />
-                    Amount Due:
-                  </span>
-                  <span className="font-medium">${formData.amount}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-sm text-gray-700">
-                  <span className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-blue-500" />
-                    Order Number:
-                  </span>
-                  <span className="font-medium">{orders?.order_number || "N/A"}</span>
-                </div>
-              </div>
-              <div className="mt-1">
-                <select
-                  id="paymentType"
-                  value={paymentType}
-                  onChange={(e) => setPaymentType(e.target.value)}
-                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="credit_card">Credit Card</option>
-                  {sessionStorage.getItem("userType")?.toLocaleLowerCase() === "admin" && (
-                    <option value="manaul_payemnt">Manual Payment</option>
-                  )}
-                  {/* <option value="ach">Bank Transfer</option> */}
-                </select>
+  const paymentContent = (
+    <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-50 via-white to-slate-100 overflow-auto">
+      {/* Header */}
+      <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center gap-4">
+              <Button variant="ghost" size="sm" onClick={() => setModalIsOpen(false)} className="gap-2 text-gray-600 hover:text-gray-900">
+                <ArrowLeft className="w-4 h-4" />
+                <span className="hidden sm:inline">Back</span>
+              </Button>
+              <Separator orientation="vertical" className="h-6" />
+              <div className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-600" />
+                <span className="text-sm font-medium text-gray-700">Secure Payment</span>
               </div>
             </div>
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {/* <div className="space-y-2">
-                <Label htmlFor="amount">Amount</Label>
-                <div className="relative">
-                  <DollarSign className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  <Input
-                    id="amount"
-                    type="number"
-                    name="amount"
-                    readOnly
-                    value={formData.amount}
-                    className="pl-9 cursor-not-allowed bg-gray-50"
-                  />
-                </div>
-              </div> */}
-
-              {paymentType === "credit_card" ? (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="cardNumber" className={cn(errors.cardNumber && "text-destructive")}>
-                      Card Number ({cardType.name})
-                    </Label>
-                    <div className="relative">
-                      {getCardIcon(cardType)}
-                      <Input
-                        id="cardNumber"
-                        type="text"
-                        name="cardNumber"
-                        placeholder="1234 5678 9012 3456"
-                        value={formData.cardNumber}
-                        onChange={handleChange}
-                        className={cn("pl-9", errors.cardNumber && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                    </div>
-                    {errors.cardNumber && <p className="text-sm font-medium text-destructive">{errors.cardNumber}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="expirationMonth" className={cn(errors.expirationDate && "text-destructive")}>
-                        Expiration Month / Year
-                      </Label>
-                      <div className="flex gap-2">
-                        <select
-                          id="expirationMonth"
-                          name="expirationMonth"
-                          value={selectedMonth}
-                          onChange={(e) => setSelectedMonth(e.target.value)}
-                          className={cn(
-                            "w-1/2 rounded border px-2 py-2",
-                            errors.expirationDate && "border-destructive focus-visible:ring-destructive"
-                          )}
-                        >
-                          <option value="">Month</option>
-                          {months.map((month) => (
-                            <option key={month.value} value={month.value}>
-                              {month.label}
-                            </option>
-                          ))}
-                        </select>
-
-                        <select
-                          id="expirationYear"
-                          name="expirationYear"
-                          value={selectedYear}
-                          onChange={(e) => setSelectedYear(e.target.value)}
-                          className={cn(
-                            "w-1/2 rounded border px-2 py-2",
-                            errors.expirationDate && "border-destructive focus-visible:ring-destructive"
-                          )}
-                        >
-                          <option value="">Year</option>
-                          {getYears().map((year) => (
-                            <option key={year} value={year.toString()}>
-                              {year}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                      {errors.expirationDate && (
-                        <p className="text-sm font-medium text-destructive">{errors.expirationDate}</p>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="cvv" className={cn(errors.cvv && "text-destructive")}>
-                        CVV ({cardType.cvvLength} digits)
-                      </Label>
-                      <div className="relative">
-                        <input
-                          id="cvv"
-                          type="text"
-                          name="cvv"
-                          placeholder={cardType.cvvLength === 4 ? "1234" : "123"}
-                          value={formData.cvv}
-                          onChange={handleChange}
-                          className={cn("pl-2 w-full rounded border py-2", errors.cvv && "border-destructive focus:ring-destructive")}
-                          required
-                        />
-                      </div>
-                      {errors.cvv && <p className="text-sm font-medium text-destructive">{errors.cvv}</p>}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="cardholderName" className={cn(errors.cardholderName && "text-destructive")}>
-                      Cardholder Name
-                    </Label>
-                    <div className="relative">
-                      <User
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.cardholderName && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="cardholderName"
-                        type="text"
-                        name="cardholderName"
-                        placeholder="John Doe"
-                        value={formData.cardholderName}
-                        onChange={handleChange}
-                        className={cn(
-                          "pl-9",
-                          errors.cardholderName && "border-destructive focus-visible:ring-destructive",
-                        )}
-                        required
-                      />
-                    </div>
-                    {errors.cardholderName && (
-                      <p className="text-sm font-medium text-destructive">{errors.cardholderName}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address" className={cn(errors.address && "text-destructive")}>
-                      Address
-                    </Label>
-                    <div className="relative">
-                      <MapPin
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.address && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="address"
-                        type="text"
-                        name="address"
-                        placeholder="123 Main St"
-                        value={formData.address}
-                        onChange={handleChange}
-                        className={cn("pl-9", errors.address && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                    </div>
-                    {errors.address && <p className="text-sm font-medium text-destructive">{errors.address}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city" className={cn(errors.city && "text-destructive")}>
-                        City
-                      </Label>
-                      <div className="relative">
-                        <Building
-                          className={cn(
-                            "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                            errors.city && "text-destructive",
-                          )}
-                        />
-                        <Input
-                          id="city"
-                          type="text"
-                          name="city"
-                          placeholder="New York"
-                          value={formData.city}
-                          onChange={handleChange}
-                          className={cn("pl-9", errors.city && "border-destructive focus-visible:ring-destructive")}
-                          required
-                        />
-                      </div>
-                      {errors.city && <p className="text-sm font-medium text-destructive">{errors.city}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="state" className={cn(errors.state && "text-destructive")}>
-                        State
-                      </Label>
-                      <div className="relative">
-                        <Globe
-                          className={cn(
-                            "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                            errors.state && "text-destructive",
-                          )}
-                        />
-                        <Input
-                          id="state"
-                          type="text"
-                          name="state"
-                          placeholder="NY"
-                          value={formData.state}
-                          onChange={handleChange}
-                          className={cn("pl-9", errors.state && "border-destructive focus-visible:ring-destructive")}
-                          required
-                        />
-                      </div>
-                      {errors.state && <p className="text-sm font-medium text-destructive">{errors.state}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="zip" className={cn(errors.zip && "text-destructive")}>
-                        ZIP Code
-                      </Label>
-                      <Input
-                        id="zip"
-                        type="text"
-                        name="zip"
-                        placeholder="10001"
-                        value={formData.zip}
-                        onChange={handleChange}
-                        className={cn(errors.zip && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                      {errors.zip && <p className="text-sm font-medium text-destructive">{errors.zip}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country" className={cn(errors.country && "text-destructive")}>
-                        Country
-                      </Label>
-                      <Input
-                        id="country"
-                        type="text"
-                        name="country"
-                        placeholder="USA"
-                        value={formData.country}
-                        onChange={handleChange}
-                        className={cn(errors.country && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                      {errors.country && <p className="text-sm font-medium text-destructive">{errors.country}</p>}
-                    </div>
-                  </div>
-                </>
-              ) : paymentType === "manaul_payemnt" ? (
-                <div className="space-y-2">
-                  <Label htmlFor="notes" className={cn(errors.notes && "text-destructive")}>
-                    Payment Notes
-                  </Label>
-                  <Textarea
-                    id="notes"
-                    name="notes"
-                    placeholder="Enter payment details or reference number"
-                    value={formData.notes}
-                    onChange={handleChange}
-                    className={cn("min-h-[100px]", errors.notes && "border-destructive focus-visible:ring-destructive")}
-                    required
-                  />
-                  {errors.notes && <p className="text-sm font-medium text-destructive">{errors.notes}</p>}
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="accountType">Account Type</Label>
-                    <Select
-                      value={formData.accountType}
-                      onValueChange={(value) => handleSelectChange("accountType", value)}
-                    >
-                      <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Select account type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="checking">Checking</SelectItem>
-                        <SelectItem value="savings">Savings</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="routingNumber" className={cn(errors.routingNumber && "text-destructive")}>
-                      Routing Number
-                    </Label>
-                    <div className="relative">
-                      <Landmark
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.routingNumber && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="routingNumber"
-                        type="text"
-                        name="routingNumber"
-                        placeholder="123456789"
-                        value={formData.routingNumber}
-                        onChange={handleChange}
-                        className={cn(
-                          "pl-9",
-                          errors.routingNumber && "border-destructive focus-visible:ring-destructive",
-                        )}
-                        required
-                      />
-                    </div>
-                    {errors.routingNumber && (
-                      <p className="text-sm font-medium text-destructive">{errors.routingNumber}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="accountNumber" className={cn(errors.accountNumber && "text-destructive")}>
-                      Account Number
-                    </Label>
-                    <div className="relative">
-                      <Hash
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.accountNumber && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="accountNumber"
-                        type="text"
-                        name="accountNumber"
-                        placeholder="987654321"
-                        value={formData.accountNumber}
-                        onChange={handleChange}
-                        className={cn(
-                          "pl-9",
-                          errors.accountNumber && "border-destructive focus-visible:ring-destructive",
-                        )}
-                        required
-                      />
-                    </div>
-                    {errors.accountNumber && (
-                      <p className="text-sm font-medium text-destructive">{errors.accountNumber}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="nameOnAccount" className={cn(errors.nameOnAccount && "text-destructive")}>
-                      Name on Account
-                    </Label>
-                    <div className="relative">
-                      <User
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.nameOnAccount && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="nameOnAccount"
-                        type="text"
-                        name="nameOnAccount"
-                        placeholder="John Doe"
-                        value={formData.nameOnAccount}
-                        onChange={handleChange}
-                        className={cn(
-                          "pl-9",
-                          errors.nameOnAccount && "border-destructive focus-visible:ring-destructive",
-                        )}
-                        required
-                      />
-                    </div>
-                    {errors.nameOnAccount && (
-                      <p className="text-sm font-medium text-destructive">{errors.nameOnAccount}</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="address" className={cn(errors.address && "text-destructive")}>
-                      Address
-                    </Label>
-                    <div className="relative">
-                      <MapPin
-                        className={cn(
-                          "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                          errors.address && "text-destructive",
-                        )}
-                      />
-                      <Input
-                        id="address"
-                        type="text"
-                        name="address"
-                        placeholder="123 Main St"
-                        value={formData.address}
-                        onChange={handleChange}
-                        className={cn("pl-9", errors.address && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                    </div>
-                    {errors.address && <p className="text-sm font-medium text-destructive">{errors.address}</p>}
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="city" className={cn(errors.city && "text-destructive")}>
-                        City
-                      </Label>
-                      <div className="relative">
-                        <Building
-                          className={cn(
-                            "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                            errors.city && "text-destructive",
-                          )}
-                        />
-                        <Input
-                          id="city"
-                          type="text"
-                          name="city"
-                          placeholder="New York"
-                          value={formData.city}
-                          onChange={handleChange}
-                          className={cn("pl-9", errors.city && "border-destructive focus-visible:ring-destructive")}
-                          required
-                        />
-                      </div>
-                      {errors.city && <p className="text-sm font-medium text-destructive">{errors.city}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="state" className={cn(errors.state && "text-destructive")}>
-                        State
-                      </Label>
-                      <div className="relative">
-                        <Globe
-                          className={cn(
-                            "absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500",
-                            errors.state && "text-destructive",
-                          )}
-                        />
-                        <Input
-                          id="state"
-                          type="text"
-                          name="state"
-                          placeholder="NY"
-                          value={formData.state}
-                          onChange={handleChange}
-                          className={cn("pl-9", errors.state && "border-destructive focus-visible:ring-destructive")}
-                          required
-                        />
-                      </div>
-                      {errors.state && <p className="text-sm font-medium text-destructive">{errors.state}</p>}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="zip" className={cn(errors.zip && "text-destructive")}>
-                        ZIP Code
-                      </Label>
-                      <Input
-                        id="zip"
-                        type="text"
-                        name="zip"
-                        placeholder="10001"
-                        value={formData.zip}
-                        onChange={handleChange}
-                        className={cn(errors.zip && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                      {errors.zip && <p className="text-sm font-medium text-destructive">{errors.zip}</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country" className={cn(errors.country && "text-destructive")}>
-                        Country
-                      </Label>
-                      <Input
-                        id="country"
-                        type="text"
-                        name="country"
-                        placeholder="USA"
-                        value={formData.country}
-                        onChange={handleChange}
-                        className={cn(errors.country && "border-destructive focus-visible:ring-destructive")}
-                        required
-                      />
-                      {errors.country && <p className="text-sm font-medium text-destructive">{errors.country}</p>}
-                    </div>
-                  </div>
-                </>
-              )}
-            </form>
-          </CardContent>
-
-          <CardFooter className="px-6 pb-6 pt-2">
-            <Button type="submit" className="w-full" onClick={handleSubmit} disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
-              ) : (
-                "Confirm Payment"
-              )}
+            <Button variant="ghost" size="icon" onClick={() => setModalIsOpen(false)} className="text-gray-500 hover:text-gray-700">
+              <X className="w-5 h-5" />
             </Button>
-          </CardFooter>
-        </Card>
-      </Modal>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* Payment Form - Left Side (3 cols) */}
+          <div className="lg:col-span-3 space-y-6">
+            {/* Payment Method Selection */}
+            <Card className="shadow-lg border-0 overflow-hidden">
+              <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
+                <CardTitle className="flex items-center gap-3 text-xl">
+                  <CreditCard className="w-6 h-6" />
+                  Payment Method
+                </CardTitle>
+                <CardDescription className="text-emerald-100">Select how you'd like to pay</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentType("credit_card")}
+                    className={cn(
+                      "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                      paymentType === "credit_card" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-emerald-600" : "text-gray-400")} />
+                    <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-emerald-700" : "text-gray-600")}>Credit Card</span>
+                    {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentType("ach")}
+                    className={cn(
+                      "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                      paymentType === "ach" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                    )}
+                  >
+                    <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-emerald-600" : "text-gray-400")} />
+                    <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-emerald-700" : "text-gray-600")}>Bank (ACH)</span>
+                    {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                  </button>
+                  {sessionStorage.getItem("userType")?.toLowerCase() === "admin" && (
+                    <button
+                      type="button"
+                      onClick={() => setPaymentType("manaul_payemnt")}
+                      className={cn(
+                        "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                        paymentType === "manaul_payemnt" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      )}
+                    >
+                      <FileText className={cn("w-7 h-7", paymentType === "manaul_payemnt" ? "text-emerald-600" : "text-gray-400")} />
+                      <span className={cn("font-medium text-sm", paymentType === "manaul_payemnt" ? "text-emerald-700" : "text-gray-600")}>Manual</span>
+                      {paymentType === "manaul_payemnt" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                    </button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Details Form */}
+            <form onSubmit={handleSubmit}>
+              <Card className="shadow-lg border-0">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-emerald-600" /> Card Details</>}
+                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-emerald-600" /> Bank Account Details</>}
+                    {paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-emerald-600" /> Manual Payment</>}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  {paymentType === "credit_card" && (
+                    <>
+                      {/* Card Number */}
+                      <div className="space-y-2">
+                        <Label htmlFor="cardNumber" className={cn(errors.cardNumber && "text-red-500")}>
+                          Card Number {cardType.type !== "unknown" && <span className="text-emerald-600 font-normal">({cardType.name})</span>}
+                        </Label>
+                        <div className="relative">
+                          <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">{getCardIcon(cardType)}</div>
+                          <Input
+                            id="cardNumber"
+                            name="cardNumber"
+                            placeholder={cardType.type === "amex" ? "3782 822463 10005" : "1234 5678 9012 3456"}
+                            value={formatCardNumberByType(formData.cardNumber, cardType)}
+                            onChange={handleChange}
+                            className={cn("pl-16 h-12 text-lg font-mono tracking-wider", errors.cardNumber && "border-red-500")}
+                          />
+                          {formData.cardNumber.length > 0 && (
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                              {formData.cardNumber.length}/{cardType.maxLength}
+                            </div>
+                          )}
+                        </div>
+                        {errors.cardNumber && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.cardNumber}</p>}
+                      </div>
+
+                      {/* Expiry & CVV */}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className={cn(errors.expirationDate && "text-red-500")}>Expiration Date</Label>
+                          <div className="flex gap-2">
+                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                              <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
+                                <SelectValue placeholder="Month" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {months.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Select value={selectedYear} onValueChange={setSelectedYear}>
+                              <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
+                                <SelectValue placeholder="Year" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {getYears().map((y) => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {errors.expirationDate && <p className="text-sm text-red-500">{errors.expirationDate}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="cvv" className={cn(errors.cvv && "text-red-500")}>
+                            {cardType.type === "amex" ? "CID" : "CVV"} ({cardType.cvvLength} digits)
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id="cvv"
+                              name="cvv"
+                              type="text"
+                              inputMode="numeric"
+                              placeholder={cardType.cvvLength === 4 ? "1234" : "123"}
+                              value={formData.cvv}
+                              onChange={handleChange}
+                              maxLength={cardType.cvvLength}
+                              className={cn("h-12 text-lg font-mono tracking-widest text-center", errors.cvv && "border-red-500")}
+                            />
+                            {formData.cvv.length > 0 && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                                {formData.cvv.length}/{cardType.cvvLength}
+                              </div>
+                            )}
+                          </div>
+                          {errors.cvv && <p className="text-sm text-red-500">{errors.cvv}</p>}
+                        </div>
+                      </div>
+
+                      {/* Cardholder Name */}
+                      <div className="space-y-2">
+                        <Label htmlFor="cardholderName" className={cn(errors.cardholderName && "text-red-500")}>Cardholder Name</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <Input
+                            id="cardholderName"
+                            name="cardholderName"
+                            placeholder="John Doe"
+                            value={formData.cardholderName}
+                            onChange={handleChange}
+                            className={cn("pl-11 h-12", errors.cardholderName && "border-red-500")}
+                          />
+                        </div>
+                        {errors.cardholderName && <p className="text-sm text-red-500">{errors.cardholderName}</p>}
+                      </div>
+                    </>
+                  )}
+
+                  {paymentType === "ach" && (
+                    <>
+                      {/* Account Type */}
+                      <div className="space-y-2">
+                        <Label>Account Type</Label>
+                        <Select 
+                          value={formData.accountType} 
+                          onValueChange={(v) => setFormData({ ...formData, accountType: v })}
+                        >
+                          <SelectTrigger className="h-12">
+                            <SelectValue placeholder="Select account type">
+                              {formData.accountType === "checking" && "Checking Account"}
+                              {formData.accountType === "savings" && "Savings Account"}
+                              {formData.accountType === "businessChecking" && "Business Checking"}
+                              {!formData.accountType && "Select account type"}
+                            </SelectValue>
+                          </SelectTrigger>
+                          <SelectContent className="z-[10000]">
+                            <SelectItem value="checking">
+                              <div className="flex items-center gap-2">
+                                <Landmark className="w-4 h-4 text-blue-600" />
+                                Checking Account
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="savings">
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="w-4 h-4 text-green-600" />
+                                Savings Account
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="businessChecking">
+                              <div className="flex items-center gap-2">
+                                <Building className="w-4 h-4 text-purple-600" />
+                                Business Checking
+                              </div>
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {/* Routing & Account Numbers */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="routingNumber" className={cn(errors.routingNumber && "text-red-500")}>
+                            Routing Number (9 digits)
+                          </Label>
+                          <div className="relative">
+                            <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <Input 
+                              id="routingNumber" 
+                              name="routingNumber" 
+                              placeholder="123456789" 
+                              value={formData.routingNumber} 
+                              onChange={handleChange} 
+                              maxLength={9} 
+                              inputMode="numeric"
+                              className={cn("pl-11 h-12 font-mono tracking-wider", errors.routingNumber && "border-red-500")} 
+                            />
+                            {formData.routingNumber.length > 0 && (
+                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
+                                {formData.routingNumber.length}/9
+                              </div>
+                            )}
+                          </div>
+                          {errors.routingNumber && <p className="text-sm text-red-500">{errors.routingNumber}</p>}
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="accountNumber" className={cn(errors.accountNumber && "text-red-500")}>
+                            Account Number
+                          </Label>
+                          <div className="relative">
+                            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <Input 
+                              id="accountNumber" 
+                              name="accountNumber" 
+                              placeholder="Enter account number" 
+                              value={formData.accountNumber} 
+                              onChange={handleChange} 
+                              maxLength={17}
+                              inputMode="numeric"
+                              className={cn("pl-11 h-12 font-mono tracking-wider", errors.accountNumber && "border-red-500")} 
+                            />
+                          </div>
+                          {errors.accountNumber && <p className="text-sm text-red-500">{errors.accountNumber}</p>}
+                        </div>
+                      </div>
+
+                      {/* Name on Account */}
+                      <div className="space-y-2">
+                        <Label htmlFor="nameOnAccount" className={cn(errors.nameOnAccount && "text-red-500")}>Name on Account</Label>
+                        <div className="relative">
+                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <Input 
+                            id="nameOnAccount" 
+                            name="nameOnAccount" 
+                            placeholder="John Doe" 
+                            value={formData.nameOnAccount} 
+                            onChange={handleChange} 
+                            className={cn("pl-11 h-12", errors.nameOnAccount && "border-red-500")} 
+                          />
+                        </div>
+                        {errors.nameOnAccount && <p className="text-sm text-red-500">{errors.nameOnAccount}</p>}
+                      </div>
+
+                      {/* ACH Info Note */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                        <p className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          ACH payments typically take 3-5 business days to process. Your routing and account numbers can be found at the bottom of your checks.
+                        </p>
+                      </div>
+                    </>
+                  )}
+
+                  {paymentType === "manaul_payemnt" && (
+                    <div className="space-y-2">
+                      <Label htmlFor="notes" className={cn(errors.notes && "text-red-500")}>Payment Notes / Reference</Label>
+                      <Textarea
+                        id="notes"
+                        name="notes"
+                        placeholder="Enter payment details, check number, or reference..."
+                        value={formData.notes}
+                        onChange={handleChange}
+                        className={cn("min-h-[120px]", errors.notes && "border-red-500")}
+                      />
+                      {errors.notes && <p className="text-sm text-red-500">{errors.notes}</p>}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Billing Address - Only for card/ach */}
+              {paymentType !== "manaul_payemnt" && (
+                <Card className="shadow-lg border-0 mt-6">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-emerald-600" />
+                      Billing Address
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="address" className={cn(errors.address && "text-red-500")}>Street Address</Label>
+                      <div className="relative">
+                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Input id="address" name="address" placeholder="123 Main Street" value={formData.address} onChange={handleChange} className={cn("pl-11 h-12", errors.address && "border-red-500")} />
+                      </div>
+                      {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="city" className={cn(errors.city && "text-red-500")}>City</Label>
+                        <div className="relative">
+                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <Input id="city" name="city" placeholder="New York" value={formData.city} onChange={handleChange} className={cn("pl-11 h-12", errors.city && "border-red-500")} />
+                        </div>
+                        {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="state" className={cn(errors.state && "text-red-500")}>State</Label>
+                        <div className="relative">
+                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <Input id="state" name="state" placeholder="NY" value={formData.state} onChange={handleChange} className={cn("pl-11 h-12", errors.state && "border-red-500")} />
+                        </div>
+                        {errors.state && <p className="text-sm text-red-500">{errors.state}</p>}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="zip" className={cn(errors.zip && "text-red-500")}>ZIP Code</Label>
+                        <Input id="zip" name="zip" placeholder="10001" value={formData.zip} onChange={handleChange} className={cn("h-12", errors.zip && "border-red-500")} />
+                        {errors.zip && <p className="text-sm text-red-500">{errors.zip}</p>}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="country">Country</Label>
+                        <Input id="country" name="country" placeholder="USA" value={formData.country} onChange={handleChange} className="h-12" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Mobile Submit Button */}
+              <div className="lg:hidden mt-6">
+                <Button 
+                  type="submit" 
+                  disabled={loading || formData.amount <= 0} 
+                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing...</>
+                  ) : (
+                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(formData.amount)}</>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+
+          {/* Order Summary - Right Side (2 cols) */}
+          <div className="lg:col-span-2">
+            <div className="sticky top-24 space-y-6">
+              {/* Order Summary Card */}
+              <Card className="shadow-lg border-0 overflow-hidden">
+                <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Receipt className="w-5 h-5" />
+                    Payment Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="p-6 space-y-4">
+                  {/* Order Info */}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-gray-600 flex items-center gap-2">
+                        <Package className="w-4 h-4" />
+                        Order Number
+                      </span>
+                      <Badge variant="secondary" className="font-mono">{orders?.order_number || "N/A"}</Badge>
+                    </div>
+                    {customer?.name && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 flex items-center gap-2">
+                          <User className="w-4 h-4" />
+                          Customer
+                        </span>
+                        <span className="font-medium text-gray-900">{customer.name}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <Separator />
+
+                  {/* Amount */}
+                  <div className="bg-emerald-50 rounded-xl p-4">
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-700 font-medium flex items-center gap-2">
+                        <DollarSign className="w-5 h-5" />
+                        Amount Due
+                      </span>
+                      <span className="text-2xl font-bold text-emerald-700">${formatAmount(formData.amount)}</span>
+                    </div>
+                  </div>
+
+                  {/* Payment Method Badge */}
+                  <div className="flex items-center justify-center gap-2 py-2">
+                    <span className="text-sm text-gray-500">Paying with:</span>
+                    <Badge variant="outline" className="capitalize">
+                      {paymentType === "credit_card" && <><CreditCard className="w-3 h-3 mr-1" />Credit Card</>}
+                      {paymentType === "ach" && <><Landmark className="w-3 h-3 mr-1" />Bank Transfer</>}
+                      {paymentType === "manaul_payemnt" && <><FileText className="w-3 h-3 mr-1" />Manual</>}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Desktop Submit Button */}
+              <div className="hidden lg:block">
+                <Button 
+                  type="button" 
+                  disabled={loading || formData.amount <= 0} 
+                  onClick={handleSubmit} 
+                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing Payment...</>
+                  ) : (
+                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(formData.amount)}</>
+                  )}
+                </Button>
+              </div>
+
+              {/* Security Info */}
+              <Card className="border-0 bg-slate-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-center gap-6 mb-3">
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      <span className="text-xs">SSL Secured</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-gray-600">
+                      <Lock className="w-5 h-5 text-emerald-600" />
+                      <span className="text-xs">256-bit Encryption</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500 text-center">
+                    Your payment information is encrypted and secure. We never store your full card details.
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Accepted Cards */}
+              <div className="flex items-center justify-center gap-2 py-2">
+                <div className="px-2 py-1 bg-white rounded border text-xs font-bold text-blue-600">VISA</div>
+                <div className="px-2 py-1 bg-white rounded border text-xs font-bold text-red-600">MC</div>
+                <div className="px-2 py-1 bg-white rounded border text-xs font-bold text-blue-800">AMEX</div>
+                <div className="px-2 py-1 bg-white rounded border text-xs font-bold text-orange-600">DISC</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
+
+  // Use createPortal to render outside the table DOM hierarchy
+  return createPortal(paymentContent, document.body)
 }
 
 export default PaymentForm

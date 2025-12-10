@@ -1,10 +1,8 @@
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ProductDetails } from "../../types/product.types";
 import { formatPrice } from "@/lib/utils";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { Check, Plus, Minus, Package } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface ProductSizeOptionsProps {
   product: ProductDetails;
@@ -34,7 +32,7 @@ export const ProductSizeOptions = ({
   setSelectedTypeBySize,
 }: ProductSizeOptionsProps) => {
   const handleSizeToggle = (sizeId: string, stock: number) => {
-    if (stock <= 0) return; // Prevent selection of out-of-stock items
+    if (stock <= 0) return;
 
     if (selectedSizes.includes(sizeId)) {
       onSizeSelect?.(selectedSizes.filter((s) => s !== sizeId));
@@ -44,7 +42,7 @@ export const ProductSizeOptions = ({
   };
 
   const handleSizeToggleSKU = (sizeSKU: string, stock: number) => {
-    if (stock <= 0) return; // Prevent selection of out-of-stock items
+    if (stock <= 0) return;
 
     if (selectedSizesSKU.includes(sizeSKU)) {
       onSizeSelectSKU?.(selectedSizesSKU.filter((s) => s !== sizeSKU));
@@ -52,140 +50,243 @@ export const ProductSizeOptions = ({
       onSizeSelectSKU?.([...selectedSizesSKU, sizeSKU]);
     }
   };
+
   const handleToggleType = (sizeId: string, type: "case" | "unit") => {
     setSelectedTypeBySize((prev) => ({ ...prev, [sizeId]: type }));
   };
-  console.log(product);
+
+  // Get image URL for size
+  const getSizeImageUrl = (size: any) => {
+    if (size.image) {
+      if (size.image.startsWith("http")) return size.image;
+      return `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${size.image}`;
+    }
+    // Fallback to product image
+    if (product.images && product.images.length > 0) {
+      const img = product.images[0];
+      if (img.startsWith("http")) return img;
+      return `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${img}`;
+    }
+    return "/placeholder.svg";
+  };
+
   return (
-    <div className="space-y-4">
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
       {product.sizes.map((size, index) => {
         const sizeId = `${size.size_value}-${size.size_unit}`;
         const sizeSKU = `${size.sku} - ${size.id}` || "";
         const isOutOfStock = size.stock <= 0;
         const isMaxReached = quantity[size.id] >= size.stock;
+        const isSelected = selectedSizes.includes(sizeId);
         const selectedType = selectedTypeBySize[sizeId] || "case";
-        const unitPrice =
-          selectedType === "case" ? size.price : size.price_per_case;
+        const unitPrice = selectedType === "case" ? size.price : size.price_per_case;
         const totalPrice = unitPrice * (quantity[size.id] || 1);
+        const imageUrl = getSizeImageUrl(size);
 
         return (
-          <Card
+          <div
             key={index}
-            className={`relative p-5 transition-transform transform hover:scale-105 hover:shadow-xl rounded-2xl ${
-              isOutOfStock ? "opacity-50 cursor-not-allowed" : "bg-white"
+            className={`relative bg-white rounded-xl overflow-hidden transition-all duration-300 cursor-pointer border-2 ${
+              isSelected
+                ? "border-emerald-500 ring-2 ring-emerald-200 shadow-lg"
+                : isOutOfStock
+                ? "border-gray-200 opacity-50 cursor-not-allowed"
+                : "border-gray-200 hover:border-emerald-300 hover:shadow-md"
             }`}
+            onClick={() => {
+              if (!isOutOfStock) {
+                handleSizeToggle(sizeId, size.stock);
+                handleSizeToggleSKU(sizeSKU, size.stock);
+              }
+            }}
           >
-            {/* In Stock Badge */}
-            {!isOutOfStock && (
-              <span className="absolute top-3 right-3 bg-green-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded-full">
-                {size.stock < 5 ? `Only ${size.stock} left` : "In Stock"}
-              </span>
+            {/* Selection Check */}
+            {isSelected && (
+              <div className="absolute top-2 left-2 z-10">
+                <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                  <Check className="w-4 h-4 text-white" />
+                </div>
+              </div>
             )}
 
-            <div className="flex items-start space-x-4">
-              <Checkbox
-                id={`size-${index}`}
-                checked={selectedSizes.includes(sizeId)}
-                onCheckedChange={() => {
-                  handleSizeToggle(sizeId, size.stock);
-                  handleSizeToggleSKU(sizeSKU, size.stock);
+            {/* Stock Badge */}
+            <div className="absolute top-2 right-2 z-10">
+              {isOutOfStock ? (
+                <Badge variant="destructive" className="text-[10px] px-1.5 py-0.5">
+                  Out of Stock
+                </Badge>
+              ) : size.stock < 5 ? (
+                <Badge className="bg-orange-500 text-white text-[10px] px-1.5 py-0.5">
+                  Only {size.stock} left
+                </Badge>
+              ) : (
+                <Badge className="bg-green-500 text-white text-[10px] px-1.5 py-0.5">
+                  In Stock
+                </Badge>
+              )}
+            </div>
+
+            {/* Discount Badge */}
+            {size.originalPrice > 0 && (
+              <div className="absolute top-8 right-2 z-10">
+                <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0.5">
+                  {Math.round(((size.originalPrice - size.price) / size.originalPrice) * 100)}% OFF
+                </Badge>
+              </div>
+            )}
+
+            {/* Product Image */}
+            <div className="aspect-square bg-gray-50 p-3 relative">
+              <img
+                src={imageUrl}
+                alt={`${size.size_value} ${size.size_unit}`}
+                className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = "/placeholder.svg";
                 }}
-                disabled={isOutOfStock}
-                className="mt-1"
               />
-
-              <Label
-                htmlFor={`size-${index}`}
-                className="flex-1 cursor-pointer"
-              >
-                <div className="space-y-2">
-                  <div className="flex justify-between items-start p-4 bg-gray-50 rounded-lg shadow-sm border border-gray-100">
-                    <div>
-                      <p className="text-base font-semibold text-gray-900 uppercase">
-                        {size.size_value}{" "}
-                        {size.unitToggle ? size.size_unit : ""}
-                      </p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        SKU: {size.sku}{" "}
-                        <span className="text-xl font-bold text-green-700 ml-2">
-                          ${formatPrice(totalPrice)}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <p className="text-xs text-gray-400 mt-1">
-                    {size.quantity_per_case}{" "}
-                    {product.name === "LIQUID OVALS"
-                      ? "bottles and caps per case"
-                      : product.name.includes("RX PAPER BAGS")
-                      ? "bags per case"
-                      : product.name === "THERMAL PAPER RECEIPT ROLLS"
-                      ? "Rolls per case"
-                      : product.name === "LIQUID OVAL ADAPTERS"
-                      ? "Bottles per case"
-                      : product.name === "OINTMENT JARS"
-                      ? "Jars and caps per case"
-                      : product.name === "RX VIALS"
-                      ? "Vials and caps per case"
-                      : product.name === "RX LABELS"
-                      ? `labels per roll, ${size.rolls_per_case} rolls per case`
-                      : "units per case"}
-                  </p>
-                </div>
-              </Label>
             </div>
 
-            {/* Type & Quantity in 3-column grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
-              {size.case && (
-                <Button
-                  variant={selectedType === "case" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleToggleType(sizeId, "case")}
-                  className="transition-colors hover:bg-green-600 hover:text-white"
-                >
-                  Case
-                </Button>
-              )}
-              {size.unit && (
-                <Button
-                  variant={selectedType === "unit" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => handleToggleType(sizeId, "unit")}
-                  className="transition-colors hover:bg-green-600 hover:text-white"
-                >
-                  Unit
-                </Button>
+            {/* Card Content */}
+            <div className="p-3 space-y-2 bg-white">
+              {/* Size Name */}
+              <div className="text-center">
+                <h4 className="font-bold text-sm text-gray-900 truncate uppercase">
+                  {size.size_value}
+                </h4>
+                {size.unitToggle && (
+                  <span className="text-xs text-gray-500">{size.size_unit}</span>
+                )}
+              </div>
+
+              {/* SKU */}
+              {size.sku && (
+                <p className="text-[10px] text-gray-400 text-center truncate">
+                  SKU: {size.sku}
+                </p>
               )}
 
-              {selectedSizes.includes(sizeId) && (
-                <div className="flex justify-between items-center sm:justify-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onDecreaseQuantity(size.id)}
-                    disabled={quantity[size.id] <= 1}
-                    className="transition-colors hover:bg-gray-200"
-                  >
-                    -
-                  </Button>
-                  <span className="text-sm font-medium">
-                    {quantity[size.id] || 1}
+              {/* Qty per Case */}
+              {size.quantity_per_case > 0 && (
+                <div className="flex justify-center">
+                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 flex items-center gap-1">
+                    <Package className="w-3 h-3" />
+                    {size.quantity_per_case}/case
+                  </Badge>
+                </div>
+              )}
+
+              {/* Price */}
+              <div className="text-center pt-2 border-t border-gray-100">
+                <div className="text-lg font-black text-emerald-600">
+                  ${formatPrice(totalPrice)}
+                </div>
+                {size.originalPrice > 0 && (
+                  <span className="text-xs line-through text-gray-400">
+                    ${formatPrice(size.originalPrice)}
                   </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onIncreaseQuantity(size.id)}
-                    disabled={isMaxReached}
-                    className="transition-colors hover:bg-gray-200"
-                  >
-                    +
-                  </Button>
+                )}
+              </div>
+
+              {/* Case/Unit Toggle - Show when selected */}
+              {isSelected && (size.case || size.unit) && (
+                <div className="flex gap-1 pt-2" onClick={(e) => e.stopPropagation()}>
+                  {size.case && (
+                    <Button
+                      variant={selectedType === "case" ? "default" : "outline"}
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleType(sizeId, "case");
+                      }}
+                      className={`flex-1 h-7 text-xs ${
+                        selectedType === "case" 
+                          ? "bg-emerald-600 hover:bg-emerald-700" 
+                          : "hover:bg-emerald-50 hover:border-emerald-300"
+                      }`}
+                    >
+                      Case
+                    </Button>
+                  )}
+                  {size.unit && (
+                    <Button
+                      variant={selectedType === "unit" ? "default" : "outline"}
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleType(sizeId, "unit");
+                      }}
+                      className={`flex-1 h-7 text-xs ${
+                        selectedType === "unit" 
+                          ? "bg-emerald-600 hover:bg-emerald-700" 
+                          : "hover:bg-emerald-50 hover:border-emerald-300"
+                      }`}
+                    >
+                      Unit
+                    </Button>
+                  )}
                 </div>
               )}
+
+              {/* Quantity Controls - Show when selected */}
+              {isSelected && (
+                <div className="pt-2 border-t border-dashed border-emerald-200" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex items-center justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDecreaseQuantity(size.id);
+                      }}
+                      disabled={quantity[size.id] <= 1}
+                    >
+                      <Minus className="w-3 h-3" />
+                    </Button>
+                    <span className="w-8 text-center font-bold text-sm">
+                      {quantity[size.id] || 1}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onIncreaseQuantity(size.id);
+                      }}
+                      disabled={isMaxReached}
+                    >
+                      <Plus className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  
+                  {/* Subtotal */}
+                  <div className="mt-2 bg-emerald-50 rounded-lg px-2 py-1.5 text-center">
+                    <span className="text-[10px] text-emerald-600">Subtotal: </span>
+                    <span className="text-sm font-bold text-emerald-700">
+                      ${formatPrice(totalPrice)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Add Button - Show when not selected */}
+              {!isSelected && !isOutOfStock && (
+                <Button
+                  className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg mt-2"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleSizeToggle(sizeId, size.stock);
+                    handleSizeToggleSKU(sizeSKU, size.stock);
+                  }}
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  Add
+                </Button>
+              )}
             </div>
-          </Card>
+          </div>
         );
       })}
     </div>

@@ -61,7 +61,7 @@ setOrders([])
         .select(
           `
         *,
-        profiles (
+        profiles!orders_profile_id_fkey (
           first_name, 
           last_name, 
           email, 
@@ -110,10 +110,12 @@ setOrders([])
           `order_number.ilike.${search},customerInfo->>name.ilike.${search},customerInfo->>email.ilike.${search},customerInfo->>phone.ilike.${search},purchase_number_external.ilike.${search},notes.ilike.${search}`
         );
       }
- // ✅ PO orders filter
-    if (poIs !== undefined) {
-      query = query.eq("poAccept", !poIs);
+ // ✅ PO orders filter - only filter when viewing PO page
+    if (poIs === true) {
+      // Show only PO orders (poAccept = false means pending PO approval)
+      query = query.eq("poAccept", false);
     }
+    // When poIs = false (regular orders page), show all orders (no filter on poAccept)
       // Date range filter
       if (dateRange?.from && dateRange?.to) {
         query = query
@@ -216,6 +218,7 @@ setOrders([])
         description: "Failed to load orders",
         variant: "destructive",
       });
+      setLoading(false);
     }
   };
 

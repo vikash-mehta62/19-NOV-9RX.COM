@@ -108,6 +108,8 @@ const Users = () => {
             pharmacies={pharmacies}
             hospitals={hospitals}
             groups={groups}
+            activeFilter={filterType}
+            onFilterChange={setFilterType}
           />
         </div>
 

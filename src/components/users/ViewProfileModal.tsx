@@ -4,7 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   AlertCircle,
@@ -21,10 +21,18 @@ import {
   CheckSquare,
   Plus,
   Pin,
-  Calendar,
+  Calendar as CalendarIcon,
   AlertTriangle,
   DollarSign,
   CreditCard,
+  Copy,
+  Check,
+  Pencil,
+  Trash2,
+  Search,
+  Clock,
+  Stethoscope,
+  Users,
 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -51,6 +59,92 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { EnhancedPaymentTab } from "./EnhancedPaymentTab";
 import { AnalyticsTab } from "./tabs/AnalyticsTab";
+import { GroupManagementTab } from "./tabs/GroupManagementTab";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Progress } from "@/components/ui/progress";
+import { format, formatDistanceToNow, isAfter, subDays } from "date-fns";
+import { cn } from "@/lib/utils";
+
+// Helper: Relative time display
+const getRelativeTime = (date: string | Date) => {
+  const d = new Date(date);
+  const now = new Date();
+  // Show relative time for dates within last 7 days
+  if (isAfter(d, subDays(now, 7))) {
+    return formatDistanceToNow(d, { addSuffix: true });
+  }
+  return format(d, "MMM d, yyyy");
+};
+
+// Helper: Consistent status colors
+const getStatusColor = (status: string) => {
+  const colors: Record<string, string> = {
+    // Order status
+    pending: "bg-yellow-500",
+    processing: "bg-blue-500",
+    shipped: "bg-purple-500",
+    delivered: "bg-green-500",
+    cancelled: "bg-gray-500",
+    // Payment status
+    paid: "bg-green-500",
+    unpaid: "bg-red-500",
+    partial: "bg-orange-500",
+    refunded: "bg-gray-500",
+    // Task status
+    in_progress: "bg-blue-500",
+    completed: "bg-green-500",
+    // General
+    active: "bg-green-500",
+    inactive: "bg-gray-500",
+  };
+  return colors[status] || "bg-gray-500";
+};
+
+// Helper: Type-specific colors and icons
+const getTypeConfig = (type: string) => {
+  const configs: Record<string, { color: string; bgColor: string; icon: any }> = {
+    pharmacy: { color: "text-blue-600", bgColor: "bg-blue-100", icon: Building2 },
+    hospital: { color: "text-red-600", bgColor: "bg-red-100", icon: Stethoscope },
+    group: { color: "text-purple-600", bgColor: "bg-purple-100", icon: Users },
+  };
+  return configs[type] || { color: "text-gray-600", bgColor: "bg-gray-100", icon: User };
+};
+
+// Helper: Calculate profile completion
+const calculateProfileCompletion = (profile: any) => {
+  const fields = [
+    "first_name", "last_name", "email", "display_name", "company_name",
+    "work_phone", "mobile_phone", "billing_address", "shipping_address",
+    "tax_id", "pharmacy_license", "payment_terms", "credit_limit"
+  ];
+  const filled = fields.filter(f => {
+    const val = profile?.[f];
+    return val && (typeof val === "object" ? Object.keys(val).length > 0 : true);
+  }).length;
+  return Math.round((filled / fields.length) * 100);
+};
 
 interface ViewProfileModalProps {
   userId: string;
@@ -73,6 +167,28 @@ export function ViewProfileModal({
   const [notes, setNotes] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [isLocationDialogOpen, setIsLocationDialogOpen] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<any>(null);
+  const [deleteLocationId, setDeleteLocationId] = useState<string | null>(null);
+  const [locationForm, setLocationForm] = useState({
+    name: "",
+    type: "branch",
+    manager: "",
+    contact_phone: "",
+    contact_email: "",
+    address: {
+      street1: "",
+      street2: "",
+      city: "",
+      state: "",
+      zip_code: "",
+    },
+  });
+
+  // Check if current user is admin
+  const isAdmin = currentUserProfile?.role === "admin" || currentUserProfile?.role === "superadmin";
 
   // Orders pagination and filters
   const [currentPage, setCurrentPage] = useState(1);
@@ -83,6 +199,20 @@ export function ViewProfileModal({
   // Dialog states
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [editingNote, setEditingNote] = useState<any>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [deleteNoteId, setDeleteNoteId] = useState<string | null>(null);
+  const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+
+  // Search/Filter states
+  const [noteSearch, setNoteSearch] = useState("");
+  const [noteFilterCategory, setNoteFilterCategory] = useState("all");
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskFilterStatus, setTaskFilterStatus] = useState("all");
+  const [taskFilterPriority, setTaskFilterPriority] = useState("all");
+
+  // Copy states
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Note form state
   const [noteForm, setNoteForm] = useState({
@@ -120,6 +250,16 @@ export function ViewProfileModal({
       } = await supabase.auth.getUser();
       setCurrentUser(user);
 
+      // Fetch current user's profile to check role
+      if (user) {
+        const { data: currentUserData } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        setCurrentUserProfile(currentUserData);
+      }
+
       // Fetch profile
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
@@ -129,6 +269,15 @@ export function ViewProfileModal({
 
       if (profileError) throw profileError;
       setProfile(profileData);
+
+      // Fetch locations for this profile
+      const { data: locationsData, error: locationsError } = await supabase
+        .from("locations")
+        .select("*")
+        .eq("profile_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (!locationsError) setLocations(locationsData || []);
 
       // Fetch orders and calculate analytics
       const { data: ordersData, error: ordersError } = await supabase
@@ -195,6 +344,41 @@ export function ViewProfileModal({
     }
   };
 
+  // Copy to clipboard helper
+  const copyToClipboard = async (text: string, field: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedField(field);
+      setTimeout(() => setCopiedField(null), 2000);
+      toast({ title: "Copied!", description: `${field} copied to clipboard` });
+    } catch {
+      toast({ title: "Error", description: "Failed to copy", variant: "destructive" });
+    }
+  };
+
+  // Filtered notes
+  const filteredNotes = useMemo(() => {
+    return notes.filter((note) => {
+      const matchesSearch = noteSearch === "" || 
+        note.title.toLowerCase().includes(noteSearch.toLowerCase()) ||
+        note.content.toLowerCase().includes(noteSearch.toLowerCase());
+      const matchesCategory = noteFilterCategory === "all" || note.category === noteFilterCategory;
+      return matchesSearch && matchesCategory;
+    });
+  }, [notes, noteSearch, noteFilterCategory]);
+
+  // Filtered tasks
+  const filteredTasks = useMemo(() => {
+    return tasks.filter((task) => {
+      const matchesSearch = taskSearch === "" || 
+        task.title.toLowerCase().includes(taskSearch.toLowerCase()) ||
+        (task.description && task.description.toLowerCase().includes(taskSearch.toLowerCase()));
+      const matchesStatus = taskFilterStatus === "all" || task.status === taskFilterStatus;
+      const matchesPriority = taskFilterPriority === "all" || task.priority === taskFilterPriority;
+      return matchesSearch && matchesStatus && matchesPriority;
+    });
+  }, [tasks, taskSearch, taskFilterStatus, taskFilterPriority]);
+
   const handleAddNote = async () => {
     if (!noteForm.title || !noteForm.content) {
       toast({
@@ -206,37 +390,66 @@ export function ViewProfileModal({
     }
 
     try {
-      const { error } = await supabase.from("customer_notes").insert({
-        customer_id: userId,
-        title: noteForm.title,
-        content: noteForm.content,
-        category: noteForm.category,
-        is_pinned: noteForm.is_pinned,
-        created_by: currentUser?.id,
-      });
+      if (editingNote) {
+        // Update existing note
+        const { error } = await supabase
+          .from("customer_notes")
+          .update({
+            title: noteForm.title,
+            content: noteForm.content,
+            category: noteForm.category,
+            is_pinned: noteForm.is_pinned,
+          })
+          .eq("id", editingNote.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast({ title: "Success", description: "Note updated successfully" });
+      } else {
+        // Create new note
+        const { error } = await supabase.from("customer_notes").insert({
+          customer_id: userId,
+          title: noteForm.title,
+          content: noteForm.content,
+          category: noteForm.category,
+          is_pinned: noteForm.is_pinned,
+          created_by: currentUser?.id,
+        });
 
-      toast({
-        title: "Success",
-        description: "Note added successfully",
-      });
+        if (error) throw error;
+        toast({ title: "Success", description: "Note added successfully" });
+      }
 
-      setNoteForm({
-        title: "",
-        content: "",
-        category: "general",
-        is_pinned: false,
-      });
+      setNoteForm({ title: "", content: "", category: "general", is_pinned: false });
+      setEditingNote(null);
       setIsNoteDialogOpen(false);
       fetchAllData();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
+  };
+
+  const handleDeleteNote = async () => {
+    if (!deleteNoteId) return;
+    try {
+      const { error } = await supabase.from("customer_notes").delete().eq("id", deleteNoteId);
+      if (error) throw error;
+      toast({ title: "Success", description: "Note deleted successfully" });
+      setDeleteNoteId(null);
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openEditNote = (note: any) => {
+    setNoteForm({
+      title: note.title,
+      content: note.content,
+      category: note.category,
+      is_pinned: note.is_pinned,
+    });
+    setEditingNote(note);
+    setIsNoteDialogOpen(true);
   };
 
   const handleAddTask = async () => {
@@ -250,24 +463,39 @@ export function ViewProfileModal({
     }
 
     try {
-      const { error } = await supabase.from("customer_tasks").insert({
-        customer_id: userId,
-        title: taskForm.title,
-        description: taskForm.description,
-        priority: taskForm.priority,
-        status: taskForm.status,
-        due_date: taskForm.due_date,
-        reminder_date: taskForm.reminder_date || null,
-        assigned_to: userId, // Auto-assign to the customer
-        created_by: currentUser?.id,
-      });
+      if (editingTask) {
+        // Update existing task
+        const { error } = await supabase
+          .from("customer_tasks")
+          .update({
+            title: taskForm.title,
+            description: taskForm.description,
+            priority: taskForm.priority,
+            status: taskForm.status,
+            due_date: taskForm.due_date,
+            reminder_date: taskForm.reminder_date || null,
+          })
+          .eq("id", editingTask.id);
 
-      if (error) throw error;
+        if (error) throw error;
+        toast({ title: "Success", description: "Task updated successfully" });
+      } else {
+        // Create new task
+        const { error } = await supabase.from("customer_tasks").insert({
+          customer_id: userId,
+          title: taskForm.title,
+          description: taskForm.description,
+          priority: taskForm.priority,
+          status: taskForm.status,
+          due_date: taskForm.due_date,
+          reminder_date: taskForm.reminder_date || null,
+          assigned_to: userId,
+          created_by: currentUser?.id,
+        });
 
-      toast({
-        title: "Success",
-        description: "Task added successfully",
-      });
+        if (error) throw error;
+        toast({ title: "Success", description: "Task added successfully" });
+      }
 
       setTaskForm({
         title: "",
@@ -278,15 +506,147 @@ export function ViewProfileModal({
         reminder_date: "",
         assigned_to: "",
       });
+      setEditingTask(null);
       setIsTaskDialogOpen(false);
       fetchAllData();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message, variant: "destructive" });
     }
+  };
+
+  const handleDeleteTask = async () => {
+    if (!deleteTaskId) return;
+    try {
+      const { error } = await supabase.from("customer_tasks").delete().eq("id", deleteTaskId);
+      if (error) throw error;
+      toast({ title: "Success", description: "Task deleted successfully" });
+      setDeleteTaskId(null);
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openEditTask = (task: any) => {
+    setTaskForm({
+      title: task.title,
+      description: task.description || "",
+      priority: task.priority,
+      status: task.status,
+      due_date: task.due_date,
+      reminder_date: task.reminder_date || "",
+      assigned_to: "",
+    });
+    setEditingTask(task);
+    setIsTaskDialogOpen(true);
+  };
+
+  // Location CRUD functions
+  const handleAddLocation = async () => {
+    if (!locationForm.name) {
+      toast({ title: "Error", description: "Location name is required", variant: "destructive" });
+      return;
+    }
+
+    try {
+      if (editingLocation) {
+        const { error } = await supabase
+          .from("locations")
+          .update({
+            name: locationForm.name,
+            type: locationForm.type,
+            manager: locationForm.manager,
+            contact_phone: locationForm.contact_phone,
+            contact_email: locationForm.contact_email,
+            address: locationForm.address,
+          })
+          .eq("id", editingLocation.id);
+
+        if (error) throw error;
+        toast({ title: "Success", description: "Location updated successfully" });
+      } else {
+        const { error } = await supabase.from("locations").insert({
+          profile_id: userId,
+          name: locationForm.name,
+          type: locationForm.type,
+          manager: locationForm.manager,
+          contact_phone: locationForm.contact_phone,
+          contact_email: locationForm.contact_email,
+          address: locationForm.address,
+          status: "active",
+        });
+
+        if (error) throw error;
+        toast({ title: "Success", description: "Location added successfully" });
+      }
+
+      setLocationForm({
+        name: "", type: "branch", manager: "", contact_phone: "", contact_email: "",
+        address: { street1: "", street2: "", city: "", state: "", zip_code: "" },
+      });
+      setEditingLocation(null);
+      setIsLocationDialogOpen(false);
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const handleDeleteLocation = async () => {
+    if (!deleteLocationId) return;
+    try {
+      const { error } = await supabase.from("locations").delete().eq("id", deleteLocationId);
+      if (error) throw error;
+      toast({ title: "Success", description: "Location deleted successfully" });
+      setDeleteLocationId(null);
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const openEditLocation = (location: any) => {
+    setLocationForm({
+      name: location.name,
+      type: location.type,
+      manager: location.manager || "",
+      contact_phone: location.contact_phone || "",
+      contact_email: location.contact_email || "",
+      address: location.address || { street1: "", street2: "", city: "", state: "", zip_code: "" },
+    });
+    setEditingLocation(location);
+    setIsLocationDialogOpen(true);
+  };
+
+  const toggleLocationStatus = async (locationId: string, currentStatus: string) => {
+    try {
+      const newStatus = currentStatus === "active" ? "inactive" : "active";
+      const { error } = await supabase
+        .from("locations")
+        .update({ status: newStatus })
+        .eq("id", locationId);
+
+      if (error) throw error;
+      toast({ title: "Success", description: `Location ${newStatus === "active" ? "activated" : "deactivated"}` });
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Ellipsis pagination helper
+  const getPaginationRange = (current: number, total: number) => {
+    const delta = 2;
+    const range: (number | string)[] = [];
+    
+    for (let i = 1; i <= total; i++) {
+      if (i === 1 || i === total || (i >= current - delta && i <= current + delta)) {
+        range.push(i);
+      } else if (range[range.length - 1] !== "...") {
+        range.push("...");
+      }
+    }
+    return range;
   };
 
   const togglePinNote = async (noteId: string, currentPinned: boolean) => {
@@ -400,10 +760,8 @@ export function ViewProfileModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>
-            Customer Profile - {profile?.display_name || profile?.first_name}
-          </DialogTitle>
+        <DialogHeader className="pb-0">
+          <DialogTitle className="sr-only">Customer Profile</DialogTitle>
         </DialogHeader>
 
         {isLoading && (
@@ -421,38 +779,155 @@ export function ViewProfileModal({
         )}
 
         {!isLoading && profile && (
-          <Tabs defaultValue="basic" className="w-full">
-            <TabsList className="grid w-full grid-cols-7">
-              <TabsTrigger value="basic">
-                <User className="h-4 w-4 mr-2" />
-                Basic
-              </TabsTrigger>
-              <TabsTrigger value="contact">
-                <Building2 className="h-4 w-4 mr-2" />
-                Contact
-              </TabsTrigger>
-              <TabsTrigger value="analytics">
-                <BarChart3 className="h-4 w-4 mr-2" />
-                Analytics
-              </TabsTrigger>
+          <TooltipProvider>
+          <>
+            {/* Enhanced Header with Avatar, Quick Stats, Copy Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg mb-4">
+              {/* Type-Specific Avatar */}
+              <div className="flex-shrink-0">
+                {(() => {
+                  const typeConfig = getTypeConfig(profile.type);
+                  const TypeIcon = typeConfig.icon;
+                  return (
+                    <div className={cn("h-16 w-16 rounded-full flex items-center justify-center text-2xl font-bold", typeConfig.bgColor, typeConfig.color)}>
+                      <TypeIcon className="h-8 w-8" />
+                    </div>
+                  );
+                })()}
+              </div>
+              
+              {/* Profile Info */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-xl font-semibold truncate">
+                    {profile.display_name || `${profile.first_name} ${profile.last_name}`}
+                  </h2>
+                  <Badge className={getStatusColor(profile.status)}>
+                    {profile.status}
+                  </Badge>
+                  {(() => {
+                    const typeConfig = getTypeConfig(profile.type);
+                    return (
+                      <Badge variant="outline" className={cn("border-current", typeConfig.color)}>
+                        {profile.type}
+                      </Badge>
+                    );
+                  })()}
+                </div>
+                
+                {/* Contact with Copy Buttons & Tooltips */}
+                <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                  {profile.email && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={() => copyToClipboard(profile.email, "Email")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          <Mail className="h-3.5 w-3.5" />
+                          <span className="truncate max-w-[200px]">{profile.email}</span>
+                          {copiedField === "Email" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Click to copy email</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {profile.work_phone && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button 
+                          onClick={() => copyToClipboard(profile.work_phone, "Phone")}
+                          className="flex items-center gap-1 hover:text-foreground transition-colors"
+                        >
+                          <Phone className="h-3.5 w-3.5" />
+                          <span>{profile.work_phone}</span>
+                          {copiedField === "Phone" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent>Click to copy phone</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
 
-              <TabsTrigger value="payments" className="flex items-center gap-2">
-                <CreditCard className="h-4 w-4" />
-                Payments
-              </TabsTrigger>
-              <TabsTrigger value="orders">
-                <ShoppingCart className="h-4 w-4 mr-2" />
-                Orders
-              </TabsTrigger>
-              <TabsTrigger value="notes">
-                <StickyNote className="h-4 w-4 mr-2" />
-                Notes
-              </TabsTrigger>
-              <TabsTrigger value="tasks">
-                <CheckSquare className="h-4 w-4 mr-2" />
-                Tasks
-              </TabsTrigger>
-            </TabsList>
+                {/* Last Updated with Relative Time */}
+                {profile.updated_at && (
+                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    Last updated: {getRelativeTime(profile.updated_at)}
+                  </div>
+                )}
+
+                {/* Profile Completion Indicator */}
+                <div className="mt-2">
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-muted-foreground">Profile Completion</span>
+                    <span className="font-medium">{calculateProfileCompletion(profile)}%</span>
+                  </div>
+                  <Progress value={calculateProfileCompletion(profile)} className="h-1.5" />
+                </div>
+              </div>
+
+              {/* Quick Stats */}
+              <div className="flex gap-3 flex-wrap sm:flex-nowrap">
+                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
+                  <div className="text-lg font-bold">{analytics?.totalOrders || 0}</div>
+                  <div className="text-xs text-muted-foreground">Orders</div>
+                </div>
+                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
+                  <div className="text-lg font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(0)}</div>
+                  <div className="text-xs text-muted-foreground">Paid</div>
+                </div>
+                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
+                  <div className="text-lg font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(0)}</div>
+                  <div className="text-xs text-muted-foreground">Pending</div>
+                </div>
+              </div>
+            </div>
+
+            <Tabs defaultValue="basic" className="w-full">
+              {/* Scrollable tabs for mobile */}
+              <div className="overflow-x-auto -mx-2 px-2">
+                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-7 gap-1">
+                  <TabsTrigger value="basic" className="flex-shrink-0">
+                    <User className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Basic</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="contact" className="flex-shrink-0">
+                    <Building2 className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Contact</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="analytics" className="flex-shrink-0">
+                    <BarChart3 className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Analytics</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="payments" className="flex-shrink-0">
+                    <CreditCard className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Payments</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="orders" className="flex-shrink-0">
+                    <ShoppingCart className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Orders</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="notes" className="flex-shrink-0">
+                    <StickyNote className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Notes</span>
+                    {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{notes.length}</Badge>}
+                  </TabsTrigger>
+                  <TabsTrigger value="tasks" className="flex-shrink-0">
+                    <CheckSquare className="h-4 w-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Tasks</span>
+                    {tasks.filter(t => t.status !== "completed").length > 0 && (
+                      <Badge variant="secondary" className="ml-1 h-5 px-1.5">{tasks.filter(t => t.status !== "completed").length}</Badge>
+                    )}
+                  </TabsTrigger>
+                  {profile.type === "group" && (
+                    <TabsTrigger value="group-management" className="flex-shrink-0">
+                      <Users className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Group</span>
+                    </TabsTrigger>
+                  )}
+                </TabsList>
+              </div>
 
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-4 mt-4">
@@ -604,6 +1079,24 @@ export function ViewProfileModal({
                   </div>
                 </CardContent>
               </Card>
+
+              {/* Admin-Only: Referral Information */}
+              {isAdmin && (
+                <Card className="border-amber-200 bg-amber-50/50">
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Badge variant="outline" className="text-amber-600 border-amber-600">Admin Only</Badge>
+                      Referral Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div>
+                      <p className="text-sm text-muted-foreground">Referral Name</p>
+                      <p className="font-medium">{profile.referral_name || "No referral"}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader>
@@ -847,7 +1340,7 @@ export function ViewProfileModal({
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader>
                     <CardTitle>Billing Address</CardTitle>
@@ -892,6 +1385,125 @@ export function ViewProfileModal({
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Locations Section - For pharmacies with multiple locations */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5" />
+                        Locations
+                        {locations.length > 0 && (
+                          <Badge variant="secondary">{locations.length}</Badge>
+                        )}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Manage multiple locations for this {profile.type}
+                      </p>
+                    </div>
+                    <Button onClick={() => { 
+                      setEditingLocation(null); 
+                      setLocationForm({
+                        name: "", type: "branch", manager: "", contact_phone: "", contact_email: "",
+                        address: { street1: "", street2: "", city: "", state: "", zip_code: "" },
+                      }); 
+                      setIsLocationDialogOpen(true); 
+                    }}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Location
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {locations.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <MapPin className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                      <p className="text-muted-foreground mt-2 font-medium">No additional locations</p>
+                      <p className="text-sm text-muted-foreground">Add locations if this {profile.type} has multiple branches</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {locations.map((location) => (
+                        <Card key={location.id} className={cn(
+                          "relative overflow-hidden",
+                          location.status === "inactive" && "opacity-60"
+                        )}>
+                          <div className={cn(
+                            "absolute top-0 left-0 w-1 h-full",
+                            location.status === "active" ? "bg-green-500" : "bg-gray-400"
+                          )} />
+                          <CardHeader className="pb-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <CardTitle className="text-base">{location.name}</CardTitle>
+                                <Badge variant="outline" className="text-xs">{location.type}</Badge>
+                                <Badge className={getStatusColor(location.status)}>{location.status}</Badge>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => toggleLocationStatus(location.id, location.status)}>
+                                      {location.status === "active" ? "🔴" : "🟢"}
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>{location.status === "active" ? "Deactivate" : "Activate"}</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => openEditLocation(location)}>
+                                      <Pencil className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Edit location</TooltipContent>
+                                </Tooltip>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button variant="ghost" size="sm" onClick={() => setDeleteLocationId(location.id)} className="text-destructive hover:text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Delete location</TooltipContent>
+                                </Tooltip>
+                              </div>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-2 text-sm">
+                            {location.manager && (
+                              <div className="flex items-center gap-2">
+                                <User className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>{location.manager}</span>
+                              </div>
+                            )}
+                            {location.contact_phone && (
+                              <div className="flex items-center gap-2">
+                                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>{location.contact_phone}</span>
+                              </div>
+                            )}
+                            {location.contact_email && (
+                              <div className="flex items-center gap-2">
+                                <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+                                <span>{location.contact_email}</span>
+                              </div>
+                            )}
+                            {location.address && (
+                              <div className="flex items-start gap-2">
+                                <MapPin className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+                                <div>
+                                  <p>{location.address.street1}</p>
+                                  {location.address.street2 && <p>{location.address.street2}</p>}
+                                  <p>{location.address.city}, {location.address.state} {location.address.zip_code}</p>
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Orders Tab */}
@@ -994,51 +1606,44 @@ export function ViewProfileModal({
                     </TableBody>
                   </Table>
 
-                  {/* Pagination */}
+                  {/* Pagination with Ellipsis */}
                   {totalPages > 1 && (
-                    <div className="flex items-center justify-between mt-4">
+                    <div className="flex items-center justify-between mt-4 flex-wrap gap-2">
                       <div className="text-sm text-muted-foreground">
                         Showing {indexOfFirstOrder + 1} to{" "}
                         {Math.min(indexOfLastOrder, orders.length)} of{" "}
                         {orders.length} orders
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-1 items-center">
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            setCurrentPage((prev) => Math.max(prev - 1, 1))
-                          }
+                          onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                           disabled={currentPage === 1}
                         >
                           Previous
                         </Button>
                         <div className="flex items-center gap-1">
-                          {Array.from(
-                            { length: totalPages },
-                            (_, i) => i + 1
-                          ).map((page) => (
-                            <Button
-                              key={page}
-                              variant={
-                                currentPage === page ? "default" : "outline"
-                              }
-                              size="sm"
-                              onClick={() => setCurrentPage(page)}
-                              className="w-8"
-                            >
-                              {page}
-                            </Button>
+                          {getPaginationRange(currentPage, totalPages).map((page, idx) => (
+                            page === "..." ? (
+                              <span key={`ellipsis-${idx}`} className="px-2 text-muted-foreground">...</span>
+                            ) : (
+                              <Button
+                                key={page}
+                                variant={currentPage === page ? "default" : "outline"}
+                                size="sm"
+                                onClick={() => setCurrentPage(page as number)}
+                                className="w-8"
+                              >
+                                {page}
+                              </Button>
+                            )
                           ))}
                         </div>
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() =>
-                            setCurrentPage((prev) =>
-                              Math.min(prev + 1, totalPages)
-                            )
-                          }
+                          onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                           disabled={currentPage === totalPages}
                         >
                           Next
@@ -1056,141 +1661,240 @@ export function ViewProfileModal({
 
             {/* Notes Tab */}
             <TabsContent value="notes" className="space-y-4 mt-4">
-              <div className="flex justify-end mb-4">
-                <Button onClick={() => setIsNoteDialogOpen(true)}>
+              {/* Search and Filter Bar */}
+              <div className="flex flex-col sm:flex-row gap-2 justify-between">
+                <div className="flex gap-2 flex-1">
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search notes..."
+                      value={noteSearch}
+                      onChange={(e) => setNoteSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Select value={noteFilterCategory} onValueChange={setNoteFilterCategory}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="Category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="important">Important</SelectItem>
+                      <SelectItem value="follow_up">Follow Up</SelectItem>
+                      <SelectItem value="payment">Payment</SelectItem>
+                      <SelectItem value="issue">Issue</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => { setEditingNote(null); setNoteForm({ title: "", content: "", category: "general", is_pinned: false }); setIsNoteDialogOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Note
                 </Button>
               </div>
 
               <div className="space-y-2">
-                {notes.map((note) => (
-                  <Card key={note.id}>
+                {filteredNotes.map((note) => (
+                  <Card key={note.id} className={note.is_pinned ? "border-primary/50 bg-primary/5" : ""}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">
-                            {note.title}
-                          </CardTitle>
+                          {note.is_pinned && <Pin className="h-4 w-4 fill-primary text-primary" />}
+                          <CardTitle className="text-base">{note.title}</CardTitle>
                           <Badge variant="outline">{note.category}</Badge>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => togglePinNote(note.id, note.is_pinned)}
-                        >
-                          <Pin
-                            className={`h-4 w-4 ${
-                              note.is_pinned ? "fill-current" : ""
-                            }`}
-                          />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => togglePinNote(note.id, note.is_pinned)}>
+                                <Pin className={`h-4 w-4 ${note.is_pinned ? "fill-current" : ""}`} />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>{note.is_pinned ? "Unpin note" : "Pin note"}</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => openEditNote(note)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit note</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => setDeleteNoteId(note.id)} className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete note</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      <p className="text-sm">{note.content}</p>
+                      <p className="text-sm whitespace-pre-wrap">{note.content}</p>
                       <p className="text-xs text-muted-foreground mt-2">
-                        By {note.created_by_profile?.first_name}{" "}
-                        {note.created_by_profile?.last_name} on{" "}
-                        {new Date(note.created_at).toLocaleDateString()}
+                        By {note.created_by_profile?.first_name} {note.created_by_profile?.last_name} · {getRelativeTime(note.created_at)}
                       </p>
                     </CardContent>
                   </Card>
                 ))}
+                {filteredNotes.length === 0 && notes.length > 0 && (
+                  <p className="text-center text-muted-foreground py-8">No notes match your search</p>
+                )}
                 {notes.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No notes yet
-                  </p>
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <StickyNote className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                    <p className="text-muted-foreground mt-2">No notes yet</p>
+                    <p className="text-sm text-muted-foreground">Add a note to keep track of important information about this customer</p>
+                  </div>
                 )}
               </div>
             </TabsContent>
 
             {/* Tasks Tab */}
             <TabsContent value="tasks" className="space-y-4 mt-4">
-              <div className="flex justify-end mb-4">
-                <Button onClick={() => setIsTaskDialogOpen(true)}>
+              {/* Search and Filter Bar */}
+              <div className="flex flex-col sm:flex-row gap-2 justify-between">
+                <div className="flex gap-2 flex-1 flex-wrap">
+                  <div className="relative flex-1 max-w-xs">
+                    <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search tasks..."
+                      value={taskSearch}
+                      onChange={(e) => setTaskSearch(e.target.value)}
+                      className="pl-8"
+                    />
+                  </div>
+                  <Select value={taskFilterStatus} onValueChange={setTaskFilterStatus}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                      <SelectItem value="in_progress">In Progress</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="cancelled">Cancelled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={taskFilterPriority} onValueChange={setTaskFilterPriority}>
+                    <SelectTrigger className="w-[130px]">
+                      <SelectValue placeholder="Priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Priority</SelectItem>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button onClick={() => { setEditingTask(null); setTaskForm({ title: "", description: "", priority: "medium", status: "pending", due_date: "", reminder_date: "", assigned_to: "" }); setIsTaskDialogOpen(true); }}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Task
                 </Button>
               </div>
 
               <div className="space-y-2">
-                {tasks.map((task) => (
-                  <Card key={task.id}>
+                {filteredTasks.map((task) => (
+                  <Card key={task.id} className={task.status === "completed" ? "opacity-60" : ""}>
                     <CardHeader className="pb-2">
-                      <div className="flex items-center justify-between">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
                         <div className="flex items-center gap-2">
-                          <CardTitle className="text-base">
-                            {task.title}
-                          </CardTitle>
-                          <Badge className={getPriorityColor(task.priority)}>
-                            {task.priority}
-                          </Badge>
+                          <CardTitle className={cn("text-base", task.status === "completed" && "line-through")}>{task.title}</CardTitle>
+                          <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
+                          <Badge className={getStatusColor(task.status)}>{task.status.replace("_", " ")}</Badge>
                         </div>
-                        <Select
-                          value={task.status}
-                          onValueChange={(value) =>
-                            updateTaskStatus(task.id, value)
-                          }
-                        >
-                          <SelectTrigger className="w-[150px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="in_progress">
-                              In Progress
-                            </SelectItem>
-                            <SelectItem value="completed">Completed</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-1">
+                          <Select value={task.status} onValueChange={(value) => updateTaskStatus(task.id, value)}>
+                            <SelectTrigger className="w-[130px] h-8">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pending">Pending</SelectItem>
+                              <SelectItem value="in_progress">In Progress</SelectItem>
+                              <SelectItem value="completed">Completed</SelectItem>
+                              <SelectItem value="cancelled">Cancelled</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => openEditTask(task)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Edit task</TooltipContent>
+                          </Tooltip>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="sm" onClick={() => setDeleteTaskId(task.id)} className="text-destructive hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Delete task</TooltipContent>
+                          </Tooltip>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent>
-                      {task.description && (
-                        <p className="text-sm mb-2">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Due: {new Date(task.due_date).toLocaleDateString()}
+                      {task.description && <p className="text-sm mb-2 whitespace-pre-wrap">{task.description}</p>}
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                        <span className={cn("flex items-center gap-1", new Date(task.due_date) < new Date() && task.status !== "completed" && "text-destructive font-medium")}>
+                          <CalendarIcon className="h-3 w-3" />
+                          Due: {getRelativeTime(task.due_date)}
+                          {new Date(task.due_date) < new Date() && task.status !== "completed" && " (Overdue)"}
                         </span>
                         {task.reminder_date && (
                           <span className="flex items-center gap-1">
                             <AlertTriangle className="h-3 w-3" />
-                            Reminder:{" "}
-                            {new Date(task.reminder_date).toLocaleDateString()}
+                            Reminder: {getRelativeTime(task.reminder_date)}
                           </span>
                         )}
-                        <span>
-                          Assigned to: {task.assigned_to_profile?.first_name}{" "}
-                          {task.assigned_to_profile?.last_name}
-                        </span>
+                        <span>Assigned to: {task.assigned_to_profile?.first_name} {task.assigned_to_profile?.last_name}</span>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
+                {filteredTasks.length === 0 && tasks.length > 0 && (
+                  <p className="text-center text-muted-foreground py-8">No tasks match your filters</p>
+                )}
                 {tasks.length === 0 && (
-                  <p className="text-center text-muted-foreground py-8">
-                    No tasks yet
-                  </p>
+                  <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                    <CheckSquare className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                    <p className="text-muted-foreground mt-2">No tasks yet</p>
+                    <p className="text-sm text-muted-foreground">Create tasks to track follow-ups and action items for this customer</p>
+                  </div>
                 )}
               </div>
             </TabsContent>
+
+            {/* Group Management Tab - Only for group type profiles */}
+            {profile.type === "group" && (
+              <TabsContent value="group-management" className="space-y-4 mt-4">
+                <GroupManagementTab 
+                  groupId={profile.id} 
+                  groupName={profile.display_name || `${profile.first_name} ${profile.last_name}`} 
+                />
+              </TabsContent>
+            )}
           </Tabs>
+          </>
+          </TooltipProvider>
         )}
 
-        {/* Add Note Dialog */}
-        <Dialog open={isNoteDialogOpen} onOpenChange={setIsNoteDialogOpen}>
+        {/* Add/Edit Note Dialog */}
+        <Dialog open={isNoteDialogOpen} onOpenChange={(open) => { setIsNoteDialogOpen(open); if (!open) setEditingNote(null); }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Note</DialogTitle>
+              <DialogTitle>{editingNote ? "Edit Note" : "Add New Note"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Title</label>
+                <label htmlFor="note-title" className="text-sm font-medium">Title</label>
                 <Input
+                  id="note-title"
                   placeholder="Note Title"
                   value={noteForm.title}
                   onChange={(e) =>
@@ -1199,25 +1903,37 @@ export function ViewProfileModal({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Content</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="note-content" className="text-sm font-medium">Content</label>
+                  <span className={cn(
+                    "text-xs",
+                    noteForm.content.length > 1000 ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {noteForm.content.length}/1000 characters
+                  </span>
+                </div>
                 <Textarea
+                  id="note-content"
                   placeholder="Note Content"
                   value={noteForm.content}
-                  onChange={(e) =>
-                    setNoteForm({ ...noteForm, content: e.target.value })
-                  }
+                  onChange={(e) => {
+                    if (e.target.value.length <= 1000) {
+                      setNoteForm({ ...noteForm, content: e.target.value });
+                    }
+                  }}
                   rows={4}
+                  maxLength={1000}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Category</label>
+                <label htmlFor="note-category" className="text-sm font-medium">Category</label>
                 <Select
                   value={noteForm.category}
                   onValueChange={(value) =>
                     setNoteForm({ ...noteForm, category: value })
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="note-category">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1230,45 +1946,44 @@ export function ViewProfileModal({
                 </Select>
               </div>
               <div className="flex items-center space-x-2">
-                <input
-                  type="checkbox"
+                <Checkbox
                   id="pin-note"
                   checked={noteForm.is_pinned}
-                  onChange={(e) =>
-                    setNoteForm({ ...noteForm, is_pinned: e.target.checked })
+                  onCheckedChange={(checked) =>
+                    setNoteForm({ ...noteForm, is_pinned: checked === true })
                   }
-                  className="h-4 w-4"
                 />
-                <label htmlFor="pin-note" className="text-sm font-medium">
+                <label 
+                  htmlFor="pin-note" 
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                >
                   Pin this note
                 </label>
               </div>
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsNoteDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => { setIsNoteDialogOpen(false); setEditingNote(null); }}>
                   Cancel
                 </Button>
                 <Button onClick={handleAddNote}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Note
+                  {editingNote ? <Pencil className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  {editingNote ? "Update Note" : "Add Note"}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
 
-        {/* Add Task Dialog */}
-        <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
+        {/* Add/Edit Task Dialog */}
+        <Dialog open={isTaskDialogOpen} onOpenChange={(open) => { setIsTaskDialogOpen(open); if (!open) setEditingTask(null); }}>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
-              <DialogTitle>Add New Task</DialogTitle>
+              <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Title</label>
+                <label htmlFor="task-title" className="text-sm font-medium">Title</label>
                 <Input
+                  id="task-title"
                   placeholder="Task Title"
                   value={taskForm.title}
                   onChange={(e) =>
@@ -1277,26 +1992,38 @@ export function ViewProfileModal({
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Description</label>
+                <div className="flex items-center justify-between">
+                  <label htmlFor="task-description" className="text-sm font-medium">Description</label>
+                  <span className={cn(
+                    "text-xs",
+                    taskForm.description.length > 1000 ? "text-destructive" : "text-muted-foreground"
+                  )}>
+                    {taskForm.description.length}/1000 characters
+                  </span>
+                </div>
                 <Textarea
+                  id="task-description"
                   placeholder="Task Description"
                   value={taskForm.description}
-                  onChange={(e) =>
-                    setTaskForm({ ...taskForm, description: e.target.value })
-                  }
+                  onChange={(e) => {
+                    if (e.target.value.length <= 1000) {
+                      setTaskForm({ ...taskForm, description: e.target.value });
+                    }
+                  }}
                   rows={3}
+                  maxLength={1000}
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Priority</label>
+                  <label htmlFor="task-priority" className="text-sm font-medium">Priority</label>
                   <Select
                     value={taskForm.priority}
                     onValueChange={(value) =>
                       setTaskForm({ ...taskForm, priority: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="task-priority">
                       <SelectValue placeholder="Priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1308,14 +2035,14 @@ export function ViewProfileModal({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Status</label>
+                  <label htmlFor="task-status" className="text-sm font-medium">Status</label>
                   <Select
                     value={taskForm.status}
                     onValueChange={(value) =>
                       setTaskForm({ ...taskForm, status: value })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="task-status">
                       <SelectValue placeholder="Status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1329,32 +2056,70 @@ export function ViewProfileModal({
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">Due Date</label>
-                  <Input
-                    type="date"
-                    value={taskForm.due_date}
-                    onChange={(e) =>
-                      setTaskForm({ ...taskForm, due_date: e.target.value })
-                    }
-                  />
+                  <label className="text-sm font-medium">Due Date *</label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !taskForm.due_date && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {taskForm.due_date ? format(new Date(taskForm.due_date), "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={taskForm.due_date ? new Date(taskForm.due_date) : undefined}
+                        onSelect={(date) =>
+                          setTaskForm({ 
+                            ...taskForm, 
+                            due_date: date ? format(date, "yyyy-MM-dd") : "" 
+                          })
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Reminder Date</label>
-                  <Input
-                    type="date"
-                    value={taskForm.reminder_date}
-                    onChange={(e) =>
-                      setTaskForm({
-                        ...taskForm,
-                        reminder_date: e.target.value,
-                      })
-                    }
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !taskForm.reminder_date && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {taskForm.reminder_date ? format(new Date(taskForm.reminder_date), "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={taskForm.reminder_date ? new Date(taskForm.reminder_date) : undefined}
+                        onSelect={(date) =>
+                          setTaskForm({ 
+                            ...taskForm, 
+                            reminder_date: date ? format(date, "yyyy-MM-dd") : "" 
+                          })
+                        }
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium">Assigned To</label>
+                <label htmlFor="task-assigned" className="text-sm font-medium">Assigned To</label>
                 <Input
+                  id="task-assigned"
                   value={
                     profile?.display_name ||
                     `${profile?.first_name} ${profile?.last_name}`
@@ -1367,20 +2132,197 @@ export function ViewProfileModal({
                 </p>
               </div>
               <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsTaskDialogOpen(false)}
-                >
+                <Button variant="outline" onClick={() => { setIsTaskDialogOpen(false); setEditingTask(null); }}>
                   Cancel
                 </Button>
                 <Button onClick={handleAddTask}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Task
+                  {editingTask ? <Pencil className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  {editingTask ? "Update Task" : "Add Task"}
                 </Button>
               </div>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Delete Note Confirmation */}
+        <AlertDialog open={!!deleteNoteId} onOpenChange={(open) => !open && setDeleteNoteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Note</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this note? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteNote} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Task Confirmation */}
+        <AlertDialog open={!!deleteTaskId} onOpenChange={(open) => !open && setDeleteTaskId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Task</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this task? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Add/Edit Location Dialog */}
+        <Dialog open={isLocationDialogOpen} onOpenChange={(open) => { setIsLocationDialogOpen(open); if (!open) setEditingLocation(null); }}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>{editingLocation ? "Edit Location" : "Add New Location"}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="location-name" className="text-sm font-medium">Location Name *</label>
+                  <Input
+                    id="location-name"
+                    placeholder="e.g., Downtown Branch"
+                    value={locationForm.name}
+                    onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="location-type" className="text-sm font-medium">Type</label>
+                  <Select value={locationForm.type} onValueChange={(value) => setLocationForm({ ...locationForm, type: value })}>
+                    <SelectTrigger id="location-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="main">Main Office</SelectItem>
+                      <SelectItem value="branch">Branch</SelectItem>
+                      <SelectItem value="warehouse">Warehouse</SelectItem>
+                      <SelectItem value="retail">Retail Store</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label htmlFor="location-manager" className="text-sm font-medium">Manager Name</label>
+                  <Input
+                    id="location-manager"
+                    placeholder="Manager name"
+                    value={locationForm.manager}
+                    onChange={(e) => setLocationForm({ ...locationForm, manager: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="location-phone" className="text-sm font-medium">Contact Phone</label>
+                  <Input
+                    id="location-phone"
+                    placeholder="(555) 123-4567"
+                    value={locationForm.contact_phone}
+                    onChange={(e) => setLocationForm({ ...locationForm, contact_phone: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label htmlFor="location-email" className="text-sm font-medium">Contact Email</label>
+                <Input
+                  id="location-email"
+                  type="email"
+                  placeholder="location@example.com"
+                  value={locationForm.contact_email}
+                  onChange={(e) => setLocationForm({ ...locationForm, contact_email: e.target.value })}
+                />
+              </div>
+
+              <div className="space-y-3">
+                <label className="text-sm font-medium">Address</label>
+                <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                  <Input
+                    placeholder="Street Address"
+                    value={locationForm.address.street1}
+                    onChange={(e) => setLocationForm({ 
+                      ...locationForm, 
+                      address: { ...locationForm.address, street1: e.target.value } 
+                    })}
+                  />
+                  <Input
+                    placeholder="Apt, Suite, Unit (optional)"
+                    value={locationForm.address.street2}
+                    onChange={(e) => setLocationForm({ 
+                      ...locationForm, 
+                      address: { ...locationForm.address, street2: e.target.value } 
+                    })}
+                  />
+                  <div className="grid grid-cols-3 gap-3">
+                    <Input
+                      placeholder="City"
+                      value={locationForm.address.city}
+                      onChange={(e) => setLocationForm({ 
+                        ...locationForm, 
+                        address: { ...locationForm.address, city: e.target.value } 
+                      })}
+                    />
+                    <Input
+                      placeholder="State"
+                      value={locationForm.address.state}
+                      onChange={(e) => setLocationForm({ 
+                        ...locationForm, 
+                        address: { ...locationForm.address, state: e.target.value } 
+                      })}
+                    />
+                    <Input
+                      placeholder="ZIP Code"
+                      value={locationForm.address.zip_code}
+                      onChange={(e) => setLocationForm({ 
+                        ...locationForm, 
+                        address: { ...locationForm.address, zip_code: e.target.value } 
+                      })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="outline" onClick={() => { setIsLocationDialogOpen(false); setEditingLocation(null); }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleAddLocation}>
+                  {editingLocation ? <Pencil className="h-4 w-4 mr-2" /> : <Plus className="h-4 w-4 mr-2" />}
+                  {editingLocation ? "Update Location" : "Add Location"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Location Confirmation */}
+        <AlertDialog open={!!deleteLocationId} onOpenChange={(open) => !open && setDeleteLocationId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Location</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this location? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteLocation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );

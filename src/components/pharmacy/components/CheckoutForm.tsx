@@ -7,7 +7,7 @@ import * as z from "zod";
 import { useCart } from "@/hooks/use-cart";
 import { ShippingFields } from "./checkout/ShippingFields";
 import { PaymentFields } from "./checkout/PaymentFields";
-import { processACHPayment } from "@/components/orders/utils/authorizeNetUtils";
+import { processACHPayment, processCardPayment } from "@/services/paymentService";
 import { useNavigate } from "react-router-dom";
 
 const checkoutFormSchema = z.object({
@@ -108,25 +108,43 @@ export function CheckoutForm({ onClose, total }: CheckoutFormProps) {
           localStorage.getItem("authorize_net_test_mode") === "true";
         console.log("Test mode enabled:", testMode);
 
+        // Use Supabase Edge Function for ACH payment
         const response = await processACHPayment({
-          accountType: data.payment.achAccountType,
-          accountName: data.payment.achAccountName,
+          accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
           routingNumber: data.payment.achRoutingNumber,
           accountNumber: data.payment.achAccountNumber,
+          nameOnAccount: data.payment.achAccountName,
           amount: total,
           customerEmail: data.shippingAddress.email,
-          customerName: data.shippingAddress.fullName,
-          apiLoginId: localStorage.getItem("authorize_net_login_id") || "",
-          transactionKey:
-            localStorage.getItem("authorize_net_transaction_key") || "",
           testMode: testMode,
         });
 
         if (!response.success) {
           toast({
             title: "Payment Error",
-            description:
-              response.error?.text || "Failed to process ACH payment",
+            description: response.error || "Failed to process ACH payment",
+            variant: "destructive",
+          });
+          return;
+        }
+      } else if (data.payment.method === "card") {
+        // Process card payment via Supabase Edge Function
+        const testMode =
+          localStorage.getItem("authorize_net_test_mode") === "true";
+        
+        const response = await processCardPayment({
+          cardNumber: data.payment.cardNumber!,
+          expirationDate: data.payment.expiryDate!.replace("/", ""), // Convert MM/YY to MMYY
+          cvv: data.payment.cvv!,
+          cardholderName: data.shippingAddress.fullName,
+          amount: total,
+          testMode: testMode,
+        });
+
+        if (!response.success) {
+          toast({
+            title: "Payment Error",
+            description: response.error || "Failed to process card payment",
             variant: "destructive",
           });
           return;

@@ -2,12 +2,13 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TabbedUserForm } from "./forms/TabbedUserForm";
 import { useEditUserForm } from "./hooks/useEditUserForm";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Swal from "sweetalert2";
 import axios from '../../../axiosconfig'
+import { supabase } from "@/supabaseClient";
 
 
 interface EditUserModalProps {
@@ -32,6 +33,23 @@ export function EditUserModal({
   self
 }: EditUserModalProps) {
   const queryClient = useQueryClient(); // ✅ Query Client
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      if (currentUser) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", currentUser.id)
+          .single();
+        setIsAdmin(profile?.role === "admin" || profile?.role === "superadmin");
+      }
+    };
+    if (open) checkAdminRole();
+  }, [open]);
 
   const { form, onSubmit, fetchUserData, formState } = useEditUserForm({
     userId: user.id,
@@ -133,6 +151,7 @@ export function EditUserModal({
             submitLabel={formState.isSaving ? "Saving..." : "Save changes"}
             isSubmitting={formState.isSaving}
             self={self}
+            isAdmin={isAdmin}
           />
         )}
       </DialogContent>

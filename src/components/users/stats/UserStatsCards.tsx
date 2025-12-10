@@ -1,11 +1,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, Building2, Hospital, UsersRound } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface UserStatsCardsProps {
   totalUsers: number;
   pharmacies: number;
   hospitals: number;
   groups: number;
+  activeFilter?: string;
+  onFilterChange?: (filter: string) => void;
 }
 
 export function UserStatsCards({
@@ -13,10 +16,36 @@ export function UserStatsCards({
   pharmacies,
   hospitals,
   groups,
+  activeFilter = "all",
+  onFilterChange,
 }: UserStatsCardsProps) {
+  const handleCardClick = (filter: string) => {
+    if (onFilterChange) {
+      // Toggle filter - if already selected, go back to "all"
+      onFilterChange(activeFilter === filter ? "all" : filter);
+    }
+  };
+
+  const isClickable = !!onFilterChange;
+
   return (
     <>
-      <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]">
+      <Card 
+        className={cn(
+          "relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]",
+          isClickable && "cursor-pointer",
+          activeFilter === "all" && "ring-2 ring-blue-500 ring-offset-2"
+        )}
+        onClick={() => handleCardClick("all")}
+        role={isClickable ? "button" : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (isClickable && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleCardClick("all");
+          }
+        }}
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-blue-50/50 to-transparent" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">Total Users</CardTitle>
@@ -27,12 +56,27 @@ export function UserStatsCards({
         <CardContent>
           <div className="text-3xl font-bold text-gray-900">{totalUsers}</div>
           <p className="text-xs text-gray-500 mt-2">
-            All registered users
+            {isClickable ? "Click to show all" : "All registered users"}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]">
+      <Card 
+        className={cn(
+          "relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]",
+          isClickable && "cursor-pointer",
+          activeFilter === "pharmacy" && "ring-2 ring-green-500 ring-offset-2"
+        )}
+        onClick={() => handleCardClick("pharmacy")}
+        role={isClickable ? "button" : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (isClickable && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleCardClick("pharmacy");
+          }
+        }}
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-green-50/50 to-transparent" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">Pharmacies</CardTitle>
@@ -43,12 +87,27 @@ export function UserStatsCards({
         <CardContent>
           <div className="text-3xl font-bold text-gray-900">{pharmacies}</div>
           <p className="text-xs text-gray-500 mt-2">
-            Registered pharmacies
+            {isClickable ? "Click to filter" : "Registered pharmacies"}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]">
+      <Card 
+        className={cn(
+          "relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]",
+          isClickable && "cursor-pointer",
+          activeFilter === "hospital" && "ring-2 ring-red-500 ring-offset-2"
+        )}
+        onClick={() => handleCardClick("hospital")}
+        role={isClickable ? "button" : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (isClickable && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleCardClick("hospital");
+          }
+        }}
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-red-50/50 to-transparent" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">Hospitals</CardTitle>
@@ -59,12 +118,27 @@ export function UserStatsCards({
         <CardContent>
           <div className="text-3xl font-bold text-gray-900">{hospitals}</div>
           <p className="text-xs text-gray-500 mt-2">
-            Registered hospitals
+            {isClickable ? "Click to filter" : "Registered hospitals"}
           </p>
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]">
+      <Card 
+        className={cn(
+          "relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]",
+          isClickable && "cursor-pointer",
+          activeFilter === "group" && "ring-2 ring-purple-500 ring-offset-2"
+        )}
+        onClick={() => handleCardClick("group")}
+        role={isClickable ? "button" : undefined}
+        tabIndex={isClickable ? 0 : undefined}
+        onKeyDown={(e) => {
+          if (isClickable && (e.key === "Enter" || e.key === " ")) {
+            e.preventDefault();
+            handleCardClick("group");
+          }
+        }}
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-transparent" />
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
           <CardTitle className="text-sm font-medium text-gray-600">Groups</CardTitle>
@@ -75,7 +149,7 @@ export function UserStatsCards({
         <CardContent>
           <div className="text-3xl font-bold text-gray-900">{groups}</div>
           <p className="text-xs text-gray-500 mt-2">
-            Registered groups
+            {isClickable ? "Click to filter" : "Registered groups"}
           </p>
         </CardContent>
       </Card>

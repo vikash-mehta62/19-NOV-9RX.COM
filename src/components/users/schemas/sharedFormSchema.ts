@@ -62,6 +62,7 @@ export const baseUserSchema = z.object({
   parentGroup: z.string().optional(),
   email_notifaction: z.boolean().optional(),
   locations: z.array(locationSchema).default([]).optional(),
+  referralName: z.string().optional(), // Admin-only field
 });
 
 export type BaseUserFormData = z.infer<typeof baseUserSchema>;

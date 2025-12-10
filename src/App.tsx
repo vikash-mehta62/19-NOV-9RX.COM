@@ -11,13 +11,31 @@ import AdminCreateOrder from "./pages/admin/CreateOrder";
 import AdminInvoices from "./pages/admin/Invoices";
 import PharmacyInvoices from "./pages/pharmacy/Invoices";
 import AdminGroupPricing from "./pages/admin/GroupPricing";
+import AdminGroups from "./pages/admin/Groups";
 import AdminSettings from "./pages/admin/Settings";
+import AdminFestivalThemes from "./pages/admin/FestivalThemes";
+import AdminBanners from "./pages/admin/Banners";
+import AdminOffers from "./pages/admin/Offers";
+import AdminBlogs from "./pages/admin/Blogs";
+import AdminAnnouncements from "./pages/admin/Announcements";
+import AdminEmailTemplates from "./pages/admin/EmailTemplates";
+import AdminEmailCampaigns from "./pages/admin/EmailCampaigns";
+import AdminEmailAutomations from "./pages/admin/EmailAutomations";
+import AdminAbandonedCarts from "./pages/admin/AbandonedCarts";
 import PharmacyDashboard from "./pages/pharmacy/Dashboard";
 import PharmacyOrder from "./pages/pharmacy/Order";
 import PharmacyCreateOrder from "./pages/pharmacy/CreateOrder";
 import PharmacyOrders from "./pages/pharmacy/Orders";
 import PharmacySettings from "./pages/pharmacy/Settings";
 import PharmacyProducts from "./pages/pharmacy/Products";
+import PharmacyProductDetail from "./pages/pharmacy/ProductDetail";
+import ProductSizeDetails from "./pages/pharmacy/ProductSizeDetails";
+import PharmacyOrderHistory from "./pages/pharmacy/OrderHistory";
+import PharmacyStatements from "./pages/pharmacy/Statements";
+import PharmacyCredit from "./pages/pharmacy/Credit";
+import PharmacyRewards from "./pages/pharmacy/Rewards";
+import PharmacyWishlist from "./pages/pharmacy/Wishlist";
+import PharmacyHelp from "./pages/pharmacy/Help";
 import GroupDashboard from "./pages/group/Dashboard";
 import GroupOrder from "./pages/group/Order";
 import GroupOrders from "./pages/group/Orders";
@@ -25,6 +43,9 @@ import GroupAnalytics from "./pages/group/Analytics";
 import GroupReports from "./pages/group/Reports";
 import GroupSettings from "./pages/group/Settings";
 import GroupLocations from "./pages/group/Locations";
+import GroupPricing from "./pages/group/Pricing";
+import GroupInvitations from "./pages/group/Invitations";
+import JoinGroup from "./pages/JoinGroup";
 import HospitalDashboard from "./pages/hospital/Dashboard";
 import HospitalOrder from "./pages/hospital/Order";
 import HospitalOrders from "./pages/hospital/Orders";
@@ -219,13 +240,64 @@ function App() {
           <AdminGroupPricing />
         </ProtectedRoute>
       } />
+      <Route path="/admin/groups" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminGroups />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/settings" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminSettings />
         </ProtectedRoute>
       } />
+      <Route path="/admin/festival-themes" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminFestivalThemes />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/banners" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminBanners />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/offers" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminOffers />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/blogs" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminBlogs />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/announcements" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminAnnouncements />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/email-templates" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminEmailTemplates />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/email-campaigns" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminEmailCampaigns />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/email-automations" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminEmailAutomations />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/abandoned-carts" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminAbandonedCarts />
+        </ProtectedRoute>
+      } />
 
       {/* Pharmacy Routes */}
+      <Route path="/pharmacy" element={<Navigate to="/pharmacy/products" replace />} />
       <Route path="/pharmacy/dashboard" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyDashboard />
@@ -234,6 +306,16 @@ function App() {
       <Route path="/pharmacy/products" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyProducts />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/product/:id" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyProductDetail />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/product/:productId/:sizeId" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <ProductSizeDetails />
         </ProtectedRoute>
       } />
       <Route path="/pharmacy/order" element={
@@ -265,6 +347,36 @@ function App() {
       <Route path="/pharmacy/invoices" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyInvoices />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/order-history" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyOrderHistory />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/statements" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyStatements />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/credit" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyCredit />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/rewards" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyRewards />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/wishlist" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyWishlist />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/help" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyHelp />
         </ProtectedRoute>
       } />
       {/* Group Routes */}
@@ -320,6 +432,19 @@ function App() {
           <Staff />
         </ProtectedRoute>
       } />
+      <Route path="/group/pricing" element={
+        <ProtectedRoute allowedRoles={['group']}>
+          <GroupPricing />
+        </ProtectedRoute>
+      } />
+      <Route path="/group/invitations" element={
+        <ProtectedRoute allowedRoles={['group']}>
+          <GroupInvitations />
+        </ProtectedRoute>
+      } />
+
+      {/* Public Routes */}
+      <Route path="/join-group" element={<JoinGroup />} />
 
       {/* Hospital Routes */}
       <Route path="/hospital/dashboard" element={

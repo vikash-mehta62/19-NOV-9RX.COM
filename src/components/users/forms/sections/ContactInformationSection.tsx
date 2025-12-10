@@ -67,49 +67,27 @@ export function ContactInformationSection({
           />
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="email"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email *
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter email address"
-                    type="email"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-
-          <FormField
-            control={form.control}
-            name="alternativeEmail"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Alternative Email
-                </FormLabel>
-                <FormControl>
-                  <Input
-                    placeholder="Enter alternative email"
-                    type="email"
-                    {...field}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        </div>
+        {/* Alternative Email - Primary email is in Basic Info tab */}
+        <FormField
+          control={form.control}
+          name="alternativeEmail"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="flex items-center gap-2">
+                <Mail className="h-4 w-4" />
+                Alternative Email
+              </FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="Enter alternative email"
+                  type="email"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <FormField

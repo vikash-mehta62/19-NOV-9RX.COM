@@ -11,7 +11,7 @@ import { useForm } from "react-hook-form";
 import { baseUserSchema, BaseUserFormData } from "./schemas/sharedFormSchema";
 import { TabbedUserForm } from "./forms/TabbedUserForm";
 import { supabase } from "@/supabaseClient";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useQueryClient } from "@tanstack/react-query";
 import axios from "../../../axiosconfig"
@@ -30,6 +30,23 @@ export function AddUserModal({
 
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Check if current user is admin
+  useEffect(() => {
+    const checkAdminRole = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .single();
+        setIsAdmin(profile?.role === "admin" || profile?.role === "superadmin");
+      }
+    };
+    if (open) checkAdminRole();
+  }, [open]);
 
   const form = useForm<BaseUserFormData>({
     resolver: zodResolver(baseUserSchema),
@@ -213,6 +230,7 @@ console.log(session)
         payment_method: values.paymentMethod || null,
         account_status: "active",
         email_notifaction:values.email_notifaction || false,
+        referral_name: values.referralName || null, // Admin-only field
 
       };
 
@@ -307,6 +325,7 @@ console.log(session)
           onSubmit={onSubmit}
           submitLabel="Create Customer"
           isSubmitting={isSubmitting}
+          isAdmin={isAdmin}
         />
       </DialogContent>
     </Dialog>

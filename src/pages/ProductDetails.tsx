@@ -724,246 +724,195 @@ return (
           </div>
         </div>
 
-        {/* ---------------- BOTTOM: SIZES LEFT | SELECTED SIZE IMAGES RIGHT ---------------- */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 pb-20 lg:pb-8">
-          
-          {/* LEFT: SIZE SELECTION */}
-          <div>
-            {/* ---------------- SIZE SELECT BOX ---------------- */}
-            {product.sizes && product.sizes.length > 0 && (
-                <Card className="shadow-sm border border-gray-200 bg-white">
-                  <CardContent className="p-3">
-                    <h3 className="font-semibold text-xs flex items-center mb-2">
-                      <Package className="w-3.5 h-3.5 mr-1 text-purple-600" />
-                      <span className="text-gray-800">Select Size</span>
-                      <Badge className="ml-auto bg-purple-100 text-purple-700 text-[10px] px-1.5 py-0.5">
-                        {product.sizes.length} options
-                      </Badge>
-                    </h3>
+        {/* ---------------- VARIANT CARDS GRID - Each variant with its own image & price ---------------- */}
+        <div className="pb-20 lg:pb-8">
+          {product.sizes && product.sizes.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-base flex items-center text-gray-900">
+                  <Package className="w-4 h-4 mr-2 text-purple-600" />
+                  Select Size & Add to Cart
+                </h3>
+                <Badge className="bg-purple-100 text-purple-700 text-xs px-2 py-1">
+                  {product.sizes.length} Options
+                </Badge>
+              </div>
 
-                    <div className="space-y-2 mt-2 max-h-[300px] lg:max-h-[400px] overflow-y-auto pr-1 sidebar-scroll">
-                      {product.sizes.map((size) => {
-                        const isSelected = selectedSizes.has(size.id)
-                        const quantity = selectedSizes.get(size.id) || 1
-                        const price = getSizePrice(size)
-                        const inCart = isSizeInCart(size.id)
+              {/* Grid of Variant Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 lg:gap-4">
+                {product.sizes.map((size) => {
+                  const isSelected = selectedSizes.has(size.id)
+                  const quantity = selectedSizes.get(size.id) || 1
+                  const price = getSizePrice(size)
+                  const inCart = isSizeInCart(size.id)
+                  const sizeImage = size.image ? (imageUrls[size.image] || size.image) : (imageUrls[product.image_url] || product.image_url)
 
-                        return (
-                          <div
-                            key={size.id}
-                            onClick={() => !inCart && handleSizeClick(size)}
-                            className={`group relative overflow-hidden rounded-xl lg:rounded-2xl p-3 lg:p-4 transition-all duration-300 cursor-pointer ${
-                              isSelected
-                                ? "bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-400 shadow-xl shadow-indigo-200/50 scale-[1.02]"
-                                : inCart
-                                ? "bg-gradient-to-br from-blue-50 to-cyan-50 border-2 border-blue-300 shadow-lg opacity-75"
-                                : "bg-white border-2 border-gray-200 hover:border-indigo-300 hover:shadow-xl hover:scale-[1.01]"
-                            }`}
-                          >
-                            {/* Animated Background Effect */}
-                            {isSelected && (
-                              <div className="absolute inset-0 bg-gradient-to-r from-indigo-400/10 via-purple-400/10 to-pink-400/10 animate-pulse"></div>
-                            )}
-
-                            {/* Already in Cart Badge */}
-                            {inCart && (
-                              <div className="absolute top-3 right-3 z-10">
-                                <div className="relative">
-                                  <div className="absolute inset-0 bg-blue-400 rounded-full blur-md animate-pulse"></div>
-                                  <Badge className="relative bg-gradient-to-r from-blue-500 to-cyan-500 text-white text-xs font-bold shadow-lg px-3 py-1">
-                                    ✓ Added
-                                  </Badge>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="relative flex items-center gap-2 lg:gap-4">
-                              {/* Custom Radio/Checkbox */}
-                              <div className="flex-shrink-0">
-                                <div className={`relative w-5 h-5 lg:w-6 lg:h-6 rounded-full border-3 transition-all duration-300 ${
-                                  isSelected 
-                                    ? "border-indigo-500 bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-500/50" 
-                                    : "border-gray-300 bg-white group-hover:border-indigo-400"
-                                }`}>
-                                  {isSelected && (
-                                    <div className="absolute inset-0 flex items-center justify-center">
-                                      <Check className="w-4 h-4 text-white font-bold animate-in zoom-in duration-200" />
-                                    </div>
-                                  )}
-                                  {!isSelected && (
-                                    <div className="absolute inset-1 rounded-full bg-gray-100 group-hover:bg-indigo-50 transition-colors"></div>
-                                  )}
-                                </div>
-                              </div>
-
-                              {/* Size Image */}
-                              {size.image && (
-                                <div className="relative flex-shrink-0">
-                                  <div className={`absolute inset-0 rounded-lg lg:rounded-xl blur-lg transition-opacity duration-300 ${
-                                    isSelected ? "bg-gradient-to-br from-indigo-400 to-purple-400 opacity-30" : "opacity-0"
-                                  }`}></div>
-                                  <div className="relative w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-br from-gray-50 to-white rounded-lg lg:rounded-xl border-2 border-gray-200 p-1.5 lg:p-2 group-hover:border-indigo-300 transition-all duration-300">
-                                    <img
-                                      src={imageUrls[size.image] || size.image}
-                                      className="w-full h-full object-contain"
-                                      alt={`${size.size_value}${size.size_unit}`}
-                                    />
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Size Info */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-baseline gap-1">
-                                  <h4 className="text-sm lg:text-base font-bold text-gray-900 truncate">
-                                    {size.size_value}
-                                  </h4>
-                                  <span className="text-[10px] lg:text-xs font-semibold text-gray-500">
-                                    {size.size_unit}
-                                  </span>
-                                </div>
-                                {inCart && (
-                                  <div className="flex items-center gap-1 mt-0.5">
-                                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-pulse"></div>
-                                    <p className="text-[10px] text-blue-600 font-semibold">
-                                      In cart
-                                    </p>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Price Section */}
-                              <div className="flex-shrink-0 text-right">
-                                {isLoggedIn ? (
-                                  <div className="space-y-0.5">
-                                    <div className="text-base lg:text-lg font-black bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                                      ${price?.toFixed(2)}
-                                    </div>
-                                    {size.originalPrice > 0 && (
-                                      <div className="flex items-center gap-1 justify-end">
-                                        <span className="text-[10px] line-through text-gray-400 font-medium">
-                                          ${size.originalPrice.toFixed(2)}
-                                        </span>
-                                        <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[9px] px-1 py-0 font-bold">
-                                          {Math.round(((size.originalPrice - price) / size.originalPrice) * 100)}% OFF
-                                        </Badge>
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <div className="bg-gradient-to-r from-indigo-100 to-purple-100 px-2 py-1 rounded">
-                                    <span className="text-[10px] font-bold text-indigo-700">🔒 Login</span>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Quantity Controls - Expanded View */}
-                            {isSelected && isLoggedIn && (
-                              <div className="relative mt-2 lg:mt-3 pt-2 lg:pt-3 border-t border-dashed border-indigo-200">
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex items-center gap-1.5 lg:gap-2">
-                                    <span className="text-[10px] lg:text-xs font-semibold text-gray-700">Qty:</span>
-                                    <div className="flex items-center gap-0.5 lg:gap-1 bg-white rounded border border-indigo-200 p-0.5">
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 rounded hover:bg-indigo-100 hover:text-indigo-700"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          updateSizeQuantity(size.id, quantity - 1)
-                                        }}
-                                      >
-                                        <Minus className="w-3 h-3" />
-                                      </Button>
-
-                                      <div className="w-12 h-6 flex items-center justify-center">
-                                        <Input
-                                          type="number"
-                                          min={1}
-                                          value={quantity}
-                                          onChange={(e) => {
-                                            e.stopPropagation()
-                                            updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
-                                          }}
-                                          className="w-full h-full text-center font-semibold text-xs border-0 focus-visible:ring-0 bg-transparent p-0"
-                                          onClick={(e) => e.stopPropagation()}
-                                        />
-                                      </div>
-
-                                      <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 rounded hover:bg-indigo-100 hover:text-indigo-700"
-                                        onClick={(e) => {
-                                          e.stopPropagation()
-                                          updateSizeQuantity(size.id, quantity + 1)
-                                        }}
-                                      >
-                                        <Plus className="w-3 h-3" />
-                                      </Button>
-                                    </div>
-                                  </div>
-
-                                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-2 lg:px-3 py-1 lg:py-1.5 rounded shadow">
-                                    <div className="text-[8px] lg:text-[9px] font-medium opacity-90">Subtotal</div>
-                                    <div className="text-xs lg:text-sm font-bold">${(price * quantity).toFixed(2)}</div>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-          {/* RIGHT: SELECTED SIZE IMAGES */}
-          <div>
-            {selectedSizes.size > 0 && (
-              <Card className="shadow-sm border border-gray-200 bg-white lg:sticky lg:top-24">
-                <CardContent className="p-3 lg:p-4">
-                  <h3 className="font-semibold text-sm flex items-center mb-3 text-gray-900">
-                    <Package className="w-4 h-4 mr-1.5 text-indigo-600" />
-                    Selected Sizes
-                    <Badge className="ml-auto bg-indigo-100 text-indigo-700 text-[10px] px-1.5 py-0.5">
-                      {selectedSizes.size} selected
-                    </Badge>
-                  </h3>
-                  
-                  <div className="grid grid-cols-2 gap-2">
-                    {Array.from(selectedSizes.entries()).map(([sizeId, quantity]) => {
-                      const size = product.sizes.find(s => s.id === sizeId)
-                      if (!size) return null
-
-                      return (
-                        <div key={sizeId} className="relative bg-gradient-to-br from-indigo-50 to-purple-50 rounded-lg p-2 border border-indigo-200">
-                          {size.image && (
-                            <div className="aspect-square bg-white rounded p-1.5 mb-1.5">
-                              <img
-                                src={imageUrls[size.image] || size.image}
-                                alt={`${size.size_value}${size.size_unit}`}
-                                className="w-full h-full object-contain"
-                              />
-                            </div>
-                          )}
-                          <div className="text-center">
-                            <p className="font-semibold text-xs text-gray-900">
-                              {size.size_value}{size.size_unit}
-                            </p>
-                            <p className="text-[10px] text-gray-600">Qty: {quantity}</p>
+                  return (
+                    <div
+                      key={size.id}
+                      className={`group relative bg-white rounded-xl overflow-hidden transition-all duration-300 cursor-pointer ${
+                        isSelected
+                          ? "ring-2 ring-emerald-500 shadow-xl shadow-emerald-200/50 scale-[1.02]"
+                          : inCart
+                          ? "ring-2 ring-blue-400 shadow-lg opacity-80"
+                          : "border border-gray-200 hover:border-emerald-300 hover:shadow-xl hover:scale-[1.01]"
+                      }`}
+                      onClick={() => !inCart && handleSizeClick(size)}
+                    >
+                      {/* Selection Indicator */}
+                      {isSelected && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg">
+                            <Check className="w-4 h-4 text-white" />
                           </div>
                         </div>
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </div>
+                      )}
+
+                      {/* Already in Cart Badge */}
+                      {inCart && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <Badge className="bg-blue-500 text-white text-[10px] font-bold px-2 py-0.5">
+                            ✓ In Cart
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Discount Badge */}
+                      {size.originalPrice > 0 && isLoggedIn && (
+                        <div className="absolute top-2 right-2 z-10">
+                          <Badge className="bg-gradient-to-r from-red-500 to-orange-500 text-white text-[10px] font-bold px-2 py-0.5">
+                            {Math.round(((size.originalPrice - price) / size.originalPrice) * 100)}% OFF
+                          </Badge>
+                        </div>
+                      )}
+
+                      {/* Product Image */}
+                      <div className="aspect-square bg-gray-50 p-3 relative overflow-hidden">
+                        <img
+                          src={sizeImage}
+                          alt={`${size.size_value}${size.size_unit}`}
+                          className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement
+                            target.src = "/placeholder.svg"
+                          }}
+                        />
+                      </div>
+
+                      {/* Card Content */}
+                      <div className="p-3 space-y-2">
+                        {/* Size Name */}
+                        <div className="text-center">
+                          <h4 className="font-bold text-sm text-gray-900 truncate">
+                            {size.size_value}
+                          </h4>
+                          <span className="text-xs text-gray-500">{size.size_unit}</span>
+                        </div>
+
+                        {/* SKU */}
+                        {size.sku && (
+                          <p className="text-[10px] text-gray-400 text-center truncate">
+                            SKU: {size.sku}
+                          </p>
+                        )}
+
+                        {/* Qty per Case */}
+                        {size.quantity_per_case > 0 && (
+                          <div className="flex justify-center">
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {size.quantity_per_case}/case
+                            </Badge>
+                          </div>
+                        )}
+
+                        {/* Price */}
+                        <div className="text-center pt-1 border-t border-gray-100">
+                          {isLoggedIn ? (
+                            <div>
+                              <div className="text-lg font-black text-emerald-600">
+                                ${price?.toFixed(2)}
+                              </div>
+                              {size.originalPrice > 0 && (
+                                <span className="text-xs line-through text-gray-400">
+                                  ${size.originalPrice.toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="bg-gray-100 px-2 py-1 rounded text-center">
+                              <span className="text-xs font-medium text-gray-600">🔒 Login for Price</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Quantity Controls - Show when selected */}
+                        {isSelected && isLoggedIn && (
+                          <div className="pt-2 border-t border-dashed border-emerald-200 space-y-2">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  updateSizeQuantity(size.id, quantity - 1)
+                                }}
+                              >
+                                <Minus className="w-3 h-3" />
+                              </Button>
+
+                              <Input
+                                type="number"
+                                min={1}
+                                value={quantity}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  updateSizeQuantity(size.id, Math.max(1, Number(e.target.value)))
+                                }}
+                                className="w-14 h-7 text-center font-semibold text-sm border-emerald-200 focus-visible:ring-emerald-500"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+
+                              <Button
+                                variant="outline"
+                                size="icon"
+                                className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  updateSizeQuantity(size.id, quantity + 1)
+                                }}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            </div>
+
+                            <div className="bg-emerald-50 rounded-lg px-2 py-1.5 text-center">
+                              <span className="text-[10px] text-emerald-600">Subtotal: </span>
+                              <span className="text-sm font-bold text-emerald-700">${(price * quantity).toFixed(2)}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Add Button - Show when not selected */}
+                        {!isSelected && !inCart && isLoggedIn && (
+                          <Button
+                            className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleSizeClick(size)
+                            }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) ------------- */}
