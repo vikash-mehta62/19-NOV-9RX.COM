@@ -92,7 +92,7 @@ export function UserStatsCards({
         </CardContent>
       </Card>
 
-      <Card 
+      {/* <Card 
         className={cn(
           "relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1 min-h-[140px]",
           isClickable && "cursor-pointer",
@@ -121,7 +121,7 @@ export function UserStatsCards({
             {isClickable ? "Click to filter" : "Registered hospitals"}
           </p>
         </CardContent>
-      </Card>
+      </Card> */}
 
       <Card 
         className={cn(

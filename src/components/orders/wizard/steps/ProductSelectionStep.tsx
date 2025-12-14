@@ -89,7 +89,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   }, [selectedItemForDescription, tempDescription, updateDescription, onCartUpdate, toast]);
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
@@ -129,7 +129,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ScrollArea className="max-h-[300px]">
+            <ScrollArea className="max-h-[500px] pr-4">
               <div className="space-y-4" role="list" aria-label="Cart items">
                 {cartItems.map((item) => (
                   <div

@@ -3,16 +3,17 @@
 import { ShoppingCart, ChevronUp, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useCart } from "@/hooks/use-cart"
-import { useState } from "react"
+import { useState, useMemo } from "react"
 import { useNavigate } from "react-router-dom"
 
 export const StickyCartSummary = () => {
-  const { cartItems, cartTotal } = useCart()
+  const { cartItems, cartTotal, totalItems } = useCart()
   const [isExpanded, setIsExpanded] = useState(false)
   const [isVisible, setIsVisible] = useState(true)
   const navigate = useNavigate()
 
-  const totalItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
+  // Memoize displayed items for performance
+  const displayedItems = useMemo(() => cartItems.slice(0, 3), [cartItems])
 
   if (!isVisible || totalItems === 0) return null
 
@@ -29,7 +30,7 @@ export const StickyCartSummary = () => {
           </div>
           
           <div className="p-3 max-h-48 overflow-y-auto">
-            {cartItems.slice(0, 3).map((item, index) => (
+            {displayedItems.map((item, index) => (
               <div key={index} className="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0">
                 <div className="w-10 h-10 bg-gray-100 rounded overflow-hidden flex-shrink-0">
                   <img

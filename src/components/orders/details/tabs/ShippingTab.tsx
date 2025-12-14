@@ -11,6 +11,8 @@ interface ShippingTabProps {
 }
 
 export const ShippingTab = ({ order, onEdit, userRole }: ShippingTabProps) => {
+
+  // console.log(order, "order check")
   const canEdit = userRole === "admin" && order.status !== "cancelled" && !order.void;
   return (
     <div className="space-y-4">
@@ -127,36 +129,72 @@ export const ShippingTab = ({ order, onEdit, userRole }: ShippingTabProps) => {
           Package Contents
         </h3>
 
-        <div className="space-y-2">
-          {order.items.map((item, index) => (
-            <div key={index} className="flex items-center justify-between py-2 border-b last:border-0">
-              <div className="flex-1">
-                <p className="font-medium text-sm">{item.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {item.sizes.length} size{item.sizes.length !== 1 ? "s" : ""}
-                </p>
-              </div>
-              <div className="text-right">
-                <p className="text-sm font-medium">
-                  {item.sizes.reduce((sum, size) => sum + size.quantity, 0)} units
-                </p>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="space-y-2">
+  {order.items.map((item, index) => (
+    <div
+      key={index}
+      className="flex items-center justify-between py-2 border-b last:border-0"
+    >
+      <div className="flex-1">
+        <p className="font-medium text-sm">{item.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {item.sizes.length} size{item.sizes.length !== 1 ? "s" : ""}
+        </p>
+      </div>
 
-        <div className="mt-4 pt-4 border-t">
-          <div className="flex items-center justify-between font-semibold">
-            <span>Total Items</span>
-            <span>
-              {order.items.reduce(
-                (total, item) => total + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
-                0
-              )}{" "}
-              units
-            </span>
-          </div>
-        </div>
+      <div className="text-right">
+        <p className="text-sm font-medium">
+          {item.sizes.reduce((sum, size) => sum + size.quantity, 0)}{" "}
+          {
+            // ← THIS IS THE FIX — DYNAMIC TYPE
+            item.sizes[0]?.type
+              ? item.sizes[0].type.toLowerCase() + 
+                (item.sizes.reduce((sum, size) => sum + size.quantity, 0) > 1 ? "s" : "")
+              : "units"
+          }
+        </p>
+      </div>
+    </div>
+  ))}
+</div>
+
+
+       <div className="mt-4 pt-4 border-t">
+  <div className="flex items-center justify-between font-semibold">
+    <span>Total Items</span>
+
+    <span>
+      {(() => {
+        // Total quantity
+        const totalQty = order.items.reduce(
+          (total, item) =>
+            total + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
+          0
+        );
+
+        // Collect all size types
+        const allTypes = order.items.flatMap(item =>
+          item.sizes.map(size => size.type)
+        );
+
+        // Unique types
+        const uniqueTypes = [...new Set(allTypes.filter(Boolean))];
+
+        // Final label
+        let label = "items";
+        if (uniqueTypes.length === 1) {
+          // Only one type → use it (case → cases)
+          label =
+            uniqueTypes[0].toLowerCase() +
+            (totalQty > 1 ? "s" : "");
+        }
+
+        return `${totalQty} ${label}`;
+      })()}
+    </span>
+  </div>
+</div>
+
       </Card>
 
       {/* Order Date */}

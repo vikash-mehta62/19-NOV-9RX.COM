@@ -11,9 +11,11 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Customer, BillingAddress, ShippingAddress } from "../types";
 import type { CartItem } from "@/store/types/cartTypes";
+import { debugCart } from "@/utils/cartDebugUtils";
+import { useCart } from "@/hooks/use-cart";
 
 export interface ReviewOrderStepProps {
   customer?: Customer;
@@ -33,7 +35,7 @@ export const ReviewOrderStep = ({
   customer,
   billingAddress,
   shippingAddress,
-  cartItems,
+  cartItems: propCartItems,
   subtotal,
   tax,
   shipping,
@@ -43,6 +45,12 @@ export const ReviewOrderStep = ({
   onEditProducts,
 }: ReviewOrderStepProps) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  
+  // Get fresh cart items from hook to ensure latest state
+  const { cartItems: hookCartItems } = useCart();
+  
+  // Use hook cart items if prop cart items are empty
+  const cartItems = propCartItems.length > 0 ? propCartItems : hookCartItems;
 
   const toggleItemExpanded = (productId: string) => {
     setExpandedItems((prev) => {
@@ -69,8 +77,54 @@ export const ReviewOrderStep = ({
     }
   };
 
+  // Debug: Log cart items
+  console.log('ReviewOrderStep - Cart Items:', cartItems);
+  console.log('ReviewOrderStep - Cart Items Length:', cartItems.length);
+  
+  // Run debug on mount
+  useEffect(() => {
+    debugCart();
+  }, []);
+
   return (
     <div className="space-y-4 sm:space-y-6">
+      {/* Debug Info - Remove after fixing */}
+      <div className="bg-red-100 border border-red-300 p-4 rounded-lg">
+        <h3 className="font-bold text-red-800">Debug Info:</h3>
+        <p className="text-red-700">Prop Cart Items: {propCartItems.length}</p>
+        <p className="text-red-700">Hook Cart Items: {hookCartItems.length}</p>
+        <p className="text-red-700">Final Cart Items: {cartItems.length}</p>
+        <p className="text-red-700">Subtotal: ${subtotal.toFixed(2)}</p>
+        
+        <div className="mt-3 space-x-2">
+          <button 
+            onClick={() => (window as any).debugCart?.()} 
+            className="bg-blue-500 text-white px-2 py-1 rounded text-xs"
+          >
+            Debug Cart
+          </button>
+          <button 
+            onClick={() => (window as any).addTestCartItem?.()} 
+            className="bg-green-500 text-white px-2 py-1 rounded text-xs"
+          >
+            Add Test Item
+          </button>
+          <button 
+            onClick={() => (window as any).clearCartDebug?.()} 
+            className="bg-red-500 text-white px-2 py-1 rounded text-xs"
+          >
+            Clear Cart
+          </button>
+        </div>
+        
+        <details className="mt-2">
+          <summary className="cursor-pointer text-red-800 font-semibold">View Cart Data</summary>
+          <pre className="mt-2 text-xs bg-white p-2 rounded overflow-auto max-h-32">
+            {JSON.stringify(cartItems, null, 2)}
+          </pre>
+        </details>
+      </div>
+
       {/* Header */}
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Review Order</h2>
@@ -366,7 +420,20 @@ export const ReviewOrderStep = ({
               </div>
             </ScrollArea>
           ) : (
-            <p className="text-sm text-gray-500">No items in cart</p>
+            <div className="text-center py-8">
+              <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-500 mb-2">No items in cart</p>
+              <p className="text-sm text-gray-400">
+                Go back to add products to your order
+              </p>
+              <Button 
+                variant="outline" 
+                className="mt-4"
+                onClick={onEditProducts}
+              >
+                Add Products
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

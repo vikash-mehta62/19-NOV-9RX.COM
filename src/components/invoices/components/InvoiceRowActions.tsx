@@ -137,14 +137,14 @@ console.log(invoice)
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuItem onClick={() => onPreview(invoice)}>Preview Invoice</DropdownMenuItem>
-          <DropdownMenuItem
+          {/* <DropdownMenuItem
             onClick={() => {
               setWorkOrderData(invoice)
               setWorkOrder(true)
             }}
           >
             Packing Slip
-          </DropdownMenuItem>
+          </DropdownMenuItem> */}
           {invoice.status === "needs_payment_link" && (
             <DropdownMenuItem onClick={generatePaymentLink} disabled={isGeneratingLink}>
               <Link className="mr-2 h-4 w-4" />

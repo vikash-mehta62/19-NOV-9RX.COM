@@ -293,7 +293,7 @@ export function AnalyticsTab({ userId }: AnalyticsTabProps) {
       </div>
 
       {/* Order Patterns Chart */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Order Patterns (Last 12 Months)</CardTitle>
         </CardHeader>
@@ -325,10 +325,10 @@ export function AnalyticsTab({ userId }: AnalyticsTabProps) {
             </LineChart>
           </ResponsiveContainer>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Top Products by Revenue */}
-      <Card>
+      {/* <Card>
         <CardHeader>
           <CardTitle>Top Products by Revenue</CardTitle>
         </CardHeader>
@@ -344,7 +344,7 @@ export function AnalyticsTab({ userId }: AnalyticsTabProps) {
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
-      </Card>
+      </Card> */}
 
       {/* Product Distribution */}
       <div className="grid gap-4 md:grid-cols-2">

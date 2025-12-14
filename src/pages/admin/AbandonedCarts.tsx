@@ -56,13 +56,17 @@ export default function AbandonedCarts() {
 
   const fetchAbandonedCarts = async () => {
     try {
-      const { data, error } = await supabase
-        .from("abandoned_carts")
-        .select(`
-          *,
-          user:profiles!user_id(email, business_name)
-        `)
-        .order("created_at", { ascending: false });
+  const { data, error } = await supabase
+  .from("abandoned_carts")
+  .select(`
+    *,
+    user:profiles!user_id (
+      email,
+      company_name
+    )
+  `)
+  .order("created_at", { ascending: false });
+
 
       if (error) throw error;
       setCarts(data || []);

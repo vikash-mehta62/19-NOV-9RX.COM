@@ -20,16 +20,25 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const totals = packingData?.totals || {};
 
     // ===== HEADER =====
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(100);
-    const topInfo = "Tax ID : 99-0540972   |   936 Broad River Ln, Charlotte, NC 28211   |   info@9rx.com   |   www.9rx.com";
-    doc.text(topInfo, pageWidth / 2, margin, { align: "center" });
+  // Top info (center)
+doc.setFont("helvetica", "normal");
+doc.setFontSize(8);
+doc.setTextColor(100);
+const topInfo =
+  "Tax ID : 99-0540972   |   936 Broad River Ln, Charlotte, NC 28211   |   info@9rx.com   |   www.9rx.com";
+doc.text(topInfo, pageWidth / 2, margin, { align: "center" });
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor(40);
-    doc.text("+1 800 969 6295", margin, margin + 15);
+// ADD COMPANY NAME ABOVE PHONE (LEFT SIDE)
+doc.setFont("helvetica", "bold");
+doc.setFontSize(12);
+doc.setTextColor(40);
+doc.text("9RX LLC", margin, margin + 10);   // <-- THIS IS WHAT YOU WANT
+
+// PHONE NUMBER LEFT SIDE BELOW IT
+doc.setFont("helvetica", "bold");
+doc.setFontSize(14);
+doc.text("+1 800 969 6295", margin, margin + 18);
+
 
     // Logo
     const logo = new Image();
@@ -97,59 +106,66 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     if (cityStateZip !== ",") doc.text(cityStateZip, pageWidth / 2 + 5, shipY);
 
     // ===== ITEMS TABLE =====
-    const tableStartY = addressY + 40;
-    doc.line(margin, tableStartY - 5, pageWidth - margin, tableStartY - 5);
+    // ===== ITEMS TABLE =====
+const tableStartY = addressY + 40;
+doc.line(margin, tableStartY - 5, pageWidth - margin, tableStartY - 5);
 
-    const tableHead = [["SKU", "DESCRIPTION", "SIZE", "QTY/CS", "ORDERED", "MASTER CASES", "LOOSE", "WEIGHT"]];
-    const tableBody: any[] = [];
+// FIXED TABLE HEAD (5 COLUMNS ONLY)
+const tableHead = [
+  ["SKU", "DESCRIPTION", "SIZE", "QTY/CS", "CASES"]
+];
 
-    packedItems.forEach((item: any) => {
-      tableBody.push([
-        item.sku || "-",
-        item.name,
-        item.size,
-        item.qtyPerCase?.toString() || "-",
-        item.totalOrdered?.toString() || "0",
-        item.masterCases?.toString() || "0",
-        item.looseUnits > 0 ? item.looseUnits.toString() : "-",
-        `${item.totalWeight?.toFixed(1) || "0"} ${item.weightUnit || "lbs"}`,
-      ]);
-    });
+// FIXED BODY (5 COLUMNS)
+const tableBody: any[] = packedItems.map((item: any) => [
+  item.sku || "-",
+  item.name || "-",
+  item.size || "-",
+  item.qtyPerCase?.toString() || "-",
+  item.masterCases?.toString() || "0",
+]);
 
-    // Add totals row
-    tableBody.push([
-      "", "", "", "", "TOTALS:",
-      totals.totalMasterCases?.toString() || "0",
-      totals.totalLooseUnits > 0 ? totals.totalLooseUnits.toString() : "-",
-      `${totals.totalWeight?.toFixed(1) || "0"} lbs`,
-    ]);
+// FIXED TOTALS ROW (still 5 columns)
+tableBody.push([
+  "",
+  "",
+  "",
+  "TOTAL:",
+  totals.totalMasterCases?.toString() || "0",
+]);
 
-    (doc as any).autoTable({
-      head: tableHead,
-      body: tableBody,
-      startY: tableStartY,
-      styles: { fontSize: 8, cellPadding: 2 },
-      theme: "grid",
-      headStyles: { fillColor: [34, 139, 34], textColor: 255, fontStyle: "bold", halign: "center" },
-      bodyStyles: { lineWidth: 0.1, lineColor: [200, 200, 200] },
-      columnStyles: {
-        0: { cellWidth: 22 },
-        1: { cellWidth: 45 },
-        2: { cellWidth: 20, halign: "center" },
-        3: { cellWidth: 18, halign: "center" },
-        4: { cellWidth: 18, halign: "center" },
-        5: { cellWidth: 22, halign: "center", fillColor: [240, 253, 244] },
-        6: { cellWidth: 15, halign: "center" },
-        7: { cellWidth: 22, halign: "right" },
-      },
-      didParseCell: (data: any) => {
-        // Bold the totals row
-        if (data.row.index === tableBody.length - 1) {
-          data.cell.styles.fontStyle = "bold";
-          data.cell.styles.fillColor = [245, 245, 245];
-        }
-      },
-    });
+(doc as any).autoTable({
+  head: tableHead,
+  body: tableBody,
+  startY: tableStartY,
+  styles: { fontSize: 8, cellPadding: 2 },
+  theme: "grid",
+
+  headStyles: {
+    fillColor: [34, 139, 34],
+    textColor: 255,
+    fontStyle: "bold",
+    halign: "center",
+  },
+
+  // FULL WIDTH FIX — spread columns across page
+  tableWidth: pageWidth - margin * 2,
+
+  columnStyles: {
+    0: { cellWidth: 22 },              // SKU
+    1: { cellWidth: "*", minCellWidth: 60 }, // DESCRIPTION expands full width
+    2: { cellWidth: 20, halign: "center" },
+    3: { cellWidth: 18, halign: "center" },
+    4: { cellWidth: 18, halign: "center" },
+  },
+
+  didParseCell: (data: any) => {
+    // BOLD TOTAL ROW
+    if (data.row.index === tableBody.length - 1) {
+      data.cell.styles.fontStyle = "bold";
+      data.cell.styles.fillColor = [245, 245, 245];
+    }
+  },
+});
 
     // ===== CARTON SUMMARY =====
     let currentY = (doc as any).lastAutoTable.finalY + 10;
@@ -194,10 +210,10 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFont("helvetica", "normal");
     doc.text(packingDetails.shipVia || "N/A", leftCol + 25, currentY);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Cartons:", leftCol, currentY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(cartons.length.toString(), leftCol + 25, currentY + 6);
+    // doc.setFont("helvetica", "bold");
+    // doc.text("Cartons:", leftCol, currentY + 6);
+    // doc.setFont("helvetica", "normal");
+    // doc.text(cartons.length.toString(), leftCol + 25, currentY + 6);
 
     doc.setFont("helvetica", "bold");
     doc.text("Total Weight:", leftCol, currentY + 12);
@@ -210,10 +226,10 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFont("helvetica", "normal");
     doc.text(packingDetails.trackingNumber || "N/A", rightCol + 25, currentY);
 
-    doc.setFont("helvetica", "bold");
-    doc.text("Master Cases:", rightCol, currentY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(totals.totalMasterCases?.toString() || "0", rightCol + 25, currentY + 6);
+    // doc.setFont("helvetica", "bold");
+    // doc.text("Master Cases:", rightCol, currentY + 6);
+    // doc.setFont("helvetica", "normal");
+    // doc.text(totals.totalMasterCases?.toString() || "0", rightCol + 25, currentY + 6);
 
     doc.setFont("helvetica", "bold");
     doc.text("Shipping Class:", rightCol, currentY + 12);
@@ -288,24 +304,24 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.text("Date:", rightCol, currentY);
     doc.line(rightCol + 15, currentY, rightCol + 55, currentY);
 
-    currentY += 10;
-    doc.setFont("helvetica", "bold");
-    doc.text("Condition:", margin, currentY);
-    doc.setFont("helvetica", "normal");
+    // currentY += 10;
+    // doc.setFont("helvetica", "bold");
+    // doc.text("Condition:", margin, currentY);
+    // doc.setFont("helvetica", "normal");
     
-    // Checkboxes
-    doc.rect(margin + 25, currentY - 3.5, 4, 4);
-    doc.text("Good", margin + 31, currentY);
-    doc.rect(margin + 50, currentY - 3.5, 4, 4);
-    doc.text("Damaged", margin + 56, currentY);
-    doc.rect(margin + 82, currentY - 3.5, 4, 4);
-    doc.text("Partial", margin + 88, currentY);
+    // // Checkboxes
+    // doc.rect(margin + 25, currentY - 3.5, 4, 4);
+    // doc.text("Good", margin + 31, currentY);
+    // doc.rect(margin + 50, currentY - 3.5, 4, 4);
+    // doc.text("Damaged", margin + 56, currentY);
+    // doc.rect(margin + 82, currentY - 3.5, 4, 4);
+    // doc.text("Partial", margin + 88, currentY);
 
-    currentY += 10;
-    doc.setFont("helvetica", "bold");
-    doc.text("Notes:", margin, currentY);
-    doc.line(margin + 15, currentY, pageWidth - margin, currentY);
-    doc.line(margin, currentY + 6, pageWidth - margin, currentY + 6);
+    // currentY += 10;
+    // doc.setFont("helvetica", "bold");
+    // doc.text("Notes:", margin, currentY);
+    // doc.line(margin + 15, currentY, pageWidth - margin, currentY);
+    // doc.line(margin, currentY + 6, pageWidth - margin, currentY + 6);
 
     // ===== FOOTER =====
     doc.setFontSize(7);
