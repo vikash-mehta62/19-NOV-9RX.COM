@@ -5,16 +5,27 @@ import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Package, Truck, Plus, Minus, ShoppingCart, Check, Loader2, Eye } from "lucide-react"
+import { Package, Truck, Plus, Minus, ShoppingCart, Check, Loader2, Eye, Heart } from "lucide-react"
 import { useCart } from "@/hooks/use-cart"
 import { useToast } from "@/hooks/use-toast"
+import { ProductDetails } from "../types/product.types"
 import type { FlattenedSizeItem } from "./PharmacyProductGrid"
 
 interface PharmacySizeCardProps {
   item: FlattenedSizeItem
+  onProductClick?: (product: ProductDetails) => void
+  onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
+  onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
+  isInWishlist?: (productId: string, sizeId?: string) => boolean
 }
 
-export const PharmacySizeCard = ({ item }: PharmacySizeCardProps) => {
+export const PharmacySizeCard = ({ 
+  item, 
+  onProductClick,
+  onAddToWishlist,
+  onRemoveFromWishlist,
+  isInWishlist
+}: PharmacySizeCardProps) => {
   const navigate = useNavigate()
   const [isHovered, setIsHovered] = useState(false)
   const [quantity, setQuantity] = useState(1)
@@ -110,7 +121,53 @@ export const PharmacySizeCard = ({ item }: PharmacySizeCardProps) => {
   }
 
   const handleCardClick = () => {
-    navigate(`/pharmacy/product/${item.productId}/${item.sizeId}`)
+    if (onProductClick) {
+      // Create a ProductDetails object from the flattened item
+      const product: ProductDetails = {
+        id: item.productId,
+        name: item.productName,
+        description: item.productDescription || "",
+        category: item.productCategory,
+        subcategory: item.productSubcategory,
+        sku: item.productSku,
+        image_url: item.image,
+        images: item.productImages,
+        base_price: item.price,
+        price: item.price,
+        stock: item.stock,
+        sizes: [] // Will be populated by the parent component
+      }
+      onProductClick(product)
+    } else {
+      navigate(`/pharmacy/product/${item.productId}/${item.sizeId}`)
+    }
+  }
+
+  const handleWishlistToggle = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    
+    if (!onAddToWishlist || !onRemoveFromWishlist || !isInWishlist) return
+
+    const product: ProductDetails = {
+      id: item.productId,
+      name: item.productName,
+      description: item.productDescription || "",
+      category: item.productCategory,
+      subcategory: item.productSubcategory,
+      sku: item.productSku,
+      image_url: item.image,
+      images: item.productImages,
+      base_price: item.price,
+      price: item.price,
+      stock: item.stock,
+      sizes: []
+    }
+
+    if (isInWishlist(item.productId, item.sizeId)) {
+      await onRemoveFromWishlist(item.productId, item.sizeId)
+    } else {
+      await onAddToWishlist(product, item.sizeId)
+    }
   }
 
   return (
@@ -144,8 +201,27 @@ export const PharmacySizeCard = ({ item }: PharmacySizeCardProps) => {
         </div>
       )}
 
-      {/* Category Badge */}
-      <div className="absolute top-2 right-2 z-20">
+      {/* Wishlist & Category */}
+      <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
+        {/* Wishlist Button */}
+        {onAddToWishlist && onRemoveFromWishlist && isInWishlist && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm"
+            onClick={handleWishlistToggle}
+          >
+            <Heart 
+              className={`w-4 h-4 ${
+                isInWishlist(item.productId, item.sizeId) 
+                  ? 'text-red-500 fill-red-500' 
+                  : 'text-gray-400 hover:text-red-500'
+              }`} 
+            />
+          </Button>
+        )}
+        
+        {/* Category Badge */}
         <Badge className="bg-emerald-100 text-emerald-700 font-medium px-1.5 py-0.5 text-[10px]">
           {item.productCategory}
         </Badge>

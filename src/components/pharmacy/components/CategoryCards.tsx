@@ -102,16 +102,20 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
           <button
             key={cat.id}
             onClick={() => onCategorySelect(cat.category_name.toLowerCase())}
-            className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${
+            className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all transform hover:scale-105 ${
               selectedCategory.toLowerCase() === cat.category_name.toLowerCase()
-                ? "bg-emerald-100 border-2 border-emerald-500 shadow-md"
+                ? "bg-emerald-100 border-2 border-emerald-500 shadow-lg scale-105"
                 : "bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-md"
             }`}
           >
-            <div className={`p-2 rounded-lg bg-gradient-to-br ${getColor(cat.category_name)} text-white`}>
+            <div className={`p-2 rounded-lg bg-gradient-to-br ${getColor(cat.category_name)} text-white shadow-sm`}>
               {getIcon(cat.category_name)}
             </div>
-            <span className="text-[10px] font-medium text-gray-700 text-center leading-tight line-clamp-2">
+            <span className={`text-[10px] font-medium text-center leading-tight line-clamp-2 ${
+              selectedCategory.toLowerCase() === cat.category_name.toLowerCase()
+                ? "text-emerald-700 font-bold"
+                : "text-gray-700"
+            }`}>
               {cat.category_name.split(' ').slice(0, 2).join(' ')}
             </span>
           </button>

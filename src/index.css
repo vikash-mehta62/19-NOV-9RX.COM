@@ -348,3 +348,51 @@
 .card-festival:hover {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1), 0 0 10px var(--festival-accent);
 }
+
+/* Product Grid Animations */
+@keyframes fade-in {
+  0% {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out forwards;
+  opacity: 0;
+}
+
+/* Simple Gallery Image Viewer */
+.gallery-viewer {
+  backdrop-filter: blur(2px);
+}
+
+/* Smooth image zoom and drag transitions */
+.gallery-image {
+  transition: transform 0.2s ease-out;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+.gallery-image.dragging {
+  transition: none;
+}
+
+/* Image hover effects */
+.image-hover-zoom:hover img {
+  transform: scale(1.05);
+}
+
+/* Prevent text selection during drag */
+.no-select {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}

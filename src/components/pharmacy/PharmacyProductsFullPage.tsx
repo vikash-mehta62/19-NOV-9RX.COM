@@ -7,11 +7,13 @@ import { QuickReorder } from "./components/QuickReorder"
 import { StickyCartSummary } from "./components/StickyCartSummary"
 import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar"
 import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid"
+import { ProductSizesPanel } from "./components/ProductSizesPanel"
 import { supabase } from "@/supabaseClient"
 import { useToast } from "@/hooks/use-toast"
 import { ProductDetails } from "./types/product.types"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector } from "react-redux"
+import { useWishlist } from "@/hooks/use-wishlist"
 import { 
   Loader2, Search, Filter, SlidersHorizontal, X, 
   ShoppingCart, User, Bell, Menu, FileText, Settings, 
@@ -49,7 +51,10 @@ export const PharmacyProductsFullPage = () => {
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid")
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [selectedProduct, setSelectedProduct] = useState<ProductDetails | null>(null)
+  const [showSizesPanel, setShowSizesPanel] = useState(false)
   const userProfile = useSelector(selectUserProfile)
+  const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
 
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
 
@@ -237,6 +242,19 @@ export const PharmacyProductsFullPage = () => {
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category)
     setSelectedSubcategory("all")
+    // Close sizes panel when changing category
+    setShowSizesPanel(false)
+    setSelectedProduct(null)
+  }
+
+  const handleProductClick = (product: ProductDetails) => {
+    setSelectedProduct(product)
+    setShowSizesPanel(true)
+  }
+
+  const handleCloseSizesPanel = () => {
+    setShowSizesPanel(false)
+    setSelectedProduct(null)
   }
 
 
@@ -514,11 +532,27 @@ export const PharmacyProductsFullPage = () => {
                 products={filteredProducts} 
                 viewMode={viewMode}
                 onViewModeChange={setViewMode}
+                onProductClick={handleProductClick}
+                wishlistItems={wishlistItems}
+                onAddToWishlist={addToWishlist}
+                onRemoveFromWishlist={removeFromWishlist}
+                isInWishlist={isInWishlist}
               />
             )}
           </div>
         </div>
       </main>
+
+      {/* Product Sizes Panel */}
+      <ProductSizesPanel
+        product={selectedProduct}
+        isOpen={showSizesPanel}
+        onClose={handleCloseSizesPanel}
+        wishlistItems={wishlistItems}
+        onAddToWishlist={addToWishlist}
+        onRemoveFromWishlist={removeFromWishlist}
+        isInWishlist={isInWishlist}
+      />
 
       {/* Sticky Cart Summary */}
       <StickyCartSummary />

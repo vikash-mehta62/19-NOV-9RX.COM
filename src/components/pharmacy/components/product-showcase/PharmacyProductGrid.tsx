@@ -3,7 +3,7 @@
 import { useEffect, useState, useMemo } from "react"
 import { Package, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { PharmacySizeCard } from "./PharmacySizeCard"
+import { PharmacyProductCard } from "./PharmacyProductCard"
 import { ProductDetails } from "../../types/product.types"
 
 // Flattened size item type - each size becomes its own card
@@ -36,80 +36,46 @@ interface PharmacyProductGridProps {
   products: ProductDetails[]
   viewMode?: "grid" | "compact"
   onViewModeChange?: (mode: "grid" | "compact") => void
+  onProductClick?: (product: ProductDetails) => void
+  wishlistItems?: any[]
+  onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
+  onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
+  isInWishlist?: (productId: string, sizeId?: string) => boolean
 }
 
 export const PharmacyProductGrid = ({ 
   products, 
   viewMode = "grid",
-  onViewModeChange 
+  onViewModeChange,
+  onProductClick,
+  wishlistItems = [],
+  onAddToWishlist,
+  onRemoveFromWishlist,
+  isInWishlist
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const [localViewMode, setLocalViewMode] = useState<"grid" | "compact">(viewMode)
 
   const currentViewMode = onViewModeChange ? viewMode : localViewMode
 
-  // Flatten products - each size becomes its own card
-  const flattenedItems = useMemo(() => {
-    const items: FlattenedSizeItem[] = []
-    
-    products.forEach(product => {
-      if (product.sizes && product.sizes.length > 0) {
-        // Create a card for each size
-        product.sizes.forEach(size => {
-          items.push({
-            productId: product.id?.toString() || '',
-            productName: product.name,
-            productCategory: product.category || '',
-            productSubcategory: product.subcategory,
-            productDescription: product.description,
-            productSku: product.sku || '',
-            sizeId: size.id,
-            sizeValue: size.size_value,
-            sizeUnit: size.size_unit || '',
-            sizeSku: size.sku || '',
-            price: size.price,
-            originalPrice: size.originalPrice || 0,
-            stock: size.stock || 0,
-            quantityPerCase: size.quantity_per_case || 0,
-            rollsPerCase: size.rolls_per_case,
-            image: size.image || (product.images && product.images[0]) || '',
-            productImages: product.images || [],
-            shippingCost: size.shipping_cost || 0,
-            caseEnabled: size.case || false,
-            unitEnabled: size.unit || false,
-            pricePerCase: size.price_per_case || size.pricePerCase || 0,
-            keyFeatures: size.key_features || product.key_features,
-          })
-        })
-      } else {
-        // Product without sizes - create single card
-        items.push({
-          productId: product.id?.toString() || '',
-          productName: product.name,
-          productCategory: product.category || '',
-          productSubcategory: product.subcategory,
-          productDescription: product.description,
-          productSku: product.sku || '',
-          sizeId: product.id?.toString() || '',
-          sizeValue: '',
-          sizeUnit: '',
-          sizeSku: product.sku || '',
-          price: product.base_price || product.price || 0,
-          originalPrice: 0,
-          stock: product.stock || 0,
-          quantityPerCase: product.quantityPerCase || 0,
-          image: (product.images && product.images[0]) || product.image_url || '',
-          productImages: product.images || [],
-          shippingCost: Number(product.shipping_cost) || 0,
-          caseEnabled: false,
-          unitEnabled: false,
-          pricePerCase: 0,
-          keyFeatures: product.key_features,
-        })
-      }
-    })
-    
-    return items
+  // Show products as cards instead of individual sizes
+  const productItems = useMemo(() => {
+    return products.map(product => ({
+      ...product,
+      // Use the first size's price if available, otherwise use base_price
+      displayPrice: product.sizes && product.sizes.length > 0 
+        ? product.sizes[0].price 
+        : product.base_price || product.price || 0,
+      // Use product image or first size image
+      displayImage: product.image_url || 
+        (product.images && product.images[0]) || 
+        (product.sizes && product.sizes[0]?.image) || 
+        '/placeholder.svg',
+      // Calculate total stock from all sizes
+      totalStock: product.sizes 
+        ? product.sizes.reduce((sum, size) => sum + (size.stock || 0), 0)
+        : product.stock || 0
+    }))
   }, [products])
 
   useEffect(() => {
@@ -134,7 +100,7 @@ export const PharmacyProductGrid = ({
     )
   }
 
-  if (flattenedItems.length === 0) {
+  if (productItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="relative mb-6">
@@ -167,13 +133,19 @@ export const PharmacyProductGrid = ({
         ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
         : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
     }>
-      {flattenedItems.map((item, index) => (
+      {productItems.map((product, index) => (
         <div
-          key={`${item.productId}-${item.sizeId}`}
+          key={product.id}
           className="animate-fade-in"
           style={{ animationDelay: `${index * 20}ms`, animationFillMode: 'both' }}
         >
-          <PharmacySizeCard item={item} />
+          <PharmacyProductCard 
+            product={product} 
+            onProductClick={onProductClick}
+            onAddToWishlist={onAddToWishlist}
+            onRemoveFromWishlist={onRemoveFromWishlist}
+            isInWishlist={isInWishlist}
+          />
         </div>
       ))}
     </div>

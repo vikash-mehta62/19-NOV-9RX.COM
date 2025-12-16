@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Heart, ShoppingCart, Trash2, Share2, 
-  AlertCircle, Check
+  AlertCircle, Check, Loader2, Package
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
@@ -12,97 +12,58 @@ import { RootState } from "@/store/store";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
-
-interface WishlistItem {
-  id: string;
-  product_id: string;
-  name: string;
-  image: string;
-  price: number;
-  originalPrice?: number;
-  inStock: boolean;
-  category: string;
-}
+import { useWishlist } from "@/hooks/use-wishlist";
 
 const Wishlist = () => {
-  const [wishlistItems, setWishlistItems] = useState<WishlistItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const userProfile = useSelector((state: RootState) => state.user.profile);
   const navigate = useNavigate();
   const { addToCart } = useCart();
   const { toast } = useToast();
+  const { wishlistItems, loading, removeFromWishlist } = useWishlist();
 
-  useEffect(() => {
-    // Mock wishlist data - replace with actual API
-    const mockWishlist: WishlistItem[] = [
-      {
-        id: "1",
-        product_id: "prod-1",
-        name: "RX Vials 20 Dram - Amber",
-        image: "/placeholder.svg",
-        price: 45.99,
-        originalPrice: 52.99,
-        inStock: true,
-        category: "RX Vials"
-      },
-      {
-        id: "2",
-        product_id: "prod-2",
-        name: "Prescription Labels 500ct",
-        image: "/placeholder.svg",
-        price: 28.50,
-        inStock: true,
-        category: "RX Labels"
-      },
-      {
-        id: "3",
-        product_id: "prod-3",
-        name: "Oral Syringes 10ml - 100pk",
-        image: "/placeholder.svg",
-        price: 35.00,
-        inStock: false,
-        category: "Oral Syringes"
-      },
-      {
-        id: "4",
-        product_id: "prod-4",
-        name: "Paper Bags Medium - 1000ct",
-        image: "/placeholder.svg",
-        price: 89.99,
-        originalPrice: 99.99,
-        inStock: true,
-        category: "RX Paper Bags"
-      },
-    ];
+  const getImageUrl = (image?: string) => {
+    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
+    if (image) {
+      if (image.startsWith("http")) return image
+      return basePath + image
+    }
+    return "/placeholder.svg"
+  }
 
-    setTimeout(() => {
-      setWishlistItems(mockWishlist);
-      setLoading(false);
-    }, 500);
-  }, [userProfile]);
-
-  const removeFromWishlist = (id: string) => {
-    setWishlistItems(prev => prev.filter(item => item.id !== id));
-    toast({
-      title: "Removed from Wishlist",
-      description: "Item has been removed from your wishlist",
-    });
+  const handleRemoveFromWishlist = async (productId: string, sizeId?: string) => {
+    await removeFromWishlist(productId, sizeId);
   };
 
-  const handleAddToCart = (item: WishlistItem) => {
-    navigate(`/pharmacy/product/${item.product_id}`);
+  const handleAddToCart = (item: any) => {
+    if (item.product) {
+      navigate(`/pharmacy/product/${item.product.id}`);
+    } else {
+      navigate(`/pharmacy/product/${item.product_id}`);
+    }
   };
 
   const addAllToCart = () => {
-    const inStockItems = wishlistItems.filter(item => item.inStock);
-    inStockItems.forEach(item => {
-      // Navigate to product page for proper cart addition
-      navigate(`/pharmacy/product/${item.product_id}`);
-    });
+    const inStockItems = wishlistItems.filter(item => 
+      item.product && (item.product.current_stock > 0 || item.product.stock > 0)
+    );
+    
+    if (inStockItems.length === 0) {
+      toast({
+        title: "No Items Available",
+        description: "No in-stock items found in your wishlist",
+        variant: "default"
+      });
+      return;
+    }
+
     toast({
       title: "View Products",
       description: `Please add items to cart from product pages`,
     });
+    
+    // Navigate to the first product
+    if (inStockItems[0].product) {
+      navigate(`/pharmacy/product/${inStockItems[0].product.id}`);
+    }
   };
   return (
     <DashboardLayout role="pharmacy">
@@ -134,14 +95,18 @@ const Wishlist = () => {
 
         {/* Wishlist Items */}
         {loading ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <div className="animate-pulse flex flex-col items-center">
-                <div className="w-12 h-12 bg-gray-200 rounded-full mb-4"></div>
-                <div className="h-4 bg-gray-200 rounded w-32"></div>
-              </div>
-            </CardContent>
-          </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <Card key={i} className="overflow-hidden">
+                <div className="aspect-square bg-gray-200 animate-pulse"></div>
+                <CardContent className="p-4 space-y-2">
+                  <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+                  <div className="h-6 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         ) : wishlistItems.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
@@ -160,99 +125,103 @@ const Wishlist = () => {
           </Card>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {wishlistItems.map((item) => (
-              <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                <div className="relative">
-                  {/* Product Image */}
-                  <div className="aspect-square bg-gray-100 p-4">
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-full h-full object-contain"
-                      onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
-                    />
-                  </div>
-                  
-                  {/* Remove Button */}
-                  <button
-                    onClick={() => removeFromWishlist(item.id)}
-                    className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors"
-                  >
-                    <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-                  </button>
+            {wishlistItems.map((item) => {
+              const product = item.product;
+              const isInStock = product && (product.current_stock > 0 || product.stock > 0);
+              const productName = product?.name || 'Unknown Product';
+              const productPrice = product?.base_price || 0;
+              const productImage = product?.image_url || product?.images?.[0] || '';
+              const productCategory = product?.category || 'Unknown';
 
-                  {/* Discount Badge */}
-                  {item.originalPrice && (
-                    <Badge className="absolute top-2 left-2 bg-red-500">
-                      {Math.round((1 - item.price / item.originalPrice) * 100)}% OFF
-                    </Badge>
-                  )}
-
-                  {/* Out of Stock Overlay */}
-                  {!item.inStock && (
-                    <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                      <Badge variant="secondary" className="text-sm">
-                        Out of Stock
-                      </Badge>
+              return (
+                <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                  <div className="relative">
+                    {/* Product Image */}
+                    <div className="aspect-square bg-gray-100 p-4">
+                      <img
+                        src={getImageUrl(productImage)}
+                        alt={productName}
+                        className="w-full h-full object-contain"
+                        onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
+                      />
                     </div>
-                  )}
-                </div>
+                    
+                    {/* Remove Button */}
+                    <button
+                      onClick={() => handleRemoveFromWishlist(item.product_id, item.size_id)}
+                      className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors"
+                    >
+                      <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+                    </button>
 
-                <CardContent className="p-4">
-                  <Badge variant="outline" className="mb-2 text-xs">
-                    {item.category}
-                  </Badge>
-                  <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[48px]">
-                    {item.name}
-                  </h3>
-                  
-                  <div className="flex items-center gap-2 mt-2">
-                    <span className="text-lg font-bold text-emerald-600">
-                      ${item.price.toFixed(2)}
-                    </span>
-                    {item.originalPrice && (
-                      <span className="text-sm text-gray-400 line-through">
-                        ${item.originalPrice.toFixed(2)}
+                    {/* Size Badge */}
+                    {item.size_id && (
+                      <Badge className="absolute top-2 left-2 bg-blue-500">
+                        Specific Size
+                      </Badge>
+                    )}
+
+                    {/* Out of Stock Overlay */}
+                    {!isInStock && (
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                        <Badge variant="secondary" className="text-sm">
+                          Out of Stock
+                        </Badge>
+                      </div>
+                    )}
+                  </div>
+
+                  <CardContent className="p-4">
+                    <Badge variant="outline" className="mb-2 text-xs">
+                      {productCategory}
+                    </Badge>
+                    <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[48px]">
+                      {productName}
+                    </h3>
+                    
+                    <div className="flex items-center gap-2 mt-2">
+                      <span className="text-lg font-bold text-emerald-600">
+                        ${productPrice.toFixed(2)}
                       </span>
-                    )}
-                  </div>
+                    </div>
 
-                  {/* Stock Status */}
-                  <div className={`flex items-center gap-1 mt-2 text-sm ${item.inStock ? "text-green-600" : "text-red-500"}`}>
-                    {item.inStock ? (
-                      <>
-                        <Check className="w-4 h-4" />
-                        In Stock
-                      </>
-                    ) : (
-                      <>
-                        <AlertCircle className="w-4 h-4" />
-                        Out of Stock
-                      </>
-                    )}
-                  </div>
+                    {/* Stock Status */}
+                    <div className={`flex items-center gap-1 mt-2 text-sm ${isInStock ? "text-green-600" : "text-red-500"}`}>
+                      {isInStock ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          In Stock
+                        </>
+                      ) : (
+                        <>
+                          <AlertCircle className="w-4 h-4" />
+                          Out of Stock
+                        </>
+                      )}
+                    </div>
 
-                  {/* Actions */}
-                  <div className="flex gap-2 mt-4">
-                    <Button
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                      disabled={!item.inStock}
-                      onClick={() => handleAddToCart(item)}
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-1" />
-                      Add to Cart
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="icon"
-                      onClick={() => removeFromWishlist(item.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+                    {/* Actions */}
+                    <div className="flex gap-2 mt-4">
+                      <Button
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                        disabled={!isInStock}
+                        onClick={() => handleAddToCart(item)}
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-1" />
+                        View Product
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        onClick={() => handleRemoveFromWishlist(item.product_id, item.size_id)}
+                      >
+                        <Trash2 className="w-4 h-4 text-red-500" />
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         )}
       </div>
