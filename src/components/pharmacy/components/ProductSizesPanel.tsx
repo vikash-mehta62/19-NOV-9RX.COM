@@ -417,14 +417,17 @@ export const ProductSizesPanel = ({
 
   return (
     <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/50 z-40 transition-opacity"
-        onClick={onClose}
-      />
-      
-      {/* Panel */}
-      <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform">
+      {/* Only show panel when no fullscreen image is open */}
+      {!fullscreenImage && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-black/50 z-40 transition-opacity"
+            onClick={onClose}
+          />
+          
+          {/* Panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
@@ -727,6 +730,8 @@ export const ProductSizesPanel = ({
           </ScrollArea>
         </div>
       </div>
+        </>
+      )}
 
       {/* Simple Gallery Image Viewer */}
       {fullscreenImage && (

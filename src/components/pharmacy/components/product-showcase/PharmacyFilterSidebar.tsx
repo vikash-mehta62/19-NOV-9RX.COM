@@ -28,6 +28,8 @@ interface PharmacyFilterSidebarProps {
   setSelectedSubcategory: (subcategory: string) => void
   priceRange: string
   setPriceRange: (range: string) => void
+  products: any[]
+  onProductSelect?: (product: any) => void
 }
 
 export const PharmacyFilterSidebar = ({
@@ -39,6 +41,8 @@ export const PharmacyFilterSidebar = ({
   setSelectedSubcategory,
   priceRange,
   setPriceRange,
+  products,
+  onProductSelect,
 }: PharmacyFilterSidebarProps) => {
   const [categories, setCategories] = useState<CategoryConfig[]>([])
   const [subcategories, setSubcategories] = useState<SubcategoryConfig[]>([])
@@ -48,6 +52,7 @@ export const PharmacyFilterSidebar = ({
     subcategory: true,
     price: true,
   })
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
   const [inStockOnly, setInStockOnly] = useState(false)
 
 
@@ -103,6 +108,31 @@ export const PharmacyFilterSidebar = ({
   }
 
   const hasActiveFilters = searchQuery || selectedCategory !== "all" || selectedSubcategory !== "all" || priceRange !== "all"
+
+  // Calculate product count for each category
+  const getCategoryProductCount = (categoryName: string) => {
+    if (categoryName === "all") {
+      return products.length
+    }
+    return products.filter(product => 
+      product.category?.toLowerCase() === categoryName.toLowerCase()
+    ).length
+  }
+
+  // Get products for a specific category
+  const getCategoryProducts = (categoryName: string) => {
+    return products.filter(product => 
+      product.category?.toLowerCase() === categoryName.toLowerCase()
+    )
+  }
+
+  // Toggle category dropdown
+  const toggleCategoryDropdown = (categoryName: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [categoryName]: !prev[categoryName]
+    }))
+  }
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -168,7 +198,7 @@ export const PharmacyFilterSidebar = ({
           />
         </div>
 
-        {/* Category Filter */}
+        {/* Category Filter with Product Counts and Dropdowns */}
         <div className="border-b border-gray-100 pb-4">
           <button
             onClick={() => toggleFilter("category")}
@@ -178,22 +208,72 @@ export const PharmacyFilterSidebar = ({
             {expandedFilters.category ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
           </button>
           {expandedFilters.category && (
-            <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+            <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
               <div
                 className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedCategory === "all" ? "bg-emerald-100 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
                 onClick={() => setSelectedCategory("all")}
               >
-                All Categories
-              </div>
-              {categories.map((category) => (
-                <div
-                  key={category.id}
-                  className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedCategory.toLowerCase() === category.category_name.toLowerCase() ? "bg-emerald-100 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
-                  onClick={() => setSelectedCategory(category.category_name.toLowerCase())}
-                >
-                  {category.category_name}
+                <div className="flex items-center justify-between">
+                  <span>All Categories</span>
+                  <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
+                    {getCategoryProductCount("all")}
+                  </Badge>
                 </div>
-              ))}
+              </div>
+              {categories.map((category) => {
+                const productCount = getCategoryProductCount(category.category_name)
+                const categoryProducts = getCategoryProducts(category.category_name)
+                const isExpanded = expandedCategories[category.category_name]
+                
+                return (
+                  <div key={category.id} className="space-y-1">
+                    {/* Category Header */}
+                    <div className="flex items-center">
+                      <div
+                        className={`flex-1 cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedCategory.toLowerCase() === category.category_name.toLowerCase() ? "bg-emerald-100 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
+                        onClick={() => setSelectedCategory(category.category_name.toLowerCase())}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span>{category.category_name}</span>
+                          <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
+                            {productCount}
+                          </Badge>
+                        </div>
+                      </div>
+                      {productCount > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="ml-1 p-1 h-auto"
+                          onClick={() => toggleCategoryDropdown(category.category_name)}
+                        >
+                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                        </Button>
+                      )}
+                    </div>
+                    
+                    {/* Category Products Dropdown */}
+                    {isExpanded && productCount > 0 && (
+                      <div className="ml-4 space-y-1 border-l-2 border-emerald-200 pl-3">
+                        {categoryProducts.map((product) => (
+                          <div
+                            key={product.id}
+                            className="cursor-pointer text-xs py-1.5 px-2 rounded text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
+                            onClick={() => onProductSelect && onProductSelect(product)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="truncate">{product.name}</span>
+                              <Badge variant="outline" className="text-xs ml-2">
+                                {product.sizes?.length || 0} sizes
+                              </Badge>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>

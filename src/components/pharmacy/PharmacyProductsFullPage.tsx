@@ -7,7 +7,7 @@ import { QuickReorder } from "./components/QuickReorder"
 import { StickyCartSummary } from "./components/StickyCartSummary"
 import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar"
 import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid"
-import { ProductSizesPanel } from "./components/ProductSizesPanel"
+import { InlineProductSizes } from "./components/InlineProductSizes"
 import { supabase } from "@/supabaseClient"
 import { useToast } from "@/hooks/use-toast"
 import { ProductDetails } from "./types/product.types"
@@ -52,7 +52,11 @@ export const PharmacyProductsFullPage = () => {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedProduct, setSelectedProduct] = useState<ProductDetails | null>(null)
-  const [showSizesPanel, setShowSizesPanel] = useState(false)
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
+  const [imageZoom, setImageZoom] = useState(1)
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const userProfile = useSelector(selectUserProfile)
   const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
 
@@ -229,11 +233,11 @@ export const PharmacyProductsFullPage = () => {
 
     // Sort products
     if (sortBy === "price-low") {
-      filtered = [...filtered].sort((a, b) => (a.base_price || 0) - (b.base_price || 0))
+      filtered = [...filtered].sort((a, b) => Number(a.base_price || 0) - Number(b.base_price || 0))
     } else if (sortBy === "price-high") {
-      filtered = [...filtered].sort((a, b) => (b.base_price || 0) - (a.base_price || 0))
+      filtered = [...filtered].sort((a, b) => Number(b.base_price || 0) - Number(a.base_price || 0))
     } else if (sortBy === "newest") {
-      filtered = [...filtered].sort((a, b) => (b.squanence || 0) - (a.squanence || 0))
+      filtered = [...filtered].sort((a, b) => Number(b.squanence || 0) - Number(a.squanence || 0))
     }
 
     return filtered
@@ -242,20 +246,120 @@ export const PharmacyProductsFullPage = () => {
   const handleCategorySelect = (category: string) => {
     setSelectedCategory(category)
     setSelectedSubcategory("all")
-    // Close sizes panel when changing category
-    setShowSizesPanel(false)
+    // Clear selected product when changing category
     setSelectedProduct(null)
   }
 
   const handleProductClick = (product: ProductDetails) => {
-    setSelectedProduct(product)
-    setShowSizesPanel(true)
+    // Toggle product selection - if same product clicked, deselect it
+    if (selectedProduct?.id === product.id) {
+      setSelectedProduct(null)
+    } else {
+      setSelectedProduct(product)
+    }
   }
 
-  const handleCloseSizesPanel = () => {
-    setShowSizesPanel(false)
-    setSelectedProduct(null)
+  const handleImageClick = (imageUrl: string) => {
+    setFullscreenImage(imageUrl)
+    setImageZoom(1)
+    setImagePosition({ x: 0, y: 0 })
   }
+
+  const handleCloseFullscreen = () => {
+    setFullscreenImage(null)
+    setImageZoom(1)
+    setImagePosition({ x: 0, y: 0 })
+    setIsDragging(false)
+  }
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.2, 3))
+  }
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => {
+      const newZoom = Math.max(prev - 0.2, 0.5)
+      if (newZoom <= 1) {
+        setImagePosition({ x: 0, y: 0 })
+      }
+      return newZoom
+    })
+  }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (imageZoom > 1) {
+      e.preventDefault()
+      setIsDragging(true)
+      setDragStart({
+        x: e.clientX - imagePosition.x,
+        y: e.clientY - imagePosition.y
+      })
+    }
+  }
+
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (isDragging && imageZoom > 1) {
+      e.preventDefault()
+      setImagePosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (imageZoom > 1 && e.touches.length === 1) {
+      e.preventDefault()
+      setIsDragging(true)
+      const touch = e.touches[0]
+      setDragStart({
+        x: touch.clientX - imagePosition.x,
+        y: touch.clientY - imagePosition.y
+      })
+    }
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (isDragging && imageZoom > 1 && e.touches.length === 1) {
+      e.preventDefault()
+      const touch = e.touches[0]
+      setImagePosition({
+        x: touch.clientX - dragStart.x,
+        y: touch.clientY - dragStart.y
+      })
+    }
+  }
+
+  const handleTouchEnd = () => {
+    setIsDragging(false)
+  }
+
+  // Keyboard controls for fullscreen image viewer
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!fullscreenImage) return
+
+      switch (e.key) {
+        case 'Escape':
+          handleCloseFullscreen()
+          break
+      }
+    }
+
+    if (fullscreenImage) {
+      document.addEventListener('keydown', handleKeyPress)
+      document.body.style.overflow = 'hidden'
+    }
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyPress)
+      document.body.style.overflow = 'unset'
+    }
+  }, [fullscreenImage])
 
 
   return (
@@ -414,10 +518,10 @@ export const PharmacyProductsFullPage = () => {
         <HeroCarousel />
 
         {/* Category Quick Access */}
-        <CategoryCards 
+        {/* <CategoryCards 
           onCategorySelect={handleCategorySelect} 
           selectedCategory={selectedCategory} 
-        />
+        /> */}
 
         {/* Quick Reorder Section */}
         <QuickReorder />
@@ -436,6 +540,8 @@ export const PharmacyProductsFullPage = () => {
                 setSelectedSubcategory={setSelectedSubcategory}
                 priceRange={priceRange}
                 setPriceRange={setPriceRange}
+                products={filteredProducts}
+                onProductSelect={handleProductClick}
               />
             </div>
           </aside>
@@ -468,6 +574,8 @@ export const PharmacyProductsFullPage = () => {
                           setSelectedSubcategory={setSelectedSubcategory}
                           priceRange={priceRange}
                           setPriceRange={setPriceRange}
+                          products={filteredProducts}
+                          onProductSelect={handleProductClick}
                         />
                       </div>
                     </ScrollArea>
@@ -528,31 +636,87 @@ export const PharmacyProductsFullPage = () => {
                 <p className="text-gray-600">Loading products...</p>
               </div>
             ) : (
-              <PharmacyProductGrid 
-                products={filteredProducts} 
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                onProductClick={handleProductClick}
-                wishlistItems={wishlistItems}
-                onAddToWishlist={addToWishlist}
-                onRemoveFromWishlist={removeFromWishlist}
-                isInWishlist={isInWishlist}
-              />
+              <div className="space-y-6">
+                {/* Show all products when no product is selected */}
+                {!selectedProduct && (
+                  <PharmacyProductGrid 
+                    products={filteredProducts} 
+                    viewMode={viewMode}
+                    onViewModeChange={setViewMode}
+                    onProductClick={handleProductClick}
+                    wishlistItems={wishlistItems}
+                    onAddToWishlist={addToWishlist}
+                    onRemoveFromWishlist={removeFromWishlist}
+                    isInWishlist={isInWishlist}
+                  />
+                )}
+                
+                {/* Show only selected product with its sizes */}
+                {selectedProduct && (
+                  <InlineProductSizes
+                    product={selectedProduct}
+                    wishlistItems={wishlistItems}
+                    onAddToWishlist={addToWishlist}
+                    onRemoveFromWishlist={removeFromWishlist}
+                    isInWishlist={isInWishlist}
+                    onClose={() => setSelectedProduct(null)}
+                    onImageClick={handleImageClick}
+                  />
+                )}
+              </div>
             )}
           </div>
         </div>
       </main>
 
-      {/* Product Sizes Panel */}
-      <ProductSizesPanel
-        product={selectedProduct}
-        isOpen={showSizesPanel}
-        onClose={handleCloseSizesPanel}
-        wishlistItems={wishlistItems}
-        onAddToWishlist={addToWishlist}
-        onRemoveFromWishlist={removeFromWishlist}
-        isInWishlist={isInWishlist}
-      />
+      {/* Simple Gallery Image Viewer */}
+      {fullscreenImage && (
+        <div 
+          className="fixed inset-0 bg-black z-[100] flex items-center justify-center"
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onMouseLeave={handleMouseUp}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* Close Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleCloseFullscreen}
+            className="absolute top-4 right-4 z-10 bg-white/10 text-white hover:bg-white/20 w-12 h-12"
+          >
+            <X className="w-6 h-6" />
+          </Button>
+
+          {/* Image Container */}
+          <div 
+            className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden"
+            onWheel={(e) => {
+              e.preventDefault()
+              if (e.deltaY < 0) {
+                handleZoomIn()
+              } else {
+                handleZoomOut()
+              }
+            }}
+          >
+            <img
+              src={fullscreenImage}
+              alt="Product Image"
+              className={`max-w-full max-h-full object-contain gallery-image no-select ${isDragging ? 'dragging' : ''}`}
+              style={{
+                transform: `scale(${imageZoom}) translate(${imagePosition.x}px, ${imagePosition.y}px)`,
+                cursor: imageZoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+              }}
+              onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
+              onMouseDown={handleMouseDown}
+              onTouchStart={handleTouchStart}
+              draggable={false}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Sticky Cart Summary */}
       <StickyCartSummary />

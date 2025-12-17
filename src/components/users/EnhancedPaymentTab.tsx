@@ -32,6 +32,10 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { PayCreditModal } from "./PayCreditModal";
+import { StatementDateRangeSelector } from "./StatementDateRangeSelector";
+import { statementService } from "@/services/statementService";
+import { downloadService } from "@/services/downloadService";
+import { statementPDFGenerator } from "@/utils/statement-pdf-generator";
 
 interface CreditSettings {
   credit_limit: number;
@@ -66,6 +70,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -186,6 +191,168 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         description: "Failed to generate statement",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleDateRangeChange = (startDate: Date, endDate: Date) => {
+    // This will be called when valid date range is selected
+    console.log("Date range changed:", { startDate, endDate });
+  };
+
+  const handleStatementDownload = async (startDate: Date, endDate: Date) => {
+    setIsGeneratingStatement(true);
+    try {
+      console.log("Starting statement download for:", { userId, startDate, endDate });
+      
+      toast({
+        title: "Generating Statement",
+        description: `Generating statement for ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}...`,
+      });
+
+      // Check browser support first
+      const capabilities = downloadService.getDownloadCapabilities();
+      console.log("Browser download capabilities:", capabilities);
+      
+      if (!capabilities.supported) {
+        throw new Error("Your browser does not support file downloads. Please try a different browser.");
+      }
+
+      // First, let's try to generate the statement data and PDF directly
+      console.log("Generating statement data...");
+      const statementResponse = await statementService.generateStatementData({
+        userId,
+        startDate,
+        endDate,
+        includeZeroActivity: true
+      });
+
+      if (!statementResponse.success || !statementResponse.data) {
+        throw new Error(statementResponse.error || "Failed to generate statement data");
+      }
+
+      console.log("Statement data generated:", statementResponse.data);
+      
+      // Generate filename
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      const filename = `statement_${userId}_${startDateStr}_to_${endDateStr}.pdf`;
+      console.log("Suggested filename:", filename);
+
+      // Get user profile for better filename
+      let userProfile;
+      try {
+        userProfile = await statementService.getUserProfile(userId);
+        console.log("User profile loaded:", userProfile);
+      } catch (error) {
+        console.warn("Could not load user profile:", error);
+      }
+
+      // Create PDF
+      console.log("Creating PDF...");
+      const pdfBlob = await statementPDFGenerator.createPDF(statementResponse.data, userProfile);
+      console.log("PDF created, size:", pdfBlob.size, "bytes");
+
+      if (!pdfBlob || pdfBlob.size === 0) {
+        throw new Error("Generated PDF is empty");
+      }
+
+      // Try direct download
+      console.log("Attempting direct download...");
+      const downloadSuccess = await new Promise<boolean>((resolve) => {
+        try {
+          const url = URL.createObjectURL(pdfBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = filename;
+          link.style.display = 'none';
+          
+          document.body.appendChild(link);
+          link.click();
+          
+          setTimeout(() => {
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            resolve(true);
+          }, 1000);
+          
+        } catch (error) {
+          console.error("Direct download failed:", error);
+          resolve(false);
+        }
+      });
+
+      if (!downloadSuccess) {
+        throw new Error("Failed to trigger download");
+      }
+
+      const result = { success: true, filename };
+
+      console.log("Download result:", result);
+
+      if (result.success) {
+        // Update last statement date
+        await supabase
+          .from("profiles")
+          .update({ last_statement_date: new Date().toISOString() })
+          .eq("id", userId);
+
+        toast({
+          title: "Statement Downloaded",
+          description: "Your account statement has been downloaded successfully.",
+        });
+
+        loadCreditSettings();
+      } else {
+        console.error("Download failed:", result.error);
+        throw new Error(result.error || "Failed to download statement");
+      }
+
+    } catch (error) {
+      console.error("Error in handleStatementDownload:", error);
+      
+      // Provide user-friendly error message
+      let errorMessage = "Failed to download statement. Please try again.";
+      
+      if (error instanceof Error) {
+        if (error.message.includes("browser")) {
+          errorMessage = "Your browser doesn't support file downloads. Please try a different browser.";
+        } else if (error.message.includes("network") || error.message.includes("timeout")) {
+          errorMessage = "Network error occurred. Please check your connection and try again.";
+        } else if (error.message.includes("validation")) {
+          errorMessage = "There are some data inconsistencies, but the download will proceed.";
+          
+          // Try to download anyway with validation disabled
+          try {
+            const fallbackResult = await downloadService.downloadStatement({
+              userId,
+              startDate,
+              endDate,
+              includeZeroActivity: true
+            }, {
+              validateData: false,
+              maxRetries: 1
+            });
+            
+            if (fallbackResult.success) {
+              toast({
+                title: "Statement Downloaded",
+                description: "Statement downloaded successfully (with validation warnings).",
+              });
+              return;
+            }
+          } catch (fallbackError) {
+            console.error("Fallback download also failed:", fallbackError);
+          }
+        }
+      }
+
+      toast({
+        title: "Download Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingStatement(false);
     }
   };
 
@@ -506,7 +673,8 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Auto-Statement Settings */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
               <div>
                 <p className="font-medium">Auto-Generate Statements</p>
@@ -531,10 +699,128 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
               </Badge>
             </div>
 
-            <Button onClick={handleGenerateStatement} className="w-full">
-              <FileText className="w-4 h-4 mr-2" />
-              Generate Statement Now
-            </Button>
+            {/* Custom Date Range Statement Generation */}
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-4">Generate Custom Statement</h4>
+              <StatementDateRangeSelector
+                onDateRangeChange={handleDateRangeChange}
+                onDownload={handleStatementDownload}
+                isGenerating={isGeneratingStatement}
+                maxDateRange={365}
+              />
+              
+              {/* Debug Test Button - Remove in production */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 mb-2">Debug Tools (Development Only)</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        try {
+                          console.log("Testing simple text download...");
+                          const testContent = "Test download file\nGenerated at: " + new Date().toISOString();
+                          const blob = new Blob([testContent], { type: 'text/plain' });
+                          const filename = `test-download-${Date.now()}.txt`;
+                          
+                          const url = URL.createObjectURL(blob);
+                          const link = document.createElement('a');
+                          link.href = url;
+                          link.download = filename;
+                          link.style.display = 'none';
+                          
+                          document.body.appendChild(link);
+                          link.click();
+                          
+                          setTimeout(() => {
+                            document.body.removeChild(link);
+                            URL.revokeObjectURL(url);
+                          }, 1000);
+                          
+                          toast({
+                            title: "Test Download",
+                            description: "Test file download triggered",
+                          });
+                        } catch (error) {
+                          console.error("Test download failed:", error);
+                          toast({
+                            title: "Test Failed",
+                            description: "Test download failed",
+                            variant: "destructive",
+                          });
+                        }
+                      }}
+                    >
+                      Test Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const capabilities = downloadService.getDownloadCapabilities();
+                        console.log("Download capabilities:", capabilities);
+                        toast({
+                          title: "Browser Capabilities",
+                          description: `Supported: ${capabilities.supported}, Features: ${capabilities.features.length}`,
+                        });
+                      }}
+                    >
+                      Check Browser
+                    </Button>
+                  </div>
+                </div>
+              )}
+              
+              {/* Debug Test Button - Remove in production */}
+              {process.env.NODE_ENV === 'development' && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 mb-2">Debug Tools (Development Only)</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Test basic download functionality
+                        if ((window as any).downloadTests) {
+                          (window as any).downloadTests.testBasicDownload();
+                        }
+                      }}
+                    >
+                      Test Basic Download
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Test PDF generation
+                        if ((window as any).debugDownload) {
+                          (window as any).debugDownload.testPDFGeneration();
+                        }
+                      }}
+                    >
+                      Test PDF Generation
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Test full statement download
+                        const testStartDate = new Date();
+                        testStartDate.setMonth(testStartDate.getMonth() - 1);
+                        const testEndDate = new Date();
+                        
+                        if ((window as any).debugDownload) {
+                          (window as any).debugDownload.debugStatementDownload(userId, testStartDate, testEndDate);
+                        }
+                      }}
+                    >
+                      Debug Statement Download
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </CardContent>
       </Card>
