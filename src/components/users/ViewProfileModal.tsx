@@ -33,6 +33,7 @@ import {
   Clock,
   Stethoscope,
   Users,
+  Download,
 } from "lucide-react";
 import { supabase } from "@/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,6 +68,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { orderStatementService } from "@/services/orderStatementService";
+import { orderStatementDownloadService } from "@/services/orderStatementDownloadService";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -213,6 +216,12 @@ export function ViewProfileModal({
 
   // Copy states
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Order statement download states
+  const [isDownloadDialogOpen, setIsDownloadDialogOpen] = useState(false);
+  const [downloadStartDate, setDownloadStartDate] = useState<Date | undefined>(undefined);
+  const [downloadEndDate, setDownloadEndDate] = useState<Date | undefined>(new Date());
+  const [isDownloading, setIsDownloading] = useState(false);
 
   // Note form state
   const [noteForm, setNoteForm] = useState({
@@ -631,6 +640,66 @@ export function ViewProfileModal({
       fetchAllData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Handle order statement download
+  const handleDownloadOrderStatement = async () => {
+    if (!downloadStartDate) {
+      toast({
+        title: "Error",
+        description: "Please select a start date",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setIsDownloading(true);
+
+      // If end date is not selected, use today's date
+      const endDate = downloadEndDate || new Date();
+
+      // Validate date range
+      if (downloadStartDate >= endDate) {
+        toast({
+          title: "Error",
+          description: "Start date must be before end date",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Fetch order statement data
+      const statementData = await orderStatementService.fetchOrderData(
+        userId,
+        downloadStartDate,
+        endDate
+      );
+
+      // Download the PDF using quickDownload (simpler method without retry)
+      const result = await orderStatementDownloadService.quickDownload(statementData);
+
+      if (result.success) {
+        toast({
+          title: "Success",
+          description: "Order statement downloaded successfully",
+        });
+        setIsDownloadDialogOpen(false);
+        setDownloadStartDate(undefined);
+        setDownloadEndDate(new Date());
+      } else {
+        throw new Error(result.error || "Failed to download statement");
+      }
+    } catch (err: any) {
+      console.error("Error downloading order statement:", err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to download order statement",
+        variant: "destructive",
+      });
+    } finally {
+      setIsDownloading(false);
     }
   };
 
@@ -1510,9 +1579,18 @@ export function ViewProfileModal({
             <TabsContent value="orders" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
                     <CardTitle>Order History</CardTitle>
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsDownloadDialogOpen(true)}
+                        className="gap-2"
+                      >
+                        <Download className="h-4 w-4" />
+                        Download Statement
+                      </Button>
                       <Select
                         value={orderFilter}
                         onValueChange={setOrderFilter}
@@ -2323,6 +2401,109 @@ export function ViewProfileModal({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        {/* Download Order Statement Dialog */}
+        <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Download Order Statement</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  Start Date <span className="text-red-500">*</span>
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !downloadStartDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {downloadStartDate ? format(downloadStartDate, "PPP") : "Select start date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={downloadStartDate}
+                      onSelect={setDownloadStartDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  Select the start date for the statement period
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  End Date <span className="text-muted-foreground">(Optional)</span>
+                </label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !downloadEndDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {downloadEndDate ? format(downloadEndDate, "PPP") : "Select end date (defaults to today)"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={downloadEndDate}
+                      onSelect={setDownloadEndDate}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+                <p className="text-xs text-muted-foreground">
+                  If not selected, today's date will be used
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsDownloadDialogOpen(false);
+                    setDownloadStartDate(undefined);
+                    setDownloadEndDate(new Date());
+                  }}
+                  disabled={isDownloading}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDownloadOrderStatement}
+                  disabled={isDownloading || !downloadStartDate}
+                  className="gap-2"
+                >
+                  {isDownloading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4" />
+                      Download Statement
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
