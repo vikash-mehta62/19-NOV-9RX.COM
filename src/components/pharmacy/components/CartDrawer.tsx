@@ -63,19 +63,11 @@ export const CartDrawer = () => {
   const handleCheckout = async () => {
     setIsProcessing(true);
     try {
-      const orderItems = cartItems.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        price: item.price,
-        notes: item.notes || "",
-        shipping_cost: item.shipping_cost,
-      }));
-      localStorage.setItem("pendingOrderItems", JSON.stringify(orderItems));
       setIsOpen(false);
 
       const userType = sessionStorage.getItem("userType")?.toLowerCase();
       if (userType === "group") navigate("/group/order");
-      else if (userType === "pharmacy") navigate("/pharmacy/order");
+      else if (userType === "pharmacy") navigate("/pharmacy/order/create");
       else if (userType === "admin") navigate("/admin/orders", { state: { createOrder: true } });
     } catch (error) {
       toast({

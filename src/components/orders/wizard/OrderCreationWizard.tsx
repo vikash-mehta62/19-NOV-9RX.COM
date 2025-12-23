@@ -119,16 +119,24 @@ const OrderCreationWizardComponent = ({
         }
       }
 
-      // Check if we should skip directly to products (step 3)
-      // This happens when customer AND addresses are already provided (from ViewProfileModal)
-      if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
+      // For pharmacy mode, skip directly to step 2 (addresses) since:
+      // 1. Customer is already selected (themselves)
+      // 2. They already have items in cart from browsing products
+      // 3. They don't need the "Add Products" step - they browse products separately
+      if (isPharmacyMode) {
+        console.log("Pharmacy mode: Skipping to addresses step (step 2)");
+        wizardState.markStepComplete(1);
+        wizardState.goToStep(2);
+      } else if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
+        // Check if we should skip directly to products (step 3)
+        // This happens when customer AND addresses are already provided (from ViewProfileModal)
         console.log("Skipping to products step (step 3)");
         wizardState.markStepComplete(1);
         wizardState.markStepComplete(2);
         wizardState.goToStep(3);
       } else {
         // Mark step 1 as complete and move to step 2 (addresses)
-        // This happens in both edit mode and pharmacy mode since customer is already selected
+        // This happens in edit mode since customer is already selected
         wizardState.markStepComplete(1);
         wizardState.goToStep(2);
       }
@@ -214,38 +222,44 @@ const OrderCreationWizardComponent = ({
   }, []);
 
   // Define wizard steps - memoized to prevent recreation on every render
-  const steps: WizardStep[] = useMemo(() => [
-    {
-      number: 1,
-      label: "Customer",
-      icon: User,
-      description: "Select customer",
-    },
-    {
-      number: 2,
-      label: "Address",
-      icon: MapPin,
-      description: "Billing & shipping",
-    },
-    {
-      number: 3,
-      label: "Products",
-      icon: Package,
-      description: "Add items",
-    },
-    {
-      number: 4,
-      label: "Review",
-      icon: FileCheck,
-      description: "Verify order",
-    },
-    {
-      number: 5,
-      label: "Payment",
-      icon: CreditCard,
-      description: "Complete order",
-    },
-  ], []);
+  // For pharmacy mode, step 3 (Products) is skipped since they add products from browsing
+  const steps: WizardStep[] = useMemo(() => {
+    const allSteps = [
+      {
+        number: 1,
+        label: "Customer",
+        icon: User,
+        description: "Select customer",
+      },
+      {
+        number: 2,
+        label: "Address",
+        icon: MapPin,
+        description: "Billing & shipping",
+      },
+      {
+        number: 3,
+        label: "Products",
+        icon: Package,
+        description: isPharmacyMode ? "From cart" : "Add items",
+        hidden: isPharmacyMode, // Hide this step for pharmacy mode
+      },
+      {
+        number: 4,
+        label: "Review",
+        icon: FileCheck,
+        description: "Verify order",
+      },
+      {
+        number: 5,
+        label: "Payment",
+        icon: CreditCard,
+        description: "Complete order",
+      },
+    ];
+    
+    return allSteps;
+  }, [isPharmacyMode]);
 
   // Step validation with comprehensive error handling
   const validateCurrentStep = async (): Promise<boolean> => {
@@ -463,22 +477,47 @@ const OrderCreationWizardComponent = ({
         setIsSubmitting(false);
       }
     } else {
-      // Move to next step (goToNextStep already marks current step as complete)
-      wizardState.goToNextStep();
+      // For pharmacy mode, skip step 3 (Products) - go directly from step 2 to step 4
+      if (isPharmacyMode && wizardState.currentStep === 2) {
+        // Mark step 2 and 3 as complete, go to step 4
+        wizardState.markStepComplete(2);
+        wizardState.markStepComplete(3);
+        wizardState.goToStep(4);
+      } else {
+        // Move to next step (goToNextStep already marks current step as complete)
+        wizardState.goToNextStep();
+      }
       
       // Scroll to top of page for next step
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete]);
+  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete, isPharmacyMode]);
 
   const handleBack = useCallback(() => {
     // Clear validation errors when going back
     setValidationErrors([]);
-    wizardState.goToPreviousStep();
+    
+    // For pharmacy mode, handle step skipping
+    if (isPharmacyMode) {
+      // From step 5 (Payment) go to step 4 (Review)
+      if (wizardState.currentStep === 5) {
+        wizardState.goToStep(4);
+      }
+      // From step 4 (Review) skip step 3 and go to step 2 (Address)
+      else if (wizardState.currentStep === 4) {
+        wizardState.goToStep(2);
+      }
+      // From step 2 (Address) go to step 1 (Customer) - but customer is locked in pharmacy mode
+      else {
+        wizardState.goToPreviousStep();
+      }
+    } else {
+      wizardState.goToPreviousStep();
+    }
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [wizardState]);
+  }, [wizardState, isPharmacyMode]);
 
   const handleCancel = useCallback(() => {
     const hasData = 
@@ -539,6 +578,16 @@ const OrderCreationWizardComponent = ({
   };
 
   const handleStepClick = useCallback((stepNumber: number) => {
+    // For pharmacy mode, don't allow clicking on step 3 (Products)
+    if (isPharmacyMode && stepNumber === 3) {
+      toast({
+        title: "Not Available",
+        description: "Products are added from the product browsing page",
+        variant: "default",
+      });
+      return;
+    }
+    
     // Only allow navigation if step can be navigated to
     if (wizardState.canNavigateToStep(stepNumber)) {
       // Clear validation errors when navigating
@@ -554,7 +603,7 @@ const OrderCreationWizardComponent = ({
         variant: "destructive",
       });
     }
-  }, [wizardState, toast]);
+  }, [wizardState, toast, isPharmacyMode]);
 
   const handleEditItems = useCallback(() => {
     // Navigate to products step

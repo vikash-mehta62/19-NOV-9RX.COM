@@ -9,6 +9,9 @@ const WizardProgressIndicatorComponent = ({
   steps,
   onStepClick,
 }: WizardProgressIndicatorProps) => {
+  // Filter out hidden steps (e.g., step 3 in pharmacy mode)
+  const visibleSteps = useMemo(() => steps.filter(step => !step.hidden), [steps]);
+  
   const getStepStatus = (stepNumber: number) => {
     if (completedSteps.includes(stepNumber)) return "completed";
     if (stepNumber === currentStep) return "active";
@@ -37,7 +40,7 @@ const WizardProgressIndicatorComponent = ({
     <div className="w-full py-6" role="navigation" aria-label="Progress steps">
       {/* Desktop: Horizontal layout */}
       <ol className="hidden md:flex items-center justify-between">
-        {steps.map((step, index) => {
+        {visibleSteps.map((step, index) => {
           const status = getStepStatus(step.number);
           const Icon = step.icon;
           const isClickable = onStepClick && completedSteps.includes(step.number - 1);
@@ -87,7 +90,7 @@ const WizardProgressIndicatorComponent = ({
               </div>
 
               {/* Connecting Line */}
-              {index < steps.length - 1 && (
+              {index < visibleSteps.length - 1 && (
                 <div 
                   className="flex-1 h-0.5 mx-4 bg-gray-300 overflow-hidden"
                   role="presentation"
@@ -112,7 +115,7 @@ const WizardProgressIndicatorComponent = ({
 
       {/* Mobile: Vertical layout */}
       <ol className="md:hidden space-y-4">
-        {steps.map((step, index) => {
+        {visibleSteps.map((step, index) => {
           const status = getStepStatus(step.number);
           const Icon = step.icon;
           const isClickable = onStepClick && completedSteps.includes(step.number - 1);
@@ -144,7 +147,7 @@ const WizardProgressIndicatorComponent = ({
                     <Icon className="w-5 h-5" aria-hidden="true" />
                   )}
                 </button>
-                {index < steps.length - 1 && (
+                {index < visibleSteps.length - 1 && (
                   <div 
                     className="w-0.5 h-12 mt-2 bg-gray-300 overflow-hidden"
                     role="presentation"

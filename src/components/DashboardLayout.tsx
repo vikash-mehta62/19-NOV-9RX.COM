@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { useMemo } from "react"
 
 import { SidebarProvider, Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent } from "@/components/ui/sidebar"
 import {
@@ -38,6 +39,7 @@ import { TopBar } from "./dashboard/TopBar";
 import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
 import { AnnouncementDisplay } from "./AnnouncementDisplay"
+import { useCart } from "@/hooks/use-cart"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -46,6 +48,13 @@ interface DashboardLayoutProps {
 
 export function DashboardLayout({ children, role = "admin" }: DashboardLayoutProps) {
   const isMobile = useIsMobile()
+  const { cartItems } = useCart()
+  
+  // Calculate total cart items
+  const totalCartItems = useMemo(() => 
+    cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0), 
+    [cartItems]
+  )
 
   const menuItems = {
     admin: [
@@ -112,7 +121,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
     ],
     pharmacy: [
       { icon: Package, label: "Products", path: "/pharmacy/products" },
-      { icon: ShoppingCart, label: "Your Cart", path: "/pharmacy/order/create" },
+      { icon: ShoppingCart, label: "Your Cart", path: "/pharmacy/order/create", badge: totalCartItems > 0 ? totalCartItems.toString() : undefined },
       { icon: FileText, label: "My Orders", path: "/pharmacy/orders" },
       { icon: History, label: "Order History", path: "/pharmacy/order-history" },
       { icon: Receipt, label: "Invoices", path: "/pharmacy/invoices" },

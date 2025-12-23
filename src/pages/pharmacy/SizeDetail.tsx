@@ -10,23 +10,32 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   ArrowLeft,
   Heart,
   ShoppingCart,
   Package,
-  Truck,
   Plus,
   Minus,
   Check,
   Loader2,
-  Shield,
-  Clock,
   Star,
   Info,
   X,
-  Bell
+  Bell,
+  Palette,
+  Gift,
+  HelpCircle
 } from "lucide-react"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 export default function SizeDetail() {
   const { productId, sizeId } = useParams()
@@ -38,10 +47,10 @@ export default function SizeDetail() {
   const [data, setData] = useState<{ product: any; size: any; otherSizes: any[] } | null>(null)
   const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
-  const [selectedType, setSelectedType] = useState<"case" | "unit">("case")
   const [isAdding, setIsAdding] = useState(false)
   const [showZoom, setShowZoom] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
+  const [customization, setCustomization] = useState<{ enabled: boolean; text: string }>({ enabled: false, text: '' })
 
   const totalCartItems = useMemo(() => 
     cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0), 
@@ -57,7 +66,7 @@ export default function SizeDetail() {
 
     supabase
       .from("products")
-      .select("id, name, category, description, image_url, images, key_features, product_sizes(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost)")
+      .select("id, name, category, description, image_url, images, key_features, customization, product_sizes(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost)")
       .eq("id", productId)
       .single()
       .then(({ data: productData, error }) => {
@@ -75,9 +84,6 @@ export default function SizeDetail() {
           size: selectedSize,
           otherSizes
         })
-
-        if (selectedSize?.case) setSelectedType("case")
-        else if (selectedSize?.unit) setSelectedType("unit")
 
         setLoading(false)
       })
@@ -113,8 +119,19 @@ export default function SizeDetail() {
 
   const { product, size, otherSizes } = data
   const displayImage = size.image || product.image_url || product.images?.[0]
-  const currentPrice = selectedType === "case" ? (size.price || 0) : (size.price_per_case || 0)
-  const totalPrice = currentPrice * quantity
+  
+  // Pricing calculations
+  const casePrice = size.price || 0
+  const unitsPerCase = size.quantity_per_case || 0
+  const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
+  const customizationPrice = customization.enabled && product.customization?.allowed 
+    ? (product.customization.price || 0) * quantity
+    : 0
+  const totalPrice = (casePrice * quantity) + customizationPrice
+  
+  // Reward points calculation (1 point = $1)
+  const rewardPoints = Math.round(totalPrice)
+  
   const isOutOfStock = size.stock <= 0
   const isInCart = cartItems.some(item => item.productId === productId && item.sizes?.some((s: any) => s.id === sizeId))
 
@@ -129,7 +146,7 @@ export default function SizeDetail() {
     try {
       await addToCart({
         productId: product.id,
-        name: `${product.name} - ${size.size_value}${size.size_unit}`,
+        name: `${product.name} - ${size.size_value}${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
         price: totalPrice,
         image: getImageUrl(displayImage),
         shipping_cost: size.shipping_cost || 0,
@@ -137,19 +154,27 @@ export default function SizeDetail() {
           id: size.id,
           size_value: size.size_value,
           size_unit: size.size_unit,
-          price: currentPrice,
+          price: casePrice,
           quantity,
           sku: size.sku,
           total_price: totalPrice,
           shipping_cost: size.shipping_cost,
-          type: selectedType,
+          type: "case",
         }],
         quantity,
-        customizations: {},
-        notes: "",
+        customizations: customization.enabled ? {
+          customization_enabled: 'true',
+          customization_text: customization.text,
+          customization_price: (product.customization?.price || 0).toString()
+        } : {},
+        notes: customization.enabled ? `Customization: ${customization.text}` : "",
       })
-      toast({ title: "✅ Added to Cart" })
+      toast({ 
+        title: "✓ Added to Cart",
+        description: `${quantity} case${quantity > 1 ? 's' : ''} added successfully`
+      })
       setQuantity(1)
+      setCustomization({ enabled: false, text: '' })
     } catch {
       toast({ title: "Error", variant: "destructive" })
     } finally {
@@ -161,10 +186,10 @@ export default function SizeDetail() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
-              <ArrowLeft className="w-4 h-4 mr-1" /> Back
+            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
+              <ArrowLeft className="w-4 h-4" /> Back
             </Button>
             <img src="/logo.png" alt="Logo" className="h-8 w-auto hidden sm:block cursor-pointer" onClick={() => navigate("/pharmacy/products")} />
           </div>
@@ -189,140 +214,259 @@ export default function SizeDetail() {
 
       {/* Breadcrumb */}
       <div className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 py-2 text-sm text-gray-500">
+        <div className="max-w-6xl mx-auto px-4 py-2 text-sm text-gray-500">
           <span className="hover:text-emerald-600 cursor-pointer" onClick={() => navigate("/pharmacy/products")}>Products</span>
           {" / "}
           <span className="text-gray-900">{size.size_value}{size.size_unit}</span>
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 py-6">
+      <main className="max-w-6xl mx-auto px-4 py-6">
         <div className="grid lg:grid-cols-2 gap-8">
-          {/* Left */}
+          {/* Left - Image */}
           <div className="space-y-4">
-            <div className="relative bg-white rounded-2xl border aspect-square cursor-zoom-in" onClick={() => setShowZoom(true)}>
-              <Badge className="absolute top-4 right-4 bg-emerald-500 text-white">{product.category}</Badge>
-              <img src={getImageUrl(displayImage)} alt={product.name} className="w-full h-full object-contain p-8" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }} />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-white rounded-xl p-3 text-center border">
-                <Truck className="w-5 h-5 mx-auto text-emerald-500 mb-1" />
-                <p className="text-xs font-medium">Free Shipping</p>
-              </div>
-              <div className="bg-white rounded-xl p-3 text-center border">
-                <Shield className="w-5 h-5 mx-auto text-blue-500 mb-1" />
-                <p className="text-xs font-medium">Quality Assured</p>
-              </div>
-              <div className="bg-white rounded-xl p-3 text-center border">
-                <Clock className="w-5 h-5 mx-auto text-orange-500 mb-1" />
-                <p className="text-xs font-medium">Fast Delivery</p>
-              </div>
-            </div>
-
-            {otherSizes.length > 0 && (
-              <div className="bg-white rounded-xl border p-4">
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Package className="w-4 h-4 text-emerald-600" /> Other Sizes ({otherSizes.length})
-                </h3>
-                <div className="space-y-2 max-h-[280px] overflow-y-auto">
-                  {otherSizes.map((s) => (
-                    <button key={s.id} onClick={() => navigate(`/pharmacy/product/${productId}/${s.id}`)} className="w-full flex items-center gap-3 p-3 rounded-xl border hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left">
-                      <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
-                      <div className="flex-1">
-                        <p className="font-semibold">{s.size_value}{s.size_unit}</p>
-                        <p className="text-xs text-gray-500">SKU: {s.sku || 'N/A'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="font-bold text-emerald-600">${s.price?.toFixed(2)}</p>
-                        <p className={`text-xs ${s.stock > 0 ? 'text-green-600' : 'text-red-500'}`}>{s.stock > 0 ? 'In Stock' : 'Out'}</p>
-                      </div>
-                    </button>
-                  ))}
+            <div className="relative bg-white rounded-xl border aspect-square cursor-zoom-in" onClick={() => setShowZoom(true)}>
+              <Badge className="absolute top-4 left-4 bg-emerald-600 text-white z-10">{product.category}</Badge>
+              <img 
+                src={getImageUrl(displayImage)} 
+                alt={product.name} 
+                className="w-full h-full object-contain p-8" 
+                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }} 
+              />
+              {isOutOfStock && (
+                <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                  <Badge variant="secondary" className="text-lg px-4 py-2 bg-gray-100 text-gray-600">Out of Stock</Badge>
                 </div>
-              </div>
+              )}
+            </div>
+
+            {/* Other Sizes */}
+            {otherSizes.length > 0 && (
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                    <Package className="w-4 h-4 text-emerald-600" /> 
+                    Other Sizes ({otherSizes.length})
+                  </h3>
+                  <div className="space-y-2 max-h-[240px] overflow-y-auto">
+                    {otherSizes.map((s) => {
+                      const sUnitsPerCase = s.quantity_per_case || 0
+                      const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
+                      const sRewardPoints = Math.round(s.price)
+                      return (
+                        <button 
+                          key={s.id} 
+                          onClick={() => navigate(`/pharmacy/product/${productId}/${s.id}`)} 
+                          className="w-full flex items-center gap-3 p-3 rounded-lg border hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left"
+                        >
+                          <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-gray-900 truncate">{s.size_value}{s.size_unit}</p>
+                            {sUnitsPerCase > 0 && (
+                              <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
+                            )}
+                            <p className="text-xs text-emerald-600 flex items-center gap-1 mt-0.5">
+                              <Gift className="w-3 h-3" />
+                              Earn {sRewardPoints} points
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-gray-900">${s.price?.toFixed(2)}</p>
+                            <p className="text-xs text-gray-500">/ case</p>
+                          </div>
+                        </button>
+                      )
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             )}
           </div>
 
-          {/* Right */}
+          {/* Right - Details */}
           <div className="space-y-4">
+            {/* Product Title */}
             <div>
-              <h1 className="text-2xl font-bold uppercase">{product.name}</h1>
-              <p className="text-xl font-semibold text-emerald-600">{size.size_value}{size.size_unit}</p>
+              <h1 className="text-2xl font-bold text-gray-900 uppercase">{product.name}</h1>
+              <p className="text-xl font-semibold text-emerald-600 mt-1">{size.size_value}{size.size_unit}</p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="outline">SKU: {size.sku || 'N/A'}</Badge>
-              <Badge className={isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}>
+            {/* SKU & Stock */}
+            <div className="flex flex-wrap items-center gap-2">
+              {size.sku && <Badge variant="outline" className="text-xs">SKU: {size.sku}</Badge>}
+              <Badge className={isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}>
                 {isOutOfStock ? 'Out of Stock' : `In Stock (${size.stock})`}
               </Badge>
-              {size.quantity_per_case > 0 && <Badge variant="outline"><Package className="w-3 h-3 mr-1" />{size.quantity_per_case}/case</Badge>}
+              {unitsPerCase > 0 && (
+                <Badge variant="outline" className="text-xs flex items-center gap-1">
+                  <Package className="w-3 h-3" />{unitsPerCase}/case
+                </Badge>
+              )}
             </div>
 
-            <Card className="border-emerald-200 bg-emerald-50">
+            {/* Price Card */}
+            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
               <CardContent className="p-4">
-                <span className="text-3xl font-bold text-emerald-600">${currentPrice.toFixed(2)}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-3xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
+                  <span className="text-gray-500">/ case</span>
+                </div>
+                {unitsPerCase > 0 && (
+                  <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                    <Package className="w-4 h-4 text-gray-400" />
+                    {unitsPerCase} units per case · <span className="font-medium">${unitPrice.toFixed(2)} per unit</span>
+                  </p>
+                )}
+                {/* Reward Points - Primary Placement */}
+                <TooltipProvider>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Gift className="w-4 h-4 text-emerald-600" />
+                    <span className="text-sm text-emerald-700 font-medium">
+                      Earn {Math.round(casePrice)} Reward Points
+                    </span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[200px]">
+                        <p className="text-xs">Reward points can be redeemed on future orders. 1 point = $1 discount.</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
+                </TooltipProvider>
               </CardContent>
             </Card>
 
-            {(size.case || size.unit) && (
-              <div className="flex gap-2">
-                {size.case && (
-                  <Button variant={selectedType === "case" ? "default" : "outline"} className={`flex-1 h-11 ${selectedType === "case" ? "bg-emerald-600" : ""}`} onClick={() => setSelectedType("case")}>
-                    Case - ${size.price?.toFixed(2)}
-                  </Button>
-                )}
-                {size.unit && size.price_per_case && (
-                  <Button variant={selectedType === "unit" ? "default" : "outline"} className={`flex-1 h-11 ${selectedType === "unit" ? "bg-emerald-600" : ""}`} onClick={() => setSelectedType("unit")}>
-                    Unit - ${size.price_per_case?.toFixed(2)}
-                  </Button>
-                )}
-              </div>
-            )}
-
+            {/* Purchase Section */}
             {!isOutOfStock && (
-              <div className="bg-white rounded-xl border p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-gray-600">Quantity:</span>
-                  <div className="flex items-center bg-gray-100 rounded-lg">
-                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQuantity(q => Math.max(1, q - 1))} disabled={quantity <= 1}><Minus className="w-4 h-4" /></Button>
-                    <span className="w-10 text-center font-bold">{quantity}</span>
-                    <Button variant="ghost" size="icon" className="h-9 w-9" onClick={() => setQuantity(q => q + 1)}><Plus className="w-4 h-4" /></Button>
+              <Card>
+                <CardContent className="p-4 space-y-4">
+                  {/* Quantity */}
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-gray-700">Quantity</span>
+                    <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100" 
+                        onClick={() => setQuantity(q => Math.max(1, q - 1))} 
+                        disabled={quantity <= 1}
+                      >
+                        <Minus className="w-4 h-4" />
+                      </Button>
+                      <span className="w-12 text-center font-semibold">{quantity}</span>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100" 
+                        onClick={() => setQuantity(q => q + 1)}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center justify-between pt-3 border-t">
-                  <span>Total:</span>
-                  <span className="text-2xl font-bold text-emerald-600">${totalPrice.toFixed(2)}</span>
-                </div>
-                <Button className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 rounded-xl" onClick={handleAddToCart} disabled={isAdding || isInCart}>
-                  {isAdding ? <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Adding...</> : isInCart ? <><Check className="w-5 h-5 mr-2" />Added</> : <><ShoppingCart className="w-5 h-5 mr-2" />Add to Cart</>}
-                </Button>
-              </div>
+
+                  {/* Customization Option */}
+                  {product.customization?.allowed && (
+                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="customize-size"
+                          checked={customization.enabled}
+                          onCheckedChange={(checked) => setCustomization(prev => ({ ...prev, enabled: checked as boolean }))}
+                        />
+                        <Label htmlFor="customize-size" className="text-sm font-medium text-purple-700 cursor-pointer flex items-center gap-1">
+                          <Palette className="w-4 h-4" />
+                          Add Customization
+                          {product.customization.price > 0 && (
+                            <span className="text-purple-500 ml-1">(+${product.customization.price.toFixed(2)}/unit)</span>
+                          )}
+                        </Label>
+                      </div>
+                      {customization.enabled && (
+                        <Input
+                          placeholder="Enter customization details..."
+                          value={customization.text}
+                          onChange={(e) => setCustomization(prev => ({ ...prev, text: e.target.value }))}
+                          className="mt-2 text-sm border-purple-200"
+                        />
+                      )}
+                    </div>
+                  )}
+
+                  {/* Total */}
+                  <div className="py-3 border-t space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-700">Total</span>
+                      <span className="text-2xl font-bold text-emerald-600">${totalPrice.toFixed(2)}</span>
+                    </div>
+                    {/* Quantity-Aware Reward Points */}
+                    <div className="flex items-center justify-end gap-1 text-emerald-600">
+                      <Gift className="w-3.5 h-3.5" />
+                      <span className="text-sm font-medium">Earn: {rewardPoints} reward points</span>
+                    </div>
+                  </div>
+
+                  {/* Add to Cart */}
+                  <Button 
+                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-base" 
+                    onClick={handleAddToCart} 
+                    disabled={isAdding || isInCart}
+                  >
+                    {isAdding ? (
+                      <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Adding...</>
+                    ) : isInCart ? (
+                      <><Check className="w-5 h-5 mr-2" />Added to Cart</>
+                    ) : (
+                      <><ShoppingCart className="w-5 h-5 mr-2" />Add to Cart</>
+                    )}
+                  </Button>
+                  
+                  {/* Reward Reinforcement Under Add to Cart */}
+                  {!isInCart && (
+                    <p className="text-center text-xs text-emerald-600 flex items-center justify-center gap-1">
+                      <Gift className="w-3 h-3" />
+                      You'll earn {rewardPoints} reward points with this purchase
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
             )}
 
+            {/* Description */}
             {product.description && (
-              <Card><CardContent className="p-4">
-                <h3 className="font-semibold flex items-center gap-2 mb-2"><Info className="w-4 h-4 text-blue-500" />Description</h3>
-                <p className="text-gray-600 text-sm">{product.description}</p>
-              </CardContent></Card>
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold flex items-center gap-2 mb-2 text-gray-900">
+                    <Info className="w-4 h-4 text-blue-500" />Description
+                  </h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">{product.description}</p>
+                </CardContent>
+              </Card>
             )}
 
+            {/* Key Features */}
             {featuresList.length > 0 && (
-              <Card><CardContent className="p-4">
-                <h3 className="font-semibold flex items-center gap-2 mb-2"><Star className="w-4 h-4 text-yellow-500" />Key Features</h3>
-                <ul className="space-y-1">
-                  {featuresList.map((f: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                      <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />{f}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent></Card>
+              <Card>
+                <CardContent className="p-4">
+                  <h3 className="font-semibold flex items-center gap-2 mb-3 text-gray-900">
+                    <Star className="w-4 h-4 text-amber-500" />Key Features
+                  </h3>
+                  <ul className="space-y-2">
+                    {featuresList.map((f: string, i: number) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <Check className="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" />{f}
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
             )}
           </div>
         </div>
       </main>
 
+      {/* Image Zoom Modal */}
       {showZoom && (
         <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center" onClick={() => setShowZoom(false)}>
           <button className="absolute top-4 right-4 text-white p-2"><X className="w-8 h-8" /></button>

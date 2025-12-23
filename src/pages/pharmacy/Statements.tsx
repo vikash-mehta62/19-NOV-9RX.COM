@@ -5,12 +5,13 @@ import { Badge } from "@/components/ui/badge";
 import { 
   FileBarChart, TrendingUp, TrendingDown, Eye, Mail, Printer, Download, Loader2, Calendar
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { statementPDFGenerator } from "@/utils/statement-pdf-generator";
+import { statementService } from "@/services/statementService";
 import {
   Select,
   SelectContent,
@@ -42,54 +43,176 @@ interface Statement {
 const Statements = () => {
   const [statements, setStatements] = useState<Statement[]>([]);
   const [loading, setLoading] = useState(true);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear().toString());
   const userProfile = useSelector((state: RootState) => state.user.profile);
+  const { toast } = useToast();
+
+  // Generate available years (current year and 2 previous years)
+  const availableYears = Array.from({ length: 3 }, (_, i) => 
+    (new Date().getFullYear() - i).toString()
+  );
+
+  const fetchStatements = useCallback(async () => {
+    if (!userProfile?.id) return;
+    
+    setLoading(true);
+    try {
+      const year = parseInt(selectedYear);
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      // Generate statements for each month of the selected year
+      const monthlyStatements: Statement[] = [];
+      
+      // Determine how many months to show (all 12 for past years, up to current month for current year)
+      const monthsToShow = year < currentYear ? 12 : currentMonth + 1;
+      
+      for (let month = monthsToShow - 1; month >= 0; month--) {
+        const startDate = new Date(year, month, 1);
+        const endDate = new Date(year, month + 1, 0, 23, 59, 59, 999); // Last day of month
+        
+        try {
+          const statementData = await statementService.fetchStatementData(
+            userProfile.id,
+            startDate,
+            endDate
+          );
+          
+          const monthName = startDate.toLocaleString('default', { month: 'long' });
+          const isCurrentMonth = year === currentYear && month === currentMonth;
+          
+          monthlyStatements.push({
+            id: `${year}-${month}`,
+            period: `${monthName} ${year}`,
+            start_date: startDate.toISOString().split('T')[0],
+            end_date: endDate.toISOString().split('T')[0],
+            opening_balance: statementData.openingBalance,
+            closing_balance: statementData.closingBalance,
+            total_purchases: statementData.totalPurchases,
+            total_payments: statementData.totalPayments,
+            status: isCurrentMonth ? "current" : "available"
+          });
+        } catch (err) {
+          console.error(`Error fetching statement for ${month}/${year}:`, err);
+        }
+      }
+      
+      setStatements(monthlyStatements);
+    } catch (error) {
+      console.error("Error fetching statements:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load statements. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [userProfile?.id, selectedYear, toast]);
 
   useEffect(() => {
-    // Simulated statements data - replace with actual API call
-    const mockStatements: Statement[] = [
-      {
-        id: "1",
-        period: "December 2024",
-        start_date: "2024-12-01",
-        end_date: "2024-12-31",
-        opening_balance: 1250.00,
-        closing_balance: 890.50,
-        total_purchases: 2340.50,
-        total_payments: 2700.00,
-        status: "current"
-      },
-      {
-        id: "2",
-        period: "November 2024",
-        start_date: "2024-11-01",
-        end_date: "2024-11-30",
-        opening_balance: 800.00,
-        closing_balance: 1250.00,
-        total_purchases: 1850.00,
-        total_payments: 1400.00,
-        status: "available"
-      },
-      {
-        id: "3",
-        period: "October 2024",
-        start_date: "2024-10-01",
-        end_date: "2024-10-31",
-        opening_balance: 450.00,
-        closing_balance: 800.00,
-        total_purchases: 1200.00,
-        total_payments: 850.00,
-        status: "available"
-      },
-    ];
+    fetchStatements();
+  }, [fetchStatements]);
+
+  const handleDownloadStatement = async (statement: Statement) => {
+    if (!userProfile?.id) return;
     
-    setTimeout(() => {
-      setStatements(mockStatements);
-      setLoading(false);
-    }, 500);
-  }, [userProfile]);
+    setDownloadingId(statement.id);
+    try {
+      const startDate = new Date(statement.start_date);
+      const endDate = new Date(statement.end_date);
+      endDate.setHours(23, 59, 59, 999);
+      
+      const statementData = await statementService.fetchStatementData(
+        userProfile.id,
+        startDate,
+        endDate
+      );
+      
+      // Get user profile for PDF
+      const profile = await statementService.getUserProfile(userProfile.id);
+      
+      // Generate PDF using the correct interface
+      const pdfBlob = await statementPDFGenerator.createPDF(statementData, profile);
+      
+      // Download PDF
+      const url = URL.createObjectURL(pdfBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `statement_${statement.period.replace(' ', '_')}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Statement downloaded successfully"
+      });
+    } catch (error) {
+      console.error("Error downloading statement:", error);
+      toast({
+        title: "Error",
+        description: "Failed to download statement. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
+  const handlePrintStatement = async (statement: Statement) => {
+    if (!userProfile?.id) return;
+    
+    setDownloadingId(statement.id);
+    try {
+      const startDate = new Date(statement.start_date);
+      const endDate = new Date(statement.end_date);
+      endDate.setHours(23, 59, 59, 999);
+      
+      const statementData = await statementService.fetchStatementData(
+        userProfile.id,
+        startDate,
+        endDate
+      );
+      
+      const profile = await statementService.getUserProfile(userProfile.id);
+      
+      const pdfBlob = await statementPDFGenerator.createPDF(statementData, profile);
+      
+      // Open in new window for printing
+      const url = URL.createObjectURL(pdfBlob);
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          printWindow.print();
+        };
+      }
+    } catch (error) {
+      console.error("Error printing statement:", error);
+      toast({
+        title: "Error",
+        description: "Failed to print statement. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setDownloadingId(null);
+    }
+  };
 
   const currentStatement = statements.find(s => s.status === "current");
+
+  if (loading) {
+    return (
+      <DashboardLayout role="pharmacy">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="pharmacy">
@@ -109,15 +232,11 @@ const Statements = () => {
                 <SelectValue placeholder="Year" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2023">2023</SelectItem>
-                <SelectItem value="2022">2022</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={year}>{year}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Button variant="outline" className="gap-2">
-              <Mail className="w-4 h-4" />
-              Email Statement
-            </Button>
           </div>
         </div>
 
@@ -154,56 +273,82 @@ const Statements = () => {
           </Card>
         )}
 
+        {/* No Statements Message */}
+        {statements.length === 0 && (
+          <Card>
+            <CardContent className="p-8 text-center">
+              <FileBarChart className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-gray-900">No Statements Available</h3>
+              <p className="text-gray-500 mt-2">
+                No account activity found for {selectedYear}. Statements will appear here once you have transactions.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Statements Table */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Statement History</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Period</TableHead>
-                  <TableHead>Opening Balance</TableHead>
-                  <TableHead>Purchases</TableHead>
-                  <TableHead>Payments</TableHead>
-                  <TableHead>Closing Balance</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {statements.map((statement) => (
-                  <TableRow key={statement.id}>
-                    <TableCell className="font-medium">{statement.period}</TableCell>
-                    <TableCell>${statement.opening_balance.toFixed(2)}</TableCell>
-                    <TableCell className="text-red-600">+${statement.total_purchases.toFixed(2)}</TableCell>
-                    <TableCell className="text-green-600">-${statement.total_payments.toFixed(2)}</TableCell>
-                    <TableCell className="font-semibold">${statement.closing_balance.toFixed(2)}</TableCell>
-                    <TableCell>
-                      <Badge variant={statement.status === "current" ? "default" : "secondary"}>
-                        {statement.status === "current" ? "Current" : "Available"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="sm">
-                          <Printer className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+        {statements.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Statement History</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Period</TableHead>
+                    <TableHead>Opening Balance</TableHead>
+                    <TableHead>Purchases</TableHead>
+                    <TableHead>Payments</TableHead>
+                    <TableHead>Closing Balance</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {statements.map((statement) => (
+                    <TableRow key={statement.id}>
+                      <TableCell className="font-medium">{statement.period}</TableCell>
+                      <TableCell>${statement.opening_balance.toFixed(2)}</TableCell>
+                      <TableCell className="text-red-600">+${statement.total_purchases.toFixed(2)}</TableCell>
+                      <TableCell className="text-green-600">-${statement.total_payments.toFixed(2)}</TableCell>
+                      <TableCell className="font-semibold">${statement.closing_balance.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Badge variant={statement.status === "current" ? "default" : "secondary"}>
+                          {statement.status === "current" ? "Current" : "Available"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handleDownloadStatement(statement)}
+                            disabled={downloadingId === statement.id}
+                          >
+                            {downloadingId === statement.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Download className="w-4 h-4" />
+                            )}
+                          </Button>
+                          <Button 
+                            variant="ghost" 
+                            size="sm"
+                            onClick={() => handlePrintStatement(statement)}
+                            disabled={downloadingId === statement.id}
+                          >
+                            <Printer className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </DashboardLayout>
   );

@@ -379,7 +379,7 @@ export default function PharmacyCreateOrder() {
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <h2 className="text-lg font-semibold text-blue-900">Create New Order</h2>
           <p className="text-sm text-blue-700 mt-1">
-            Your customer information is pre-filled. You can modify addresses and add products.
+            Your customer information is pre-filled. Review your cart items and complete the order.
           </p>
         </div>
       </div>

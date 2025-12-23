@@ -30,6 +30,7 @@ import JsBarcode from "jsbarcode";
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
+import { PharmacyOrderDetails } from "@/components/pharmacy/PharmacyOrderDetails";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -1195,6 +1196,17 @@ export const OrderDetailsSheet = ({
 
 
   if (!currentOrder) return null;
+
+  // Use simplified view for pharmacy users (not editing, not PO)
+  if (userRole === "pharmacy" && !isEditing && !poIs) {
+    return (
+      <PharmacyOrderDetails 
+        order={currentOrder} 
+        open={open} 
+        onOpenChange={onOpenChange} 
+      />
+    );
+  }
 
   return (
     <>

@@ -3,10 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/supabaseClient'
 import { selectUserProfile } from '@/store/selectors/userSelectors'
 import { useSelector } from 'react-redux'
-import { X, Heart, ShoppingCart, Package, Truck, Plus, Minus, Check, Loader2, Maximize2, ExternalLink } from 'lucide-react'
+import { X, Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
 import { useCart } from '@/hooks/use-cart'
 import { useToast } from '@/hooks/use-toast'
 import { ProductDetails } from '../types/product.types'
@@ -24,7 +27,6 @@ interface InlineProductSizesProps {
 
 export const InlineProductSizes = ({
   product,
-  wishlistItems,
   onAddToWishlist,
   onRemoveFromWishlist,
   isInWishlist,
@@ -36,6 +38,7 @@ export const InlineProductSizes = ({
   const [isAdding, setIsAdding] = useState<Record<string, boolean>>({})
   const [fullProduct, setFullProduct] = useState<ProductDetails | null>(null)
   const [loading, setLoading] = useState(false)
+  const [customizations, setCustomizations] = useState<Record<string, { enabled: boolean; text: string }>>({})
   const { addToCart, cartItems } = useCart()
   const { toast } = useToast()
   const userProfile = useSelector(selectUserProfile)
@@ -84,6 +87,7 @@ export const InlineProductSizes = ({
           offer: "",
           endsIn: "",
           sku: productData.sku,
+          customizations: null,
           customization: {
             allowed: productData.customization?.allowed || false,
             options: productData.customization?.options || [],
@@ -220,16 +224,24 @@ export const InlineProductSizes = ({
     })
   }
 
-  const handleTypeChange = (sizeId: string, type: 'case' | 'unit') => {
-    setSelectedSizes(prev => ({
+  const handleCustomizationToggle = (sizeId: string, enabled: boolean) => {
+    setCustomizations(prev => ({
       ...prev,
-      [sizeId]: { ...prev[sizeId], type }
+      [sizeId]: { ...prev[sizeId], enabled, text: prev[sizeId]?.text || '' }
+    }))
+  }
+
+  const handleCustomizationTextChange = (sizeId: string, text: string) => {
+    setCustomizations(prev => ({
+      ...prev,
+      [sizeId]: { ...prev[sizeId], enabled: prev[sizeId]?.enabled || false, text }
     }))
   }
 
   const handleAddToCart = async (size: any) => {
     const sizeId = size.id
     const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
+    const customization = customizations[sizeId] || { enabled: false, text: '' }
     
     if (size.stock <= 0) {
       toast({
@@ -243,12 +255,19 @@ export const InlineProductSizes = ({
     setIsAdding(prev => ({ ...prev, [sizeId]: true }))
     
     try {
-      const currentPrice = selection.type === 'case' ? size.price : size.price_per_case
-      const totalPrice = currentPrice * selection.quantity
+      // Always use case price - unit price is just for reference
+      const currentPrice = size.price
+      
+      // Calculate customization price if enabled
+      const customizationPrice = customization.enabled && displayProduct.customization?.allowed 
+        ? (displayProduct.customization.basePrice || 0) * selection.quantity
+        : 0
+      
+      const totalPrice = (currentPrice * selection.quantity) + customizationPrice
 
       const cartItem = {
-        productId: displayProduct.id,
-        name: `${displayProduct.name} - ${size.size_value}${size.size_unit}`,
+        productId: displayProduct.id.toString(),
+        name: `${displayProduct.name} - ${size.size_value}${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
         price: totalPrice,
         image: getImageUrl(size.image),
         shipping_cost: size.shipping_cost || 0,
@@ -261,11 +280,15 @@ export const InlineProductSizes = ({
           sku: size.sku || "",
           total_price: totalPrice,
           shipping_cost: size.shipping_cost || 0,
-          type: selection.type
+          type: "case" // Always case - unit is just for reference
         }],
         quantity: selection.quantity,
-        customizations: {},
-        notes: ''
+        customizations: customization.enabled ? {
+          customization_enabled: 'true',
+          customization_text: customization.text,
+          customization_price: (displayProduct.customization?.basePrice || 0).toString()
+        } : {},
+        notes: customization.enabled ? `Customization: ${customization.text}` : ''
       }
 
       const success = await addToCart(cartItem)
@@ -273,12 +296,16 @@ export const InlineProductSizes = ({
       if (success) {
         toast({
           title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value}${size.size_unit} added!`,
+          description: `${displayProduct.name} ${size.size_value}${size.size_unit}${customization.enabled ? ' with customization' : ''} added!`,
         })
-        // Reset quantity after adding
+        // Reset quantity and customization after adding
         setSelectedSizes(prev => ({
           ...prev,
           [sizeId]: { ...prev[sizeId], quantity: 1 }
+        }))
+        setCustomizations(prev => ({
+          ...prev,
+          [sizeId]: { enabled: false, text: '' }
         }))
       }
     } catch (error) {
@@ -293,16 +320,18 @@ export const InlineProductSizes = ({
   }
 
   const handleWishlistToggle = async (sizeId?: string) => {
-    if (isInWishlist(displayProduct.id, sizeId)) {
-      await onRemoveFromWishlist(displayProduct.id, sizeId)
+    const productIdStr = displayProduct.id.toString()
+    if (isInWishlist(productIdStr, sizeId)) {
+      await onRemoveFromWishlist(productIdStr, sizeId)
     } else {
       await onAddToWishlist(displayProduct, sizeId)
     }
   }
 
   const isInCart = (sizeId: string) => {
+    const productIdStr = displayProduct.id.toString()
     return cartItems.some(
-      cartItem => cartItem.productId === displayProduct.id && 
+      cartItem => cartItem.productId === productIdStr && 
       cartItem.sizes?.some((s: any) => s.id === sizeId)
     )
   }
@@ -313,8 +342,9 @@ export const InlineProductSizes = ({
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <div 
-            className="relative w-20 h-20 bg-white rounded-xl overflow-hidden border-2 border-emerald-200 cursor-pointer hover:shadow-md transition-shadow group"
-            onClick={() => onImageClick(getImageUrl(displayProduct.images[0]))}
+            className="relative w-20 h-20 bg-white rounded-xl overflow-hidden border-2 border-emerald-200 cursor-pointer hover:shadow-md hover:border-emerald-400 transition-all group"
+            onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+            title="Click to view full product page"
           >
             <img
               src={getImageUrl(displayProduct.images[0])}
@@ -322,12 +352,18 @@ export const InlineProductSizes = ({
               className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
             />
-            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-              <Maximize2 className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-emerald-600/0 group-hover:bg-emerald-600/10 transition-colors flex items-center justify-center">
+              <ExternalLink className="w-5 h-5 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">{displayProduct.name}</h2>
+            <h2 
+              className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-emerald-600 transition-colors"
+              onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+              title="Click to view full product page"
+            >
+              {displayProduct.name}
+            </h2>
             <div className="flex items-center gap-3 mt-2">
               <Badge variant="outline" className="text-sm border-emerald-300 text-emerald-700">
                 {displayProduct.category}
@@ -340,7 +376,7 @@ export const InlineProductSizes = ({
               >
                 <Heart 
                   className={`w-5 h-5 ${
-                    isInWishlist(displayProduct.id) 
+                    isInWishlist(displayProduct.id.toString()) 
                       ? 'text-red-500 fill-red-500' 
                       : 'text-gray-400 hover:text-red-500'
                   }`} 
@@ -352,7 +388,15 @@ export const InlineProductSizes = ({
         
         <div className="flex items-center gap-2">
           {/* View Full Page Button */}
-     
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400"
+          >
+            <ExternalLink className="w-4 h-4 mr-1.5" />
+            View Full Page
+          </Button>
           
           <Button
             variant="ghost"
@@ -391,220 +435,197 @@ export const InlineProductSizes = ({
             {displayProduct.sizes.map((size) => {
               const sizeId = size.id
               const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
-              const currentPrice = selection.type === 'case' ? size.price : size.price_per_case
-              const totalPrice = currentPrice * selection.quantity
-              const stockStatus = size.stock <= 0 ? "Out of Stock" : size.stock < 10 ? "Low Stock" : "In Stock"
+              const customization = customizations[sizeId] || { enabled: false, text: '' }
+              const casePrice = size.price
+              const unitsPerCase = size.quantity_per_case || 0
+              const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
+              const customizationPrice = customization.enabled && displayProduct.customization?.allowed 
+                ? (displayProduct.customization.basePrice || 0) * selection.quantity
+                : 0
+              const totalPrice = (casePrice * selection.quantity) + customizationPrice
               const isOutOfStock = size.stock <= 0
               const sizeInCart = isInCart(sizeId)
               const hasDiscount = size.originalPrice > 0 && size.originalPrice > size.price
               const discountPercent = hasDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0
 
               return (
-                <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white'} ${isOutOfStock ? 'opacity-60' : ''} hover:shadow-md transition-shadow`}>
+                <Card key={sizeId} className={`${sizeInCart ? 'border-emerald-400 ring-1 ring-emerald-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-xl transition-all hover:shadow-md`}>
                   <CardContent className="p-4">
-                    {/* Size Header with Image */}
-                    <div className="flex items-start gap-3 mb-3">
-                      {/* Size Image */}
-                      <div 
-                        className="relative w-16 h-16 bg-gray-100 rounded-lg overflow-hidden border cursor-pointer hover:shadow-md transition-shadow group"
-                        onClick={() => onImageClick(getSizeImageUrl(size))}
-                      >
-                        <img
-                          src={getSizeImageUrl(size)}
-                          alt={`${size.size_value}${size.size_unit}`}
-                          className="w-full h-full object-contain p-1 group-hover:scale-110 transition-transform"
-                          onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
-                        />
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center">
-                          <Maximize2 className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
-                        </div>
+                    {/* Product Image */}
+                    <div 
+                      className="relative aspect-[4/3] bg-gray-50 rounded-lg overflow-hidden mb-3 cursor-pointer group"
+                      onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                      title="Click to view full product details"
+                    >
+                      <img
+                        src={getSizeImageUrl(size)}
+                        alt={`${size.size_value}${size.size_unit}`}
+                        className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
+                        onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
+                      />
+                      
+                      {/* Hover overlay with icon */}
+                      <div className="absolute inset-0 bg-emerald-600/0 group-hover:bg-emerald-600/5 transition-colors flex items-center justify-center">
+                        <ExternalLink className="w-6 h-6 text-emerald-600 opacity-0 group-hover:opacity-70 transition-opacity" />
                       </div>
-
-                      {/* Size Info */}
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-gray-900">
-                            {size.size_value}{size.size_unit}
-                          </h4>
-                          {hasDiscount && discountPercent > 5 && (
-                            <Badge className="bg-red-500 text-white text-xs">
-                              {discountPercent}% OFF
-                            </Badge>
-                          )}
-                          {sizeInCart && (
-                            <Badge className="bg-blue-500 text-white text-xs">
-                              <Check className="w-3 h-3 mr-1" />
-                              In Cart
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        {size.sku && (
-                          <p className="text-xs text-gray-500 mt-1">SKU: {size.sku}</p>
-                        )}
-                        
-                        {size.quantity_per_case > 0 && (
-                          <div className="flex items-center gap-1 mt-1">
-                            <Package className="w-3 h-3 text-purple-500" />
-                            <span className="text-xs text-gray-600">
-                              {size.quantity_per_case}/case
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleWishlistToggle(sizeId)}
-                        className="p-1 h-auto"
+                      
+                      {/* Discount Badge */}
+                      {hasDiscount && discountPercent > 5 && (
+                        <Badge className="absolute top-2 left-2 bg-red-500 text-white text-[10px]">
+                          {discountPercent}% OFF
+                        </Badge>
+                      )}
+                      
+                      {/* In Cart Badge */}
+                      {sizeInCart && (
+                        <Badge className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px]">
+                          <Check className="w-3 h-3 mr-1" /> In Cart
+                        </Badge>
+                      )}
+                      
+                      {/* Wishlist */}
+                      <button
+                        className={`absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center ${
+                          isInWishlist(displayProduct.id.toString(), sizeId) 
+                            ? 'bg-red-50 text-red-500' 
+                            : 'bg-white/80 text-gray-400 hover:text-red-500'
+                        }`}
+                        onClick={(e) => { e.stopPropagation(); handleWishlistToggle(sizeId) }}
                       >
-                        <Heart 
-                          className={`w-4 h-4 ${
-                            isInWishlist(displayProduct.id, sizeId) 
-                              ? 'text-red-500 fill-red-500' 
-                              : 'text-gray-400 hover:text-red-500'
-                          }`} 
-                        />
-                      </Button>
-                    </div>
-
-                    {/* Price */}
-                    <div className="flex items-baseline gap-2 mb-3">
-                      <span className="text-lg font-bold text-emerald-600">
-                        ${currentPrice.toFixed(2)}
-                      </span>
-                      {hasDiscount && (
-                        <span className="text-sm text-gray-400 line-through">
-                          ${size.originalPrice.toFixed(2)}
-                        </span>
+                        <Heart className={`w-3.5 h-3.5 ${isInWishlist(displayProduct.id.toString(), sizeId) ? 'fill-current' : ''}`} />
+                      </button>
+                      
+                      {/* Out of Stock Overlay */}
+                      {isOutOfStock && (
+                        <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
+                          <Badge variant="secondary" className="bg-gray-100 text-gray-600">Out of Stock</Badge>
+                        </div>
                       )}
                     </div>
 
+                    {/* Product Name + Size */}
+                    <h4 
+                      className="font-semibold text-gray-900 text-sm leading-tight mb-1 cursor-pointer hover:text-emerald-600"
+                      onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                    >
+                      {displayProduct.name}
+                      <span className="text-emerald-600"> – {size.size_value}{size.size_unit}</span>
+                    </h4>
+
+                    {/* SKU */}
+                    {size.sku && (
+                      <p className="text-[10px] text-gray-400 mb-2">SKU: {size.sku}</p>
+                    )}
+
+                    {/* Case Price - Large & Bold */}
+                    <div className="mb-1">
+                      <span className="text-xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
+                      <span className="text-sm text-gray-500 ml-1">/ case</span>
+                      {hasDiscount && (
+                        <span className="text-sm text-gray-400 line-through ml-2">${size.originalPrice.toFixed(2)}</span>
+                      )}
+                    </div>
+
+                    {/* Units per Case + Unit Price */}
+                    {unitsPerCase > 0 && (
+                      <div className="flex items-center text-xs text-gray-500 mb-2">
+                        <Package className="w-3.5 h-3.5 mr-1 text-gray-400" />
+                        <span>{unitsPerCase} units per case</span>
+                        <span className="mx-1.5">·</span>
+                        <span>${unitPrice.toFixed(2)} per unit</span>
+                      </div>
+                    )}
+
                     {/* Stock Status */}
-                    <div className={`flex items-center gap-1 mb-3 text-sm ${
-                      stockStatus === "In Stock" ? "text-green-600" : 
-                      stockStatus === "Low Stock" ? "text-amber-600" : "text-red-600"
-                    }`}>
-                      <div className={`w-2 h-2 rounded-full ${
-                        stockStatus === "In Stock" ? "bg-green-500" : 
-                        stockStatus === "Low Stock" ? "bg-amber-500" : "bg-red-500"
-                      }`}></div>
-                      {stockStatus}
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <span className={`w-2 h-2 rounded-full ${isOutOfStock ? 'bg-red-500' : 'bg-emerald-500'}`} />
+                      <span className={`text-xs font-medium ${isOutOfStock ? 'text-red-600' : 'text-emerald-600'}`}>
+                        {isOutOfStock ? 'Out of Stock' : 'In Stock'}
+                      </span>
+                      {!isOutOfStock && size.stock < 10 && (
+                        <span className="text-xs text-amber-600">({size.stock} left)</span>
+                      )}
                     </div>
 
                     {!isOutOfStock && (
                       <>
-                        {/* Case/Unit Toggle */}
-                        {(size.case || size.unit) && (
-                          <div className="flex gap-2 mb-3">
-                            {size.case && (
-                              <Button
-                                variant={selection.type === "case" ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleTypeChange(sizeId, "case")}
-                                className={`flex-1 h-8 text-xs ${
-                                  selection.type === "case" 
-                                    ? "bg-emerald-600 hover:bg-emerald-700" 
-                                    : "hover:bg-emerald-50"
-                                }`}
-                              >
-                                Case
-                              </Button>
-                            )}
-                            {size.unit && (
-                              <Button
-                                variant={selection.type === "unit" ? "default" : "outline"}
-                                size="sm"
-                                onClick={() => handleTypeChange(sizeId, "unit")}
-                                className={`flex-1 h-8 text-xs ${
-                                  selection.type === "unit" 
-                                    ? "bg-emerald-600 hover:bg-emerald-700" 
-                                    : "hover:bg-emerald-50"
-                                }`}
-                              >
-                                Unit
-                              </Button>
+                        {/* Customization Option */}
+                        {displayProduct.customization?.allowed && (
+                          <div className="mb-3 p-2.5 bg-purple-50 rounded-lg border border-purple-100">
+                            <div className="flex items-center gap-2">
+                              <Checkbox
+                                id={`customize-${sizeId}`}
+                                checked={customization.enabled}
+                                onCheckedChange={(checked) => handleCustomizationToggle(sizeId, checked as boolean)}
+                              />
+                              <Label htmlFor={`customize-${sizeId}`} className="text-xs font-medium text-purple-700 cursor-pointer flex items-center gap-1">
+                                <Palette className="w-3.5 h-3.5" />
+                                Add Customization
+                                {displayProduct.customization.basePrice > 0 && (
+                                  <span className="text-purple-500">(+${displayProduct.customization.basePrice.toFixed(2)}/unit)</span>
+                                )}
+                              </Label>
+                            </div>
+                            {customization.enabled && (
+                              <Input
+                                placeholder="Enter customization details..."
+                                value={customization.text}
+                                onChange={(e) => handleCustomizationTextChange(sizeId, e.target.value)}
+                                className="mt-2 text-xs h-8 border-purple-200"
+                              />
                             )}
                           </div>
                         )}
 
-                        {/* Quantity Controls */}
-                        <div className="flex items-center justify-between gap-3 mb-3">
-                          <div className="flex items-center gap-2 bg-gray-100 rounded-lg p-1">
+                        {/* Quantity + Add to Cart */}
+                        <div className="flex items-center gap-2">
+                          {/* Quantity Selector */}
+                          <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 rounded hover:bg-white"
+                              className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100"
                               onClick={() => handleQuantityChange(sizeId, -1)}
                               disabled={selection.quantity <= 1}
                             >
-                              <Minus className="w-3 h-3" />
+                              <Minus className="w-4 h-4" />
                             </Button>
-                            <span className="w-8 text-center text-sm font-semibold">
-                              {selection.quantity}
-                            </span>
+                            <span className="w-10 text-center font-semibold text-sm">{selection.quantity}</span>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-7 w-7 rounded hover:bg-white"
+                              className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100"
                               onClick={() => handleQuantityChange(sizeId, 1)}
                               disabled={selection.quantity >= size.stock}
                             >
-                              <Plus className="w-3 h-3" />
+                              <Plus className="w-4 h-4" />
                             </Button>
                           </div>
-                          
-                          <div className="text-right">
-                            <p className="text-xs text-gray-500">Total</p>
-                            <p className="text-sm font-bold text-emerald-700">
-                              ${totalPrice.toFixed(2)}
-                            </p>
-                          </div>
+
+                          {/* Add to Cart */}
+                          <Button
+                            className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+                            onClick={() => handleAddToCart(size)}
+                            disabled={isAdding[sizeId] || sizeInCart}
+                          >
+                            {isAdding[sizeId] ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : sizeInCart ? (
+                              <><Check className="w-4 h-4 mr-1" /> Added</>
+                            ) : (
+                              <><ShoppingCart className="w-4 h-4 mr-1" /> Add to Cart</>
+                            )}
+                          </Button>
                         </div>
 
-                        {/* Add to Cart Button */}
-                        <Button
-                          className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700"
-                          onClick={() => handleAddToCart(size)}
-                          disabled={isAdding[sizeId] || sizeInCart}
-                        >
-                          {isAdding[sizeId] ? (
-                            <>
-                              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                              Adding...
-                            </>
-                          ) : sizeInCart ? (
-                            <>
-                              <Check className="w-4 h-4 mr-2" />
-                              Added to Cart
-                            </>
-                          ) : (
-                            <>
-                              <ShoppingCart className="w-4 h-4 mr-2" />
-                              Add to Cart
-                            </>
-                          )}
-                        </Button>
+                        {/* Total - Show when quantity > 1 */}
+                        {selection.quantity > 1 && (
+                          <div className="text-right text-xs text-gray-500 mt-2">
+                            Total: <span className="font-semibold text-gray-700">${totalPrice.toFixed(2)}</span>
+                          </div>
+                        )}
                       </>
                     )}
-
-                    {/* Free Delivery */}
-                    <div className="flex items-center justify-center gap-1 mt-2 text-xs text-blue-600">
-                      <Truck className="w-3 h-3" />
-                      <span>Free Delivery Available</span>
-                    </div>
-
-                    {/* View Full Details Link */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="w-full mt-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                      onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
-                    >
-                      <ExternalLink className="w-3 h-3 mr-1" />
-                      View Full Details
-                    </Button>
                   </CardContent>
                 </Card>
               )

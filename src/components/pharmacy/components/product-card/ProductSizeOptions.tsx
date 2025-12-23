@@ -78,8 +78,8 @@ export const ProductSizeOptions = ({
         const isOutOfStock = size.stock <= 0;
         const isMaxReached = quantity[size.id] >= size.stock;
         const isSelected = selectedSizes.includes(sizeId);
-        const selectedType = selectedTypeBySize[sizeId] || "case";
-        const unitPrice = selectedType === "case" ? size.price : size.price_per_case;
+        // Always use case price - unit price is just for reference
+        const unitPrice = size.price;
         const totalPrice = unitPrice * (quantity[size.id] || 1);
         const imageUrl = getSizeImageUrl(size);
 
@@ -188,42 +188,23 @@ export const ProductSizeOptions = ({
                 )}
               </div>
 
-              {/* Case/Unit Toggle - Show when selected */}
+              {/* Case/Unit - Case is purchasable, Unit is reference only */}
               {isSelected && (size.case || size.unit) && (
                 <div className="flex gap-1 pt-2" onClick={(e) => e.stopPropagation()}>
                   {size.case && (
                     <Button
-                      variant={selectedType === "case" ? "default" : "outline"}
+                      variant="default"
                       size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleType(sizeId, "case");
-                      }}
-                      className={`flex-1 h-7 text-xs ${
-                        selectedType === "case" 
-                          ? "bg-emerald-600 hover:bg-emerald-700" 
-                          : "hover:bg-emerald-50 hover:border-emerald-300"
-                      }`}
+                      className="flex-1 h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
                     >
                       Case
                     </Button>
                   )}
-                  {size.unit && (
-                    <Button
-                      variant={selectedType === "unit" ? "default" : "outline"}
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleType(sizeId, "unit");
-                      }}
-                      className={`flex-1 h-7 text-xs ${
-                        selectedType === "unit" 
-                          ? "bg-emerald-600 hover:bg-emerald-700" 
-                          : "hover:bg-emerald-50 hover:border-emerald-300"
-                      }`}
-                    >
-                      Unit
-                    </Button>
+                  {size.unit && size.price_per_case && (
+                    <div className="flex-1 h-7 flex items-center justify-center bg-gray-100 rounded-md border border-gray-200 text-gray-500 text-[10px]">
+                      Unit ${size.price_per_case?.toFixed(2)}
+                      <span className="ml-0.5 text-[8px]">(ref)</span>
+                    </div>
                   )}
                 </div>
               )}

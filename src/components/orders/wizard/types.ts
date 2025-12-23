@@ -5,6 +5,7 @@ export interface WizardStep {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   description: string;
+  hidden?: boolean; // For pharmacy mode, step 3 is hidden
 }
 
 export interface WizardState {

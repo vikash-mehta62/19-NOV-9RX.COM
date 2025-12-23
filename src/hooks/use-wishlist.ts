@@ -22,56 +22,68 @@ export const useWishlist = () => {
 
   // Fetch wishlist items
   const fetchWishlist = async () => {
-    if (!userProfile?.id) return
+    if (!userProfile?.id) {
+      setLoading(false)
+      return
+    }
 
     try {
-      const { data, error } = await supabase
-  .from('wishlist')
-  .select(`
-    id,
-    user_id,
-    product_id,
-    size_id,
-    created_at,
+      // First, fetch wishlist items
+      const { data: wishlistData, error: wishlistError } = await supabase
+        .from('wishlist')
+        .select('id, user_id, product_id, size_id, created_at')
+        .eq('user_id', userProfile.id)
+        .order('created_at', { ascending: false })
 
-    product:products (
-      id,
-      name,
-      description,
-      base_price,
-      category,
-      subcategory,
-      image_url,
-      images,
-      sku,
-      current_stock,
+      if (wishlistError) throw wishlistError
 
-      sizes:product_sizes (
-        id,
-        size_value,
-        size_unit,
-        price,
-        stock,
-        image,
-        images
-      )
-    ),
+      if (!wishlistData || wishlistData.length === 0) {
+        setWishlistItems([])
+        setLoading(false)
+        return
+      }
 
-    selected_size:product_sizes!wishlist_size_id_fkey (
-      id,
-      size_value,
-      size_unit,
-      price,
-      stock
-    )
-  `)
-  .eq('user_id', userProfile.id)
-  .order('created_at', { ascending: false })
+      // Get unique product IDs
+      const productIds = [...new Set(wishlistData.map(item => item.product_id))]
 
+      // Fetch products with their sizes
+      const { data: productsData, error: productsError } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          description,
+          base_price,
+          category,
+          subcategory,
+          image_url,
+          images,
+          sku,
+          current_stock,
+          sizes:product_sizes (
+            id,
+            size_value,
+            size_unit,
+            price,
+            stock,
+            image,
+            images
+          )
+        `)
+        .in('id', productIds)
 
-      if (error) throw error
+      if (productsError) throw productsError
 
-      setWishlistItems(data || [])
+      // Create a map of products by ID
+      const productsMap = new Map(productsData?.map(p => [p.id, p]) || [])
+
+      // Combine wishlist items with product data
+      const itemsWithProducts = wishlistData.map(item => ({
+        ...item,
+        product: productsMap.get(item.product_id) || null
+      }))
+
+      setWishlistItems(itemsWithProducts)
     } catch (error) {
       console.error('Error fetching wishlist:', error)
       toast({

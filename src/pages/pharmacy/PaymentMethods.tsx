@@ -5,7 +5,7 @@ import { Shield, Lock, CreditCard } from "lucide-react";
 
 export default function PaymentMethods() {
   return (
-    <DashboardLayout>
+    <DashboardLayout role="pharmacy">
       <div className="container max-w-4xl mx-auto py-6 space-y-6">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Payment Methods</h1>

@@ -120,7 +120,8 @@ export const FloatingCartButton = () => {
                         className="flex-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
                         onClick={() => {
                           setIsExpanded(false);
-                          navigate("/pharmacy/cart");
+                          // Navigate to checkout/order create page where full cart is shown
+                          navigate("/pharmacy/order/create");
                         }}
                       >
                         View Cart

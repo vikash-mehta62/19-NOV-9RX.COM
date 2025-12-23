@@ -284,47 +284,65 @@ const CreateOrderPaymentForm = ({
 
     const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
 
-    const paymentData =
-      paymentType === "credit_card"
+    // Build payment data for Supabase Edge Function
+    const nameParts = (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount).split(" ");
+    const firstName = nameParts[0] || "Customer";
+    const lastName = nameParts.slice(1).join(" ") || "Customer";
+
+    const paymentRequestData = {
+      payment: paymentType === "credit_card"
         ? {
-            paymentType,
-            amount: formData.amount,
+            type: "card" as const,
             cardNumber: formData.cardNumber.replace(/\s/g, ""),
             expirationDate: formData.expirationDate,
             cvv: formData.cvv,
             cardholderName: formData.cardholderName,
-            address: formData.address,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.zip,
-            country: formData.country,
-            invoiceNumber: invoiceNumber,
           }
         : {
-            paymentType,
-            amount: formData.amount,
-            accountType: formData.accountType,
+            type: "ach" as const,
+            accountType: formData.accountType as "checking" | "savings",
             routingNumber: formData.routingNumber,
             accountNumber: formData.accountNumber,
             nameOnAccount: formData.nameOnAccount,
-            address: formData.address,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.zip,
-            country: formData.country,
-            invoiceNumber: invoiceNumber,
-          };
+          },
+      amount: formData.amount,
+      invoiceNumber: invoiceNumber,
+      customerEmail: formDataa?.customerInfo?.email || "",
+      billing: {
+        firstName,
+        lastName,
+        address: formData.address,
+        city: formData.city,
+        state: formData.state,
+        zip: formData.zip,
+        country: formData.country,
+      },
+    };
 
     try {
-      const response = await axios.post("/pay", paymentData);
-      
-      if (response.status === 200) {
-        await processOrder(response, cleanedCartItems, invoiceNumber, newInvNo, inData);
+      // Call Supabase Edge Function for payment processing
+      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
+        "process-payment",
+        { body: paymentRequestData }
+      );
+
+      if (paymentError) {
+        throw new Error(paymentError.message || "Payment processing failed");
       }
+
+      if (!paymentResponse?.success) {
+        throw new Error(paymentResponse?.error || "Payment was declined");
+      }
+
+      // Payment successful - process the order
+      const response = { data: paymentResponse };
+      await processOrder(response, cleanedCartItems, invoiceNumber, newInvNo, inData);
     } catch (error: any) {
       setLoading(false);
       
-      if (error.response?.data?.errors?.error?.[0]?.errorCode === "27") {
+      const errorMessage = error?.message || "Something went wrong. Please try again.";
+      
+      if (errorMessage.includes("billing address") || error?.errorCode === "27") {
         toast({
           title: "Payment Declined",
           description: "Your billing address does not match your card's registered address. Please verify and try again.",
@@ -334,7 +352,7 @@ const CreateOrderPaymentForm = ({
       } else {
         toast({
           title: "Payment Failed",
-          description: error.response?.data?.message || "Something went wrong. Please try again.",
+          description: errorMessage,
           variant: "destructive",
           duration: 5000,
         });
@@ -430,14 +448,14 @@ const CreateOrderPaymentForm = ({
         total_amount: parseFloat((calculatedTotal + (isCus ? 0.5 : 0)).toString()),
         payment_status: "paid",
         payment_transication: response.data.transactionId || "",
-        payment_method: "card",
+        payment_method: "card" as const,
         shippin_cost: totalShippingCost || 0,
         notes: newOrder.notes || null,
         items: newOrder.items || [],
         customer_info: newOrder.customerInfo || {
-          name: newOrder.customerInfo?.name,
-          email: newOrder.customerInfo?.email || "",
-          phone: newOrder.customerInfo?.phone || "",
+          name: (newOrder.customerInfo as any)?.name,
+          email: (newOrder.customerInfo as any)?.email || "",
+          phone: (newOrder.customerInfo as any)?.phone || "",
         },
         shipping_info: orderData.shippingAddress || {},
         subtotal: calculatedTotal || parseFloat(calculatedTotal.toString()),
@@ -445,7 +463,7 @@ const CreateOrderPaymentForm = ({
 
       const { data: invoicedata2, error } = await supabase
         .from("invoices")
-        .insert(invoiceData)
+        .insert(invoiceData as any)
         .select()
         .single();
 
@@ -485,12 +503,14 @@ const CreateOrderPaymentForm = ({
       await updateProductStock(cleanedCartItems);
 
       // Save card if user opted to save it
+      // Note: For full card saving, we would need to create a customer profile in Authorize.net
+      // For now, we save the masked card details locally for display purposes
       if (saveCard && paymentType === "credit_card" && userProfile?.id) {
         try {
           // Extract card details for saving (masked)
           const cardLast4 = formData.cardNumber.replace(/\s/g, "").slice(-4);
-          const expMonth = formData.expirationDate.slice(0, 2);
-          const expYear = "20" + formData.expirationDate.slice(2, 4);
+          const expMonth = parseInt(formData.expirationDate.slice(0, 2));
+          const expYear = parseInt("20" + formData.expirationDate.slice(2, 4));
           
           // Detect card type from number
           const cardNum = formData.cardNumber.replace(/\s/g, "");
@@ -500,22 +520,33 @@ const CreateOrderPaymentForm = ({
           else if (/^3[47]/.test(cardNum)) cardType = "amex";
           else if (/^6(?:011|5)/.test(cardNum)) cardType = "discover";
 
+          // Split cardholder name
+          const nameParts = formData.cardholderName.split(" ");
+          const firstName = nameParts[0] || "";
+          const lastName = nameParts.slice(1).join(" ") || "";
+
           await supabase.from("saved_payment_methods").insert({
             profile_id: userProfile.id,
+            payment_profile_id: `local_${Date.now()}`, // Placeholder - would be Authorize.net profile ID
             method_type: "card",
             card_last_four: cardLast4,
             card_type: cardType,
             card_expiry_month: expMonth,
             card_expiry_year: expYear,
-            cardholder_name: formData.cardholderName,
-            billing_address: {
-              street: formData.address,
-              city: formData.city,
-              state: formData.state,
-              zip: formData.zip,
-              country: formData.country,
-            },
+            billing_first_name: firstName,
+            billing_last_name: lastName,
+            billing_address: formData.address,
+            billing_city: formData.city,
+            billing_state: formData.state,
+            billing_zip: formData.zip,
+            billing_country: formData.country,
             is_default: false,
+            nickname: `${cardType.charAt(0).toUpperCase() + cardType.slice(1)} ending in ${cardLast4}`,
+          });
+          
+          toast({
+            title: "Card Saved",
+            description: "Your card has been saved for future purchases.",
           });
         } catch (saveError) {
           console.error("Failed to save card:", saveError);

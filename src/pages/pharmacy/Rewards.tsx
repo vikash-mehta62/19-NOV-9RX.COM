@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useSelector } from "react-redux";
+import { selectUserProfile } from "@/store/selectors/userSelectors";
 
 interface RewardItem {
   id: string;
@@ -46,6 +48,7 @@ interface RewardsConfig {
 
 const Rewards = () => {
   const { toast } = useToast();
+  const userProfile = useSelector(selectUserProfile);
   const [loading, setLoading] = useState(true);
   const [redeeming, setRedeeming] = useState<string | null>(null);
   
@@ -62,26 +65,27 @@ const Rewards = () => {
   const [recentActivity, setRecentActivity] = useState<RewardTransaction[]>([]);
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (userProfile?.id) {
+      fetchData();
+    }
+  }, [userProfile?.id]);
+
+  // Set points from userProfile when it changes
+  useEffect(() => {
+    if (userProfile) {
+      setCurrentPoints(userProfile.reward_points || 0);
+      setLifetimePoints(userProfile.lifetime_reward_points || 0);
+    }
+  }, [userProfile]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const userId = sessionStorage.getItem("userId");
+      const userId = userProfile?.id;
       if (!userId) return;
 
-      // Fetch user's reward points
-      const { data: userData } = await supabase
-        .from("profiles")
-        .select("reward_points, lifetime_reward_points, reward_tier")
-        .eq("id", userId)
-        .single();
-
-      if (userData) {
-        setCurrentPoints(userData.reward_points || 0);
-        setLifetimePoints(userData.lifetime_reward_points || 0);
-      }
+      // Use points from userProfile (already set in useEffect above)
+      const points = userProfile?.reward_points || 0;
 
       // Fetch config
       const { data: configData } = await supabase
@@ -104,7 +108,6 @@ const Rewards = () => {
         setTiers(tiersData);
         
         // Determine current and next tier
-        const points = userData?.reward_points || 0;
         let current = tiersData[0];
         let next: RewardTier | null = null;
         
@@ -154,7 +157,7 @@ const Rewards = () => {
     
     setRedeeming(reward.id);
     try {
-      const userId = sessionStorage.getItem("userId");
+      const userId = userProfile?.id;
       if (!userId) return;
 
       const newPoints = currentPoints - reward.points_required;
