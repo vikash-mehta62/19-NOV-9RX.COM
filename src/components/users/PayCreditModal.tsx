@@ -66,7 +66,6 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId }: PayCred
         .eq("id", userId)
         .single();
       if (error || !profile) return;
-      console.log("User Profile:", profile);
 
       setCardHolderName(profile.display_name || "");
 
@@ -184,14 +183,12 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId }: PayCred
         zip,
         country,
       });
-      console.log(response, "payment response")
 
       if (response.status !== 200 || !response.data.success)
         throw new Error(response.data?.message || "Card payment failed");
 
       // Store transactionId from response
       transactionId = response.data.transactionId;
-      console.log("Transaction ID:", transactionId);
     }
 
     // Insert transaction record

@@ -1,7 +1,6 @@
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { OrderStatementData, OrderStatementRecord } from "@/types/orderStatement";
-import { ORDER_PDF_CONFIG, formatCurrency, PDF_COLORS, PDF_FONTS, TABLE_STYLES } from "./orderPDFConfig";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -11,43 +10,77 @@ interface jsPDFWithAutoTable extends jsPDF {
   };
 }
 
+// Professional color scheme - Emerald/Teal theme (matching statement-pdf-generator)
+const COLORS = {
+  primary: [16, 185, 129] as [number, number, number],      // Emerald-500
+  primaryDark: [5, 150, 105] as [number, number, number],   // Emerald-600
+  secondary: [20, 184, 166] as [number, number, number],    // Teal-500
+  accent: [245, 158, 11] as [number, number, number],       // Amber-500
+  danger: [239, 68, 68] as [number, number, number],        // Red-500
+  success: [34, 197, 94] as [number, number, number],       // Green-500
+  warning: [251, 191, 36] as [number, number, number],      // Amber-400
+  dark: [31, 41, 55] as [number, number, number],           // Gray-800
+  medium: [107, 114, 128] as [number, number, number],      // Gray-500
+  light: [243, 244, 246] as [number, number, number],       // Gray-100
+  white: [255, 255, 255] as [number, number, number],
+  blue: [59, 130, 246] as [number, number, number],         // Blue-500
+};
+
 /**
- * OrderPDFGenerator class for creating landscape-oriented PDF documents from order statement data
- * Requirements: 2.1, 2.2, 2.4, 6.1, 6.2, 6.3, 6.4
+ * Format currency amounts
+ */
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount);
+}
+
+/**
+ * OrderPDFGenerator class for creating professional PDF documents from order statement data
  */
 export class OrderPDFGenerator {
+  private margin = 12;
+
   /**
-   * Create PDF document from order statement data in landscape orientation
-   * Requirements: 2.1, 2.2, 2.4, 6.1, 6.2, 6.3, 6.4
+   * Create professional PDF document from order statement data in landscape orientation
    */
   async createPDF(statementData: OrderStatementData): Promise<Blob> {
     try {
-      // Initialize PDF document in landscape orientation (Requirement 2.1, 6.3)
       const doc = new jsPDF({
-        orientation: ORDER_PDF_CONFIG.orientation,
-        unit: ORDER_PDF_CONFIG.unit,
-        format: ORDER_PDF_CONFIG.format,
+        orientation: "landscape",
+        unit: "mm",
+        format: "a4",
       }) as jsPDFWithAutoTable;
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const { margins } = ORDER_PDF_CONFIG;
 
-      // Add professional header with company logo, business name, and contact information
-      // Requirements: 2.1, 2.2, 6.1, 6.2
-      await this.addHeader(doc, statementData, pageWidth, margins);
+      // Add header with gradient effect
+      this.addHeaderGradient(doc, pageWidth);
 
-      // Add "ORDER STATEMENT" title with date range display
-      // Requirements: 2.2, 6.2
-      this.addStatementTitle(doc, statementData, pageWidth, margins);
+      // Add logo and company info
+      await this.addCompanyHeader(doc, pageWidth);
 
-      // Add order table with proper formatting and alternating row colors
-      // Requirements: 2.4, 6.3, 6.4
-      this.addOrderTable(doc, statementData, pageWidth, margins);
+      // Add statement info
+      this.addStatementInfo(doc, statementData, pageWidth);
 
-      // Add summary section with totals
-      // Requirements: 6.5
-      this.addSummarySection(doc, statementData, pageWidth, margins);
+      // Add customer info section
+      this.addCustomerSection(doc, statementData, pageWidth);
+
+      // Add summary cards
+      this.addSummaryCards(doc, statementData, pageWidth);
+
+      // Add order table with aging
+      this.addOrderTable(doc, statementData, pageWidth);
+
+      // Add totals section
+      this.addTotalsSection(doc, statementData, pageWidth);
+
+      // Add footer
+      this.addFooter(doc, pageWidth, pageHeight);
 
       // Convert to blob and return
       const pdfBlob = doc.output('blob');
@@ -60,217 +93,238 @@ export class OrderPDFGenerator {
   }
 
   /**
-   * Add professional header with company logo, business name, and contact information
-   * Requirements: 2.1, 2.2, 6.1, 6.2
+   * Add gradient header bar
    */
-  private async addHeader(
-    doc: jsPDFWithAutoTable,
-    statementData: OrderStatementData,
-    pageWidth: number,
-    margins: { top: number; right: number; bottom: number; left: number }
-  ): Promise<void> {
+  private addHeaderGradient(doc: jsPDFWithAutoTable, pageWidth: number): void {
+    // Main header bar
+    doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.rect(0, 0, pageWidth, 28, 'F');
+    
+    // Accent stripe
+    doc.setFillColor(COLORS.primaryDark[0], COLORS.primaryDark[1], COLORS.primaryDark[2]);
+    doc.rect(0, 28, pageWidth, 2, 'F');
+  }
+
+  /**
+   * Add company logo and header info
+   */
+  private async addCompanyHeader(doc: jsPDFWithAutoTable, pageWidth: number): Promise<void> {
+    // Try to add logo
     try {
-      // Add company logo on the left (Requirement 2.2, 6.1)
-      try {
-        const logo = new Image();
-        logo.src = ORDER_PDF_CONFIG.header.logoPath;
-        
-        // Add timeout to prevent hanging in test environments
-        await Promise.race([
-          new Promise((resolve, reject) => {
-            logo.onload = resolve;
-            logo.onerror = reject;
-          }),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Logo load timeout')), 2000)
-          )
-        ]);
-
-        const logoHeight = 15;
-        const logoWidth = (logo.width / logo.height) * logoHeight;
-        doc.addImage(
-          logo,
-          "PNG",
-          margins.left,
-          margins.top,
-          logoWidth,
-          logoHeight
-        );
-      } catch (logoError) {
-        console.warn("Could not load logo:", logoError);
-        // Continue without logo if it fails to load
-      }
-
-      // Add "CUSTOMER STATEMENT" title on the right (Requirement 2.2, 6.2)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(40);
-      doc.text("CUSTOMER STATEMENT", pageWidth - margins.right, margins.top + 5, {
-        align: "right",
+      const logo = new Image();
+      logo.src = "/logoFul.png";
+      await new Promise((resolve, reject) => {
+        logo.onload = resolve;
+        logo.onerror = reject;
+        setTimeout(reject, 2000);
       });
-
-      // Add company address below title on the right
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(80);
-      const addressLines = [
-        "4300 Pleasantdale Rd, Atlanta, GA 30340, USA",
-        "Chamblee, GA 30341",
-        "Phone: +1 410 659 0123"
-      ];
       
-      let yPos = margins.top + 10;
-      addressLines.forEach(line => {
-        doc.text(line, pageWidth - margins.right, yPos, { align: "right" });
-        yPos += 4;
-      });
-
-      // Add Contact info below address
+      const logoHeight = 14;
+      const logoWidth = (logo.width / logo.height) * logoHeight;
+      doc.addImage(logo, "PNG", this.margin, 6, logoWidth, logoHeight);
+    } catch (logoError) {
+      // Fallback: Add company name as text
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(
-        `Contact: ${ORDER_PDF_CONFIG.header.companyName}`,
-        pageWidth - margins.right,
-        yPos,
-        { align: "right" }
-      );
-
-    } catch (error) {
-      console.error("Error adding header:", error);
-      throw error;
+      doc.setFontSize(20);
+      doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.text("9RX", this.margin, 16);
     }
+
+    // Company tagline
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Your Trusted Pharmacy Partner", this.margin, 24);
   }
 
   /**
-   * Add "ORDER STATEMENT" title with date range display
-   * Requirements: 2.2, 6.2
+   * Add statement title and reference info
    */
-  private addStatementTitle(
+  private addStatementInfo(
     doc: jsPDFWithAutoTable,
     statementData: OrderStatementData,
-    pageWidth: number,
-    margins: { top: number; right: number; bottom: number; left: number }
+    pageWidth: number
   ): void {
-    // Add "Aging Date:" label and date on the left
+    // Statement title on right side of header
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(40);
-    
-    const agingDate = new Date().toLocaleDateString("en-US", {
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    });
-    
-    doc.text(`Aging Date:`, margins.left, margins.top + 30);
-    doc.setFont("helvetica", "normal");
-    doc.text(agingDate, margins.left + 22, margins.top + 30);
+    doc.setFontSize(18);
+    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.text("CUSTOMER STATEMENT", pageWidth - this.margin, 12, { align: "right" });
 
-    // Add "Contact:" label on the left below aging date
-    doc.setFont("helvetica", "bold");
-    doc.text(`Contact:`, margins.left, margins.top + 36);
+    // Statement reference
+    const statementRef = `CS-${Date.now().toString().slice(-8)}`;
     doc.setFont("helvetica", "normal");
-    doc.text(ORDER_PDF_CONFIG.header.companyName, margins.left + 22, margins.top + 36);
+    doc.setFontSize(8);
+    doc.text(`Ref: ${statementRef}`, pageWidth - this.margin, 18, { align: "right" });
 
-    // Add user/pharmacy info on the right if available
-    if (statementData.userInfo) {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text(
-        `Phone: +1 410 659 0123`,
-        pageWidth - margins.right,
-        margins.top + 30,
-        { align: "right" }
-      );
-    }
+    // Aging date
+    const agingDate = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    doc.text(`Aging Date: ${agingDate}`, pageWidth - this.margin, 24, { align: "right" });
   }
 
   /**
-   * Add order table with aging columns matching reference image
-   * Columns: Posting Date, Due Date, Document, Days Past Due, Original Amount, Applied Amount, 
-   * Balance Due, Cum Bal, 0, 1-7, 8-14, 15-21, 22-28, 29+
-   * Requirements: 2.4, 6.3, 6.4
+   * Add customer information section
+   */
+  private addCustomerSection(
+    doc: jsPDFWithAutoTable,
+    statementData: OrderStatementData,
+    pageWidth: number
+  ): void {
+    const sectionY = 34;
+    const boxWidth = 80;
+
+    // Customer Info Box
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(this.margin, sectionY, boxWidth, 22, 2, 2, 'F');
+
+    // Customer Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("CUSTOMER", this.margin + 4, sectionY + 6);
+
+    // Customer details
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    const customerName = statementData.userInfo?.company_name || 
+      `${statementData.userInfo?.first_name || ''} ${statementData.userInfo?.last_name || ''}`.trim() || 
+      'Customer';
+    doc.text(customerName, this.margin + 4, sectionY + 13);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+    doc.text(statementData.userInfo?.email || "N/A", this.margin + 4, sectionY + 18);
+
+    // Contact Info Box
+    const contactBoxX = this.margin + boxWidth + 8;
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(contactBoxX, sectionY, boxWidth, 22, 2, 2, 'F');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("CONTACT", contactBoxX + 4, sectionY + 6);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    doc.text("9RX Pharmacy Solutions", contactBoxX + 4, sectionY + 13);
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+    doc.text("Phone: +1 (800) 969-6295", contactBoxX + 4, sectionY + 18);
+  }
+
+  /**
+   * Add summary cards
+   */
+  private addSummaryCards(
+    doc: jsPDFWithAutoTable,
+    statementData: OrderStatementData,
+    pageWidth: number
+  ): void {
+    const cardY = 34;
+    const cardWidth = 42;
+    const cardHeight = 22;
+    const startX = pageWidth - this.margin - (cardWidth * 3 + 10);
+
+    const summaryData = [
+      { label: "Total Orders", value: statementData.summary.totalOrders.toString(), isAmount: false, color: COLORS.blue },
+      { label: "Total Amount", value: formatCurrency(statementData.summary.totalAmount), isAmount: true, color: COLORS.dark },
+      { label: "Total Pending", value: formatCurrency(statementData.summary.totalPending), isAmount: true, color: statementData.summary.totalPending > 0 ? COLORS.danger : COLORS.success },
+    ];
+
+    summaryData.forEach((item, index) => {
+      const cardX = startX + (cardWidth + 5) * index;
+
+      // Card background
+      doc.setFillColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.setDrawColor(220, 220, 220);
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, 'FD');
+
+      // Top accent line
+      doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+      doc.rect(cardX, cardY, cardWidth, 2, 'F');
+
+      // Label
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6);
+      doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+      doc.text(item.label, cardX + cardWidth / 2, cardY + 8, { align: "center" });
+
+      // Value
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(item.isAmount ? 9 : 12);
+      doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+      doc.text(item.value, cardX + cardWidth / 2, cardY + 16, { align: "center" });
+    });
+  }
+
+  /**
+   * Add order table with aging columns
    */
   private addOrderTable(
     doc: jsPDFWithAutoTable,
     statementData: OrderStatementData,
-    pageWidth: number,
-    margins: { top: number; right: number; bottom: number; left: number }
+    pageWidth: number
   ): void {
-    const tableStartY = ORDER_PDF_CONFIG.table.startY;
+    const tableStartY = 60;
 
-    // Table headers matching reference image (Requirement 2.4, 6.3)
+    // Table headers with aging buckets
     const tableHead = [[
-      "Posting Date",
+      "#",
+      "Date",
       "Due Date", 
-      "Document",
-      "Days Past Due",
-      "Original Amount",
-      "Applied Amount",
-      "Balance Due",
-      "Cum Bal",
-      "0",
-      "1 - 7",
-      "8 - 14",
-      "15 - 21",
-      "22 - 28",
+      "Order #",
+      "Days Late",
+      "Original",
+      "Paid",
+      "Balance",
+      "Current",
+      "1-7",
+      "8-14",
+      "15-21",
+      "22-28",
       "29+"
     ]];
 
-    // Prepare table data with aging buckets (Requirement 2.3, 2.4)
+    // Prepare table data with aging buckets
     const tableBody: string[][] = [];
     let totalOriginal = 0;
-    let totalApplied = 0;
+    let totalPaid = 0;
     let totalBalance = 0;
-    let totalCumBal = 0;
-    let aging0 = 0;
-    let aging1_7 = 0;
-    let aging8_14 = 0;
-    let aging15_21 = 0;
-    let aging22_28 = 0;
-    let aging29Plus = 0;
+    let aging0 = 0, aging1_7 = 0, aging8_14 = 0, aging15_21 = 0, aging22_28 = 0, aging29Plus = 0;
 
     if (statementData.orders.length === 0) {
-      // Handle edge case for periods with no orders (Requirement 3.4)
       tableBody.push([
-        "No orders found for this period",
-        "", "", "", "", "", "", "", "", "", "", "", "", ""
+        "-", "-", "-", "No orders found for this period", "-", "-", "-", "-", "-", "-", "-", "-", "-", "-"
       ]);
     } else {
-      statementData.orders.forEach((order: OrderStatementRecord) => {
-        const postingDate = new Date(order.orderDate).toLocaleDateString("en-US", {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
+      statementData.orders.forEach((order: OrderStatementRecord, index: number) => {
+        const orderDate = new Date(order.orderDate).toLocaleDateString("en-US", {
+          month: "2-digit", day: "2-digit", year: "2-digit"
         });
 
-        // Calculate due date (assuming 30 days from order date)
         const dueDate = new Date(order.orderDate);
         dueDate.setDate(dueDate.getDate() + 30);
         const formattedDueDate = dueDate.toLocaleDateString("en-US", {
-          month: "2-digit",
-          day: "2-digit",
-          year: "numeric",
+          month: "2-digit", day: "2-digit", year: "2-digit"
         });
 
-        // Calculate days past due
         const today = new Date();
         const daysPastDue = Math.max(0, Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24)));
 
-        // Format amounts
         const originalAmount = order.orderAmount;
-        const appliedAmount = order.paidAmount;
+        const paidAmount = order.paidAmount;
         const balanceDue = order.pendingAmount;
 
-        // Accumulate totals
         totalOriginal += originalAmount;
-        totalApplied += appliedAmount;
+        totalPaid += paidAmount;
         totalBalance += balanceDue;
-        totalCumBal += balanceDue;
 
-        // Determine aging bucket for balance due
-        let age0 = "$0.00", age1_7 = "$0.00", age8_14 = "$0.00";
-        let age15_21 = "$0.00", age22_28 = "$0.00", age29Plus = "$0.00";
+        // Determine aging bucket
+        let age0 = "", age1_7 = "", age8_14 = "", age15_21 = "", age22_28 = "", age29Plus = "";
 
         if (balanceDue > 0) {
           if (daysPastDue === 0) {
@@ -295,62 +349,25 @@ export class OrderPDFGenerator {
         }
 
         tableBody.push([
-          postingDate,
+          (index + 1).toString(),
+          orderDate,
           formattedDueDate,
           order.orderNumber,
-          daysPastDue.toString(),
+          daysPastDue > 0 ? daysPastDue.toString() : "-",
           formatCurrency(originalAmount),
-          formatCurrency(appliedAmount),
+          formatCurrency(paidAmount),
           formatCurrency(balanceDue),
-          formatCurrency(totalCumBal),
-          age0,
-          age1_7,
-          age8_14,
-          age15_21,
-          age22_28,
-          age29Plus
+          age0 || "-",
+          age1_7 || "-",
+          age8_14 || "-",
+          age15_21 || "-",
+          age22_28 || "-",
+          age29Plus || "-"
         ]);
       });
-
-      // Add Total row
-      tableBody.push([
-        "Total:",
-        "",
-        "",
-        "",
-        formatCurrency(totalOriginal),
-        formatCurrency(totalApplied),
-        formatCurrency(totalBalance),
-        formatCurrency(totalCumBal),
-        formatCurrency(aging0),
-        formatCurrency(aging1_7),
-        formatCurrency(aging8_14),
-        formatCurrency(aging15_21),
-        formatCurrency(aging22_28),
-        formatCurrency(aging29Plus)
-      ]);
-
-      // Add Aging % row
-      const total = totalBalance || 1; // Avoid division by zero
-      tableBody.push([
-        "Aging %",
-        "",
-        "",
-        "",
-        "100%",
-        "",
-        "100%",
-        "100.00%",
-        `${((aging0 / total) * 100).toFixed(2)}%`,
-        `${((aging1_7 / total) * 100).toFixed(2)}%`,
-        `${((aging8_14 / total) * 100).toFixed(2)}%`,
-        `${((aging15_21 / total) * 100).toFixed(2)}%`,
-        `${((aging22_28 / total) * 100).toFixed(2)}%`,
-        `${((aging29Plus / total) * 100).toFixed(2)}%`
-      ]);
     }
 
-    // Create table with proper formatting (Requirements: 2.4, 6.3, 6.4)
+    // Create table
     doc.autoTable({
       head: tableHead,
       body: tableBody,
@@ -358,155 +375,161 @@ export class OrderPDFGenerator {
       styles: {
         fontSize: 7,
         cellPadding: 2,
-        textColor: TABLE_STYLES.textColor,
-        lineWidth: TABLE_STYLES.lineWidth,
-        lineColor: TABLE_STYLES.borderColor,
+        textColor: [60, 60, 60],
+        lineWidth: 0.1,
+        lineColor: [220, 220, 220]
       },
-      theme: "grid",
+      theme: "plain",
       headStyles: {
-        fillColor: [65, 105, 225], // Blue header
-        textColor: [255, 255, 255],
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
         fontStyle: "bold",
         halign: "center",
-        fontSize: 7,
+        cellPadding: 3
       },
       bodyStyles: {
-        textColor: this.hexToRgb(TABLE_STYLES.textColor),
+        fillColor: [255, 255, 255]
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250]
       },
       columnStyles: {
-        0: { halign: "center", cellWidth: 18 },  // Posting Date
-        1: { halign: "center", cellWidth: 18 },  // Due Date
-        2: { halign: "left", cellWidth: 20 },    // Document
-        3: { halign: "center", cellWidth: 12 },  // Days Past Due
-        4: { halign: "right", cellWidth: 20 },   // Original Amount
-        5: { halign: "right", cellWidth: 20 },   // Applied Amount
-        6: { halign: "right", cellWidth: 18 },   // Balance Due
-        7: { halign: "right", cellWidth: 18 },   // Cum Bal
-        8: { halign: "right", cellWidth: 15 },   // 0
-        9: { halign: "right", cellWidth: 15 },   // 1-7
-        10: { halign: "right", cellWidth: 15 },  // 8-14
-        11: { halign: "right", cellWidth: 15 },  // 15-21
-        12: { halign: "right", cellWidth: 15 },  // 22-28
-        13: { halign: "right", cellWidth: 15 },  // 29+
+        0: { cellWidth: 8, halign: "center" },    // #
+        1: { cellWidth: 18, halign: "center" },   // Date
+        2: { cellWidth: 18, halign: "center" },   // Due Date
+        3: { cellWidth: 22, halign: "left" },     // Order #
+        4: { cellWidth: 14, halign: "center" },   // Days Late
+        5: { cellWidth: 22, halign: "right" },    // Original
+        6: { cellWidth: 22, halign: "right", textColor: COLORS.success },  // Paid
+        7: { cellWidth: 22, halign: "right", fontStyle: "bold" },          // Balance
+        8: { cellWidth: 18, halign: "right" },    // Current
+        9: { cellWidth: 18, halign: "right" },    // 1-7
+        10: { cellWidth: 18, halign: "right" },   // 8-14
+        11: { cellWidth: 18, halign: "right" },   // 15-21
+        12: { cellWidth: 18, halign: "right" },   // 22-28
+        13: { cellWidth: 18, halign: "right", textColor: COLORS.danger },  // 29+
       },
-      tableWidth: pageWidth - margins.left - margins.right,
-      margin: { left: margins.left, right: margins.right },
+      margin: { left: this.margin, right: this.margin },
       showHead: "everyPage",
       didDrawPage: (data: any) => {
         if (data.pageNumber > 1) {
-          doc.setFontSize(8);
-          doc.setTextColor(127, 140, 141);
-          doc.text(
-            `Page ${data.pageNumber}`,
-            pageWidth - margins.right,
-            pageWidth - 10,
-            { align: "right" }
-          );
+          doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+          doc.rect(0, 0, pageWidth, 12, 'F');
+          
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(255, 255, 255);
+          doc.text("CUSTOMER STATEMENT (Continued)", this.margin, 8);
+          
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(7);
+          doc.text(`Page ${data.pageNumber}`, pageWidth - this.margin, 8, { align: "right" });
         }
-      },
+      }
     });
+
+    // Store totals for summary
+    (doc as any)._statementTotals = {
+      totalOriginal, totalPaid, totalBalance,
+      aging0, aging1_7, aging8_14, aging15_21, aging22_28, aging29Plus
+    };
   }
 
   /**
-   * Add summary section with total orders, amounts, and payment status breakdown
-   * Requirements: 2.3, 3.2, 6.5
+   * Add totals section
    */
-  private addSummarySection(
+  private addTotalsSection(
     doc: jsPDFWithAutoTable,
     statementData: OrderStatementData,
-    pageWidth: number,
-    margins: { top: number; right: number; bottom: number; left: number }
+    pageWidth: number
   ): void {
-    const summaryY = doc.lastAutoTable.finalY + 10;
+    const finalY = doc.lastAutoTable.finalY + 8;
+    const totals = (doc as any)._statementTotals || {
+      totalOriginal: statementData.summary.totalAmount,
+      totalPaid: statementData.summary.totalPaid,
+      totalBalance: statementData.summary.totalPending
+    };
 
-    // Add separator line
-    doc.setDrawColor(180);
-    doc.line(margins.left, summaryY, pageWidth - margins.right, summaryY);
-
-    // Add summary title (Requirement 6.5)
+    // Summary section title
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(PDF_FONTS.subheader.size);
-    doc.setTextColor(41, 128, 185);
-    doc.text("Summary", margins.left, summaryY + 8);
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("SUMMARY", this.margin, finalY);
 
-    // Add summary data with consistent currency formatting (Requirements 2.3, 3.2, 6.5)
+    // Summary box
+    const summaryBoxWidth = 100;
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(this.margin, finalY + 3, summaryBoxWidth, 28, 2, 2, 'F');
+
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(PDF_FONTS.body.size);
-    doc.setTextColor(52, 73, 94);
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
 
-    const summaryStartY = summaryY + 15;
-    const rightColX = pageWidth - margins.right - 60;
+    let rowY = finalY + 10;
+    doc.text("Total Orders:", this.margin + 5, rowY);
+    doc.text(statementData.summary.totalOrders.toString(), this.margin + 45, rowY);
 
-    // Total Orders (Requirement 3.2, 6.5)
+    rowY += 6;
+    doc.text("Total Amount:", this.margin + 5, rowY);
+    doc.text(formatCurrency(totals.totalOriginal), this.margin + 45, rowY);
+
+    rowY += 6;
+    doc.text("Total Paid:", this.margin + 5, rowY);
+    doc.setTextColor(COLORS.success[0], COLORS.success[1], COLORS.success[2]);
+    doc.text(formatCurrency(totals.totalPaid), this.margin + 45, rowY);
+
+    rowY += 6;
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    doc.text("Total Pending:", this.margin + 5, rowY);
+    doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
     doc.setFont("helvetica", "bold");
-    doc.text("Total Orders:", margins.left, summaryStartY);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      statementData.summary.totalOrders.toString(),
-      margins.left + 40,
-      summaryStartY
-    );
+    doc.text(formatCurrency(totals.totalBalance), this.margin + 45, rowY);
 
-    // Total Amount with consistent currency formatting (Requirements 2.3, 3.2, 6.5)
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Amount:", rightColX, summaryStartY);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      formatCurrency(statementData.summary.totalAmount),
-      rightColX + 40,
-      summaryStartY,
-      { align: "right" }
-    );
+    // Balance Due highlight box on right
+    const balanceBoxWidth = 80;
+    const balanceBoxX = pageWidth - this.margin - balanceBoxWidth;
+    
+    doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.roundedRect(balanceBoxX, finalY + 3, balanceBoxWidth, 28, 3, 3, 'F');
 
-    // Total Paid with consistent currency formatting (Requirements 2.3, 3.2, 6.5)
     doc.setFont("helvetica", "bold");
-    doc.text("Total Paid:", rightColX, summaryStartY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      formatCurrency(statementData.summary.totalPaid),
-      rightColX + 40,
-      summaryStartY + 6,
-      { align: "right" }
-    );
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.text("BALANCE DUE", balanceBoxX + balanceBoxWidth / 2, finalY + 14, { align: "center" });
 
-    // Total Pending with consistent currency formatting (Requirements 2.3, 3.2, 6.5)
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Pending:", rightColX, summaryStartY + 12);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      formatCurrency(statementData.summary.totalPending),
-      rightColX + 40,
-      summaryStartY + 12,
-      { align: "right" }
-    );
+    doc.setFontSize(16);
+    doc.text(formatCurrency(totals.totalBalance), balanceBoxX + balanceBoxWidth / 2, finalY + 25, { align: "center" });
   }
 
   /**
-   * Format order status for display
+   * Add footer
    */
-  private formatStatus(status: string): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  }
+  private addFooter(
+    doc: jsPDFWithAutoTable,
+    pageWidth: number,
+    pageHeight: number
+  ): void {
+    const footerY = pageHeight - 12;
 
-  /**
-   * Format payment status for display
-   */
-  private formatPaymentStatus(status: string): string {
-    return status.charAt(0).toUpperCase() + status.slice(1);
-  }
+    // Footer line
+    doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.setLineWidth(0.5);
+    doc.line(this.margin, footerY, pageWidth - this.margin, footerY);
 
-  /**
-   * Convert hex color to RGB array for jsPDF
-   */
-  private hexToRgb(hex: string): [number, number, number] {
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-      ? [
-          parseInt(result[1], 16),
-          parseInt(result[2], 16),
-          parseInt(result[3], 16),
-        ]
-      : [0, 0, 0];
+    // Company info
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" });
+
+    // Generated timestamp
+    doc.setFontSize(6);
+    doc.text(
+      `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
+      pageWidth / 2,
+      footerY + 8,
+      { align: "center" }
+    );
   }
 }
 

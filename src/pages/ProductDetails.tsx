@@ -155,7 +155,8 @@ const ThumbnailImage = ({
 }
 
 const ProductDetails = () => {
-  const { id } = useParams()
+  const { id, productId } = useParams()
+  const actualId = productId || id // Support both /product/:id and /pharmacy/product/:productId
   const navigate = useNavigate()
   const { toast } = useToast()
   const { addToCart, cartItems } = useCart()
@@ -310,24 +311,25 @@ const ProductDetails = () => {
 
   useEffect(() => {
     const fetchProduct = async () => {
-      if (!id) {
-        console.error("No product ID provided")
+      // Guard against undefined, null, empty string, or the literal string "undefined"
+      if (!actualId || actualId === "undefined" || actualId === "null") {
+        console.error("No valid product ID provided:", actualId)
         setLoading(false)
         return
       }
 
       try {
-        console.log("Fetching product with ID or SKU:", id)
+        console.log("Fetching product with ID or SKU:", actualId)
 
         // Try to fetch by ID first, then by SKU
         let productData, error;
         
         // Check if id is a UUID (contains hyphens)
-        if (id.includes('-')) {
+        if (actualId.includes('-')) {
           const result = await supabase
             .from("products")
             .select("*, product_sizes(*)")
-            .eq("id", id)
+            .eq("id", actualId)
             .single()
           productData = result.data
           error = result.error
@@ -336,7 +338,7 @@ const ProductDetails = () => {
           const result = await supabase
             .from("products")
             .select("*, product_sizes(*)")
-            .eq("sku", id)
+            .eq("sku", actualId)
             .single()
           productData = result.data
           error = result.error
@@ -463,7 +465,7 @@ const ProductDetails = () => {
     }
 
     fetchProduct()
-  }, [id, navigate, toast, isLoggedIn, userProfile])
+  }, [actualId, navigate, toast, isLoggedIn, userProfile])
 
   const handleSizeClick = async (size: any) => {
     console.log("Size clicked:", size)

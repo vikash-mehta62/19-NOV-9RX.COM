@@ -1,127 +1,637 @@
+import { useState, useCallback, useMemo } from "react";
 import { OrderFormValues } from "../../schemas/orderSchema";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Package, FileText, Edit } from "lucide-react";
-import { useState } from "react";
+import { Input } from "@/components/ui/input";
+import { 
+  Package, FileText, Edit, ShoppingCart, 
+  Tag, Hash, DollarSign, Layers, AlertCircle,
+  Plus, Trash2, Save, X, Check, Search
+} from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import ProductShowcase from "@/components/pharmacy/ProductShowcase";
+import { useCart } from "@/hooks/use-cart";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface ItemsTabProps {
   items: OrderFormValues["items"];
   onEdit?: () => void;
+  onItemsUpdate?: (items: OrderFormValues["items"]) => void;
+  orderId?: string;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   orderStatus?: string;
   isVoid?: boolean;
+  onOrderUpdate?: () => void;
 }
 
-export const ItemsTab = ({ items, onEdit, userRole, orderStatus, isVoid }: ItemsTabProps) => {
+export const ItemsTab = ({ 
+  items, 
+  onEdit, 
+  onItemsUpdate,
+  orderId,
+  userRole, 
+  orderStatus, 
+  isVoid,
+  onOrderUpdate 
+}: ItemsTabProps) => {
+  const { toast } = useToast();
+  const { cartItems, clearCart } = useCart();
+  
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [editedItems, setEditedItems] = useState<OrderFormValues["items"]>(items);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showAddProductDialog, setShowAddProductDialog] = useState(false);
+  
   const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid;
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between mb-2">
-        <h3 className="font-semibold text-lg flex items-center gap-2">
-          <Package className="w-5 h-5 text-primary" />
-          Order Items
-        </h3>
-        <div className="flex items-center gap-2">
-          <Badge variant="secondary">{items.length} {items.length === 1 ? 'Item' : 'Items'}</Badge>
-          {canEdit && onEdit && (
-            <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
-              <Edit className="w-4 h-4" />
-              Edit Items
-            </Button>
-          )}
-        </div>
-      </div>
+  
+  // Calculate totals
+  const { totalItems, subtotal } = useMemo(() => {
+    const currentItems = isEditMode ? editedItems : items;
+    const total = currentItems.reduce(
+      (acc, item) => acc + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
+      0
+    );
+    const sub = currentItems.reduce((acc, item) => {
+      return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
+    }, 0);
+    return { totalItems: total, subtotal: sub };
+  }, [items, editedItems, isEditMode]);
 
-      <div className="space-y-3">
-        {items?.map((item, index) => (
-          <Card key={index} className="p-4 hover:shadow-md transition-shadow">
-            <div className="space-y-3">
-              {/* Product Header */}
+  // Handle entering edit mode
+  const handleEnterEditMode = useCallback(() => {
+    setEditedItems([...items]);
+    setIsEditMode(true);
+  }, [items]);
+
+  // Handle cancel edit
+  const handleCancelEdit = useCallback(() => {
+    setEditedItems([...items]);
+    setIsEditMode(false);
+  }, [items]);
+
+  // Handle quantity change
+  const handleQuantityChange = useCallback((itemIndex: number, sizeIndex: number, newQuantity: number) => {
+    if (newQuantity < 1) return;
+    
+    setEditedItems(prev => {
+      const updated = [...prev];
+      updated[itemIndex] = {
+        ...updated[itemIndex],
+        sizes: updated[itemIndex].sizes.map((size, idx) => 
+          idx === sizeIndex ? { ...size, quantity: newQuantity } : size
+        )
+      };
+      return updated;
+    });
+  }, []);
+
+  // Handle price change
+  const handlePriceChange = useCallback((itemIndex: number, sizeIndex: number, newPrice: number) => {
+    if (newPrice < 0) return;
+    
+    setEditedItems(prev => {
+      const updated = [...prev];
+      updated[itemIndex] = {
+        ...updated[itemIndex],
+        sizes: updated[itemIndex].sizes.map((size, idx) => 
+          idx === sizeIndex ? { ...size, price: newPrice } : size
+        )
+      };
+      return updated;
+    });
+  }, []);
+
+  // Handle delete item
+  const handleDeleteItem = useCallback((itemIndex: number) => {
+    setEditedItems(prev => prev.filter((_, idx) => idx !== itemIndex));
+  }, []);
+
+  // Handle delete size from item
+  const handleDeleteSize = useCallback((itemIndex: number, sizeIndex: number) => {
+    setEditedItems(prev => {
+      const updated = [...prev];
+      const newSizes = updated[itemIndex].sizes.filter((_, idx) => idx !== sizeIndex);
+      
+      // If no sizes left, remove the entire item
+      if (newSizes.length === 0) {
+        return prev.filter((_, idx) => idx !== itemIndex);
+      }
+      
+      updated[itemIndex] = {
+        ...updated[itemIndex],
+        sizes: newSizes
+      };
+      return updated;
+    });
+  }, []);
+
+  // Handle save changes
+  const handleSaveChanges = useCallback(async () => {
+    if (!orderId) {
+      toast({
+        title: "Error",
+        description: "Order ID is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      // Calculate new totals
+      const newSubtotal = editedItems.reduce((acc, item) => {
+        return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
+      }, 0);
+
+      // Get current order to preserve other values
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("tax_amount, shipping_cost")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const taxAmount = currentOrder?.tax_amount || 0;
+      const shippingCost = parseFloat(currentOrder?.shipping_cost || "0");
+      const newTotal = newSubtotal + taxAmount + shippingCost;
+
+      // Update order in database
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          items: editedItems,
+          total: newTotal.toFixed(2),
+        })
+        .eq("id", orderId);
+
+      if (error) throw error;
+
+      // Call the callback to update parent state
+      if (onItemsUpdate) {
+        onItemsUpdate(editedItems);
+      }
+      
+      if (onOrderUpdate) {
+        onOrderUpdate();
+      }
+
+      setIsEditMode(false);
+      toast({
+        title: "Success",
+        description: "Order items updated successfully",
+      });
+    } catch (error) {
+      console.error("Error saving items:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }, [orderId, editedItems, onItemsUpdate, onOrderUpdate, toast]);
+
+  // Handle add products from cart
+  const handleAddProductsFromCart = useCallback(async () => {
+    if (cartItems.length === 0) {
+      toast({
+        title: "No Products",
+        description: "Please add products to cart first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Convert cart items to order items format
+    const newItems = cartItems.map(cartItem => ({
+      productId: cartItem.productId,
+      name: cartItem.name,
+      quantity: cartItem.quantity,
+      price: cartItem.price,
+      sizes: cartItem.sizes || [],
+      notes: cartItem.description || "",
+      customizations: {},
+    }));
+
+    // Merge with existing items (check for duplicates by productId)
+    const mergedItems = [...editedItems];
+    
+    newItems.forEach(newItem => {
+      const existingIndex = mergedItems.findIndex(item => item.productId === newItem.productId);
+      
+      if (existingIndex >= 0) {
+        // Merge sizes for existing product
+        const existingItem = mergedItems[existingIndex];
+        newItem.sizes.forEach(newSize => {
+          const existingSizeIndex = existingItem.sizes.findIndex(
+            s => s.id === newSize.id && s.type === newSize.type
+          );
+          
+          if (existingSizeIndex >= 0) {
+            // Add quantity to existing size
+            existingItem.sizes[existingSizeIndex].quantity += newSize.quantity;
+          } else {
+            // Add new size
+            existingItem.sizes.push(newSize);
+          }
+        });
+      } else {
+        // Add as new item
+        mergedItems.push(newItem);
+      }
+    });
+
+    setEditedItems(mergedItems);
+    await clearCart();
+    setShowAddProductDialog(false);
+    
+    toast({
+      title: "Products Added",
+      description: `${newItems.length} product(s) added to order`,
+    });
+  }, [cartItems, editedItems, clearCart, toast]);
+
+  const currentItems = isEditMode ? editedItems : items;
+
+  if (!currentItems || currentItems.length === 0) {
+    return (
+      <div className="space-y-4">
+        {canEdit && (
+          <div className="flex justify-end">
+            <Button 
+              onClick={() => {
+                setIsEditMode(true);
+                setShowAddProductDialog(true);
+              }} 
+              className="gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              Add Products
+            </Button>
+          </div>
+        )}
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+              <AlertCircle className="w-8 h-8 text-gray-400" />
+            </div>
+            <p className="text-gray-500 font-medium">No items in this order</p>
+            <p className="text-sm text-gray-400 mt-1">Items will appear here once added</p>
+          </CardContent>
+        </Card>
+        
+        {/* Add Product Dialog */}
+        <AddProductDialog 
+          open={showAddProductDialog}
+          onOpenChange={setShowAddProductDialog}
+          onAddProducts={handleAddProductsFromCart}
+          cartItemsCount={cartItems.length}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <Card className="overflow-hidden border-0 shadow-sm">
+        <CardHeader className="bg-gradient-to-r from-violet-50 to-purple-50 border-b pb-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <ShoppingCart className="w-5 h-5 text-violet-600" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Order Items</CardTitle>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {currentItems.length} product{currentItems.length !== 1 ? 's' : ''} • {totalItems} unit{totalItems !== 1 ? 's' : ''}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="bg-violet-100 text-violet-700">
+                {currentItems.length} {currentItems.length === 1 ? 'Item' : 'Items'}
+              </Badge>
+              
+              {canEdit && !isEditMode && (
+                <Button variant="outline" size="sm" onClick={handleEnterEditMode} className="gap-1.5 bg-white">
+                  <Edit className="w-4 h-4" />
+                  Edit Items
+                </Button>
+              )}
+              
+              {isEditMode && (
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setShowAddProductDialog(true)} 
+                    className="gap-1.5 bg-white"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add Product
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleCancelEdit} 
+                    className="gap-1.5"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    onClick={handleSaveChanges} 
+                    disabled={isSaving}
+                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                  >
+                    {isSaving ? (
+                      <>Saving...</>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4" />
+                        Save Changes
+                      </>
+                    )}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </CardHeader>
+      </Card>
+
+      {/* Items List */}
+      <div className="space-y-4">
+        {currentItems?.map((item, index) => (
+          <Card key={index} className="overflow-hidden border-0 shadow-sm hover:shadow-md transition-shadow">
+            {/* Product Header */}
+            <div className="p-4 bg-gradient-to-r from-gray-50 to-slate-50 border-b">
               <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h4 className="font-semibold text-base">{item.name}</h4>
-                  {item.description && (
-                    <p className="text-sm text-muted-foreground mt-1 italic">
-                      {item.description}
-                    </p>
+                <div className="flex items-start gap-3">
+                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                    <Package className="w-5 h-5 text-gray-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                    {item.description && (
+                      <p className="text-sm text-gray-500 mt-1">{item.description}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {item.customizations?.availble === "yes" && (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
+                      <Tag className="w-3 h-3 mr-1" />
+                      Customized
+                    </Badge>
+                  )}
+                  {isEditMode && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteItem(index)}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
                   )}
                 </div>
-                {item.customizations?.availble === "yes" && (
-                  <Badge variant="outline" className="ml-2">
-                    Customized
-                  </Badge>
-                )}
               </div>
+            </div>
 
-              {/* Sizes */}
+            {/* Sizes Table */}
+            <CardContent className="p-0">
               {item?.sizes && item?.sizes.length > 0 ? (
-                <div className="space-y-2">
+                <div className="divide-y divide-gray-100">
+                  {/* Table Header */}
+                  <div className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 bg-gray-50/50 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-3.5 h-3.5" />
+                      Size
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Hash className="w-3.5 h-3.5" />
+                      Quantity
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="w-3.5 h-3.5" />
+                      Unit Price
+                    </div>
+                    <div className="text-right">Total</div>
+                    {isEditMode && <div className="text-center">Action</div>}
+                  </div>
+                  
+                  {/* Size Rows */}
                   {item.sizes.map((size, sizeIndex) => (
                     <div
                       key={sizeIndex}
-                      className="border rounded-lg p-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                      className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 hover:bg-gray-50 transition-colors items-center`}
                     >
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                        <div>
-                          <span className="text-muted-foreground block text-xs">Size</span>
-                          <span className="font-medium">
-                            {size.size_value} {size.size_unit}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground block text-xs">Quantity</span>
-                          <span className="font-medium">
-                            {size.quantity} {size.type === "unit" ? "unit" : ""}
-                          </span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground block text-xs">Price/Unit</span>
-                          <span className="font-medium">${size.price.toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground block text-xs">Total</span>
-                          <span className="font-semibold text-primary">
-                            ${(size.quantity * size.price).toFixed(2)}
-                          </span>
-                        </div>
+                      <div>
+                        <span className="font-medium text-gray-900">
+                          {size.size_value} {size.size_unit}
+                        </span>
                       </div>
+                      <div>
+                        {isEditMode ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleQuantityChange(index, sizeIndex, size.quantity - 1)}
+                              disabled={size.quantity <= 1}
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              value={size.quantity}
+                              onChange={(e) => handleQuantityChange(index, sizeIndex, parseInt(e.target.value) || 1)}
+                              className="w-16 h-8 text-center"
+                              min={1}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleQuantityChange(index, sizeIndex, size.quantity + 1)}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="font-medium text-gray-900">
+                            {size.quantity}
+                            {size.type && (
+                              <span className="text-gray-500 text-sm ml-1">
+                                {size.type.toLowerCase()}{size.quantity > 1 ? 's' : ''}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        {isEditMode ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-gray-500">$</span>
+                            <Input
+                              type="number"
+                              value={size.price}
+                              onChange={(e) => handlePriceChange(index, sizeIndex, parseFloat(e.target.value) || 0)}
+                              className="w-24 h-8"
+                              min={0}
+                              step={0.01}
+                            />
+                          </div>
+                        ) : (
+                          <span className="font-medium text-gray-900">${size.price.toFixed(2)}</span>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <span className="font-semibold text-emerald-600">
+                          ${(size.quantity * size.price).toFixed(2)}
+                        </span>
+                      </div>
+                      {isEditMode && (
+                        <div className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteSize(index, sizeIndex)}
+                            className="text-red-600 hover:text-red-700 hover:bg-red-50 h-8 w-8 p-0"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
+                  
+                  {/* Item Subtotal */}
+                  <div className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 bg-gray-50`}>
+                    <div className={`${isEditMode ? 'col-span-3' : 'col-span-3'} text-right font-medium text-gray-600`}>
+                      Item Subtotal:
+                    </div>
+                    <div className="text-right font-bold text-gray-900">
+                      ${item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0).toFixed(2)}
+                    </div>
+                    {isEditMode && <div></div>}
+                  </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground italic">No sizes available</p>
+                <div className="p-4 text-center text-gray-400 italic">
+                  No sizes available
+                </div>
               )}
 
               {/* Notes */}
               {item.notes && (
-                <div className="flex items-start gap-2 p-2 bg-blue-50 rounded border border-blue-200">
-                  <FileText className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                  <p className="text-sm text-blue-900">{item.notes}</p>
+                <div className="p-4 border-t bg-blue-50/50">
+                  <div className="flex items-start gap-2">
+                    <FileText className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Item Notes</p>
+                      <p className="text-sm text-blue-900">{item.notes}</p>
+                    </div>
+                  </div>
                 </div>
               )}
-            </div>
+            </CardContent>
           </Card>
         ))}
       </div>
 
-      {/* Items Total */}
-      <Card className="p-4 bg-primary/5 border-primary/20">
-        <div className="flex justify-between items-center">
-          <span className="font-semibold">Items Subtotal</span>
-          <span className="text-xl font-bold text-primary">
-            $
-            {items
-              .reduce((total, item) => {
-                return (
-                  total +
-                  item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0)
-                );
-              }, 0)
-              .toFixed(2)}
-          </span>
-        </div>
+      {/* Order Subtotal */}
+      <Card className="overflow-hidden border-0 shadow-sm">
+        <CardContent className="p-0">
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-4">
+            <div className="flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-white/20 rounded-lg">
+                  <DollarSign className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Items Subtotal</p>
+                  <p className="text-xs text-emerald-200">{totalItems} items total</p>
+                </div>
+              </div>
+              <span className="text-2xl font-bold text-white">
+                ${subtotal.toFixed(2)}
+              </span>
+            </div>
+          </div>
+        </CardContent>
       </Card>
+
+      {/* Add Product Dialog */}
+      <AddProductDialog 
+        open={showAddProductDialog}
+        onOpenChange={setShowAddProductDialog}
+        onAddProducts={handleAddProductsFromCart}
+        cartItemsCount={cartItems.length}
+      />
     </div>
+  );
+};
+
+// Add Product Dialog Component
+interface AddProductDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onAddProducts: () => void;
+  cartItemsCount: number;
+}
+
+const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }: AddProductDialogProps) => {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Search className="w-5 h-5" />
+            Add Products to Order
+          </DialogTitle>
+        </DialogHeader>
+        
+        <ScrollArea className="h-[60vh] pr-4">
+          <ProductShowcase groupShow={true} isEditing={false} />
+        </ScrollArea>
+
+        <DialogFooter className="border-t pt-4">
+          <div className="flex items-center justify-between w-full">
+            <div className="text-sm text-gray-600">
+              {cartItemsCount > 0 ? (
+                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                  {cartItemsCount} product{cartItemsCount !== 1 ? 's' : ''} selected
+                </Badge>
+              ) : (
+                <span>Select products to add</span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button 
+                onClick={onAddProducts}
+                disabled={cartItemsCount === 0}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add {cartItemsCount > 0 ? `${cartItemsCount} Product${cartItemsCount !== 1 ? 's' : ''}` : 'Products'}
+              </Button>
+            </div>
+          </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 };

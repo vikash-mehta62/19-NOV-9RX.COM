@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/table";
 import { OrderFormValues } from "../schemas/orderSchema";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, LoaderCircle, MoreHorizontal } from "lucide-react"; // Import MoreHorizontal for the three dots
+import { ExternalLink, LoaderCircle, MoreHorizontal, Package, ArrowUpDown, ArrowUp, ArrowDown, Eye, Edit, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getTrackingUrl } from "../utils/shippingUtils";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -30,6 +30,7 @@ import {
 } from "@/components/invoices/types/invoice.types";
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { EmptyState, TableSkeleton } from "@/components/common/EmptyState";
 
 // Import UI components for the cancel dialog
 import {
@@ -52,6 +53,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import Swal from "sweetalert2";
 
+type SortField = "customer" | "date" | "total" | "status" | "payment_status";
+type SortDirection = "asc" | "desc";
+
 interface OrdersListProps {
   orders: OrderFormValues[];
   onOrderClick: (order: OrderFormValues) => void;
@@ -62,14 +66,17 @@ interface OrdersListProps {
   onShipOrder?: (orderId: string) => void;
   onConfirmOrder?: (orderId: string) => void;
   onDeleteOrder?: (orderId: string, reason?: string) => Promise<void>;
-  onCancelOrder?: (orderId: string, reason: string) => Promise<void>; // New prop for cancel function
-
+  onCancelOrder?: (orderId: string, reason: string) => Promise<void>;
   isLoading?: boolean;
   poIs?: boolean;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   selectedOrders?: string[];
   onOrderSelect?: (orderId: string) => void;
   setOrderStatus?: (status: string) => void;
+  // Sorting props
+  sortField?: SortField;
+  sortDirection?: SortDirection;
+  onSort?: (field: SortField) => void;
 }
 
 export function OrdersList({
@@ -78,6 +85,9 @@ export function OrdersList({
   selectedOrder,
   isEditing,
   setIsEditing,
+  sortField,
+  sortDirection,
+  onSort,
   onProcessOrder,
   onShipOrder,
   onConfirmOrder,
@@ -390,13 +400,7 @@ export function OrdersList({
   };
 
   if (isLoading) {
-    return (
-      <div className="space-y-3">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-      </div>
-    );
+    return <TableSkeleton rows={5} columns={7} />;
   }
 
   const handleApproveCredit = async (order) => {
@@ -702,87 +706,126 @@ export function OrdersList({
 
   if (!orders || orders.length === 0) {
     return (
-      <div className="text-center py-8 text-gray-500">No orders found</div>
+      <EmptyState
+        variant="orders"
+        title="No orders found"
+        description="Orders will appear here once customers start placing them. You can also create orders manually."
+        actionLabel="Create Order"
+        onAction={() => window.location.href = "/admin/orders/create"}
+      />
     );
   }
 
-  console.log(orders);
-  return (
-    <Table className=" border-gray-300">
-      <TableHeader className="bg-gray-100">
-        <TableRow>
-          {userRole === "admin" && onOrderSelect && (
-            <TableHead className="w-[50px] text-center  border-gray-300">
-              <span className="sr-only">Select</span>
-            </TableHead>
-          )}
-          {poIs && (
-            <TableHead className="font-semibold text-center border-gray-300">
-              Order Number
-            </TableHead>
-          )}
-          {poIs && (
-            <TableHead className="font-semibold text-center border-gray-300">
-              Notes
-            </TableHead>
-          )}
-          <TableHead className="font-semibold text-center border-gray-300">
-            {poIs ? "Vendor" : "Customer"} Name
-          </TableHead>
+  // Helper to get sort icon
+  const getSortIcon = (field: SortField) => {
+    if (!onSort || sortField !== field) {
+      return <ArrowUpDown className="h-3 w-3 ml-1 opacity-40" />;
+    }
+    return sortDirection === "asc" 
+      ? <ArrowUp className="h-3 w-3 ml-1 text-blue-600" />
+      : <ArrowDown className="h-3 w-3 ml-1 text-blue-600" />;
+  };
 
-          <TableHead className="font-semibold text-center border-gray-300">
-            Order Date
-          </TableHead>
-          <TableHead className="font-semibold text-center border-gray-300">
-            Total
-          </TableHead>
-          {!poIs && (
-            <>
-              <TableHead className="font-semibold text-center border-gray-300">
-                Status
+  // Sortable header component
+  const SortableHeader = ({ field, children, className = "" }: { field: SortField; children: React.ReactNode; className?: string }) => (
+    <TableHead className={`font-semibold text-gray-700 text-center ${className}`}>
+      <button
+        onClick={() => onSort?.(field)}
+        className="flex items-center justify-center w-full hover:text-blue-600 transition-colors"
+        disabled={!onSort}
+      >
+        {children}
+        {getSortIcon(field)}
+      </button>
+    </TableHead>
+  );
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <Table>
+        <TableHeader>
+          <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 border-b-2 border-gray-200">
+            {userRole === "admin" && onOrderSelect && (
+              <TableHead className="w-[50px] text-center">
+                <span className="sr-only">Select</span>
               </TableHead>
-              <TableHead className="font-semibold text-center border-gray-300">
-                Payment Status
+            )}
+            {poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Order #
               </TableHead>
-              <TableHead className="font-semibold text-center border-gray-300">
-                Tracking
+            )}
+            {poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Notes
               </TableHead>
-              {userRole === "admin" && (
-                <TableHead className="font-semibold text-center border-gray-300">
-                  Actions
+            )}
+            <SortableHeader field="customer">
+              {poIs ? "Vendor" : "Customer"}
+            </SortableHeader>
+            <SortableHeader field="date">
+              Date
+            </SortableHeader>
+            <SortableHeader field="total">
+              Amount
+            </SortableHeader>
+            {!poIs && (
+              <>
+                <SortableHeader field="status">
+                  Status
+                </SortableHeader>
+                <SortableHeader field="payment_status">
+                  Payment
+                </SortableHeader>
+                <TableHead className="font-semibold text-gray-700 text-center">
+                  Tracking
                 </TableHead>
-              )}
-            </>
-          )}
-          {false && poIs && (
-            <TableHead className="font-semibold text-center border-gray-300">
-              Actions
-            </TableHead>
-          )}
-        </TableRow>
-      </TableHeader>
+                {userRole === "admin" && (
+                  <TableHead className="font-semibold text-gray-700 text-center w-[80px]">
+                    Actions
+                  </TableHead>
+                )}
+              </>
+            )}
+            {false && poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Actions
+              </TableHead>
+            )}
+          </TableRow>
+        </TableHeader>
       <TableBody>
-        {orders.map((order) => {
+        {orders.map((order, index) => {
           const orderId = order.id || "";
+          const isEven = index % 2 === 0;
           return (
-            <TableRow key={orderId} className="cursor-pointer hover:bg-gray-50">
+            <TableRow 
+              key={orderId} 
+              className={`
+                group cursor-pointer transition-all duration-200
+                ${isEven ? "bg-white" : "bg-gray-50/50"}
+                hover:bg-blue-50/50 hover:shadow-sm
+                ${order.void ? "opacity-60" : ""}
+              `}
+            >
               {userRole === "admin" && onOrderSelect && (
                 <TableCell
                   onClick={(e) => e.stopPropagation()}
-                  className="text-center border-gray-300"
+                  className="text-center"
                 >
                   <Checkbox
                     checked={selectedOrders.includes(orderId)}
                     onCheckedChange={() => {
                       onOrderSelect(orderId);
                     }}
+                    className="border-gray-300"
                   />
                 </TableCell>
               )}
 
               {poIs && (
                 <TableCell
-                  className="text-center border-gray-300"
+                  className="text-center font-mono text-sm text-blue-600 font-medium"
                   onClick={async () => {
                     onOrderClick(order);
                     await clearCart();
@@ -794,7 +837,7 @@ export function OrdersList({
 
               {poIs && (
                 <TableCell
-                  className="text-center border-gray-300"
+                  className="text-center text-sm text-gray-600 max-w-[150px] truncate"
                   onClick={async () => {
                     onOrderClick(order);
                     await clearCart();
@@ -809,23 +852,22 @@ export function OrdersList({
                   onOrderClick(order);
                   await clearCart();
                 }}
-                className="font-medium text-center border-gray-300 cursor-pointer hover:bg-gray-50 transition"
+                className="text-center"
               >
-                <div className="flex flex-col items-center justify-center">
-                  <span className="text-base font-semibold text-gray-800">
+                <div className="flex flex-col items-center justify-center gap-1">
+                  <span className="font-semibold text-gray-900">
                     {order.customerInfo?.name || "N/A"}
                   </span>
-
                   {order.void && (
-                    <div className="mt-1 flex items-center gap-1 text-red-600 text-xs font-medium bg-red-100 px-2 py-1 rounded-full">
-                      <Ban size={14} className="stroke-[2.5]" />
-                      Voided
-                    </div>
+                    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
+                      <Ban size={12} />
+                      VOID
+                    </span>
                   )}
                 </div>
               </TableCell>
 
-              <TableCell className="text-center border-gray-300">
+              <TableCell className="text-center">
                 {(() => {
                   const dateObj = new Date(order.date);
                   const formattedDate = dateObj.toLocaleDateString("en-US", {
@@ -839,38 +881,43 @@ export function OrdersList({
                     hour12: true,
                   });
                   return (
-                    <>
-                      {formattedDate} <br />
-                      {formattedTime}
-                    </>
+                    <div className="flex flex-col">
+                      <span className="font-medium text-gray-900">{formattedDate}</span>
+                      <span className="text-xs text-gray-500">{formattedTime}</span>
+                    </div>
                   );
                 })()}
               </TableCell>
-              <TableCell className="text-center border-gray-300">
-                {formatTotal(
-                  parseFloat(order.total ?? "0") - (order.tax_amount ?? 0)
-                )}
-                {order.tax_amount > 0 && (
-                  <> + {formatTotal(order.tax_amount)}</>
-                )}
+              
+              <TableCell className="text-center">
+                <div className="flex flex-col items-center">
+                  <span className="font-bold text-gray-900">
+                    {formatTotal(parseFloat(order.total ?? "0"))}
+                  </span>
+                  {order.tax_amount > 0 && (
+                    <span className="text-xs text-gray-500">
+                      incl. {formatTotal(order.tax_amount)} tax
+                    </span>
+                  )}
+                </div>
               </TableCell>
 
               {!poIs && (
                 <>
-                  <TableCell className="text-center border-gray-300">
-                    <div className="flex flex-col items-center gap-2">
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1.5">
                       <Badge
                         variant="secondary"
-                        className={getStatusColor(order.status || "")}
+                        className={`${getStatusColor(order.status || "")} font-medium text-xs px-2.5 py-1 rounded-full`}
                       >
-                        {order.status.toUpperCase() || "PENDING"}
+                        {order.status?.toUpperCase() || "PENDING"}
                       </Badge>
 
                       {order.status === "credit_approval_processing" && (
                         <button
                           onClick={() => handleApproveCredit(order)}
-                          className="bg-blue-600 text-white px-5 py-1 text-[14px] rounded-md transition 
-                   hover:bg-blue-700 active:scale-95"
+                          className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-medium
+                            hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
                         >
                           Approve Credit
                         </button>
@@ -878,37 +925,38 @@ export function OrdersList({
                     </div>
                   </TableCell>
 
-                  <TableCell className="text-center border-gray-300">
-                    <div className="flex items-center justify-center gap-2">
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1.5">
                       <Badge
                         variant="secondary"
-                        className={getStatusColor(order?.payment_status || "")}
+                        className={`${getStatusColor(order?.payment_status || "")} font-medium text-xs px-2.5 py-1 rounded-full`}
                       >
-                        {order?.payment_status.toUpperCase() || "UNPAID"}
+                        {order?.payment_status?.toUpperCase() || "UNPAID"}
                       </Badge>
-                      {(order?.payment_status.toLowerCase() === "unpaid" ||
-                      order?.payment_status.toLowerCase() === "pending" )&&
+                      {(order?.payment_status?.toLowerCase() === "unpaid" ||
+                        order?.payment_status?.toLowerCase() === "pending") &&
                         order.status !== "credit_approval_processing" &&
                         !order.void && (
                           <button
                             onClick={() => {
-                              console.log("Cliced");
                               setSelectCustomerInfo(order);
                               setModalIsOpen(true);
                             }}
-                            className="bg-green-600 text-[14px] text-white px-5 py-1 rounded-md transition"
+                            className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-medium
+                              hover:bg-emerald-700 active:scale-95 transition-all shadow-sm"
                           >
-                            Pay
+                            Pay Now
                           </button>
                         )}
                     </div>
                   </TableCell>
-                  <TableCell className="text-center border-gray-300">
+                  
+                  <TableCell className="text-center">
                     {order.shipping?.trackingNumber &&
                     order?.shipping.method !== "custom" ? (
                       <Button
                         variant="link"
-                        className="p-0 h-auto font-normal"
+                        className="p-0 h-auto text-blue-600 hover:text-blue-800 font-mono text-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           window.open(
@@ -924,20 +972,32 @@ export function OrdersList({
                         <ExternalLink className="ml-1 h-3 w-3" />
                       </Button>
                     ) : (
-                      <Button
-                        variant="secondary"
-                        className="p-0 h-auto font-normal"
-                      >
-                        Manually
-                      </Button>
+                      <span className="text-xs text-gray-400 italic">Manual</span>
                     )}
                   </TableCell>
+                  
                   {userRole === "admin" && (
                     <TableCell
                       onClick={(e) => e.stopPropagation()}
-                      className="text-center border-gray-300"
+                      className="text-center"
                     >
-                      <DropdownMenu>
+                      <div className="flex items-center justify-center gap-1">
+                        {/* Quick View Button */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onOrderClick(order);
+                            clearCart();
+                          }}
+                          title="Quick View"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </Button>
+                        
+                        <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" className="h-8 w-8 p-0">
                             <span className="sr-only">Open menu</span>
@@ -977,6 +1037,7 @@ export function OrdersList({
                           />
                         </DropdownMenuContent>
                       </DropdownMenu>
+                      </div>
                     </TableCell>
                   )}
                 </>
@@ -1068,5 +1129,6 @@ export function OrdersList({
         </AlertDialogContent>
       </AlertDialog>
     </Table>
+    </div>
   );
 }

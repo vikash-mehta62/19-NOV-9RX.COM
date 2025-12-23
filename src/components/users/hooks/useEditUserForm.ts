@@ -111,6 +111,7 @@ export const useEditUserForm = ({
           taxPreference: data.tax_preference || "Taxable",
           currency: data.currency || "USD",
           paymentTerms: data.payment_terms || "prepay",
+          creditLimit: data.credit_limit || 0,
           enablePortal: data.enable_portal || false,
           portalLanguage: data.portal_language || "English",
           email_notifaction:data.email_notifaction,

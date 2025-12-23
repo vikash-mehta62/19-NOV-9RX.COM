@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS banners (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 2. OFFERS TABLE - Discounts & Promo Codes
 -- =============================================
@@ -44,7 +43,6 @@ CREATE TABLE IF NOT EXISTS offers (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 3. BLOGS TABLE - Blog Posts/Articles
 -- =============================================
@@ -66,7 +64,6 @@ CREATE TABLE IF NOT EXISTS blogs (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 4. ANNOUNCEMENTS TABLE - Important Notices
 -- =============================================
@@ -88,23 +85,18 @@ CREATE TABLE IF NOT EXISTS announcements (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- INDEXES for better performance
 -- =============================================
 CREATE INDEX IF NOT EXISTS idx_banners_active ON banners(is_active, display_order);
 CREATE INDEX IF NOT EXISTS idx_banners_dates ON banners(start_date, end_date);
-
 CREATE INDEX IF NOT EXISTS idx_offers_active ON offers(is_active, start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_offers_promo_code ON offers(promo_code);
-
 CREATE INDEX IF NOT EXISTS idx_blogs_published ON blogs(is_published, published_at);
 CREATE INDEX IF NOT EXISTS idx_blogs_slug ON blogs(slug);
 CREATE INDEX IF NOT EXISTS idx_blogs_featured ON blogs(is_featured);
-
 CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(is_active, priority);
 CREATE INDEX IF NOT EXISTS idx_announcements_audience ON announcements(target_audience);
-
 -- =============================================
 -- RLS Policies
 -- =============================================
@@ -112,31 +104,26 @@ ALTER TABLE banners ENABLE ROW LEVEL SECURITY;
 ALTER TABLE offers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE blogs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
-
 -- Banners: Everyone can read active, admins can manage
 CREATE POLICY "Anyone can view active banners" ON banners FOR SELECT USING (is_active = true);
 CREATE POLICY "Admins can manage banners" ON banners FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- Offers: Everyone can read active, admins can manage
 CREATE POLICY "Anyone can view active offers" ON offers FOR SELECT USING (is_active = true);
 CREATE POLICY "Admins can manage offers" ON offers FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- Blogs: Everyone can read published, admins can manage
 CREATE POLICY "Anyone can view published blogs" ON blogs FOR SELECT USING (is_published = true);
 CREATE POLICY "Admins can manage blogs" ON blogs FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- Announcements: Based on target audience, admins can manage
 CREATE POLICY "Users can view relevant announcements" ON announcements FOR SELECT USING (is_active = true);
 CREATE POLICY "Admins can manage announcements" ON announcements FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- =============================================
 -- Updated_at trigger function
 -- =============================================
@@ -147,16 +134,12 @@ BEGIN
     RETURN NEW;
 END;
 $$ language 'plpgsql';
-
 -- Apply triggers
 DROP TRIGGER IF EXISTS update_banners_updated_at ON banners;
 CREATE TRIGGER update_banners_updated_at BEFORE UPDATE ON banners FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_offers_updated_at ON offers;
 CREATE TRIGGER update_offers_updated_at BEFORE UPDATE ON offers FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_blogs_updated_at ON blogs;
 CREATE TRIGGER update_blogs_updated_at BEFORE UPDATE ON blogs FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_announcements_updated_at ON announcements;
 CREATE TRIGGER update_announcements_updated_at BEFORE UPDATE ON announcements FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();

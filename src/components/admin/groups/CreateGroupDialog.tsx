@@ -14,6 +14,7 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { Plus, Loader2 } from "lucide-react";
+import axios from "../../../../axiosconfig";
 
 interface CreateGroupDialogProps {
   onGroupCreated: () => void;
@@ -46,32 +47,23 @@ export function CreateGroupDialog({ onGroupCreated }: CreateGroupDialogProps) {
     try {
       setLoading(true);
 
-      // Create auth user first
-      const response = await fetch(
-        "https://wrvmbgmmuoivsfancgft.supabase.co/auth/v1/admin/users",
-        {
-          method: "POST",
-          headers: {
-            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc`,
-            "Content-Type": "application/json",
-            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc',
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: "12345678",
-            email_confirm: true,
-            user_metadata: {
-              first_name: formData.firstName,
-              last_name: formData.lastName,
-            },
-          }),
-        }
-      );
+      // Call secure backend API to create user
+      const response = await axios.post("/api/users/create-user", {
+        email: formData.email,
+        password: "12345678",
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        userMetadata: {
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+        },
+      });
 
-      const authUser = await response.json();
-      if (!authUser?.id) {
-        throw new Error(authUser.msg || "Failed to create user");
+      if (!response.data?.success || !response.data?.userId) {
+        throw new Error(response.data?.message || "Failed to create user");
       }
+
+      const authUser = { id: response.data.userId };
 
       // Create profile
       const { error } = await supabase.from("profiles").upsert({

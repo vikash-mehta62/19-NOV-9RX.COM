@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, X } from "lucide-react";
+import { ArrowLeft, ArrowRight, X, FileText } from "lucide-react";
 import { WizardNavigationProps } from "./types";
 import { cn } from "@/lib/utils";
 import { LoadingSpinner } from "./LoadingSpinner";
@@ -11,12 +11,17 @@ const WizardNavigationComponent = ({
   onBack,
   onContinue,
   onCancel,
+  onPlaceOrderWithoutPayment,
   isSubmitting = false,
   canContinue = true,
   paymentMethod = "card",
 }: WizardNavigationProps) => {
   const isFirstStep = currentStep === 1;
   const isLastStep = currentStep === totalSteps;
+  
+  // Check if user is admin
+  const userType = sessionStorage.getItem("userType")?.toLowerCase();
+  const isAdmin = userType === "admin";
   
   // Determine button text based on payment method
   const getButtonText = () => {
@@ -59,7 +64,34 @@ const WizardNavigationComponent = ({
           </div>
 
           {/* Right side - Continue or Place Order */}
-          <div className="order-1 sm:order-2">
+          <div className="order-1 sm:order-2 flex flex-col sm:flex-row gap-2">
+            {/* Place Order Without Payment - Only for Admin on last step */}
+            {isLastStep && isAdmin && onPlaceOrderWithoutPayment && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onPlaceOrderWithoutPayment}
+                disabled={!canContinue || isSubmitting}
+                className={cn(
+                  "flex items-center justify-center gap-2 w-full sm:w-auto min-h-[44px] transition-all duration-200 group",
+                  "hover:scale-105 active:scale-95 border-blue-500 text-blue-600 hover:bg-blue-50"
+                )}
+                aria-label="Place order without payment"
+              >
+                {isSubmitting ? (
+                  <>
+                    <LoadingSpinner size="sm" className="border-blue-500 border-t-blue-200" aria-hidden="true" />
+                    <span>Processing...</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="w-4 h-4" aria-hidden="true" />
+                    <span>Place Order (No Payment)</span>
+                  </>
+                )}
+              </Button>
+            )}
+            
             <Button
               type="button"
               onClick={onContinue}

@@ -1,12 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Package, Truck, Eye, Heart, ShoppingCart, Layers } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { ProductDetails } from "../types/product.types"
+import { Heart, ShoppingCart, Truck, Percent, Eye } from "lucide-react"
+import { ProductDetails } from "../../types/product.types"
 
 interface PharmacyProductCardProps {
   product: ProductDetails & {
@@ -27,12 +27,21 @@ export const PharmacyProductCard = ({
   onRemoveFromWishlist,
   isInWishlist
 }: PharmacyProductCardProps) => {
-  const [isHovered, setIsHovered] = useState(false)
-  const { toast } = useToast()
+  const navigate = useNavigate()
+  const [imageLoaded, setImageLoaded] = useState(false)
 
-  const stockStatus = product.totalStock <= 0 ? "Out of Stock" : product.totalStock < 10 ? "Low Stock" : "In Stock"
   const isOutOfStock = product.totalStock <= 0
   const sizesCount = product.sizes?.length || 0
+  const inWishlist = isInWishlist ? isInWishlist(product.id) : false
+  
+  // Check if product has any offer/discount
+  const hasOffer = product.sizes?.some(s => s.originalPrice && s.originalPrice > s.price)
+  const discountPercent = hasOffer && product.sizes?.[0]?.originalPrice 
+    ? Math.round((1 - product.displayPrice / product.sizes[0].originalPrice) * 100)
+    : 0
+
+  // Check shipping cost
+  const hasFreeShipping = product.sizes?.some(s => !s.shipping_cost || s.shipping_cost === 0)
 
   const getImageUrl = () => {
     const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
@@ -46,176 +55,187 @@ export const PharmacyProductCard = ({
   const handleCardClick = () => {
     if (onProductClick) {
       onProductClick(product)
+    } else {
+      // Check user type and navigate to appropriate product detail page
+      const userType = sessionStorage.getItem('userType')
+      if (userType === 'admin') {
+        // Admin users use the public product route
+        navigate(`/product/${product.id}`)
+      } else {
+        // Pharmacy users use the pharmacy-specific route
+        navigate(`/pharmacy/product/${product.id}`)
+      }
     }
   }
 
   const handleWishlistToggle = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    
     if (!onAddToWishlist || !onRemoveFromWishlist || !isInWishlist) return
-
-    if (isInWishlist(product.id)) {
+    if (inWishlist) {
       await onRemoveFromWishlist(product.id)
     } else {
       await onAddToWishlist(product)
     }
   }
 
-  const handleViewSizes = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (onProductClick) {
-      onProductClick(product)
-    }
-  }
-
   return (
     <Card 
-      className={`group relative bg-white border rounded-xl overflow-hidden transition-all duration-300 cursor-pointer ${
-        isOutOfStock 
-          ? "border-gray-200 opacity-60" 
-          : "border-gray-200 hover:shadow-lg hover:border-emerald-300"
-      }`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      className={`group bg-white rounded-2xl overflow-hidden cursor-pointer border border-gray-200 hover:border-emerald-400 hover:shadow-xl transition-all duration-300 ${isOutOfStock ? "opacity-60" : ""}`}
       onClick={handleCardClick}
     >
-      {/* Wishlist & Category */}
-      <div className="absolute top-2 right-2 z-20 flex flex-col gap-1">
-        {/* Wishlist Button */}
-        {onAddToWishlist && onRemoveFromWishlist && isInWishlist && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 bg-white/90 hover:bg-white shadow-sm"
+      {/* Image Section */}
+      <div className="relative bg-gradient-to-br from-gray-50 to-gray-100">
+        {/* Top Left Badges */}
+        <div className="absolute top-3 left-3 z-10 flex flex-col gap-1.5">
+          {/* Sizes Badge */}
+          {sizesCount > 0 && (
+            <Badge className="bg-emerald-500 text-white text-xs font-semibold px-2.5 py-1 rounded-lg shadow-sm">
+              {sizesCount} {sizesCount === 1 ? 'Size' : 'Sizes'}
+            </Badge>
+          )}
+          
+          {/* Offer Badge */}
+          {hasOffer && discountPercent > 0 && (
+            <Badge className="bg-red-500 text-white text-xs font-bold px-2.5 py-1 rounded-lg shadow-sm flex items-center gap-1">
+              <Percent className="w-3 h-3" />
+              {discountPercent}% OFF
+            </Badge>
+          )}
+        </div>
+
+        {/* Wishlist - Top Right */}
+        {onAddToWishlist && (
+          <button
+            className={`absolute top-3 right-3 z-10 w-9 h-9 rounded-full flex items-center justify-center shadow-sm transition-all ${
+              inWishlist 
+                ? 'bg-red-50 text-red-500 border border-red-200' 
+                : 'bg-white text-gray-400 hover:text-red-500 border border-gray-200'
+            }`}
             onClick={handleWishlistToggle}
           >
-            <Heart 
-              className={`w-4 h-4 ${
-                isInWishlist(product.id) 
-                  ? 'text-red-500 fill-red-500' 
-                  : 'text-gray-400 hover:text-red-500'
-              }`} 
-            />
-          </Button>
+            <Heart className={`w-4 h-4 ${inWishlist ? 'fill-current' : ''}`} />
+          </button>
         )}
-        
-        {/* Category Badge */}
-        <Badge className="bg-emerald-100 text-emerald-700 font-medium px-1.5 py-0.5 text-[10px]">
-          {product.category}
-        </Badge>
-      </div>
 
-      {/* Sizes Count Badge */}
-      {sizesCount > 1 && (
-        <div className="absolute top-2 left-2 z-20">
-          <Badge className="bg-blue-500 text-white font-bold px-1.5 py-0.5 text-[10px] flex items-center gap-1">
-            <Layers className="w-3 h-3" />
-            {sizesCount} sizes
+        {/* Category Badge - Top Right Below Wishlist */}
+        <div className="absolute top-14 right-3 z-10">
+          <Badge variant="outline" className="bg-white/90 text-gray-600 text-[10px] font-medium px-2 py-0.5 rounded-md border-gray-300">
+            {product.category}
           </Badge>
         </div>
-      )}
 
-      {/* Product Image */}
-      <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
-        <img
-          src={getImageUrl()}
-          alt={product.name}
-          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-500"
-          onError={(e) => {
-            (e.target as HTMLImageElement).src = "/placeholder.svg"
-          }}
-        />
-        
-        {/* Hover Overlay - View Sizes */}
-        <div className={`absolute inset-0 bg-gradient-to-t from-emerald-900/80 via-emerald-900/40 to-transparent flex items-end justify-center pb-4 transition-opacity duration-300 ${isHovered && !isOutOfStock ? 'opacity-100' : 'opacity-0'}`}>
-          <Button
-            size="sm"
-            className="bg-white text-emerald-700 hover:bg-emerald-50 font-semibold shadow-lg text-xs"
-            onClick={handleViewSizes}
-          >
-            <Eye className="w-3 h-3 mr-1" />
-            View Sizes
-          </Button>
+        {/* Product Image */}
+        <div className="aspect-[4/3] p-6 flex items-center justify-center">
+          {!imageLoaded && (
+            <div className="w-full h-full bg-gray-200 animate-pulse rounded-xl" />
+          )}
+          <img
+            src={getImageUrl()}
+            alt={product.name}
+            className={`max-w-full max-h-full object-contain transition-transform duration-300 group-hover:scale-110 ${imageLoaded ? '' : 'hidden'}`}
+            onLoad={() => setImageLoaded(true)}
+            onError={(e) => {
+              (e.target as HTMLImageElement).src = "/placeholder.svg"
+              setImageLoaded(true)
+            }}
+          />
         </div>
-        
+
         {/* Out of Stock Overlay */}
         {isOutOfStock && (
-          <div className="absolute inset-0 bg-gray-900/50 flex items-center justify-center">
-            <Badge variant="destructive" className="text-sm font-bold">
+          <div className="absolute inset-0 bg-white/80 flex items-center justify-center">
+            <span className="bg-gray-900 text-white text-sm font-semibold px-4 py-2 rounded-full">
               Out of Stock
-            </Badge>
+            </span>
           </div>
         )}
       </div>
 
-      {/* Product Info */}
-      <div className="p-2.5 space-y-1.5">
-        {/* Product Name */}
-        <h3 className="font-semibold text-gray-900 text-xs leading-tight line-clamp-2 group-hover:text-emerald-700 transition-colors min-h-[32px]">
+      {/* Content Section */}
+      <div className="p-4 space-y-3">
+        {/* Product Name - Bigger and clearer */}
+        <h3 className="font-bold text-gray-900 text-base leading-snug line-clamp-2 min-h-[48px] group-hover:text-emerald-600 transition-colors">
           {product.name}
         </h3>
 
-        {/* SKU */}
-        {product.sku && (
-          <p className="text-[9px] text-gray-400 truncate">
-            SKU: {product.sku}
-          </p>
-        )}
-
-        {/* Sizes Info */}
-        {sizesCount > 0 && (
-          <div className="flex items-center gap-1">
-            <Layers className="w-3 h-3 text-blue-500" />
-            <span className="text-[10px] text-gray-500">
-              {sizesCount} size{sizesCount > 1 ? 's' : ''} available
+        {/* SKU & Sizes Row */}
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-gray-500">SKU: {product.sku || 'N/A'}</span>
+          {sizesCount > 0 && (
+            <span className="text-emerald-600 font-medium">
+              {sizesCount} sizes available
             </span>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Price Section */}
-        <div className="pt-1 border-t border-gray-100">
-          <div className="flex items-baseline gap-1">
-            <span className="text-sm text-gray-500">Starting at</span>
-          </div>
-          <div className="flex items-baseline gap-1">
-            <span className="text-lg font-bold text-emerald-600">
+        <div className="bg-gray-50 rounded-xl p-3">
+          <p className="text-xs text-gray-500 mb-1">Starting at</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-2xl font-bold text-emerald-600">
               ${product.displayPrice.toFixed(2)}
             </span>
+            {hasOffer && product.sizes?.[0]?.originalPrice && (
+              <span className="text-sm text-gray-400 line-through">
+                ${product.sizes[0].originalPrice.toFixed(2)}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* View Sizes Button */}
+        {/* Action Buttons */}
         {!isOutOfStock && (
-          <Button
-            className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
-            onClick={handleViewSizes}
-          >
-            <ShoppingCart className="w-3 h-3 mr-1" />
-            View Sizes & Add to Cart
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold h-10 rounded-xl"
+              onClick={(e) => {
+                e.stopPropagation()
+                handleCardClick()
+              }}
+            >
+              <ShoppingCart className="w-4 h-4 mr-1.5" />
+              Add to Cart
+            </Button>
+            <Button
+              variant="outline"
+              className="h-10 px-3 rounded-xl border-gray-300 hover:bg-gray-50"
+              onClick={(e) => {
+                e.stopPropagation()
+                const userType = sessionStorage.getItem('userType')
+                if (userType === 'admin') {
+                  navigate(`/product/${product.id}`)
+                } else {
+                  navigate(`/pharmacy/product/${product.id}`)
+                }
+              }}
+            >
+              <Eye className="w-4 h-4" />
+            </Button>
+          </div>
         )}
 
-        {/* Bottom Info */}
-        <div className="flex items-center justify-between pt-1 border-t border-gray-100">
+        {/* Bottom Info Row */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
           {/* Stock Status */}
-          <div className="flex items-center gap-1">
-            <div className={`w-1.5 h-1.5 rounded-full ${
-              stockStatus === "In Stock" ? "bg-emerald-500" : 
-              stockStatus === "Low Stock" ? "bg-amber-500" : "bg-red-500"
-            }`}></div>
-            <span className={`text-[9px] font-medium ${
-              stockStatus === "In Stock" ? "text-emerald-600" : 
-              stockStatus === "Low Stock" ? "text-amber-600" : "text-red-600"
-            }`}>
-              {stockStatus}
+          <div className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full flex-shrink-0 ${isOutOfStock ? 'bg-red-500' : 'bg-emerald-500'}`} />
+            <span className={`text-xs font-medium whitespace-nowrap ${isOutOfStock ? 'text-red-600' : 'text-emerald-600'}`}>
+              {isOutOfStock ? 'Out of Stock' : 'In Stock'}
             </span>
           </div>
 
-          {/* Free Delivery */}
-          <div className="flex items-center gap-0.5 text-[9px] text-blue-600">
-            <Truck className="w-2.5 h-2.5" />
-            <span className="font-medium">Free Delivery</span>
-          </div>
+          {/* Shipping Info */}
+          {hasFreeShipping ? (
+            <div className="flex items-center gap-1 text-xs text-blue-600 font-medium bg-blue-50 px-2 py-1 rounded-full whitespace-nowrap">
+              <Truck className="w-3 h-3 flex-shrink-0" />
+              <span>Free Ship</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-gray-500 whitespace-nowrap">
+              <Truck className="w-3 h-3 flex-shrink-0" />
+              <span>Shipping</span>
+            </div>
+          )}
         </div>
       </div>
     </Card>

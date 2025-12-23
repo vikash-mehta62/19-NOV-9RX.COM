@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import axios from "../../axiosconfig"
-import { processPayment, PaymentResponse } from "@/services/paymentService"
+import { processPayment, PaymentResponse, logPaymentTransaction } from "@/services/paymentService"
 import {
   CreditCard,
   Landmark,
@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { OrderActivityService } from "@/services/orderActivityService"
+import { PaymentResultPopup, PaymentResultData } from "@/components/payment/PaymentResultPopup"
 
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
@@ -301,6 +302,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   const navigate = useNavigate()
   const [paymentSuccess, setPaymentSuccess] = useState(false)
   const [cardType, setCardType] = useState({ type: "unknown", name: "Credit Card", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] })
+  
+  // Payment result popup state
+  const [showResultPopup, setShowResultPopup] = useState(false)
+  const [paymentResult, setPaymentResult] = useState<PaymentResultData | null>(null)
 
   const [formData, setFormData] = useState({
     amount: 0,
@@ -403,15 +408,36 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   }
 
   const authorizeErrorMap: Record<string, string> = {
+    // Authentication errors
     E00003: "Invalid request data structure.",
-    E00007: "Authentication failed.",
+    E00007: "Authentication failed. Please check payment gateway credentials.",
     E00012: "Duplicate subscription exists.",
     E00015: "Field length exceeded.",
     E00020: "Account not enabled for eCheck.",
     E00027: "Transaction unsuccessful.",
     E00039: "Duplicate record detected.",
     E00040: "Record not found.",
-    E00099: "Profile creation failed."
+    E00099: "Profile creation failed.",
+    // Gateway configuration errors
+    MISSING_CREDENTIALS: "Payment gateway not configured. Please contact support.",
+    GATEWAY_DISABLED: "Payment gateway is disabled. Please contact support.",
+    CONFIG_ERROR: "Payment configuration error. Please contact support.",
+    // Transaction errors
+    "2": "Card declined. Please try a different card.",
+    "3": "Card declined. Please contact your bank.",
+    "4": "Card declined. Please try again.",
+    "5": "Invalid amount.",
+    "6": "Invalid card number.",
+    "7": "Invalid expiration date.",
+    "8": "Card expired.",
+    "11": "Duplicate transaction.",
+    "27": "AVS mismatch. Please verify billing address.",
+    "44": "CVV mismatch. Please verify security code.",
+    "45": "Card code verification failed.",
+    "65": "Card declined. Exceeds limit.",
+    "127": "AVS and CVV mismatch.",
+    "252": "Transaction pending review.",
+    "253": "Transaction held for review.",
   }
 
   const validateForm = () => {
@@ -450,7 +476,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e?.preventDefault?.()
     
     // Prevent double submission
     if (loading) return
@@ -495,18 +521,43 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: "manual", performedByName: "Admin",
         })
 
-        toast({ title: "Payment Successful", description: "Manual payment processed successfully" })
-        setModalIsOpen(false)
+        // Show success popup for manual payment
+        setPaymentResult({
+          success: true,
+          amount: formData.amount,
+          orderNumber: orders?.order_number,
+          paymentMethod: "manual",
+        })
+        setShowResultPopup(true)
         setLoading(false)
         return
       } catch (error: any) {
         setLoading(false)
-        toast({ title: "Payment Failed", description: error.message || "Failed to process manual payment", variant: "destructive" })
+        // Show failure popup for manual payment
+        setPaymentResult({
+          success: false,
+          amount: formData.amount,
+          orderNumber: orders?.order_number,
+          paymentMethod: "manual",
+          errorMessage: error.message || "Failed to process manual payment",
+        })
+        setShowResultPopup(true)
         return
       }
     }
 
-    // Card/ACH payment
+    // Card/ACH payment - ensure all billing fields have valid values
+    const getNameParts = (fullName: string) => {
+      const parts = (fullName || "").trim().split(" ").filter(Boolean);
+      return {
+        firstName: parts[0] || "Customer",
+        lastName: parts.slice(1).join(" ") || "Customer" // Default to "Customer" if no last name
+      };
+    };
+    
+    const cardNameParts = getNameParts(formData.cardholderName);
+    const achNameParts = getNameParts(formData.nameOnAccount);
+    
     const paymentRequest = paymentType === "credit_card"
       ? {
           payment: { type: "card" as const, cardNumber: formData.cardNumber, expirationDate: formData.expirationDate.replace("/", ""), cvv: formData.cvv, cardholderName: formData.cardholderName },
@@ -514,7 +565,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           invoiceNumber: orders?.order_number,
           orderId,
           customerEmail: customer?.email,
-          billing: { firstName: formData.cardholderName?.split(" ")[0] || "Customer", lastName: formData.cardholderName?.split(" ").slice(1).join(" ") || "", address: formData.address, city: formData.city, state: formData.state, zip: formData.zip, country: formData.country },
+          billing: { firstName: cardNameParts.firstName, lastName: cardNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
         }
       : {
           payment: { type: "ach" as const, accountType: formData.accountType as "checking" | "savings", routingNumber: formData.routingNumber, accountNumber: formData.accountNumber, nameOnAccount: formData.nameOnAccount, echeckType: "WEB" as const },
@@ -522,11 +573,34 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           invoiceNumber: orders?.order_number,
           orderId,
           customerEmail: customer?.email,
-          billing: { firstName: formData.nameOnAccount?.split(" ")[0] || "Customer", lastName: formData.nameOnAccount?.split(" ").slice(1).join(" ") || "", address: formData.address, city: formData.city, state: formData.state, zip: formData.zip, country: formData.country },
+          billing: { firstName: achNameParts.firstName, lastName: achNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
         }
 
     try {
       const response: PaymentResponse = await processPayment(paymentRequest)
+
+      // Log transaction to payment_transactions table (for both success and failure)
+      const cardLastFour = paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined
+      const cardTypeDetected = paymentType === "credit_card" ? detectCardType(formData.cardNumber) : undefined
+      
+      await logPaymentTransaction(
+        orders.customer || orders.profile_id,
+        orderId,
+        null, // invoice_id - will be set after invoice creation
+        "auth_capture",
+        formData.amount,
+        {
+          success: response.success,
+          transactionId: response.transactionId,
+          authCode: response.authCode,
+          message: response.message || response.error || "",
+          errorCode: response.errorCode,
+          errorMessage: response.error,
+        },
+        paymentType === "credit_card" ? "card" : "ach",
+        cardLastFour,
+        cardTypeDetected
+      )
 
       if (response.success) {
         setPaymentSuccess(true)
@@ -548,18 +622,56 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: paymentType === "credit_card" ? "card" : "ach", paymentId: response.transactionId, performedByName: customer.name || "Customer", performedByEmail: customer.email,
         })
 
-        toast({ title: "Payment Successful", description: response.message || "Payment processed successfully" })
+        // Show success popup with transaction details
+        setPaymentResult({
+          success: true,
+          transactionId: response.transactionId,
+          authCode: response.authCode,
+          amount: formData.amount,
+          orderNumber: orders?.order_number,
+          paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+          cardType: paymentType === "credit_card" ? cardType.type : undefined,
+          cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+          accountType: paymentType === "ach" ? formData.accountType : undefined,
+          accountLastFour: paymentType === "ach" ? formData.accountNumber.slice(-4) : undefined,
+        })
+        setShowResultPopup(true)
         setLoading(false)
-        setModalIsOpen(false)
       } else {
         setLoading(false)
         const errorCode = response.errorCode
         const finalMessage = errorCode && authorizeErrorMap[errorCode] ? `${authorizeErrorMap[errorCode]} (${errorCode})` : response.error || "Payment failed. Please try again."
-        toast({ title: "Payment Failed", description: finalMessage, variant: "destructive" })
+        
+        // Show failure popup with error details
+        setPaymentResult({
+          success: false,
+          amount: formData.amount,
+          orderNumber: orders?.order_number,
+          errorMessage: finalMessage,
+          errorCode: errorCode,
+          paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+          cardType: paymentType === "credit_card" ? cardType.type : undefined,
+          cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+          accountType: paymentType === "ach" ? formData.accountType : undefined,
+          accountLastFour: paymentType === "ach" ? formData.accountNumber.slice(-4) : undefined,
+        })
+        setShowResultPopup(true)
       }
     } catch (error: any) {
       setLoading(false)
-      toast({ title: "Payment Failed", description: error?.message || "Something went wrong.", variant: "destructive" })
+      // Show failure popup for unexpected errors
+      setPaymentResult({
+        success: false,
+        amount: formData.amount,
+        orderNumber: orders?.order_number,
+        errorMessage: error?.message || "Something went wrong. Please try again.",
+        paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+        cardType: paymentType === "credit_card" ? cardType.type : undefined,
+        cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+        accountType: paymentType === "ach" ? formData.accountType : undefined,
+        accountLastFour: paymentType === "ach" ? formData.accountNumber.slice(-4) : undefined,
+      })
+      setShowResultPopup(true)
     }
   }
 
@@ -699,7 +811,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                               <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
                                 <SelectValue placeholder="Month" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="z-[10000]">
                                 {months.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                               </SelectContent>
                             </Select>
@@ -707,7 +819,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                               <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
                                 <SelectValue placeholder="Year" />
                               </SelectTrigger>
-                              <SelectContent>
+                              <SelectContent className="z-[10000]">
                                 {getYears().map((y) => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
                               </SelectContent>
                             </Select>
@@ -1020,7 +1132,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 <Button 
                   type="button" 
                   disabled={loading || formData.amount <= 0} 
-                  onClick={handleSubmit} 
+                  onClick={(e) => handleSubmit(e as unknown as React.FormEvent)} 
                   className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
@@ -1064,8 +1176,34 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     </div>
   )
 
+  // Handler for closing result popup on success
+  const handleResultPopupClose = () => {
+    setShowResultPopup(false)
+    if (paymentResult?.success) {
+      setModalIsOpen(false)
+    }
+  }
+
+  // Handler for "Try Again" on failure
+  const handleTryAgain = () => {
+    setShowResultPopup(false)
+    setPaymentResult(null)
+  }
+
   // Use createPortal to render outside the table DOM hierarchy
-  return createPortal(paymentContent, document.body)
+  return (
+    <>
+      {createPortal(paymentContent, document.body)}
+      {paymentResult && (
+        <PaymentResultPopup
+          isOpen={showResultPopup}
+          onClose={handleResultPopupClose}
+          onTryAgain={handleTryAgain}
+          result={paymentResult}
+        />
+      )}
+    </>
+  )
 }
 
 export default PaymentForm

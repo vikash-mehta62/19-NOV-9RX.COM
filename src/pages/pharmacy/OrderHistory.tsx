@@ -43,10 +43,11 @@ const OrderHistory = () => {
       if (!userProfile?.id) return;
       
       try {
+        // Use profile_id instead of user_id
         const { data, error } = await supabase
           .from("orders")
           .select("*")
-          .eq("user_id", userProfile.id)
+          .eq("profile_id", userProfile.id)
           .order("created_at", { ascending: false });
 
         if (error) throw error;

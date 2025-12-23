@@ -23,11 +23,12 @@ export const CartDrawer = () => {
   const shippingCost =
     sessionStorage.getItem("shipping") === "true"
       ? 0
-      : Math.max(...cartItems.map((item) => item.shipping_cost || 0));
+      : Math.max(...cartItems.map((item) => item.shipping_cost || 0), 0);
 
   const total = cartItems.reduce((sum, item) => {
-    const itemTotal = item.sizes.reduce(
-      (sizeSum, size) => sizeSum + size.price * size.quantity,
+    const sizes = item.sizes || [];
+    const itemTotal = sizes.reduce(
+      (sizeSum, size) => sizeSum + (size.price || 0) * (size.quantity || 0),
       0
     );
     return sum + itemTotal + (sessionStorage.getItem("shipping") === "true" ? 0 : shippingCost);
@@ -128,7 +129,7 @@ export const CartDrawer = () => {
                   <div className="flex-1">
                     <h3 className="text-base font-semibold">{item.name}</h3>
 
-                    {item.sizes
+                    {(item.sizes || [])
                       .filter((s) => s.quantity > 0)
                       .map((size) => (
                         <div
@@ -139,7 +140,7 @@ export const CartDrawer = () => {
                             <span className="font-medium">
                               Size: {size.size_value} {size.size_unit}
                             </span>
-                            <span>${size.price.toFixed(2)} / {size.type as any}</span>
+                            <span>${(size.price || 0).toFixed(2)} / {size.type as any}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <div className="flex items-center gap-2 mt-1">
@@ -150,16 +151,16 @@ export const CartDrawer = () => {
                                 onClick={() =>
                                   handleQuantityChange(
                                     item.productId,
-                                    (item.sizes.find((s) => s.id === size.id)?.quantity || 1) - 1,
+                                    ((item.sizes || []).find((s) => s.id === size.id)?.quantity || 1) - 1,
                                     size.id
                                   )
                                 }
-                                disabled={(item.sizes.find((s) => s.id === size.id)?.quantity || 1) <= 1}
+                                disabled={((item.sizes || []).find((s) => s.id === size.id)?.quantity || 1) <= 1}
                               >
                                 <Minus className="h-4 w-4" />
                               </Button>
                               <span className="w-6 text-center">
-                                {item.sizes.find((s) => s.id === size.id)?.quantity}
+                                {(item.sizes || []).find((s) => s.id === size.id)?.quantity}
                               </span>
                               <Button
                                 size="icon"
@@ -168,7 +169,7 @@ export const CartDrawer = () => {
                                 onClick={() =>
                                   handleQuantityChange(
                                     item.productId,
-                                    (item.sizes.find((s) => s.id === size.id)?.quantity || 0) + 1,
+                                    ((item.sizes || []).find((s) => s.id === size.id)?.quantity || 0) + 1,
                                     size.id
                                   )
                                 }
@@ -178,7 +179,7 @@ export const CartDrawer = () => {
                             </div>
                             <span className="text-sm font-medium">
                               Total: ${(
-                                size.quantity * size.price
+                                (size.quantity || 0) * (size.price || 0)
                               ).toFixed(2)}
                             </span>
                           </div>

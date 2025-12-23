@@ -12,14 +12,10 @@ CREATE TABLE IF NOT EXISTS order_activities (
   metadata JSONB,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 CREATE INDEX IF NOT EXISTS idx_order_activities_order_id ON order_activities(order_id);
 CREATE INDEX IF NOT EXISTS idx_order_activities_created_at ON order_activities(created_at DESC);
-
 ALTER TABLE order_activities ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Allow authenticated users to view order activities"
   ON order_activities FOR SELECT TO authenticated USING (true);
-
 CREATE POLICY "Allow authenticated users to insert order activities"
   ON order_activities FOR INSERT TO authenticated WITH CHECK (true);

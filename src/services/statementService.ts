@@ -10,6 +10,7 @@ export interface StatementTransaction {
   balance: number;
   transaction_type: string;
   reference_type?: string;
+  reference_id?: string;
   created_by?: string;
   admin_pay_notes?: string;
   transectionId?: string;
@@ -80,8 +81,51 @@ export class StatementGenerationService {
         throw new Error(`Failed to fetch transactions: ${transactionError.message}`);
       }
 
+      // Also fetch orders that might not be in account_transactions
+      const { data: orders, error: ordersError } = await supabase
+        .from("orders")
+        .select("id, created_at, total_amount, order_number, status, payment_status")
+        .eq("profile_id", userId)
+        .gte("created_at", startDateISO)
+        .lte("created_at", endDateISO)
+        .order("created_at", { ascending: true });
+
+      if (ordersError) {
+        console.warn("Could not fetch orders:", ordersError.message);
+      }
+
       // Handle edge case for periods with no transactions (Requirement 3.4)
-      const transactionList: StatementTransaction[] = transactions || [];
+      let transactionList: StatementTransaction[] = transactions || [];
+
+      // Add orders that are not already in account_transactions
+      if (orders && orders.length > 0) {
+        const existingOrderIds = new Set(
+          transactionList
+            .filter(t => t.reference_type === 'order')
+            .map(t => t.reference_id)
+        );
+
+        for (const order of orders) {
+          if (!existingOrderIds.has(order.id) && order.total_amount > 0) {
+            // This order is not in account_transactions, add it
+            transactionList.push({
+              id: `order-${order.id}`,
+              transaction_date: order.created_at,
+              description: `Order #${order.order_number || order.id.substring(0, 8)} - ${order.status}`,
+              debit_amount: order.total_amount,
+              credit_amount: 0,
+              balance: 0, // Will be calculated below
+              transaction_type: 'debit',
+              reference_type: 'order',
+            });
+          }
+        }
+
+        // Re-sort by date after adding orders
+        transactionList.sort((a, b) => 
+          new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+        );
+      }
 
       // Calculate opening balance by getting the balance before the start date
       let openingBalance = 0;
@@ -108,13 +152,7 @@ export class StatementGenerationService {
       // Process transactions to calculate running balances and totals (Requirement 3.3)
       const processedTransactions = transactionList.map((transaction, index) => {
         // Calculate running balance
-        if (index === 0) {
-          // First transaction: start from opening balance
-          closingBalance = openingBalance + transaction.credit_amount - transaction.debit_amount;
-        } else {
-          // Use the balance from the transaction (should already be calculated correctly)
-          closingBalance = transaction.balance;
-        }
+        closingBalance = closingBalance + transaction.credit_amount - transaction.debit_amount;
 
         // Accumulate totals
         totalPurchases += transaction.debit_amount;

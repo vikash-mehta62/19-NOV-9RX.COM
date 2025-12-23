@@ -1,6 +1,7 @@
 
 import { supabase } from "@/supabaseClient";
 import { toast } from "@/hooks/use-toast";
+import axios from "../../../../axiosconfig";
 
 export const deleteUser = async (userId: string, userName: string): Promise<boolean> => {
   try {
@@ -68,7 +69,7 @@ export const deleteUser = async (userId: string, userName: string): Promise<bool
       );
     }
 
-    // Attempt to delete the user
+    // Attempt to delete the user from profiles
     const { error: deleteError } = await supabase
       .from('profiles')
       .delete()
@@ -79,53 +80,24 @@ export const deleteUser = async (userId: string, userName: string): Promise<bool
       throw new Error(deleteError.message || 'Failed to delete user');
     }
 
-
-    const deleteUser2 = async (userId: string) => {
-      try {
-        const response = await fetch(
-          `https://wrvmbgmmuoivsfancgft.supabase.co/auth/v1/admin/users/${userId}`,
-          {
-            method: "DELETE",
-            headers: {
-              Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0`, // Use the service role key here
-              "Content-Type": "application/json",
-              apikey:
-                "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0",
-            },
-          }
-        );
-    
-        if (!response.ok) {
-          const errorData = await response.json();
-          toast({
-            title: "Unable to Delete Location",
-            description: `This location is associated with orders placed by ${userName}, so it cannot be deleted.`,
-            variant:"destructive"
-          });
-          
-          console.error("Error deleting user:", errorData);
-          throw new Error(errorData.message || "Failed to delete user");
-       
-        }
-    
-        console.log("User deleted successfully:", userId);
-        toast({
-          title: "Success",
-          description: `${userName} has been deleted`,
-        });
-        return true;
-      } catch (error) {
-        console.error("Delete error:", error);
-        return false;
+    // Delete from Supabase Auth using secure backend API
+    try {
+      const response = await axios.delete(`/api/users/delete-user/${userId}`);
+      
+      if (!response.data?.success) {
+        console.error("Error deleting auth user:", response.data?.message);
+        // Don't throw here - profile is already deleted
       }
-    };
-    
-    await deleteUser2(userId)
+    } catch (authDeleteError) {
+      console.error("Auth delete error:", authDeleteError);
+      // Profile is already deleted, log but don't fail
+    }
 
-    
     console.log('User deleted successfully:', userId);
-    
- 
+    toast({
+      title: "Success",
+      description: `${userName} has been deleted`,
+    });
     
     return true;
   } catch (error) {

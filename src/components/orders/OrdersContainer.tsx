@@ -7,8 +7,29 @@ import { useOrderManagement } from "./hooks/useOrderManagement";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Download, Package, PlusCircle } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/supabaseClient";
+import { OrderSummaryCards } from "./OrderSummaryCards";
+
+type SortField = "customer" | "date" | "total" | "status" | "payment_status";
+type SortDirection = "asc" | "desc";
+
+// Status order for sorting
+const paymentStatusOrder: Record<string, number> = {
+  paid: 1,
+  pending: 2,
+  unpaid: 3,
+};
+
+const orderStatusOrder: Record<string, number> = {
+  new: 1,
+  processing: 2,
+  shipped: 3,
+  delivered: 4,
+  completed: 5,
+  cancelled: 6,
+  credit_approval_processing: 7,
+};
 import ProductShowcase from "../pharmacy/ProductShowcase";
 import { useLocation, useNavigate } from "react-router-dom";
 import { OrderFormValues } from "./schemas/orderSchema";
@@ -70,6 +91,10 @@ export const OrdersContainer = ({
   const location = useLocation();
   const navigate = useNavigate();
   const [orderStatus, setOrderStatus] = useState<string>("");
+  
+  // Sorting state
+  const [sortField, setSortField] = useState<SortField>("date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const {
     orders,
@@ -145,6 +170,55 @@ export const OrdersContainer = ({
     filteredOrders,
   } = useOrderFilters(orders, poIs);
 
+  // Handle sort
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      if (field === "date") {
+        setSortDirection("desc");
+      } else if (field === "payment_status") {
+        setSortDirection("asc");
+      } else {
+        setSortDirection("asc");
+      }
+    }
+  };
+
+  // Sort filtered orders
+  const sortedOrders = useMemo(() => {
+    return [...filteredOrders].sort((a: any, b: any) => {
+      let comparison = 0;
+
+      switch (sortField) {
+        case "customer":
+          const nameA = (a.customerInfo?.name || "").toLowerCase();
+          const nameB = (b.customerInfo?.name || "").toLowerCase();
+          comparison = nameA.localeCompare(nameB);
+          break;
+        case "date":
+          comparison = new Date(a.date || a.created_at).getTime() - new Date(b.date || b.created_at).getTime();
+          break;
+        case "total":
+          comparison = parseFloat(a.total || a.total_amount || "0") - parseFloat(b.total || b.total_amount || "0");
+          break;
+        case "status":
+          const statusA = orderStatusOrder[a.status] || 99;
+          const statusB = orderStatusOrder[b.status] || 99;
+          comparison = statusA - statusB;
+          break;
+        case "payment_status":
+          const payA = paymentStatusOrder[a.payment_status?.toLowerCase()] || 99;
+          const payB = paymentStatusOrder[b.payment_status?.toLowerCase()] || 99;
+          comparison = payA - payB;
+          break;
+      }
+
+      return sortDirection === "asc" ? comparison : -comparison;
+    });
+  }, [filteredOrders, sortField, sortDirection]);
+
   useEffect(() => {
     loadOrders({ statusFilter, statusFilter2, searchQuery, dateRange, poIs });
   }, [statusFilter, statusFilter2, searchQuery, dateRange, page, poIs, limit, location.pathname]);
@@ -163,10 +237,74 @@ export const OrdersContainer = ({
     navigate("/admin/orders/create");
   };
 
+  // Calculate order stats for summary cards
+  const orderStats = useMemo(() => {
+    const stats = {
+      total: orders.length,
+      newOrders: 0,
+      processing: 0,
+      shipped: 0,
+      delivered: 0,
+      cancelled: 0,
+      totalRevenue: 0,
+      pendingPayment: 0,
+    };
+
+    orders.forEach((order: any) => {
+      const status = order.status?.toLowerCase();
+      const total = parseFloat(order.total || order.total_amount || "0");
+      
+      switch (status) {
+        case "new":
+          stats.newOrders++;
+          break;
+        case "processing":
+          stats.processing++;
+          break;
+        case "shipped":
+          stats.shipped++;
+          break;
+        case "delivered":
+        case "completed":
+          stats.delivered++;
+          break;
+        case "cancelled":
+          stats.cancelled++;
+          break;
+      }
+
+      stats.totalRevenue += total;
+      if (order.payment_status?.toLowerCase() !== "paid") {
+        stats.pendingPayment += total;
+      }
+    });
+
+    return stats;
+  }, [orders]);
+
+  const handleCardClick = (filter: string) => {
+    if (filter === "all") {
+      setStatusFilter2("all");
+    } else {
+      setStatusFilter2(filter);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <div className="flex flex-col md:flex-row flex-wrap justify-between items-center gap-2 p-2 bg-card rounded-lg shadow-sm border">
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+      {/* Order Summary Cards */}
+      {!poIs && userRole === "admin" && (
+        <OrderSummaryCards 
+          stats={orderStats} 
+          isLoading={loading}
+          onCardClick={handleCardClick}
+          activeFilter={statusFilter2}
+        />
+      )}
+
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+        {/* Left side - Search and Filters */}
+        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
           <OrderFilters
             onSearch={setSearchQuery}
             onDateChange={setDateRange}
@@ -176,19 +314,20 @@ export const OrdersContainer = ({
           />
 
           {!poIs && (
-            <>
-              <StatusFilter
-                value={statusFilter2}
-                onValueChange={setStatusFilter2}
-              />
-            </>
+            <StatusFilter
+              value={statusFilter2}
+              onValueChange={setStatusFilter2}
+            />
           )}
+        </div>
 
+        {/* Right side - Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
           {!poIs && (
             <CSVLink {...exportToCSV(filteredOrders)}>
-              <Button variant="outline" className="flex items-center">
-                <Download className="mr-2 h-4 w-4" />
-                Export Orders
+              <Button variant="outline" size="sm" className="gap-2 text-gray-600 hover:text-gray-900">
+                <Download className="h-4 w-4" />
+                Export
               </Button>
             </CSVLink>
           )}
@@ -197,21 +336,23 @@ export const OrdersContainer = ({
             <>
               {!poIs && (
                 <Button 
-                  className="w-auto min-w-fit px-3 py-2 text-sm"
+                  size="sm"
+                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
                   onClick={handleCreateOrderClick}
                 >
-                  <PlusCircle className="mr-1 h-4 w-4" />
+                  <PlusCircle className="h-4 w-4" />
                   Create Order
                 </Button>
               )}
 
               <Button
-                variant="secondary"
-                className="w-auto min-w-fit px-3 py-2 bg-blue-500 text-white text-sm"
+                variant="outline"
+                size="sm"
+                className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
                 onClick={() => setIsOpen(true)}
               >
-                <Package className="mr-1 h-4 w-4" />
-                All Products
+                <Package className="h-4 w-4" />
+                Products
               </Button>
 
               {poIs && <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />}
@@ -235,7 +376,7 @@ export const OrdersContainer = ({
       )}
 
       <OrdersList
-        orders={filteredOrders}
+        orders={sortedOrders}
         onOrderClick={handleOrderClick}
         selectedOrder={selectedOrder}
         isEditing={isEditing}
@@ -257,6 +398,9 @@ export const OrdersContainer = ({
         poIs={poIs}
         onCancelOrder={handleCancelOrder}
         isLoading={loading}
+        sortField={sortField}
+        sortDirection={sortDirection}
+        onSort={handleSort}
       />
 
       <Pagination

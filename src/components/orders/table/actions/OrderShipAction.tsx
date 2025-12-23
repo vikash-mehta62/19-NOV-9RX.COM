@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
 import { supabase } from "@/integrations/supabase/client";
+import { awardOrderPoints } from "@/services/rewardsService";
 
 interface OrderShipActionProps {
   order: OrderFormValues;
@@ -85,18 +86,40 @@ export const OrderShipAction = ({
         .update({
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
-          
+          status: "shipped"
         })
         .eq("id", order.id)
-        .select("*") // Returns the updated order
-        .single(); // Ensures only one order is fetched
+        .select("*")
+        .single();
         
-              if (error) throw error;
-          
-              // Log the updated order
-              console.log("Updated Order:", updatedOrder);
-              onShipOrder(order.id);
-          
+        if (error) throw error;
+    
+        // Log the updated order
+        console.log("Updated Order:", updatedOrder);
+
+        // Award reward points when order is shipped
+        if (updatedOrder?.customer_id && updatedOrder?.total) {
+          try {
+            const rewardResult = await awardOrderPoints(
+              updatedOrder.customer_id,
+              updatedOrder.id,
+              updatedOrder.total,
+              updatedOrder.order_number || order.id
+            );
+            
+            if (rewardResult.success) {
+              console.log("Reward points awarded:", rewardResult);
+              toast({
+                title: "Reward Points Awarded! 🎉",
+                description: `Customer earned ${rewardResult.pointsEarned} points${rewardResult.tierUpgrade ? ` and upgraded to ${rewardResult.newTier.name}!` : ""}`,
+              });
+            }
+          } catch (rewardError) {
+            console.error("Error awarding reward points:", rewardError);
+          }
+        }
+
+        onShipOrder(order.id);
       }
 
       setShowTrackingDialog(false);

@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
 import { useWizardState } from "./useWizardState";
-import { WizardProgressIndicator } from "./WizardProgressIndicator";
 import { WizardNavigation } from "./WizardNavigation";
 import { OrderSummaryCard } from "./OrderSummaryCard";
 import { OrderCreationWizardProps, WizardStep, Customer } from "./types";
@@ -105,10 +104,19 @@ const OrderCreationWizardComponent = ({
         }
       }
 
-      // Mark step 1 as complete and move to step 2 (addresses)
-      // This happens in both edit mode and pharmacy mode since customer is already selected
-      wizardState.markStepComplete(1);
-      wizardState.goToStep(2);
+      // Check if we should skip directly to products (step 3)
+      // This happens when customer AND addresses are already provided (from ViewProfileModal)
+      if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
+        console.log("Skipping to products step (step 3)");
+        wizardState.markStepComplete(1);
+        wizardState.markStepComplete(2);
+        wizardState.goToStep(3);
+      } else {
+        // Mark step 1 as complete and move to step 2 (addresses)
+        // This happens in both edit mode and pharmacy mode since customer is already selected
+        wizardState.markStepComplete(1);
+        wizardState.goToStep(2);
+      }
       
       setIsInitialized(true);
     };
@@ -132,10 +140,10 @@ const OrderCreationWizardComponent = ({
     // Check if customer has free shipping from sessionStorage
     const hasFreeShipping = sessionStorage.getItem("shipping") === "true";
     
-    // Calculate shipping cost
-    const calculatedShipping = hasFreeShipping 
+    // Calculate shipping cost - handle empty cart case to avoid -Infinity
+    const calculatedShipping = hasFreeShipping || cartItems.length === 0
       ? 0 
-      : Math.max(...cartItems.map((item) => item.shipping_cost || 0));
+      : Math.max(0, ...cartItems.map((item) => item.shipping_cost || 0));
     
     // Calculate tax on subtotal (excluding shipping)
     const tax = ((subtotal) * taxPer) / 100;
@@ -534,6 +542,56 @@ const OrderCreationWizardComponent = ({
     wizardState.goToStep(3);
   }, [wizardState]);
 
+  // Handle place order without payment (Admin only)
+  const handlePlaceOrderWithoutPayment = useCallback(async () => {
+    setIsSubmitting(true);
+    try {
+      // Prepare order data with skipPayment flag
+      const orderData = {
+        ...formData,
+        customer: selectedCustomer,
+        customerId: selectedCustomer?.id,
+        billingAddress,
+        shippingAddress,
+        cartItems,
+        paymentMethod: "manual" as PaymentMethod,
+        specialInstructions,
+        poNumber,
+        termsAccepted: true,
+        accuracyConfirmed: true,
+        subtotal,
+        tax,
+        shipping,
+        total,
+        createdAt: new Date().toISOString(),
+        skipPayment: true, // Flag to indicate no payment required
+        status: "pending", // Order status without payment
+      };
+
+      // Simulate processing
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      
+      // Mark final step as complete
+      wizardState.markStepComplete(totalSteps);
+      
+      toast({
+        title: "Order Created Successfully",
+        description: "Order has been created without payment processing",
+      });
+
+      onComplete?.(orderData);
+    } catch (error) {
+      console.error("Order creation error:", error);
+      toast({
+        title: "Order Creation Failed",
+        description: error instanceof Error ? error.message : "An error occurred while creating the order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [formData, selectedCustomer, billingAddress, shippingAddress, cartItems, specialInstructions, poNumber, subtotal, tax, shipping, total, wizardState, totalSteps, toast, onComplete]);
+
   // Render current step content
   const renderStepContent = () => {
     switch (wizardState.currentStep) {
@@ -622,18 +680,8 @@ const OrderCreationWizardComponent = ({
     >
     <div className="min-h-screen bg-gray-50" role="main" aria-label="Order Creation Wizard">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        {/* Progress Indicator */}
-        <nav aria-label="Order creation progress">
-          <WizardProgressIndicator
-            currentStep={wizardState.currentStep}
-            completedSteps={wizardState.completedSteps}
-            steps={steps}
-            onStepClick={handleStepClick}
-          />
-        </nav>
-
         {/* Main Content Area with Order Summary */}
-        <div className="mt-4 sm:mt-6 lg:mt-8 grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Main Content - Takes 2 columns on desktop */}
           <div className="lg:col-span-2">
             {/* Validation Errors Alert */}
@@ -677,6 +725,7 @@ const OrderCreationWizardComponent = ({
                 onBack={handleBack}
                 onContinue={handleContinue}
                 onCancel={handleCancel}
+                onPlaceOrderWithoutPayment={handlePlaceOrderWithoutPayment}
                 isSubmitting={isSubmitting}
                 canContinue={canProceedFromCurrentStep()}
                 paymentMethod={paymentMethod}

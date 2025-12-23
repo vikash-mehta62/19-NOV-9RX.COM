@@ -3,11 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
-  FileBarChart, TrendingUp, TrendingDown, Eye, Mail, Printer, Download
+  FileBarChart, TrendingUp, TrendingDown, Eye, Mail, Printer, Download, Loader2, Calendar
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
+import { supabase } from "@/supabaseClient";
+import { useToast } from "@/hooks/use-toast";
+import { statementPDFGenerator } from "@/utils/statement-pdf-generator";
 import {
   Select,
   SelectContent,

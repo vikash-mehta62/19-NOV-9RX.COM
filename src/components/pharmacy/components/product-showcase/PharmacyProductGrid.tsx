@@ -1,36 +1,10 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { Package, Search } from "lucide-react"
+import { Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PharmacyProductCard } from "./PharmacyProductCard"
 import { ProductDetails } from "../../types/product.types"
-
-// Flattened size item type - each size becomes its own card
-export interface FlattenedSizeItem {
-  productId: string
-  productName: string
-  productCategory: string
-  productSubcategory?: string
-  productDescription?: string
-  productSku: string
-  sizeId: string
-  sizeValue: string
-  sizeUnit: string
-  sizeSku: string
-  price: number
-  originalPrice: number
-  stock: number
-  quantityPerCase: number
-  rollsPerCase?: number
-  image: string
-  productImages: string[]
-  shippingCost: number
-  caseEnabled: boolean
-  unitEnabled: boolean
-  pricePerCase: number
-  keyFeatures?: string
-}
 
 interface PharmacyProductGridProps {
   products: ProductDetails[]
@@ -55,23 +29,18 @@ export const PharmacyProductGrid = ({
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const [localViewMode, setLocalViewMode] = useState<"grid" | "compact">(viewMode)
-
   const currentViewMode = onViewModeChange ? viewMode : localViewMode
 
-  // Show products as cards instead of individual sizes
   const productItems = useMemo(() => {
     return products.map(product => ({
       ...product,
-      // Use the first size's price if available, otherwise use base_price
       displayPrice: product.sizes && product.sizes.length > 0 
         ? product.sizes[0].price 
         : product.base_price || product.price || 0,
-      // Use product image or first size image
       displayImage: product.image_url || 
         (product.images && product.images[0]) || 
         (product.sizes && product.sizes[0]?.image) || 
         '/placeholder.svg',
-      // Calculate total stock from all sizes
       totalStock: product.sizes 
         ? product.sizes.reduce((sum, size) => sum + (size.stock || 0), 0)
         : product.stock || 0
@@ -83,16 +52,21 @@ export const PharmacyProductGrid = ({
     return () => clearTimeout(timer)
   }, [products])
 
+  // Loading skeleton
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-          <div key={i} className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
-            <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 animate-pulse"></div>
-            <div className="p-3 space-y-2">
-              <div className="h-3 bg-gray-200 rounded animate-pulse"></div>
-              <div className="h-3 bg-gray-200 rounded w-3/4 animate-pulse"></div>
-              <div className="h-5 bg-gray-200 rounded w-1/2 animate-pulse"></div>
+      <div className={currentViewMode === "grid" 
+        ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+        : "grid grid-cols-1 sm:grid-cols-2 gap-5"
+      }>
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+          <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-200">
+            <div className="aspect-[4/3] bg-gray-100 animate-pulse" />
+            <div className="p-4 space-y-3">
+              <div className="h-5 bg-gray-200 rounded-lg animate-pulse" />
+              <div className="h-4 bg-gray-200 rounded-lg w-2/3 animate-pulse" />
+              <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
+              <div className="h-11 bg-gray-200 rounded-xl animate-pulse" />
             </div>
           </div>
         ))}
@@ -100,44 +74,38 @@ export const PharmacyProductGrid = ({
     )
   }
 
+  // Empty state
   if (productItems.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="relative mb-6">
-          <div className="absolute inset-0 bg-emerald-100 rounded-full blur-2xl opacity-50"></div>
-          <div className="relative bg-gradient-to-br from-emerald-50 to-teal-50 p-8 rounded-full">
-            <Search className="h-16 w-16 text-emerald-500" />
-          </div>
+      <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-2xl border border-gray-200">
+        <div className="bg-emerald-50 p-8 rounded-full mb-6">
+          <Search className="h-16 w-16 text-emerald-400" />
         </div>
-        
-        <h3 className="text-2xl font-bold text-gray-800 mb-2">No Products Found</h3>
-        <p className="text-gray-600 text-center max-w-md mb-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-2">No Products Found</h3>
+        <p className="text-gray-500 text-center max-w-md mb-6">
           We couldn't find any products matching your criteria. Try adjusting your filters.
         </p>
-        
-        <Button
-          variant="outline"
-          onClick={() => window.location.reload()}
-          className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+        <Button 
+          onClick={() => window.location.reload()} 
+          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl px-6"
         >
-          <Package className="h-4 w-4" />
-          View All Products
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Reset Filters
         </Button>
       </div>
     )
   }
 
   return (
-    <div className={
-      currentViewMode === "grid" 
-        ? "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"
-        : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+    <div className={currentViewMode === "grid" 
+      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
+      : "grid grid-cols-1 sm:grid-cols-2 gap-5"
     }>
       {productItems.map((product, index) => (
-        <div
-          key={product.id}
+        <div 
+          key={product.id} 
           className="animate-fade-in"
-          style={{ animationDelay: `${index * 20}ms`, animationFillMode: 'both' }}
+          style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}
         >
           <PharmacyProductCard 
             product={product} 

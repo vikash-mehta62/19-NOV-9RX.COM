@@ -1,9 +1,16 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { HeroCarousel } from "./components/HeroCarousel"
+import { BannerSlider } from "./components/BannerSlider"
 import { CategoryCards } from "./components/CategoryCards"
 import { QuickReorder } from "./components/QuickReorder"
+import { WelcomeDashboard } from "./components/WelcomeDashboard"
+import { CategoryPills } from "./components/CategoryPills"
+import { DealsSection } from "./components/DealsSection"
+import { RecentlyViewed } from "./components/RecentlyViewed"
+import { FloatingCartButton } from "./components/FloatingCartButton"
+import { PromoBanner } from "./components/PromoBanner"
+import { SearchAutocomplete } from "./components/SearchAutocomplete"
 import { StickyCartSummary } from "./components/StickyCartSummary"
 import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar"
 import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid"
@@ -37,6 +44,7 @@ import {
 import { useNavigate } from "react-router-dom"
 import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
@@ -364,6 +372,14 @@ export const PharmacyProductsFullPage = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Announcements */}
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        <AnnouncementDisplay userRole="pharmacy" />
+      </div>
+
+      {/* Promotional Banner */}
+      <PromoBanner />
+
       {/* Top Header Bar */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-3">
@@ -373,25 +389,17 @@ export const PharmacyProductsFullPage = () => {
               <img src="/logo.png" alt="Logo" className="h-10 w-auto" />
             </div>
 
-            {/* Search Bar */}
+            {/* Search Bar with Autocomplete */}
             <div className="flex-1 max-w-xl">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search products, categories..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 pr-4 h-10 bg-gray-50 border-gray-200 focus:bg-white focus:border-emerald-500"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
+              <SearchAutocomplete
+                value={searchQuery}
+                onChange={setSearchQuery}
+                onProductSelect={(productId) => {
+                  const product = products.find(p => p.id === productId)
+                  if (product) handleProductClick(product)
+                }}
+                placeholder="Search products, categories..."
+              />
             </div>
 
             {/* Right Actions */}
@@ -514,17 +522,30 @@ export const PharmacyProductsFullPage = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Hero Carousel */}
-        <HeroCarousel />
+        {/* Welcome Dashboard - Personalized greeting with stats */}
+        <WelcomeDashboard />
 
-        {/* Category Quick Access */}
-        {/* <CategoryCards 
-          onCategorySelect={handleCategorySelect} 
-          selectedCategory={selectedCategory} 
-        /> */}
+        {/* Dynamic Banner Slider */}
+        <BannerSlider 
+          bannerType="hero" 
+          autoPlay={true} 
+          autoPlayInterval={5000}
+        />
+
+        {/* Category Pills - Horizontal scrollable categories */}
+        <CategoryPills 
+          selectedCategory={selectedCategory}
+          onCategorySelect={handleCategorySelect}
+        />
+
+        {/* Deals of the Day Section */}
+        <DealsSection />
 
         {/* Quick Reorder Section */}
         <QuickReorder />
+
+        {/* Recently Viewed Products */}
+        <RecentlyViewed />
 
         {/* Products Section */}
         <div className="flex gap-6">
@@ -720,6 +741,9 @@ export const PharmacyProductsFullPage = () => {
 
       {/* Sticky Cart Summary */}
       <StickyCartSummary />
+
+      {/* Floating Cart Button for Mobile */}
+      <FloatingCartButton />
     </div>
   )
 }

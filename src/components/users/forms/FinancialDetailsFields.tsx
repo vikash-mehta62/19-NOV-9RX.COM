@@ -90,6 +90,25 @@ export function FinancialDetailsFields({ form }: FinancialDetailsFieldsProps) {
 
       <FormField
         control={form.control}
+        name="creditLimit"
+        render={({ field }) => (
+          <FormItem>
+            <FormLabel>Credit Limit ($)</FormLabel>
+            <FormControl>
+              <Input 
+                {...field} 
+                type="number" 
+                placeholder="0.00"
+                onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+              />
+            </FormControl>
+            <FormMessage />
+          </FormItem>
+        )}
+      />
+
+      <FormField
+        control={form.control}
         name="openingBalance"
         render={({ field }) => (
           <FormItem>

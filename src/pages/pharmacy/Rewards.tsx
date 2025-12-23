@@ -1,49 +1,209 @@
+import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Gift, Star, Trophy, Zap, Crown, Sparkles,
-  Lock, Clock
+  Lock, Clock, Loader2
 } from "lucide-react";
-import { useSelector } from "react-redux";
-import { RootState } from "@/store/store";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-interface Reward {
+interface RewardItem {
   id: string;
   name: string;
   description: string;
-  pointsRequired: number;
-  category: string;
-  available: boolean;
+  points_required: number;
+  type: string;
+  value: number;
+  is_active: boolean;
+}
+
+interface RewardTier {
+  id: string;
+  name: string;
+  min_points: number;
+  color: string;
+  benefits: string[];
+  multiplier: number;
+}
+
+interface RewardTransaction {
+  id: string;
+  points: number;
+  transaction_type: string;
+  description: string;
+  created_at: string;
+}
+
+interface RewardsConfig {
+  points_per_dollar: number;
+  referral_bonus: number;
+  review_bonus: number;
+  birthday_bonus: number;
 }
 
 const Rewards = () => {
-  const userProfile = useSelector((state: RootState) => state.user.profile);
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(true);
+  const [redeeming, setRedeeming] = useState<string | null>(null);
   
-  // Mock data - replace with actual API
-  const currentPoints = 2450;
-  const lifetimePoints = 8750;
-  const tierLevel = "Gold";
-  const nextTier = "Platinum";
-  const pointsToNextTier = 5000 - currentPoints;
-  const tierProgress = (currentPoints / 5000) * 100;
+  // User data
+  const [currentPoints, setCurrentPoints] = useState(0);
+  const [lifetimePoints, setLifetimePoints] = useState(0);
+  const [currentTier, setCurrentTier] = useState<RewardTier | null>(null);
+  const [nextTier, setNextTier] = useState<RewardTier | null>(null);
+  
+  // Config & rewards
+  const [config, setConfig] = useState<RewardsConfig | null>(null);
+  const [rewards, setRewards] = useState<RewardItem[]>([]);
+  const [tiers, setTiers] = useState<RewardTier[]>([]);
+  const [recentActivity, setRecentActivity] = useState<RewardTransaction[]>([]);
 
-  const rewards: Reward[] = [
-    { id: "1", name: "5% Off Next Order", description: "Get 5% discount on your next purchase", pointsRequired: 500, category: "discount", available: true },
-    { id: "2", name: "Free Shipping", description: "Free shipping on any order", pointsRequired: 750, category: "shipping", available: true },
-    { id: "3", name: "10% Off Next Order", description: "Get 10% discount on your next purchase", pointsRequired: 1000, category: "discount", available: true },
-    { id: "4", name: "$25 Store Credit", description: "Add $25 credit to your account", pointsRequired: 2000, category: "credit", available: true },
-    { id: "5", name: "Priority Support", description: "Get priority customer support for 30 days", pointsRequired: 3000, category: "service", available: false },
-    { id: "6", name: "$50 Store Credit", description: "Add $50 credit to your account", pointsRequired: 4000, category: "credit", available: false },
-  ];
+  useEffect(() => {
+    fetchData();
+  }, []);
 
-  const recentActivity = [
-    { id: "1", action: "Order Completed", points: 125, date: "Dec 10, 2024", type: "earned" },
-    { id: "2", action: "Redeemed 5% Discount", points: -500, date: "Dec 8, 2024", type: "redeemed" },
-    { id: "3", action: "Order Completed", points: 89, date: "Dec 5, 2024", type: "earned" },
-    { id: "4", action: "Referral Bonus", points: 200, date: "Dec 1, 2024", type: "bonus" },
-  ];
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const userId = sessionStorage.getItem("userId");
+      if (!userId) return;
+
+      // Fetch user's reward points
+      const { data: userData } = await supabase
+        .from("profiles")
+        .select("reward_points, lifetime_reward_points, reward_tier")
+        .eq("id", userId)
+        .single();
+
+      if (userData) {
+        setCurrentPoints(userData.reward_points || 0);
+        setLifetimePoints(userData.lifetime_reward_points || 0);
+      }
+
+      // Fetch config
+      const { data: configData } = await supabase
+        .from("rewards_config")
+        .select("*")
+        .limit(1)
+        .single();
+      
+      if (configData) {
+        setConfig(configData);
+      }
+
+      // Fetch tiers
+      const { data: tiersData } = await supabase
+        .from("reward_tiers")
+        .select("*")
+        .order("min_points", { ascending: true });
+      
+      if (tiersData) {
+        setTiers(tiersData);
+        
+        // Determine current and next tier
+        const points = userData?.reward_points || 0;
+        let current = tiersData[0];
+        let next: RewardTier | null = null;
+        
+        for (let i = tiersData.length - 1; i >= 0; i--) {
+          if (points >= tiersData[i].min_points) {
+            current = tiersData[i];
+            next = tiersData[i + 1] || null;
+            break;
+          }
+        }
+        
+        setCurrentTier(current);
+        setNextTier(next);
+      }
+
+      // Fetch active rewards
+      const { data: rewardsData } = await supabase
+        .from("reward_items")
+        .select("*")
+        .eq("is_active", true)
+        .order("points_required", { ascending: true });
+      
+      if (rewardsData) {
+        setRewards(rewardsData);
+      }
+
+      // Fetch recent transactions
+      const { data: transactionsData } = await supabase
+        .from("reward_transactions")
+        .select("*")
+        .eq("user_id", userId)
+        .order("created_at", { ascending: false })
+        .limit(10);
+      
+      if (transactionsData) {
+        setRecentActivity(transactionsData);
+      }
+    } catch (error) {
+      console.error("Error fetching rewards data:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRedeem = async (reward: RewardItem) => {
+    if (currentPoints < reward.points_required) return;
+    
+    setRedeeming(reward.id);
+    try {
+      const userId = sessionStorage.getItem("userId");
+      if (!userId) return;
+
+      const newPoints = currentPoints - reward.points_required;
+
+      // Update user points
+      await supabase
+        .from("profiles")
+        .update({ reward_points: newPoints })
+        .eq("id", userId);
+
+      // Create redemption record
+      await supabase
+        .from("reward_redemptions")
+        .insert({
+          user_id: userId,
+          reward_item_id: reward.id,
+          points_spent: reward.points_required,
+          status: "pending",
+          expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
+        });
+
+      // Log transaction
+      await supabase
+        .from("reward_transactions")
+        .insert({
+          user_id: userId,
+          points: -reward.points_required,
+          transaction_type: "redeem",
+          description: `Redeemed: ${reward.name}`
+        });
+
+      setCurrentPoints(newPoints);
+      toast({
+        title: "Reward Redeemed! 🎉",
+        description: `You've successfully redeemed "${reward.name}". Check your email for details.`,
+      });
+
+      fetchData(); // Refresh data
+    } catch (error) {
+      console.error("Error redeeming reward:", error);
+      toast({
+        title: "Error",
+        description: "Failed to redeem reward. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setRedeeming(null);
+    }
+  };
 
   const getTierColor = (tier: string) => {
     const colors: Record<string, string> = {
@@ -54,6 +214,38 @@ const Rewards = () => {
     };
     return colors[tier] || colors.Bronze;
   };
+
+  const formatDate = (dateStr: string) => {
+    return new Date(dateStr).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric"
+    });
+  };
+
+  const getTransactionIcon = (type: string) => {
+    switch (type) {
+      case "earn": return <Star className="w-4 h-4 text-green-600" />;
+      case "redeem": return <Gift className="w-4 h-4 text-orange-600" />;
+      case "bonus": return <Trophy className="w-4 h-4 text-purple-600" />;
+      default: return <Star className="w-4 h-4 text-blue-600" />;
+    }
+  };
+
+  const pointsToNextTier = nextTier ? nextTier.min_points - currentPoints : 0;
+  const tierProgress = nextTier && currentTier
+    ? ((currentPoints - currentTier.min_points) / (nextTier.min_points - currentTier.min_points)) * 100
+    : 100;
+
+  if (loading) {
+    return (
+      <DashboardLayout role="pharmacy">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-pink-600" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="pharmacy">
@@ -83,26 +275,40 @@ const Rewards = () => {
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${getTierColor(tierLevel)}`}>
-                    <Crown className="w-5 h-5" />
-                    <span className="font-bold">{tierLevel} Member</span>
-                  </div>
+                  {currentTier && (
+                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${getTierColor(currentTier.name)}`}>
+                      <Crown className="w-5 h-5" />
+                      <span className="font-bold">{currentTier.name} Member</span>
+                    </div>
+                  )}
+                  {currentTier && (
+                    <p className="text-pink-200 text-sm mt-2">
+                      {currentTier.multiplier}x points on purchases
+                    </p>
+                  )}
                 </div>
               </div>
               
               {/* Progress to next tier */}
-              <div className="mt-6">
-                <div className="flex justify-between text-sm text-pink-100 mb-2">
-                  <span>Progress to {nextTier}</span>
-                  <span>{pointsToNextTier} points to go</span>
+              {nextTier && (
+                <div className="mt-6">
+                  <div className="flex justify-between text-sm text-pink-100 mb-2">
+                    <span>Progress to {nextTier.name}</span>
+                    <span>{pointsToNextTier.toLocaleString()} points to go</span>
+                  </div>
+                  <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-white rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, tierProgress)}%` }}
+                    />
+                  </div>
                 </div>
-                <div className="h-3 bg-white/20 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-white rounded-full transition-all duration-500"
-                    style={{ width: `${tierProgress}%` }}
-                  />
+              )}
+              {!nextTier && currentTier && (
+                <div className="mt-6 text-center">
+                  <p className="text-pink-100">🎉 You've reached the highest tier!</p>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
 
@@ -116,19 +322,19 @@ const Rewards = () => {
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Every $1 spent</span>
-                  <Badge variant="secondary">+1 point</Badge>
+                  <Badge variant="secondary">+{config?.points_per_dollar || 1} point</Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Refer a friend</span>
-                  <Badge variant="secondary">+200 points</Badge>
+                  <Badge variant="secondary">+{config?.referral_bonus || 200} points</Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Write a review</span>
-                  <Badge variant="secondary">+50 points</Badge>
+                  <Badge variant="secondary">+{config?.review_bonus || 50} points</Badge>
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Birthday bonus</span>
-                  <Badge variant="secondary">+100 points</Badge>
+                  <Badge variant="secondary">+{config?.birthday_bonus || 100} points</Badge>
                 </div>
               </div>
             </CardContent>
@@ -146,7 +352,8 @@ const Rewards = () => {
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {rewards.map((reward) => {
-                const canRedeem = currentPoints >= reward.pointsRequired;
+                const canRedeem = currentPoints >= reward.points_required;
+                const isRedeeming = redeeming === reward.id;
                 return (
                   <div 
                     key={reward.id}
@@ -165,21 +372,30 @@ const Rewards = () => {
                         )}
                       </div>
                       <Badge variant={canRedeem ? "default" : "secondary"} className={canRedeem ? "bg-emerald-600" : ""}>
-                        {reward.pointsRequired.toLocaleString()} pts
+                        {reward.points_required.toLocaleString()} pts
                       </Badge>
                     </div>
                     <h4 className="font-semibold text-gray-900">{reward.name}</h4>
                     <p className="text-sm text-gray-500 mt-1">{reward.description}</p>
                     <Button 
                       className={`w-full mt-4 ${canRedeem ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
-                      disabled={!canRedeem}
+                      disabled={!canRedeem || isRedeeming}
                       variant={canRedeem ? "default" : "secondary"}
+                      onClick={() => handleRedeem(reward)}
                     >
-                      {canRedeem ? "Redeem Now" : `Need ${reward.pointsRequired - currentPoints} more`}
+                      {isRedeeming ? (
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      ) : null}
+                      {canRedeem ? "Redeem Now" : `Need ${(reward.points_required - currentPoints).toLocaleString()} more`}
                     </Button>
                   </div>
                 );
               })}
+              {rewards.length === 0 && (
+                <div className="col-span-3 text-center py-8 text-gray-500">
+                  No rewards available at this time.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -198,20 +414,14 @@ const Rewards = () => {
                 <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-full ${
-                      activity.type === "earned" ? "bg-green-100" : 
-                      activity.type === "redeemed" ? "bg-orange-100" : "bg-purple-100"
+                      activity.transaction_type === "earn" ? "bg-green-100" : 
+                      activity.transaction_type === "redeem" ? "bg-orange-100" : "bg-purple-100"
                     }`}>
-                      {activity.type === "earned" ? (
-                        <Star className="w-4 h-4 text-green-600" />
-                      ) : activity.type === "redeemed" ? (
-                        <Gift className="w-4 h-4 text-orange-600" />
-                      ) : (
-                        <Trophy className="w-4 h-4 text-purple-600" />
-                      )}
+                      {getTransactionIcon(activity.transaction_type)}
                     </div>
                     <div>
-                      <p className="font-medium text-gray-900">{activity.action}</p>
-                      <p className="text-sm text-gray-500">{activity.date}</p>
+                      <p className="font-medium text-gray-900">{activity.description}</p>
+                      <p className="text-sm text-gray-500">{formatDate(activity.created_at)}</p>
                     </div>
                   </div>
                   <span className={`font-semibold ${activity.points > 0 ? "text-green-600" : "text-orange-600"}`}>
@@ -219,6 +429,11 @@ const Rewards = () => {
                   </span>
                 </div>
               ))}
+              {recentActivity.length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  No activity yet. Start earning points by placing orders!
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>

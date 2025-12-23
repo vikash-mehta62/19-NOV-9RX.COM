@@ -11,24 +11,6 @@ interface jsPDFWithAutoTable extends jsPDF {
   };
 }
 
-// PDF Configuration interface from design document
-interface PDFConfig {
-  orientation: 'landscape';
-  unit: 'mm';
-  format: 'a4';
-  margins: {
-    top: number;
-    right: number;
-    bottom: number;
-    left: number;
-  };
-  header: {
-    logoPath: string;
-    companyName: string;
-    contactInfo: string;
-  };
-}
-
 // User profile interface for header information
 interface UserProfile {
   id: string;
@@ -36,68 +18,70 @@ interface UserProfile {
   last_name?: string;
   company_name?: string;
   email?: string;
+  phone?: string;
   billing_address?: any;
   shipping_address?: any;
 }
 
+// Professional color scheme - Emerald/Teal theme
+const COLORS = {
+  primary: [16, 185, 129] as [number, number, number],      // Emerald-500
+  primaryDark: [5, 150, 105] as [number, number, number],   // Emerald-600
+  secondary: [20, 184, 166] as [number, number, number],    // Teal-500
+  accent: [245, 158, 11] as [number, number, number],       // Amber-500
+  danger: [239, 68, 68] as [number, number, number],        // Red-500
+  success: [34, 197, 94] as [number, number, number],       // Green-500
+  dark: [31, 41, 55] as [number, number, number],           // Gray-800
+  medium: [107, 114, 128] as [number, number, number],      // Gray-500
+  light: [243, 244, 246] as [number, number, number],       // Gray-100
+  white: [255, 255, 255] as [number, number, number],
+};
+
 /**
- * StatementPDFGenerator class for creating formatted PDF documents from statement data
- * Implements requirements 2.1, 2.2, 2.3, 2.4
+ * StatementPDFGenerator class for creating professional PDF statements
  */
 export class StatementPDFGenerator {
-  private config: PDFConfig;
+  private margin = 15;
 
-  constructor() {
-    // Initialize PDF configuration (Requirement 2.1, 2.2)
-    this.config = {
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-      margins: {
-        top: 20,
-        right: 15,
-        bottom: 20,
-        left: 15,
-      },
-      header: {
-        logoPath: '/final.png',
-        companyName: '9RX LLC',
-        contactInfo: 'Tax ID: 99-0540972 | 936 Broad River Ln, Charlotte, NC 28211 | info@9rx.com | www.9rx.com',
-      },
-    };
-  }
+  constructor() {}
 
   /**
-   * Create PDF document from statement data
-   * Requirements: 2.1, 2.2, 2.3, 2.4
+   * Create professional PDF document from statement data
    */
   async createPDF(statementData: StatementData, userProfile?: UserProfile): Promise<Blob> {
     try {
-      // Initialize PDF document (Requirement 2.1)
       const doc = new jsPDF({
-        orientation: this.config.orientation,
-        unit: this.config.unit,
-        format: this.config.format,
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
       }) as jsPDFWithAutoTable;
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const { margins } = this.config;
 
-      // Add professional header (Requirements 2.1, 2.2)
-      await this.addHeader(doc, statementData, pageWidth, margins);
+      // Add header with gradient effect
+      this.addHeaderGradient(doc, pageWidth);
 
-      // Add customer information
-      this.addCustomerInfo(doc, userProfile, margins);
+      // Add logo and company info
+      await this.addCompanyHeader(doc, pageWidth);
 
-      // Add statement summary
-      this.addStatementSummary(doc, statementData, pageWidth, margins);
+      // Add statement title and info
+      this.addStatementInfo(doc, statementData, userProfile, pageWidth);
 
-      // Add transaction table (Requirements 2.3, 2.4)
-      this.addTransactionTable(doc, statementData, pageWidth, margins);
+      // Add customer info section
+      this.addCustomerSection(doc, userProfile, pageWidth);
+
+      // Add account summary cards
+      this.addAccountSummaryCards(doc, statementData, pageWidth);
+
+      // Add transaction table
+      this.addTransactionTable(doc, statementData, pageWidth);
+
+      // Add totals section
+      this.addTotalsSection(doc, statementData, pageWidth);
 
       // Add footer
-      this.addFooter(doc, pageWidth, pageHeight, margins);
+      this.addFooter(doc, pageWidth, pageHeight);
 
       // Convert to blob and return
       const pdfBlob = doc.output('blob');
@@ -110,240 +94,233 @@ export class StatementPDFGenerator {
   }
 
   /**
-   * Add professional header with company logo, contact info, and statement period
-   * Requirements: 2.1, 2.2
+   * Add gradient header bar
    */
-  private async addHeader(
-    doc: jsPDFWithAutoTable, 
-    statementData: StatementData, 
-    pageWidth: number, 
-    margins: { top: number; right: number; bottom: number; left: number }
-  ): Promise<void> {
+  private addHeaderGradient(doc: jsPDFWithAutoTable, pageWidth: number): void {
+    // Main header bar
+    doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    
+    // Accent stripe
+    doc.setFillColor(COLORS.primaryDark[0], COLORS.primaryDark[1], COLORS.primaryDark[2]);
+    doc.rect(0, 35, pageWidth, 3, 'F');
+  }
+
+  /**
+   * Add company logo and header info
+   */
+  private async addCompanyHeader(doc: jsPDFWithAutoTable, pageWidth: number): Promise<void> {
+    // Try to add logo
     try {
-      // Add top contact info (Requirement 2.2)
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(100);
-      doc.text(this.config.header.contactInfo, pageWidth / 2, margins.top, { align: "center" });
-
-      // Add company name (Requirement 2.2)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(40);
-      doc.text(this.config.header.companyName, margins.left, margins.top + 10);
-
-      // Add company phone number
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(12);
-      doc.text("+1 800 969 6295", margins.left, margins.top + 18);
-
-      // Add company logo (Requirement 2.2)
-      try {
-        const logo = new Image();
-        logo.src = this.config.header.logoPath;
-        await new Promise((resolve, reject) => {
-          logo.onload = resolve;
-          logo.onerror = reject;
-        });
-        
-        const logoHeight = 20;
-        const logoWidth = (logo.width / logo.height) * logoHeight;
-        doc.addImage(logo, "PNG", (pageWidth - logoWidth) / 2, margins.top + 5, logoWidth, logoHeight);
-      } catch (logoError) {
-        console.warn("Could not load logo:", logoError);
-        // Continue without logo if it fails to load
-      }
-
-      // Add statement title and period (Requirement 2.2)
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(44, 62, 80);
-      doc.text("ACCOUNT STATEMENT", pageWidth - margins.right, margins.top + 8, { align: "right" });
-
-      // Format statement period
-      const startDateStr = statementData.startDate.toLocaleDateString("en-US", { 
-        year: "numeric", 
-        month: "short", 
-        day: "numeric" 
+      const logo = new Image();
+      logo.src = "/logoFul.png";
+      await new Promise((resolve, reject) => {
+        logo.onload = resolve;
+        logo.onerror = reject;
+        setTimeout(reject, 3000);
       });
-      const endDateStr = statementData.endDate.toLocaleDateString("en-US", { 
-        year: "numeric", 
-        month: "short", 
-        day: "numeric" 
-      });
-
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(52, 73, 94);
-      doc.text(`Statement Period: ${startDateStr} - ${endDateStr}`, pageWidth - margins.right, margins.top + 16, { align: "right" });
-      doc.text(`Generated: ${new Date().toLocaleDateString("en-US")}`, pageWidth - margins.right, margins.top + 22, { align: "right" });
-
-      // Add separator line
-      doc.setDrawColor(180);
-      doc.line(margins.left, margins.top + 30, pageWidth - margins.right, margins.top + 30);
-
-    } catch (error) {
-      console.error("Error adding header:", error);
-      throw error;
+      
+      const logoHeight = 18;
+      const logoWidth = (logo.width / logo.height) * logoHeight;
+      doc.addImage(logo, "PNG", this.margin, 8, logoWidth, logoHeight);
+    } catch (logoError) {
+      // Fallback: Add company name as text
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(24);
+      doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.text("9RX", this.margin, 22);
     }
+
+    // Company tagline
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Your Trusted Pharmacy Partner", this.margin, 30);
+  }
+
+  /**
+   * Add statement title and reference info
+   */
+  private addStatementInfo(
+    doc: jsPDFWithAutoTable,
+    statementData: StatementData,
+    userProfile: UserProfile | undefined,
+    pageWidth: number
+  ): void {
+    // Statement title on right side of header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.text("ACCOUNT STATEMENT", pageWidth - this.margin, 18, { align: "right" });
+
+    // Statement reference
+    const statementRef = `STMT-${userProfile?.id?.substring(0, 6).toUpperCase() || 'XXX'}-${Date.now().toString().slice(-6)}`;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(`Ref: ${statementRef}`, pageWidth - this.margin, 25, { align: "right" });
+
+    // Date range
+    const startDateStr = statementData.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    const endDateStr = statementData.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    doc.text(`${startDateStr} - ${endDateStr}`, pageWidth - this.margin, 31, { align: "right" });
   }
 
   /**
    * Add customer information section
    */
-  private addCustomerInfo(
-    doc: jsPDFWithAutoTable, 
-    userProfile: UserProfile | undefined, 
-    margins: { top: number; right: number; bottom: number; left: number }
+  private addCustomerSection(
+    doc: jsPDFWithAutoTable,
+    userProfile: UserProfile | undefined,
+    pageWidth: number
   ): void {
-    const customerY = margins.top + 38;
+    const sectionY = 45;
+    const boxWidth = (pageWidth - this.margin * 3) / 2;
 
+    // Bill To Box
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(this.margin, sectionY, boxWidth, 32, 3, 3, 'F');
+
+    // Bill To Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("BILL TO", this.margin + 5, sectionY + 8);
+
+    // Customer details
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
-    doc.setTextColor(41, 128, 185);
-    doc.text("Account Holder:", margins.left, customerY);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    const displayName = userProfile?.company_name || 
+      `${userProfile?.first_name || ''} ${userProfile?.last_name || ''}`.trim() || 
+      'Customer';
+    doc.text(displayName, this.margin + 5, sectionY + 16);
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(52, 73, 94);
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+    doc.text(userProfile?.email || "N/A", this.margin + 5, sectionY + 22);
+    doc.text(userProfile?.phone || "N/A", this.margin + 5, sectionY + 27);
 
-    if (userProfile) {
-      let infoY = customerY + 6;
-      
-      // Company name or full name
-      const displayName = userProfile.company_name || 
-        `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 
-        'N/A';
-      doc.text(displayName, margins.left, infoY);
-      infoY += 5;
+    // Statement Details Box
+    const rightBoxX = this.margin * 2 + boxWidth;
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(rightBoxX, sectionY, boxWidth, 32, 3, 3, 'F');
 
-      // Email
-      if (userProfile.email) {
-        doc.text(userProfile.email, margins.left, infoY);
-        infoY += 5;
-      }
+    // Statement Details Header
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("STATEMENT DETAILS", rightBoxX + 5, sectionY + 8);
 
-      // Billing address if available
-      if (userProfile.billing_address) {
-        const address = typeof userProfile.billing_address === 'string' 
-          ? JSON.parse(userProfile.billing_address) 
-          : userProfile.billing_address;
-        
-        if (address.street) {
-          doc.text(address.street, margins.left, infoY);
-          infoY += 5;
-        }
-        
-        const cityStateZip = `${address.city || ''}, ${address.state || ''} ${address.zip_code || ''}`.trim();
-        if (cityStateZip !== ',') {
-          doc.text(cityStateZip, margins.left, infoY);
-        }
-      }
-    } else {
-      doc.text("Account information not available", margins.left, customerY + 6);
-    }
+    // Details content
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    
+    doc.text("Statement Date:", rightBoxX + 5, sectionY + 16);
+    doc.text(new Date().toLocaleDateString("en-US"), rightBoxX + 40, sectionY + 16);
+    
+    doc.text("Account ID:", rightBoxX + 5, sectionY + 22);
+    doc.text(userProfile?.id?.substring(0, 12) || 'N/A', rightBoxX + 40, sectionY + 22);
+    
+    doc.text("Currency:", rightBoxX + 5, sectionY + 27);
+    doc.text("USD", rightBoxX + 40, sectionY + 27);
   }
 
   /**
-   * Add statement summary with opening balance, closing balance, totals
+   * Add account summary cards
    */
-  private addStatementSummary(
-    doc: jsPDFWithAutoTable, 
-    statementData: StatementData, 
-    pageWidth: number, 
-    margins: { top: number; right: number; bottom: number; left: number }
+  private addAccountSummaryCards(
+    doc: jsPDFWithAutoTable,
+    statementData: StatementData,
+    pageWidth: number
   ): void {
-    const summaryY = margins.top + 75;
+    const cardY = 82;
+    const cardWidth = (pageWidth - this.margin * 2 - 15) / 4;
+    const cardHeight = 22;
 
-    // Add separator line
-    doc.setDrawColor(180);
-    doc.line(margins.left, summaryY - 5, pageWidth - margins.right, summaryY - 5);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(41, 128, 185);
-    doc.text("Statement Summary", margins.left, summaryY);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(52, 73, 94);
-
-    const leftCol = margins.left;
-    const rightCol = pageWidth / 2 + 10;
-    let currentY = summaryY + 8;
-
-    // Left column
-    doc.setFont("helvetica", "bold");
-    doc.text("Opening Balance:", leftCol, currentY);
-    doc.setFont("helvetica", "normal");
-    doc.text(this.formatCurrency(statementData.openingBalance), leftCol + 35, currentY);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Purchases:", leftCol, currentY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(this.formatCurrency(statementData.totalPurchases), leftCol + 35, currentY + 6);
-
-    // Right column
-    doc.setFont("helvetica", "bold");
-    doc.text("Total Payments:", rightCol, currentY);
-    doc.setFont("helvetica", "normal");
-    doc.text(this.formatCurrency(statementData.totalPayments), rightCol + 35, currentY);
-
-    doc.setFont("helvetica", "bold");
-    doc.text("Closing Balance:", rightCol, currentY + 6);
-    doc.setFont("helvetica", "normal");
-    doc.text(this.formatCurrency(statementData.closingBalance), rightCol + 35, currentY + 6);
-
-    // Add separator line
-    doc.setDrawColor(180);
-    doc.line(margins.left, currentY + 15, pageWidth - margins.right, currentY + 15);
-  }
-
-  /**
-   * Add transaction table with proper formatting and column headers
-   * Requirements: 2.3, 2.4
-   */
-  private addTransactionTable(
-    doc: jsPDFWithAutoTable, 
-    statementData: StatementData, 
-    pageWidth: number, 
-    margins: { top: number; right: number; bottom: number; left: number }
-  ): void {
-    const tableStartY = margins.top + 105;
-
-    // Table headers (Requirement 2.4)
-    const tableHead = [
-      ["Date", "Description", "Debit", "Credit", "Balance"]
+    const summaryData = [
+      { label: "Opening Balance", value: statementData.openingBalance, color: COLORS.medium },
+      { label: "Total Purchases", value: statementData.totalPurchases, color: COLORS.danger },
+      { label: "Total Payments", value: statementData.totalPayments, color: COLORS.success },
+      { label: "Closing Balance", value: statementData.closingBalance, color: statementData.closingBalance > 0 ? COLORS.danger : COLORS.success },
     ];
 
-    // Prepare table data with consistent currency formatting (Requirement 2.3)
-    const tableBody: string[][] = [];
+    summaryData.forEach((item, index) => {
+      const cardX = this.margin + (cardWidth + 5) * index;
+
+      // Card background
+      doc.setFillColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.setDrawColor(230, 230, 230);
+      doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, 'FD');
+
+      // Top accent line
+      doc.setFillColor(item.color[0], item.color[1], item.color[2]);
+      doc.rect(cardX, cardY, cardWidth, 2, 'F');
+
+      // Label
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+      doc.text(item.label, cardX + cardWidth / 2, cardY + 9, { align: "center" });
+
+      // Value
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(item.color[0], item.color[1], item.color[2]);
+      doc.text(this.formatCurrency(item.value), cardX + cardWidth / 2, cardY + 17, { align: "center" });
+    });
+  }
+
+  /**
+   * Add transaction table
+   */
+  private addTransactionTable(
+    doc: jsPDFWithAutoTable,
+    statementData: StatementData,
+    pageWidth: number
+  ): void {
+    const tableStartY = 110;
+
+    // Section title
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(11);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    doc.text("TRANSACTION HISTORY", this.margin, tableStartY);
+
+    // Table headers
+    const tableHead = [["#", "Date", "Description", "Reference", "Debit", "Credit", "Balance"]];
+
+    // Prepare table data
+    const tableBody: (string | number)[][] = [];
 
     if (statementData.transactions.length === 0) {
-      // Handle edge case for periods with no transactions
       tableBody.push([
+        "-",
+        "-",
         "No transactions found for this period",
-        "",
-        "",
-        "",
-        ""
+        "-",
+        "-",
+        "-",
+        this.formatCurrency(statementData.openingBalance)
       ]);
     } else {
-      statementData.transactions.forEach((transaction: StatementTransaction) => {
+      statementData.transactions.forEach((transaction: StatementTransaction, index: number) => {
         const formattedDate = new Date(transaction.transaction_date).toLocaleDateString("en-US", {
-          year: "numeric",
           month: "short",
-          day: "numeric"
+          day: "numeric",
+          year: "numeric"
         });
 
-        // Format amounts with consistent currency formatting (Requirement 2.3)
-        const debitAmount = transaction.debit_amount > 0 ? this.formatCurrency(transaction.debit_amount) : "";
-        const creditAmount = transaction.credit_amount > 0 ? this.formatCurrency(transaction.credit_amount) : "";
+        const debitAmount = transaction.debit_amount > 0 ? this.formatCurrency(transaction.debit_amount) : "-";
+        const creditAmount = transaction.credit_amount > 0 ? this.formatCurrency(transaction.credit_amount) : "-";
         const balance = this.formatCurrency(transaction.balance);
 
         tableBody.push([
+          (index + 1).toString(),
           formattedDate,
-          transaction.description || "N/A",
+          transaction.description || "Transaction",
+          transaction.id?.substring(0, 8).toUpperCase() || "-",
           debitAmount,
           creditAmount,
           balance
@@ -351,80 +328,163 @@ export class StatementPDFGenerator {
       });
     }
 
-    // Create table with proper formatting (Requirements 2.3, 2.4)
+    // Create table
     doc.autoTable({
       head: tableHead,
       body: tableBody,
-      startY: tableStartY,
+      startY: tableStartY + 5,
       styles: { 
-        fontSize: 9, 
-        cellPadding: 3,
-        textColor: 50
+        fontSize: 8,
+        cellPadding: 4,
+        textColor: [60, 60, 60],
+        lineWidth: 0.1,
+        lineColor: [220, 220, 220]
       },
-      theme: "grid",
+      theme: "plain",
       headStyles: { 
-        fillColor: [41, 128, 185], 
-        textColor: 255,
+        fillColor: COLORS.primary,
+        textColor: COLORS.white,
         fontStyle: "bold",
-        halign: "center"
+        halign: "center",
+        cellPadding: 5
       },
-      bodyStyles: { 
-        textColor: 50 
+      bodyStyles: {
+        fillColor: [255, 255, 255]
+      },
+      alternateRowStyles: {
+        fillColor: [250, 250, 250]
       },
       columnStyles: {
-        0: { cellWidth: 25, halign: "center" }, // Date
-        1: { cellWidth: "*", minCellWidth: 60 }, // Description - expands to fill space
-        2: { cellWidth: 25, halign: "right" },   // Debit
-        3: { cellWidth: 25, halign: "right" },   // Credit
-        4: { cellWidth: 30, halign: "right" }    // Balance
+        0: { cellWidth: 12, halign: "center" },   // #
+        1: { cellWidth: 28, halign: "center" },   // Date
+        2: { cellWidth: "*", minCellWidth: 50 },  // Description
+        3: { cellWidth: 22, halign: "center" },   // Reference
+        4: { cellWidth: 25, halign: "right", textColor: COLORS.danger },   // Debit
+        5: { cellWidth: 25, halign: "right", textColor: COLORS.success },  // Credit
+        6: { cellWidth: 28, halign: "right", fontStyle: "bold" }           // Balance
       },
-      tableWidth: pageWidth - margins.left - margins.right,
-      margin: { left: margins.left, right: margins.right },
-      // Handle page breaks for large transaction lists (Requirement 2.4)
+      margin: { left: this.margin, right: this.margin },
       showHead: 'everyPage',
       didDrawPage: (data: any) => {
-        // Add page numbers for multi-page statements
         if (data.pageNumber > 1) {
+          // Add header on subsequent pages
+          doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+          doc.rect(0, 0, pageWidth, 15, 'F');
+          
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(10);
+          doc.setTextColor(255, 255, 255);
+          doc.text("ACCOUNT STATEMENT (Continued)", this.margin, 10);
+          
+          doc.setFont("helvetica", "normal");
           doc.setFontSize(8);
-          doc.setTextColor(127, 140, 141);
-          doc.text(
-            `Page ${data.pageNumber}`, 
-            pageWidth - margins.right, 
-            pageWidth - 10, 
-            { align: "right" }
-          );
+          doc.text(`Page ${data.pageNumber}`, pageWidth - this.margin, 10, { align: "right" });
         }
       }
     });
   }
 
   /**
-   * Add footer with company information
+   * Add totals section
    */
-  private addFooter(
-    doc: jsPDFWithAutoTable, 
-    pageWidth: number, 
-    pageHeight: number, 
-    margins: { top: number; right: number; bottom: number; left: number }
+  private addTotalsSection(
+    doc: jsPDFWithAutoTable,
+    statementData: StatementData,
+    pageWidth: number
   ): void {
-    doc.setFontSize(8);
-    doc.setTextColor(127, 140, 141);
+    const finalY = doc.lastAutoTable.finalY + 10;
+    const totalsWidth = 90;
+    const totalsX = pageWidth - this.margin - totalsWidth;
+
+    // Totals box
+    doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.roundedRect(totalsX, finalY, totalsWidth, 45, 3, 3, 'F');
+
     doc.setFont("helvetica", "normal");
-    
-    const footerText = "This statement was generated by 9RX LLC. Please contact us if you have any questions about your account.";
-    doc.text(footerText, pageWidth / 2, pageHeight - margins.bottom + 5, { align: "center" });
-    
-    doc.text(
-      `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
-      pageWidth / 2,
-      pageHeight - margins.bottom + 10,
-      { align: "center" }
-    );
+    doc.setFontSize(9);
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+
+    let rowY = finalY + 10;
+    const labelX = totalsX + 5;
+    const valueX = totalsX + totalsWidth - 5;
+
+    // Opening Balance
+    doc.text("Opening Balance:", labelX, rowY);
+    doc.text(this.formatCurrency(statementData.openingBalance), valueX, rowY, { align: "right" });
+    rowY += 7;
+
+    // Total Debits
+    doc.text("Total Debits:", labelX, rowY);
+    doc.setTextColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
+    doc.text(this.formatCurrency(statementData.totalPurchases), valueX, rowY, { align: "right" });
+    rowY += 7;
+
+    // Total Credits
+    doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
+    doc.text("Total Credits:", labelX, rowY);
+    doc.setTextColor(COLORS.success[0], COLORS.success[1], COLORS.success[2]);
+    doc.text(this.formatCurrency(statementData.totalPayments), valueX, rowY, { align: "right" });
+    rowY += 10;
+
+    // Closing Balance (highlighted)
+    doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.roundedRect(totalsX, rowY - 3, totalsWidth, 12, 2, 2, 'F');
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.text("CLOSING BALANCE:", labelX, rowY + 5);
+    doc.text(this.formatCurrency(statementData.closingBalance), valueX, rowY + 5, { align: "right" });
+
+    // Payment status badge
+    if (statementData.closingBalance > 0) {
+      const badgeY = finalY + 50;
+      doc.setFillColor(COLORS.danger[0], COLORS.danger[1], COLORS.danger[2]);
+      doc.roundedRect(totalsX + totalsWidth - 35, badgeY, 35, 8, 2, 2, 'F');
+      doc.setFontSize(7);
+      doc.setTextColor(255, 255, 255);
+      doc.text("BALANCE DUE", totalsX + totalsWidth - 17.5, badgeY + 5.5, { align: "center" });
+    }
   }
 
   /**
-   * Format currency amounts consistently with proper decimal places
-   * Requirement: 2.3
+   * Add footer
+   */
+  private addFooter(
+    doc: jsPDFWithAutoTable,
+    pageWidth: number,
+    pageHeight: number
+  ): void {
+    const footerY = pageHeight - 20;
+
+    // Footer line
+    doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.setLineWidth(0.5);
+    doc.line(this.margin, footerY, pageWidth - this.margin, footerY);
+
+    // Company info
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+
+    // Generated timestamp
+    doc.setFontSize(7);
+    doc.text(
+      `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
+      pageWidth / 2,
+      footerY + 11,
+      { align: "center" }
+    );
+
+    // Thank you message
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+    doc.text("Thank you for your business!", pageWidth / 2, footerY + 16, { align: "center" });
+  }
+
+  /**
+   * Format currency amounts
    */
   private formatCurrency(amount: number): string {
     return new Intl.NumberFormat("en-US", {
@@ -436,17 +496,14 @@ export class StatementPDFGenerator {
   }
 
   /**
-   * Generate filename with date range and user identifier
-   * Requirements: 2.5, 4.3
+   * Generate filename
    */
   generateFilename(statementData: StatementData, userProfile?: UserProfile): string {
     const startDateStr = statementData.startDate.toISOString().split('T')[0];
     const endDateStr = statementData.endDate.toISOString().split('T')[0];
     
-    // Include user identifier in filename for better organization
     let userIdentifier = statementData.userId;
     if (userProfile?.company_name) {
-      // Sanitize company name for filename
       userIdentifier = userProfile.company_name
         .replace(/[^a-zA-Z0-9\-_]/g, '_')
         .substring(0, 20);
@@ -456,15 +513,11 @@ export class StatementPDFGenerator {
         .substring(0, 20);
     }
     
-    // Generate timestamp for uniqueness
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    
-    return `statement_${userIdentifier}_${startDateStr}_to_${endDateStr}_${timestamp}.pdf`;
+    return `Statement_${userIdentifier}_${startDateStr}_to_${endDateStr}.pdf`;
   }
 
   /**
-   * Enhanced download mechanism with retry functionality and comprehensive error handling
-   * Requirements: 2.5, 4.3
+   * Download PDF with retry functionality
    */
   async downloadPDF(
     statementData: StatementData, 
@@ -472,13 +525,9 @@ export class StatementPDFGenerator {
     options?: DownloadOptions
   ): Promise<DownloadResult> {
     try {
-      // Create PDF blob
       const pdfBlob = await this.createPDF(statementData, userProfile);
-      
-      // Generate descriptive filename with user identifier
       const filename = this.generateFilename(statementData, userProfile);
       
-      // Use enhanced download manager with retry mechanism
       const result = await DownloadManager.downloadBlob(pdfBlob, filename, {
         maxRetries: 3,
         retryDelay: 1000,
@@ -513,7 +562,6 @@ export class StatementPDFGenerator {
 
   /**
    * Legacy download method for backward compatibility
-   * Requirements: 2.5, 4.3
    */
   async downloadPDFLegacy(
     statementData: StatementData, 

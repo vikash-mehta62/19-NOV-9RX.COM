@@ -6,10 +6,11 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CheckCircle, XCircle, Download, Package } from "lucide-react";
+import { CheckCircle, XCircle, Package, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 import { CreateOrderForm } from "../CreateOrderForm";
-import { OrderFormValues } from "../schemas/orderSchema";
+import { OrderFormValues, ShippingAddressData } from "../schemas/orderSchema";
 import { OrderHeader } from "../details/OrderHeader";
 import { OverviewTab } from "../details/tabs/OverviewTab";
 import { ItemsTab } from "../details/tabs/ItemsTab";
@@ -18,16 +19,29 @@ import { PaymentTab } from "../details/tabs/PaymentTab";
 import { ShippingTab } from "../details/tabs/ShippingTab";
 import { ActivityTab } from "../details/tabs/ActivityTab";
 import { OrderActions } from "./OrderActions";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import axios from "../../../../axiosconfig";
 import { useCart } from "@/hooks/use-cart";
 import jsPDF from "jspdf";
+import "jspdf-autotable";
 import JsBarcode from "jsbarcode";
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
+
+// Helper function to safely get address fields
+const getAddressField = (
+  shippingAddress: ShippingAddressData | undefined,
+  type: "billing" | "shipping",
+  field: keyof ShippingAddressData["billing"]
+): string => {
+  if (!shippingAddress) return "";
+  const addressObj = shippingAddress[type];
+  if (!addressObj) return "";
+  return (addressObj as Record<string, string>)[field] || "";
+};
 
 interface OrderDetailsSheetProps {
   order: OrderFormValues;
@@ -65,24 +79,41 @@ export const OrderDetailsSheet = ({
   const [loading, setLoading] = useState(false);
   const [loadingQuick, setLoadingQuick] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [isLoadingCompany, setIsLoadingCompany] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [chargesOpen, setChargesOpen] = useState(false);
   const [isPackingSlipModalOpen, setIsPackingSlipModalOpen] = useState(false);
+  
+  // Ref to track if component is mounted (prevents memory leaks)
+  const isMountedRef = useRef(true);
 
   // Update currentOrder when order prop changes
   useEffect(() => {
     setCurrentOrder(order);
   }, [order]);
 
-  // Fetch company name
-  const fetchUser = async () => {
-    try {
-      if (!currentOrder || !currentOrder.customer) return;
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
+  // Fetch company name with proper cleanup
+  const fetchUser = useCallback(async () => {
+    if (!currentOrder?.customer) return;
+
+    setIsLoadingCompany(true);
+    try {
       const { data, error } = await supabase
         .from("profiles")
         .select("company_name")
         .eq("id", currentOrder.customer)
         .maybeSingle();
+
+      // Only update state if component is still mounted
+      if (!isMountedRef.current) return;
 
       if (error) {
         console.error("Supabase Fetch Error:", error);
@@ -93,13 +124,19 @@ export const OrderDetailsSheet = ({
         setCompanyName(data.company_name || "");
       }
     } catch (error) {
-      console.error("Error fetching user:", error);
+      if (isMountedRef.current) {
+        console.error("Error fetching user:", error);
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsLoadingCompany(false);
+      }
     }
-  };
+  }, [currentOrder?.customer]);
 
   useEffect(() => {
     fetchUser();
-  }, [currentOrder]);
+  }, [fetchUser]);
 
   // Clear cart when editing
   useEffect(() => {
@@ -113,35 +150,51 @@ export const OrderDetailsSheet = ({
 
   const handleStatusUpdate = async (action: "process" | "ship" | "confirm") => {
     if (!currentOrder.id) return;
+    
+    // Prevent multiple clicks
+    if (isUpdatingStatus) return;
+    setIsUpdatingStatus(true);
 
     try {
       switch (action) {
         case "process":
           if (onProcessOrder) {
             await onProcessOrder(currentOrder.id);
-            setCurrentOrder((prev) => ({ ...prev, status: "processing" }));
+            if (isMountedRef.current) {
+              setCurrentOrder((prev) => ({ ...prev, status: "processing" }));
+            }
           }
           break;
         case "ship":
           if (onShipOrder) {
             await onShipOrder(currentOrder.id);
-            setCurrentOrder((prev) => ({ ...prev, status: "shipped" }));
+            if (isMountedRef.current) {
+              setCurrentOrder((prev) => ({ ...prev, status: "shipped" }));
+            }
           }
           break;
         case "confirm":
           if (onConfirmOrder) {
             await onConfirmOrder(currentOrder.id);
-            setCurrentOrder((prev) => ({ ...prev, status: "processing" }));
+            if (isMountedRef.current) {
+              setCurrentOrder((prev) => ({ ...prev, status: "processing" }));
+            }
           }
           break;
       }
     } catch (error) {
       console.error(`Error updating order status:`, error);
-      toast({
-        title: "Error",
-        description: "Failed to update order status",
-        variant: "destructive",
-      });
+      if (isMountedRef.current) {
+        toast({
+          title: "Error",
+          description: "Failed to update order status",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsUpdatingStatus(false);
+      }
     }
   };
 
@@ -254,93 +307,228 @@ export const OrderDetailsSheet = ({
       });
 
       const pageWidth = doc.internal.pageSize.getWidth();
-      const margin = 10;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 12;
+      
+      // Brand color
+      const brandColor: [number, number, number] = [0, 150, 136]; // Teal color
+      const darkGray: [number, number, number] = [60, 60, 60];
+      const lightGray: [number, number, number] = [245, 245, 245];
 
-      // Add Logo
-      const logo = new Image();
-      logo.src = "/final.png";
-      await new Promise((resolve) => (logo.onload = resolve));
-      const logoHeight = 23;
-      const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, margin, logoWidth, logoHeight);
+      // ===== HEADER BAND =====
+      doc.setFillColor(...brandColor);
+      doc.rect(0, 0, pageWidth, 5, "F");
 
+      // ===== LOGO SECTION =====
+      let logoLoaded = false;
+      try {
+        const logo = new Image();
+        logo.src = "/final.png";
+        await new Promise<void>((resolve) => {
+          logo.onload = () => { logoLoaded = true; resolve(); };
+          logo.onerror = () => resolve();
+          setTimeout(() => resolve(), 3000);
+        });
+        
+        if (logoLoaded && logo.width > 0) {
+          const logoHeight = 20;
+          const logoWidth = (logo.width / logo.height) * logoHeight;
+          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight);
+        }
+      } catch {
+        // Continue without logo
+      }
+
+      // ===== COMPANY INFO (Left) =====
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(...darkGray);
+      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
+      
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
+      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
+      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
 
-      const topInfo = [
-        "Tax ID : 99-0540972",
-        "936 Broad River Ln, Charlotte, NC 28211",
-        "info@9rx.com",
-        "www.9rx.com",
-      ].join("     |     ");
-      doc.text(topInfo, pageWidth / 2, margin - 2, { align: "center" });
-
+      // ===== DOCUMENT TITLE & NUMBER (Right) =====
+      // Determine document type: PO, Sales Order (new), or Invoice (confirmed)
+      const invoiceNumber = (currentOrder as any).invoice_number;
+      const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
+      
+      let documentTitle: string;
+      let documentNumber: string;
+      
+      if (poIs) {
+        documentTitle = "PURCHASE ORDER";
+        documentNumber = currentOrder.order_number;
+      } else if (invoiceNumber && !isNewOrder) {
+        documentTitle = "INVOICE";
+        documentNumber = invoiceNumber;
+      } else {
+        documentTitle = "SALES ORDER";
+        documentNumber = currentOrder.order_number;
+      }
+      
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(15);
-      doc.text("+1 800 969 6295", margin, margin + 10);
-
-      doc.text("PURCHASE ORDER", pageWidth - margin - 5, margin + 10, { align: "right" });
-
+      doc.setFontSize(24);
+      doc.setTextColor(...brandColor);
+      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
+      
       doc.setFontSize(10);
-      doc.text(`ORDER - ${currentOrder.order_number}`, pageWidth - margin - 5, margin + 15, {
-        align: "right",
-      });
-      doc.text(`Date - ${formattedDate}`, pageWidth - margin - 5, margin + 20, { align: "right" });
+      doc.setTextColor(...darkGray);
+      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
+      
+      // Show SO reference on invoice
+      if (invoiceNumber && !isNewOrder && !poIs) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
+      }
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
+      
+      // Payment status badge
+      const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
+      if (currentOrder.payment_status === "paid") {
+        doc.setFillColor(34, 197, 94); // Green
+        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" });
+      } else {
+        doc.setFillColor(239, 68, 68); // Red
+        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
+      }
 
-      doc.setDrawColor(200);
-      doc.line(margin, margin + 26, pageWidth - margin, margin + 26);
+      // ===== BARCODE =====
+      try {
+        const barcodeDataUrl = generateBarcode(documentNumber);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12);
+      } catch {
+        // Skip barcode if generation fails
+      }
 
-      const infoStartY = margin + 35;
-      doc.setFont("helvetica", "bold").setFontSize(11).text("Vendor", margin, infoStartY);
-      doc.setFont("helvetica", "normal").setFontSize(9);
-      doc.text(companyName, margin, infoStartY + 5);
-      doc.text(currentOrder.customerInfo?.name || "N/A", margin, infoStartY + 10);
-      doc.text(currentOrder.customerInfo?.phone || "N/A", margin, infoStartY + 15);
-      doc.text(currentOrder.customerInfo?.email || "N/A", margin, infoStartY + 20);
-      doc.text(
-        `${(currentOrder.shippingAddress as any)?.billing?.street1 || ""} ${(currentOrder.shippingAddress as any)?.billing?.city || ""
-        }, ${(currentOrder.shippingAddress as any)?.billing?.state || ""} ${(currentOrder.shippingAddress as any)?.billing?.zipCode || ""
-        }`,
-        margin,
-        infoStartY + 25,
-        { maxWidth: pageWidth / 2 - margin }
-      );
+      // ===== DIVIDER LINE =====
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, 58, pageWidth - margin, 58);
 
-      doc.setFont("helvetica", "bold").setFontSize(11).text("Ship To", pageWidth / 2, infoStartY);
-      doc.setFont("helvetica", "normal").setFontSize(9);
-      doc.text("9RX", pageWidth / 2, infoStartY + 5);
-      doc.text(currentOrder.customerInfo?.name || "N/A", pageWidth / 2, infoStartY + 10);
-      doc.text((currentOrder.shippingAddress as any)?.shipping?.phone || "N/A", pageWidth / 2, infoStartY + 15);
-      doc.text(currentOrder.customerInfo?.email || "N/A", pageWidth / 2, infoStartY + 20);
-      doc.text(
-        `${(currentOrder.shippingAddress as any)?.shipping?.street1 || ""} ${(currentOrder.shippingAddress as any)?.shipping?.city || ""
-        }, ${(currentOrder.shippingAddress as any)?.shipping?.state || ""} ${(currentOrder.shippingAddress as any)?.shipping?.zipCode || ""
-        }`,
-        pageWidth / 2,
-        infoStartY + 25,
-        { maxWidth: pageWidth / 2 - margin }
-      );
+      // ===== BILL TO / SHIP TO SECTION =====
+      const infoStartY = 63;
+      const boxWidth = (pageWidth - margin * 3) / 2;
 
-      doc.line(margin, infoStartY + 35, pageWidth - margin, infoStartY + 35);
+      // Helper to draw info box
+      const drawInfoBox = (title: string, x: number, lines: string[]) => {
+        // Box background
+        doc.setFillColor(...lightGray);
+        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
+        
+        // Title
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...brandColor);
+        doc.text(title, x + 5, infoStartY + 7);
+        
+        // Content
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(...darkGray);
+        let y = infoStartY + 14;
+        lines.filter(Boolean).forEach((line, idx) => {
+          if (idx < 5) { // Max 5 lines
+            doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 });
+            y += 5;
+          }
+        });
+      };
 
-      const tableStartY = infoStartY + 45;
-      const tableHead = [["Description", "Size", "Qty", "Price/Unit", "Total"]];
-      const tableBody = [];
+      if (poIs) {
+        // PURCHASE ORDER: Vendor + Ship To 9RX
+        const vendorLines = [
+          companyName,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          [
+            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
+            getAddressField(currentOrder.shippingAddress, "billing", "city"),
+            getAddressField(currentOrder.shippingAddress, "billing", "state"),
+            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        drawInfoBox("VENDOR", margin, vendorLines);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
+          "9RX LLC",
+          "936 Broad River Ln",
+          "Charlotte, NC 28211",
+          "+1 800 969 6295",
+          "info@9rx.com"
+        ]);
+      } else {
+        // INVOICE: Bill To + Ship To Customer
+        const billToLines = [
+          companyName,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          [
+            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
+            getAddressField(currentOrder.shippingAddress, "billing", "city"),
+            getAddressField(currentOrder.shippingAddress, "billing", "state"),
+            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        const shipToLines = [
+          getAddressField(currentOrder.shippingAddress, "shipping", "companyName") || companyName,
+          currentOrder.customerInfo?.name,
+          getAddressField(currentOrder.shippingAddress, "shipping", "phone") || currentOrder.customerInfo?.phone,
+          [
+            getAddressField(currentOrder.shippingAddress, "shipping", "street1"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "city"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "state"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        drawInfoBox("BILL TO", margin, billToLines);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
+      }
 
+      // ===== ITEMS TABLE =====
+      const tableStartY = infoStartY + 42;
+      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+      const tableBody: any[] = [];
+
+      let itemIndex = 1;
       currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size, sizeIndex) => {
           const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
           const quantity = size.quantity.toString();
-          const pricePerUnit = `${Number(size.price).toFixed(2)}`;
-          const totalPerSize = `${(size.quantity * size.price).toFixed(2)}`;
+          const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
+          const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
 
-          tableBody.push([item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
+          tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
+          itemIndex++;
 
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push([
+              "",
               {
-                content: item.description.trim(),
-                styles: { fontStyle: "italic", textColor: [80, 80, 80] },
+                content: `↳ ${item.description.trim()}`,
+                styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
               },
               "",
               "",
@@ -355,20 +543,35 @@ export const OrderDetailsSheet = ({
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
-        styles: { fontSize: 9 },
-        theme: "grid",
-        headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: "bold" },
-        columnStyles: {
-          2: { halign: "right" },
-          3: { halign: "right" },
-          4: { halign: "right" },
+        styles: { 
+          fontSize: 9,
+          cellPadding: 3,
         },
-        margin: { left: margin },
+        theme: "striped",
+        headStyles: { 
+          fillColor: brandColor, 
+          textColor: 255, 
+          fontStyle: "bold",
+          halign: "center"
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250]
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 10 },
+          1: { cellWidth: "auto" },
+          2: { halign: "center", cellWidth: 25 },
+          3: { halign: "center", cellWidth: 15 },
+          4: { halign: "right", cellWidth: 25 },
+          5: { halign: "right", cellWidth: 25 },
+        },
+        margin: { left: margin, right: margin },
         tableWidth: "auto",
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY + 10;
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
 
+      // ===== SUMMARY SECTION =====
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
         return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
       }, 0);
@@ -379,25 +582,69 @@ export const OrderDetailsSheet = ({
       const total = subtotal + handling + fred + shipping + tax;
 
       const summaryBody = [
-        ["Sub Total", `${subtotal.toFixed(2)}`],
-        ["Handling-Shipping", `${handling.toFixed(2)}`],
-        ["Tax", `${fred.toFixed(2)}`],
-        ["Total", `${total.toFixed(2)}`],
+        ["Subtotal", `$${subtotal.toFixed(2)}`],
+        ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
+        ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
 
       (doc as any).autoTable({
         body: summaryBody,
         startY: finalY,
-        theme: "grid",
-        styles: { fontSize: 10 },
-        headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: "bold" },
+        theme: "plain",
+        styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: {
-          0: { halign: "left", fontStyle: "bold" },
-          1: { halign: "right" },
+          0: { halign: "right", cellWidth: 45 },
+          1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 65 },
-        tableWidth: 60,
+        margin: { left: pageWidth - margin - 85 },
+        tableWidth: 80,
       });
+
+      // Total row with highlight
+      const summaryFinalY = (doc as any).lastAutoTable.finalY;
+      doc.setFillColor(...brandColor);
+      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
+      doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
+
+      // ===== FOOTER =====
+      const footerY = pageHeight - 30;
+      
+      // Footer line
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+      
+      // Thank you message
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...brandColor);
+      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
+      
+      // Payment info - different for paid vs unpaid
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      
+      if (currentOrder.payment_status === "paid") {
+        // Show transaction ID for paid invoices
+        const transactionId = (currentOrder as any).payment_transication || "";
+        if (transactionId) {
+          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" });
+        } else {
+          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+        }
+      } else {
+        // Show payment terms for unpaid invoices
+        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+      }
+      
+      // Footer brand bar
+      doc.setFillColor(...brandColor);
+      doc.rect(0, pageHeight - 12, pageWidth, 3, "F");
 
       doc.save(`${currentOrder.order_number}.pdf`);
 
@@ -410,6 +657,395 @@ export const OrderDetailsSheet = ({
       toast({
         title: "Error",
         description: "Failed to generate PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
+
+  // Handle Print - Opens PDF in new window and triggers print dialog
+  const handlePrint = async () => {
+    setIsGeneratingPDF(true);
+
+    try {
+      const doc = new jsPDF({
+        orientation: "portrait",
+        unit: "mm",
+        format: "a4",
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 12;
+      
+      // Brand color
+      const brandColor: [number, number, number] = [0, 150, 136];
+      const darkGray: [number, number, number] = [60, 60, 60];
+      const lightGray: [number, number, number] = [245, 245, 245];
+
+      // ===== HEADER BAND =====
+      doc.setFillColor(...brandColor);
+      doc.rect(0, 0, pageWidth, 5, "F");
+
+      // ===== LOGO SECTION =====
+      let logoLoaded = false;
+      try {
+        const logo = new Image();
+        logo.src = "/final.png";
+        await new Promise<void>((resolve) => {
+          logo.onload = () => { logoLoaded = true; resolve(); };
+          logo.onerror = () => resolve();
+          setTimeout(() => resolve(), 3000);
+        });
+        
+        if (logoLoaded && logo.width > 0) {
+          const logoHeight = 20;
+          const logoWidth = (logo.width / logo.height) * logoHeight;
+          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight);
+        }
+      } catch {
+        // Continue without logo
+      }
+
+      // ===== COMPANY INFO (Left) =====
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(16);
+      doc.setTextColor(...darkGray);
+      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
+      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
+      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
+
+      // ===== DOCUMENT TITLE & NUMBER (Right) =====
+      const invoiceNumber = (currentOrder as any).invoice_number;
+      const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
+      
+      let documentTitle: string;
+      let documentNumber: string;
+      
+      if (poIs) {
+        documentTitle = "PURCHASE ORDER";
+        documentNumber = currentOrder.order_number;
+      } else if (invoiceNumber && !isNewOrder) {
+        documentTitle = "INVOICE";
+        documentNumber = invoiceNumber;
+      } else {
+        documentTitle = "SALES ORDER";
+        documentNumber = currentOrder.order_number;
+      }
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(24);
+      doc.setTextColor(...brandColor);
+      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
+      
+      doc.setFontSize(10);
+      doc.setTextColor(...darkGray);
+      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
+      
+      if (invoiceNumber && !isNewOrder && !poIs) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
+      }
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
+      
+      // Payment status badge
+      const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
+      if (currentOrder.payment_status === "paid") {
+        doc.setFillColor(34, 197, 94);
+        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" });
+      } else {
+        doc.setFillColor(239, 68, 68);
+        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "bold");
+        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
+      }
+
+      // ===== BARCODE =====
+      try {
+        const barcodeDataUrl = generateBarcode(documentNumber);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12);
+      } catch {
+        // Skip barcode if generation fails
+      }
+
+      // ===== DIVIDER LINE =====
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.5);
+      doc.line(margin, 58, pageWidth - margin, 58);
+
+      // ===== BILL TO / SHIP TO SECTION =====
+      const infoStartY = 63;
+      const boxWidth = (pageWidth - margin * 3) / 2;
+
+      const drawInfoBox = (title: string, x: number, lines: string[]) => {
+        doc.setFillColor(...lightGray);
+        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...brandColor);
+        doc.text(title, x + 5, infoStartY + 7);
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(...darkGray);
+        let y = infoStartY + 14;
+        lines.filter(Boolean).forEach((line, idx) => {
+          if (idx < 5) {
+            doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 });
+            y += 5;
+          }
+        });
+      };
+
+      if (poIs) {
+        const vendorLines = [
+          companyName,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          [
+            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
+            getAddressField(currentOrder.shippingAddress, "billing", "city"),
+            getAddressField(currentOrder.shippingAddress, "billing", "state"),
+            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        drawInfoBox("VENDOR", margin, vendorLines);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
+          "9RX LLC",
+          "936 Broad River Ln",
+          "Charlotte, NC 28211",
+          "+1 800 969 6295",
+          "info@9rx.com"
+        ]);
+      } else {
+        const billToLines = [
+          companyName,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          [
+            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
+            getAddressField(currentOrder.shippingAddress, "billing", "city"),
+            getAddressField(currentOrder.shippingAddress, "billing", "state"),
+            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        const shipToLines = [
+          getAddressField(currentOrder.shippingAddress, "shipping", "companyName") || companyName,
+          currentOrder.customerInfo?.name,
+          getAddressField(currentOrder.shippingAddress, "shipping", "phone") || currentOrder.customerInfo?.phone,
+          [
+            getAddressField(currentOrder.shippingAddress, "shipping", "street1"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "city"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "state"),
+            getAddressField(currentOrder.shippingAddress, "shipping", "zipCode")
+          ].filter(Boolean).join(", ")
+        ].filter(Boolean);
+        
+        drawInfoBox("BILL TO", margin, billToLines);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
+      }
+
+      // ===== ITEMS TABLE =====
+      const tableStartY = infoStartY + 42;
+      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+      const tableBody: any[] = [];
+
+      let itemIndex = 1;
+      currentOrder.items.forEach((item: any) => {
+        item.sizes.forEach((size, sizeIndex) => {
+          const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
+          const quantity = size.quantity.toString();
+          const pricePerUnit = `${Number(size.price).toFixed(2)}`;
+          const totalPerSize = `${(size.quantity * size.price).toFixed(2)}`;
+
+          tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
+          itemIndex++;
+
+          if (sizeIndex === 0 && item.description && item.description.trim()) {
+            tableBody.push([
+              "",
+              {
+                content: `↳ ${item.description.trim()}`,
+                styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
+              },
+              "",
+              "",
+              "",
+              "",
+            ]);
+          }
+        });
+      });
+
+      (doc as any).autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: tableStartY,
+        styles: { 
+          fontSize: 9,
+          cellPadding: 3,
+        },
+        theme: "striped",
+        headStyles: { 
+          fillColor: brandColor, 
+          textColor: 255, 
+          fontStyle: "bold",
+          halign: "center"
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250]
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 10 },
+          1: { cellWidth: "auto" },
+          2: { halign: "center", cellWidth: 25 },
+          3: { halign: "center", cellWidth: 15 },
+          4: { halign: "right", cellWidth: 25 },
+          5: { halign: "right", cellWidth: 25 },
+        },
+        margin: { left: margin, right: margin },
+        tableWidth: "auto",
+      });
+
+      const finalY = (doc as any).lastAutoTable.finalY + 8;
+
+      // ===== SUMMARY SECTION =====
+      const subtotal = currentOrder.items.reduce((sum, item: any) => {
+        return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
+      }, 0);
+      const handling = Number((currentOrder as any)?.po_handling_charges || 0);
+      const fred = Number((currentOrder as any)?.po_fred_charges || 0);
+      const shipping = Number(currentOrder?.shipping_cost || 0);
+      const tax = Number(currentOrder?.tax_amount || 0);
+      const total = subtotal + handling + fred + shipping + tax;
+
+      const summaryBody = [
+        ["Subtotal", `$${subtotal.toFixed(2)}`],
+        ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
+        ["Tax", `$${(fred + tax).toFixed(2)}`],
+      ];
+
+      (doc as any).autoTable({
+        body: summaryBody,
+        startY: finalY,
+        theme: "plain",
+        styles: { fontSize: 9, cellPadding: 2 },
+        columnStyles: {
+          0: { halign: "right", cellWidth: 45 },
+          1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
+        },
+        margin: { left: pageWidth - margin - 85 },
+        tableWidth: 80,
+      });
+
+      // Total row with highlight
+      const summaryFinalY = (doc as any).lastAutoTable.finalY;
+      doc.setFillColor(...brandColor);
+      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(11);
+      doc.setTextColor(255, 255, 255);
+      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
+      doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
+
+      // ===== FOOTER =====
+      const footerY = pageHeight - 30;
+      
+      doc.setDrawColor(220, 220, 220);
+      doc.setLineWidth(0.3);
+      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+      
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...brandColor);
+      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
+      
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8);
+      doc.setTextColor(120, 120, 120);
+      
+      if (currentOrder.payment_status === "paid") {
+        const transactionId = (currentOrder as any).payment_transication || "";
+        if (transactionId) {
+          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" });
+        } else {
+          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+        }
+      } else {
+        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+      }
+      
+      doc.setFillColor(...brandColor);
+      doc.rect(0, pageHeight - 12, pageWidth, 3, "F");
+
+      // Open PDF in iframe for printing with proper margins
+      const pdfBlob = doc.output('blob');
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+      
+      // Create a hidden iframe for printing
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = pdfUrl;
+      
+      document.body.appendChild(iframe);
+      
+      iframe.onload = () => {
+        setTimeout(() => {
+          try {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+          } catch (e) {
+            // Fallback: open in new window if iframe print fails
+            const printWindow = window.open(pdfUrl, '_blank');
+            if (printWindow) {
+              printWindow.onload = () => {
+                setTimeout(() => {
+                  printWindow.print();
+                }, 300);
+              };
+            }
+          }
+          // Clean up after printing
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(pdfUrl);
+          }, 1000);
+        }, 500);
+      };
+
+    } catch (error) {
+      console.error("Print Error:", error);
+      toast({
+        title: "Error",
+        description: "Failed to print document.",
         variant: "destructive",
       });
     } finally {
@@ -603,7 +1239,11 @@ export const OrderDetailsSheet = ({
                 }}
                 onDownload={handleDownloadPDF}
                 onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
+                onSendEmail={sendMail}
+                onShipOrder={onShipOrder ? () => handleStatusUpdate("ship") : undefined}
+                onPrint={handlePrint}
                 isGeneratingPDF={isGeneratingPDF}
+                isSendingEmail={loading}
                 userRole={userRole}
                 poIs={poIs}
               />
@@ -638,7 +1278,23 @@ export const OrderDetailsSheet = ({
                 <TabsContent value="items" className="mt-0">
                   <ItemsTab
                     items={currentOrder.items}
-                    onEdit={() => setIsEditing(true)}
+                    orderId={currentOrder.id}
+                    onItemsUpdate={(updatedItems) => {
+                      // Calculate new subtotal from items
+                      const newSubtotal = updatedItems.reduce((acc, item) => {
+                        return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
+                      }, 0);
+                      const taxAmount = currentOrder.tax_amount || 0;
+                      const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
+                      const newTotal = newSubtotal + taxAmount + shippingCost;
+                      
+                      setCurrentOrder(prev => ({ 
+                        ...prev, 
+                        items: updatedItems,
+                        total: newTotal.toFixed(2)
+                      }));
+                    }}
+                    onOrderUpdate={() => loadOrders?.(poIs)}
                     userRole={userRole}
                     orderStatus={currentOrder.status}
                     isVoid={currentOrder.void}
@@ -651,7 +1307,8 @@ export const OrderDetailsSheet = ({
                     shippingAddress={currentOrder.shippingAddress}
                     companyName={companyName}
                     poIs={poIs}
-                    onEdit={() => setIsEditing(true)}
+                    orderId={currentOrder.id}
+                    onOrderUpdate={() => loadOrders?.(poIs)}
                     userRole={userRole}
                     orderStatus={currentOrder.status}
                     isVoid={currentOrder.void}
@@ -670,7 +1327,8 @@ export const OrderDetailsSheet = ({
                 <TabsContent value="shipping" className="mt-0">
                   <ShippingTab
                     order={currentOrder}
-                    onEdit={() => setIsEditing(true)}
+                    orderId={currentOrder.id}
+                    onOrderUpdate={() => loadOrders?.(poIs)}
                     userRole={userRole}
                   />
                 </TabsContent>

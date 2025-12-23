@@ -8,6 +8,7 @@ import { Provider } from 'react-redux';
 import { store } from './store/store';
 import { ToastProvider } from '@radix-ui/react-toast';
 import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "sonner";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/components/theme-provider';
 
@@ -38,6 +39,7 @@ root.render(
             <ToastProvider>
               <App />
               <Toaster />
+              <SonnerToaster position="top-right" richColors closeButton />
             </ToastProvider>
           </ThemeProvider>
         </Provider>

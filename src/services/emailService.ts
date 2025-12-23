@@ -94,24 +94,60 @@ async function sendViaResend(
   }
 }
 
+// Send via Node.js backend (uses your existing nodemailer setup)
+async function sendViaNodeAPI(
+  payload: EmailPayload
+): Promise<{ success: boolean; messageId?: string; error?: string }> {
+  try {
+    const baseUrl = import.meta.env.VITE_APP_BASE_URL || "http://localhost:4000";
+    const response = await fetch(`${baseUrl}/api/email/send-test`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        email: Array.isArray(payload.to) ? payload.to[0] : payload.to,
+        subject: payload.subject,
+        content: payload.html,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok || !data.success) {
+      return { success: false, error: data.error || "Failed to send email" };
+    }
+
+    return { success: true, messageId: data.messageId };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
 // Main send email function
 export async function sendEmail(
   payload: EmailPayload
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const settings = await getEmailSettings();
 
-  if (!settings || !settings.api_key) {
-    return { success: false, error: "Email settings not configured" };
-  }
-
   const emailPayload: EmailPayload = {
     ...payload,
-    from: payload.from || `${settings.from_name} <${settings.from_email}>`,
-    replyTo: payload.replyTo || settings.reply_to,
+    from: payload.from || `${settings?.from_name || "9RX"} <${settings?.from_email || "noreply@9rx.com"}>`,
+    replyTo: payload.replyTo || settings?.reply_to,
   };
 
-  switch (settings.provider) {
+  // Check provider setting
+  const provider = settings?.provider || "nodejs";
+
+  switch (provider) {
+    case "nodejs":
+    case "smtp":
+      // Use Node.js backend with nodemailer
+      return sendViaNodeAPI(emailPayload);
     case "resend":
+      if (!settings?.api_key) {
+        return { success: false, error: "Resend API key not configured" };
+      }
       return sendViaResend(settings.api_key, emailPayload);
     // Add more providers here
     // case "sendgrid":

@@ -22,7 +22,6 @@ CREATE TABLE IF NOT EXISTS email_templates (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 2. EMAIL CAMPAIGNS - Bulk email campaigns
 -- =============================================
@@ -50,7 +49,6 @@ CREATE TABLE IF NOT EXISTS email_campaigns (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 3. EMAIL AUTOMATIONS - Trigger-based emails
 -- =============================================
@@ -75,7 +73,6 @@ CREATE TABLE IF NOT EXISTS email_automations (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
 -- =============================================
 -- 4. EMAIL LOGS - Track all sent emails
 -- =============================================
@@ -97,7 +94,6 @@ CREATE TABLE IF NOT EXISTS email_logs (
     clicked_at TIMESTAMP WITH TIME ZONE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- =============================================
 -- 5. ABANDONED CARTS - Track cart abandonment
 -- =============================================
@@ -115,7 +111,6 @@ CREATE TABLE IF NOT EXISTS abandoned_carts (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- =============================================
 -- 6. USER SEGMENTS - Target groups for campaigns
 -- =============================================
@@ -135,8 +130,6 @@ CREATE TABLE IF NOT EXISTS user_segments (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     created_by UUID REFERENCES auth.users(id)
 );
-
-
 -- =============================================
 -- 7. EMAIL SUBSCRIPTIONS - Manage opt-in/opt-out
 -- =============================================
@@ -154,7 +147,6 @@ CREATE TABLE IF NOT EXISTS email_subscriptions (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(email_address, subscription_type)
 );
-
 -- =============================================
 -- 8. EMAIL SETTINGS - Global configuration
 -- =============================================
@@ -166,7 +158,6 @@ CREATE TABLE IF NOT EXISTS email_settings (
     description TEXT,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
-
 -- Insert default settings
 INSERT INTO email_settings (setting_key, setting_value, setting_type, description) VALUES
 ('provider', 'resend', 'string', 'Email service provider'),
@@ -180,7 +171,6 @@ INSERT INTO email_settings (setting_key, setting_value, setting_type, descriptio
 ('daily_send_limit', '1000', 'number', 'Maximum emails per day'),
 ('batch_size', '100', 'number', 'Emails per batch for bulk sending')
 ON CONFLICT (setting_key) DO NOTHING;
-
 -- =============================================
 -- INDEXES for better performance
 -- =============================================
@@ -194,7 +184,6 @@ CREATE INDEX IF NOT EXISTS idx_abandoned_carts_user ON abandoned_carts(user_id, 
 CREATE INDEX IF NOT EXISTS idx_abandoned_carts_reminder ON abandoned_carts(reminder_sent_count, last_reminder_at);
 CREATE INDEX IF NOT EXISTS idx_user_segments_type ON user_segments(segment_type);
 CREATE INDEX IF NOT EXISTS idx_email_subscriptions_email ON email_subscriptions(email_address, is_subscribed);
-
 -- =============================================
 -- RLS Policies
 -- =============================================
@@ -206,7 +195,6 @@ ALTER TABLE abandoned_carts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_segments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_settings ENABLE ROW LEVEL SECURITY;
-
 -- Admin only policies
 CREATE POLICY "Admins can manage email_templates" ON email_templates FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
@@ -229,30 +217,23 @@ CREATE POLICY "Admins can manage user_segments" ON user_segments FOR ALL USING (
 CREATE POLICY "Admins can manage email_settings" ON email_settings FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- Users can manage their own subscriptions
 CREATE POLICY "Users can manage own subscriptions" ON email_subscriptions FOR ALL USING (
     user_id = auth.uid() OR EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
 );
-
 -- =============================================
 -- Triggers for updated_at
 -- =============================================
 DROP TRIGGER IF EXISTS update_email_templates_updated_at ON email_templates;
 CREATE TRIGGER update_email_templates_updated_at BEFORE UPDATE ON email_templates FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_email_campaigns_updated_at ON email_campaigns;
 CREATE TRIGGER update_email_campaigns_updated_at BEFORE UPDATE ON email_campaigns FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_email_automations_updated_at ON email_automations;
 CREATE TRIGGER update_email_automations_updated_at BEFORE UPDATE ON email_automations FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_abandoned_carts_updated_at ON abandoned_carts;
 CREATE TRIGGER update_abandoned_carts_updated_at BEFORE UPDATE ON abandoned_carts FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 DROP TRIGGER IF EXISTS update_user_segments_updated_at ON user_segments;
 CREATE TRIGGER update_user_segments_updated_at BEFORE UPDATE ON user_segments FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
 -- =============================================
 -- Insert default email templates
 -- =============================================

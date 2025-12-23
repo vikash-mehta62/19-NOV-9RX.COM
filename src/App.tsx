@@ -2,6 +2,10 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Products from "./pages/Products";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import ShippingInfo from "./pages/ShippingInfo";
+import ReturnPolicy from "./pages/ReturnPolicy";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminProducts from "./pages/admin/Products";
@@ -21,21 +25,26 @@ import AdminAnnouncements from "./pages/admin/Announcements";
 import AdminEmailTemplates from "./pages/admin/EmailTemplates";
 import AdminEmailCampaigns from "./pages/admin/EmailCampaigns";
 import AdminEmailAutomations from "./pages/admin/EmailAutomations";
+import AdminEmailSettings from "./pages/admin/EmailSettings";
 import AdminAbandonedCarts from "./pages/admin/AbandonedCarts";
+import AdminRewards from "./pages/admin/Rewards";
+import AdminCreditManagement from "./pages/admin/CreditManagement";
+import AdminPaymentTransactions from "./pages/admin/PaymentTransactions";
 import PharmacyDashboard from "./pages/pharmacy/Dashboard";
 import PharmacyOrder from "./pages/pharmacy/Order";
 import PharmacyCreateOrder from "./pages/pharmacy/CreateOrder";
 import PharmacyOrders from "./pages/pharmacy/Orders";
 import PharmacySettings from "./pages/pharmacy/Settings";
 import PharmacyProducts from "./pages/pharmacy/Products";
-import PharmacyProductDetail from "./pages/pharmacy/ProductDetail";
-import ProductSizeDetails from "./pages/pharmacy/ProductSizeDetails";
+import CategoryBrowse from "./pages/pharmacy/CategoryBrowse";
+import SizeDetail from "./pages/pharmacy/SizeDetail";
 import PharmacyOrderHistory from "./pages/pharmacy/OrderHistory";
 import PharmacyStatements from "./pages/pharmacy/Statements";
 import PharmacyCredit from "./pages/pharmacy/Credit";
 import PharmacyRewards from "./pages/pharmacy/Rewards";
 import PharmacyWishlist from "./pages/pharmacy/Wishlist";
 import PharmacyHelp from "./pages/pharmacy/Help";
+import PharmacyPaymentMethods from "./pages/pharmacy/PaymentMethods";
 import GroupDashboard from "./pages/group/Dashboard";
 import GroupOrder from "./pages/group/Order";
 import GroupOrders from "./pages/group/Orders";
@@ -163,6 +172,10 @@ function App() {
       <Route path="/reset-password-page" element={<ResetPasswordPage />} />
       <Route path="/pay-now" element={<PayNowOrder />} />
       <Route path="/products" element={<Products />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-of-service" element={<TermsOfService />} />
+      <Route path="/shipping-info" element={<ShippingInfo />} />
+      <Route path="/return-policy" element={<ReturnPolicy />} />
       <Route path="/cart-price" element={<CartItemsPricing />} />
 
       {/* Admin Routes */}
@@ -250,6 +263,11 @@ function App() {
           <AdminSettings />
         </ProtectedRoute>
       } />
+      <Route path="/admin/payment-transactions" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminPaymentTransactions />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/festival-themes" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminFestivalThemes />
@@ -290,14 +308,34 @@ function App() {
           <AdminEmailAutomations />
         </ProtectedRoute>
       } />
+      <Route path="/admin/email-settings" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminEmailSettings />
+        </ProtectedRoute>
+      } />
       <Route path="/admin/abandoned-carts" element={
         <ProtectedRoute allowedRoles={['admin']}>
           <AdminAbandonedCarts />
         </ProtectedRoute>
       } />
+      <Route path="/admin/rewards" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminRewards />
+        </ProtectedRoute>
+      } />
+      <Route path="/admin/credit-management" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <AdminCreditManagement />
+        </ProtectedRoute>
+      } />
 
       {/* Pharmacy Routes */}
-      <Route path="/pharmacy" element={<Navigate to="/pharmacy/products" replace />} />
+      <Route path="/pharmacy" element={<Navigate to="/pharmacy/categories" replace />} />
+      <Route path="/pharmacy/categories" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <CategoryBrowse />
+        </ProtectedRoute>
+      } />
       <Route path="/pharmacy/dashboard" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyDashboard />
@@ -308,16 +346,21 @@ function App() {
           <PharmacyProducts />
         </ProtectedRoute>
       } />
-      <Route path="/pharmacy/product/:id" element={
-        <ProtectedRoute allowedRoles={['pharmacy']}>
-          <PharmacyProductDetail />
-        </ProtectedRoute>
-      } />
+      {/* Redirect /pharmacy/product/ to products list */}
+      <Route path="/pharmacy/product" element={<Navigate to="/pharmacy/products" replace />} />
+      {/* More specific route with two params must come BEFORE single param route */}
       <Route path="/pharmacy/product/:productId/:sizeId" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
-          <ProductSizeDetails />
+          <SizeDetail />
         </ProtectedRoute>
       } />
+      {/* Single param route - shows product details page */}
+      <Route path="/pharmacy/product/:productId" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <ProductDetails />
+        </ProtectedRoute>
+      } />
+   
       <Route path="/pharmacy/order" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyOrder />
@@ -377,6 +420,11 @@ function App() {
       <Route path="/pharmacy/help" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyHelp />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/payment-methods" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyPaymentMethods />
         </ProtectedRoute>
       } />
       {/* Group Routes */}

@@ -30,9 +30,11 @@ import {
   Filter,
   Search,
   RefreshCw,
+  Eye,
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { AccessRequestDetailDialog } from '@/components/admin/AccessRequestDetailDialog';
 
 export default function AccessRequests() {
   const { toast } = useToast();
@@ -42,6 +44,8 @@ export default function AccessRequests() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('pending');
   const [typeFilter, setTypeFilter] = useState('all');
+  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [detailDialogOpen, setDetailDialogOpen] = useState(false);
 
   useEffect(() => {
     loadRequests();
@@ -56,7 +60,7 @@ export default function AccessRequests() {
       setLoading(true);
       let query = supabase
         .from('profiles')
-        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone')
+        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, license_number, dea_number, npi_number, tax_id, display_name')
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -77,6 +81,11 @@ export default function AccessRequests() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleViewDetails = (request: any) => {
+    setSelectedRequest(request);
+    setDetailDialogOpen(true);
   };
 
   const filterRequests = () => {
@@ -335,31 +344,42 @@ export default function AccessRequests() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">
-                          {request.status === 'pending' ? (
-                            <div className="flex items-center justify-end gap-2">
-                              <Button
-                                size="sm"
-                                variant="default"
-                                onClick={() => handleApprove(request.id)}
-                                className="bg-green-600 hover:bg-green-700"
-                              >
-                                <CheckCircle className="h-4 w-4 mr-1" />
-                                Approve
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => handleReject(request.id)}
-                              >
-                                <XCircle className="h-4 w-4 mr-1" />
-                                Reject
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-muted-foreground">
-                              {request.status === 'active' ? 'Approved' : 'Rejected'}
-                            </span>
-                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleViewDetails(request)}
+                              className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                            >
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                            {request.status === 'pending' ? (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => handleApprove(request.id)}
+                                  className="bg-green-600 hover:bg-green-700"
+                                >
+                                  <CheckCircle className="h-4 w-4 mr-1" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => handleReject(request.id)}
+                                >
+                                  <XCircle className="h-4 w-4 mr-1" />
+                                  Reject
+                                </Button>
+                              </>
+                            ) : (
+                              <Badge variant="outline" className={request.status === 'active' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}>
+                                {request.status === 'active' ? 'Approved' : 'Rejected'}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -370,6 +390,13 @@ export default function AccessRequests() {
           </CardContent>
         </Card>
       </div>
+      {/* Detail Dialog */}
+      <AccessRequestDetailDialog
+        request={selectedRequest}
+        open={detailDialogOpen}
+        onOpenChange={setDetailDialogOpen}
+        onStatusUpdate={loadRequests}
+      />
     </DashboardLayout>
   );
 }

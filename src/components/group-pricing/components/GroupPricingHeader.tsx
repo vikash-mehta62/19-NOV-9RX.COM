@@ -8,11 +8,12 @@ interface GroupPricingHeaderProps {
 export function GroupPricingHeader({ loading, onRefresh }: GroupPricingHeaderProps) {
   return (
     <div className="mb-4 flex items-center justify-between">
-      <h2 className="text-lg font-semibold text-gray-800">Group Pricing Configurations</h2>
+      <h2 className="text-lg font-semibold text-gray-800">Special Pricing Configurations</h2>
       <Button 
         disabled={loading} 
         onClick={onRefresh}
-        className="bg-gradient-to-r from-[#e6b980] to-[#eacda3] hover:opacity-90 text-gray-800"
+        variant="outline"
+        size="sm"
       >
         {loading ? (
           <div className="flex items-center gap-2">

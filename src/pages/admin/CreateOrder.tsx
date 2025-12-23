@@ -8,6 +8,22 @@ import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 
+// Read preselected customer data synchronously before component renders
+const getPreselectedCustomerData = () => {
+  try {
+    const data = sessionStorage.getItem("preselectedCustomer");
+    if (data) {
+      const parsed = JSON.parse(data);
+      sessionStorage.removeItem("preselectedCustomer"); // Clear after reading
+      console.log("Preselected customer data loaded:", parsed);
+      return parsed;
+    }
+  } catch (e) {
+    console.error("Error parsing preselected customer data:", e);
+  }
+  return null;
+};
+
 export default function CreateOrder() {
   const navigate = useNavigate();
   const { orderId } = useParams();
@@ -16,6 +32,8 @@ export default function CreateOrder() {
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Read preselected data synchronously on first render
+  const [preselectedCustomerData] = useState<any>(() => orderId ? null : getPreselectedCustomerData());
   const isEditMode = !!orderId;
 
   // Load existing order data if in edit mode
@@ -428,10 +446,21 @@ const profileID =
             </p>
           </div>
         )}
+        {preselectedCustomerData && !isEditMode && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <h2 className="text-lg font-semibold text-green-900">
+              Creating Order for: {preselectedCustomerData.customer?.name || preselectedCustomerData.customer?.company_name}
+            </h2>
+            <p className="text-sm text-green-700 mt-1">
+              Customer and addresses are pre-filled. You can start adding products.
+            </p>
+          </div>
+        )}
       </div>
       <OrderCreationWizard
-        initialData={existingOrderData}
+        initialData={preselectedCustomerData || existingOrderData}
         isEditMode={isEditMode}
+        isPharmacyMode={!!preselectedCustomerData?.skipToProducts}
         onComplete={handleComplete}
         onCancel={handleCancel}
       />

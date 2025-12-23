@@ -18,6 +18,7 @@ import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { Mail, User, Phone, Building2, Send, Loader2 } from "lucide-react";
 import { v4 as uuidv4 } from "uuid";
 import { addDays, format } from "date-fns";
+import axios from "../../../axiosconfig";
 
 interface InvitePharmacyDialogProps {
   open: boolean;
@@ -135,15 +136,30 @@ export function InvitePharmacyDialog({
 
       if (error) throw error;
 
-      // TODO: Send email notification (integrate with your email service)
-      // For now, we'll just show the invitation link
+      // Send invitation email
       const inviteLink = `${window.location.origin}/join-group?token=${token}`;
+      
+      try {
+        await axios.post("/group-invitation", {
+          email: form.email.toLowerCase(),
+          pharmacyName: form.pharmacy_name,
+          contactPerson: form.contact_person || null,
+          groupName: userProfile?.company_name || userProfile?.display_name || "Your Group",
+          inviterName: userProfile?.display_name || `${userProfile?.first_name} ${userProfile?.last_name}`,
+          inviteLink,
+          expiresAt: expiresAt.toISOString(),
+          personalMessage: form.message || null,
+        });
+      } catch (emailError) {
+        console.error("Failed to send invitation email:", emailError);
+        // Don't fail the whole operation if email fails
+      }
 
       toast({
         title: "Invitation Sent!",
         description: (
           <div className="space-y-2">
-            <p>Invitation created for {form.email}</p>
+            <p>Invitation email sent to {form.email}</p>
             <p className="text-xs text-muted-foreground">
               Expires: {format(expiresAt, "MMM d, yyyy")}
             </p>

@@ -37,6 +37,7 @@ export interface WizardNavigationProps {
   onBack: () => void;
   onContinue: () => void;
   onCancel: () => void;
+  onPlaceOrderWithoutPayment?: () => void;
   isSubmitting?: boolean;
   canContinue?: boolean;
   paymentMethod?: PaymentMethod;

@@ -2,19 +2,29 @@
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Form } from "@/components/ui/form"
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { type ProductFormValues, productFormSchema } from "./schemas/productSchema"
-import { BasicInfoSection } from "./form-sections/BasicInfoSection"
 import { ImageUploadField } from "./form-fields/ImageUploadField"
 import { SizeOptionsField } from "./form-fields/SizeOptionsField"
-import { InventorySection } from "./form-sections/InventorySection"
-import { Loader2, Package, Save, X } from "lucide-react"
-import { useEffect, useState } from "react"
 import { CustomizationSection } from "./form-fields/Customizations"
+import { CategorySubcategoryManager } from "./form-sections/CategorySubcategoryManager"
+import { 
+  Loader2, Package, Save, X, ChevronDown, ChevronUp, 
+  Image, Ruler, Settings, Sparkles, Info, CheckCircle2, Plus
+} from "lucide-react"
+import { useEffect, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { PRODUCT_CATEGORIES } from "@/types/product"
+import { supabase } from "@/integrations/supabase/client"
+import { cn } from "@/lib/utils"
 
 interface AddProductDialogProps {
   open: boolean
@@ -23,6 +33,76 @@ interface AddProductDialogProps {
   isSubmitting?: boolean
   onProductAdded: () => void
   initialData?: Partial<ProductFormValues>
+}
+
+interface Subcategory {
+  id: number
+  category_name: string
+  subcategory_name: string
+}
+
+// Section Component
+const FormSection = ({ 
+  title, 
+  description, 
+  icon: Icon, 
+  iconColor,
+  children, 
+  defaultOpen = true,
+  badge,
+  required = false
+}: { 
+  title: string
+  description: string
+  icon: React.ElementType
+  iconColor: string
+  children: React.ReactNode
+  defaultOpen?: boolean
+  badge?: string
+  required?: boolean
+}) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen)
+
+  return (
+    <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+      <Card className={cn(
+        "border transition-all duration-200",
+        isOpen ? "border-gray-200 shadow-sm" : "border-gray-100 hover:border-gray-200"
+      )}>
+        <CollapsibleTrigger asChild>
+          <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className={cn("p-2 rounded-lg", iconColor)}>
+                <Icon className="w-4 h-4 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-gray-900">{title}</h3>
+                  {required && <span className="text-red-500 text-sm">*</span>}
+                  {badge && (
+                    <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                      {badge}
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-gray-500">{description}</p>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+              {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </Button>
+          </div>
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <CardContent className="pt-0 pb-4 px-4">
+            <div className="border-t pt-4">
+              {children}
+            </div>
+          </CardContent>
+        </CollapsibleContent>
+      </Card>
+    </Collapsible>
+  )
 }
 
 export function AddProductDialog({
@@ -34,6 +114,10 @@ export function AddProductDialog({
   initialData,
 }: AddProductDialogProps) {
   const [loading, setLoading] = useState(false)
+  const [subcategories, setSubcategories] = useState<Subcategory[]>([])
+  const [completedSections, setCompletedSections] = useState<string[]>([])
+  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
+  const [categories, setCategories] = useState<string[]>(PRODUCT_CATEGORIES)
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -47,7 +131,6 @@ export function AddProductDialog({
       lotNumber: initialData?.lotNumber || "",
       exipry: initialData?.exipry || "",
       unitToggle: initialData?.unitToggle,
-
       description: initialData?.description || "",
       category: initialData?.category || "",
       subcategory: initialData?.subcategory || "",
@@ -70,23 +153,90 @@ export function AddProductDialog({
     },
   })
 
+  const selectedCategory = form.watch("category")
+  const productName = form.watch("name")
+  const description = form.watch("description")
+  const sizes = form.watch("sizes")
+  const images = form.watch("images")
 
-  const { watch } = form;
+  // Auto-generate SKU based on category
+  const generateSKU = (category: string) => {
+    const timestamp = Date.now().toString().slice(-4)
+    const prefix = category.slice(0, 3).toUpperCase()
+    return `${prefix}-${timestamp}`
+  }
+
+  // Fetch categories from database
+  const fetchCategories = async () => {
+    const { data, error } = await supabase
+      .from('category_configs')
+      .select('category_name')
+      .order('category_name')
+
+    if (!error && data) {
+      const dbCategories = data.map(c => c.category_name)
+      // Merge with default categories
+      const allCategories = [...new Set([...PRODUCT_CATEGORIES, ...dbCategories])]
+      setCategories(allCategories)
+    }
+  }
 
   useEffect(() => {
-    const subscription = watch((value, { name, type }) => {
-      console.log("📝 Changed field:", name);
-      console.log("📦 New form values:", value);
-    });
+    if (open) {
+      fetchCategories()
+    }
+  }, [open])
 
-    return () => subscription.unsubscribe(); // cleanup on unmount
-  }, [watch]);
+  // Fetch subcategories when category changes
+  useEffect(() => {
+    const fetchSubcategories = async () => {
+      if (!selectedCategory) return
+      
+      const { data, error } = await supabase
+        .from('subcategory_configs')
+        .select('*')
+        .eq('category_name', selectedCategory)
+        .order('subcategory_name')
+
+      if (!error && data) {
+        setSubcategories(data)
+      }
+    }
+
+    fetchSubcategories()
+    
+    // Auto-fill name with category if empty
+    if (selectedCategory && !productName) {
+      form.setValue("name", selectedCategory)
+    }
+    
+    // Auto-generate SKU
+    if (selectedCategory && !form.getValues("sku")) {
+      form.setValue("sku", generateSKU(selectedCategory))
+    }
+  }, [selectedCategory])
+
+  // Track completed sections
+  useEffect(() => {
+    const completed: string[] = []
+    
+    if (selectedCategory && productName && description) {
+      completed.push("basic")
+    }
+    if (images && images.length > 0) {
+      completed.push("images")
+    }
+    if (sizes && sizes.length > 0) {
+      completed.push("sizes")
+    }
+    
+    setCompletedSections(completed)
+  }, [selectedCategory, productName, description, images, sizes])
 
   const handleSubmit = async (values: ProductFormValues) => {
     setLoading(true)
     try {
       await onSubmit(values)
-
       form.reset()
       onProductAdded()
       onOpenChange(false)
@@ -96,139 +246,376 @@ export function AddProductDialog({
     setLoading(false)
   }
 
+  const handleCategoryManagerSuccess = () => {
+    fetchCategories()
+  }
+
+  const isBasicInfoComplete = selectedCategory && productName && description
+  const progress = Math.round((completedSections.length / 3) * 100)
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-5xl max-h-[95vh] p-0 gap-0">
-        <DialogHeader className="px-8 py-5 border-b bg-gradient-to-r from-blue-600 to-indigo-600">
-          <DialogTitle className="text-2xl font-bold flex items-center gap-3 text-white">
-            <div className="p-2 bg-white/20 rounded-lg backdrop-blur-sm">
-              <Package className="h-6 w-6 text-white" />
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-3xl max-h-[95vh] p-0 gap-0 flex flex-col">
+          {/* Header */}
+          <DialogHeader className="px-6 py-4 border-b bg-white sticky top-0 z-10 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-sm">
+                  <Package className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <DialogTitle className="text-xl font-bold text-gray-900">
+                    {initialData ? "Edit Product" : "Add New Product"}
+                  </DialogTitle>
+                  <p className="text-sm text-gray-500 mt-0.5">
+                    {initialData ? "Update product details" : "Fill in the essentials to get started"}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Progress Indicator */}
+              <div className="hidden sm:flex items-center gap-3">
+                <div className="text-right">
+                  <p className="text-xs text-gray-500">Progress</p>
+                  <p className="text-sm font-semibold text-emerald-600">{progress}%</p>
+                </div>
+                <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+              </div>
             </div>
-            {initialData ? "Edit Product" : "Add New Product"}
-          </DialogTitle>
-          <p className="text-blue-100 text-sm mt-1">
-            {initialData ? "Update product information and details" : "Fill in the details to add a new product to your inventory"}
-          </p>
-        </DialogHeader>
+          </DialogHeader>
 
-        <ScrollArea className="max-h-[calc(95vh-180px)]">
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-8 p-8 bg-gray-50">
-              {/* Basic Information */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 bg-blue-100 rounded-lg">
-                    <span className="text-blue-600 font-bold text-sm">1</span>
+          <ScrollArea className="flex-1 overflow-auto">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 space-y-4 bg-gray-50">
+                
+                {/* Essential Info - Always Visible */}
+                <FormSection
+                  title="Essential Information"
+                  description="Category, name, and basic details"
+                  icon={Info}
+                  iconColor="bg-blue-500"
+                  defaultOpen={true}
+                  required
+                  badge={completedSections.includes("basic") ? "✓ Complete" : undefined}
+                >
+                  <div className="space-y-4">
+                    {/* Category & Subcategory Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="category"
+                        render={({ field }) => (
+                          <FormItem>
+                            <div className="flex items-center justify-between">
+                              <FormLabel className="text-sm font-medium">
+                                Category <span className="text-red-500">*</span>
+                              </FormLabel>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2"
+                                onClick={() => setCategoryManagerOpen(true)}
+                              >
+                                <Plus className="w-3 h-3 mr-1" />
+                                Add New
+                              </Button>
+                            </div>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                              <FormControl>
+                                <SelectTrigger className="h-11">
+                                  <SelectValue placeholder="Select category" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {categories.map((category) => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="subcategory"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">Subcategory</FormLabel>
+                            <Select 
+                              onValueChange={field.onChange} 
+                              value={field.value}
+                              disabled={!selectedCategory}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-11">
+                                  <SelectValue placeholder={selectedCategory ? "Select subcategory" : "Select category first"} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {subcategories.length > 0 ? (
+                                  subcategories.map((sub) => (
+                                    <SelectItem key={sub.id} value={sub.subcategory_name}>
+                                      {sub.subcategory_name}
+                                    </SelectItem>
+                                  ))
+                                ) : (
+                                  <div className="p-2 text-sm text-gray-500 text-center">
+                                    No subcategories available
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Name & SKU Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">
+                              Product Name <span className="text-red-500">*</span>
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="e.g., Premium RX Vial 30ml" 
+                                className="h-11"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="sku"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">
+                              SKU <span className="text-red-500">*</span>
+                            </FormLabel>
+                            <FormControl>
+                              <Input 
+                                placeholder="Auto-generated" 
+                                className="h-11 font-mono"
+                                {...field} 
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    {/* Description */}
+                    <FormField
+                      control={form.control}
+                      name="description"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">
+                            Description <span className="text-red-500">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="Brief product description (minimum 10 characters)..."
+                              className="min-h-[100px] resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-gray-500">Minimum 10 characters required</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Basic Information</h3>
-                    <p className="text-sm text-gray-500">Product category, name, and description</p>
+                </FormSection>
+
+                {/* Product Images */}
+                <FormSection
+                  title="Product Images"
+                  description="Upload product photos"
+                  icon={Image}
+                  iconColor="bg-green-500"
+                  defaultOpen={!!isBasicInfoComplete}
+                  badge={images?.length ? `${images.length} image(s)` : undefined}
+                >
+                  <ImageUploadField
+                    form={form}
+                    validateImage={(file) => {
+                      const maxSize = 5 * 1024 * 1024
+                      if (file.size > maxSize) return "Image size should be less than 5MB"
+                      const allowedTypes = ["image/jpeg", "image/png", "image/gif"]
+                      if (!allowedTypes.includes(file.type)) return "Only JPG, PNG and GIF images are allowed"
+                      return null
+                    }}
+                  />
+                </FormSection>
+
+                {/* Size Options & Pricing */}
+                <FormSection
+                  title="Sizes & Pricing"
+                  description="Configure available sizes and prices"
+                  icon={Ruler}
+                  iconColor="bg-purple-500"
+                  defaultOpen={!!isBasicInfoComplete}
+                  badge={sizes?.length ? `${sizes.length} size(s)` : undefined}
+                >
+                  <SizeOptionsField form={form} isEditing={!!initialData} />
+                </FormSection>
+
+                {/* Advanced Options - Collapsed by Default */}
+                <FormSection
+                  title="Advanced Options"
+                  description="Key features, customization, and more"
+                  icon={Settings}
+                  iconColor="bg-gray-500"
+                  defaultOpen={false}
+                  badge="Optional"
+                >
+                  <div className="space-y-6">
+                    {/* Key Features */}
+                    <FormField
+                      control={form.control}
+                      name="key_features"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Key Features</FormLabel>
+                          <FormControl>
+                            <Textarea
+                              placeholder="• Feature 1&#10;• Feature 2&#10;• Feature 3"
+                              className="min-h-[80px] resize-none"
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-gray-500">List main product features</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Display Order */}
+                    <FormField
+                      control={form.control}
+                      name="squanence"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Display Order</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number"
+                              placeholder="e.g., 1, 2, 3..."
+                              className="h-11 w-32"
+                              {...field}
+                            />
+                          </FormControl>
+                          <p className="text-xs text-gray-500">Lower numbers appear first</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {/* Customization */}
+                    <div className="pt-4 border-t">
+                      <h4 className="text-sm font-medium text-gray-900 mb-3">Customization Options</h4>
+                      <CustomizationSection form={form} />
+                    </div>
                   </div>
-                </div>
-                <BasicInfoSection
-                  form={form}
-                  generateSKU={(category) => {
-                    const timestamp = Date.now().toString().slice(-4)
-                    const prefix = category.slice(0, 3).toUpperCase()
-                    return `${prefix}-${timestamp}`
-                  }}
-                />
+                </FormSection>
+
+                {/* Quick Tips */}
+                {!initialData && (
+                  <Card className="bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200">
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <Sparkles className="w-5 h-5 text-amber-600 mt-0.5" />
+                        <div>
+                          <h4 className="font-medium text-amber-900">Quick Tips</h4>
+                          <ul className="text-sm text-amber-700 mt-1 space-y-1">
+                            <li>• Select a category first - it auto-fills the name and SKU</li>
+                            <li>• Add at least one size with pricing</li>
+                            <li>• Images help customers identify products</li>
+                            <li>• Click "Add New" next to Category to create new categories</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </form>
+            </Form>
+          </ScrollArea>
+
+          {/* Footer */}
+          <DialogFooter className="px-6 py-4 border-t bg-white flex-shrink-0">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                {completedSections.length === 3 ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    <span className="text-emerald-600 font-medium">Ready to save</span>
+                  </>
+                ) : (
+                  <span>Complete required sections to save</span>
+                )}
               </div>
-
-              <Separator className="bg-gray-300" />
-
-              {/* Product Images */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 bg-green-100 rounded-lg">
-                    <span className="text-green-600 font-bold text-sm">2</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Product Images</h3>
-                    <p className="text-sm text-gray-500">Upload high-quality product images</p>
-                  </div>
-                </div>
-                <ImageUploadField
-                  form={form}
-                  validateImage={(file) => {
-                    const maxSize = 5 * 1024 * 1024
-                    if (file.size > maxSize) {
-                      return "Image size should be less than 5MB"
-                    }
-                    const allowedTypes = ["image/jpeg", "image/png", "image/gif"]
-                    if (!allowedTypes.includes(file.type)) {
-                      return "Only JPG, PNG and GIF images are allowed"
-                    }
-                    return null
-                  }}
-                />
+              <div className="flex gap-3">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => onOpenChange(false)} 
+                  className="h-10"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={loading || !isBasicInfoComplete}
+                  onClick={form.handleSubmit(handleSubmit)}
+                  className="h-10 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {initialData ? "Updating..." : "Adding..."}
+                    </>
+                  ) : (
+                    <>
+                      <Save className="h-4 w-4 mr-2" />
+                      {initialData ? "Update Product" : "Add Product"}
+                    </>
+                  )}
+                </Button>
               </div>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-              <Separator className="bg-gray-300" />
-
-              {/* Size Options */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 bg-purple-100 rounded-lg">
-                    <span className="text-purple-600 font-bold text-sm">3</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Size Options & Pricing</h3>
-                    <p className="text-sm text-gray-500">Configure available sizes and their prices</p>
-                  </div>
-                </div>
-                <SizeOptionsField form={form} isEditing={initialData ? true : false} />
-              </div>
-
-              <Separator className="bg-gray-300" />
-
-              {/* Customization */}
-              <div className="space-y-4">
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="flex items-center justify-center w-8 h-8 bg-orange-100 rounded-lg">
-                    <span className="text-orange-600 font-bold text-sm">4</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-900">Customization Options</h3>
-                    <p className="text-sm text-gray-500">Add custom options for this product</p>
-                  </div>
-                </div>
-                <CustomizationSection form={form} />
-              </div>
-            </form>
-          </Form>
-        </ScrollArea>
-
-        <DialogFooter className="px-8 py-5 border-t bg-white flex-col sm:flex-row gap-3 shadow-lg">
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => onOpenChange(false)} 
-            className="w-full sm:w-auto h-11 border-gray-300 hover:bg-gray-50"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            disabled={loading}
-            onClick={form.handleSubmit(handleSubmit)}
-            className="w-full sm:w-auto h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white shadow-md"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                <span>{initialData ? "Updating" : "Adding"} Product...</span>
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                {initialData ? "Update Product" : "Add Product"}
-              </>
-            )}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {/* Category Manager Dialog */}
+      <CategorySubcategoryManager
+        open={categoryManagerOpen}
+        onOpenChange={setCategoryManagerOpen}
+        onSuccess={handleCategoryManagerSuccess}
+      />
+    </>
   )
 }

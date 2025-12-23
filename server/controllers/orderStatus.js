@@ -11,6 +11,9 @@ const { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate } =
 const userVerificationTemplate = require("../templates/userVerificationTemplate");
 const mailSender = require("../utils/mailSender");
 
+// Admin email from environment variable with fallback
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "sppatel@9rx.com";
+
 
 exports.orderSatusCtrl = async (req, res) => {
   try {
@@ -66,15 +69,16 @@ exports.orderPlacedCtrl = async (req, res) => {
     const emailContent = orderConfirmationTemplate(order);
     const emailContentAdmin = adminOrderNotificationTemplate(order);
 
-    // Send email
+    // Send email to customer
     await mailSender(
       order.customerInfo.email,
-      "Order Placed ",
+      "Order Placed Successfully - 9RX",
       emailContent
     );
+    // Send notification to admin
     await mailSender(
-      "sppatel@9rx.com",
-      "New Order Placed ",
+      ADMIN_EMAIL,
+      "New Order Placed",
       emailContentAdmin
     );
 
@@ -105,8 +109,8 @@ exports.userNotificationCtrl = async (req, res) => {
     const emailContent = userVerificationTemplate(groupname, name, email);
 
     await mailSender(
-      "sppatel@9rx.com",
-      "New User",
+      ADMIN_EMAIL,
+      "New User Registration - Verification Required",
       emailContent
     );
 
@@ -212,8 +216,8 @@ exports.contactCtrl = async (req, res) => {
     }
 
     const emailRes = await mailSender(
-      "sppatel@9rx.com",
-      "Contact Details",
+      ADMIN_EMAIL,
+      "New Contact Form Submission",
       contactUsEmail(name, email, contact, message)
     )
     res.status(200).send({
@@ -242,8 +246,8 @@ exports.customization = async (req, res) => {
     }
 
     const emailRes = await mailSender(
-      "sppatel@9rx.com",
-      "Your Data send successfully",
+      ADMIN_EMAIL,
+      "New Customization Request",
       customizationQueryEmail(name, email, phone, selectedProducts)
     )
     res.status(200).send({
@@ -296,14 +300,13 @@ console.log(order)
 
 exports.passwordConfirmationNotification = async (req, res) => {
   try {
-    const { name, email, admin = false } = req.body;
-
+    const { name, email } = req.body;
 
     // Ensure required fields are present
     if (!name || !email) {
       return res.status(400).json({
         success: false,
-        message: "Missing required order details.",
+        message: "Missing required details: name and email are required.",
       });
     }
 
@@ -313,19 +316,19 @@ exports.passwordConfirmationNotification = async (req, res) => {
     // Send email
     await mailSender(
       email,
-      "Your Account Active Successfully! ",
+      "Password Reset Confirmation - 9RX",
       emailContent
     );
 
     return res.status(200).json({
       success: true,
-      message: "Account Active",
+      message: "Password reset confirmation email sent",
     });
   } catch (error) {
-    console.error("Error in Order Status Controller:", error);
+    console.error("Error in Password Confirmation:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong in Order Status",
+      message: "Failed to send password confirmation email",
       error: error.message,
     });
   }
@@ -333,36 +336,35 @@ exports.passwordConfirmationNotification = async (req, res) => {
 
 exports.updateProfileNotification = async (req, res) => {
   try {
-    const { name, email, admin = false } = req.body;
-
+    const { name, email } = req.body;
 
     // Ensure required fields are present
     if (!name || !email) {
       return res.status(400).json({
         success: false,
-        message: "Missing required order details.",
+        message: "Missing required details: name and email are required.",
       });
     }
 
     // Generate email content using the template
-    const emailContent = profileUpdateTemplate(name,email);
+    const emailContent = profileUpdateTemplate(name, email);
 
     // Send email
     await mailSender(
       email,
-      "Your Account Active Successfully! ",
+      "Profile Updated Successfully - 9RX",
       emailContent
     );
 
     return res.status(200).json({
       success: true,
-      message: "Account Active",
+      message: "Profile update notification sent",
     });
   } catch (error) {
-    console.error("Error in Order Status Controller:", error);
+    console.error("Error in Profile Update Notification:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong in Order Status",
+      message: "Failed to send profile update notification",
       error: error.message,
     });
   }
@@ -370,14 +372,13 @@ exports.updateProfileNotification = async (req, res) => {
 
 exports.paymentSuccessFull = async (req, res) => {
   try {
-    const { name, email,  orderNumber, transactionId } = req.body;
-
+    const { name, email, orderNumber, transactionId } = req.body;
 
     // Ensure required fields are present
     if (!name || !email) {
       return res.status(400).json({
         success: false,
-        message: "Missing required order details.",
+        message: "Missing required details: name and email are required.",
       });
     }
 
@@ -387,19 +388,19 @@ exports.paymentSuccessFull = async (req, res) => {
     // Send email
     await mailSender(
       email,
-      "Your Account Active Successfully! ",
+      `Payment Successful - Order #${orderNumber || 'N/A'} - 9RX`,
       emailContent
     );
 
     return res.status(200).json({
       success: true,
-      message: "Account Active",
+      message: "Payment confirmation email sent",
     });
   } catch (error) {
-    console.error("Error in Order Status Controller:", error);
+    console.error("Error in Payment Success Notification:", error);
     return res.status(500).json({
       success: false,
-      message: "Something went wrong in Order Status",
+      message: "Failed to send payment confirmation email",
       error: error.message,
     });
   }
@@ -407,3 +408,59 @@ exports.paymentSuccessFull = async (req, res) => {
 
 
 
+
+// Group Invitation Email
+const groupInvitationTemplate = require("../templates/groupInvitationTemplate");
+
+exports.groupInvitationCtrl = async (req, res) => {
+  try {
+    const {
+      email,
+      pharmacyName,
+      contactPerson,
+      groupName,
+      inviterName,
+      inviteLink,
+      expiresAt,
+      personalMessage,
+    } = req.body;
+
+    // Validate required fields
+    if (!email || !pharmacyName || !groupName || !inviteLink) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: email, pharmacyName, groupName, inviteLink",
+      });
+    }
+
+    // Generate email content
+    const emailContent = groupInvitationTemplate({
+      pharmacyName,
+      contactPerson,
+      groupName,
+      inviterName: inviterName || groupName,
+      inviteLink,
+      expiresAt: expiresAt || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      personalMessage,
+    });
+
+    // Send email
+    await mailSender(
+      email,
+      `You're Invited to Join ${groupName} on 9RX`,
+      emailContent
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Invitation email sent successfully",
+    });
+  } catch (error) {
+    console.error("Error sending group invitation:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send invitation email",
+      error: error.message,
+    });
+  }
+};

@@ -1,14 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ModernStatCard } from "@/components/modern/ModernStatCard";
 import { ModernCard } from "@/components/modern/ModernCard";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  DollarSign,
   ShoppingCart,
   TrendingUp,
   Users,
@@ -19,261 +16,301 @@ import {
   Calendar,
   Clock,
   AlertTriangle,
+  Eye,
+  DollarSign,
 } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AccessRequestDetailDialog } from "@/components/admin/AccessRequestDetailDialog";
+import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
+import { StatsGrid } from "@/components/admin/dashboard/StatsGrid";
+import { LowStockAlert } from "@/components/admin/dashboard/LowStockAlert";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import {
+  DashboardStats,
+  LowStockProduct,
+  fetchDashboardStats,
+  fetchDashboardAlerts,
+  fetchRevenueChartData,
+  fetchTopProducts,
+  getDateRange,
+} from "./dashboardService";
 
 const AdminDashboard = () => {
   const { toast } = useToast();
   const [timeRange, setTimeRange] = useState('30d');
   const [isLoading, setIsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    totalSales: 0,
-    totalOrders: 0,
-    totalCustomers: 0,
-    revenue: 0,
-  });
-  const [userCounts, setUserCounts] = useState<any[]>([]);
-  const [totalProducts, setTotalProducts] = useState(0);
-  const [revenueData, setRevenueData] = useState<any[]>([]);
-  const [ordersData, setOrdersData] = useState<any[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Stats
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [revenueChartData, setRevenueChartData] = useState<{ date: string; revenue: number }[]>([]);
+  const [ordersData, setOrdersData] = useState<{ status: string; count: number }[]>([]);
+  
+  // Alerts
+  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
+  const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
+  
+  // Lists
   const [topPharmacies, setTopPharmacies] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
   const [bestPerformingProducts, setBestPerformingProducts] = useState<any[]>([]);
   const [outstandingPharmacies, setOutstandingPharmacies] = useState<any[]>([]);
-  const [agingBuckets, setAgingBuckets] = useState<{ b0_30: number; b31_60: number; b61_90: number; b90_plus: number; total: number }>({ b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, total: 0 });
+  const [agingBuckets, setAgingBuckets] = useState({ b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, total: 0 });
+  
+  // Counts
+  const [userCounts, setUserCounts] = useState<any[]>([]);
+  const [totalProducts, setTotalProducts] = useState(0);
+  
+  // Dialog
+  const [selectedAccessRequest, setSelectedAccessRequest] = useState<any | null>(null);
+  const [accessRequestDialogOpen, setAccessRequestDialogOpen] = useState(false);
+
+  const loadAllData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    
+    try {
+      const [
+        dashboardStats,
+        alerts,
+        chartData,
+        topProducts,
+      ] = await Promise.all([
+        fetchDashboardStats(timeRange),
+        fetchDashboardAlerts(),
+        fetchRevenueChartData(timeRange),
+        fetchTopProducts(timeRange),
+      ]);
+
+      setStats(dashboardStats);
+      setLowStockProducts(alerts.lowStockProducts);
+      setRevenueChartData(chartData);
+      setBestPerformingProducts(topProducts);
+
+      // Load additional data
+      await Promise.all([
+        loadPendingAccessRequests(),
+        loadRecentOrders(),
+        loadTopPharmacies(),
+        loadOutstandingPayments(),
+        loadUserCounts(),
+        loadTotalProducts(),
+      ]);
+
+      setLastUpdated(new Date());
+    } catch (err) {
+      console.error('Error loading dashboard:', err);
+      setError('Failed to load dashboard data. Please try again.');
+      toast({
+        title: 'Error',
+        description: 'Failed to load some dashboard data.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeRange, toast]);
 
   useEffect(() => {
-    const loadAllData = async () => {
-      setIsLoading(true);
-      await Promise.all([
-        loadDashboardData(),
-        loadPendingAccessRequests(),
-        loadBestPerformingProducts(),
-        loadOutstandingPayments(),
-      ]);
-      setIsLoading(false);
-    };
     loadAllData();
-  }, [timeRange]);
+  }, [loadAllData]);
 
-  const loadDashboardData = async () => {
-    try {
-      let query = supabase
-        .from('orders')
-        .select('id, total_amount, status, profile_id, created_at, order_number, payment_status')
-        .or('void.eq.false,void.is.null')
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false });
-
-      // Apply time range filter only if not "all"
-      if (timeRange !== 'all') {
-        const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30;
-        const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte('created_at', dateFrom);
-      }
-
-      const { data: orders } = await query;
-
-      if (orders) {
-        // Calculate stats
-        const totalRevenue = orders.reduce((sum, o) => sum + (parseFloat(o.total_amount) || 0), 0);
-        setStats({
-          totalSales: totalRevenue,
-          totalOrders: orders.length,
-          totalCustomers: new Set(orders.map(o => o.profile_id)).size,
-          revenue: totalRevenue / orders.length || 0,
-        });
-
-        // Set recent orders
-        setRecentOrders(orders.slice(0, 10));
-
-        // Process revenue by month
-        const monthlyRevenue = new Map<string, number>();
-        orders.forEach(order => {
-          const date = new Date(order.created_at);
-          const month = date.toLocaleString('default', { month: 'short' });
-          monthlyRevenue.set(month, (monthlyRevenue.get(month) || 0) + (parseFloat(order.total_amount) || 0));
-        });
-        setRevenueData(Array.from(monthlyRevenue.entries()).map(([month, revenue]) => ({
-          month,
-          revenue,
-        })));
-
-        // Process orders by status
-        const statusCounts = new Map<string, number>();
-        orders.forEach(order => {
-          const status = order.status || 'unknown';
-          statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
-        });
-        setOrdersData(Array.from(statusCounts.entries()).map(([status, count]) => ({
-          status,
-          count,
-        })));
-
-        // Top pharmacies
-        const pharmacyRevenue = new Map<string, { count: number; value: number }>();
-        orders.forEach(order => {
-          const pid = order.profile_id || 'unknown';
-          const prev = pharmacyRevenue.get(pid) || { count: 0, value: 0 };
-          prev.count += 1;
-          prev.value += parseFloat(order.total_amount) || 0;
-          pharmacyRevenue.set(pid, prev);
-        });
-
-        const topPharms = Array.from(pharmacyRevenue.entries())
-          .map(([id, data]) => ({ id, ...data }))
-          .sort((a, b) => b.value - a.value)
-          .slice(0, 5);
-
-        // Fetch pharmacy names
-        if (topPharms.length > 0) {
-          const { data: profiles } = await supabase
-            .from('profiles')
-            .select('id, company_name, first_name, last_name, email')
-            .in('id', topPharms.map(p => p.id));
-
-          if (profiles) {
-            const nameMap = new Map(profiles.map(p => [
-              p.id,
-              p.company_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || p.id,
-            ]));
-            setTopPharmacies(topPharms.map(p => ({
-              ...p,
-              name: nameMap.get(p.id) || p.id,
-            })));
-          }
+  // Real-time subscription for pending access requests
+  useEffect(() => {
+    const channel = supabase
+      .channel('pending-access-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: 'status=eq.pending'
+        },
+        () => {
+          loadPendingAccessRequests();
         }
-      }
-    } catch (error) {
-      console.error('Error loading dashboard data:', error);
-    }
-  };
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const loadPendingAccessRequests = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, first_name, last_name, email, company_name, type, created_at, status')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email, company_name, type, created_at, status, mobile_phone, work_phone, billing_address, shipping_address, license_number, dea_number, npi_number, tax_id')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching pending requests:', error);
+      return;
+    }
+    setPendingAccessRequests(data || []);
+  };
 
-      if (error) throw error;
-      setPendingAccessRequests(data || []);
-    } catch (error) {
-      console.error('Error loading pending access requests:', error);
+  const loadRecentOrders = async () => {
+    const { from } = getDateRange(timeRange);
+    let query = supabase
+      .from('orders')
+      .select('id, total_amount, status, profile_id, created_at, order_number, payment_status')
+      .or('void.eq.false,void.is.null')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (from) {
+      query = query.gte('created_at', from.toISOString());
+    }
+
+    const { data } = await query;
+    setRecentOrders(data || []);
+
+    // Process orders by status
+    if (data) {
+      const statusCounts = new Map<string, number>();
+      data.forEach(order => {
+        const status = order.status || 'unknown';
+        statusCounts.set(status, (statusCounts.get(status) || 0) + 1);
+      });
+      setOrdersData(Array.from(statusCounts.entries()).map(([status, count]) => ({ status, count })));
     }
   };
 
-  const loadBestPerformingProducts = async () => {
-    try {
-      let query = supabase
-        .from('orders')
-        .select('items')
-        .or('void.eq.false,void.is.null')
-        .is('deleted_at', null);
+  const loadTopPharmacies = async () => {
+    const { from } = getDateRange(timeRange);
+    let query = supabase
+      .from('orders')
+      .select('profile_id, total_amount')
+      .or('void.eq.false,void.is.null')
+      .is('deleted_at', null);
 
-      // Apply time range filter only if not "all"
-      if (timeRange !== 'all') {
-        const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30;
-        const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte('created_at', dateFrom);
+    if (from) {
+      query = query.gte('created_at', from.toISOString());
+    }
+
+    const { data: orders } = await query;
+    if (!orders) return;
+
+    const pharmacyRevenue = new Map<string, { count: number; value: number }>();
+    orders.forEach(order => {
+      const pid = order.profile_id || 'unknown';
+      const prev = pharmacyRevenue.get(pid) || { count: 0, value: 0 };
+      prev.count += 1;
+      prev.value += parseFloat(order.total_amount) || 0;
+      pharmacyRevenue.set(pid, prev);
+    });
+
+    const topPharms = Array.from(pharmacyRevenue.entries())
+      .map(([id, data]) => ({ id, ...data }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 5);
+
+    if (topPharms.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, company_name, first_name, last_name, email')
+        .in('id', topPharms.map(p => p.id));
+
+      if (profiles) {
+        const nameMap = new Map(profiles.map(p => [
+          p.id,
+          p.company_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || p.id,
+        ]));
+        setTopPharmacies(topPharms.map(p => ({ ...p, name: nameMap.get(p.id) || p.id })));
       }
-
-      const { data: orders } = await query;
-
-      if (!orders) return;
-
-      const productStats = new Map<string, { id: string; name: string; quantity: number; revenue: number }>();
-
-      for (const order of orders) {
-        if (!order.items || !Array.isArray(order.items)) continue;
-        for (const item of order.items) {
-          const productId = item.product_id || item.id;
-          const quantity = parseFloat(item.quantity) || 0;
-          const price = parseFloat(item.price) || 0;
-          const revenue = quantity * price;
-
-          const existing = productStats.get(productId) || { id: productId, name: item.name || item.product_name || 'Unknown', quantity: 0, revenue: 0 };
-          existing.quantity += quantity;
-          existing.revenue += revenue;
-          productStats.set(productId, existing);
-        }
-      }
-
-      const sorted = Array.from(productStats.values()).sort((a, b) => b.revenue - a.revenue).slice(0, 10);
-      setBestPerformingProducts(sorted);
-    } catch (error) {
-      console.error('Error loading best performing products:', error);
     }
   };
 
   const loadOutstandingPayments = async () => {
-    try {
-      let query = supabase
-        .from('orders')
-        .select('id, total_amount, profile_id, created_at, payment_status')
-        .eq('payment_status', 'unpaid')
-        .or('void.eq.false,void.is.null')
-        .is('deleted_at', null);
+    const { from } = getDateRange(timeRange);
+    let query = supabase
+      .from('orders')
+      .select('id, total_amount, profile_id, created_at, payment_status')
+      .eq('payment_status', 'unpaid')
+      .or('void.eq.false,void.is.null')
+      .is('deleted_at', null);
 
-      // Apply time range filter only if not "all"
-      if (timeRange !== 'all') {
-        const days = timeRange === '7d' ? 7 : timeRange === '90d' ? 90 : 30;
-        const dateFrom = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte('created_at', dateFrom);
-      }
-
-      const { data: orders } = await query;
-
-      if (!orders) return;
-
-      const pharmacyOutstanding = new Map<string, { id: string; outstanding: number; oldestDate: string }>();
-      const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, total: 0 };
-
-      for (const order of orders) {
-        const pid = order.profile_id || 'unknown';
-        const amount = parseFloat(order.total_amount) || 0;
-        const age = Math.floor((Date.now() - new Date(order.created_at).getTime()) / (24 * 60 * 60 * 1000));
-
-        const existing = pharmacyOutstanding.get(pid) || { id: pid, outstanding: 0, oldestDate: order.created_at };
-        existing.outstanding += amount;
-        if (new Date(order.created_at) < new Date(existing.oldestDate)) {
-          existing.oldestDate = order.created_at;
-        }
-        pharmacyOutstanding.set(pid, existing);
-
-        if (age <= 30) buckets.b0_30 += amount;
-        else if (age <= 60) buckets.b31_60 += amount;
-        else if (age <= 90) buckets.b61_90 += amount;
-        else buckets.b90_plus += amount;
-        buckets.total += amount;
-      }
-
-      const sorted = Array.from(pharmacyOutstanding.values()).sort((a, b) => b.outstanding - a.outstanding).slice(0, 10);
-
-      if (sorted.length > 0) {
-        const { data: profiles } = await supabase
-          .from('profiles')
-          .select('id, company_name, first_name, last_name, email')
-          .in('id', sorted.map(p => p.id));
-
-        if (profiles) {
-          const nameMap = new Map(profiles.map(p => [p.id, p.company_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || p.id]));
-          setOutstandingPharmacies(sorted.map(p => ({
-            ...p,
-            name: nameMap.get(p.id) || p.id,
-            daysOutstanding: Math.floor((Date.now() - new Date(p.oldestDate).getTime()) / (24 * 60 * 60 * 1000)),
-          })));
-        }
-      }
-
-      setAgingBuckets(buckets);
-    } catch (error) {
-      console.error('Error loading outstanding payments:', error);
+    if (from) {
+      query = query.gte('created_at', from.toISOString());
     }
+
+    const { data: orders } = await query;
+    if (!orders) return;
+
+    const pharmacyOutstanding = new Map<string, { id: string; outstanding: number; oldestDate: string }>();
+    const buckets = { b0_30: 0, b31_60: 0, b61_90: 0, b90_plus: 0, total: 0 };
+
+    for (const order of orders) {
+      const pid = order.profile_id || 'unknown';
+      const amount = parseFloat(order.total_amount) || 0;
+      const age = Math.floor((Date.now() - new Date(order.created_at).getTime()) / (24 * 60 * 60 * 1000));
+
+      const existing = pharmacyOutstanding.get(pid) || { id: pid, outstanding: 0, oldestDate: order.created_at };
+      existing.outstanding += amount;
+      if (new Date(order.created_at) < new Date(existing.oldestDate)) {
+        existing.oldestDate = order.created_at;
+      }
+      pharmacyOutstanding.set(pid, existing);
+
+      if (age <= 30) buckets.b0_30 += amount;
+      else if (age <= 60) buckets.b31_60 += amount;
+      else if (age <= 90) buckets.b61_90 += amount;
+      else buckets.b90_plus += amount;
+      buckets.total += amount;
+    }
+
+    const sorted = Array.from(pharmacyOutstanding.values()).sort((a, b) => b.outstanding - a.outstanding).slice(0, 10);
+
+    if (sorted.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, company_name, first_name, last_name, email')
+        .in('id', sorted.map(p => p.id));
+
+      if (profiles) {
+        const nameMap = new Map(profiles.map(p => [p.id, p.company_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || p.email || p.id]));
+        setOutstandingPharmacies(sorted.map(p => ({
+          ...p,
+          name: nameMap.get(p.id) || p.id,
+          daysOutstanding: Math.floor((Date.now() - new Date(p.oldestDate).getTime()) / (24 * 60 * 60 * 1000)),
+        })));
+      }
+    }
+
+    setAgingBuckets(buckets);
+  };
+
+  const loadUserCounts = async () => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("type")
+      .neq("type", "admin");
+
+    if (data) {
+      const typeCounts = data.reduce((acc: any, user) => {
+        acc[user.type] = (acc[user.type] || 0) + 1;
+        return acc;
+      }, {});
+      setUserCounts(Object.entries(typeCounts).map(([type, count]) => ({ type, count })));
+    }
+  };
+
+  const loadTotalProducts = async () => {
+    const { count } = await supabase
+      .from("products")
+      .select("*", { count: "exact", head: true });
+    setTotalProducts(count || 0);
+  };
+
+  const handleViewAccessRequest = (request: any) => {
+    setSelectedAccessRequest(request);
+    setAccessRequestDialogOpen(true);
   };
 
   const handleApproveAccess = async (profileId: string) => {
@@ -285,18 +322,10 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      toast({
-        title: 'Access Approved',
-        description: 'User has been granted access to the system.',
-      });
+      toast({ title: 'Access Approved', description: 'User has been granted access.' });
       loadPendingAccessRequests();
     } catch (error) {
-      console.error('Error approving access:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to approve access request.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to approve access.', variant: 'destructive' });
     }
   };
 
@@ -309,153 +338,42 @@ const AdminDashboard = () => {
 
       if (error) throw error;
 
-      toast({
-        title: 'Access Rejected',
-        description: 'User access request has been rejected.',
-      });
+      toast({ title: 'Access Rejected', description: 'User request has been rejected.' });
       loadPendingAccessRequests();
     } catch (error) {
-      console.error('Error rejecting access:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to reject access request.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: 'Failed to reject access.', variant: 'destructive' });
     }
   };
-
-  useEffect(() => {
-    const fetchUserCounts = async () => {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("type")
-        .neq("type", "admin");
-
-      if (error) {
-        console.error("Error fetching user types:", error);
-        return;
-      }
-
-      const typeCounts = data.reduce((acc: any, user) => {
-        acc[user.type] = (acc[user.type] || 0) + 1;
-        return acc;
-      }, {});
-
-      const formattedCounts = Object.entries(typeCounts).map(
-        ([type, count]) => ({
-          type,
-          count,
-        })
-      );
-
-      setUserCounts(formattedCounts);
-    };
-
-    const fetchTotalProducts = async () => {
-      const { count, error } = await supabase
-        .from("products")
-        .select("*", { count: "exact", head: true });
-
-      if (error) {
-        console.error("Error fetching total products count:", error);
-        return;
-      }
-
-      setTotalProducts(count || 0);
-    };
-
-    fetchTotalProducts();
-    fetchUserCounts();
-  }, []);
 
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        {/* Header with Time Range Selector */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
-            <p className="text-muted-foreground">
-              Manage your business, view analytics, and handle administrative tasks.
-            </p>
-          </div>
-          <Select value={timeRange} onValueChange={setTimeRange} disabled={isLoading}>
-            <SelectTrigger className="w-36">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7d">7 Days</SelectItem>
-              <SelectItem value="30d">30 Days</SelectItem>
-              <SelectItem value="90d">90 Days</SelectItem>
-              <SelectItem value="all">All Orders</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        {/* Header */}
+        <DashboardHeader
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          onRefresh={loadAllData}
+          isLoading={isLoading}
+          lastUpdated={lastUpdated || undefined}
+        />
 
-        {/* Modern Stats Cards */}
-        {isLoading ? (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map((i) => (
-              <Card key={i} className="relative overflow-hidden">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <Skeleton className="h-4 w-24" />
-                  <Skeleton className="h-10 w-10 rounded-full" />
-                </CardHeader>
-                <CardContent>
-                  <Skeleton className="h-8 w-32 mb-2" />
-                  <Skeleton className="h-4 w-24" />
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <ModernStatCard
-              title="Total Sales"
-              value={`$${stats.totalSales.toLocaleString()}`}
-              change="+13.4%"
-              trend="up"
-              subtitle="Since last week"
-              color="blue"
-              chart={
-                <div className="h-12">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={revenueData.slice(-7)}>
-                      <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              }
-            />
-            <ModernStatCard
-              title="Total Orders"
-              value={stats.totalOrders.toLocaleString()}
-              change="+13.4%"
-              trend="up"
-              subtitle="Since last week"
-              color="red"
-              icon={<ShoppingCart className="w-6 h-6" />}
-            />
-            <ModernStatCard
-              title="Total Customers"
-              value={stats.totalCustomers.toLocaleString()}
-              change="+13.4%"
-              trend="up"
-              subtitle="Since last week"
-              color="green"
-              icon={<Users className="w-6 h-6" />}
-            />
-            <ModernStatCard
-              title="Avg per Order"
-              value={`$${Math.round(stats.revenue).toLocaleString()}`}
-              change="+2%"
-              trend="up"
-              subtitle="Average revenue"
-              color="purple"
-              icon={<TrendingUp className="w-6 h-6" />}
-            />
-          </div>
+        {/* Error State */}
+        {error && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <p className="text-red-700">{error}</p>
+              <Button variant="outline" size="sm" onClick={loadAllData} className="mt-2">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
         )}
+
+        {/* Stats Grid */}
+        <StatsGrid stats={stats} revenueChartData={revenueChartData} isLoading={isLoading} />
+
+        {/* Low Stock Alert - NEW! */}
+        <LowStockAlert products={lowStockProducts} isLoading={isLoading} />
 
         {/* Pending Access Requests */}
         {pendingAccessRequests.length > 0 && (
@@ -478,7 +396,7 @@ const AdminDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {pendingAccessRequests.map((request) => (
+                {pendingAccessRequests.slice(0, 5).map((request) => (
                   <div key={request.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
                     <div className="flex-1">
                       <div className="font-medium">
@@ -487,27 +405,19 @@ const AdminDashboard = () => {
                       <div className="text-sm text-muted-foreground">{request.email}</div>
                       <div className="text-xs text-muted-foreground mt-1">
                         <Calendar className="inline h-3 w-3 mr-1" />
-                        Requested: {new Date(request.created_at).toLocaleDateString()}
+                        {new Date(request.created_at).toLocaleDateString()}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant="outline" className="capitalize">{request.type}</Badge>
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={() => handleApproveAccess(request.id)}
-                        className="bg-green-600 hover:bg-green-700"
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1" />
-                        Approve
+                      <Button size="sm" variant="outline" onClick={() => handleViewAccessRequest(request)}>
+                        <Eye className="h-4 w-4 mr-1" /> View
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => handleRejectAccess(request.id)}
-                      >
-                        <XCircle className="h-4 w-4 mr-1" />
-                        Reject
+                      <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveAccess(request.id)}>
+                        <CheckCircle className="h-4 w-4 mr-1" /> Approve
+                      </Button>
+                      <Button size="sm" variant="destructive" onClick={() => handleRejectAccess(request.id)}>
+                        <XCircle className="h-4 w-4 mr-1" /> Reject
                       </Button>
                     </div>
                   </div>
@@ -522,14 +432,10 @@ const AdminDashboard = () => {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {[1, 2].map((i) => (
               <Card key={i}>
-                <CardHeader>
-                  <Skeleton className="h-6 w-40" />
-                </CardHeader>
+                <CardHeader><Skeleton className="h-6 w-40" /></CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {[1, 2, 3, 4, 5].map((j) => (
-                      <Skeleton key={j} className="h-16 w-full" />
-                    ))}
+                    {[1, 2, 3, 4, 5].map((j) => <Skeleton key={j} className="h-16 w-full" />)}
                   </div>
                 </CardContent>
               </Card>
@@ -558,13 +464,11 @@ const AdminDashboard = () => {
                         </div>
                         <div className="text-right">
                           <div className="font-semibold">${parseFloat(order.total_amount).toFixed(2)}</div>
-                          <Badge
-                            variant={
-                              order.status === 'delivered' ? 'default' :
-                              order.status === 'processing' ? 'secondary' :
-                              order.status === 'new' ? 'outline' : 'destructive'
-                            }
-                          >
+                          <Badge variant={
+                            order.status === 'delivered' ? 'default' :
+                            order.status === 'processing' ? 'secondary' :
+                            order.status === 'new' ? 'outline' : 'destructive'
+                          }>
                             {order.status}
                           </Badge>
                         </div>
@@ -601,17 +505,13 @@ const AdminDashboard = () => {
                       <div className="h-2 rounded bg-muted">
                         <div
                           className="h-2 rounded bg-green-600"
-                          style={{
-                            width: `${Math.min(100, (product.revenue / Math.max(1, bestPerformingProducts[0]?.revenue || 1)) * 100)}%`
-                          }}
+                          style={{ width: `${Math.min(100, (product.revenue / Math.max(1, bestPerformingProducts[0]?.revenue || 1)) * 100)}%` }}
                         />
                       </div>
                     </div>
                   ))}
                   {bestPerformingProducts.length === 0 && (
-                    <div className="text-sm text-muted-foreground text-center py-4">
-                      No product data available
-                    </div>
+                    <div className="text-sm text-muted-foreground text-center py-4">No product data available</div>
                   )}
                 </div>
               </CardContent>
@@ -645,12 +545,7 @@ const AdminDashboard = () => {
                         </div>
                       </div>
                       <div className="h-2 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-red-600"
-                          style={{
-                            width: `${Math.min(100, (p.outstanding / Math.max(1, outstandingPharmacies[0]?.outstanding || 1)) * 100)}%`
-                          }}
-                        />
+                        <div className="h-2 rounded bg-red-600" style={{ width: `${Math.min(100, (p.outstanding / Math.max(1, outstandingPharmacies[0]?.outstanding || 1)) * 100)}%` }} />
                       </div>
                     </div>
                   ))}
@@ -659,78 +554,25 @@ const AdminDashboard = () => {
                 <div className="space-y-3">
                   <h4 className="text-sm font-semibold mb-3">AR Aging Analysis</h4>
                   <div className="space-y-4">
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded bg-green-500"></div>
-                          0–30 days
-                        </span>
-                        <span className="font-semibold">${agingBuckets.b0_30.toFixed(2)}</span>
+                    {[
+                      { label: '0–30 days', value: agingBuckets.b0_30, color: 'bg-green-500' },
+                      { label: '31–60 days', value: agingBuckets.b31_60, color: 'bg-yellow-500' },
+                      { label: '61–90 days', value: agingBuckets.b61_90, color: 'bg-orange-500' },
+                      { label: '90+ days', value: agingBuckets.b90_plus, color: 'bg-red-600' },
+                    ].map((bucket) => (
+                      <div key={bucket.label}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded ${bucket.color}`}></div>
+                            {bucket.label}
+                          </span>
+                          <span className="font-semibold">${bucket.value.toFixed(2)}</span>
+                        </div>
+                        <div className="h-2 rounded bg-muted">
+                          <div className={`h-2 rounded ${bucket.color}`} style={{ width: `${agingBuckets.total ? Math.min(100, (bucket.value / agingBuckets.total) * 100) : 0}%` }} />
+                        </div>
                       </div>
-                      <div className="h-2 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-green-500"
-                          style={{
-                            width: `${agingBuckets.total ? Math.min(100, (agingBuckets.b0_30 / agingBuckets.total) * 100) : 0}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded bg-yellow-500"></div>
-                          31–60 days
-                        </span>
-                        <span className="font-semibold">${agingBuckets.b31_60.toFixed(2)}</span>
-                      </div>
-                      <div className="h-2 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-yellow-500"
-                          style={{
-                            width: `${agingBuckets.total ? Math.min(100, (agingBuckets.b31_60 / agingBuckets.total) * 100) : 0}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded bg-orange-500"></div>
-                          61–90 days
-                        </span>
-                        <span className="font-semibold">${agingBuckets.b61_90.toFixed(2)}</span>
-                      </div>
-                      <div className="h-2 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-orange-500"
-                          style={{
-                            width: `${agingBuckets.total ? Math.min(100, (agingBuckets.b61_90 / agingBuckets.total) * 100) : 0}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-sm mb-1">
-                        <span className="flex items-center gap-2">
-                          <div className="w-3 h-3 rounded bg-red-600"></div>
-                          90+ days
-                        </span>
-                        <span className="font-semibold">${agingBuckets.b90_plus.toFixed(2)}</span>
-                      </div>
-                      <div className="h-2 rounded bg-muted">
-                        <div
-                          className="h-2 rounded bg-red-600"
-                          style={{
-                            width: `${agingBuckets.total ? Math.min(100, (agingBuckets.b90_plus / agingBuckets.total) * 100) : 0}%`
-                          }}
-                        />
-                      </div>
-                    </div>
-
+                    ))}
                     <div className="pt-3 border-t">
                       <div className="flex justify-between text-sm font-semibold">
                         <span>Total Outstanding</span>
@@ -745,48 +587,25 @@ const AdminDashboard = () => {
         )}
 
         {/* Charts Row */}
-        {isLoading ? (
+        {!isLoading && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <Card className="lg:col-span-2">
-              <CardContent className="p-6">
-                <Skeleton className="h-6 w-32 mb-6" />
-                <Skeleton className="h-80 w-full" />
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-6">
-                <Skeleton className="h-6 w-32 mb-6" />
-                <Skeleton className="h-80 w-full" />
-              </CardContent>
-            </Card>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Sales Report */}
             <ModernCard className="lg:col-span-2">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Sales Report</h3>
-                <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTimeRange('all')}>All</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTimeRange('90d')}>90 Days</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTimeRange('30d')}>30 Days</Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTimeRange('7d')}>7 Days</Button>
-                </div>
               </div>
               <div className="h-80">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={revenueData}>
+                  <BarChart data={revenueChartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="month" stroke="#9ca3af" />
+                    <XAxis dataKey="date" stroke="#9ca3af" />
                     <YAxis stroke="#9ca3af" />
-                    <Tooltip />
+                    <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} />
                     <Bar dataKey="revenue" fill="#8b5cf6" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </ModernCard>
 
-            {/* Orders by Status */}
             <ModernCard>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Orders by Status</h3>
@@ -805,24 +624,22 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Bottom Row - Orders List & Monthly Sales */}
+        {/* Bottom Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Top Customers/Pharmacies */}
           <ModernCard>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Top Customers</h3>
-              <Button variant="ghost" size="sm">View All</Button>
+              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/admin/users'}>View All</Button>
             </div>
             <div className="space-y-4">
-              <div className="grid grid-cols-6 gap-4 text-sm font-medium text-gray-500 pb-2 border-b">
-                <div>Num</div>
-                <div>Customer</div>
+              <div className="grid grid-cols-5 gap-4 text-sm font-medium text-gray-500 pb-2 border-b">
+                <div>#</div>
+                <div className="col-span-2">Customer</div>
                 <div>Orders</div>
                 <div>Revenue</div>
-                <div>Status</div>
               </div>
               {topPharmacies.slice(0, 5).map((pharmacy, idx) => (
-                <div key={pharmacy.id} className="grid grid-cols-6 gap-4 text-sm items-center">
+                <div key={pharmacy.id} className="grid grid-cols-5 gap-4 text-sm items-center">
                   <div className="text-gray-600">{idx + 1}</div>
                   <div className="flex items-center gap-2 col-span-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-semibold">
@@ -832,36 +649,29 @@ const AdminDashboard = () => {
                   </div>
                   <div className="font-medium text-gray-900">{pharmacy.count}</div>
                   <div className="font-medium text-gray-900">${pharmacy.value.toFixed(0)}</div>
-                  <div>
-                    <Badge className="bg-green-100 text-green-700 hover:bg-green-100">Active</Badge>
-                  </div>
                 </div>
               ))}
             </div>
           </ModernCard>
 
-          {/* Monthly Sales Card */}
           <ModernCard className="bg-gradient-to-br from-purple-50 to-blue-50">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm font-medium text-gray-600 mb-1">Monthly Sales</p>
-                <h3 className="text-3xl font-bold text-gray-900">${stats.totalSales.toLocaleString()}</h3>
-                <Badge className="mt-2 bg-green-100 text-green-700">+13.4%</Badge>
+                <p className="text-sm font-medium text-gray-600 mb-1">Period Sales</p>
+                <h3 className="text-3xl font-bold text-gray-900">
+                  ${stats?.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0.00'}
+                </h3>
+                {stats && (
+                  <Badge className={`mt-2 ${stats.salesTrend.direction === 'up' ? 'bg-green-100 text-green-700' : stats.salesTrend.direction === 'down' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
+                    {stats.salesTrend.direction === 'up' ? '+' : stats.salesTrend.direction === 'down' ? '-' : ''}{stats.salesTrend.change}%
+                  </Badge>
+                )}
               </div>
-              <Select defaultValue="current">
-                <SelectTrigger className="w-32">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="current">Current</SelectItem>
-                  <SelectItem value="last">Last Month</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="text-sm text-gray-600 mb-4">Total for selected period</div>
             <div className="h-32">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueData.slice(-30)}>
+                <LineChart data={revenueChartData.slice(-30)}>
                   <Line type="monotone" dataKey="revenue" stroke="#8b5cf6" strokeWidth={3} dot={false} />
                 </LineChart>
               </ResponsiveContainer>
@@ -893,19 +703,29 @@ const AdminDashboard = () => {
                   <ShoppingCart className="h-5 w-5 text-muted-foreground" />
                   <span className="text-sm">Orders</span>
                 </div>
-                <span className="text-sm font-semibold">{stats.totalOrders}</span>
+                <span className="text-sm font-semibold">{stats?.totalOrders || 0}</span>
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <DollarSign className="h-5 w-5 text-muted-foreground" />
                   <span className="text-sm">Revenue</span>
                 </div>
-                <span className="text-sm font-semibold">${stats.totalSales.toLocaleString()}</span>
+                <span className="text-sm font-semibold">${stats?.totalSales.toLocaleString() || '0'}</span>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
+
+      <AccessRequestDetailDialog
+        request={selectedAccessRequest}
+        open={accessRequestDialogOpen}
+        onOpenChange={setAccessRequestDialogOpen}
+        onStatusUpdate={() => {
+          loadPendingAccessRequests();
+          setSelectedAccessRequest(null);
+        }}
+      />
     </DashboardLayout>
   );
 };

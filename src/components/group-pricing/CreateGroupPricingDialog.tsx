@@ -262,8 +262,8 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
       toast({
         title: "Success",
         description: initialData 
-          ? "Group pricing updated successfully" 
-          : "Group pricing created successfully",
+          ? "Special pricing updated successfully" 
+          : "Special pricing created successfully",
       });
       
       onSubmit(groupPricingData);
@@ -273,7 +273,7 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
       console.error("Error in handleSubmit:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save group pricing. Please try again.",
+        description: error.message || "Failed to save special pricing. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -292,18 +292,16 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
     <div>
       <Dialog open={isOpen} onOpenChange={setIsOpen} >
         <DialogTrigger asChild>
-          <Button
-            className="bg-gradient-to-r from-[#e6b980] to-[#eacda3] hover:opacity-90 text-gray-800"
-            size="sm"
-          >
-            <Plus className="h-4 w-4" /> Add Group Pricing
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Special Pricing
           </Button>
         </DialogTrigger>
         <div className=" ">
           <DialogContent className="bg-white max-h-50">
             <DialogHeader>
               <DialogTitle className="text-gray-800">
-                {initialData ? "Edit" : "Create"} Group Pricing
+                {initialData ? "Edit" : "Create"} Special Pricing
               </DialogTitle>
               <DialogDescription>
                 Configure pricing rules for specific groups and products
@@ -328,7 +326,7 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
                     />
                     <Button
                       type="submit"
-                      className="w-full bg-gradient-to-r from-[#e6b980] to-[#eacda3] hover:opacity-90 text-gray-800"
+                      className="w-full"
                       disabled={loading}
                     >
                       {loading ? (
@@ -337,7 +335,7 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
                           <span>Submitting...</span>
                         </div>
                       ) : (
-                        <span>{initialData ? "Update" : "Create"} Group Pricing</span>
+                        <span>{initialData ? "Update" : "Create"} Special Pricing</span>
                       )}
                     </Button>
                   </form>

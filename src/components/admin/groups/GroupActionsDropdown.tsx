@@ -89,7 +89,7 @@ export function GroupActionsDropdown({
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => window.open(`/admin/group-pricing?group=${groupId}`, '_self')}>
           <DollarSign className="h-4 w-4 mr-2" />
-          Group Pricing
+          Special Pricing
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={toggleStatus} disabled={loading}>

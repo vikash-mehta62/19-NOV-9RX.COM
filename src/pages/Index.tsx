@@ -1,8 +1,13 @@
 import HeroSection from "@/components/landing/HeroSection";
 import ProductCategories from "@/components/landing/ProductCategories";
-import AboutUsSection from "@/components/landing/AboutUsSection";
+import HowItWorksSection from "@/components/landing/HowItWorksSection";
+import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import TrustSection from "@/components/landing/TrustSection";
-import { FestivalBanner } from "@/components/festival/FestivalBanner";
+import FAQSection from "@/components/landing/FAQSection";
+import NewsletterSection from "@/components/landing/NewsletterSection";
+import PartnersSection from "@/components/landing/PartnersSection";
+import Footer from "@/components/landing/Footer";
+// FestivalBanner removed from landing page for cleaner hero design
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { Phone, ShieldQuestion } from "lucide-react";
@@ -10,7 +15,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import axios from "../../axiosconfig";
 
 const Index = () => {
@@ -21,14 +25,13 @@ const Index = () => {
   const [email, setEmail] = useState("");
   const [contact, setContact] = useState("");
   const [message, setMessage] = useState("");
-
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    const loadingToast = toast({
+    toast({
       title: "Submitting...",
       description: "Please wait while we send your inquiry.",
     });
@@ -69,17 +72,38 @@ const Index = () => {
 
   return (
     <div className="min-h-screen">
-      <FestivalBanner position="top" />
+      {/* Hero Section */}
       <HeroSection />
+      
+      {/* How It Works */}
+      <HowItWorksSection />
+      
+      {/* Products */}
       <ProductCategories />
+      
+      {/* Partners & Certifications */}
+      <PartnersSection />
+      
+      {/* Testimonials */}
       <TestimonialsSection />
+      
+      {/* Trust Section */}
       <TrustSection />
+      
+      {/* FAQ */}
+      <FAQSection />
+      
+      {/* Newsletter */}
+      <NewsletterSection />
+      
+      {/* Footer */}
+      <Footer />
 
       {/* Fixed Contact Button */}
       <div className="fixed right-0 top-1/3 transform -translate-y-1/2 z-50 flex flex-col gap-6">
         <Button
           asChild
-          className=" w-5 absolute right-0 lg:w-48 bg-white text-emerald-600 hover:bg-emerald-50 shadow-lg rounded-l-lg rounded-r-none transition-all duration-300  md:flex"
+          className="w-5 absolute right-0 lg:w-48 bg-white text-emerald-600 hover:bg-emerald-50 shadow-lg rounded-l-lg rounded-r-none transition-all duration-300 md:flex"
         >
           <a
             href="tel:+18009696295"
@@ -94,62 +118,56 @@ const Index = () => {
         {/* Inquiry Form Toggle Button */}
         <Button
           onClick={() => setShowForm(!showForm)}
-          className="w-5 lg:w-48 bg-emerald-600 text-white rounded-l-lg rounded-r-none hover:bg-emerald-700 transition-all duration-300  md:block"
+          className="w-5 lg:w-48 bg-emerald-600 text-white rounded-l-lg rounded-r-none hover:bg-emerald-700 transition-all duration-300 md:block"
         >
           <span className="hidden lg:block">Quick Inquiry</span>
           <span className="block lg:hidden">
-            {" "}
             <ShieldQuestion />
           </span>
         </Button>
 
         {/* Floating Inquiry Form */}
         {showForm && (
-          <div className="absolute right-0 top-full mt-2 bg-white shadow-lg rounded-l-lg p-4 w-80 animate-fade-in">
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <Input
-                  type="text"
-                  placeholder="Your Name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full"
-                  required
-                />
-              </div>
-              <div>
-                <Input
-                  type="email"
-                  placeholder="Email Address"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full"
-                  required
-                />
-              </div>
-              <div>
-                <Input
-                  type="tel"
-                  placeholder="Phone Number"
-                  value={contact}
-                  onChange={(e) => setContact(e.target.value)}
-                  className="w-full"
-                />
-              </div>
-              <div>
-                <Textarea
-                  placeholder="Your Message"
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  className="w-full"
-                  required
-                />
-              </div>
+          <div className="absolute right-0 top-full mt-2 bg-white shadow-xl rounded-l-lg p-4 w-80 animate-fade-in border border-gray-100">
+            <h3 className="font-semibold text-gray-900 mb-3">Quick Inquiry</h3>
+            <form onSubmit={handleSubmit} className="space-y-3">
+              <Input
+                type="text"
+                placeholder="Your Name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full"
+                required
+              />
+              <Input
+                type="email"
+                placeholder="Email Address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full"
+                required
+              />
+              <Input
+                type="tel"
+                placeholder="Phone Number"
+                value={contact}
+                onChange={(e) => setContact(e.target.value)}
+                className="w-full"
+              />
+              <Textarea
+                placeholder="Your Message"
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                className="w-full"
+                rows={3}
+                required
+              />
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
               >
-                Send Inquiry
+                {isLoading ? "Sending..." : "Send Inquiry"}
               </Button>
             </form>
           </div>
@@ -158,7 +176,5 @@ const Index = () => {
     </div>
   );
 };
-
-
 
 export default Index;

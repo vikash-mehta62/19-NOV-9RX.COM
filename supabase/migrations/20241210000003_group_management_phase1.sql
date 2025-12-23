@@ -11,11 +11,9 @@
 -- Commission rate for groups (percentage of order value)
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS commission_rate DECIMAL(5,2) DEFAULT 0;
 COMMENT ON COLUMN profiles.commission_rate IS 'Commission percentage earned by group on pharmacy orders (0-100)';
-
 -- Total commission earned (calculated/cached value)
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS total_commission DECIMAL(12,2) DEFAULT 0;
 COMMENT ON COLUMN profiles.total_commission IS 'Total commission earned by this group';
-
 -- =====================================================
 -- 2. ADD GROUP-SPECIFIC SETTINGS
 -- =====================================================
@@ -23,15 +21,12 @@ COMMENT ON COLUMN profiles.total_commission IS 'Total commission earned by this 
 -- Allow group to bypass minimum price restrictions
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS bypass_min_price BOOLEAN DEFAULT false;
 COMMENT ON COLUMN profiles.bypass_min_price IS 'If true, group can set prices below minimum cap';
-
 -- Allow group to manage their own pricing
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS can_manage_pricing BOOLEAN DEFAULT false;
 COMMENT ON COLUMN profiles.can_manage_pricing IS 'If true, group can create/edit their own price lists';
-
 -- Group auto-commission calculation enabled
 ALTER TABLE profiles ADD COLUMN IF NOT EXISTS auto_commission BOOLEAN DEFAULT false;
 COMMENT ON COLUMN profiles.auto_commission IS 'If true, commission is auto-calculated on orders';
-
 -- =====================================================
 -- 3. CREATE PHARMACY INVITATIONS TABLE
 -- =====================================================
@@ -54,15 +49,12 @@ CREATE TABLE IF NOT EXISTS pharmacy_invitations (
   -- Prevent duplicate pending invitations to same email from same group
   CONSTRAINT unique_pending_invitation UNIQUE (group_id, email, status)
 );
-
 -- Index for faster lookups
 CREATE INDEX IF NOT EXISTS idx_pharmacy_invitations_group_id ON pharmacy_invitations(group_id);
 CREATE INDEX IF NOT EXISTS idx_pharmacy_invitations_token ON pharmacy_invitations(token);
 CREATE INDEX IF NOT EXISTS idx_pharmacy_invitations_email ON pharmacy_invitations(email);
 CREATE INDEX IF NOT EXISTS idx_pharmacy_invitations_status ON pharmacy_invitations(status);
-
 COMMENT ON TABLE pharmacy_invitations IS 'Stores invitations sent by groups to pharmacies to join their network';
-
 -- =====================================================
 -- 4. CREATE GROUP COMMISSION HISTORY TABLE
 -- =====================================================
@@ -82,15 +74,12 @@ CREATE TABLE IF NOT EXISTS group_commission_history (
   -- One commission record per order
   CONSTRAINT unique_order_commission UNIQUE (order_id)
 );
-
 -- Indexes for reporting
 CREATE INDEX IF NOT EXISTS idx_commission_history_group_id ON group_commission_history(group_id);
 CREATE INDEX IF NOT EXISTS idx_commission_history_pharmacy_id ON group_commission_history(pharmacy_id);
 CREATE INDEX IF NOT EXISTS idx_commission_history_created_at ON group_commission_history(created_at);
 CREATE INDEX IF NOT EXISTS idx_commission_history_status ON group_commission_history(status);
-
 COMMENT ON TABLE group_commission_history IS 'Tracks commission earned by groups on each pharmacy order';
-
 -- =====================================================
 -- 5. ADD GROUP ORDER TRACKING FIELDS TO ORDERS
 -- =====================================================
@@ -98,14 +87,11 @@ COMMENT ON TABLE group_commission_history IS 'Tracks commission earned by groups
 -- Track which group the order belongs to (for easier querying)
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS group_id UUID REFERENCES profiles(id);
 COMMENT ON COLUMN orders.group_id IS 'The group this pharmacy belongs to (denormalized for faster queries)';
-
 -- Commission amount for this specific order
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS commission_amount DECIMAL(12,2) DEFAULT 0;
 COMMENT ON COLUMN orders.commission_amount IS 'Commission amount earned by group on this order';
-
 -- Index for group order queries
 CREATE INDEX IF NOT EXISTS idx_orders_group_id ON orders(group_id);
-
 -- =====================================================
 -- 6. CREATE VIEW FOR GROUP ANALYTICS
 -- =====================================================
@@ -129,9 +115,7 @@ LEFT JOIN profiles p ON p.group_id = g.id AND p.type = 'pharmacy'
 LEFT JOIN orders o ON o.profile_id = p.id AND o.void IS NOT TRUE
 WHERE g.type = 'group'
 GROUP BY g.id, g.display_name, g.commission_rate, g.bypass_min_price, g.can_manage_pricing;
-
 COMMENT ON VIEW group_analytics IS 'Aggregated analytics for each group including pharmacy count, orders, and revenue';
-
 -- =====================================================
 -- 7. FUNCTION TO AUTO-CALCULATE COMMISSION ON ORDER
 -- =====================================================
@@ -179,14 +163,12 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger for auto commission calculation
 DROP TRIGGER IF EXISTS trigger_calculate_order_commission ON orders;
 CREATE TRIGGER trigger_calculate_order_commission
   BEFORE INSERT OR UPDATE OF total_amount ON orders
   FOR EACH ROW
   EXECUTE FUNCTION calculate_order_commission();
-
 -- =====================================================
 -- 8. FUNCTION TO UPDATE GROUP TOTAL COMMISSION
 -- =====================================================
@@ -206,14 +188,12 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to update total commission
 DROP TRIGGER IF EXISTS trigger_update_group_commission ON group_commission_history;
 CREATE TRIGGER trigger_update_group_commission
   AFTER INSERT OR UPDATE OR DELETE ON group_commission_history
   FOR EACH ROW
   EXECUTE FUNCTION update_group_total_commission();
-
 -- =====================================================
 -- 9. RLS POLICIES FOR NEW TABLES
 -- =====================================================
@@ -221,26 +201,22 @@ CREATE TRIGGER trigger_update_group_commission
 -- Enable RLS on new tables
 ALTER TABLE pharmacy_invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE group_commission_history ENABLE ROW LEVEL SECURITY;
-
 -- Pharmacy Invitations: Groups can see their own invitations
 CREATE POLICY "Groups can view own invitations" ON pharmacy_invitations
   FOR SELECT USING (
     auth.uid() = group_id OR 
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
-
 CREATE POLICY "Groups can create invitations" ON pharmacy_invitations
   FOR INSERT WITH CHECK (
     auth.uid() = group_id OR 
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
-
 CREATE POLICY "Groups can update own invitations" ON pharmacy_invitations
   FOR UPDATE USING (
     auth.uid() = group_id OR 
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
-
 -- Commission History: Groups can see their own commission
 CREATE POLICY "Groups can view own commission" ON group_commission_history
   FOR SELECT USING (
@@ -248,13 +224,11 @@ CREATE POLICY "Groups can view own commission" ON group_commission_history
     auth.uid() = pharmacy_id OR
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
-
 -- Admin can manage all commission records
 CREATE POLICY "Admin can manage commission" ON group_commission_history
   FOR ALL USING (
     EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
   );
-
 -- =====================================================
 -- 10. BACKFILL GROUP_ID IN EXISTING ORDERS
 -- =====================================================
@@ -266,7 +240,6 @@ FROM profiles p
 WHERE o.profile_id = p.id 
   AND p.group_id IS NOT NULL 
   AND o.group_id IS NULL;
-
 -- =====================================================
 -- END OF MIGRATION
--- =====================================================
+-- =====================================================;

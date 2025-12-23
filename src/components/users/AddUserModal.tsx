@@ -123,63 +123,28 @@ export function AddUserModal({
 
   const onSubmit = async (values: BaseUserFormData) => {
     try {
-      // console.log('Starting customer creation with data:', values);
       setIsSubmitting(true);
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-console.log(session)
-      // First check if we have an authenticated session
-      // const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      console.log(session)
 
-      // if (sessionError || !session) {
-      //   throw new Error('You must be logged in to create a customer');
-      // }
+      // Call secure backend API to create user
+      const response = await axios.post("/api/users/create-user", {
+        email: values.email,
+        password: "12345678",
+        firstName: values.firstName,
+        lastName: values.lastName,
+        userMetadata: {
+          first_name: values.firstName,
+          last_name: values.lastName,
+        },
+      });
 
-      // Check if email already exists
-      // const { data: existingUsers, error: checkError } = await supabase
-      //   .from('profiles')
-      //   .select('id')
-      //   .eq('email', values.email.toLowerCase().trim())
-      //   .single();
-
-      // if (checkError && checkError.code !== 'PGRST116') {
-      //   console.error('Error checking existing user:', checkError);
-      //   throw new Error('Error checking existing user');
-      // }
-
-      // if (existingUsers) {
-      //   console.error('A user with this email already exists:', existingUsers);
-      //   throw new Error('A user with this email already exists');
-      // }
-      // console.log('Attempting to create user with data:', values.email);
-      const response = await fetch(
-        "https://wrvmbgmmuoivsfancgft.supabase.co/auth/v1/admin/users",
-        {
-          method: "POST",
-          headers: {
-            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc`,
-            "Content-Type": "application/json",
-            apikey:
-              'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2MzAzMjMxNywiZXhwIjoyMDc4NjA4MzE3fQ.u-tKoMhg6zevHRw88O9iTwyJSccRSPaZUJemimbzeYc',
-          },
-          body: JSON.stringify({
-            email: values.email,
-            password: "12345678",
-            email_confirm: true, // ❗ Set to false so user gets a confirmation email
-            type: "pharmacy",
-            user_metadata: {
-              first_name: values.firstName,
-              last_name: values.lastName,
-            },
-          }),
-        }
-      );
-
-      const tempUserData = await response.json();
-      console.log(tempUserData);
-      if (!tempUserData?.id) {
-        throw new Error(tempUserData.msg || "Failed To Create Custmore");
+      if (!response.data?.success || !response.data?.userId) {
+        throw new Error(response.data?.message || "Failed to create user");
       }
+
+      const tempUserData = { id: response.data.userId };
 
       // Generate a new UUID for the user
       // const userId = uuidv4();

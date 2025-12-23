@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Invoice, InvoiceStatus, isInvoice, InvoiceRealtimePayload, CustomerInfo } from "../types/invoice.types";
 import { InvoicePreview } from "../InvoicePreview";
@@ -15,11 +14,49 @@ import { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CSVLink } from "react-csv";
 import { Pagination } from "@/components/common/Pagination";
-
+import { Card, CardContent } from "@/components/ui/card";
+import { 
+  FileText, DollarSign, CheckCircle, XCircle, 
+  Clock, AlertTriangle, TrendingUp
+} from "lucide-react";
 
 interface DataTableProps {
   filterStatus?: InvoiceStatus;
 }
+
+// Summary Stats Card Component
+const StatCard = ({ 
+  icon: Icon, 
+  label, 
+  value, 
+  subValue,
+  gradient,
+  iconColor 
+}: { 
+  icon: React.ElementType; 
+  label: string; 
+  value: string | number; 
+  subValue?: string;
+  gradient: string;
+  iconColor: string;
+}) => (
+  <Card className={`overflow-hidden border-0 shadow-sm ${gradient}`}>
+    <CardContent className="p-4">
+      <div className="flex items-center gap-3">
+        <div className="p-2.5 bg-white/80 rounded-xl shadow-sm">
+          <Icon className={`w-5 h-5 ${iconColor}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-gray-600 uppercase tracking-wide">{label}</p>
+          <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+          {subValue && (
+            <p className="text-xs text-gray-500 mt-0.5">{subValue}</p>
+          )}
+        </div>
+      </div>
+    </CardContent>
+  </Card>
+);
 
 export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
@@ -29,13 +66,65 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   });
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [allInvoicesForStats, setAllInvoicesForStats] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
-  const [page, setPage] = useState(1); // current page
-  const [limit, setLimit] = useState(20); // rows per page
-  const [totalInvoices, setTotalInvoices] = useState(0); // for showing total count
+  const [page, setPage] = useState(1);
+  const [limit, setLimit] = useState(20);
+  const [totalInvoices, setTotalInvoices] = useState(0);
 
+  // Calculate stats from all invoices
+  const stats = {
+    total: allInvoicesForStats.length,
+    totalAmount: allInvoicesForStats.reduce((sum, inv) => sum + (inv.amount || 0), 0),
+    paid: allInvoicesForStats.filter(inv => inv.orders?.payment_status === "paid").length,
+    paidAmount: allInvoicesForStats
+      .filter(inv => inv.orders?.payment_status === "paid")
+      .reduce((sum, inv) => sum + (inv.amount || 0), 0),
+    unpaid: allInvoicesForStats.filter(inv => inv.orders?.payment_status === "unpaid" && !inv.void).length,
+    unpaidAmount: allInvoicesForStats
+      .filter(inv => inv.orders?.payment_status === "unpaid" && !inv.void)
+      .reduce((sum, inv) => sum + (inv.amount || 0), 0),
+    overdue: allInvoicesForStats.filter(inv => {
+      if (inv.orders?.payment_status === "paid" || inv.void) return false;
+      const dueDate = new Date(inv.due_date);
+      return dueDate < new Date();
+    }).length,
+  };
 
+  const fetchAllInvoicesForStats = async () => {
+    const role = sessionStorage.getItem('userType');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    try {
+      let query = supabase
+        .from("invoices")
+        .select(`*, orders (id, payment_status, void)`)
+        .eq("void", false);
+
+      if (role === "pharmacy") {
+        query = query.eq('profile_id', session.user.id);
+      }
+
+      if (role === "group") {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("group_id", session.user.id);
+
+        const userIds = profileData?.map(user => user.id) || [];
+        if (userIds.length > 0) {
+          query = query.in("profile_id", userIds);
+        }
+      }
+
+      const { data } = await query;
+      setAllInvoicesForStats((data || []).filter(isInvoice));
+    } catch (error) {
+      console.error("Error fetching stats:", error);
+    }
+  };
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -62,9 +151,9 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         *,
         orders (id, order_number, payment_status, void, customerInfo, total_amount),
         profiles (first_name, last_name, email, company_name)
-      `, { count: 'exact' }) // ✅ get count for pagination
+      `, { count: 'exact' })
         .order("created_at", { ascending: false })
-        .range(from, to); // ✅ only fetch selected page
+        .range(from, to);
 
       if (role === "pharmacy") {
         query = query.eq('profile_id', session.user.id);
@@ -83,13 +172,11 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         } else {
           setInvoices([]);
           setTotalInvoices(0);
-
           setLoading(false);
           return;
         }
       }
 
-      // ✅ Apply filters directly in Supabase query
       if (filters.status && filters.status !== "all") {
         let payStatus = filters.status === "pending" ? "unpaid" : filters.status;
         query = query.eq("payment_status", payStatus);
@@ -111,7 +198,6 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         query = query.lte("amount", filters.amountMax);
       }
 
-      // ✅ Server-side search
       if (filters.search) {
         const searchTerm = `%${filters.search}%`;
         query = query.or(
@@ -133,8 +219,6 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
 
       const validInvoices = (data || []).filter(isInvoice);
       setInvoices(validInvoices);
-
-      // Update pagination info
       setTotalInvoices(count || 0);
 
     } catch (error) {
@@ -149,7 +233,9 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
     }
   };
 
-
+  useEffect(() => {
+    fetchAllInvoicesForStats();
+  }, [refreshTrigger]);
 
   useEffect(() => {
     const channel = supabase
@@ -163,7 +249,6 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         },
         (payload: RealtimePostgresChangesPayload<Invoice>) => {
           console.log('Received real-time update:', payload);
-
           setRefreshTrigger(prev => prev + 1);
 
           const eventMessages = {
@@ -211,22 +296,13 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   };
 
   const handleFilterChange = (newFilters: FilterValues) => {
-    if (true) {
-      setFilters(newFilters);
-    } else {
-      console.error("Invalid filter values:", newFilters);
-      toast({
-        title: "Error",
-        description: "Invalid filter values provided.",
-        variant: "destructive",
-      });
-    }
+    setFilters(newFilters);
+    setPage(1); // Reset to first page on filter change
   };
 
   const sortedInvoices = sortInvoices(invoices, sortConfig);
 
   const transformInvoiceForPreview = (invoice: Invoice) => {
-    console.log(invoice)
     try {
       const items = typeof invoice.items === 'string' ? JSON.parse(invoice.items) : invoice.items;
       const customerInfo = typeof invoice.customer_info === 'string'
@@ -235,7 +311,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
       const shippingInfo = typeof invoice.shipping_info === 'string'
         ? JSON.parse(invoice.shipping_info)
         : invoice.shipping_info;
-      console.log(invoice)
+      
       return {
         invoice_number: invoice.invoice_number,
         order_number: invoice.orders.order_number,
@@ -243,7 +319,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         customerInfo,
         shippingInfo,
         profile_id: invoice.profile_id,
-        payment_status: invoice.payment_status, // ✅ Extracted correctly
+        payment_status: invoice.payment_status,
         created_at: invoice.created_at,
         payment_transication: invoice.payment_transication,
         payment_notes: invoice.payment_notes,
@@ -265,9 +341,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
     }
   };
 
-
   const exportInvoicesToCSV = () => {
-    // ✅ Filter out invoices with voided orders
     const filteredInvoices = invoices?.filter(
       (invoice) => invoice.void === false
     );
@@ -281,8 +355,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
       return {
         "Invoice Number": invoice.invoice_number,
         "Order Number": invoice.orders?.order_number || "",
-        "Customer Name": `${invoice.profiles?.first_name || ""} ${invoice.profiles?.last_name || ""
-          }`,
+        "Customer Name": `${invoice.profiles?.first_name || ""} ${invoice.profiles?.last_name || ""}`.trim(),
         Email: invoice.profiles?.email || "",
         "Company Name": (invoice.profiles as any)?.company_name || "",
         Tax: invoice.tax_amount,
@@ -298,45 +371,79 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
     return csvData;
   };
 
-
-
   return (
-    <>
-      <div className="flex flex-col p-4 sm:flex-row justify-between items-center bg-white  border border-gray-200 rounded-lg ">
-        <div className="w-full sm:w-auto  sm:mb-0">
-          <InvoiceFilters onFilterChange={handleFilterChange} exportInvoicesToCSV={exportInvoicesToCSV} />
-        </div>
-
-        <div className="flex gap-3">
-          <ExportOptions invoices={invoices} />
-
-          {/* {invoices.length > 0 && (
-      <CSVLink
-        data={exportInvoicesToCSV()}
-        filename={`invoices_${new Date().toISOString()}.csv`}
-        className="px- py-2 w-full bg-blue-600 text-white rounded-lg shadow-md transition-all hover:bg-blue-700 hover:scale-105"
-      >
-        Export CSV
-      </CSVLink>
-    )} */}
-        </div>
+    <div className="space-y-6">
+      {/* Summary Stats Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <StatCard
+          icon={FileText}
+          label="Total Invoices"
+          value={stats.total}
+          subValue={`$${stats.totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          gradient="bg-gradient-to-br from-blue-50 to-indigo-50"
+          iconColor="text-blue-600"
+        />
+        <StatCard
+          icon={CheckCircle}
+          label="Paid"
+          value={stats.paid}
+          subValue={`$${stats.paidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          gradient="bg-gradient-to-br from-emerald-50 to-teal-50"
+          iconColor="text-emerald-600"
+        />
+        <StatCard
+          icon={Clock}
+          label="Unpaid"
+          value={stats.unpaid}
+          subValue={`$${stats.unpaidAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          gradient="bg-gradient-to-br from-amber-50 to-orange-50"
+          iconColor="text-amber-600"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Overdue"
+          value={stats.overdue}
+          subValue="Past due date"
+          gradient="bg-gradient-to-br from-red-50 to-rose-50"
+          iconColor="text-red-600"
+        />
       </div>
 
+      {/* Filters and Export */}
+      <Card className="border-0 shadow-sm">
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="w-full sm:w-auto">
+              <InvoiceFilters onFilterChange={handleFilterChange} exportInvoicesToCSV={exportInvoicesToCSV} />
+            </div>
+            <div className="flex gap-3">
+              <ExportOptions invoices={invoices} />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
+      {/* Table */}
       {loading ? (
-        <div className="space-y-4">
-          {[...Array(5)].map((_, index) => (
-            <Skeleton key={index} className="w-full h-16" />
-          ))}
-        </div>
+        <Card className="border-0 shadow-sm">
+          <CardContent className="p-4">
+            <div className="space-y-4">
+              {[...Array(5)].map((_, index) => (
+                <Skeleton key={index} className="w-full h-16" />
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       ) : (
-        <InvoiceTableContent
-          invoices={sortedInvoices}
-          onSort={handleSort}
-          sortConfig={sortConfig}
-          onActionComplete={handleActionComplete}
-          onPreview={setSelectedInvoice}
-        />
+        <Card className="border-0 shadow-sm overflow-hidden">
+          <InvoiceTableContent
+            invoices={sortedInvoices}
+            onSort={handleSort}
+            sortConfig={sortConfig}
+            onActionComplete={handleActionComplete}
+            onPreview={setSelectedInvoice}
+          />
+        </Card>
       )}
 
       <Sheet open={!!selectedInvoice} onOpenChange={() => setSelectedInvoice(null)}>
@@ -354,6 +461,6 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         limit={limit}
         setLimit={setLimit}
       />
-    </>
+    </div>
   );
 }

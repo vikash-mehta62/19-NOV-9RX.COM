@@ -1,7 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Copy, Edit, Download, Trash2, Package } from "lucide-react";
+import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, Truck, CreditCard, Ban } from "lucide-react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
 
@@ -10,7 +10,11 @@ interface OrderHeaderProps {
   onEdit?: () => void;
   onDownload?: () => void;
   onDelete?: () => void;
+  onSendEmail?: () => void;
+  onShipOrder?: () => void;
+  onPrint?: () => void;
   isGeneratingPDF?: boolean;
+  isSendingEmail?: boolean;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   poIs?: boolean;
 }
@@ -30,7 +34,11 @@ export const OrderHeader = ({
   onEdit,
   onDownload,
   onDelete,
+  onSendEmail,
+  onShipOrder,
+  onPrint,
   isGeneratingPDF,
+  isSendingEmail,
   userRole,
   poIs,
 }: OrderHeaderProps) => {
@@ -71,11 +79,21 @@ export const OrderHeader = ({
         <div className="space-y-3 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Package className="w-5 h-5 text-primary" />
-            <h2 className="text-xl md:text-2xl font-bold">#{order.order_number}</h2>
+            {/* Show Invoice number if exists, otherwise Sales Order */}
+            {(order as any).invoice_number && order.status !== "new" && order.status !== "pending" ? (
+              <>
+                <div className="flex flex-col">
+                  <h2 className="text-xl md:text-2xl font-bold">INV #{(order as any).invoice_number}</h2>
+                  <span className="text-xs text-muted-foreground">SO Ref: {order.order_number}</span>
+                </div>
+              </>
+            ) : (
+              <h2 className="text-xl md:text-2xl font-bold">SO #{order.order_number}</h2>
+            )}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => copyToClipboard(order.order_number)}
+              onClick={() => copyToClipboard((order as any).invoice_number || order.order_number)}
               className="h-8 w-8 p-0"
             >
               <Copy className="w-4 h-4" />
@@ -93,21 +111,31 @@ export const OrderHeader = ({
             </span>
           </div>
 
-          <Badge className={`${status.color} border px-3 py-1 text-xs md:text-sm font-semibold`}>
-            {status.label}
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* VOID Badge - Prominent Display */}
+            {order.void && (
+              <Badge className="bg-red-600 text-white border-red-700 border-2 px-4 py-1.5 text-sm font-bold animate-pulse">
+                <Ban className="w-4 h-4 mr-1" />
+                VOID
+              </Badge>
+            )}
 
-          {order.payment_status && (
-            <Badge
-              className={`${
-                order.payment_status === "paid"
-                  ? "bg-green-100 text-green-800 border-green-300"
-                  : "bg-red-100 text-red-800 border-red-300"
-              } border px-3 py-1 text-xs md:text-sm font-semibold ml-2`}
-            >
-              {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+            <Badge className={`${status.color} border px-3 py-1 text-xs md:text-sm font-semibold`}>
+              {status.label}
             </Badge>
-          )}
+
+            {order.payment_status && (
+              <Badge
+                className={`${
+                  order.payment_status === "paid"
+                    ? "bg-green-100 text-green-800 border-green-300"
+                    : "bg-red-100 text-red-800 border-red-300"
+                } border px-3 py-1 text-xs md:text-sm font-semibold`}
+              >
+                {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Right Section */}
@@ -148,6 +176,63 @@ export const OrderHeader = ({
           </div>
         </div>
       </div>
+
+      {/* Quick Actions Bar */}
+      {userRole === "admin" && !order.void && order.status !== "cancelled" && (
+        <div className="mt-4 pt-4 border-t">
+          <div className="flex flex-wrap gap-2">
+            {onSendEmail && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSendEmail}
+                disabled={isSendingEmail}
+                className="gap-2 hover:bg-blue-50 hover:border-blue-300"
+              >
+                <Mail className="w-4 h-4 text-blue-600" />
+                <span className="text-xs md:text-sm">{isSendingEmail ? "Sending..." : "Email"}</span>
+              </Button>
+            )}
+
+            {onPrint && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onPrint}
+                className="gap-2 hover:bg-gray-50 hover:border-gray-400"
+              >
+                <Printer className="w-4 h-4 text-gray-600" />
+                <span className="text-xs md:text-sm">Print</span>
+              </Button>
+            )}
+
+            {onShipOrder && order.status !== "shipped" && order.status !== "delivered" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onShipOrder}
+                className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
+              >
+                <Truck className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs md:text-sm">Ship</span>
+              </Button>
+            )}
+
+            {order.payment_status !== "paid" && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onSendEmail}
+                disabled={isSendingEmail}
+                className="gap-2 hover:bg-green-50 hover:border-green-300"
+              >
+                <CreditCard className="w-4 h-4 text-green-600" />
+                <span className="text-xs md:text-sm">Send Payment Link</span>
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
     </Card>
   );
 };

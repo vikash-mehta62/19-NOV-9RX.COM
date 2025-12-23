@@ -1,212 +1,100 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Payment Types
-export interface CardPayment {
-  type: "card";
+export interface CardPaymentData {
   cardNumber: string;
   expirationDate: string; // MMYY format
   cvv: string;
   cardholderName: string;
 }
 
-export interface ACHPayment {
-  type: "ach" | "echeck";
+export interface ACHPaymentData {
   accountType: "checking" | "savings" | "businessChecking";
   routingNumber: string;
   accountNumber: string;
   nameOnAccount: string;
   bankName?: string;
-  echeckType?: "WEB" | "PPD" | "CCD";
 }
 
 export interface BillingAddress {
-  firstName?: string;
-  lastName?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  zip?: string;
-  country?: string;
+  firstName: string;
+  lastName: string;
+  address: string;
+  city: string;
+  state: string;
+  zip: string;
+  country: string;
 }
 
-export interface PaymentRequest {
-  payment: CardPayment | ACHPayment;
-  amount: number;
-  invoiceNumber?: string;
-  orderId?: string;
-  customerId?: string;
-  customerEmail?: string;
-  billing?: BillingAddress;
-  testMode?: boolean;
-}
-
-export interface PaymentResponse {
+export interface PaymentResult {
   success: boolean;
   transactionId?: string;
   authCode?: string;
-  responseCode?: string;
-  message?: string;
-  error?: string;
+  message: string;
   errorCode?: string;
+  errorMessage?: string;
 }
 
-export interface RefundRequest {
-  transactionId: string;
-  amount: number;
-  cardNumber?: string;
-  orderId?: string;
-  reason?: string;
+export interface SavedPaymentMethod {
+  id: string;
+  profile_id: string;
+  customer_profile_id: string | null;
+  payment_profile_id: string;
+  method_type: "card" | "ach";
+  card_last_four: string | null;
+  card_type: string | null;
+  card_expiry_month: number | null;
+  card_expiry_year: number | null;
+  bank_name: string | null;
+  account_type: string | null;
+  account_last_four: string | null;
+  billing_first_name: string | null;
+  billing_last_name: string | null;
+  billing_address: string | null;
+  billing_city: string | null;
+  billing_state: string | null;
+  billing_zip: string | null;
+  is_default: boolean;
+  is_active: boolean;
+  nickname: string | null;
+  created_at: string;
 }
 
-export interface RefundResponse {
-  success: boolean;
-  refundTransactionId?: string;
-  message?: string;
-  error?: string;
-  errorCode?: string;
-}
-
-/**
- * Process a payment via Supabase Edge Function
- * Supports Credit Card, ACH, and eCheck payments
- */
-export async function processPayment(request: PaymentRequest): Promise<PaymentResponse> {
-  try {
-    const { data, error } = await supabase.functions.invoke("process-payment", {
-      body: request,
-    });
-
-    if (error) {
-      console.error("Payment function error:", error);
-      return {
-        success: false,
-        error: error.message || "Payment processing failed",
-      };
-    }
-
-    return data as PaymentResponse;
-  } catch (err) {
-    console.error("Payment service error:", err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Unexpected error occurred",
-    };
-  }
-}
-
-/**
- * Process a refund via Supabase Edge Function
- */
-export async function processRefund(request: RefundRequest): Promise<RefundResponse> {
-  try {
-    const { data, error } = await supabase.functions.invoke("refund-payment", {
-      body: request,
-    });
-
-    if (error) {
-      console.error("Refund function error:", error);
-      return {
-        success: false,
-        error: error.message || "Refund processing failed",
-      };
-    }
-
-    return data as RefundResponse;
-  } catch (err) {
-    console.error("Refund service error:", err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Unexpected error occurred",
-    };
-  }
-}
-
-/**
- * Process Credit Card payment (convenience wrapper)
- */
-export async function processCardPayment(params: {
-  cardNumber: string;
-  expirationDate: string;
-  cvv: string;
-  cardholderName: string;
-  amount: number;
-  invoiceNumber?: string;
-  orderId?: string;
-  billing?: BillingAddress;
-  testMode?: boolean;
-}): Promise<PaymentResponse> {
-  return processPayment({
-    payment: {
-      type: "card",
-      cardNumber: params.cardNumber,
-      expirationDate: params.expirationDate,
-      cvv: params.cvv,
-      cardholderName: params.cardholderName,
-    },
-    amount: params.amount,
-    invoiceNumber: params.invoiceNumber,
-    orderId: params.orderId,
-    billing: params.billing,
-    testMode: params.testMode,
-  });
-}
-
-/**
- * Process ACH/eCheck payment (convenience wrapper)
- */
-export async function processACHPayment(params: {
-  accountType: "checking" | "savings" | "businessChecking";
-  routingNumber: string;
-  accountNumber: string;
-  nameOnAccount: string;
-  amount: number;
-  bankName?: string;
-  invoiceNumber?: string;
-  orderId?: string;
-  customerEmail?: string;
-  testMode?: boolean;
-}): Promise<PaymentResponse> {
-  return processPayment({
-    payment: {
-      type: "ach",
-      accountType: params.accountType,
-      routingNumber: params.routingNumber,
-      accountNumber: params.accountNumber,
-      nameOnAccount: params.nameOnAccount,
-      bankName: params.bankName,
-      echeckType: "WEB",
-    },
-    amount: params.amount,
-    invoiceNumber: params.invoiceNumber,
-    orderId: params.orderId,
-    customerEmail: params.customerEmail,
-    testMode: params.testMode,
-  });
-}
-
-// Routing number validation (ABA checksum)
-export function validateRoutingNumber(routingNumber: string): boolean {
-  if (!/^\d{9}$/.test(routingNumber)) return false;
+// Detect card type from number
+export function detectCardType(cardNumber: string): string {
+  const cleanNumber = cardNumber.replace(/\s/g, "");
   
-  const digits = routingNumber.split("").map(Number);
-  const sum =
-    3 * (digits[0] + digits[3] + digits[6]) +
-    7 * (digits[1] + digits[4] + digits[7]) +
-    1 * (digits[2] + digits[5] + digits[8]);
+  if (/^4/.test(cleanNumber)) return "visa";
+  if (/^5[1-5]/.test(cleanNumber)) return "mastercard";
+  if (/^3[47]/.test(cleanNumber)) return "amex";
+  if (/^6(?:011|5)/.test(cleanNumber)) return "discover";
+  if (/^35(?:2[89]|[3-8])/.test(cleanNumber)) return "jcb";
+  if (/^3(?:0[0-5]|[68])/.test(cleanNumber)) return "diners";
   
-  return sum % 10 === 0;
+  return "unknown";
 }
 
-// Card number validation (Luhn algorithm)
+// Format card number for display
+export function formatCardNumber(value: string): string {
+  const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
+  const matches = v.match(/\d{4,16}/g);
+  const match = (matches && matches[0]) || "";
+  const parts = [];
+  for (let i = 0, len = match.length; i < len; i += 4) {
+    parts.push(match.substring(i, i + 4));
+  }
+  return parts.length ? parts.join(" ") : value;
+}
+
+// Validate card number using Luhn algorithm
 export function validateCardNumber(cardNumber: string): boolean {
-  const cleaned = cardNumber.replace(/\s/g, "");
-  if (!/^\d{13,19}$/.test(cleaned)) return false;
+  const cleanNumber = cardNumber.replace(/\s/g, "");
+  if (!/^\d{13,19}$/.test(cleanNumber)) return false;
   
   let sum = 0;
   let isEven = false;
   
-  for (let i = cleaned.length - 1; i >= 0; i--) {
-    let digit = parseInt(cleaned[i], 10);
+  for (let i = cleanNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cleanNumber[i], 10);
     
     if (isEven) {
       digit *= 2;
@@ -220,14 +108,490 @@ export function validateCardNumber(cardNumber: string): boolean {
   return sum % 10 === 0;
 }
 
-// Get card type from number
-export function getCardType(cardNumber: string): string {
-  const cleaned = cardNumber.replace(/\s/g, "");
+// Validate expiry date
+export function validateExpiry(expiry: string): boolean {
+  if (!/^\d{4}$/.test(expiry)) return false;
   
-  if (/^4/.test(cleaned)) return "Visa";
-  if (/^5[1-5]/.test(cleaned)) return "Mastercard";
-  if (/^3[47]/.test(cleaned)) return "American Express";
-  if (/^6(?:011|5)/.test(cleaned)) return "Discover";
+  const month = parseInt(expiry.substring(0, 2), 10);
+  const year = parseInt("20" + expiry.substring(2, 4), 10);
   
-  return "Unknown";
+  if (month < 1 || month > 12) return false;
+  
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  
+  if (year < currentYear) return false;
+  if (year === currentYear && month < currentMonth) return false;
+  
+  return true;
+}
+
+// Validate routing number
+export function validateRoutingNumber(routingNumber: string): boolean {
+  if (!/^\d{9}$/.test(routingNumber)) return false;
+  
+  // ABA routing number checksum validation
+  const digits = routingNumber.split("").map(Number);
+  const checksum = 
+    3 * (digits[0] + digits[3] + digits[6]) +
+    7 * (digits[1] + digits[4] + digits[7]) +
+    1 * (digits[2] + digits[5] + digits[8]);
+  
+  return checksum % 10 === 0;
+}
+
+
+// Process card payment - Uses Supabase Edge Function
+export async function processCardPayment(
+  cardData: CardPaymentData,
+  billingAddress: BillingAddress,
+  amount: number,
+  invoiceNumber: string
+): Promise<PaymentResult> {
+  try {
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        payment: {
+          type: "card",
+          cardNumber: cardData.cardNumber.replace(/\s/g, ""),
+          expirationDate: cardData.expirationDate,
+          cvv: cardData.cvv,
+          cardholderName: cardData.cardholderName,
+        },
+        amount,
+        invoiceNumber,
+        billing: {
+          firstName: billingAddress.firstName,
+          lastName: billingAddress.lastName,
+          address: billingAddress.address,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zip: billingAddress.zip,
+          country: billingAddress.country,
+        },
+      },
+    });
+
+    if (error) {
+      return {
+        success: false,
+        message: "Payment processing error",
+        errorMessage: error.message,
+      };
+    }
+
+    if (data?.success) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        authCode: data.authCode,
+        message: "Payment successful",
+      };
+    }
+
+    return {
+      success: false,
+      message: data?.message || "Payment failed",
+      errorCode: data?.errorCode,
+      errorMessage: data?.error,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: "Payment processing error",
+      errorMessage: error.message,
+    };
+  }
+}
+
+// Process ACH payment - Uses Supabase Edge Function
+export async function processACHPayment(
+  achData: ACHPaymentData,
+  billingAddress: BillingAddress,
+  amount: number,
+  invoiceNumber: string
+): Promise<PaymentResult> {
+  try {
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        payment: {
+          type: "ach",
+          accountType: achData.accountType,
+          routingNumber: achData.routingNumber,
+          accountNumber: achData.accountNumber,
+          nameOnAccount: achData.nameOnAccount,
+          bankName: achData.bankName,
+          echeckType: "WEB",
+        },
+        amount,
+        invoiceNumber,
+        billing: {
+          firstName: billingAddress.firstName,
+          lastName: billingAddress.lastName,
+          address: billingAddress.address,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zip: billingAddress.zip,
+          country: billingAddress.country,
+        },
+      },
+    });
+
+    if (error) {
+      return {
+        success: false,
+        message: "ACH processing error",
+        errorMessage: error.message,
+      };
+    }
+
+    if (data?.success) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        message: "ACH payment initiated",
+      };
+    }
+
+    return {
+      success: false,
+      message: data?.message || "ACH payment failed",
+      errorCode: data?.errorCode,
+      errorMessage: data?.error,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: "ACH processing error",
+      errorMessage: error.message,
+    };
+  }
+}
+
+// Get saved payment methods for a user
+export async function getSavedPaymentMethods(
+  profileId: string
+): Promise<SavedPaymentMethod[]> {
+  const { data, error } = await supabase
+    .from("saved_payment_methods")
+    .select("*")
+    .eq("profile_id", profileId)
+    .eq("is_active", true)
+    .order("is_default", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching payment methods:", error);
+    return [];
+  }
+
+  return data as SavedPaymentMethod[];
+}
+
+// Save a new payment method
+export async function savePaymentMethod(
+  profileId: string,
+  methodType: "card" | "ach",
+  paymentData: CardPaymentData | ACHPaymentData,
+  billingAddress: BillingAddress,
+  nickname?: string,
+  isDefault?: boolean
+): Promise<{ success: boolean; id?: string; error?: string }> {
+  try {
+    // For now, we'll save masked data locally
+    // In production, you'd create a Customer Profile in Authorize.net CIM
+    
+    let insertData: any = {
+      profile_id: profileId,
+      method_type: methodType,
+      payment_profile_id: `local_${Date.now()}`, // Placeholder - would be from Authorize.net
+      billing_first_name: billingAddress.firstName,
+      billing_last_name: billingAddress.lastName,
+      billing_address: billingAddress.address,
+      billing_city: billingAddress.city,
+      billing_state: billingAddress.state,
+      billing_zip: billingAddress.zip,
+      billing_country: billingAddress.country,
+      is_default: isDefault || false,
+      nickname,
+    };
+
+    if (methodType === "card") {
+      const cardData = paymentData as CardPaymentData;
+      const cleanNumber = cardData.cardNumber.replace(/\s/g, "");
+      insertData = {
+        ...insertData,
+        card_last_four: cleanNumber.slice(-4),
+        card_type: detectCardType(cleanNumber),
+        card_expiry_month: parseInt(cardData.expirationDate.substring(0, 2), 10),
+        card_expiry_year: parseInt("20" + cardData.expirationDate.substring(2, 4), 10),
+      };
+    } else {
+      const achData = paymentData as ACHPaymentData;
+      insertData = {
+        ...insertData,
+        bank_name: achData.bankName,
+        account_type: achData.accountType,
+        account_last_four: achData.accountNumber.slice(-4),
+        routing_last_four: achData.routingNumber.slice(-4),
+      };
+    }
+
+    const { data, error } = await supabase
+      .from("saved_payment_methods")
+      .insert(insertData)
+      .select()
+      .single();
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, id: data.id };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Delete a saved payment method
+export async function deletePaymentMethod(
+  methodId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase
+    .from("saved_payment_methods")
+    .update({ is_active: false })
+    .eq("id", methodId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// Set default payment method
+export async function setDefaultPaymentMethod(
+  profileId: string,
+  methodId: string
+): Promise<{ success: boolean; error?: string }> {
+  const { error } = await supabase
+    .from("saved_payment_methods")
+    .update({ is_default: true })
+    .eq("id", methodId)
+    .eq("profile_id", profileId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  return { success: true };
+}
+
+// Log payment transaction
+export async function logPaymentTransaction(
+  profileId: string,
+  orderId: string | null,
+  invoiceId: string | null,
+  transactionType: string,
+  amount: number,
+  result: PaymentResult,
+  paymentMethodType: "card" | "ach",
+  cardLastFour?: string,
+  cardType?: string,
+  savedPaymentMethodId?: string
+): Promise<void> {
+  try {
+    await supabase.from("payment_transactions").insert({
+      profile_id: profileId,
+      order_id: orderId,
+      invoice_id: invoiceId,
+      saved_payment_method_id: savedPaymentMethodId,
+      transaction_id: result.transactionId,
+      auth_code: result.authCode,
+      transaction_type: transactionType,
+      amount,
+      payment_method_type: paymentMethodType,
+      card_last_four: cardLastFour,
+      card_type: cardType,
+      status: result.success ? "approved" : "declined",
+      response_code: result.errorCode,
+      response_message: result.message,
+      error_code: result.errorCode,
+      error_message: result.errorMessage,
+    });
+  } catch (error) {
+    console.error("Error logging transaction:", error);
+  }
+}
+
+// Get payment transactions for a user
+export async function getPaymentTransactions(
+  profileId: string,
+  limit: number = 50
+): Promise<any[]> {
+  const { data, error } = await supabase
+    .from("payment_transactions")
+    .select("*")
+    .eq("profile_id", profileId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching transactions:", error);
+    return [];
+  }
+
+  return data;
+}
+
+
+// Payment Response interface
+export interface PaymentResponse {
+  success: boolean;
+  transactionId?: string;
+  authCode?: string;
+  message?: string;
+  error?: string;
+  errorCode?: string;
+}
+
+// Payment Request interfaces
+export interface CardPaymentRequest {
+  payment: {
+    type: "card";
+    cardNumber: string;
+    expirationDate: string;
+    cvv: string;
+    cardholderName: string;
+  };
+  amount: number;
+  invoiceNumber?: string;
+  orderId?: string;
+  customerEmail?: string;
+  billing: {
+    firstName: string;
+    lastName: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+  };
+}
+
+export interface ACHPaymentRequest {
+  payment: {
+    type: "ach";
+    accountType: "checking" | "savings";
+    routingNumber: string;
+    accountNumber: string;
+    nameOnAccount: string;
+    echeckType?: "WEB" | "PPD" | "CCD";
+  };
+  amount: number;
+  invoiceNumber?: string;
+  orderId?: string;
+  customerEmail?: string;
+  billing: {
+    firstName: string;
+    lastName: string;
+    address: string;
+    city: string;
+    state: string;
+    zip: string;
+    country: string;
+  };
+}
+
+export type PaymentRequest = CardPaymentRequest | ACHPaymentRequest;
+
+// Main processPayment function - Uses Supabase Edge Function
+export async function processPayment(request: PaymentRequest): Promise<PaymentResponse> {
+  try {
+    // Build the request payload for the edge function
+    const edgeFunctionPayload = {
+      payment: request.payment.type === "card" 
+        ? {
+            type: "card" as const,
+            cardNumber: (request as CardPaymentRequest).payment.cardNumber.replace(/\s/g, ""),
+            expirationDate: (request as CardPaymentRequest).payment.expirationDate,
+            cvv: (request as CardPaymentRequest).payment.cvv,
+            cardholderName: (request as CardPaymentRequest).payment.cardholderName,
+          }
+        : {
+            type: "ach" as const,
+            accountType: (request as ACHPaymentRequest).payment.accountType,
+            routingNumber: (request as ACHPaymentRequest).payment.routingNumber,
+            accountNumber: (request as ACHPaymentRequest).payment.accountNumber,
+            nameOnAccount: (request as ACHPaymentRequest).payment.nameOnAccount,
+            echeckType: (request as ACHPaymentRequest).payment.echeckType || "WEB",
+          },
+      amount: request.amount,
+      invoiceNumber: request.invoiceNumber,
+      orderId: request.orderId,
+      customerEmail: request.customerEmail,
+      billing: request.billing,
+    };
+
+    // Call Supabase Edge Function
+    console.log("Calling process-payment edge function with:", JSON.stringify(edgeFunctionPayload, null, 2));
+    
+    // Validate required fields before sending
+    if (!edgeFunctionPayload.amount || edgeFunctionPayload.amount <= 0) {
+      return {
+        success: false,
+        message: "Invalid payment amount",
+        error: "Amount must be greater than 0",
+        errorCode: "INVALID_AMOUNT",
+      };
+    }
+    
+    const response = await supabase.functions.invoke("process-payment", {
+      body: edgeFunctionPayload,
+    });
+
+    console.log("Edge function response:", response);
+    console.log("Edge function response data:", JSON.stringify(response.data, null, 2));
+    console.log("Edge function response error:", response.error);
+
+    // The edge function now always returns 200 with success: true/false in body
+    const data = response.data;
+
+    // Handle network/invoke errors
+    if (response.error && !data) {
+      console.error("Edge function invoke error:", response.error);
+      return {
+        success: false,
+        message: response.error.message || "Failed to connect to payment service",
+        error: response.error.message,
+        errorCode: "NETWORK_ERROR",
+      };
+    }
+
+    // Check the response data
+    if (data?.success) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        authCode: data.authCode,
+        message: data.message || "Payment successful",
+      };
+    }
+
+    // Payment failed - return error details
+    return {
+      success: false,
+      message: data?.error || "Payment failed. Please try again.",
+      error: data?.error,
+      errorCode: data?.errorCode,
+    };
+  } catch (error: any) {
+    console.error("Payment error:", error);
+    return {
+      success: false,
+      message: "Payment processing error",
+      error: error.message,
+    };
+  }
 }

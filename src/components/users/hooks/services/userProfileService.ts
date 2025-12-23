@@ -76,6 +76,7 @@ export const updateUserProfile = async (
       tax_preference: values.taxPreference || "Taxable",
       currency: values.currency || "USD",
       payment_terms: values.paymentTerms || "DueOnReceipt",
+      credit_limit: values.creditLimit || 0,
       enable_portal: values.enablePortal || false,
       portal_language: values.portalLanguage || "English",
       email_notifaction:values.email_notifaction,

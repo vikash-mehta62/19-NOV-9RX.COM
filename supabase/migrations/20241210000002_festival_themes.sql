@@ -24,12 +24,10 @@ CREATE TABLE IF NOT EXISTS festival_themes (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
-
 -- Create indexes
 CREATE INDEX IF NOT EXISTS idx_festival_themes_dates ON festival_themes(start_date, end_date);
 CREATE INDEX IF NOT EXISTS idx_festival_themes_active ON festival_themes(is_active);
 CREATE INDEX IF NOT EXISTS idx_festival_themes_slug ON festival_themes(slug);
-
 -- Insert default USA festival themes
 INSERT INTO festival_themes (name, slug, description, start_date, end_date, primary_color, secondary_color, accent_color, background_color, text_color, icon, effects, auto_activate, priority) VALUES
 -- Christmas
@@ -73,14 +71,11 @@ INSERT INTO festival_themes (name, slug, description, start_date, end_date, prim
 
 -- Winter
 ('Winter Season', 'winter', 'Cozy up with winter savings', '2025-12-01', '2026-02-28', '#add8e6', '#ffffff', '#4169e1', '#f0f8ff', '#1a1a1a', '❄️', '["snowflakes", "ice"]', true, 2);
-
 -- Enable RLS
 ALTER TABLE festival_themes ENABLE ROW LEVEL SECURITY;
-
 -- Create policies
 CREATE POLICY "Allow public read access to festival_themes" ON festival_themes
   FOR SELECT USING (true);
-
 CREATE POLICY "Allow admin full access to festival_themes" ON festival_themes
   FOR ALL USING (
     EXISTS (

@@ -30,11 +30,15 @@ export default function Orders() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h3 className="text-3xl font-bold tracking-tight">{poIs ? "Purchase Orders" : "Orders Management"}</h3>
-          {!poIs && <p className="text-muted-foreground">
-            Process and manage customer orders
-          </p>}
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900">
+              {poIs ? "Purchase Orders" : "Sales Orders"}
+            </h1>
+            <p className="text-gray-500 mt-1">
+              {poIs ? "Manage vendor purchase orders" : "Process and manage customer orders"}
+            </p>
+          </div>
         </div>
 
         <OrdersContainer

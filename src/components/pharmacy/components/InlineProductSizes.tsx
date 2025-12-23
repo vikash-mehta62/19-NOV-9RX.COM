@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/supabaseClient'
 import { selectUserProfile } from '@/store/selectors/userSelectors'
 import { useSelector } from 'react-redux'
-import { X, Heart, ShoppingCart, Package, Truck, Plus, Minus, Check, Loader2, Maximize2 } from 'lucide-react'
+import { X, Heart, ShoppingCart, Package, Truck, Plus, Minus, Check, Loader2, Maximize2, ExternalLink } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,6 +31,7 @@ export const InlineProductSizes = ({
   onClose,
   onImageClick
 }: InlineProductSizesProps) => {
+  const navigate = useNavigate()
   const [selectedSizes, setSelectedSizes] = useState<Record<string, { quantity: number; type: 'case' | 'unit' }>>({})
   const [isAdding, setIsAdding] = useState<Record<string, boolean>>({})
   const [fullProduct, setFullProduct] = useState<ProductDetails | null>(null)
@@ -348,14 +350,19 @@ export const InlineProductSizes = ({
           </div>
         </div>
         
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-        >
-          <X className="w-6 h-6" />
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* View Full Page Button */}
+     
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+          >
+            <X className="w-6 h-6" />
+          </Button>
+        </div>
       </div>
 
       {/* Sizes Grid */}
@@ -587,6 +594,17 @@ export const InlineProductSizes = ({
                       <Truck className="w-3 h-3" />
                       <span>Free Delivery Available</span>
                     </div>
+
+                    {/* View Full Details Link */}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full mt-2 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                    >
+                      <ExternalLink className="w-3 h-3 mr-1" />
+                      View Full Details
+                    </Button>
                   </CardContent>
                 </Card>
               )

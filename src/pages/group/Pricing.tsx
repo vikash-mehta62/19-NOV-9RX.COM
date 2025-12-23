@@ -295,7 +295,7 @@ const GroupPricing = () => {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
               <div className="flex items-center gap-3">
-                <h1 className="text-3xl font-bold tracking-tight">Group Pricing</h1>
+                <h1 className="text-3xl font-bold tracking-tight">Special Pricing</h1>
                 {groupSettings?.can_manage_pricing ? (
                   <Badge className="bg-green-100 text-green-800">
                     <Unlock className="h-3 w-3 mr-1" />
@@ -311,7 +311,7 @@ const GroupPricing = () => {
               <p className="text-muted-foreground mt-1">
                 {groupSettings?.can_manage_pricing 
                   ? "Manage custom pricing for your pharmacy network"
-                  : "View your group's special pricing"}
+                  : "View your special pricing rates"}
               </p>
             </div>
 

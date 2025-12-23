@@ -5,7 +5,43 @@ import { CartState, addToCart, removeFromCart, updateQuantity, clearCart, update
 const getInitialCartItems = (): any[] => {
   if (typeof window === 'undefined') return [];
   try {
-    return JSON.parse(localStorage.getItem("cartItems") || "[]");
+    const items = JSON.parse(localStorage.getItem("cartItems") || "[]");
+    
+    // Migrate legacy cart items that don't have sizes array
+    const migratedItems = items.map((item: any) => {
+      // If item already has sizes array, return as is
+      if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
+        return item;
+      }
+      
+      // Legacy format: convert sizeId, sizeValue, sizeUnit to sizes array
+      if (item.sizeId || item.sizeValue) {
+        return {
+          ...item,
+          sizes: [{
+            id: item.sizeId || `${item.productId}-legacy`,
+            size_value: item.sizeValue || '',
+            size_unit: item.sizeUnit || '',
+            price: item.price || 0,
+            quantity: item.quantity || 1,
+            type: item.type || 'unit',
+          }],
+        };
+      }
+      
+      // If no size info at all, create empty sizes array
+      return {
+        ...item,
+        sizes: [],
+      };
+    }).filter((item: any) => item.sizes && item.sizes.length > 0);
+    
+    // Save migrated items back to localStorage
+    if (JSON.stringify(items) !== JSON.stringify(migratedItems)) {
+      localStorage.setItem("cartItems", JSON.stringify(migratedItems));
+    }
+    
+    return migratedItems;
   } catch (error) {
     console.error('Error parsing cart items from localStorage:', error);
     return [];
@@ -34,25 +70,37 @@ export const cartReducer = createReducer(initialState, (builder) => {
       const existingItem = state.items.find(item => item.productId === action.payload.productId);
       
       if (existingItem) {
-        // Check if this specific size already exists
+        // Ensure sizes array exists
+        if (!existingItem.sizes || !Array.isArray(existingItem.sizes)) {
+          existingItem.sizes = [];
+        }
+        
+        // Check if this specific size AND type already exists
         const newSizes = action.payload.sizes || [];
         newSizes.forEach(newSize => {
-          const existingSize = existingItem.sizes.find(size => size.id === newSize.id);
+          // Find by both id AND type to differentiate unit vs case
+          const existingSize = existingItem.sizes.find(
+            size => size.id === newSize.id && size.type === newSize.type
+          );
           if (existingSize) {
-            // Size already exists, increase quantity
+            // Size with same type already exists, increase quantity
             existingSize.quantity += newSize.quantity;
           } else {
-            // New size, add to sizes array
+            // New size or different type, add to sizes array
             existingItem.sizes.push(newSize);
           }
         });
         
         // Recalculate total quantity and price
-        existingItem.quantity = existingItem.sizes.reduce((total, size) => total + size.quantity, 0);
-        existingItem.price = existingItem.sizes.reduce((total, size) => total + (size.quantity * size.price), 0);
+        existingItem.quantity = existingItem.sizes.reduce((total, size) => total + (size.quantity || 0), 0);
+        existingItem.price = existingItem.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
       } else {
-        // New product, add to cart
-        state.items.push(action.payload);
+        // New product, ensure sizes array exists
+        const newItem = {
+          ...action.payload,
+          sizes: action.payload.sizes || [],
+        };
+        state.items.push(newItem);
       }
       saveCartToStorage(state.items);
     })
@@ -63,15 +111,16 @@ export const cartReducer = createReducer(initialState, (builder) => {
     .addCase(updateQuantity, (state, action) => {
       const { productId, sizeId, quantity } = action.payload;
       const product = state.items.find((item) => item.productId === productId);
-      if (product) {
+      if (product && product.sizes && Array.isArray(product.sizes)) {
+        // Find size by id
         const size = product.sizes.find((size) => size.id === sizeId);
         if (size) {
           size.quantity = +quantity;
         }
         // ✅ Recalculate product price based on all sizes
-        product.price = product.sizes.reduce((total, size) => total + (size.quantity * size.price), 0);
+        product.price = product.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
         // ✅ Recalculate total quantity
-        product.quantity = product.sizes.reduce((total, size) => total + size.quantity, 0);
+        product.quantity = product.sizes.reduce((total, size) => total + (size.quantity || 0), 0);
       }
       saveCartToStorage(state.items);
     })
@@ -88,14 +137,12 @@ export const cartReducer = createReducer(initialState, (builder) => {
     .addCase(updatePrice, (state, action) => {
       const { productId, sizeId, price } = action.payload;
       const product = state.items.find((item) => item.productId === productId);
-      if (product) {
+      if (product && product.sizes && Array.isArray(product.sizes)) {
         const size = product.sizes.find((size) => size.id === sizeId);
         if (size) {
-          size.price = price; // ✅ Size price update karo
-
+          size.price = price;
         }
-        product.price = product.sizes.reduce((total, size) => total + (size.quantity * size.price), 0);
-
+        product.price = product.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
       }
       saveCartToStorage(state.items);
     })

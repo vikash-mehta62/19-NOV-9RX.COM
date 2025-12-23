@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { PayCreditModal } from "./PayCreditModal";
 import { StatementDateRangeSelector } from "./StatementDateRangeSelector";
+import { SendCreditTermsSection } from "./SendCreditTermsSection";
 import { statementService } from "@/services/statementService";
 import { downloadService } from "@/services/downloadService";
 import { statementPDFGenerator } from "@/utils/statement-pdf-generator";
@@ -61,6 +62,8 @@ interface Transaction {
   credit_amount: number;
   balance: number;
   description: string;
+  transectionId?: string;
+  admin_pay_notes?: string;
 }
 
 export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
@@ -196,14 +199,11 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
 
   const handleDateRangeChange = (startDate: Date, endDate: Date) => {
     // This will be called when valid date range is selected
-    console.log("Date range changed:", { startDate, endDate });
   };
 
   const handleStatementDownload = async (startDate: Date, endDate: Date) => {
     setIsGeneratingStatement(true);
     try {
-      console.log("Starting statement download for:", { userId, startDate, endDate });
-      
       toast({
         title: "Generating Statement",
         description: `Generating statement for ${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}...`,
@@ -211,14 +211,12 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
 
       // Check browser support first
       const capabilities = downloadService.getDownloadCapabilities();
-      console.log("Browser download capabilities:", capabilities);
       
       if (!capabilities.supported) {
         throw new Error("Your browser does not support file downloads. Please try a different browser.");
       }
 
-      // First, let's try to generate the statement data and PDF directly
-      console.log("Generating statement data...");
+      // Generate the statement data and PDF
       const statementResponse = await statementService.generateStatementData({
         userId,
         startDate,
@@ -230,34 +228,27 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         throw new Error(statementResponse.error || "Failed to generate statement data");
       }
 
-      console.log("Statement data generated:", statementResponse.data);
-      
       // Generate filename
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
       const filename = `statement_${userId}_${startDateStr}_to_${endDateStr}.pdf`;
-      console.log("Suggested filename:", filename);
 
       // Get user profile for better filename
       let userProfile;
       try {
         userProfile = await statementService.getUserProfile(userId);
-        console.log("User profile loaded:", userProfile);
       } catch (error) {
-        console.warn("Could not load user profile:", error);
+        // Continue without user profile
       }
 
       // Create PDF
-      console.log("Creating PDF...");
       const pdfBlob = await statementPDFGenerator.createPDF(statementResponse.data, userProfile);
-      console.log("PDF created, size:", pdfBlob.size, "bytes");
 
       if (!pdfBlob || pdfBlob.size === 0) {
         throw new Error("Generated PDF is empty");
       }
 
       // Try direct download
-      console.log("Attempting direct download...");
       const downloadSuccess = await new Promise<boolean>((resolve) => {
         try {
           const url = URL.createObjectURL(pdfBlob);
@@ -286,8 +277,6 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
       }
 
       const result = { success: true, filename };
-
-      console.log("Download result:", result);
 
       if (result.success) {
         // Update last statement date
@@ -405,7 +394,6 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         .eq("customer_id", userId)
         .order("transaction_date", { ascending: false });
 
-        console.log(data, "fetch Transection")
       if (!error && data) {
         setTransactions(data);
       }
@@ -585,6 +573,14 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                 <p className="text-2xl font-bold text-orange-600">
                   {formatCurrency(creditSettings.credit_used)}
                 </p>
+                {/* Pay Button inline with Credit Used */}
+                <div className="mt-2">
+                  <PayCreditModal
+                    creditUsed={creditSettings.credit_used}
+                    onPaymentSuccess={loadCreditSettings} 
+                    userId={userId}
+                  />
+                </div>
               </div>
             </div>
 
@@ -641,25 +637,6 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                 <p className="font-semibold">USD</p>
               </div>
             </div>
-
-            <br />
-            <div className="flex items-center justify-end gap-4">
-              <div className="text-right flex items-center gap-4">
-                <p className="text-sm text-muted-foreground ">Credit Used</p>
-                <p className="text-2xl font-bold text-orange-600">
-                  {formatCurrency(creditSettings.credit_used)}
-                </p>
-              </div>
-
-              {/* Pay Button on the right */}
-              <div>
-                <PayCreditModal
-                  creditUsed={creditSettings.credit_used}
-                  onPaymentSuccess={loadCreditSettings} 
-                  userId={userId}
-                />
-              </div>
-            </div>
           </CardContent>
         </Card>
       )}
@@ -676,7 +653,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
           <div className="space-y-6">
             {/* Auto-Statement Settings */}
             <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div>
+              <div className="flex-1">
                 <p className="font-medium">Auto-Generate Statements</p>
                 <p className="text-sm text-muted-foreground">
                   Frequency: {creditSettings?.statement_frequency || "Monthly"}
@@ -690,13 +667,41 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                   </p>
                 )}
               </div>
-              <Badge
-                variant={
-                  creditSettings?.auto_statement ? "default" : "secondary"
-                }
-              >
-                {creditSettings?.auto_statement ? "Enabled" : "Disabled"}
-              </Badge>
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={creditSettings?.auto_statement ?? false}
+                  onCheckedChange={async (checked) => {
+                    try {
+                      const { error } = await supabase
+                        .from("profiles")
+                        .update({ auto_statement: checked })
+                        .eq("id", userId);
+                      
+                      if (error) throw error;
+                      
+                      toast({
+                        title: "Settings Updated",
+                        description: `Auto-generate statements ${checked ? "enabled" : "disabled"}`,
+                      });
+                      loadCreditSettings();
+                    } catch (error: any) {
+                      toast({
+                        title: "Error",
+                        description: "Failed to update settings",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                />
+                <Badge
+                  variant={
+                    creditSettings?.auto_statement ? "default" : "secondary"
+                  }
+                  className={creditSettings?.auto_statement ? "bg-green-500" : ""}
+                >
+                  {creditSettings?.auto_statement ? "Enabled" : "Disabled"}
+                </Badge>
+              </div>
             </div>
 
             {/* Custom Date Range Statement Generation */}
@@ -708,122 +713,13 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                 isGenerating={isGeneratingStatement}
                 maxDateRange={365}
               />
-              
-              {/* Debug Test Button - Remove in production */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800 mb-2">Debug Tools (Development Only)</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={async () => {
-                        try {
-                          console.log("Testing simple text download...");
-                          const testContent = "Test download file\nGenerated at: " + new Date().toISOString();
-                          const blob = new Blob([testContent], { type: 'text/plain' });
-                          const filename = `test-download-${Date.now()}.txt`;
-                          
-                          const url = URL.createObjectURL(blob);
-                          const link = document.createElement('a');
-                          link.href = url;
-                          link.download = filename;
-                          link.style.display = 'none';
-                          
-                          document.body.appendChild(link);
-                          link.click();
-                          
-                          setTimeout(() => {
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                          }, 1000);
-                          
-                          toast({
-                            title: "Test Download",
-                            description: "Test file download triggered",
-                          });
-                        } catch (error) {
-                          console.error("Test download failed:", error);
-                          toast({
-                            title: "Test Failed",
-                            description: "Test download failed",
-                            variant: "destructive",
-                          });
-                        }
-                      }}
-                    >
-                      Test Download
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const capabilities = downloadService.getDownloadCapabilities();
-                        console.log("Download capabilities:", capabilities);
-                        toast({
-                          title: "Browser Capabilities",
-                          description: `Supported: ${capabilities.supported}, Features: ${capabilities.features.length}`,
-                        });
-                      }}
-                    >
-                      Check Browser
-                    </Button>
-                  </div>
-                </div>
-              )}
-              
-              {/* Debug Test Button - Remove in production */}
-              {process.env.NODE_ENV === 'development' && (
-                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800 mb-2">Debug Tools (Development Only)</p>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Test basic download functionality
-                        if ((window as any).downloadTests) {
-                          (window as any).downloadTests.testBasicDownload();
-                        }
-                      }}
-                    >
-                      Test Basic Download
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Test PDF generation
-                        if ((window as any).debugDownload) {
-                          (window as any).debugDownload.testPDFGeneration();
-                        }
-                      }}
-                    >
-                      Test PDF Generation
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        // Test full statement download
-                        const testStartDate = new Date();
-                        testStartDate.setMonth(testStartDate.getMonth() - 1);
-                        const testEndDate = new Date();
-                        
-                        if ((window as any).debugDownload) {
-                          (window as any).debugDownload.debugStatementDownload(userId, testStartDate, testEndDate);
-                        }
-                      }}
-                    >
-                      Debug Statement Download
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Send Credit Terms Section */}
+      <SendCreditTermsSection userId={userId} />
 
       {/* Payment Methods */}
       <Card>
@@ -875,7 +771,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
             <div className="flex flex-col">
               <span className="text-sm font-medium">{tx.description}</span>
               <span className="text-xs text-muted-foreground">
-                {new Date(tx.created_at).toLocaleString()}
+                {new Date(tx.transaction_date).toLocaleString()}
               </span>
               {/* Display transactionId or admin notes */}
               {tx.transectionId ? (
@@ -889,14 +785,18 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
               ) : null}
             </div>
             <div className="flex flex-col text-right">
-              <span className="text-sm text-red-600">
-                {tx.debit_amount > 0 ? `-$${tx.debit_amount}` : ""}
-              </span>
-              <span className="text-sm text-green-600">
-                {tx.credit_amount > 0 ? `+$${tx.credit_amount}` : ""}
-              </span>
+              {tx.debit_amount > 0 && (
+                <span className="text-sm text-red-600">
+                  -${tx.debit_amount.toFixed(2)}
+                </span>
+              )}
+              {tx.credit_amount > 0 && (
+                <span className="text-sm text-green-600">
+                  +${tx.credit_amount.toFixed(2)}
+                </span>
+              )}
               <span className="text-xs text-muted-foreground">
-                Balance: ${tx.balance}
+                Balance: ${tx.balance?.toFixed(2) || '0.00'}
               </span>
             </div>
           </div>

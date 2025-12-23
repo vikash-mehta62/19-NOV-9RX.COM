@@ -1,13 +1,45 @@
-import { OrderFormValues } from "../../schemas/orderSchema";
-import { Card } from "@/components/ui/card";
-import { OrderWorkflowStatus } from "../../workflow/OrderWorkflowStatus";
-import { Package, DollarSign, User, MapPin } from "lucide-react";
+import { OrderFormValues, ShippingAddressData } from "../../schemas/orderSchema";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { 
+  Package, DollarSign, User, MapPin, Truck, 
+  Calendar, FileText, CreditCard, Building, Phone, Mail
+} from "lucide-react";
 
 interface OverviewTabProps {
   order: OrderFormValues;
   companyName?: string;
   poIs?: boolean;
 }
+
+// Helper function to safely get address fields
+const getAddressField = (
+  shippingAddress: ShippingAddressData | undefined,
+  type: "billing" | "shipping",
+  field: string
+): string => {
+  if (!shippingAddress) return "";
+  
+  const addressObj = shippingAddress[type];
+  if (addressObj && typeof addressObj === 'object') {
+    const value = (addressObj as Record<string, string>)[field];
+    if (value) return value;
+  }
+  
+  if (shippingAddress.address && typeof shippingAddress.address === 'object') {
+    const legacyAddress = shippingAddress.address as Record<string, string>;
+    const fieldMap: Record<string, string> = {
+      street1: 'street',
+      city: 'city',
+      state: 'state',
+      zipCode: 'zip_code',
+    };
+    const mappedField = fieldMap[field] || field;
+    if (legacyAddress[mappedField]) return legacyAddress[mappedField];
+  }
+  
+  return "";
+};
 
 export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
   const calculateSubtotal = () => {
@@ -18,99 +50,256 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
 
   const subtotal = calculateSubtotal();
   const shipping = parseFloat(order.shipping_cost || "0");
-  const tax = parseFloat(order.tax_amount || "0");
+  const tax = parseFloat(order.tax_amount?.toString() || "0");
   const total = subtotal + shipping + tax;
 
-  return (
-    <div className="space-y-4">
-      {/* Order Status */}
-      {!poIs && (
-        <Card className="p-4">
-          <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-            <Package className="w-5 h-5 text-primary" />
-            Order Status
-          </h3>
-          <OrderWorkflowStatus status={order.status} />
-        </Card>
-      )}
+  // Get shipping address
+  const shippingStreet = getAddressField(order.shippingAddress, "shipping", "street1") || 
+                         order.shippingAddress?.address?.street || "";
+  const shippingCity = getAddressField(order.shippingAddress, "shipping", "city") || 
+                       order.shippingAddress?.address?.city || "";
+  const shippingState = getAddressField(order.shippingAddress, "shipping", "state") || 
+                        order.shippingAddress?.address?.state || "";
+  const shippingZip = getAddressField(order.shippingAddress, "shipping", "zipCode") || 
+                      order.shippingAddress?.address?.zip_code || "";
 
-      {/* Quick Summary Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Customer Summary */}
-        <Card className="p-4">
-          <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
-            <User className="w-5 h-5 text-primary" />
-            {poIs ? "Vendor" : "Customer"}
-          </h3>
-          <div className="space-y-2 text-sm">
-            {companyName && (
-              <p className="font-medium text-base">{companyName}</p>
-            )}
-            <p className="text-muted-foreground">
-              {order.customerInfo?.name || "N/A"}
-            </p>
-            <p className="text-muted-foreground">{order.customerInfo?.email || "N/A"}</p>
-            <p className="text-muted-foreground">{order.customerInfo?.phone || "N/A"}</p>
+  const totalItems = order.items.reduce(
+    (total, item) => total + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
+    0
+  );
+
+  return (
+    <div className="space-y-6">
+
+
+      {/* Quick Stats Row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Package className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Items</p>
+              <p className="text-lg font-bold text-gray-900">{order.items.length}</p>
+            </div>
           </div>
         </Card>
-
-        {/* Shipping Summary */}
-        <Card className="p-4">
-          <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
-            <MapPin className="w-5 h-5 text-primary" />
-            Shipping To
-          </h3>
-          <div className="space-y-2 text-sm">
-            <p className="font-medium">{order.shippingAddress?.fullName || "N/A"}</p>
-            <p className="text-muted-foreground">
-              {order.shippingAddress?.address?.street || "N/A"}
-            </p>
-            <p className="text-muted-foreground">
-              {order.shippingAddress?.address?.city && order.shippingAddress?.address?.state
-                ? `${order.shippingAddress.address.city}, ${order.shippingAddress.address.state} ${
-                    order.shippingAddress?.address.zip_code || ""
-                  }`
-                : "No address provided"}
-            </p>
+        
+        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Total</p>
+              <p className="text-lg font-bold text-gray-900">${total.toFixed(2)}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-amber-50 to-orange-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <CreditCard className="w-4 h-4 text-amber-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Payment</p>
+              <Badge 
+                variant="secondary" 
+                className={`mt-0.5 text-xs ${
+                  order.payment_status === "paid" 
+                    ? "bg-green-100 text-green-700" 
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+              </Badge>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-rose-50 to-pink-50">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <Truck className="w-4 h-4 text-rose-600" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 font-medium">Status</p>
+              <Badge 
+                variant="secondary" 
+                className={`mt-0.5 text-xs capitalize ${
+                  order.status === "delivered" 
+                    ? "bg-green-100 text-green-700" 
+                    : order.status === "shipped"
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-gray-100 text-gray-700"
+                }`}
+              >
+                {order.status}
+              </Badge>
+            </div>
           </div>
         </Card>
       </div>
 
+      {/* Customer & Shipping Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Customer Summary */}
+        <Card className="overflow-hidden border-0 shadow-sm">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <User className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">{poIs ? "Vendor" : "Customer"}</CardTitle>
+                <p className="text-sm text-gray-500 mt-0.5">Contact information</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4 space-y-3">
+            {companyName && (
+              <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-50">
+                <Building className="w-4 h-4 text-gray-500" />
+                <span className="font-semibold text-gray-900">{companyName}</span>
+              </div>
+            )}
+            <div className="flex items-center gap-3 p-2">
+              <User className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-700">{order.customerInfo?.name || "N/A"}</span>
+            </div>
+            <div className="flex items-center gap-3 p-2">
+              <Mail className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-700">{order.customerInfo?.email || "N/A"}</span>
+            </div>
+            <div className="flex items-center gap-3 p-2">
+              <Phone className="w-4 h-4 text-gray-400" />
+              <span className="text-gray-700">{order.customerInfo?.phone || "N/A"}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Shipping Summary */}
+        <Card className="overflow-hidden border-0 shadow-sm">
+          <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <MapPin className="w-5 h-5 text-emerald-600" />
+              </div>
+              <div>
+                <CardTitle className="text-base">Shipping To</CardTitle>
+                <p className="text-sm text-gray-500 mt-0.5">Delivery address</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="space-y-2">
+              <p className="font-semibold text-gray-900">
+                {order.shippingAddress?.fullName || order.customerInfo?.name || "N/A"}
+              </p>
+              {shippingStreet ? (
+                <>
+                  <p className="text-gray-600">{shippingStreet}</p>
+                  <p className="text-gray-600">
+                    {[shippingCity, shippingState].filter(Boolean).join(", ")} {shippingZip}
+                  </p>
+                </>
+              ) : (
+                <p className="text-gray-400 italic">No address provided</p>
+              )}
+              {order.shippingAddress?.phone && (
+                <div className="flex items-center gap-2 pt-2 text-sm text-gray-500">
+                  <Phone className="w-3.5 h-3.5" />
+                  {order.shippingAddress.phone}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Order Summary */}
-      <Card className="p-4">
-        <h3 className="font-semibold text-base mb-3 flex items-center gap-2">
-          <DollarSign className="w-5 h-5 text-primary" />
-          Order Summary
-        </h3>
-        <div className="space-y-2">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Items ({order.items.length})</span>
-            <span className="font-medium">${subtotal.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Shipping</span>
-            <span className="font-medium">${shipping.toFixed(2)}</span>
-          </div>
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Tax</span>
-            <span className="font-medium">${tax.toFixed(2)}</span>
-          </div>
-          <div className="border-t pt-2 mt-2">
-            <div className="flex justify-between text-base font-bold">
-              <span>Total</span>
-              <span className="text-primary">${total.toFixed(2)}</span>
+      <Card className="overflow-hidden border-0 shadow-sm">
+        <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white rounded-lg shadow-sm">
+              <DollarSign className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <CardTitle className="text-base">Order Summary</CardTitle>
+              <p className="text-sm text-gray-500 mt-0.5">Pricing breakdown</p>
             </div>
           </div>
-        </div>
+        </CardHeader>
+        <CardContent className="p-4">
+          <div className="space-y-3">
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600">Items ({totalItems} units)</span>
+              <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600">Shipping</span>
+              <span className="font-medium text-gray-900">${shipping.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2">
+              <span className="text-gray-600">Tax</span>
+              <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+            </div>
+            <div className="border-t pt-3 mt-2">
+              <div className="flex justify-between items-center">
+                <span className="text-lg font-bold text-gray-900">Total</span>
+                <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
       </Card>
+
+      {/* Order Info */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="p-4 border-0 shadow-sm bg-gray-50">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-5 h-5 text-gray-500" />
+            <div>
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Order Date</p>
+              <p className="font-semibold text-gray-900">
+                {new Date(order.date).toLocaleDateString("en-US", {
+                  year: "numeric",
+                  month: "long",
+                  day: "numeric",
+                  timeZone: "UTC",
+                })}
+              </p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-4 border-0 shadow-sm bg-gray-50">
+          <div className="flex items-center gap-3">
+            <FileText className="w-5 h-5 text-gray-500" />
+            <div>
+              <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Order Number</p>
+              <p className="font-semibold text-gray-900 font-mono">{order.order_number}</p>
+            </div>
+          </div>
+        </Card>
+      </div>
 
       {/* Special Instructions */}
       {order.specialInstructions && (
-        <Card className="p-4 bg-blue-50 border-blue-200">
-          <h3 className="font-semibold text-base mb-2">
-            {poIs ? "Notes" : "Special Instructions"}
-          </h3>
-          <p className="text-sm text-muted-foreground">{order.specialInstructions}</p>
+        <Card className="overflow-hidden border-0 shadow-sm border-l-4 border-l-blue-500">
+          <CardContent className="p-4 bg-blue-50/50">
+            <div className="flex items-start gap-3">
+              <FileText className="w-5 h-5 text-blue-600 mt-0.5" />
+              <div>
+                <p className="font-semibold text-gray-900 mb-1">
+                  {poIs ? "Notes" : "Special Instructions"}
+                </p>
+                <p className="text-gray-700">{order.specialInstructions}</p>
+              </div>
+            </div>
+          </CardContent>
         </Card>
       )}
     </div>

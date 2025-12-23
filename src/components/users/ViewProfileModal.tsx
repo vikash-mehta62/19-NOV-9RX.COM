@@ -34,7 +34,23 @@ import {
   Stethoscope,
   Users,
   Download,
+  Send,
+  UserX,
+  UserCheck,
+  Eye,
+  MoreHorizontal,
+  Shield,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { OrderDetailsSheet } from "@/components/orders/table/OrderDetailsSheet";
+import { EditUserModal } from "./EditUserModal";
 import { supabase } from "@/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -161,6 +177,7 @@ export function ViewProfileModal({
   onOpenChange,
 }: ViewProfileModalProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -222,6 +239,21 @@ export function ViewProfileModal({
   const [downloadStartDate, setDownloadStartDate] = useState<Date | undefined>(undefined);
   const [downloadEndDate, setDownloadEndDate] = useState<Date | undefined>(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Edit profile modal state (uses existing EditUserModal)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+
+  // Order details sheet state
+  const [selectedOrder, setSelectedOrder] = useState<any>(null);
+  const [isOrderSheetOpen, setIsOrderSheetOpen] = useState(false);
+
+  // Staff list for task assignment
+  const [staffList, setStaffList] = useState<any[]>([]);
+
+  // Documents state
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isUploadingDocument, setIsUploadingDocument] = useState(false);
+  const [deleteDocumentId, setDeleteDocumentId] = useState<string | null>(null);
 
   // Note form state
   const [noteForm, setNoteForm] = useState({
@@ -346,6 +378,28 @@ export function ViewProfileModal({
         .order("due_date", { ascending: true });
 
       if (!tasksError) setTasks(tasksData || []);
+
+      // Fetch staff list for task assignment (admin/staff users)
+      const { data: staffData } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, role")
+        .in("role", ["admin", "superadmin", "staff"])
+        .eq("status", "active")
+        .order("first_name");
+
+      if (staffData) setStaffList(staffData);
+
+      // Fetch customer documents
+      const { data: documentsData, error: documentsError } = await supabase
+        .from("customer_documents")
+        .select("*")
+        .eq("customer_id", userId)
+        .order("created_at", { ascending: false });
+
+      if (documentsError) {
+        console.error("Error fetching documents:", documentsError);
+      }
+      setDocuments(documentsData || []);
     } catch (err: any) {
       setError(err.message || "Failed to load profile");
     } finally {
@@ -362,6 +416,118 @@ export function ViewProfileModal({
       toast({ title: "Copied!", description: `${field} copied to clipboard` });
     } catch {
       toast({ title: "Error", description: "Failed to copy", variant: "destructive" });
+    }
+  };
+
+  // Open the existing EditUserModal
+  const handleEditProfile = () => {
+    setIsEditModalOpen(true);
+  };
+
+  // Toggle account status (suspend/activate)
+  const handleToggleAccountStatus = async () => {
+    const newStatus = profile?.status === "active" ? "inactive" : "active";
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ status: newStatus })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      toast({ 
+        title: "Success", 
+        description: `Account ${newStatus === "active" ? "activated" : "suspended"} successfully` 
+      });
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Change credit status
+  const handleChangeCreditStatus = async (newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ credit_status: newStatus })
+        .eq("id", userId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: `Credit status changed to ${newStatus}` });
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // NEW: Create order for customer
+  const handleCreateOrder = () => {
+    // Store customer data in sessionStorage for the order creation wizard
+    const customerData = {
+      customer: {
+        id: profile.id,
+        name: profile.display_name || `${profile.first_name} ${profile.last_name}`,
+        email: profile.email,
+        phone: profile.work_phone || profile.mobile_phone,
+        type: profile.type,
+        company_name: profile.company_name,
+        tax_percentage: profile.taxPercantage || 0,
+        freeShipping: profile.freeShipping || false,
+        billing_address: profile.billing_address,
+        shipping_address: profile.shipping_address,
+      },
+      billingAddress: profile.billing_address ? {
+        company_name: profile.company_name || "",
+        attention: "",
+        street: profile.billing_address.street1 || profile.billing_address.street || "",
+        city: profile.billing_address.city || "",
+        state: profile.billing_address.state || "",
+        zip_code: profile.billing_address.zip_code || "",
+      } : undefined,
+      shippingAddress: profile.shipping_address ? {
+        fullName: profile.display_name || `${profile.first_name} ${profile.last_name}`,
+        email: profile.email || "",
+        phone: profile.work_phone || profile.mobile_phone || "",
+        street: profile.shipping_address.street1 || profile.shipping_address.street || "",
+        city: profile.shipping_address.city || "",
+        state: profile.shipping_address.state || "",
+        zip_code: profile.shipping_address.zip_code || "",
+      } : undefined,
+      skipToProducts: true, // Flag to skip directly to product selection
+    };
+    
+    sessionStorage.setItem("preselectedCustomer", JSON.stringify(customerData));
+    sessionStorage.setItem("taxper", (profile.taxPercantage || 0).toString());
+    sessionStorage.setItem("shipping", (profile.freeShipping || false).toString());
+    
+    onOpenChange(false);
+    navigate("/admin/orders/create");
+  };
+
+  // NEW: Send email to customer
+  const handleSendEmail = () => {
+    if (profile?.email) {
+      window.location.href = `mailto:${profile.email}`;
+    }
+  };
+
+  // NEW: View order details
+  const handleViewOrder = async (orderId: string) => {
+    try {
+      const { data: orderData, error } = await supabase
+        .from("orders")
+        .select("*, order_items(*)")
+        .eq("id", orderId)
+        .single();
+
+      if (error) throw error;
+
+      setSelectedOrder(orderData);
+      setIsOrderSheetOpen(true);
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to load order details", variant: "destructive" });
     }
   };
 
@@ -483,6 +649,7 @@ export function ViewProfileModal({
             status: taskForm.status,
             due_date: taskForm.due_date,
             reminder_date: taskForm.reminder_date || null,
+            assigned_to: taskForm.assigned_to || userId,
           })
           .eq("id", editingTask.id);
 
@@ -498,7 +665,7 @@ export function ViewProfileModal({
           status: taskForm.status,
           due_date: taskForm.due_date,
           reminder_date: taskForm.reminder_date || null,
-          assigned_to: userId,
+          assigned_to: taskForm.assigned_to || userId,
           created_by: currentUser?.id,
         });
 
@@ -544,7 +711,7 @@ export function ViewProfileModal({
       status: task.status,
       due_date: task.due_date,
       reminder_date: task.reminder_date || "",
-      assigned_to: "",
+      assigned_to: task.assigned_to || userId,
     });
     setEditingTask(task);
     setIsTaskDialogOpen(true);
@@ -641,6 +808,125 @@ export function ViewProfileModal({
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
+  };
+
+  // Document upload handler
+  const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Error", description: "File size must be less than 10MB", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setIsUploadingDocument(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${userId}/${crypto.randomUUID()}.${fileExt}`;
+      
+      // Upload to Supabase storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(`customer-documents/${fileName}`, file);
+
+      if (uploadError) throw uploadError;
+
+      // Get the document type from file extension
+      const docType = getDocumentType(fileExt || '');
+
+      // Save document record to database
+      const { error: dbError } = await supabase.from("customer_documents").insert({
+        customer_id: userId,
+        name: file.name,
+        file_path: uploadData.path,
+        file_type: docType,
+        file_size: file.size,
+        uploaded_by: currentUser?.id,
+      });
+
+      if (dbError) throw dbError;
+
+      toast({ title: "Success", description: "Document uploaded successfully" });
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message || "Failed to upload document", variant: "destructive" });
+    } finally {
+      setIsUploadingDocument(false);
+      // Reset file input
+      e.target.value = '';
+    }
+  };
+
+  // Get document type from extension
+  const getDocumentType = (ext: string): string => {
+    const types: Record<string, string> = {
+      pdf: 'PDF',
+      doc: 'Word',
+      docx: 'Word',
+      xls: 'Excel',
+      xlsx: 'Excel',
+      jpg: 'Image',
+      jpeg: 'Image',
+      png: 'Image',
+      gif: 'Image',
+    };
+    return types[ext.toLowerCase()] || 'Other';
+  };
+
+  // Download document
+  const handleDownloadDocument = async (doc: any) => {
+    try {
+      const { data, error } = await supabase.storage
+        .from('documents')
+        .download(doc.file_path);
+
+      if (error) throw error;
+
+      // Create download link
+      const url = URL.createObjectURL(data);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      toast({ title: "Error", description: "Failed to download document", variant: "destructive" });
+    }
+  };
+
+  // Delete document
+  const handleDeleteDocument = async () => {
+    if (!deleteDocumentId) return;
+    
+    try {
+      const docToDelete = documents.find(d => d.id === deleteDocumentId);
+      
+      // Delete from storage
+      if (docToDelete?.file_path) {
+        await supabase.storage.from('documents').remove([docToDelete.file_path]);
+      }
+
+      // Delete from database
+      const { error } = await supabase.from("customer_documents").delete().eq("id", deleteDocumentId);
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Document deleted successfully" });
+      setDeleteDocumentId(null);
+      fetchAllData();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
   // Handle order statement download
@@ -858,15 +1144,15 @@ export function ViewProfileModal({
                   const typeConfig = getTypeConfig(profile.type);
                   const TypeIcon = typeConfig.icon;
                   return (
-                    <div className={cn("h-16 w-16 rounded-full flex items-center justify-center text-2xl font-bold", typeConfig.bgColor, typeConfig.color)}>
-                      <TypeIcon className="h-8 w-8" />
+                    <div className={cn("h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold", typeConfig.bgColor, typeConfig.color)}>
+                      <TypeIcon className="h-7 w-7" />
                     </div>
                   );
                 })()}
               </div>
               
               {/* Profile Info */}
-              <div className="flex-1 min-w-0">
+              <div className="flex-1 min-w-0 max-w-md">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-xl font-semibold truncate">
                     {profile.display_name || `${profile.first_name} ${profile.last_name}`}
@@ -894,7 +1180,7 @@ export function ViewProfileModal({
                           className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           <Mail className="h-3.5 w-3.5" />
-                          <span className="truncate max-w-[200px]">{profile.email}</span>
+                          <span className="truncate max-w-[180px]">{profile.email}</span>
                           {copiedField === "Email" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                         </button>
                       </TooltipTrigger>
@@ -927,7 +1213,7 @@ export function ViewProfileModal({
                 )}
 
                 {/* Profile Completion Indicator */}
-                <div className="mt-2">
+                <div className="mt-2 max-w-xs">
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Profile Completion</span>
                     <span className="font-medium">{calculateProfileCompletion(profile)}%</span>
@@ -937,21 +1223,129 @@ export function ViewProfileModal({
               </div>
 
               {/* Quick Stats */}
-              <div className="flex gap-3 flex-wrap sm:flex-nowrap">
-                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
-                  <div className="text-lg font-bold">{analytics?.totalOrders || 0}</div>
+              <div className="flex gap-2 flex-wrap sm:flex-nowrap ml-auto items-start">
+                <div className="text-center px-4 py-2 bg-background rounded-md border">
+                  <div className="text-xl font-bold">{analytics?.totalOrders || 0}</div>
                   <div className="text-xs text-muted-foreground">Orders</div>
                 </div>
-                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
-                  <div className="text-lg font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(0)}</div>
+                <div className="text-center px-4 py-2 bg-background rounded-md border">
+                  <div className="text-xl font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(0)}</div>
                   <div className="text-xs text-muted-foreground">Paid</div>
                 </div>
-                <div className="text-center px-3 py-2 bg-background rounded-md border min-w-[80px]">
-                  <div className="text-lg font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(0)}</div>
+                <div className="text-center px-4 py-2 bg-background rounded-md border">
+                  <div className="text-xl font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(0)}</div>
                   <div className="text-xs text-muted-foreground">Pending</div>
                 </div>
               </div>
             </div>
+
+            {/* Quick Actions Panel - Admin Only */}
+            {isAdmin && (
+              <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-lg border">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" onClick={handleEditProfile}>
+                      <Pencil className="h-4 w-4 mr-1" />
+                      Edit Profile
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit customer profile</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" onClick={handleCreateOrder}>
+                      <ShoppingCart className="h-4 w-4 mr-1" />
+                      New Order
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Create order for this customer</TooltipContent>
+                </Tooltip>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button size="sm" variant="outline" onClick={handleSendEmail}>
+                      <Send className="h-4 w-4 mr-1" />
+                      Email
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Send email to customer</TooltipContent>
+                </Tooltip>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="outline">
+                      <Shield className="h-4 w-4 mr-1" />
+                      Credit Status
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("good")}>
+                      <Badge className="bg-green-500 mr-2">Good</Badge>
+                      Set to Good
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("warning")}>
+                      <Badge className="bg-yellow-500 mr-2">Warning</Badge>
+                      Set to Warning
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("suspended")}>
+                      <Badge className="bg-orange-500 mr-2">Suspended</Badge>
+                      Set to Suspended
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("blocked")}>
+                      <Badge className="bg-red-500 mr-2">Blocked</Badge>
+                      Set to Blocked
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      variant={profile.status === "active" ? "destructive" : "default"}
+                      onClick={handleToggleAccountStatus}
+                    >
+                      {profile.status === "active" ? (
+                        <>
+                          <UserX className="h-4 w-4 mr-1" />
+                          Suspend
+                        </>
+                      ) : (
+                        <>
+                          <UserCheck className="h-4 w-4 mr-1" />
+                          Activate
+                        </>
+                      )}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {profile.status === "active" ? "Suspend this account" : "Activate this account"}
+                  </TooltipContent>
+                </Tooltip>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button size="sm" variant="ghost">
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => window.print()}>
+                      <FileText className="h-4 w-4 mr-2" />
+                      Print Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem 
+                      onClick={() => copyToClipboard(userId, "Customer ID")}
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy Customer ID
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            )}
 
             <Tabs defaultValue="basic" className="w-full">
               {/* Scrollable tabs for mobile */}
@@ -1357,6 +1751,111 @@ export function ViewProfileModal({
                   </CardContent>
                 </Card>
               )}
+
+              {/* Documents Section */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="flex items-center gap-2">
+                        <FileText className="h-5 w-5" />
+                        Documents
+                        {documents.length > 0 && (
+                          <Badge variant="secondary">{documents.length}</Badge>
+                        )}
+                      </CardTitle>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Licenses, contracts, agreements, and other documents
+                      </p>
+                    </div>
+                    <div>
+                      <Input
+                        type="file"
+                        className="hidden"
+                        id="document-upload-profile"
+                        onChange={handleDocumentUpload}
+                        accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                      />
+                      <Button asChild variant="outline" disabled={isUploadingDocument}>
+                        <label htmlFor="document-upload-profile" className="cursor-pointer">
+                          {isUploadingDocument ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Plus className="h-4 w-4 mr-2" />
+                          )}
+                          Upload Document
+                        </label>
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {documents.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                      <FileText className="h-12 w-12 mx-auto text-muted-foreground/50" />
+                      <p className="text-muted-foreground mt-2 font-medium">No documents uploaded</p>
+                      <p className="text-sm text-muted-foreground">Upload licenses, contracts, or other important documents</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {documents.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-muted rounded">
+                              <FileText className="h-5 w-5 text-muted-foreground" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{doc.name}</p>
+                              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                <Badge variant="outline" className="text-xs">
+                                  {doc.file_type}
+                                </Badge>
+                                <span>{formatFileSize(doc.file_size || 0)}</span>
+                                <span>•</span>
+                                <span>{getRelativeTime(doc.created_at)}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => handleDownloadDocument(doc)}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteDocumentId(doc.id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Delete</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </TabsContent>
 
             {/* Contact Tab */}
@@ -1634,12 +2133,17 @@ export function ViewProfileModal({
                         <TableHead>Status</TableHead>
                         <TableHead>Payment Status</TableHead>
                         <TableHead>Amount</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {currentOrders.length > 0 ? (
                         currentOrders.map((order) => (
-                          <TableRow key={order.id}>
+                          <TableRow 
+                            key={order.id} 
+                            className="cursor-pointer hover:bg-muted/50"
+                            onClick={() => handleViewOrder(order.id)}
+                          >
                             <TableCell className="font-medium">
                               {order.order_number}
                             </TableCell>
@@ -1669,12 +2173,22 @@ export function ViewProfileModal({
                             >
                               ${order.total_amount?.toFixed(2)}
                             </TableCell>
+                            <TableCell>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleViewOrder(order.id); }}>
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View order details</TooltipContent>
+                              </Tooltip>
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
                           <TableCell
-                            colSpan={5}
+                            colSpan={6}
                             className="text-center text-muted-foreground"
                           >
                             No orders found
@@ -2196,17 +2710,26 @@ export function ViewProfileModal({
               </div>
               <div className="space-y-2">
                 <label htmlFor="task-assigned" className="text-sm font-medium">Assigned To</label>
-                <Input
-                  id="task-assigned"
-                  value={
-                    profile?.display_name ||
-                    `${profile?.first_name} ${profile?.last_name}`
-                  }
-                  disabled
-                  className="bg-muted"
-                />
+                <Select
+                  value={taskForm.assigned_to || userId}
+                  onValueChange={(value) => setTaskForm({ ...taskForm, assigned_to: value })}
+                >
+                  <SelectTrigger id="task-assigned">
+                    <SelectValue placeholder="Select assignee" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={userId}>
+                      {profile?.display_name || `${profile?.first_name} ${profile?.last_name}`} (Customer)
+                    </SelectItem>
+                    {staffList.map((staff) => (
+                      <SelectItem key={staff.id} value={staff.id}>
+                        {staff.first_name} {staff.last_name} ({staff.role})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <p className="text-xs text-muted-foreground">
-                  Task will be assigned to this customer
+                  Assign to customer or a staff member
                 </p>
               </div>
               <div className="flex justify-end gap-2">
@@ -2252,6 +2775,24 @@ export function ViewProfileModal({
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={handleDeleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                Delete
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Delete Document Confirmation */}
+        <AlertDialog open={!!deleteDocumentId} onOpenChange={(open) => !open && setDeleteDocumentId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Document</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this document? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDeleteDocument} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
                 Delete
               </AlertDialogAction>
             </AlertDialogFooter>
@@ -2504,6 +3045,42 @@ export function ViewProfileModal({
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Edit User Modal - Uses existing EditUserModal component */}
+        {profile && (
+          <EditUserModal
+            user={{
+              id: profile.id,
+              name: profile.display_name || `${profile.first_name} ${profile.last_name}`,
+              email: profile.email,
+              type: profile.type || "pharmacy",
+              status: profile.status || "active",
+            }}
+            open={isEditModalOpen}
+            onOpenChange={setIsEditModalOpen}
+            onUserUpdated={fetchAllData}
+          />
+        )}
+
+        {/* Order Details Sheet */}
+        {selectedOrder && (
+          <OrderDetailsSheet
+            open={isOrderSheetOpen}
+            order={selectedOrder}
+            isEditing={false}
+            onOpenChange={(open) => {
+              setIsOrderSheetOpen(open);
+              if (!open) setSelectedOrder(null);
+            }}
+            onSave={() => {
+              fetchAllData();
+              setIsOrderSheetOpen(false);
+              setSelectedOrder(null);
+            }}
+            loadOrders={fetchAllData}
+            userRole="admin"
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

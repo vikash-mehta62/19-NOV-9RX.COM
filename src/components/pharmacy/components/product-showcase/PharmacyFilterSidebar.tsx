@@ -3,8 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { Switch } from "@/components/ui/switch"
-import { ChevronDown, ChevronUp, X, Search, Filter } from "lucide-react"
+import { ChevronDown, X, Search, SlidersHorizontal } from "lucide-react"
 import { useState, useEffect } from "react"
 import { supabase } from "@/supabaseClient"
 
@@ -16,7 +15,7 @@ interface CategoryConfig {
 interface SubcategoryConfig {
   id: string
   subcategory_name: string
-  category_id: string
+  category_name: string  // Uses category_name, not category_id
 }
 
 interface PharmacyFilterSidebarProps {
@@ -28,7 +27,7 @@ interface PharmacyFilterSidebarProps {
   setSelectedSubcategory: (subcategory: string) => void
   priceRange: string
   setPriceRange: (range: string) => void
-  products: any[]
+  products?: any[]  // Made optional
   onProductSelect?: (product: any) => void
 }
 
@@ -41,20 +40,14 @@ export const PharmacyFilterSidebar = ({
   setSelectedSubcategory,
   priceRange,
   setPriceRange,
-  products,
+  products = [],  // Default to empty array
   onProductSelect,
 }: PharmacyFilterSidebarProps) => {
   const [categories, setCategories] = useState<CategoryConfig[]>([])
   const [subcategories, setSubcategories] = useState<SubcategoryConfig[]>([])
   const [filteredSubcategories, setFilteredSubcategories] = useState<SubcategoryConfig[]>([])
-  const [expandedFilters, setExpandedFilters] = useState({
-    category: true,
-    subcategory: true,
-    price: true,
-  })
-  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({})
-  const [inStockOnly, setInStockOnly] = useState(false)
-
+  const [showCategory, setShowCategory] = useState(true)
+  const [showSubcategory, setShowSubcategory] = useState(true)
 
   useEffect(() => {
     const fetchFilters = async () => {
@@ -83,262 +76,173 @@ export const PharmacyFilterSidebar = ({
     if (selectedCategory === "all") {
       setFilteredSubcategories(subcategories)
     } else {
-      const selectedCat = categories.find(
-        (cat) => cat.category_name.toLowerCase() === selectedCategory.toLowerCase()
+      // Filter subcategories by category_name (not category_id)
+      setFilteredSubcategories(
+        subcategories.filter((sub) => 
+          sub.category_name.toLowerCase() === selectedCategory.toLowerCase()
+        )
       )
-      if (selectedCat) {
-        const filtered = subcategories.filter((sub) => sub.category_id === selectedCat.id)
-        setFilteredSubcategories(filtered)
-      } else {
-        setFilteredSubcategories([])
-      }
     }
-  }, [selectedCategory, categories, subcategories])
-
-  const toggleFilter = (filter: keyof typeof expandedFilters) => {
-    setExpandedFilters(prev => ({ ...prev, [filter]: !prev[filter] }))
-  }
+    // Reset subcategory selection when category changes
+    setSelectedSubcategory("all")
+  }, [selectedCategory, subcategories])
 
   const clearAllFilters = () => {
     setSearchQuery("")
     setSelectedCategory("all")
     setSelectedSubcategory("all")
     setPriceRange("all")
-    setInStockOnly(false)
   }
 
   const hasActiveFilters = searchQuery || selectedCategory !== "all" || selectedSubcategory !== "all" || priceRange !== "all"
 
-  // Calculate product count for each category
-  const getCategoryProductCount = (categoryName: string) => {
-    if (categoryName === "all") {
-      return products.length
-    }
-    return products.filter(product => 
-      product.category?.toLowerCase() === categoryName.toLowerCase()
-    ).length
-  }
-
-  // Get products for a specific category
-  const getCategoryProducts = (categoryName: string) => {
-    return products.filter(product => 
-      product.category?.toLowerCase() === categoryName.toLowerCase()
-    )
-  }
-
-  // Toggle category dropdown
-  const toggleCategoryDropdown = (categoryName: string) => {
-    setExpandedCategories(prev => ({
-      ...prev,
-      [categoryName]: !prev[categoryName]
-    }))
+  const getCategoryCount = (categoryName: string) => {
+    if (categoryName === "all") return products.length
+    return products.filter(p => p.category?.toLowerCase() === categoryName.toLowerCase()).length
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4">
-        <div className="flex items-center gap-2 text-white">
-          <Filter className="w-5 h-5" />
-          <h3 className="font-semibold">Filters</h3>
-        </div>
+      <div className="bg-emerald-600 px-4 py-3 flex items-center gap-2">
+        <SlidersHorizontal className="w-5 h-5 text-white" />
+        <span className="font-semibold text-white">Filters</span>
       </div>
 
       <div className="p-4 space-y-5">
-        {/* Search Box */}
+        {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Search products..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 h-10 rounded-xl border-gray-200 focus:border-emerald-400 focus:ring-emerald-400"
+            className="pl-9 h-10 border-gray-200 rounded-lg"
           />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <X className="w-4 h-4 text-gray-400 hover:text-gray-600" />
+            </button>
+          )}
         </div>
 
         {/* Active Filters */}
         {hasActiveFilters && (
-          <div className="space-y-2 pb-4 border-b border-gray-100">
-            <div className="flex items-center justify-between">
+          <div className="pb-4 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-gray-500">Active Filters</span>
-              <Button variant="ghost" size="sm" onClick={clearAllFilters} className="text-emerald-600 hover:text-emerald-700 h-auto p-0 text-xs">
+              <button onClick={clearAllFilters} className="text-xs text-red-500 hover:text-red-600">
                 Clear all
-              </Button>
+              </button>
             </div>
             <div className="flex flex-wrap gap-1.5">
-              {searchQuery && (
-                <Badge variant="secondary" className="flex items-center gap-1 bg-gray-100 text-gray-700 text-xs rounded-full px-2 py-0.5">
-                  "{searchQuery}"
-                  <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setSearchQuery("")} />
-                </Badge>
-              )}
               {selectedCategory !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1 bg-emerald-100 text-emerald-700 text-xs rounded-full px-2 py-0.5">
+                <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-200 cursor-pointer rounded-full text-xs px-2 py-0.5">
                   {selectedCategory}
-                  <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setSelectedCategory("all")} />
+                  <X className="w-3 h-3 ml-1" onClick={() => setSelectedCategory("all")} />
                 </Badge>
               )}
               {selectedSubcategory !== "all" && (
-                <Badge variant="secondary" className="flex items-center gap-1 bg-purple-100 text-purple-700 text-xs rounded-full px-2 py-0.5">
+                <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-200 cursor-pointer rounded-full text-xs px-2 py-0.5">
                   {selectedSubcategory}
-                  <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={() => setSelectedSubcategory("all")} />
+                  <X className="w-3 h-3 ml-1" onClick={() => setSelectedSubcategory("all")} />
                 </Badge>
               )}
             </div>
           </div>
         )}
 
-        {/* In Stock Toggle */}
-        <div className="flex items-center justify-between py-2 px-3 bg-gray-50 rounded-xl">
-          <span className="text-sm font-medium text-gray-700">In Stock Only</span>
-          <Switch
-            checked={inStockOnly}
-            onCheckedChange={setInStockOnly}
-            className="data-[state=checked]:bg-emerald-500"
-          />
-        </div>
-
-        {/* Category Filter with Product Counts and Dropdowns */}
-        <div className="border-b border-gray-100 pb-4">
+        {/* Category */}
+        <div>
           <button
-            onClick={() => toggleFilter("category")}
-            className="flex items-center justify-between w-full text-left font-semibold text-gray-800 mb-3 text-sm"
+            onClick={() => setShowCategory(!showCategory)}
+            className="flex items-center justify-between w-full mb-3"
           >
-            <span>Category</span>
-            {expandedFilters.category ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+            <span className="font-semibold text-gray-800 text-sm">Category</span>
+            <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showCategory ? 'rotate-180' : ''}`} />
           </button>
-          {expandedFilters.category && (
-            <div className="space-y-1 max-h-96 overflow-y-auto pr-1">
-              <div
-                className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedCategory === "all" ? "bg-emerald-100 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
+          
+          {showCategory && (
+            <div className="space-y-1 max-h-64 overflow-y-auto">
+              {/* All Categories */}
+              <button
                 onClick={() => setSelectedCategory("all")}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                  selectedCategory === "all" 
+                    ? "bg-emerald-50 text-emerald-700 font-medium" 
+                    : "text-gray-600 hover:bg-gray-50"
+                }`}
               >
-                <div className="flex items-center justify-between">
-                  <span>All Categories</span>
-                  <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
-                    {getCategoryProductCount("all")}
-                  </Badge>
-                </div>
-              </div>
-              {categories.map((category) => {
-                const productCount = getCategoryProductCount(category.category_name)
-                const categoryProducts = getCategoryProducts(category.category_name)
-                const isExpanded = expandedCategories[category.category_name]
-                
+                <span>All Categories</span>
+                <Badge variant="secondary" className="bg-gray-100 text-gray-600 text-xs">
+                  {getCategoryCount("all")}
+                </Badge>
+              </button>
+
+              {categories.map((cat) => {
+                const count = getCategoryCount(cat.category_name)
+                const isSelected = selectedCategory.toLowerCase() === cat.category_name.toLowerCase()
                 return (
-                  <div key={category.id} className="space-y-1">
-                    {/* Category Header */}
-                    <div className="flex items-center">
-                      <div
-                        className={`flex-1 cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedCategory.toLowerCase() === category.category_name.toLowerCase() ? "bg-emerald-100 text-emerald-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
-                        onClick={() => setSelectedCategory(category.category_name.toLowerCase())}
-                      >
-                        <div className="flex items-center justify-between">
-                          <span>{category.category_name}</span>
-                          <Badge variant="secondary" className="bg-gray-200 text-gray-600 text-xs">
-                            {productCount}
-                          </Badge>
-                        </div>
-                      </div>
-                      {productCount > 0 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="ml-1 p-1 h-auto"
-                          onClick={() => toggleCategoryDropdown(category.category_name)}
-                        >
-                          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </Button>
-                      )}
-                    </div>
-                    
-                    {/* Category Products Dropdown */}
-                    {isExpanded && productCount > 0 && (
-                      <div className="ml-4 space-y-1 border-l-2 border-emerald-200 pl-3">
-                        {categoryProducts.map((product) => (
-                          <div
-                            key={product.id}
-                            className="cursor-pointer text-xs py-1.5 px-2 rounded text-gray-600 hover:bg-emerald-50 hover:text-emerald-700 transition-all"
-                            onClick={() => onProductSelect && onProductSelect(product)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <span className="truncate">{product.name}</span>
-                              <Badge variant="outline" className="text-xs ml-2">
-                                {product.sizes?.length || 0} sizes
-                              </Badge>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedCategory(cat.category_name.toLowerCase())}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors ${
+                      isSelected 
+                        ? "bg-emerald-50 text-emerald-700 font-medium" 
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
+                  >
+                    <span className="truncate pr-2">{cat.category_name}</span>
+                    <Badge variant="secondary" className={`text-xs ${isSelected ? 'bg-emerald-200 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
+                      {count}
+                    </Badge>
+                  </button>
                 )
               })}
             </div>
           )}
         </div>
 
-        {/* Subcategory Filter */}
+        {/* Subcategory */}
         {filteredSubcategories.length > 0 && (
-          <div className="border-b border-gray-100 pb-4">
+          <div className="pt-4 border-t border-gray-100">
             <button
-              onClick={() => toggleFilter("subcategory")}
-              className="flex items-center justify-between w-full text-left font-semibold text-gray-800 mb-3 text-sm"
+              onClick={() => setShowSubcategory(!showSubcategory)}
+              className="flex items-center justify-between w-full mb-3"
             >
-              <span>Subcategory</span>
-              {expandedFilters.subcategory ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+              <span className="font-semibold text-gray-800 text-sm">Subcategory</span>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${showSubcategory ? 'rotate-180' : ''}`} />
             </button>
-            {expandedFilters.subcategory && (
-              <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
-                <div
-                  className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedSubcategory === "all" ? "bg-purple-100 text-purple-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
+            
+            {showSubcategory && (
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                <button
                   onClick={() => setSelectedSubcategory("all")}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
+                    selectedSubcategory === "all" 
+                      ? "bg-blue-50 text-blue-700 font-medium" 
+                      : "text-gray-600 hover:bg-gray-50"
+                  }`}
                 >
                   All Subcategories
-                </div>
+                </button>
                 {filteredSubcategories.map((sub) => (
-                  <div
+                  <button
                     key={sub.id}
-                    className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${selectedSubcategory.toLowerCase() === sub.subcategory_name.toLowerCase() ? "bg-purple-100 text-purple-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
                     onClick={() => setSelectedSubcategory(sub.subcategory_name.toLowerCase())}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors truncate ${
+                      selectedSubcategory.toLowerCase() === sub.subcategory_name.toLowerCase() 
+                        ? "bg-blue-50 text-blue-700 font-medium" 
+                        : "text-gray-600 hover:bg-gray-50"
+                    }`}
                   >
                     {sub.subcategory_name}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
           </div>
         )}
-
-        {/* Price Filter */}
-        <div>
-          <button
-            onClick={() => toggleFilter("price")}
-            className="flex items-center justify-between w-full text-left font-semibold text-gray-800 mb-3 text-sm"
-          >
-            <span>Price Range</span>
-            {expandedFilters.price ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-          </button>
-          {expandedFilters.price && (
-            <div className="space-y-1">
-              {[
-                { value: "all", label: "All Prices" },
-                { value: "0-20", label: "Under $20" },
-                { value: "21-50", label: "$21 - $50" },
-                { value: "51-100", label: "$51 - $100" },
-                { value: "101+", label: "$101 & Above" },
-              ].map((range) => (
-                <div
-                  key={range.value}
-                  className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-all ${priceRange === range.value ? "bg-blue-100 text-blue-700 font-medium" : "text-gray-600 hover:bg-gray-50"}`}
-                  onClick={() => setPriceRange(range.value)}
-                >
-                  {range.label}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   )

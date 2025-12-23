@@ -30,12 +30,14 @@ import {
   Send,
   Zap,
   ShoppingBag,
+  CreditCard,
 } from "lucide-react"
 import { SidebarHeader } from "./dashboard/SidebarHeader";
 import { SidebarProfile } from "./dashboard/SidebarProfile";
 import { TopBar } from "./dashboard/TopBar";
 import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
+import { AnnouncementDisplay } from "./AnnouncementDisplay"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -47,31 +49,65 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
 
   const menuItems = {
     admin: [
-      { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
-      { icon: Users, label: "Users", path: "/admin/users" },
-      { icon: Package, label: "Products", path: "/admin/products" },
-      { icon: BoxIcon, label: "Inventory", path: "/admin/inventory" },
-      { icon: DollarSign, label: "Expenses", path: "/admin/expenses" },
-      { icon: FileText, label: "Orders", path: "/admin/orders" },
-      { icon: FileText, label: "Purchase Order", path: "/admin/po" },
-      { icon: Receipt, label: "Invoices", path: "/admin/invoices" },
       {
-        icon: DollarSign,
-        label: "Group Pricing",
-        path: "/admin/group-pricing",
+        label: "Overview",
+        items: [
+          { icon: LayoutDashboard, label: "Dashboard", path: "/admin/dashboard" },
+        ],
       },
-      { icon: Users, label: "Groups", path: "/admin/groups" },
-      { icon: Sparkles, label: "Festival Themes", path: "/admin/festival-themes" },
-      { icon: Image, label: "Banners", path: "/admin/banners" },
-      { icon: Percent, label: "Offers & Promos", path: "/admin/offers" },
-      { icon: PenSquare, label: "Blogs", path: "/admin/blogs" },
-      { icon: Megaphone, label: "Announcements", path: "/admin/announcements" },
-      { icon: Mail, label: "Email Templates", path: "/admin/email-templates" },
-      { icon: Send, label: "Email Campaigns", path: "/admin/email-campaigns" },
-      { icon: Zap, label: "Email Automations", path: "/admin/email-automations" },
-      { icon: ShoppingBag, label: "Abandoned Carts", path: "/admin/abandoned-carts" },
-      { icon: Settings, label: "Settings", path: "/admin/settings" },
-      { icon: Logs, label: "Logs", path: "/admin/logs" },
+      {
+        label: "Sales & Orders",
+        items: [
+          { icon: FileText, label: "Sales Orders", path: "/admin/orders" },
+          { icon: Receipt, label: "Invoices", path: "/admin/invoices" },
+          { icon: FileText, label: "Purchase Orders", path: "/admin/po" },
+          { icon: DollarSign, label: "Expenses", path: "/admin/expenses" },
+        ],
+      },
+      {
+        label: "Catalog",
+        items: [
+          { icon: Package, label: "Products", path: "/admin/products" },
+          { icon: BoxIcon, label: "Inventory", path: "/admin/inventory" },
+          { icon: DollarSign, label: "Special Pricing", path: "/admin/group-pricing" },
+        ],
+      },
+      {
+        label: "Customers",
+        items: [
+          { icon: Users, label: "Users", path: "/admin/users" },
+          { icon: Users, label: "Groups", path: "/admin/groups" },
+          { icon: ShoppingBag, label: "Abandoned Carts", path: "/admin/abandoned-carts" },
+          { icon: Gift, label: "Rewards Program", path: "/admin/rewards" },
+        ],
+      },
+      {
+        label: "Marketing",
+        items: [
+          { icon: Percent, label: "Offers & Promos", path: "/admin/offers" },
+          { icon: Image, label: "Banners", path: "/admin/banners" },
+          { icon: Megaphone, label: "Announcements", path: "/admin/announcements" },
+          { icon: PenSquare, label: "Blogs", path: "/admin/blogs" },
+          { icon: Sparkles, label: "Festival Themes", path: "/admin/festival-themes" },
+        ],
+      },
+      {
+        label: "Email",
+        items: [
+          { icon: Mail, label: "Templates", path: "/admin/email-templates" },
+          { icon: Send, label: "Campaigns", path: "/admin/email-campaigns" },
+          { icon: Zap, label: "Automations", path: "/admin/email-automations" },
+          { icon: Settings, label: "Settings", path: "/admin/email-settings" },
+        ],
+      },
+      {
+        label: "System",
+        items: [
+          { icon: Settings, label: "Settings", path: "/admin/settings" },
+          { icon: CreditCard, label: "Payments", path: "/admin/payment-transactions" },
+          { icon: Logs, label: "Activity Logs", path: "/admin/logs" },
+        ],
+      },
     ],
     pharmacy: [
       { icon: Package, label: "Products", path: "/pharmacy/products" },
@@ -81,6 +117,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       { icon: Receipt, label: "Invoices", path: "/pharmacy/invoices" },
       { icon: FileBarChart, label: "Statements", path: "/pharmacy/statements" },
       { icon: Wallet, label: "Credit Balance", path: "/pharmacy/credit" },
+      { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" },
       { icon: Gift, label: "Rewards", path: "/pharmacy/rewards" },
       { icon: Heart, label: "Wishlist", path: "/pharmacy/wishlist" },
       { icon: Settings, label: "Settings", path: "/pharmacy/settings" },
@@ -104,13 +141,22 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: ShoppingCart, label: "Order Products", path: "/group/order" },
           { icon: ListChecks, label: "Orders", path: "/group/orders" },
           { icon: Receipt, label: "Invoices", path: "/group/invoices" },
-          { icon: DollarSign, label: "Group Pricing", path: "/group/pricing" },
+          { icon: DollarSign, label: "Special Pricing", path: "/group/pricing" },
         ],
       },
       {
         label: "Management",
         items: [
+          { icon: Users, label: "Pharmacies", path: "/group/locations" },
+          { icon: Users, label: "Staff", path: "/group/staff" },
           { icon: Users, label: "Invitations", path: "/group/invitations" },
+        ],
+      },
+      {
+        label: "Reports",
+        items: [
+          { icon: FileBarChart, label: "Analytics", path: "/group/analytics" },
+          { icon: FileText, label: "Reports", path: "/group/reports" },
           { icon: Settings, label: "Settings", path: "/group/settings" },
         ],
       },
@@ -141,7 +187,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
               <SidebarHeader />
               <SidebarGroup>
                 <SidebarGroupContent>
-                  <SidebarNavigation items={menuItems[role]} isGrouped={role === "group"} />
+                  <SidebarNavigation items={menuItems[role]} isGrouped={role === "group" || role === "admin"} />
                 </SidebarGroupContent>
               </SidebarGroup>
               <SidebarProfile />
@@ -152,7 +198,10 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         <main className="flex-1 flex flex-col min-h-screen">
           <TopBar />
           <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-scroll max-w-[100vw]">
-            <div className="mx-auto max-w-7xl">{children}</div>
+            <div className="mx-auto max-w-7xl">
+              <AnnouncementDisplay userRole={role} />
+              {children}
+            </div>
           </div>
         </main>
       </div>

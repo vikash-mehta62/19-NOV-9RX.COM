@@ -155,8 +155,19 @@ export const SignupForm = () => {
         onChange={handleInputChange}
         isLoading={isLoading}
       />
-      <Button type="submit" className="w-full" disabled={isLoading}>
-        {isLoading ? "Creating Account..." : "Create Account"}
+      <Button 
+        type="submit" 
+        className="w-full h-12 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-purple-500/30 hover:shadow-purple-500/40 transition-all duration-300" 
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <>
+            <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            Creating Account...
+          </>
+        ) : (
+          "Create Account"
+        )}
       </Button>
     </form>
   );

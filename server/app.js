@@ -7,10 +7,62 @@ const SDKConstants = require("authorizenet").Constants;
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
-
-
 dotenv.config();
 connectDB();
+
+// Simple in-memory rate limiter (no extra dependency needed)
+const rateLimitStore = new Map();
+
+const createRateLimiter = (windowMs, maxRequests) => {
+  return (req, res, next) => {
+    const key = req.ip;
+    const now = Date.now();
+    
+    if (!rateLimitStore.has(key)) {
+      rateLimitStore.set(key, { count: 1, resetTime: now + windowMs });
+      return next();
+    }
+    
+    const record = rateLimitStore.get(key);
+    
+    if (now > record.resetTime) {
+      record.count = 1;
+      record.resetTime = now + windowMs;
+      return next();
+    }
+    
+    if (record.count >= maxRequests) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many requests. Please try again later.",
+      });
+    }
+    
+    record.count++;
+    next();
+  };
+};
+
+// Rate limiters
+const generalLimiter = createRateLimiter(
+  parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
+  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100
+);
+
+const emailLimiter = createRateLimiter(
+  15 * 60 * 1000, // 15 minutes
+  parseInt(process.env.EMAIL_RATE_LIMIT_MAX) || 10 // 10 emails per 15 min
+);
+
+// Clean up old rate limit entries every 30 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, record] of rateLimitStore.entries()) {
+    if (now > record.resetTime) {
+      rateLimitStore.delete(key);
+    }
+  }
+}, 30 * 60 * 1000);
 
 // body parser
 app.use(express.json({ limit: "500mb" }));
@@ -20,7 +72,7 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 
 
-const { orderSatusCtrl, orderPlacedCtrl, userNotificationCtrl, contactCtrl, customization, accountActivation, paymentLink, paymentLinkCtrl, adminAccountActivation, updateProfileNotification, paymentSuccessFull } = require("./controllers/orderStatus");
+const { orderSatusCtrl, orderPlacedCtrl, userNotificationCtrl, contactCtrl, customization, accountActivation, paymentLink, paymentLinkCtrl, adminAccountActivation, updateProfileNotification, paymentSuccessFull, groupInvitationCtrl } = require("./controllers/orderStatus");
 const { invoicesCtrl } = require("./controllers/quickBooks");
 
 app.use(logger("dev"));
@@ -124,7 +176,7 @@ app.post("/pay", async (req, res) => {
     const merchantAuthenticationType = createMerchantAuthenticationType();
 
 
-    // Set up payment method
+    // Set up payment method (Credit Card only - ACH uses /pay-ach endpoint)
     let paymentType;
     if (cardNumber) {
       const creditCard = new ApiContracts.CreditCardType();
@@ -133,20 +185,8 @@ app.post("/pay", async (req, res) => {
       creditCard.setCardCode(cvv);
       paymentType = new ApiContracts.PaymentType();
       paymentType.setCreditCard(creditCard);
-      accountNumber = undefined; // Bank account validation ko bypass karega
-
-    } else if (false) {
-      const bankAccount = new ApiContracts.BankAccountType();
-      bankAccount.setAccountType(
-        ApiContracts.BankAccountTypeEnum[accountType.toUpperCase()]
-      );
-      bankAccount.setRoutingNumber(routingNumber);
-      bankAccount.setAccountNumber(accountNumber);
-      bankAccount.setNameOnAccount(nameOnAccount);
-      paymentType = new ApiContracts.PaymentType();
-      paymentType.setBankAccount(bankAccount);
     } else {
-      return res.status(400).json({ error: "Invalid payment details" });
+      return res.status(400).json({ error: "Card number is required" });
     }
 
     // Create order details
@@ -156,16 +196,9 @@ app.post("/pay", async (req, res) => {
 
     // Set billing information
     const billTo = new ApiContracts.CustomerAddressType();
-    const firstName = cardholderName
-      ? cardholderName.split(" ")[0]
-      : nameOnAccount.split(" ")[0];
-    const lastName = cardholderName
-      ? cardholderName.split(" ").length > 1
-        ? cardholderName.split(" ").slice(1).join(" ")
-        : ""
-      : nameOnAccount.split(" ").length > 1
-        ? nameOnAccount.split(" ").slice(1).join(" ")
-        : "";
+    const nameParts = (cardholderName || "Customer").split(" ");
+    const firstName = nameParts[0] || "Customer";
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
 
     billTo.setFirstName(firstName || "Customer");
     billTo.setLastName(lastName || "Customer");
@@ -259,11 +292,10 @@ app.post("/pay", async (req, res) => {
           }
         } else {
           let errorMessage = "Transaction Failed";
+          let errorCode = null;
           if (response.getMessages() && response.getMessages().getMessage()) {
             const messages = response.getMessages().getMessage();
-            console.log(response)
             if (messages.length > 0) {
-              console.log(messages)
               errorMessage = messages[0].getText();
               errorCode = messages[0].code;
             }
@@ -272,8 +304,7 @@ app.post("/pay", async (req, res) => {
             success: false,
             message: "Transaction Failed",
             error: errorMessage,
-            errocode:errorCode
-            
+            errorCode: errorCode
           });
         }
       } catch (error) {
@@ -294,21 +325,266 @@ app.post("/pay", async (req, res) => {
   }
 });
 
+// ACH/eCheck Payment Endpoint
+app.post("/pay-ach", async (req, res) => {
+  try {
+    const {
+      invoiceNumber,
+      amount: rawAmount,
+      accountType,
+      routingNumber,
+      accountNumber,
+      nameOnAccount,
+      bankName,
+      address,
+      city,
+      state,
+      zip: rawZip,
+      country
+    } = req.body;
+
+    const amount = rawAmount ? parseFloat(rawAmount) : 0;
+    const zip = rawZip ? String(rawZip) : "";
+
+    // Validate required fields
+    if (!amount) {
+      return res.status(400).json({ error: "Amount is required" });
+    }
+    if (!routingNumber || !accountNumber || !nameOnAccount) {
+      return res.status(400).json({ error: "Incomplete bank account details" });
+    }
+
+    // Create merchant authentication
+    const merchantAuthenticationType = createMerchantAuthenticationType();
+
+    // Set up bank account payment
+    const bankAccount = new ApiContracts.BankAccountType();
+    
+    // Map account type
+    let achAccountType;
+    switch (accountType?.toLowerCase()) {
+      case 'savings':
+        achAccountType = ApiContracts.BankAccountTypeEnum.SAVINGS;
+        break;
+      case 'businesschecking':
+        achAccountType = ApiContracts.BankAccountTypeEnum.BUSINESSCHECKING;
+        break;
+      default:
+        achAccountType = ApiContracts.BankAccountTypeEnum.CHECKING;
+    }
+    
+    bankAccount.setAccountType(achAccountType);
+    bankAccount.setRoutingNumber(routingNumber);
+    bankAccount.setAccountNumber(accountNumber);
+    bankAccount.setNameOnAccount(nameOnAccount);
+    if (bankName) bankAccount.setBankName(bankName);
+    bankAccount.setEcheckType(ApiContracts.EcheckTypeEnum.WEB);
+
+    const paymentType = new ApiContracts.PaymentType();
+    paymentType.setBankAccount(bankAccount);
+
+    // Create order details
+    const orderDetails = new ApiContracts.OrderType();
+    orderDetails.setInvoiceNumber(invoiceNumber || `ACH-${Math.floor(Math.random() * 100000)}`);
+    orderDetails.setDescription("ACH Payment");
+
+    // Set billing information
+    const billTo = new ApiContracts.CustomerAddressType();
+    const nameParts = nameOnAccount.split(" ");
+    billTo.setFirstName(nameParts[0] || "Customer");
+    billTo.setLastName(nameParts.slice(1).join(" ") || "Customer");
+    if (address) billTo.setAddress(address);
+    if (city) billTo.setCity(city);
+    if (state) billTo.setState(state);
+    if (zip) billTo.setZip(zip);
+    billTo.setCountry(country || "USA");
+
+    // Create transaction request
+    const transactionRequestType = new ApiContracts.TransactionRequestType();
+    transactionRequestType.setTransactionType(
+      ApiContracts.TransactionTypeEnum.AUTHCAPTURETRANSACTION
+    );
+    transactionRequestType.setPayment(paymentType);
+    transactionRequestType.setAmount(amount);
+    transactionRequestType.setOrder(orderDetails);
+    transactionRequestType.setBillTo(billTo);
+
+    // Create request
+    const createRequest = new ApiContracts.CreateTransactionRequest();
+    createRequest.setMerchantAuthentication(merchantAuthenticationType);
+    createRequest.setTransactionRequest(transactionRequestType);
+    createRequest.setRefId(Math.floor(Math.random() * 1000000).toString());
+
+    // Execute request
+    const ctrl = new ApiControllers.CreateTransactionController(
+      createRequest.getJSON()
+    );
+    ctrl.setEnvironment(ENVIRONMENT);
+
+    await ctrl.execute(function () {
+      try {
+        const apiResponse = ctrl.getResponse();
+        const response = new ApiContracts.CreateTransactionResponse(apiResponse);
+
+        if (!response) {
+          return res.status(500).json({ error: "Invalid response from payment gateway" });
+        }
+
+        if (
+          response.getMessages() &&
+          response.getMessages().getResultCode() === ApiContracts.MessageTypeEnum.OK
+        ) {
+          const transactionResponse = response.getTransactionResponse();
+
+          if (transactionResponse && transactionResponse.getResponseCode() === "1") {
+            return res.json({
+              success: true,
+              message: "ACH Transaction Initiated!",
+              transactionId: transactionResponse.getTransId(),
+            });
+          } else {
+            let errorMessage = "ACH Transaction Declined";
+            if (transactionResponse?.getErrors()?.getError()) {
+              const errors = transactionResponse.getErrors().getError();
+              if (errors.length > 0) {
+                errorMessage = errors[0].getErrorText();
+              }
+            }
+            return res.status(400).json({
+              success: false,
+              message: "ACH Transaction Declined",
+              error: errorMessage,
+            });
+          }
+        } else {
+          let errorMessage = "ACH Transaction Failed";
+          let errorCode = "";
+          if (response.getMessages()?.getMessage()) {
+            const messages = response.getMessages().getMessage();
+            if (messages.length > 0) {
+              errorMessage = messages[0].getText();
+              errorCode = messages[0].getCode();
+            }
+          }
+          return res.status(400).json({
+            success: false,
+            message: "ACH Transaction Failed",
+            error: errorMessage,
+            errorCode: errorCode,
+          });
+        }
+      } catch (error) {
+        console.error("Error processing ACH response:", error);
+        return res.status(500).json({
+          error: "Error processing ACH payment response",
+          details: error.message,
+        });
+      }
+    });
+  } catch (error) {
+    console.error("ACH Payment Error:", error);
+    res.status(500).json({ error: "Internal Server Error", details: error.message });
+  }
+});
+
+// Test Authorize.net Connection
+app.post("/test-authorize", async (req, res) => {
+  try {
+    const { apiLoginId, transactionKey, testMode } = req.body;
+
+    if (!apiLoginId || !transactionKey) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "API Login ID and Transaction Key are required" 
+      });
+    }
+
+    // Create merchant authentication with provided credentials
+    const merchantAuth = new ApiContracts.MerchantAuthenticationType();
+    merchantAuth.setName(apiLoginId);
+    merchantAuth.setTransactionKey(transactionKey);
+
+    // Use getMerchantDetails to test credentials
+    const getRequest = new ApiContracts.GetMerchantDetailsRequest();
+    getRequest.setMerchantAuthentication(merchantAuth);
+
+    const ctrl = new ApiControllers.GetMerchantDetailsController(getRequest.getJSON());
+    
+    // Set environment based on testMode
+    const environment = testMode 
+      ? SDKConstants.endpoint.sandbox 
+      : SDKConstants.endpoint.production;
+    ctrl.setEnvironment(environment);
+
+    await ctrl.execute(function () {
+      try {
+        const apiResponse = ctrl.getResponse();
+        const response = new ApiContracts.GetMerchantDetailsResponse(apiResponse);
+
+        if (
+          response.getMessages() &&
+          response.getMessages().getResultCode() === ApiContracts.MessageTypeEnum.OK
+        ) {
+          return res.json({
+            success: true,
+            message: "Connection successful",
+            merchantName: response.getMerchantName ? response.getMerchantName() : null,
+          });
+        } else {
+          let errorMessage = "Connection failed";
+          if (response.getMessages()?.getMessage()) {
+            const messages = response.getMessages().getMessage();
+            if (messages.length > 0) {
+              errorMessage = messages[0].getText();
+            }
+          }
+          return res.status(400).json({
+            success: false,
+            message: errorMessage,
+          });
+        }
+      } catch (error) {
+        console.error("Error testing connection:", error);
+        return res.status(500).json({
+          success: false,
+          message: "Error testing connection",
+          details: error.message,
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Test Connection Error:", error);
+    res.status(500).json({ 
+      success: false, 
+      message: "Internal Server Error", 
+      details: error.message 
+    });
+  }
+});
+
+// Apply general rate limiter to all routes
+app.use(generalLimiter);
+
+// Routes
 app.use("/logs", require("./routes/logsRoute"))
+app.use("/api/email", require("./routes/emailRoutes")) // Email tracking, webhooks, unsubscribe
+app.use("/api/users", require("./routes/userRoutes")) // User management (secure)
 
-app.post("/order-status", orderSatusCtrl)
-app.post("/order-place", orderPlacedCtrl)
-app.post("/user-verification", userNotificationCtrl)
+// Email endpoints with stricter rate limiting
+app.post("/order-status", emailLimiter, orderSatusCtrl)
+app.post("/order-place", emailLimiter, orderPlacedCtrl)
+app.post("/user-verification", emailLimiter, userNotificationCtrl)
 
-app.post("/active", accountActivation)
-app.post("/active-admin", adminAccountActivation)
-app.post("/password-confirmation", adminAccountActivation)
-app.post("/update-profile", updateProfileNotification)
-app.post("/pay-successfull", paymentSuccessFull)
+app.post("/active", emailLimiter, accountActivation)
+app.post("/active-admin", emailLimiter, adminAccountActivation)
+app.post("/password-confirmation", emailLimiter, adminAccountActivation)
+app.post("/update-profile", emailLimiter, updateProfileNotification)
+app.post("/pay-successfull", emailLimiter, paymentSuccessFull)
 
-app.post("/contact", contactCtrl)
-app.post("/customization", customization)
-app.post("/paynow-user", paymentLinkCtrl)
+app.post("/contact", emailLimiter, contactCtrl)
+app.post("/customization", emailLimiter, customization)
+app.post("/paynow-user", emailLimiter, paymentLinkCtrl)
+app.post("/group-invitation", emailLimiter, groupInvitationCtrl)
 app.post("/invoice-quickbook", invoicesCtrl)
 
 

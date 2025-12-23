@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar";
 import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid";
+import { BannerSlider } from "./components/BannerSlider";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { ProductDetails } from "./types/product.types";
@@ -232,45 +233,32 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
 
   return (
     <div className="min-h-screen bg-gray-50/50 -m-6 p-6">
-      {/* Promotional Banner - Elegant & Eye-catching */}
+      {/* Dynamic Banner Slider */}
       {!groupShow && (
-        <div className="mb-6 relative overflow-hidden rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-500 to-cyan-500 p-6 shadow-xl">
-          {/* Decorative Elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2"></div>
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2"></div>
-          <div className="absolute top-1/2 right-1/4 w-20 h-20 bg-white/5 rounded-full"></div>
+        <div className="mb-6">
+          <BannerSlider 
+            bannerType="hero" 
+            autoPlay={true} 
+            autoPlayInterval={5000}
+            className="mb-4"
+          />
           
-          <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="bg-white/20 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full">
-                  🎉 SPECIAL OFFER
-                </span>
-              </div>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">
-                Premium Pharmacy Supplies
-              </h2>
-              <p className="text-emerald-100 text-sm md:text-base max-w-lg">
-                Quality products at competitive prices. Free delivery on all orders!
-              </p>
+          {/* Quick Stats Bar */}
+          <div className="flex flex-wrap gap-3 justify-center md:justify-start">
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
+              <Package className="w-5 h-5 text-white mx-auto mb-1" />
+              <div className="text-white font-bold">{filteredProducts.length}</div>
+              <div className="text-emerald-100 text-xs">Products</div>
             </div>
-            
-            <div className="flex flex-wrap gap-3">
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
-                <Package className="w-6 h-6 text-white mx-auto mb-1" />
-                <div className="text-white font-bold text-lg">{filteredProducts.length}</div>
-                <div className="text-emerald-100 text-xs">Products</div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
-                <Truck className="w-6 h-6 text-white mx-auto mb-1" />
-                <div className="text-white font-bold text-lg">FREE</div>
-                <div className="text-emerald-100 text-xs">Delivery</div>
-              </div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-xl px-4 py-3 text-center min-w-[100px]">
-                <Star className="w-6 h-6 text-white mx-auto mb-1" />
-                <div className="text-white font-bold text-lg">BULK</div>
-                <div className="text-emerald-100 text-xs">Discounts</div>
-              </div>
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
+              <Truck className="w-5 h-5 text-white mx-auto mb-1" />
+              <div className="text-white font-bold">FREE</div>
+              <div className="text-blue-100 text-xs">Delivery</div>
+            </div>
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
+              <Star className="w-5 h-5 text-white mx-auto mb-1" />
+              <div className="text-white font-bold">BULK</div>
+              <div className="text-purple-100 text-xs">Discounts</div>
             </div>
           </div>
         </div>
@@ -290,6 +278,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
               setSelectedSubcategory={setSelectedSubcategory}
               priceRange={priceRange}
               setPriceRange={setPriceRange}
+              products={filteredProducts}
             />
           </div>
         </aside>
@@ -322,6 +311,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
                         setSelectedSubcategory={setSelectedSubcategory}
                         priceRange={priceRange}
                         setPriceRange={setPriceRange}
+                        products={filteredProducts}
                       />
                     </div>
                   </ScrollArea>

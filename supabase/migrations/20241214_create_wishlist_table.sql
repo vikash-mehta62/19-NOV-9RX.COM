@@ -10,28 +10,21 @@ CREATE TABLE IF NOT EXISTS wishlist (
     -- Ensure unique combination of user_id, product_id, and size_id
     UNIQUE(user_id, product_id, size_id)
 );
-
 -- Create indexes for better performance
 CREATE INDEX IF NOT EXISTS idx_wishlist_user_id ON wishlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_product_id ON wishlist(product_id);
 CREATE INDEX IF NOT EXISTS idx_wishlist_created_at ON wishlist(created_at DESC);
-
 -- Enable RLS (Row Level Security)
 ALTER TABLE wishlist ENABLE ROW LEVEL SECURITY;
-
 -- Create RLS policies
 CREATE POLICY "Users can view their own wishlist items" ON wishlist
     FOR SELECT USING (auth.uid() = user_id);
-
 CREATE POLICY "Users can insert their own wishlist items" ON wishlist
     FOR INSERT WITH CHECK (auth.uid() = user_id);
-
 CREATE POLICY "Users can update their own wishlist items" ON wishlist
     FOR UPDATE USING (auth.uid() = user_id);
-
 CREATE POLICY "Users can delete their own wishlist items" ON wishlist
     FOR DELETE USING (auth.uid() = user_id);
-
 -- Create function to update updated_at timestamp
 CREATE OR REPLACE FUNCTION update_wishlist_updated_at()
 RETURNS TRIGGER AS $$
@@ -40,7 +33,6 @@ BEGIN
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
-
 -- Create trigger to automatically update updated_at
 CREATE TRIGGER update_wishlist_updated_at_trigger
     BEFORE UPDATE ON wishlist

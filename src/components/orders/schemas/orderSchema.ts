@@ -60,14 +60,31 @@ const paymentSchema = z.object({
   achAccountNumber: z.string().optional(),
 });
 
-// Add shippingAddress schema
-const shippingAddressSchema = z.object({
-  fullName: z.string().min(1, "Full name is required"),
-  email: z.string().email("Invalid email address"),
-  phone: z.string().min(0, "Phone number must be at least 10 digits"),
-  address: addressSchema,
- 
+// Billing/Shipping address with extended fields
+const extendedAddressSchema = z.object({
+  street1: z.string().optional(),
+  street2: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zipCode: z.string().optional(),
+  companyName: z.string().optional(),
+  phone: z.string().optional(),
 });
+
+// Add shippingAddress schema - supports both legacy and new format
+const shippingAddressSchema = z.object({
+  fullName: z.string().optional(),
+  email: z.string().optional(),
+  phone: z.string().optional(),
+  address: addressSchema.optional(),
+  // Extended format with billing/shipping objects
+  billing: extendedAddressSchema.optional(),
+  shipping: extendedAddressSchema.optional(),
+});
+
+// Export types for use in components
+export type ExtendedAddress = z.infer<typeof extendedAddressSchema>;
+export type ShippingAddressData = z.infer<typeof shippingAddressSchema>;
 
 export const orderFormSchema = z.object({
   id: z.string(),
@@ -82,17 +99,20 @@ export const orderFormSchema = z.object({
   poApproved: z.string().optional(),
   shipping_cost: z.string().optional(),
   quickBooksID: z.string().optional(),
-  payment_status: z.string(), // ✅ Add this line
-  order_number : z.string(), 
-  customization : z.boolean(),
-  poAccept : z.boolean(),
+  payment_status: z.string(),
+  payment_transication: z.string().optional(), // Transaction ID from payment processor
+  payment_method: z.string().optional(),
+  order_number: z.string(), // Sales Order number (SO-XXXXX)
+  invoice_number: z.string().optional(), // Invoice number (INV-XXXXX) - generated on confirmation
+  customization: z.boolean(),
+  poAccept: z.boolean(),
   customerInfo: customerInfoSchema,
   items: z.array(orderItemSchema),
   shipping: shippingSchema,
   payment: paymentSchema,
   specialInstructions: z.string().optional(),
   purchase_number_external: z.string().optional(),
-  shippingAddress: shippingAddressSchema.optional(), // Add shipping address to main schema
+  shippingAddress: shippingAddressSchema.optional(),
 });
 
 export type OrderFormValues = z.infer<typeof orderFormSchema>;

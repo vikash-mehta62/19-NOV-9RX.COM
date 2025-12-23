@@ -153,6 +153,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       await fetchCategoryConfigs();
       await fetchCategories();
       resetCategoryForm();
+      onSuccess?.(); // Notify parent to refresh categories
     } catch (error: any) {
       toast.error(error.message || 'Failed to add category');
     } finally {
@@ -178,6 +179,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       await fetchCategories();
       setEditingCategory(null);
       resetCategoryForm();
+      onSuccess?.(); // Notify parent to refresh categories
     } catch (error: any) {
       toast.error(error.message || 'Failed to update category');
     } finally {
@@ -326,8 +328,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0">
-        <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-600">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
+        <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-600 flex-shrink-0">
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Package className="h-5 w-5" />
             Category & Subcategory Management
@@ -351,7 +353,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
             </TabsList>
           </div>
 
-          <ScrollArea className="h-[calc(90vh-200px)]">
+          <ScrollArea className="flex-1 overflow-visible">
             {/* CATEGORY TAB */}
             <TabsContent value="category" className="px-6 pb-6 space-y-6 mt-4">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -446,7 +448,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Select default unit" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" className="z-[9999]">
                           {categoryForm.size_units.map(unit => (
                             <SelectItem key={unit} value={unit} className="uppercase">
                               {unit}
@@ -568,7 +570,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                         <SelectTrigger className="mt-2">
                           <SelectValue placeholder="Choose a category" />
                         </SelectTrigger>
-                        <SelectContent>
+                        <SelectContent position="popper" className="z-[9999]">
                           {PRODUCT_CATEGORIES.map((cat) => (
                             <SelectItem key={cat} value={cat}>
                               {cat}

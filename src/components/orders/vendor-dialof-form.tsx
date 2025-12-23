@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Plus, Edit, User, Building, MapPin, Truck } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import axios from "../../../axiosconfig"
 
 const addressSchema = z.object({
   attention: z.string().optional(),
@@ -130,34 +131,23 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
   try {
     setIsSubmitting(true);
 
-    // Create the Supabase auth user
-    const response = await fetch(
-      "https://cfyqeilfmodrbiamqgme.supabase.co/auth/v1/admin/users",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0`,
-          "Content-Type": "application/json",
-          apikey:
-              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0",
-        },
-        body: JSON.stringify({
-          email: values.email,
-          password: "12345678",
-          email_confirm: true,
-          type: "vendor",
-          user_metadata: {
-            first_name: values.firstName,
-            last_name: values.lastName,
-          },
-        }),
-      }
-    );
+    // Call secure backend API to create user
+    const response = await axios.post("/api/users/create-user", {
+      email: values.email,
+      password: "12345678",
+      firstName: values.firstName,
+      lastName: values.lastName,
+      userMetadata: {
+        first_name: values.firstName,
+        last_name: values.lastName,
+      },
+    });
 
-    const tempUserData = await response.json();
-    if (!tempUserData?.id) {
-      throw new Error(tempUserData.msg || "Failed to create user");
+    if (!response.data?.success || !response.data?.userId) {
+      throw new Error(response.data?.message || "Failed to create user");
     }
+
+    const tempUserData = { id: response.data.userId };
 
     // Build clean userData from defaultValues
     const userData: any = {

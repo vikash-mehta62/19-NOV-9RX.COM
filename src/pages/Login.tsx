@@ -1,159 +1,398 @@
-"use client"
+"use client";
 
+import { useState, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
-} from "@/components/ui/tabs"
-import { LoginForm } from "@/components/auth/LoginForm" // Assuming this component exists
-import { SignupForm } from "@/components/auth/SignupForm" // Assuming this component exists
-import { useEffect } from "react"
-import { useNavigate, useLocation } from "react-router-dom"
-import { useToast } from "@/hooks/use-toast" // Assuming this hook exists
-import { Stethoscope } from "lucide-react"
+} from "@/components/ui/tabs";
+import { LoginForm } from "@/components/auth/LoginForm";
+import { SignupForm } from "@/components/auth/SignupForm";
+import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import {
+  Shield,
+  Truck,
+  Clock,
+  Award,
+  Users,
+  Package,
+  CheckCircle2,
+  Star,
+  ChevronLeft,
+  ChevronRight,
+  Lock,
+  Zap,
+  HeartHandshake,
+} from "lucide-react";
+
+// Testimonials data
+const testimonials = [
+  {
+    id: 1,
+    name: "Dr. Sarah Johnson",
+    role: "PharmaCare Plus",
+    image: "https://randomuser.me/api/portraits/women/44.jpg",
+    text: "9RX has transformed how we manage our pharmacy supplies. The quality and service are unmatched!",
+    rating: 5,
+  },
+  {
+    id: 2,
+    name: "Michael Chen",
+    role: "HealthFirst Pharmacy",
+    image: "https://randomuser.me/api/portraits/men/32.jpg",
+    text: "Reliable delivery, competitive prices, and excellent customer support. Highly recommended!",
+    rating: 5,
+  },
+  {
+    id: 3,
+    name: "Emily Rodriguez",
+    role: "Community Rx",
+    image: "https://randomuser.me/api/portraits/women/68.jpg",
+    text: "The best B2B pharmacy supplier we've worked with. Their platform is intuitive and efficient.",
+    rating: 5,
+  },
+];
+
+// Features data
+const features = [
+  {
+    icon: Package,
+    title: "500+ Products",
+    description: "Premium pharmacy supplies",
+  },
+  {
+    icon: Truck,
+    title: "Free Shipping",
+    description: "On orders over $50",
+  },
+  {
+    icon: Clock,
+    title: "24/7 Support",
+    description: "Always here to help",
+  },
+  {
+    icon: Award,
+    title: "Quality Assured",
+    description: "FDA compliant products",
+  },
+];
+
+// Stats data
+const stats = [
+  { value: "10,000+", label: "Happy Customers" },
+  { value: "500+", label: "Products" },
+  { value: "99.9%", label: "Uptime" },
+  { value: "24/7", label: "Support" },
+];
 
 const Login = () => {
-  const navigate = useNavigate()
-  const { toast } = useToast()
-  const location = useLocation()
-  // Determine the default tab based on URL state or default to 'login'
-  const defaultTab = location?.state?.defaultTab || "login"
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const tabFromUrl = searchParams.get("tab");
+  const defaultTab = tabFromUrl || location?.state?.defaultTab || "login";
+  
+  const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const [isAnimating, setIsAnimating] = useState(false);
 
-  // Effect to redirect authenticated users based on their user type
+  // Auto-rotate testimonials
   useEffect(() => {
-    const userType = sessionStorage.getItem("userType")
-    const isLoggedIn = sessionStorage.getItem("isLoggedIn")
+    const interval = setInterval(() => {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
+        setIsAnimating(false);
+      }, 300);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Redirect authenticated users
+  useEffect(() => {
+    const userType = sessionStorage.getItem("userType");
+    const isLoggedIn = sessionStorage.getItem("isLoggedIn");
 
     if (isLoggedIn === "true" && userType) {
-      switch (userType) {
-        case "pharmacy":
-          navigate("/pharmacy/products")
-          break
-        case "admin":
-          navigate("/admin/dashboard")
-          break
-        case "hospital":
-          navigate("/hospital/dashboard")
-          break
-        case "group":
-          navigate("/group/dashboard")
-          break
-        default:
-          // Handle invalid user types
-          toast({
-            title: "Error",
-            description: "Invalid user type. Please log in again.",
-            variant: "destructive",
-          })
-          sessionStorage.clear() // Clear session for security
+      const routes: Record<string, string> = {
+        pharmacy: "/pharmacy/products",
+        admin: "/admin/dashboard",
+        hospital: "/hospital/dashboard",
+        group: "/group/dashboard",
+      };
+      if (routes[userType]) {
+        navigate(routes[userType]);
       }
     }
-  }, [navigate, toast]) // Dependencies for the useEffect hook
+  }, [navigate]);
+
+  const nextTestimonial = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
+      setIsAnimating(false);
+    }, 300);
+  };
+
+  const prevTestimonial = () => {
+    setIsAnimating(true);
+    setTimeout(() => {
+      setCurrentTestimonial((prev) => (prev - 1 + testimonials.length) % testimonials.length);
+      setIsAnimating(false);
+    }, 300);
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden font-sans bg-gray-50"> {/* Overall light background */}
-      {/* Left Side - Visually Engaging Section (White Theme) */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-white border-r border-gray-100 shadow-md">
-        {/* Subtle abstract shapes for background visual interest */}
-        <div className="absolute top-0 left-0 w-64 h-64 bg-blue-50 opacity-20 rounded-full blur-3xl transform -translate-x-1/2 -translate-y-1/2" />
-        <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-50 opacity-20 rounded-full blur-3xl transform translate-x-1/2 translate-y-1/2" />
+    <div className="flex min-h-screen overflow-hidden font-sans">
+      {/* Left Side - Visual Section with Animated Background */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+        {/* Animated Gradient Background */}
+        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
+          {/* Animated floating shapes */}
+          <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl animate-bounce" style={{ animationDuration: '3s' }} />
+          
+          {/* Grid pattern overlay */}
+          <div className="absolute inset-0 opacity-10" style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+          }} />
+        </div>
 
-        <div className="relative z-10 p-12 flex flex-col justify-between h-full">
-          {/* Logo and Branding */}
-          <div className="flex items-center mb-8">
-            <div className="h-24 w-28 mr-4 flex-shrink-0">
-              <img src="/final.png" alt="9RX Logo" className="h-full w-full object-contain" />
-            </div>
-            
+        {/* Content */}
+        <div className="relative z-10 p-8 lg:p-12 flex flex-col justify-between h-full w-full text-white">
+          {/* Logo */}
+          <div className="flex items-center">
+            <img src="/final.png" alt="9RX Logo" className="h-16 w-auto brightness-0 invert" />
           </div>
 
-          {/* Marketing Message */}
-          <div className="max-w-md">
-            <h1 className="text-5xl font-extrabold text-gray-900 leading-tight drop-shadow-sm">
-              Elevate Your Pharmacy
-              <br />
-              <span className="text-blue-600">with Premium Supplies</span>
+          {/* Main Content */}
+          <div className="flex-1 flex flex-col justify-center max-w-lg">
+            <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-6">
+              Your Trusted Partner for
+              <span className="block text-yellow-300 mt-2">Pharmacy Supplies</span>
             </h1>
-            <p className="mt-4 text-gray-700 text-lg">
-              Experience unmatched quality in pharmacy supplies and packaging solutions. Trusted by leading pharmacies nationwide for reliability and excellence.
+            <p className="text-lg text-blue-100 mb-8">
+              Join thousands of pharmacies who trust 9RX for premium quality supplies, 
+              competitive pricing, and exceptional service.
             </p>
+
+            {/* Feature Grid */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+              {features.map((feature, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 transition-all duration-300"
+                >
+                  <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="h-5 w-5 text-gray-900" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm">{feature.title}</p>
+                    <p className="text-xs text-blue-200">{feature.description}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Testimonial Card */}
+            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 relative">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-1">
+                  {[...Array(5)].map((_, i) => (
+                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={prevTestimonial}
+                    className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={nextTestimonial}
+                    className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+              
+              <div className={`transition-opacity duration-300 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
+                <p className="text-blue-50 italic mb-4">
+                  "{testimonials[currentTestimonial].text}"
+                </p>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={testimonials[currentTestimonial].image}
+                    alt={testimonials[currentTestimonial].name}
+                    className="w-10 h-10 rounded-full border-2 border-white/30"
+                  />
+                  <div>
+                    <p className="font-semibold text-sm">{testimonials[currentTestimonial].name}</p>
+                    <p className="text-xs text-blue-200">{testimonials[currentTestimonial].role}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Testimonial indicators */}
+              <div className="flex justify-center gap-2 mt-4">
+                {testimonials.map((_, index) => (
+                  <button
+                    key={index}
+                    onClick={() => setCurrentTestimonial(index)}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      index === currentTestimonial ? 'bg-white w-6' : 'bg-white/40'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
           </div>
 
-          {/* Optional: Add a subtle graphic or icon */}
-          <div className="mt-auto text-gray-500 text-sm">
-            &copy; {new Date().getFullYear()} 9RX. All rights reserved.
+          {/* Bottom Stats & Trust Badges */}
+          <div className="space-y-6">
+            {/* Stats */}
+            <div className="grid grid-cols-4 gap-4">
+              {stats.map((stat, index) => (
+                <div key={index} className="text-center">
+                  <p className="text-2xl font-bold text-yellow-300">{stat.value}</p>
+                  <p className="text-xs text-blue-200">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Trust Badges */}
+            <div className="flex items-center justify-center gap-4 flex-wrap">
+              <Badge className="bg-white/20 text-white border-0 gap-1">
+                <Shield className="h-3 w-3" /> SSL Secured
+              </Badge>
+              <Badge className="bg-white/20 text-white border-0 gap-1">
+                <Lock className="h-3 w-3" /> HIPAA Compliant
+              </Badge>
+              <Badge className="bg-white/20 text-white border-0 gap-1">
+                <CheckCircle2 className="h-3 w-3" /> FDA Approved
+              </Badge>
+            </div>
+
+            <p className="text-center text-blue-200 text-sm">
+              © {new Date().getFullYear()} 9RX. All rights reserved.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Right Side - Scrollable Form Section (White Theme) */}
-      <div className="w-full lg:w-1/2 h-screen overflow-y-auto px-4 sm:px-6 lg:px-8 flex items-center justify-center relative bg-white">
-        {/* Subtle Background Blurs */}
-        <div className="absolute inset-0 opacity-10 pointer-events-none">
-          <div className="absolute top-1/4 right-1/4 w-80 h-80 bg-blue-100 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2" />
-          <div className="absolute bottom-1/4 left-1/4 w-72 h-72 bg-purple-100 rounded-full blur-3xl transform -translate-x-1/2 translate-y-1/2" />
+      {/* Right Side - Form Section */}
+      <div className="w-full lg:w-1/2 min-h-screen overflow-y-auto bg-gray-50">
+        {/* Mobile Header */}
+        <div className="lg:hidden bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white text-center">
+          <img src="/final.png" alt="9RX Logo" className="h-12 mx-auto brightness-0 invert mb-3" />
+          <p className="text-sm text-blue-100">Your Trusted Pharmacy Supplier</p>
         </div>
 
-        <div className="w-full max-w-md mx-auto py-10 z-10 relative">
-          {/* Mobile Branding (visible only on smaller screens) */}
-          <div className="lg:hidden text-center mb-10">
-            <div className="flex items-center justify-center">
-             
-               <div className="h-24 w-28 mr-4 flex-shrink-0">
-              <img src="/final.png" alt="9RX Logo" className="h-full w-full object-contain" />
+        <div className="flex items-center justify-center min-h-[calc(100vh-120px)] lg:min-h-screen p-4 sm:p-6 lg:p-8">
+          <div className="w-full max-w-md">
+            {/* Trust indicators for mobile */}
+            <div className="lg:hidden flex justify-center gap-3 mb-6">
+              <Badge variant="outline" className="text-xs gap-1">
+                <Shield className="h-3 w-3" /> Secure
+              </Badge>
+              <Badge variant="outline" className="text-xs gap-1">
+                <Users className="h-3 w-3" /> 10K+ Users
+              </Badge>
+              <Badge variant="outline" className="text-xs gap-1">
+                <Zap className="h-3 w-3" /> Fast
+              </Badge>
             </div>
-            </div>
+
+            {/* Main Card */}
+            <Card className="shadow-2xl border-0 bg-white rounded-2xl overflow-hidden">
+              <CardHeader className="space-y-2 pb-4 pt-8 px-8 bg-gradient-to-b from-gray-50 to-white">
+                <CardTitle className="text-3xl font-bold text-center text-gray-900">
+                  Welcome Back!
+                </CardTitle>
+                <CardDescription className="text-center text-gray-600">
+                  Sign in to access your pharmacy dashboard
+                </CardDescription>
+              </CardHeader>
+
+              <CardContent className="px-8 pb-8">
+                <Tabs defaultValue={defaultTab} className="space-y-6">
+                  <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-xl h-12">
+                    <TabsTrigger
+                      value="login"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 font-semibold transition-all"
+                    >
+                      Sign In
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="signup"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-600 font-semibold transition-all"
+                    >
+                      Sign Up
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="login" className="space-y-4 mt-6">
+                    <LoginForm />
+                  </TabsContent>
+                  
+                  <TabsContent value="signup" className="space-y-4 mt-6">
+                    <SignupForm />
+                  </TabsContent>
+                </Tabs>
+
+                {/* Divider */}
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-4 bg-white text-gray-500">Why choose 9RX?</span>
+                  </div>
+                </div>
+
+                {/* Benefits */}
+                <div className="grid grid-cols-3 gap-3 text-center">
+                  <div className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors">
+                    <Truck className="h-5 w-5 mx-auto text-blue-600 mb-1" />
+                    <p className="text-xs font-medium text-gray-700">Free Shipping</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-green-50 hover:bg-green-100 transition-colors">
+                    <HeartHandshake className="h-5 w-5 mx-auto text-green-600 mb-1" />
+                    <p className="text-xs font-medium text-gray-700">Best Prices</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-purple-50 hover:bg-purple-100 transition-colors">
+                    <Clock className="h-5 w-5 mx-auto text-purple-600 mb-1" />
+                    <p className="text-xs font-medium text-gray-700">24/7 Support</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Bottom text */}
+            <p className="text-center text-gray-500 text-sm mt-6">
+              By signing in, you agree to our{" "}
+              <a href="/terms" className="text-blue-600 hover:underline">Terms of Service</a>
+              {" "}and{" "}
+              <a href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</a>
+            </p>
           </div>
-
-          {/* Main Card with Tabs */}
-          <Card className="shadow-2xl border border-gray-100 bg-white rounded-xl">
-            <CardHeader className="space-y-2 pb-6 pt-8">
-              <CardTitle className="text-4xl font-extrabold text-center text-gray-900 leading-tight">
-                Welcome Back!
-              </CardTitle>
-              <CardDescription className="text-center text-gray-600 text-lg mt-2">
-                Sign in to your account or create a new one to get started.
-              </CardDescription>
-            </CardHeader>
-
-            <CardContent className="pb-8">
-              <Tabs defaultValue={defaultTab} className="space-y-6">
-                <TabsList className="grid w-full grid-cols-2 bg-gray-50 p-1 rounded-xl h-14 border border-gray-200">
-                  <TabsTrigger
-                    value="login"
-                    className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-700 font-semibold text-lg transition-all duration-300 ease-in-out"
-                  >
-                    Sign In
-                  </TabsTrigger>
-                  <TabsTrigger
-                    value="signup"
-                    className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-700 font-semibold text-lg transition-all duration-300 ease-in-out"
-                  >
-                    Sign Up
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="login" className="space-y-4 mt-8">
-                  <LoginForm />
-                </TabsContent>
-                <TabsContent value="signup" className="space-y-4 mt-8">
-                  <SignupForm />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
         </div>
       </div>
     </div>
-  )
-}
+  );
+};
 
-export default Login
+export default Login;

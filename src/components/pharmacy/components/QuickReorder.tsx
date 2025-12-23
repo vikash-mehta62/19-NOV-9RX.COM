@@ -32,11 +32,11 @@ export const QuickReorder = () => {
       if (!userProfile?.id) return
       
       try {
-        // Fetch recent orders for this user
+        // Fetch recent orders for this user (use profile_id instead of user_id)
         const { data: orders } = await supabase
           .from("orders")
           .select("items, created_at")
-          .eq("user_id", userProfile.id)
+          .eq("profile_id", userProfile.id)
           .order("created_at", { ascending: false })
           .limit(5)
 

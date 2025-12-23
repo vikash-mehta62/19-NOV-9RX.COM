@@ -482,20 +482,37 @@ setOrders([])
       // Get old status first
       const { data: oldOrder } = await supabase
         .from("orders")
-        .select("status, order_number")
+        .select("status, order_number, invoice_number")
         .eq("id", orderId)
         .single();
 
       const oldStatus = oldOrder?.status || "unknown";
       const orderNumber = oldOrder?.order_number || "N/A";
 
+      // Prepare update data
+      const updateData: Record<string, any> = {
+        status: newStatus,
+        updated_at: new Date().toISOString(),
+      };
+
+      // Generate invoice number when confirming order (moving from new/pending to processing)
+      // Only generate if invoice_number doesn't exist yet
+      if (
+        (newStatus === "processing" || newStatus === "confirmed") &&
+        !oldOrder?.invoice_number &&
+        (oldStatus === "new" || oldStatus === "pending")
+      ) {
+        // Generate invoice number: INV-YYYYMMDD-XXXXX
+        const today = new Date();
+        const dateStr = today.toISOString().slice(0, 10).replace(/-/g, "");
+        const randomNum = Math.floor(10000 + Math.random() * 90000);
+        updateData.invoice_number = `INV-${dateStr}-${randomNum}`;
+      }
+
       // Update order and get the updated order in response
       const { data: updatedOrder, error } = await supabase
         .from("orders")
-        .update({
-          status: newStatus,
-          updated_at: new Date().toISOString(),
-        })
+        .update(updateData)
         .eq("id", orderId)
         .select("*, profile_id(first_name, email_notifaction)")
         .single(); // Ensures only one order is fetched

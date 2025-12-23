@@ -134,102 +134,54 @@ export function AddPharmacyModal({
       return;
     }
   
-    setLoading(true); // Start loading
+    setLoading(true);
     try {
-   
+      // Generate a unique email if using group's email
       const mainEmail = values.email === userProfile?.email 
-      ? `noreply${Date.now()}@9rx.com` 
-      : values.email;
+        ? `noreply${Date.now()}@9rx.com` 
+        : values.email;
 
-      console.log(mainEmail)
-      const response = await fetch(
-        "https://cfyqeilfmodrbiamqgme.supabase.co/auth/v1/admin/users",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0`, // Use the service role key here
-            "Content-Type": "application/json",
-            apikey:
-              "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczNjMzNTUzNSwiZXhwIjoyMDUxOTExNTM1fQ.nOqhABs1EMQHOrNtiGdt6uAxWxGnnGRcWr5dkn_BLr0",
-          },
-          body: JSON.stringify({
-            email: mainEmail,
-            password: "12345678",
-            email_confirm: true, 
-            type: "pharmacy",
-            user_metadata: {
-              first_name: values.name.split(" ")[0] || "",
-              last_name: values.name.split(" ")[1] || "",
-            },
-          }),
-        }
-      );
+      // Call secure backend API to create user
+      const response = await axios.post("/api/users/create-pharmacy-user", {
+        email: mainEmail,
+        password: "12345678",
+        firstName: values.firstName,
+        lastName: values.lastName,
+        companyName: values.company_name,
+        phone: values.phone,
+        groupId: userProfile?.id,
+        billingAddress: values.addressAddress,
+      });
 
-      const tempUserData = await response.json();
-
-      if (!response.ok) {
-        console.error("Supabase Error Response:", tempUserData);
+      if (!response.data.success) {
         toast({
           title: "Failed to create user",
-          description: tempUserData?.msg || tempUserData?.error_description || "Something went wrong with Supabase Auth.",
+          description: response.data.message || "Something went wrong.",
           variant: "destructive",
         });
-        throw new Error(tempUserData?.msg || tempUserData?.error_description || "Auth error");
+        throw new Error(response.data.message || "Failed to create user");
       }
 
-
-  const authData =  tempUserData 
-   console.log(authData)
-
-      const locationData = {
-        id: authData.id,
-        display_name: `${values.firstName} ${values.lastName}`,
-        first_name: values.firstName || "",
-        last_name: values.lastName || "",
-        group_type: "branch",
-        billing_address: values.addressAddress as any,
-        email: mainEmail || "",
-        mobile_phone: values.phone || "",
-        company_name: values.company_name || "",
-        group_id: userProfile?.id,
-        status: "pending",
-        type: "pharmacy",
-        role: "user",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-  
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert([locationData]);
-  
-      if (profileError) {
-        toast({
-          title: "Failed To Create Location",
-          description: profileError.message,
-          variant: "destructive",
-        });
-        throw profileError;
-      }
-  
-      // await axios.post("/user-verification", {
-      //   groupname: userProfile.display_name,
-      //   name: `${values.name.split(" ")[0] || ""} ${values.name.split(" ")[1] || ""}`,
-      //   email: values.email,
-      // });
-  
       toast({
         title: "Pharmacy Added",
-        description: `${values.name} has been added to your group successfully`,
+        description: `${values.company_name || `${values.firstName} ${values.lastName}`} has been added to your group successfully`,
       });
   
       form.reset();
       onPharmacyAdded();
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error:", error);
+      // Show error message if not already shown
+      if (!error.message?.includes("Failed to create")) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || error.message || "Failed to add pharmacy",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setLoading(false); // Stop loading no matter what
+      setLoading(false);
     }
   };
   
