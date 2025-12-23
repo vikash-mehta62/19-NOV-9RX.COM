@@ -3,9 +3,19 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronUp, ShoppingCart } from "lucide-react";
-import { useState, useMemo, memo } from "react";
+import { ChevronDown, ChevronUp, ShoppingCart, Tag, Gift } from "lucide-react";
+import { useState, useMemo, memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
+import { PromoAndRewardsSection } from "./PromoAndRewardsSection";
+
+interface AppliedDiscount {
+  type: "promo" | "rewards" | "offer";
+  name: string;
+  amount: number;
+  offerId?: string;
+  promoCode?: string;
+  pointsUsed?: number;
+}
 
 export interface OrderSummaryCardProps {
   items: CartItem[];
@@ -15,6 +25,8 @@ export interface OrderSummaryCardProps {
   total: number;
   onEditItems?: () => void;
   className?: string;
+  customerId?: string;
+  onDiscountChange?: (discounts: AppliedDiscount[], totalDiscount: number) => void;
 }
 
 const OrderSummaryCardComponent = ({
@@ -25,8 +37,12 @@ const OrderSummaryCardComponent = ({
   total,
   onEditItems,
   className,
+  customerId,
+  onDiscountChange,
 }: OrderSummaryCardProps) => {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+  const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
+  const [totalDiscount, setTotalDiscount] = useState(0);
   
   // Memoize item count calculation
   const itemCount = useMemo(() => 
@@ -34,13 +50,23 @@ const OrderSummaryCardComponent = ({
     [items]
   );
 
+  // Handle discount changes from PromoAndRewardsSection
+  const handleDiscountChange = useCallback((discounts: AppliedDiscount[], discount: number) => {
+    setAppliedDiscounts(discounts);
+    setTotalDiscount(discount);
+    onDiscountChange?.(discounts, discount);
+  }, [onDiscountChange]);
+
+  // Calculate final total with discounts
+  const finalTotal = useMemo(() => {
+    return Math.max(0, total - totalDiscount);
+  }, [total, totalDiscount]);
+
   return (
     <Card
       className={cn(
         "bg-white shadow-lg border border-gray-200 animate-fade-in",
-        // Desktop: fixed sidebar positioning
         "lg:sticky lg:top-8 lg:h-fit",
-        // Mobile: full width
         "w-full",
         className
       )}
@@ -118,8 +144,8 @@ const OrderSummaryCardComponent = ({
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="font-medium text-gray-900 text-xs sm:text-sm" aria-label={`Item total: $${(item.price * item.quantity).toFixed(2)}`}>
-                        ${(item.price * item.quantity).toFixed(2)}
+                      <p className="font-medium text-gray-900 text-xs sm:text-sm">
+                        ${item.price.toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -143,38 +169,84 @@ const OrderSummaryCardComponent = ({
         </>
       )}
 
+      {/* Promo & Rewards Section */}
+      <div className="px-4 sm:px-6 py-3 sm:py-4">
+        <PromoAndRewardsSection
+          customerId={customerId}
+          subtotal={subtotal}
+          onDiscountChange={handleDiscountChange}
+        />
+      </div>
+
+      <Separator />
+
       {/* Pricing Breakdown */}
       <div className="px-4 sm:px-6 py-3 sm:py-4 space-y-2 sm:space-y-3" role="region" aria-label="Pricing breakdown">
         <div className="flex justify-between text-xs sm:text-sm">
           <span className="text-gray-600">Subtotal</span>
-          <span className="font-medium text-gray-900" aria-label={`Subtotal: $${subtotal.toFixed(2)}`}>
+          <span className="font-medium text-gray-900">
             ${subtotal.toFixed(2)}
           </span>
         </div>
 
         <div className="flex justify-between text-xs sm:text-sm">
           <span className="text-gray-600">Tax</span>
-          <span className="font-medium text-gray-900" aria-label={`Tax: $${tax.toFixed(2)}`}>
+          <span className="font-medium text-gray-900">
             ${tax.toFixed(2)}
           </span>
         </div>
 
         <div className="flex justify-between text-xs sm:text-sm">
           <span className="text-gray-600">Shipping</span>
-          <span className="font-medium text-gray-900" aria-label={shipping === 0 ? "Shipping: Free" : `Shipping: $${shipping.toFixed(2)}`}>
+          <span className="font-medium text-gray-900">
             {shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}
           </span>
         </div>
+
+        {/* Applied Discounts */}
+        {appliedDiscounts.length > 0 && (
+          <>
+            <Separator className="my-2" />
+            {appliedDiscounts.map((discount, index) => (
+              <div key={index} className="flex justify-between text-xs sm:text-sm">
+                <span className="text-green-600 flex items-center gap-1">
+                  {discount.type === "promo" && <Tag className="h-3 w-3" />}
+                  {discount.type === "rewards" && <Gift className="h-3 w-3" />}
+                  {discount.type === "offer" && <Tag className="h-3 w-3" />}
+                  {discount.name}
+                </span>
+                <span className="font-medium text-green-600">
+                  -${discount.amount.toFixed(2)}
+                </span>
+              </div>
+            ))}
+          </>
+        )}
 
         <Separator className="my-2 sm:my-3" role="presentation" />
 
         {/* Total Amount */}
         <div className="flex justify-between items-center pt-1 sm:pt-2">
           <span className="text-sm sm:text-base font-semibold text-gray-900">Total</span>
-          <span className="text-xl sm:text-2xl font-bold text-green-600" aria-label={`Order total: $${total.toFixed(2)}`}>
-            ${total.toFixed(2)}
-          </span>
+          <div className="text-right">
+            {totalDiscount > 0 && (
+              <span className="text-sm text-gray-400 line-through mr-2">
+                ${total.toFixed(2)}
+              </span>
+            )}
+            <span className="text-xl sm:text-2xl font-bold text-green-600">
+              ${finalTotal.toFixed(2)}
+            </span>
+          </div>
         </div>
+
+        {totalDiscount > 0 && (
+          <div className="text-right">
+            <Badge className="bg-green-100 text-green-800 text-xs">
+              You save ${totalDiscount.toFixed(2)}!
+            </Badge>
+          </div>
+        )}
       </div>
 
       {/* Notes */}

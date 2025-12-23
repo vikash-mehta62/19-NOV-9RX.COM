@@ -5,7 +5,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Bell, Gift, Mail } from "lucide-react";
+import { Loader2, Save, Bell, Gift, Mail, LogIn, ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 
 interface SettingsTabProps {
   userId: string;
@@ -20,7 +21,8 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
   const [settings, setSettings] = useState({
     email_notifaction: false, // Marketing emails
     order_updates: false,     // Order emails
-    is_rewards_member: false  // Derived from reward_tier
+    is_rewards_member: false, // Derived from reward_tier
+    portal_access: true       // Portal login access
   });
 
   useEffect(() => {
@@ -28,7 +30,8 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
       setSettings({
         email_notifaction: profile.email_notifaction || false,
         order_updates: profile.order_updates || false,
-        is_rewards_member: !!profile.reward_tier
+        is_rewards_member: !!profile.reward_tier,
+        portal_access: profile.portal_access !== false // Default to true if undefined
       });
     }
   }, [profile]);
@@ -39,6 +42,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
       const updates: any = {
         email_notifaction: settings.email_notifaction,
         order_updates: settings.order_updates,
+        portal_access: settings.portal_access,
         // If enrolling, set to Bronze if null. If unenrolling, set to null.
         reward_tier: settings.is_rewards_member 
           ? (profile.reward_tier || "Bronze") 
@@ -74,6 +78,51 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Portal Access Card - Most Important */}
+      <Card className={!settings.portal_access ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LogIn className="w-5 h-5" />
+            Portal Login Access
+            {!settings.portal_access && (
+              <Badge variant="destructive" className="ml-2">
+                <ShieldAlert className="w-3 h-3 mr-1" />
+                Blocked
+              </Badge>
+            )}
+          </CardTitle>
+          <CardDescription>
+            Control whether this user can login to the pharmacy portal to place orders.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-between space-x-2">
+            <div className="space-y-0.5">
+              <Label className="text-base">Allow Portal Login</Label>
+              <p className="text-sm text-muted-foreground">
+                {settings.portal_access 
+                  ? "User can login and place orders through the portal."
+                  : "User is blocked from logging into the portal."}
+              </p>
+            </div>
+            <Switch
+              checked={settings.portal_access}
+              onCheckedChange={(checked) => 
+                setSettings(prev => ({ ...prev, portal_access: checked }))
+              }
+            />
+          </div>
+          {!settings.portal_access && (
+            <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg">
+              <p className="text-sm text-red-700 flex items-center gap-2">
+                <ShieldAlert className="w-4 h-4" />
+                This user will see an error message when trying to login.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

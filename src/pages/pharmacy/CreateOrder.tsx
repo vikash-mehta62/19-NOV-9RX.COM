@@ -101,6 +101,7 @@ export default function PharmacyCreateOrder() {
 
   const handleComplete = async (orderData: any) => {
     console.log("Order completed:", orderData);
+    console.log("Applied discounts:", orderData.appliedDiscounts);
     
     try {
       // Get current session
@@ -206,6 +207,9 @@ export default function PharmacyCreateOrder() {
         payment_status: paymentMethod === "credit" ? "pending" : "pending",
         customization: false,
         void: false,
+        // Store discount information
+        discount_amount: orderData.totalDiscount || 0,
+        discount_details: orderData.appliedDiscounts || [],
       };
 
       // Insert order into database
@@ -218,6 +222,58 @@ export default function PharmacyCreateOrder() {
       if (error) {
         console.error("Error creating order:", error);
         throw error;
+      }
+
+      // Handle applied discounts (deduct points, increment offer usage)
+      if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
+        for (const discount of orderData.appliedDiscounts) {
+          // Handle reward points redemption
+          if (discount.type === "rewards" && discount.pointsUsed) {
+            // Deduct points from user's profile
+            const { data: currentProfile } = await supabase
+              .from("profiles")
+              .select("reward_points")
+              .eq("id", session.user.id)
+              .single();
+
+            if (currentProfile) {
+              const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discount.pointsUsed);
+              await supabase
+                .from("profiles")
+                .update({ reward_points: newPoints })
+                .eq("id", session.user.id);
+
+              // Log reward transaction
+              await supabase
+                .from("reward_transactions")
+                .insert({
+                  user_id: session.user.id,
+                  points: -discount.pointsUsed,
+                  transaction_type: "redeem",
+                  description: `Redeemed ${discount.pointsUsed} points for order ${newOrderId}`,
+                  reference_type: "order",
+                  reference_id: insertedOrder.id,
+                });
+            }
+          }
+
+          // Handle promo code / offer usage
+          if ((discount.type === "promo" || discount.type === "offer") && discount.offerId) {
+            // Increment used_count on the offer
+            const { data: offer } = await supabase
+              .from("offers")
+              .select("used_count")
+              .eq("id", discount.offerId)
+              .single();
+
+            if (offer) {
+              await supabase
+                .from("offers")
+                .update({ used_count: (offer.used_count || 0) + 1 })
+                .eq("id", discount.offerId);
+            }
+          }
+        }
       }
 
       // Log order creation activity
@@ -374,6 +430,10 @@ export default function PharmacyCreateOrder() {
           pId={pendingOrderData.customerId}
           setIsCus={() => {}}
           isCus={false}
+          orderTotal={pendingOrderData.total}
+          orderSubtotal={pendingOrderData.subtotal}
+          orderTax={pendingOrderData.tax}
+          orderShipping={pendingOrderData.shipping}
         />
       )}
     </DashboardLayout>

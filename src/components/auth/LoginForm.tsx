@@ -126,6 +126,13 @@ export const LoginForm = () => {
         throw new Error("Your account is not active. Please contact support.");
       }
 
+      // Check portal access for non-admin users
+      if (profileData.type !== "admin" && profileData.portal_access === false) {
+        // Sign out the user since they shouldn't have access
+        await supabase.auth.signOut();
+        throw new Error("Your portal access has been disabled. Please contact support.");
+      }
+
       // Set session data
       sessionStorage.setItem("isLoggedIn", "true");
       sessionStorage.setItem("userType", profileData.type);

@@ -34,6 +34,8 @@ export interface PaymentConfirmationStepProps {
   initialPONumber?: string;
   initialTermsAccepted?: boolean;
   initialAccuracyConfirmed?: boolean;
+  isEditMode?: boolean;
+  isAdmin?: boolean;
 }
 
 interface PaymentMethodCard {
@@ -60,6 +62,7 @@ export const PaymentConfirmationStep = ({
   initialTermsAccepted = false,
   initialAccuracyConfirmed = false,
   isEditMode = false,
+  isAdmin = false,
 }: PaymentConfirmationStepProps) => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>(
     initialPaymentMethod
@@ -73,8 +76,8 @@ export const PaymentConfirmationStep = ({
     accuracyConfirmed: initialAccuracyConfirmed,
   });
 
-  // Payment method options
-  const paymentMethods: PaymentMethodCard[] = [
+  // Payment method options - filter based on user role
+  const allPaymentMethods: PaymentMethodCard[] = [
     {
       id: "card",
       label: "Credit Card",
@@ -100,6 +103,14 @@ export const PaymentConfirmationStep = ({
       icon: Receipt,
     },
   ];
+
+  // Filter payment methods - manual payment only for admin
+  const paymentMethods = allPaymentMethods.filter(method => {
+    if (method.id === "manual" && !isAdmin) {
+      return false;
+    }
+    return true;
+  });
 
   const handlePaymentMethodSelect = (method: PaymentMethod) => {
     setSelectedPaymentMethod(method);
@@ -205,46 +216,13 @@ export const PaymentConfirmationStep = ({
       {selectedPaymentMethod === "card" && (
         <Card className="animate-slide-up">
           <CardHeader>
-            <CardTitle>Credit Card Information</CardTitle>
+            <CardTitle>Credit Card Payment</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2">
-                <Label htmlFor="cardNumber">Card Number</Label>
-                <Input
-                  id="cardNumber"
-                  placeholder="1234 5678 9012 3456"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label htmlFor="cardName">Cardholder Name</Label>
-                <Input
-                  id="cardName"
-                  placeholder="John Doe"
-                  className="mt-1"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="expiry">Expiry Date</Label>
-                  <Input
-                    id="expiry"
-                    placeholder="MM/YY"
-                    className="mt-1"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="cvv">CVV</Label>
-                  <Input
-                    id="cvv"
-                    placeholder="123"
-                    type="password"
-                    maxLength={4}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
+          <CardContent>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-900">
+                You will be redirected to a secure payment page to enter your card details after confirming the order.
+              </p>
             </div>
           </CardContent>
         </Card>

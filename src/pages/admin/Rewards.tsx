@@ -62,6 +62,7 @@ interface RewardsConfig {
   referral_bonus: number
   review_bonus: number
   birthday_bonus: number
+  point_redemption_value: number
 }
 
 const defaultTiers: RewardTier[] = [
@@ -83,7 +84,8 @@ export default function AdminRewards() {
     points_per_dollar: 1,
     referral_bonus: 200,
     review_bonus: 50,
-    birthday_bonus: 100
+    birthday_bonus: 100,
+    point_redemption_value: 0.01
   })
   
   // Data
@@ -195,6 +197,7 @@ export default function AdminRewards() {
             referral_bonus: config.referral_bonus,
             review_bonus: config.review_bonus,
             birthday_bonus: config.birthday_bonus,
+            point_redemption_value: config.point_redemption_value,
             updated_at: new Date().toISOString()
           })
           .eq("id", config.id)
@@ -206,7 +209,8 @@ export default function AdminRewards() {
             points_per_dollar: config.points_per_dollar,
             referral_bonus: config.referral_bonus,
             review_bonus: config.review_bonus,
-            birthday_bonus: config.birthday_bonus
+            birthday_bonus: config.birthday_bonus,
+            point_redemption_value: config.point_redemption_value
           })
           .select()
           .single()
@@ -686,6 +690,18 @@ export default function AdminRewards() {
                   <div>
                     <Label>Birthday Bonus (points)</Label>
                     <Input type="number" value={config.birthday_bonus} onChange={e => setConfig({...config, birthday_bonus: parseInt(e.target.value) || 0})} />
+                  </div>
+                  <div>
+                    <Label>Point Redemption Value ($)</Label>
+                    <Input 
+                      type="number" 
+                      step="0.001"
+                      value={config.point_redemption_value} 
+                      onChange={e => setConfig({...config, point_redemption_value: parseFloat(e.target.value) || 0.01})} 
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Dollar value per point when redeeming (e.g., 0.01 = 100 points = $1)
+                    </p>
                   </div>
                 </div>
                 <Button onClick={handleSaveSettings} disabled={saving} className="bg-emerald-600">

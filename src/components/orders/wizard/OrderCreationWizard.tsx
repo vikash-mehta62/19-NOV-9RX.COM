@@ -24,6 +24,16 @@ import {
 } from "lucide-react";
 import "./wizard-animations.css";
 
+// Applied discount interface
+interface AppliedDiscount {
+  type: "promo" | "rewards" | "offer";
+  name: string;
+  amount: number;
+  offerId?: string;
+  promoCode?: string;
+  pointsUsed?: number;
+}
+
 const OrderCreationWizardComponent = ({
   initialData,
   isEditMode = false,
@@ -51,6 +61,11 @@ const OrderCreationWizardComponent = ({
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  
+  // Discount state
+  const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
+  const [totalDiscount, setTotalDiscount] = useState(0);
+  
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
 
@@ -170,6 +185,9 @@ const OrderCreationWizardComponent = ({
       tax,
       shipping,
       total,
+      appliedDiscounts,
+      totalDiscount,
+      finalTotal: Math.max(0, total - totalDiscount),
     });
   }, [
     selectedCustomer,
@@ -185,7 +203,15 @@ const OrderCreationWizardComponent = ({
     tax,
     shipping,
     total,
+    appliedDiscounts,
+    totalDiscount,
   ]);
+
+  // Handle discount changes from OrderSummaryCard
+  const handleDiscountChange = useCallback((discounts: AppliedDiscount[], discount: number) => {
+    setAppliedDiscounts(discounts);
+    setTotalDiscount(discount);
+  }, []);
 
   // Define wizard steps - memoized to prevent recreation on every render
   const steps: WizardStep[] = useMemo(() => [
@@ -383,6 +409,9 @@ const OrderCreationWizardComponent = ({
       // Last step - submit the order
       setIsSubmitting(true);
       try {
+        // Calculate final total with discounts
+        const finalTotal = Math.max(0, total - totalDiscount);
+        
         // Prepare final order data
         const orderData = {
           ...formData,
@@ -399,7 +428,10 @@ const OrderCreationWizardComponent = ({
           subtotal,
           tax,
           shipping,
-          total,
+          total: finalTotal,
+          originalTotal: total,
+          appliedDiscounts,
+          totalDiscount,
           createdAt: new Date().toISOString(),
         };
 
@@ -437,7 +469,7 @@ const OrderCreationWizardComponent = ({
       // Scroll to top of page for next step
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
-  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, toast, onComplete]);
+  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete]);
 
   const handleBack = useCallback(() => {
     // Clear validation errors when going back
@@ -546,6 +578,9 @@ const OrderCreationWizardComponent = ({
   const handlePlaceOrderWithoutPayment = useCallback(async () => {
     setIsSubmitting(true);
     try {
+      // Calculate final total with discounts
+      const finalTotal = Math.max(0, total - totalDiscount);
+      
       // Prepare order data with skipPayment flag
       const orderData = {
         ...formData,
@@ -562,7 +597,10 @@ const OrderCreationWizardComponent = ({
         subtotal,
         tax,
         shipping,
-        total,
+        total: finalTotal,
+        originalTotal: total,
+        appliedDiscounts,
+        totalDiscount,
         createdAt: new Date().toISOString(),
         skipPayment: true, // Flag to indicate no payment required
         status: "pending", // Order status without payment
@@ -590,7 +628,7 @@ const OrderCreationWizardComponent = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [formData, selectedCustomer, billingAddress, shippingAddress, cartItems, specialInstructions, poNumber, subtotal, tax, shipping, total, wizardState, totalSteps, toast, onComplete]);
+  }, [formData, selectedCustomer, billingAddress, shippingAddress, cartItems, specialInstructions, poNumber, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, wizardState, totalSteps, toast, onComplete]);
 
   // Render current step content
   const renderStepContent = () => {
@@ -654,6 +692,7 @@ const OrderCreationWizardComponent = ({
             initialTermsAccepted={termsAccepted}
             initialAccuracyConfirmed={accuracyConfirmed}
             isEditMode={isEditMode}
+            isAdmin={!isPharmacyMode}
           />
         );
       default:
@@ -746,6 +785,8 @@ const OrderCreationWizardComponent = ({
               shipping={shipping}
               total={total}
               onEditItems={handleEditItems}
+              customerId={selectedCustomer?.id}
+              onDiscountChange={handleDiscountChange}
             />
           </aside>
         </div>

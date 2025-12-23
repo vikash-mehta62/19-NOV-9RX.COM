@@ -53,6 +53,10 @@ interface CreateOrderPaymentFormProps {
   pId?: string;
   setIsCus?: (val: boolean) => void;
   isCus?: boolean;
+  orderTotal?: number;
+  orderSubtotal?: number;
+  orderTax?: number;
+  orderShipping?: number;
 }
 
 const CreateOrderPaymentForm = ({
@@ -63,6 +67,10 @@ const CreateOrderPaymentForm = ({
   pId,
   setIsCus,
   isCus,
+  orderTotal,
+  orderSubtotal,
+  orderTax,
+  orderShipping,
 }: CreateOrderPaymentFormProps) => {
   const [paymentType, setPaymentType] = useState("credit_card");
   const { toast } = useToast();
@@ -72,6 +80,7 @@ const CreateOrderPaymentForm = ({
   const [loading, setLoading] = useState(false);
   const [tax, settax] = useState(0);
   const taxper = sessionStorage.getItem("taxper");
+  const [saveCard, setSaveCard] = useState(false);
 
   const [formData, setFormData] = useState({
     amount: 0,
@@ -131,21 +140,45 @@ const CreateOrderPaymentForm = ({
     const cleanedCartItems = cleanCartItems(cartItems);
 
     if (formDataa) {
-      const totalAmount = calculateOrderTotal(cleanedCartItems, totalShippingCost || 0);
-      const newtax = ((totalAmount - totalShippingCost) * Number(taxper)) / 100;
-      settax(newtax);
-      setFormData((prevData) => ({
-        ...prevData,
-        nameOnAccount: formDataa.customerInfo?.name || "",
-        cardholderName: formDataa.customerInfo?.name || "",
-        address: formDataa.customerInfo?.address?.street || "",
-        city: formDataa.customerInfo?.address?.city || "",
-        state: formDataa.customerInfo?.address?.state || "",
-        zip: formDataa.customerInfo?.address?.zip_code || "",
-        amount: totalAmount + newtax,
-      }));
+      // Use passed order totals if available, otherwise calculate from cart
+      let totalAmount: number;
+      let newtax: number;
+      let shippingCost: number;
+      
+      if (orderTotal !== undefined && orderTotal > 0) {
+        // Use the passed order totals from the wizard
+        totalAmount = orderSubtotal || 0;
+        newtax = orderTax || 0;
+        shippingCost = orderShipping || 0;
+        settax(newtax);
+        setFormData((prevData) => ({
+          ...prevData,
+          nameOnAccount: formDataa.customerInfo?.name || "",
+          cardholderName: formDataa.customerInfo?.name || "",
+          address: formDataa.customerInfo?.address?.street || "",
+          city: formDataa.customerInfo?.address?.city || "",
+          state: formDataa.customerInfo?.address?.state || "",
+          zip: formDataa.customerInfo?.address?.zip_code || "",
+          amount: orderTotal,
+        }));
+      } else {
+        // Fallback to calculating from cart items
+        totalAmount = calculateOrderTotal(cleanedCartItems, totalShippingCost || 0);
+        newtax = ((totalAmount - totalShippingCost) * Number(taxper)) / 100;
+        settax(newtax);
+        setFormData((prevData) => ({
+          ...prevData,
+          nameOnAccount: formDataa.customerInfo?.name || "",
+          cardholderName: formDataa.customerInfo?.name || "",
+          address: formDataa.customerInfo?.address?.street || "",
+          city: formDataa.customerInfo?.address?.city || "",
+          state: formDataa.customerInfo?.address?.state || "",
+          zip: formDataa.customerInfo?.address?.zip_code || "",
+          amount: totalAmount + newtax,
+        }));
+      }
     }
-  }, []);
+  }, [orderTotal, orderSubtotal, orderTax, orderShipping]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -451,6 +484,45 @@ const CreateOrderPaymentForm = ({
       // Update stock
       await updateProductStock(cleanedCartItems);
 
+      // Save card if user opted to save it
+      if (saveCard && paymentType === "credit_card" && userProfile?.id) {
+        try {
+          // Extract card details for saving (masked)
+          const cardLast4 = formData.cardNumber.replace(/\s/g, "").slice(-4);
+          const expMonth = formData.expirationDate.slice(0, 2);
+          const expYear = "20" + formData.expirationDate.slice(2, 4);
+          
+          // Detect card type from number
+          const cardNum = formData.cardNumber.replace(/\s/g, "");
+          let cardType = "unknown";
+          if (cardNum.startsWith("4")) cardType = "visa";
+          else if (/^5[1-5]/.test(cardNum)) cardType = "mastercard";
+          else if (/^3[47]/.test(cardNum)) cardType = "amex";
+          else if (/^6(?:011|5)/.test(cardNum)) cardType = "discover";
+
+          await supabase.from("saved_payment_methods").insert({
+            profile_id: userProfile.id,
+            method_type: "card",
+            card_last_four: cardLast4,
+            card_type: cardType,
+            card_expiry_month: expMonth,
+            card_expiry_year: expYear,
+            cardholder_name: formData.cardholderName,
+            billing_address: {
+              street: formData.address,
+              city: formData.city,
+              state: formData.state,
+              zip: formData.zip,
+              country: formData.country,
+            },
+            is_default: false,
+          });
+        } catch (saveError) {
+          console.error("Failed to save card:", saveError);
+          // Don't fail the order if card save fails
+        }
+      }
+
       toast({
         title: "Payment Successful!",
         description: `Order #${orderNumber} has been created successfully.`,
@@ -745,6 +817,20 @@ const CreateOrderPaymentForm = ({
                         {errors.cardholderName && (
                           <p className="text-sm text-red-500">{errors.cardholderName}</p>
                         )}
+                      </div>
+
+                      {/* Save Card Checkbox */}
+                      <div className="flex items-center gap-3 pt-2">
+                        <input
+                          type="checkbox"
+                          id="saveCard"
+                          checked={saveCard}
+                          onChange={(e) => setSaveCard(e.target.checked)}
+                          className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <Label htmlFor="saveCard" className="text-sm font-medium cursor-pointer">
+                          Save this card for future purchases
+                        </Label>
                       </div>
                     </>
                   ) : (
