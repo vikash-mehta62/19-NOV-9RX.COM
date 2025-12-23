@@ -6,6 +6,7 @@ import { supabase } from "@/supabaseClient";
 import { SignupFormFields } from "./components/SignupFormFields";
 import { validateSignupForm } from "./utils/validation";
 import { SignupFormData } from "./types/signup.types";
+import { applyReferralCode } from "@/services/referralService";
 import axios from '../../../axiosconfig'
 
 
@@ -17,6 +18,7 @@ export const SignupForm = () => {
     firstName: "",
     lastName: "",
     phone: "",
+    referralCode: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -103,6 +105,18 @@ export const SignupForm = () => {
         throw profileError;
       }
 
+      // Apply referral code if provided
+      if (formData.referralCode && formData.referralCode.trim()) {
+        try {
+          const referralResult = await applyReferralCode(authData.user.id, formData.referralCode.trim());
+          if (referralResult.success) {
+            console.log("Referral code applied:", referralResult.message);
+          }
+        } catch (refError) {
+          console.log("Referral code application skipped:", refError);
+        }
+      }
+
 
       try {
         const response = await axios.post("/user-verification", {
@@ -129,6 +143,7 @@ export const SignupForm = () => {
         firstName: "",
         lastName: "",
         phone: "",
+        referralCode: "",
       });
 
       navigate("/login", { state: { defaultTab: "login" } });

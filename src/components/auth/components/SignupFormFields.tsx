@@ -1,8 +1,10 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SignupFormData } from "../types/signup.types";
-import { Eye, EyeOff, User, Mail, Phone, Lock, CheckCircle2, XCircle } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Eye, EyeOff, User, Mail, Phone, Lock, CheckCircle2, XCircle, Gift, Loader2 } from "lucide-react";
+import { useState, useMemo, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
+import { validateReferralCode } from "@/services/referralService";
 
 interface SignupFormFieldsProps {
   formData: SignupFormData;
@@ -33,6 +35,10 @@ export const SignupFormFields = ({
 }: SignupFormFieldsProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [searchParams] = useSearchParams();
+  const [referralValid, setReferralValid] = useState<boolean | null>(null);
+  const [referrerName, setReferrerName] = useState<string>("");
+  const [checkingReferral, setCheckingReferral] = useState(false);
 
   const passwordStrength = useMemo(() => 
     calculatePasswordStrength(formData.password), 
@@ -44,6 +50,42 @@ export const SignupFormFields = ({
 
   const passwordsDontMatch = formData.confirmPassword && 
     formData.password !== formData.confirmPassword;
+
+  // Check for referral code in URL
+  useEffect(() => {
+    const refCode = searchParams.get("ref");
+    if (refCode && !formData.referralCode) {
+      const event = {
+        target: { id: "referralCode", value: refCode }
+      } as React.ChangeEvent<HTMLInputElement>;
+      onChange(event);
+    }
+  }, [searchParams]);
+
+  // Validate referral code when it changes
+  useEffect(() => {
+    const validateCode = async () => {
+      if (!formData.referralCode || formData.referralCode.length < 6) {
+        setReferralValid(null);
+        setReferrerName("");
+        return;
+      }
+
+      setCheckingReferral(true);
+      try {
+        const result = await validateReferralCode(formData.referralCode);
+        setReferralValid(result.valid);
+        setReferrerName(result.referrerName || "");
+      } catch (error) {
+        setReferralValid(false);
+      } finally {
+        setCheckingReferral(false);
+      }
+    };
+
+    const debounce = setTimeout(validateCode, 500);
+    return () => clearTimeout(debounce);
+  }, [formData.referralCode]);
 
   return (
     <div className="space-y-4">
@@ -220,6 +262,46 @@ export const SignupFormFields = ({
         {passwordsMatch && (
           <p className="text-xs text-green-500 flex items-center gap-1">
             <CheckCircle2 className="h-3 w-3" /> Passwords match
+          </p>
+        )}
+      </div>
+
+      {/* Referral Code Field */}
+      <div className="space-y-2">
+        <Label htmlFor="referralCode" className="text-sm font-medium text-gray-700 flex items-center gap-2">
+          Referral Code <span className="text-xs text-gray-400">(optional)</span>
+        </Label>
+        <div className="relative">
+          <Gift className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            id="referralCode"
+            placeholder="Enter referral code"
+            value={formData.referralCode || ""}
+            onChange={onChange}
+            disabled={isLoading}
+            className={`pl-10 pr-10 h-11 rounded-xl border-gray-200 focus:border-blue-500 uppercase ${
+              referralValid === true ? "border-green-300" : ""
+            } ${referralValid === false ? "border-red-300" : ""}`}
+            maxLength={10}
+          />
+          {checkingReferral && (
+            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
+          )}
+          {!checkingReferral && referralValid === true && (
+            <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+          )}
+          {!checkingReferral && referralValid === false && (
+            <XCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-500" />
+          )}
+        </div>
+        {referralValid === true && referrerName && (
+          <p className="text-xs text-green-600 flex items-center gap-1">
+            <Gift className="h-3 w-3" /> Referred by {referrerName} - You'll both get bonus points!
+          </p>
+        )}
+        {referralValid === false && formData.referralCode && (
+          <p className="text-xs text-red-500 flex items-center gap-1">
+            <XCircle className="h-3 w-3" /> Invalid referral code
           </p>
         )}
       </div>

@@ -6,6 +6,7 @@ export interface SignupFormData {
   firstName: string;
   lastName: string;
   phone: string;
+  referralCode?: string;
 }
 
 export interface FormFieldProps {

@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client"
+import { completeReferral } from "./referralService"
+import { checkAndAwardBirthdayBonus } from "./birthdayBonusService"
 
 interface RewardsConfig {
   program_enabled: boolean
@@ -154,6 +156,20 @@ export async function awardOrderPoints(
         reference_type: "order",
         reference_id: orderId
       })
+
+    // Check and complete referral bonus (first order)
+    try {
+      await completeReferral(userId, orderId)
+    } catch (e) {
+      console.log("No pending referral or already completed")
+    }
+
+    // Check for birthday bonus
+    try {
+      await checkAndAwardBirthdayBonus(userId)
+    } catch (e) {
+      console.log("Birthday bonus check skipped")
+    }
 
     // Queue reward email
     await queueRewardEmail(userId, {

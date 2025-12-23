@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
+import { ReferralSection } from "@/components/rewards/ReferralSection";
+import { BirthdaySection } from "@/components/rewards/BirthdaySection";
 
 interface RewardItem {
   id: string;
@@ -342,6 +344,23 @@ const Rewards = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Referral & Birthday Sections */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {userProfile?.id && (
+            <>
+              <ReferralSection 
+                userId={userProfile.id} 
+                referralBonus={config?.referral_bonus || 200} 
+              />
+              <BirthdaySection 
+                userId={userProfile.id} 
+                birthdayBonus={config?.birthday_bonus || 100}
+                onPointsUpdate={fetchData}
+              />
+            </>
+          )}
         </div>
 
         {/* Available Rewards */}

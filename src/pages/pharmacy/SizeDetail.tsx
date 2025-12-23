@@ -28,7 +28,8 @@ import {
   Bell,
   Palette,
   Gift,
-  HelpCircle
+  HelpCircle,
+  MessageSquare
 } from "lucide-react"
 import {
   Tooltip,
@@ -36,6 +37,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { ProductReviews } from "@/components/reviews/ProductReviews"
+import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
+import { canUserReview } from "@/services/reviewService"
 
 export default function SizeDetail() {
   const { productId, sizeId } = useParams()
@@ -48,6 +52,9 @@ export default function SizeDetail() {
   const [loading, setLoading] = useState(true)
   const [quantity, setQuantity] = useState(1)
   const [isAdding, setIsAdding] = useState(false)
+  const [showReviewForm, setShowReviewForm] = useState(false)
+  const [canReview, setCanReview] = useState(false)
+  const [reviewKey, setReviewKey] = useState(0)
   const [showZoom, setShowZoom] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
   const [customization, setCustomization] = useState<{ enabled: boolean; text: string }>({ enabled: false, text: '' })
@@ -84,6 +91,13 @@ export default function SizeDetail() {
           size: selectedSize,
           otherSizes
         })
+
+        // Check if user can review this product
+        if (userProfile?.id && productId) {
+          canUserReview(userProfile.id, productId).then(result => {
+            setCanReview(result.canReview)
+          })
+        }
 
         setLoading(false)
       })
@@ -461,6 +475,56 @@ export default function SizeDetail() {
                   </ul>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Reviews Section */}
+            {productId && (
+              <div className="space-y-4">
+                {/* Write Review Button */}
+                {userProfile?.id && canReview && !showReviewForm && (
+                  <Card className="border-emerald-200 bg-emerald-50">
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <MessageSquare className="w-5 h-5 text-emerald-600" />
+                          <span className="font-medium text-gray-900">Share your experience</span>
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">+50 points</Badge>
+                        </div>
+                        <Button 
+                          onClick={() => setShowReviewForm(true)}
+                          className="bg-emerald-600 hover:bg-emerald-700"
+                        >
+                          Write a Review
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Review Form */}
+                {showReviewForm && userProfile?.id && (
+                  <ProductReviewForm
+                    userId={userProfile.id}
+                    productId={productId}
+                    productName={product.name}
+                    sizeId={sizeId}
+                    reviewBonus={50}
+                    onSuccess={() => {
+                      setShowReviewForm(false)
+                      setCanReview(false)
+                      setReviewKey(prev => prev + 1)
+                    }}
+                    onCancel={() => setShowReviewForm(false)}
+                  />
+                )}
+
+                {/* Reviews List */}
+                <ProductReviews 
+                  key={reviewKey}
+                  productId={productId} 
+                  userId={userProfile?.id} 
+                />
+              </div>
             )}
           </div>
         </div>
