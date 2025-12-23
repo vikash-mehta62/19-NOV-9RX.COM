@@ -53,7 +53,9 @@ interface CreditSettings {
 
 interface EnhancedPaymentTabProps {
   userId: string;
+  readOnly?: boolean;
 }
+
 interface Transaction {
   id: string;
   transaction_date: string;
@@ -66,7 +68,7 @@ interface Transaction {
   admin_pay_notes?: string;
 }
 
-export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
+export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPaymentTabProps) {
   const [creditSettings, setCreditSettings] = useState<CreditSettings | null>(
     null
   );
@@ -74,6 +76,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
   const [loading, setLoading] = useState(true);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
+  const [hasPendingTerms, setHasPendingTerms] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -93,7 +96,8 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
   const loadCreditSettings = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch profile settings
+      const { data: profileData, error: profileError } = await supabase
         .from("profiles")
         .select(
           `
@@ -112,20 +116,66 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         .eq("id", userId)
         .single();
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      setCreditSettings(data as CreditSettings);
+      // Fetch active credit line (overrides profile data if exists)
+      const { data: creditLineData } = await supabase
+        .from("user_credit_lines")
+        .select("*")
+        .eq("user_id", userId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      // Check for pending terms (new offers)
+      const { data: pendingTerms } = await supabase
+        .from("sent_credit_terms")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .limit(1);
+
+      if (pendingTerms && pendingTerms.length > 0) {
+        setHasPendingTerms(true);
+      } else {
+        setHasPendingTerms(false);
+      }
+
+      let settings = profileData as CreditSettings;
+
+      if (creditLineData) {
+        // Use profile's credit_used as the source of truth (live data)
+        // Recalculate available credit based on new limit and existing usage
+        const currentUsed = settings.credit_used || 0;
+        
+        settings = {
+          ...settings,
+          credit_limit: creditLineData.credit_limit,
+          available_credit: creditLineData.credit_limit - currentUsed,
+          // Do NOT overwrite credit_used from creditLineData as it might be outdated
+          // credit_used: settings.credit_used, 
+          
+          // user_credit_lines stores net_terms as number, profiles as string usually
+          payment_terms: `net_${creditLineData.net_terms}`, 
+          credit_days: creditLineData.net_terms,
+          late_payment_fee_percentage: creditLineData.interest_rate,
+          credit_status: creditLineData.status
+        };
+      }
+
+      setCreditSettings(settings);
 
       // Set form values
-      if (data) {
-        setCreditLimit(data.credit_limit?.toString() || "0");
-        setPaymentTerms(data.payment_terms || "net_30");
-        setCreditDays(data.credit_days?.toString() || "30");
+      if (settings) {
+        setCreditLimit(settings.credit_limit?.toString() || "0");
+        setPaymentTerms(settings.payment_terms || "net_30");
+        setCreditDays(settings.credit_days?.toString() || "30");
         setLateFeePercentage(
-          data.late_payment_fee_percentage?.toString() || "2"
+          settings.late_payment_fee_percentage?.toString() || "2"
         );
-        setAutoStatement(data.auto_statement ?? true);
-        setStatementFrequency(data.statement_frequency || "monthly");
+        setAutoStatement(settings.auto_statement ?? true);
+        setStatementFrequency(settings.statement_frequency || "monthly");
       }
     } catch (error) {
       console.error("Error loading credit settings:", error);
@@ -141,7 +191,8 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
 
   const handleSaveCreditSettings = async () => {
     try {
-      const { error } = await supabase
+      // 1. Update Profile
+      const { error: profileError } = await supabase
         .from("profiles")
         .update({
           credit_limit: parseFloat(creditLimit),
@@ -153,7 +204,20 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
         })
         .eq("id", userId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
+
+      // 2. Update Active Credit Line (if exists) - Sync with Profile
+      const { error: lineError } = await supabase
+        .from("user_credit_lines")
+        .update({
+          credit_limit: parseFloat(creditLimit),
+          net_terms: parseInt(creditDays),
+          interest_rate: parseFloat(lateFeePercentage),
+        })
+        .eq("user_id", userId)
+        .eq("status", "active");
+
+      if (lineError) throw lineError;
 
       toast({
         title: "Settings Updated",
@@ -348,6 +412,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
   const getCreditStatusColor = (status: string) => {
     switch (status) {
       case "good":
+      case "active":
         return "text-green-600 bg-green-50 border-green-200";
       case "warning":
         return "text-yellow-600 bg-yellow-50 border-yellow-200";
@@ -363,6 +428,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
   const getCreditStatusIcon = (status: string) => {
     switch (status) {
       case "good":
+      case "active":
         return <CheckCircle className="w-5 h-5" />;
       case "warning":
         return <AlertCircle className="w-5 h-5" />;
@@ -405,17 +471,32 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-        <p className="mt-4 text-muted-foreground">
-          Loading payment information...
-        </p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
+      {/* Pending Offer Alert */}
+      {readOnly && hasPendingTerms && (
+        <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-sm animate-pulse">
+          <CardContent className="p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-emerald-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-emerald-900 font-semibold">New Credit Offer Approved!</h3>
+              <p className="text-emerald-700 text-sm">
+                Congratulations! Your credit increase request has been approved. 
+                Please check the "Pending Credit Terms" banner at the top of the page to review and sign your new agreement.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Credit Overview */}
       {creditSettings && (
         <Card>
@@ -434,115 +515,117 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                     {creditSettings.credit_status}
                   </span>
                 </Badge>
-                <Dialog
-                  open={isEditDialogOpen}
-                  onOpenChange={setIsEditDialogOpen}
-                >
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Edit className="w-4 h-4 mr-2" />
-                      Edit Settings
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="sm:max-w-[600px]">
-                    <DialogHeader>
-                      <DialogTitle>Edit Credit Settings</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4 mt-4">
-                      <div>
-                        <Label>Credit Limit (USD)</Label>
-                        <Input
-                          type="number"
-                          value={creditLimit}
-                          onChange={(e) => setCreditLimit(e.target.value)}
-                          placeholder="0.00"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
+                {!readOnly && (
+                  <Dialog
+                    open={isEditDialogOpen}
+                    onOpenChange={setIsEditDialogOpen}
+                  >
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Settings
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[600px]">
+                      <DialogHeader>
+                        <DialogTitle>Edit Credit Settings</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-4">
                         <div>
-                          <Label>Payment Terms</Label>
+                          <Label>Credit Limit (USD)</Label>
+                          <Input
+                            type="number"
+                            value={creditLimit}
+                            onChange={(e) => setCreditLimit(e.target.value)}
+                            placeholder="0.00"
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label>Payment Terms</Label>
+                            <Select
+                              value={paymentTerms}
+                              onValueChange={setPaymentTerms}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="net_30">Net 30</SelectItem>
+                                <SelectItem value="net_60">Net 60</SelectItem>
+                                <SelectItem value="DueOnReceipt">
+                                  Due on Receipt
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Credit Days</Label>
+                            <Input
+                              type="number"
+                              value={creditDays}
+                              onChange={(e) => setCreditDays(e.target.value)}
+                              placeholder="30"
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Late Payment Fee (%)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={lateFeePercentage}
+                            onChange={(e) => setLateFeePercentage(e.target.value)}
+                            placeholder="2.0"
+                          />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Percentage charged on overdue balances
+                          </p>
+                        </div>
+                        <div>
+                          <Label>Statement Frequency</Label>
                           <Select
-                            value={paymentTerms}
-                            onValueChange={setPaymentTerms}
+                            value={statementFrequency}
+                            onValueChange={setStatementFrequency}
                           >
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="net_30">Net 30</SelectItem>
-                              <SelectItem value="net_60">Net 60</SelectItem>
-                              <SelectItem value="DueOnReceipt">
-                                Due on Receipt
-                              </SelectItem>
+                              <SelectItem value="weekly">Weekly</SelectItem>
+                              <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                              <SelectItem value="monthly">Monthly</SelectItem>
+                              <SelectItem value="quarterly">Quarterly</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
-                        <div>
-                          <Label>Credit Days</Label>
-                          <Input
-                            type="number"
-                            value={creditDays}
-                            onChange={(e) => setCreditDays(e.target.value)}
-                            placeholder="30"
+                        <div className="flex items-center justify-between p-4 border rounded-lg">
+                          <div>
+                            <Label>Auto-Generate Statements</Label>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Automatically send account statements
+                            </p>
+                          </div>
+                          <Switch
+                            checked={autoStatement}
+                            onCheckedChange={setAutoStatement}
                           />
                         </div>
-                      </div>
-                      <div>
-                        <Label>Late Payment Fee (%)</Label>
-                        <Input
-                          type="number"
-                          step="0.1"
-                          value={lateFeePercentage}
-                          onChange={(e) => setLateFeePercentage(e.target.value)}
-                          placeholder="2.0"
-                        />
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Percentage charged on overdue balances
-                        </p>
-                      </div>
-                      <div>
-                        <Label>Statement Frequency</Label>
-                        <Select
-                          value={statementFrequency}
-                          onValueChange={setStatementFrequency}
-                        >
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                            <SelectItem value="quarterly">Quarterly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="flex items-center justify-between p-4 border rounded-lg">
-                        <div>
-                          <Label>Auto-Generate Statements</Label>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Automatically send account statements
-                          </p>
+                        <div className="flex justify-end gap-2 pt-4">
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsEditDialogOpen(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={handleSaveCreditSettings}>
+                            Save Settings
+                          </Button>
                         </div>
-                        <Switch
-                          checked={autoStatement}
-                          onCheckedChange={setAutoStatement}
-                        />
                       </div>
-                      <div className="flex justify-end gap-2 pt-4">
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsEditDialogOpen(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button onClick={handleSaveCreditSettings}>
-                          Save Settings
-                        </Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -579,6 +662,7 @@ export function EnhancedPaymentTab({ userId }: EnhancedPaymentTabProps) {
                     creditUsed={creditSettings.credit_used}
                     onPaymentSuccess={loadCreditSettings} 
                     userId={userId}
+                    allowManual={!readOnly}
                   />
                 </div>
               </div>

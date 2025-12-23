@@ -239,7 +239,7 @@ const Products = () => {
                 {/* Product Image */}
                 <div className="relative aspect-square bg-gray-50 overflow-hidden">
                   <img
-                    src={product.image_url || product.image || "/placeholder.svg"}
+                    src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
                     alt={product.name}
                     className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
                   />

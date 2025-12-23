@@ -12,7 +12,7 @@ import { supabase } from "@/supabaseClient";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { useNavigate } from "react-router-dom";
-import { format } from "date-fns";
+import { format, subDays, subMonths, subYears, isAfter, parseISO } from "date-fns";
 import {
   Select,
   SelectContent,
@@ -26,7 +26,8 @@ interface OrderHistoryItem {
   order_number: string;
   created_at: string;
   status: string;
-  total: number;
+  total_amount: number;
+  payment_status?: string;
   items: any[];
 }
 
@@ -49,7 +50,7 @@ const OrderHistory = () => {
           .select("*")
           .eq("profile_id", userProfile.id)
           .order("created_at", { ascending: false });
-
+console.log(data)
         if (error) throw error;
         setOrders(data || []);
       } catch (error) {
@@ -68,6 +69,7 @@ const OrderHistory = () => {
       delivered: "bg-green-100 text-green-700",
       processing: "bg-blue-100 text-blue-700",
       pending: "bg-yellow-100 text-yellow-700",
+      new: "bg-blue-50 text-blue-700",
       cancelled: "bg-red-100 text-red-700",
       shipped: "bg-purple-100 text-purple-700",
     };
@@ -76,7 +78,22 @@ const OrderHistory = () => {
 
   const filteredOrders = orders.filter(order => {
     const matchesSearch = order.order_number?.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
+    
+    let matchesDate = true;
+    if (dateFilter !== "all" && order.created_at) {
+      const orderDate = new Date(order.created_at);
+      const now = new Date();
+      
+      if (dateFilter === "week") {
+        matchesDate = isAfter(orderDate, subDays(now, 7));
+      } else if (dateFilter === "month") {
+        matchesDate = isAfter(orderDate, subDays(now, 30));
+      } else if (dateFilter === "year") {
+        matchesDate = isAfter(orderDate, subYears(now, 1));
+      }
+    }
+
+    return matchesSearch && matchesDate;
   });
 
   return (
@@ -98,17 +115,17 @@ const OrderHistory = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
           <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-emerald-700">{orders.length}</div>
+              <div className="text-2xl font-bold text-emerald-700">{filteredOrders.length}</div>
               <div className="text-sm text-emerald-600">Total Orders</div>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-blue-700">
-                {orders.filter(o => o.status === "completed" || o.status === "delivered").length}
+                {filteredOrders.filter(o => o.status === "completed" || o.status === "delivered").length}
               </div>
               <div className="text-sm text-blue-600">Completed</div>
             </CardContent>
@@ -116,7 +133,7 @@ const OrderHistory = () => {
           <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-yellow-700">
-                {orders.filter(o => o.status === "processing" || o.status === "pending").length}
+                {filteredOrders.filter(o => ["processing", "pending", "new"].includes(o.status?.toLowerCase())).length}
               </div>
               <div className="text-sm text-yellow-600">In Progress</div>
             </CardContent>
@@ -124,9 +141,25 @@ const OrderHistory = () => {
           <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-purple-700">
-                ${orders.reduce((sum, o) => sum + (o.total || 0), 0).toFixed(2)}
+                ${filteredOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0).toFixed(2)}
               </div>
-              <div className="text-sm text-purple-600">Total Spent</div>
+              <div className="text-sm text-purple-600">Total Order Value</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-green-700">
+                ${filteredOrders.reduce((sum, o) => sum + (o.payment_status?.toLowerCase() === 'paid' ? (o.total_amount || 0) : 0), 0).toFixed(2)}
+              </div>
+              <div className="text-sm text-green-600">Total Paid</div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
+            <CardContent className="p-4">
+              <div className="text-2xl font-bold text-red-700">
+                ${filteredOrders.reduce((sum, o) => sum + (o.payment_status?.toLowerCase() !== 'paid' && o.status?.toLowerCase() !== 'cancelled' && o.status?.toLowerCase() !== 'void' ? (o.total_amount || 0) : 0), 0).toFixed(2)}
+              </div>
+              <div className="text-sm text-red-600">Total Due</div>
             </CardContent>
           </Card>
         </div>
@@ -202,7 +235,7 @@ const OrderHistory = () => {
                           {order.created_at ? format(new Date(order.created_at), "MMM dd, yyyy 'at' h:mm a") : "N/A"}
                         </p>
                         <p className="text-sm text-gray-600 mt-1">
-                          {order.items?.length || 0} items • Total: <span className="font-semibold text-emerald-600">${order.total?.toFixed(2) || "0.00"}</span>
+                          {order.items?.length || 0} items • Total: <span className="font-semibold text-emerald-600">${order.total_amount?.toFixed(2) || "0.00"}</span>
                         </p>
                       </div>
                     </div>

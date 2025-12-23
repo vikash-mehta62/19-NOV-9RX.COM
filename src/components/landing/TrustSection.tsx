@@ -86,11 +86,11 @@ const TrustSection = () => {
       bgColor: "bg-emerald-50"
     },
     {
-      icon: Award,
-      value: years,
-      suffix: "+",
-      label: "Years Experience",
-      description: "Industry expertise",
+      icon: Truck,
+      value: "Fast Shipping",
+      suffix: "",
+      label: "",
+      description: "Same-day dispatch for orders before 3 PM EST",
       color: "from-amber-500 to-orange-500",
       bgColor: "bg-amber-50"
     }
@@ -186,23 +186,7 @@ const TrustSection = () => {
           ))}
         </div>
         
-        {/* Features Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {features.map((feature, index) => (
-            <div 
-              key={index} 
-              className="group bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 border border-slate-100"
-            >
-              <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feature.gradient} flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
-                <feature.icon className="w-7 h-7 text-white" />
-              </div>
-              <h3 className="font-bold text-slate-900 mb-2 text-lg group-hover:text-emerald-600 transition-colors">
-                {feature.title}
-              </h3>
-              <p className="text-slate-600 text-sm leading-relaxed">{feature.description}</p>
-            </div>
-          ))}
-        </div>
+    
 
         {/* Bottom CTA */}
         <div className="text-center mt-16">

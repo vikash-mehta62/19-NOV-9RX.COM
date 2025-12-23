@@ -314,10 +314,10 @@ export const InlineProductSizes = ({
         <div className="flex items-center gap-4">
           <div 
             className="relative w-20 h-20 bg-white rounded-xl overflow-hidden border-2 border-emerald-200 cursor-pointer hover:shadow-md transition-shadow group"
-            onClick={() => onImageClick(getImageUrl(displayProduct.image_url))}
+            onClick={() => onImageClick(getImageUrl(displayProduct.images[0]))}
           >
             <img
-              src={getImageUrl(displayProduct.image_url)}
+              src={getImageUrl(displayProduct.images[0])}
               alt={displayProduct.name}
               className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}

@@ -78,14 +78,13 @@ const Index = () => {
       {/* How It Works */}
       <HowItWorksSection />
       
-      {/* Products */}
-      <ProductCategories />
+  
       
       {/* Partners & Certifications */}
       <PartnersSection />
       
       {/* Testimonials */}
-      <TestimonialsSection />
+      {/* <TestimonialsSection /> */}
       
       {/* Trust Section */}
       <TrustSection />

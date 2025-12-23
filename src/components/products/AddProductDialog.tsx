@@ -117,7 +117,7 @@ export function AddProductDialog({
   const [subcategories, setSubcategories] = useState<Subcategory[]>([])
   const [completedSections, setCompletedSections] = useState<string[]>([])
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
-  const [categories, setCategories] = useState<string[]>(PRODUCT_CATEGORIES)
+  const [categories, setCategories] = useState<string[]>([])
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -176,7 +176,7 @@ export function AddProductDialog({
     if (!error && data) {
       const dbCategories = data.map(c => c.category_name)
       // Merge with default categories
-      const allCategories = [...new Set([...PRODUCT_CATEGORIES, ...dbCategories])]
+      const allCategories = dbCategories
       setCategories(allCategories)
     }
   }

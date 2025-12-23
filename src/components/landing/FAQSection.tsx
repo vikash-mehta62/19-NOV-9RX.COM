@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, HelpCircle, MessageCircle, Phone, Mail, Sparkles } from "lucide-react";
+import { ChevronDown, HelpCircle, MessageCircle, Phone, Mail, Sparkles, FastForwardIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const FAQSection = () => {
@@ -168,7 +168,6 @@ const FAQSection = () => {
               {/* Quick stats */}
               <div className="bg-white rounded-2xl p-6 shadow-lg">
                 <div className="flex items-center gap-2 mb-4">
-                  <Sparkles className="w-5 h-5 text-amber-500" />
                   <span className="font-semibold text-slate-900">Quick Facts</span>
                 </div>
                 <div className="space-y-4">

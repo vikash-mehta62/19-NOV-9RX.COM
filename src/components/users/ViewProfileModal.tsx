@@ -40,6 +40,7 @@ import {
   Eye,
   MoreHorizontal,
   Shield,
+  Settings,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {
@@ -77,6 +78,7 @@ import { useToast } from "@/hooks/use-toast";
 import { EnhancedPaymentTab } from "./EnhancedPaymentTab";
 import { AnalyticsTab } from "./tabs/AnalyticsTab";
 import { GroupManagementTab } from "./tabs/GroupManagementTab";
+import { SettingsTab } from "./tabs/SettingsTab";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -342,11 +344,15 @@ export function ViewProfileModal({
       // Calculate paid and pending amounts from orders based on payment_status
       const paidAmount =
         ordersData
-          ?.filter((order) => order.payment_status === "paid")
+          ?.filter((order) => (order.payment_status || "").toLowerCase() === "paid")
           .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
       const pendingAmount =
         ordersData
-          ?.filter((order) => order.payment_status !== "paid")
+          ?.filter((order) => 
+            (order.payment_status || "").toLowerCase() !== "paid" && 
+            (order.status || "").toLowerCase() !== "cancelled" && 
+            (order.status || "").toLowerCase() !== "void"
+          )
           .reduce((sum, order) => sum + (order.total_amount || 0), 0) || 0;
 
       setAnalytics({
@@ -1229,11 +1235,11 @@ export function ViewProfileModal({
                   <div className="text-xs text-muted-foreground">Orders</div>
                 </div>
                 <div className="text-center px-4 py-2 bg-background rounded-md border">
-                  <div className="text-xl font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(0)}</div>
+                  <div className="text-xl font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Paid</div>
                 </div>
                 <div className="text-center px-4 py-2 bg-background rounded-md border">
-                  <div className="text-xl font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(0)}</div>
+                  <div className="text-xl font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Pending</div>
                 </div>
               </div>
@@ -1387,6 +1393,12 @@ export function ViewProfileModal({
                     <TabsTrigger value="group-management" className="flex-shrink-0">
                       <Users className="h-4 w-4 sm:mr-2" />
                       <span className="hidden sm:inline">Group</span>
+                    </TabsTrigger>
+                  )}
+                  {isAdmin && (
+                    <TabsTrigger value="settings" className="flex-shrink-0">
+                      <Settings className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Settings</span>
                     </TabsTrigger>
                   )}
                 </TabsList>
@@ -2469,6 +2481,13 @@ export function ViewProfileModal({
                   groupId={profile.id} 
                   groupName={profile.display_name || `${profile.first_name} ${profile.last_name}`} 
                 />
+              </TabsContent>
+            )}
+
+            {/* Settings Tab - Admin Only */}
+            {isAdmin && (
+              <TabsContent value="settings" className="space-y-4 mt-4">
+                <SettingsTab userId={userId} profile={profile} onUpdate={fetchAllData} />
               </TabsContent>
             )}
           </Tabs>

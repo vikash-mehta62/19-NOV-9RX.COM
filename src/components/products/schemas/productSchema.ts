@@ -110,7 +110,7 @@ export const productFormSchema = z.object({
         size_value: z.string().min(1, "Size value is required"),
         size_unit: z.string(),
         sku: z.string(),
-        image: z.string().optional(),
+        image: z.string().nullish(),
         price: z.coerce.number().min(0, "Price must be positive"),
         groupIds: z.array(z.string().uuid()).optional().default([]),
         disAllogroupIds: z.array(z.string().uuid()).optional().default([]),

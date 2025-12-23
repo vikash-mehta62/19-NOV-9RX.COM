@@ -16,17 +16,21 @@ import {
 } from "@/components/ui/table";
 import { 
   CreditCard, Users, DollarSign, AlertTriangle, CheckCircle, 
-  XCircle, Clock, Loader2, Eye, RefreshCw, Calculator
+  XCircle, Clock, Loader2, Eye, RefreshCw, Calculator, FileText
 } from "lucide-react";
+import { EnhancedPaymentTab } from "@/components/users/EnhancedPaymentTab";
 
 const CreditManagement = () => {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<any[]>([]);
+  const [sentTerms, setSentTerms] = useState<any[]>([]);
   const [creditLines, setCreditLines] = useState<any[]>([]);
   const [overdueInvoices, setOverdueInvoices] = useState<any[]>([]);
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [calculatingPenalties, setCalculatingPenalties] = useState(false);
 
@@ -46,30 +50,51 @@ const CreditManagement = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
+      // Get current user and role from profiles
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user?.id)
+        .single();
+
       // Fetch pending applications
-      const { data: apps } = await supabase
+      const { data: apps, error: appsError } = await supabase
         .from("credit_applications")
-        .select("*, profiles(company_name, email)")
+        .select("*, profiles:user_id(company_name, email)")
         .order("created_at", { ascending: false });
 
+      if (appsError) console.error("Apps Error:", appsError);
       setApplications(apps || []);
 
-      // Fetch active credit lines
-      const { data: lines } = await supabase
-        .from("user_credit_lines")
-        .select("*, profiles(company_name, email)")
+      // Fetch sent credit terms
+      const { data: terms, error: termsError } = await supabase
+        .from("sent_credit_terms")
+        .select("*, profiles:user_id(company_name, email)")
         .order("created_at", { ascending: false });
 
+      if (termsError) console.error("Terms Error:", termsError);
+      setSentTerms(terms || []);
+
+      // Fetch active credit lines
+      const { data: lines, error: linesError } = await supabase
+        .from("user_credit_lines")
+        .select("*, profiles:user_id(company_name, email)")
+        .order("created_at", { ascending: false });
+
+      if (linesError) console.error("Lines Error:", linesError);
       setCreditLines(lines || []);
 
       // Fetch overdue invoices
-      const { data: overdue } = await supabase
+      const { data: overdue, error: overdueError } = await supabase
         .from("credit_invoices")
-        .select("*, profiles(company_name, email)")
+        .select("*, profiles:user_id(company_name, email)")
         .eq("status", "overdue")
         .order("days_overdue", { ascending: false });
 
+      if (overdueError) console.error("Overdue Error:", overdueError);
       setOverdueInvoices(overdue || []);
+
     } catch (error) {
       console.error("Error fetching data:", error);
     } finally {
@@ -96,26 +121,91 @@ const CreditManagement = () => {
 
       if (appError) throw appError;
 
-      // If approved, create credit line
+      // If approved, create credit line and send terms
       if (reviewData.status === "approved") {
-        const { error: lineError } = await supabase
-          .from("user_credit_lines")
-          .upsert({
-            user_id: selectedApplication.user_id,
+        // 1. Update Profile (Active) - IMMEDIATE ACTIVATION as per request
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({
             credit_limit: parseFloat(reviewData.approved_amount),
-            available_credit: parseFloat(reviewData.approved_amount),
-            used_credit: 0,
-            net_terms: parseInt(reviewData.net_terms),
-            interest_rate: parseFloat(reviewData.interest_rate),
-            status: "active",
-          });
+            payment_terms: `net_${reviewData.net_terms}`,
+            credit_days: parseInt(reviewData.net_terms),
+            late_payment_fee_percentage: parseFloat(reviewData.interest_rate),
+            credit_status: "good", // 'good' is the valid status for active/healthy credit
+          })
+          .eq("id", selectedApplication.user_id);
+
+        if (profileError) throw profileError;
+
+        // 2. Create or Update Active Credit Line - IMMEDIATE ACTIVATION
+        // First check if a credit line exists to preserve used_credit
+        const { data: existingLine } = await supabase
+          .from("user_credit_lines")
+          .select("id, used_credit")
+          .eq("user_id", selectedApplication.user_id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const usedCredit = existingLine?.used_credit || 0;
+        const newLimit = parseFloat(reviewData.approved_amount);
+        const availableCredit = newLimit - usedCredit;
+
+        const creditLineData = {
+          user_id: selectedApplication.user_id,
+          credit_limit: newLimit,
+          available_credit: availableCredit,
+          used_credit: usedCredit,
+          net_terms: parseInt(reviewData.net_terms),
+          interest_rate: parseFloat(reviewData.interest_rate),
+          status: "active",
+          payment_score: 100
+        };
+
+        let lineError;
+        
+        if (existingLine) {
+          const { error } = await supabase
+            .from("user_credit_lines")
+            .update({
+              credit_limit: newLimit,
+              available_credit: availableCredit,
+              net_terms: parseInt(reviewData.net_terms),
+              interest_rate: parseFloat(reviewData.interest_rate),
+              status: "active"
+            })
+            .eq("id", existingLine.id);
+          lineError = error;
+        } else {
+          const { error } = await supabase
+            .from("user_credit_lines")
+            .insert(creditLineData);
+          lineError = error;
+        }
 
         if (lineError) throw lineError;
+
+        // 3. Create Sent Credit Terms (marked as accepted since we activated it)
+        const { error: termsError } = await supabase
+          .from("sent_credit_terms")
+          .insert({
+            user_id: selectedApplication.user_id,
+            credit_limit: parseFloat(reviewData.approved_amount),
+            net_terms: parseInt(reviewData.net_terms),
+            interest_rate: parseFloat(reviewData.interest_rate),
+            terms_version: "1.0",
+            status: "accepted", // Auto-accept
+            sent_at: new Date().toISOString(),
+            responded_at: new Date().toISOString(),
+            custom_message: reviewData.notes || "Credit line approved and activated by admin."
+          });
+
+        if (termsError) throw termsError;
       }
 
       toast({
         title: "Application Updated",
-        description: `Application has been ${reviewData.status}`,
+        description: `Application has been ${reviewData.status}${reviewData.status === 'approved' ? ' and terms sent' : ''}`,
       });
 
       setShowReviewDialog(false);
@@ -161,18 +251,22 @@ const CreditManagement = () => {
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "approved":
+      case "accepted":
         return <Badge className="bg-emerald-100 text-emerald-700"><CheckCircle className="w-3 h-3 mr-1" />Approved</Badge>;
       case "rejected":
         return <Badge className="bg-red-100 text-red-700"><XCircle className="w-3 h-3 mr-1" />Rejected</Badge>;
       case "under_review":
-        return <Badge className="bg-blue-100 text-blue-700"><Eye className="w-3 h-3 mr-1" />Under Review</Badge>;
+      case "viewed":
+        return <Badge className="bg-blue-100 text-blue-700"><Eye className="w-3 h-3 mr-1" />{status === 'viewed' ? 'Viewed' : 'Under Review'}</Badge>;
+      case "expired":
+        return <Badge className="bg-gray-100 text-gray-700"><Clock className="w-3 h-3 mr-1" />Expired</Badge>;
       default:
         return <Badge className="bg-amber-100 text-amber-700"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
     }
   };
 
   // Stats
-  const pendingCount = applications.filter(a => a.status === "pending").length;
+  const pendingCount = applications.filter(a => ["pending", "under_review"].includes(a.status)).length;
   const totalCreditExtended = creditLines.reduce((sum, l) => sum + (l.credit_limit || 0), 0);
   const totalUsedCredit = creditLines.reduce((sum, l) => sum + (l.used_credit || 0), 0);
   const totalOverdue = overdueInvoices.reduce((sum, i) => sum + (i.balance_due || 0), 0);
@@ -278,6 +372,9 @@ const CreditManagement = () => {
             <TabsTrigger value="applications">
               Applications ({applications.length})
             </TabsTrigger>
+            <TabsTrigger value="sent-terms">
+              Sent Offers ({sentTerms.length})
+            </TabsTrigger>
             <TabsTrigger value="credit-lines">
               Credit Lines ({creditLines.length})
             </TabsTrigger>
@@ -347,6 +444,45 @@ const CreditManagement = () => {
             </Card>
           </TabsContent>
 
+          {/* Sent Terms Tab */}
+          <TabsContent value="sent-terms">
+            <Card>
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Business</TableHead>
+                      <TableHead>Offered Amount</TableHead>
+                      <TableHead>Net Terms</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Sent Date</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {sentTerms.map((term) => (
+                      <TableRow key={term.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{term.profiles?.company_name || "Unknown"}</p>
+                            <p className="text-sm text-gray-500">{term.profiles?.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell className="font-medium">
+                          ${term.credit_limit?.toLocaleString()}
+                        </TableCell>
+                        <TableCell>Net {term.net_terms}</TableCell>
+                        <TableCell>{getStatusBadge(term.status)}</TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          {new Date(term.created_at).toLocaleDateString()}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           {/* Credit Lines Tab */}
           <TabsContent value="credit-lines">
             <Card>
@@ -361,6 +497,7 @@ const CreditManagement = () => {
                       <TableHead>Net Terms</TableHead>
                       <TableHead>Score</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -397,6 +534,19 @@ const CreditManagement = () => {
                           <Badge className={line.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
                             {line.status}
                           </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedUserId(line.user_id);
+                              setShowDetailsDialog(true);
+                            }}
+                          >
+                            <FileText className="w-4 h-4 mr-1" />
+                            Details
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -454,7 +604,7 @@ const CreditManagement = () => {
 
         {/* Review Dialog */}
         <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Review Credit Application</DialogTitle>
             </DialogHeader>
@@ -491,6 +641,99 @@ const CreditManagement = () => {
                     <p className="text-sm text-gray-500">Tax ID</p>
                     <p className="font-medium">{selectedApplication.tax_id || "N/A"}</p>
                   </div>
+                </div>
+
+                {/* Bank Information */}
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                    <DollarSign className="w-4 h-4" /> Bank Information
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-blue-700">Bank Name</p>
+                      <p className="font-medium">{selectedApplication.bank_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-700">Account Number</p>
+                      <p className="font-medium">{selectedApplication.bank_account_number || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-blue-700">Routing Number</p>
+                      <p className="font-medium">{selectedApplication.bank_routing_number || "N/A"}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Trade References */}
+                {(selectedApplication.trade_reference_1 || selectedApplication.trade_reference_2) && (
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <h3 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                      <Users className="w-4 h-4" /> Trade References
+                    </h3>
+                    <div className="space-y-4">
+                      {selectedApplication.trade_reference_1 && (
+                        <div className="border-b border-purple-200 pb-2 last:border-0 last:pb-0">
+                          <p className="font-medium text-purple-900 mb-1">Reference 1</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <p><span className="text-purple-700">Name:</span> {selectedApplication.trade_reference_1.name}</p>
+                            <p><span className="text-purple-700">Phone:</span> {selectedApplication.trade_reference_1.phone}</p>
+                            <p><span className="text-purple-700">Email:</span> {selectedApplication.trade_reference_1.email}</p>
+                          </div>
+                        </div>
+                      )}
+                      {selectedApplication.trade_reference_2 && (
+                        <div className="border-b border-purple-200 pb-2 last:border-0 last:pb-0">
+                          <p className="font-medium text-purple-900 mb-1">Reference 2</p>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <p><span className="text-purple-700">Name:</span> {selectedApplication.trade_reference_2.name}</p>
+                            <p><span className="text-purple-700">Phone:</span> {selectedApplication.trade_reference_2.phone}</p>
+                            <p><span className="text-purple-700">Email:</span> {selectedApplication.trade_reference_2.email}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Signature */}
+                <div className="p-4 bg-emerald-50 rounded-lg">
+                  <h3 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Signature & Agreement
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-sm text-emerald-700">Signed Name</p>
+                      <p className="font-medium">{selectedApplication.signed_name || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-emerald-700">Title</p>
+                      <p className="font-medium">{selectedApplication.signed_title || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-emerald-700">Date Signed</p>
+                      <p className="font-medium">
+                        {selectedApplication.signed_date 
+                          ? new Date(selectedApplication.signed_date).toLocaleDateString() 
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                       <p className="text-sm text-emerald-700">IP Address</p>
+                       <p className="font-medium">{selectedApplication.ip_address || "N/A"}</p>
+                    </div>
+                  </div>
+                  {selectedApplication.signature && (
+                    <div className="mt-4 border-t border-emerald-200 pt-4">
+                      <p className="text-sm text-emerald-700 mb-2">Digital Signature</p>
+                      <div className="bg-white p-2 rounded border border-emerald-200 inline-block">
+                        <img 
+                          src={selectedApplication.signature} 
+                          alt="User Signature" 
+                          className="max-h-24 object-contain"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Decision */}
@@ -596,6 +839,20 @@ const CreditManagement = () => {
                   <XCircle className="w-4 h-4 mr-2" />
                 )}
                 {reviewData.status === "approved" ? "Approve" : reviewData.status === "rejected" ? "Reject" : "Update"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        {/* Details Dialog */}
+        <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Credit Account Details</DialogTitle>
+            </DialogHeader>
+            {selectedUserId && <EnhancedPaymentTab userId={selectedUserId} />}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+                Close
               </Button>
             </DialogFooter>
           </DialogContent>

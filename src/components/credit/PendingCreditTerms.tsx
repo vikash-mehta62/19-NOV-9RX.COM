@@ -138,9 +138,73 @@ const PendingCreditTerms = () => {
 
       if (error) throw error;
 
+      // Update profiles with credit details (for EnhancedPaymentTab)
+      const { error: profileError } = await supabase
+        .from("profiles")
+        .update({
+          credit_limit: pendingTerms.credit_limit,
+          available_credit: pendingTerms.credit_limit,
+          credit_used: 0,
+          payment_terms: `net_${pendingTerms.net_terms}`,
+          credit_days: pendingTerms.net_terms,
+          late_payment_fee_percentage: pendingTerms.interest_rate,
+          credit_status: 'good',
+        })
+        .eq("id", userProfile?.id);
+
+      if (profileError) throw profileError;
+
+      // Create/Update active credit line (for Admin Credit Lines tab)
+      // Check for existing line first to avoid duplicates
+      const { data: existingLine } = await supabase
+        .from("user_credit_lines")
+        .select("id, used_credit")
+        .eq("user_id", userProfile?.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      const usedCredit = existingLine?.used_credit || 0;
+      const newLimit = pendingTerms.credit_limit;
+      const availableCredit = newLimit - usedCredit;
+
+      const creditLineData = {
+          user_id: userProfile?.id,
+          credit_limit: newLimit,
+          available_credit: availableCredit,
+          used_credit: usedCredit,
+          net_terms: pendingTerms.net_terms,
+          interest_rate: pendingTerms.interest_rate,
+          status: "active",
+          payment_score: 100
+      };
+
+      let lineError;
+
+      if (existingLine) {
+        const { error } = await supabase
+          .from("user_credit_lines")
+          .update({
+            credit_limit: newLimit,
+            available_credit: availableCredit,
+            net_terms: pendingTerms.net_terms,
+            interest_rate: pendingTerms.interest_rate,
+            status: "active"
+          })
+          .eq("id", existingLine.id);
+        lineError = error;
+      } else {
+        const { error } = await supabase
+          .from("user_credit_lines")
+          .upsert(creditLineData); // upsert is fine here if we don't have ID, but insert is clearer. upsert without ID = insert.
+        lineError = error;
+      }
+
+      if (lineError) throw lineError;
+
       toast({
         title: "Terms Accepted!",
-        description: "You have successfully accepted the credit terms. Your credit line will be activated shortly.",
+        description: "You have successfully accepted the credit terms. Your credit line is now active.",
       });
 
       setShowReviewDialog(false);
@@ -236,7 +300,7 @@ const PendingCreditTerms = () => {
 
       {/* Review & Sign Dialog */}
       <Dialog open={showReviewDialog} onOpenChange={setShowReviewDialog}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>
               {currentStep === 1 ? "Review Credit Terms" : "Sign Agreement"}

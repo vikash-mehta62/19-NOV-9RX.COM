@@ -151,10 +151,11 @@ export default function AdminRewards() {
         setRewards(rewardsData)
       }
 
-      // Fetch users with reward points
+      // Fetch users with reward points (only enrolled members)
       const { data: usersData } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, company_name, email, reward_points, lifetime_reward_points, reward_tier")
+        .not("reward_tier", "is", null)
         .order("reward_points", { ascending: false })
 
       setUsers(usersData || [])

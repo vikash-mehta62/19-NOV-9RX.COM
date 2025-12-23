@@ -14,6 +14,33 @@ import { transformProductData } from "@/utils/productTransformers";
 
 export const PAGE_SIZE = 10;
 
+const formatErrorMessage = (error: any): string => {
+  if (Array.isArray(error)) {
+    const messages = error.map((err) => {
+      if (typeof err === "object") {
+        return Object.entries(err)
+          .map(([key, val]: [string, any]) => {
+            if (val && typeof val === "object" && "message" in val) {
+              return `${key}: ${val.message}`;
+            }
+            return null;
+          })
+          .filter(Boolean)
+          .join(", ");
+      }
+      return null;
+    }).filter(Boolean);
+
+    if (messages.length > 0) return messages.join("; ");
+  }
+  
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (error?.message) return error.message;
+
+  return "An unexpected error occurred.";
+};
+
 export const useProducts = () => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
@@ -36,7 +63,7 @@ export const useProducts = () => {
       );
 
       if (error) {
-        toast({ title: "Error", description: "Failed to fetch products." });
+        toast({ title: "Error", description: formatErrorMessage(error) });
         console.error("Error fetching products:", error);
       } else {
         console.log(productsData)
@@ -50,7 +77,7 @@ export const useProducts = () => {
       console.error("Error in fetchProducts:", error);
       toast({ 
         title: "Error", 
-        description: "Failed to fetch products.",
+        description: formatErrorMessage(error),
         variant: "destructive"
       });
     }
@@ -69,9 +96,10 @@ export const useProducts = () => {
       console.error('Error adding product:', error);
       toast({ 
         title: "Error", 
-        description: error instanceof Error ? error.message : "Failed to add product.",
+        description: formatErrorMessage(error),
         variant: "destructive"
       });
+      throw error;
     }
   };
 
@@ -91,9 +119,10 @@ export const useProducts = () => {
       console.error("Error updating product:", error);
       toast({ 
         title: "Error", 
-        description: "Failed to update product.",
+        description: formatErrorMessage(error),
         variant: "destructive"
       });
+      throw error;
     }
   };
 
@@ -112,7 +141,7 @@ export const useProducts = () => {
       console.error("Error deleting product:", error);
       toast({ 
         title: "Error", 
-        description: "Failed to delete product." 
+        description: formatErrorMessage(error) 
       });
     }
   };
@@ -129,7 +158,7 @@ export const useProducts = () => {
       console.error("Error adding bulk products:", error);
       toast({ 
         title: "Error", 
-        description: "Failed to add bulk products." 
+        description: formatErrorMessage(error) 
       });
     }
   };

@@ -60,6 +60,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         items: [
           { icon: FileText, label: "Sales Orders", path: "/admin/orders" },
           { icon: Receipt, label: "Invoices", path: "/admin/invoices" },
+          { icon: Wallet, label: "Credit Management", path: "/admin/credit-management" },
           { icon: FileText, label: "Purchase Orders", path: "/admin/po" },
           { icon: DollarSign, label: "Expenses", path: "/admin/expenses" },
         ],

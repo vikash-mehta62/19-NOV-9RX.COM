@@ -28,6 +28,7 @@ interface PharmacyFilterSidebarProps {
   priceRange: string
   setPriceRange: (range: string) => void
   products?: any[]  // Made optional
+  allProducts?: any[] // Added for accurate counts
   onProductSelect?: (product: any) => void
 }
 
@@ -41,6 +42,7 @@ export const PharmacyFilterSidebar = ({
   priceRange,
   setPriceRange,
   products = [],  // Default to empty array
+  allProducts = [], // Default to empty array
   onProductSelect,
 }: PharmacyFilterSidebarProps) => {
   const [categories, setCategories] = useState<CategoryConfig[]>([])
@@ -97,8 +99,9 @@ export const PharmacyFilterSidebar = ({
   const hasActiveFilters = searchQuery || selectedCategory !== "all" || selectedSubcategory !== "all" || priceRange !== "all"
 
   const getCategoryCount = (categoryName: string) => {
-    if (categoryName === "all") return products.length
-    return products.filter(p => p.category?.toLowerCase() === categoryName.toLowerCase()).length
+    const sourceProducts = allProducts.length > 0 ? allProducts : products
+    if (categoryName === "all") return sourceProducts.length
+    return sourceProducts.filter(p => p.category?.toLowerCase() === categoryName.toLowerCase()).length
   }
 
   return (
@@ -163,7 +166,7 @@ export const PharmacyFilterSidebar = ({
           </button>
           
           {showCategory && (
-            <div className="space-y-1 max-h-64 overflow-y-auto">
+            <div className="space-y-1 max-h-70 overflow-y-auto">
               {/* All Categories */}
               <button
                 onClick={() => setSelectedCategory("all")}
@@ -204,7 +207,7 @@ export const PharmacyFilterSidebar = ({
         </div>
 
         {/* Subcategory */}
-        {filteredSubcategories.length > 0 && (
+        {/* {filteredSubcategories.length > 0 && (
           <div className="pt-4 border-t border-gray-100">
             <button
               onClick={() => setShowSubcategory(!showSubcategory)}
@@ -242,7 +245,7 @@ export const PharmacyFilterSidebar = ({
               </div>
             )}
           </div>
-        )}
+        )} */}
       </div>
     </div>
   )

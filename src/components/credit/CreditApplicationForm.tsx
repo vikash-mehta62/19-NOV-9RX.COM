@@ -27,6 +27,8 @@ interface CreditTerms {
   penalty_rate: number;
 }
 
+import { EnhancedPaymentTab } from "@/components/users/EnhancedPaymentTab";
+
 const CreditApplicationForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -248,83 +250,7 @@ const CreditApplicationForm = () => {
 
   // Show existing credit line status
   if (existingCreditLine) {
-    return (
-      <Card className="max-w-2xl mx-auto">
-        <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center">
-              <CreditCard className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-              <CardTitle>Your Credit Line</CardTitle>
-              <CardDescription>Active credit line details</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-emerald-50 rounded-xl p-4">
-              <p className="text-sm text-emerald-600 mb-1">Credit Limit</p>
-              <p className="text-2xl font-bold text-emerald-700">
-                ${existingCreditLine.credit_limit?.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-blue-50 rounded-xl p-4">
-              <p className="text-sm text-blue-600 mb-1">Available Credit</p>
-              <p className="text-2xl font-bold text-blue-700">
-                ${existingCreditLine.available_credit?.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-amber-50 rounded-xl p-4">
-              <p className="text-sm text-amber-600 mb-1">Used Credit</p>
-              <p className="text-2xl font-bold text-amber-700">
-                ${existingCreditLine.used_credit?.toLocaleString()}
-              </p>
-            </div>
-            <div className="bg-purple-50 rounded-xl p-4">
-              <p className="text-sm text-purple-600 mb-1">Net Terms</p>
-              <p className="text-2xl font-bold text-purple-700">
-                Net {existingCreditLine.net_terms}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-            <div>
-              <p className="text-sm text-gray-500">Payment Score</p>
-              <p className="font-semibold">{existingCreditLine.payment_score}/100</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">On-Time Payments</p>
-              <p className="font-semibold text-emerald-600">{existingCreditLine.on_time_payments}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-500">Late Payments</p>
-              <p className="font-semibold text-red-600">{existingCreditLine.late_payments}</p>
-            </div>
-            <Badge className={existingCreditLine.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
-              {existingCreditLine.status}
-            </Badge>
-          </div>
-
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="font-medium text-amber-800">Late Payment Penalty</p>
-                <p className="text-sm text-amber-700">
-                  {existingCreditLine.interest_rate}% monthly penalty on overdue balances
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Button className="w-full" onClick={() => navigate("/pharmacy/credit")}>
-            View Credit Invoices
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return <EnhancedPaymentTab userId={userProfile.id} readOnly={true} />;
   }
 
   // Show pending application status

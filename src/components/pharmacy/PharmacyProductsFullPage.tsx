@@ -562,6 +562,7 @@ export const PharmacyProductsFullPage = () => {
                 priceRange={priceRange}
                 setPriceRange={setPriceRange}
                 products={filteredProducts}
+                allProducts={products}
                 onProductSelect={handleProductClick}
               />
             </div>
@@ -596,6 +597,7 @@ export const PharmacyProductsFullPage = () => {
                           priceRange={priceRange}
                           setPriceRange={setPriceRange}
                           products={filteredProducts}
+                          allProducts={products}
                           onProductSelect={handleProductClick}
                         />
                       </div>

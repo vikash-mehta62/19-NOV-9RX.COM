@@ -279,6 +279,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
               priceRange={priceRange}
               setPriceRange={setPriceRange}
               products={filteredProducts}
+              allProducts={products}
             />
           </div>
         </aside>
@@ -312,6 +313,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
                         priceRange={priceRange}
                         setPriceRange={setPriceRange}
                         products={filteredProducts}
+                        allProducts={products}
                       />
                     </div>
                   </ScrollArea>

@@ -28,9 +28,10 @@ interface PayCreditModalProps {
   creditUsed: number;
   userId?: string;
   onPaymentSuccess: () => void;
+  allowManual?: boolean;
 }
 
-export function PayCreditModal({ creditUsed, onPaymentSuccess, userId }: PayCreditModalProps) {
+export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManual = true }: PayCreditModalProps) {
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [amount, setAmount] = useState(creditUsed);
   const [isPaying, setIsPaying] = useState(false);
@@ -53,6 +54,13 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId }: PayCred
   const [notes, setNotes] = useState("");
 
   const { toast } = useToast();
+
+  // Update amount when creditUsed prop changes
+  useEffect(() => {
+    if (paymentType === "full") {
+      setAmount(creditUsed);
+    }
+  }, [creditUsed, paymentType]);
 
   // -------------------------------
   // Fetch user profile and auto-fill
