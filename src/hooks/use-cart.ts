@@ -7,6 +7,7 @@ import { CartItem } from '@/store/types/cartTypes';
 export const useCart = () => {
   const dispatch = useDispatch();
   const cartItems = useSelector((state: RootState) => state.cart.items);
+const lastActionAt = useSelector((state: RootState) => state.cart.lastActionAt);
 
   const addToCart = async (item: CartItem) => {
     try {
@@ -97,6 +98,7 @@ const updateDescription = async (productId: string, description: string) => {
     cartItems,
     cartTotal,
     totalItems,
+    lastActionAt,
     addToCart,
     removeFromCart,
     updateQuantity,

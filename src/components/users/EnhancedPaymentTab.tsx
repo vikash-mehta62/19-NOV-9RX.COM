@@ -599,18 +599,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                             </SelectContent>
                           </Select>
                         </div>
-                        <div className="flex items-center justify-between p-4 border rounded-lg">
-                          <div>
-                            <Label>Auto-Generate Statements</Label>
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Automatically send account statements
-                            </p>
-                          </div>
-                          <Switch
-                            checked={autoStatement}
-                            onCheckedChange={setAutoStatement}
-                          />
-                        </div>
+
                         <div className="flex justify-end gap-2 pt-4">
                           <Button
                             variant="outline"
@@ -735,58 +724,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         </CardHeader>
         <CardContent>
           <div className="space-y-6">
-            {/* Auto-Statement Settings */}
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="flex-1">
-                <p className="font-medium">Auto-Generate Statements</p>
-                <p className="text-sm text-muted-foreground">
-                  Frequency: {creditSettings?.statement_frequency || "Monthly"}
-                </p>
-                {creditSettings?.last_statement_date && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Last generated:{" "}
-                    {new Date(
-                      creditSettings.last_statement_date
-                    ).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={creditSettings?.auto_statement ?? false}
-                  onCheckedChange={async (checked) => {
-                    try {
-                      const { error } = await supabase
-                        .from("profiles")
-                        .update({ auto_statement: checked })
-                        .eq("id", userId);
-                      
-                      if (error) throw error;
-                      
-                      toast({
-                        title: "Settings Updated",
-                        description: `Auto-generate statements ${checked ? "enabled" : "disabled"}`,
-                      });
-                      loadCreditSettings();
-                    } catch (error: any) {
-                      toast({
-                        title: "Error",
-                        description: "Failed to update settings",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                />
-                <Badge
-                  variant={
-                    creditSettings?.auto_statement ? "default" : "secondary"
-                  }
-                  className={creditSettings?.auto_statement ? "bg-green-500" : ""}
-                >
-                  {creditSettings?.auto_statement ? "Enabled" : "Disabled"}
-                </Badge>
-              </div>
-            </div>
+
 
             {/* Custom Date Range Statement Generation */}
             <div className="border-t pt-4">

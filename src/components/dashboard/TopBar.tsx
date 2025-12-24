@@ -7,8 +7,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CartDrawer } from "../pharmacy/components/CartDrawer";
+import { supabase } from "@/integrations/supabase/client";
+import { formatDistanceToNow } from "date-fns";
 
 interface Notification {
   id: string;
@@ -18,35 +20,62 @@ interface Notification {
 }
 
 export const TopBar = () => {
-  const [notifications, setNotifications] = useState<Notification[]>([
-    // {
-    //   id: "1",
-    //   message: "New order received",
-    //   time: "5 minutes ago",
-    //   read: false,
-    // },
-    // {
-    //   id: "2",
-    //   message: "Stock alert: Product XYZ running low",
-    //   time: "10 minutes ago",
-    //   read: false,
-    // },
-    // {
-    //   id: "3",
-    //   message: "Payment received from Customer ABC",
-    //   time: "1 hour ago",
-    //   read: false,
-    // },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  useEffect(() => {
+    if (sessionStorage.getItem('userType') !== 'admin') return;
+
+    const fetchNotifications = async () => {
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (data) {
+        setNotifications(data.map((n: any) => ({
+          id: n.id,
+          message: n.message,
+          time: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
+          read: n.read
+        })));
+      }
+    };
+
+    fetchNotifications();
+
+    const channel = supabase
+      .channel('notifications_channel')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications' },
+        (payload) => {
+          const newNotification = payload.new as any;
+          setNotifications(prev => [{
+            id: newNotification.id,
+            message: newNotification.message,
+            time: 'Just now',
+            read: newNotification.read
+          }, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAsRead = (id: string) => {
+  const markAsRead = async (id: string) => {
     setNotifications(
       notifications.map((notification) =>
         notification.id === id ? { ...notification, read: true } : notification
       )
     );
+    
+    await supabase.from('notifications').update({ read: true }).eq('id', id);
   };
 
   return (

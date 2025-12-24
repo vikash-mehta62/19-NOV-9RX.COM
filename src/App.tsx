@@ -75,6 +75,9 @@ import Expenses from "./pages/admin/Expenses";
 import AdminLogs from "./pages/admin/AdminLogs";
 import ProductDetails from "./pages/ProductDetails";
 import AccessRequests from "./pages/AccessRequests";
+import { CartSync } from "./components/CartSync";
+
+import { runEmailCronJobs } from "./services/emailCronService";
 
 export let CATEGORY_CONFIGS: Record<
   string,
@@ -136,6 +139,22 @@ function App() {
 
 
   useEffect(() => {
+    // Run email cron jobs every minute to process queue and automations
+    const runCron = async () => {
+      console.log("Running email cron jobs...");
+      await runEmailCronJobs();
+    };
+
+    // Run immediately on app load
+    runCron();
+
+    // Schedule every minute
+    const intervalId = setInterval(runCron, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
 
 
     fetchCategoryConfigs();
@@ -159,8 +178,10 @@ function App() {
 
 
   return (
-    <Routes>
-      {/* Public routes */}
+    <>
+      <CartSync />
+      <Routes>
+        {/* Public routes */}
       <Route path="/" element={<Index />} />
 
       <Route path="/product/:id" element={<ProductDetails />} />
@@ -516,6 +537,7 @@ function App() {
         </ProtectedRoute>
       } />
     </Routes>
+    </>
   );
 }
 

@@ -15,6 +15,7 @@ export interface CartItem {
 
 export interface CartState {
   items: CartItem[];
+  lastActionAt: string | null;
 }
 
 // Create typed action creators

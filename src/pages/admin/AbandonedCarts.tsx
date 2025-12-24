@@ -56,20 +56,45 @@ export default function AbandonedCarts() {
 
   const fetchAbandonedCarts = async () => {
     try {
-  const { data, error } = await supabase
-  .from("abandoned_carts")
-  .select(`
-    *,
-    user:profiles!user_id (
-      email,
-      company_name
-    )
-  `)
-  .order("created_at", { ascending: false });
+      // Fetch active carts that haven't been updated in the last 1 minute (for testing purposes)
+      // This replaces the separate abandoned_carts table to avoid duplication
+      const cutoffTime = new Date(Date.now() - 1 * 60 * 1000).toISOString();
 
+      const { data, error } = await supabase
+        .from("carts")
+        .select(`
+          *,
+          user:profiles!user_id (
+            email,
+            company_name
+          )
+        `)
+        .eq("status", "active")
+        .lt("updated_at", cutoffTime)
+        .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setCarts(data || []);
+      
+      // Map carts to AbandonedCart interface
+      const mappedCarts: AbandonedCart[] = (data || []).map((cart: any) => ({
+        id: cart.id,
+        user_id: cart.user_id,
+        cart_data: { items: cart.items },
+        cart_value: cart.total,
+        item_count: cart.items?.length || 0,
+        reminder_sent_count: cart.abandoned_email_sent_at ? 1 : 0,
+        last_reminder_at: cart.abandoned_email_sent_at,
+        recovered: cart.recovery_status === 'recovered',
+        recovered_at: null,
+        created_at: cart.created_at,
+        updated_at: cart.updated_at,
+        user: cart.user ? {
+          email: cart.user.email,
+          business_name: cart.user.company_name
+        } : undefined
+      }));
+
+      setCarts(mappedCarts);
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } finally {
@@ -79,12 +104,12 @@ export default function AbandonedCarts() {
 
   const sendReminder = async (cart: AbandonedCart) => {
     try {
-      // Update reminder count
+      // Trigger automation manually via API or update status to force a check
+      // For now, we'll simulate sending by updating the timestamp
       const { error } = await supabase
-        .from("abandoned_carts")
+        .from("carts")
         .update({
-          reminder_sent_count: cart.reminder_sent_count + 1,
-          last_reminder_at: new Date().toISOString(),
+          abandoned_email_sent_at: new Date().toISOString(),
         })
         .eq("id", cart.id);
 
@@ -92,7 +117,7 @@ export default function AbandonedCarts() {
 
       toast({
         title: "Reminder Sent",
-        description: `Cart recovery email sent to ${cart.user?.email || "user"}`,
+        description: `Cart recovery email marked as sent to ${cart.user?.email || "user"}`,
       });
       fetchAbandonedCarts();
     } catch (error: any) {
@@ -103,10 +128,9 @@ export default function AbandonedCarts() {
   const markAsRecovered = async (cartId: string) => {
     try {
       const { error } = await supabase
-        .from("abandoned_carts")
+        .from("carts")
         .update({
-          recovered: true,
-          recovered_at: new Date().toISOString(),
+          recovery_status: 'recovered',
         })
         .eq("id", cartId);
 

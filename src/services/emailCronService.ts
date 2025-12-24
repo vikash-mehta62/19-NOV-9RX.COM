@@ -2,7 +2,7 @@
 // This should be called periodically (e.g., every minute) via a cron job or edge function
 
 import { processEmailQueue, retryFailedEmails, getQueueStats } from "./emailQueueService";
-import { processScheduledAutomations } from "./emailAutomationEngine";
+import { processScheduledAutomations, triggerAutomation } from "./emailAutomationEngine";
 import { evaluateABTest } from "./emailCampaignService";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -111,6 +111,25 @@ export async function runEmailCronJobs(): Promise<CronJobResult[]> {
       duration: Date.now() - cleanupStart,
     });
   }
+
+  // 6. Check abandoned carts (Moved to Backend Server Cron)
+  // const abandonedStart = Date.now();
+  // try {
+  //   const abandonedResult = await checkAbandonedCarts();
+  //   results.push({
+  //     job: "checkAbandonedCarts",
+  //     success: true,
+  //     details: abandonedResult,
+  //     duration: Date.now() - abandonedStart,
+  //   });
+  // } catch (error: any) {
+  //   results.push({
+  //     job: "checkAbandonedCarts",
+  //     success: false,
+  //     details: { error: error.message },
+  //     duration: Date.now() - abandonedStart,
+  //   });
+  // }
 
   return results;
 }
@@ -239,78 +258,76 @@ export async function checkInactiveUsers(): Promise<{ triggered: number }> {
 }
 
 // Check for abandoned carts and trigger automation
-export async function checkAbandonedCarts(): Promise<{ triggered: number }> {
+export async function checkAbandonedCarts() {
+  console.log("🔥 checkAbandonedCarts START");
+
+  const cutoff = new Date(Date.now() - 5 * 1000); // 🧪 testing
+
+  const { data: carts, error } = await supabase
+    .from("carts")
+    .select(`
+      id,
+      user_id,
+      total,
+      items,
+      last_user_activity_at,
+      abandoned_email_sent_at,
+      profiles (
+        email,
+        first_name,
+        last_name
+      )
+    `)
+    .eq("status", "active")
+    .lt("last_user_activity_at", cutoff.toISOString())
+    .is("abandoned_email_sent_at", null);
+
+  console.log("🛒 Carts found:", carts?.length || 0);
+
+  if (!carts || carts.length === 0) return { triggered: 0 };
+
   let triggered = 0;
 
-  // Get abandoned cart automations
-  const { data: automations } = await supabase
-    .from("email_automations")
-    .select("*")
-    .eq("trigger_type", "abandoned_cart")
-    .eq("is_active", true);
+  for (const cart of carts) {
+    console.log("🧪 Cart Debug", {
+      cartId: cart.id,
+      lastActivity: cart.last_user_activity_at,
+      cutoff: cutoff.toISOString(),
+    });
 
-  if (!automations || automations.length === 0) return { triggered: 0 };
+    if (!cart.profiles?.email) continue;
 
-  for (const automation of automations) {
-    const delayHours = automation.trigger_conditions?.delay_hours || 24;
-    const minCartValue = automation.trigger_conditions?.min_cart_value || 0;
-    const cutoffTime = new Date(Date.now() - delayHours * 60 * 60 * 1000);
+    await triggerAutomation("abandoned_cart", {
+      email: cart.profiles.email,
+      userId: cart.user_id,
+      userName:
+        `${cart.profiles.first_name || ""} ${cart.profiles.last_name || ""}` ||
+        "Customer",
+      triggerData: {
+        cart_id: cart.id,
+        cart_total: cart.total,
+        cart_items: cart.items,
+        cart_url: "https://9rx.com/pharmacy/order/create",
+      },
+    });
 
-    // Get abandoned carts (you'll need to adjust this based on your cart table structure)
-    const { data: abandonedCarts } = await supabase
+    await supabase
       .from("carts")
-      .select(`
-        id,
-        user_id,
-        total,
-        items,
-        updated_at,
-        profiles (id, email, first_name, last_name)
-      `)
-      .eq("status", "active")
-      .gte("total", minCartValue)
-      .lt("updated_at", cutoffTime.toISOString())
-      .limit(100);
+      .update({
+        abandoned_email_sent_at: new Date().toISOString(),
+      })
+      .eq("id", cart.id);
 
-    if (!abandonedCarts) continue;
-
-    for (const cart of abandonedCarts) {
-      const profile = cart.profiles as any;
-      if (!profile?.email) continue;
-
-      // Check if already sent for this cart
-      const { data: recentExec } = await supabase
-        .from("automation_executions")
-        .select("id")
-        .eq("automation_id", automation.id)
-        .eq("user_id", cart.user_id)
-        .eq("status", "completed")
-        .gte("executed_at", new Date(Date.now() - automation.cooldown_days * 24 * 60 * 60 * 1000).toISOString())
-        .limit(1);
-
-      if (recentExec && recentExec.length > 0) continue;
-
-      // Trigger automation
-      const { triggerAutomation } = await import("./emailAutomationEngine");
-      await triggerAutomation("abandoned_cart", {
-        userId: cart.user_id,
-        email: profile.email,
-        userName: `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Customer",
-        triggerType: "abandoned_cart",
-        triggerData: {
-          cart_id: cart.id,
-          cart_total: cart.total,
-          cart_items: cart.items,
-          cart_url: `${window.location.origin}/pharmacy/order/create`,
-        },
-      });
-
-      triggered++;
-    }
+    triggered++;
   }
 
+  console.log("🔥 END | Triggered:", triggered);
   return { triggered };
 }
+
+
+
+
 
 // Get email system health status
 export async function getEmailSystemHealth(): Promise<{

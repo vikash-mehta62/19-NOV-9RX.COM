@@ -1,159 +1,185 @@
 import { createReducer } from '@reduxjs/toolkit';
-import { CartState, addToCart, removeFromCart, updateQuantity, clearCart, updatePrice,updateDescription } from '../types/cartTypes';
+import {
+  CartState,
+  addToCart,
+  removeFromCart,
+  updateQuantity,
+  clearCart,
+  updatePrice,
+  updateDescription
+} from '../types/cartTypes';
 
-// Safe localStorage access for SSR
+/* -------------------------------------------------
+   Safe localStorage helpers
+------------------------------------------------- */
 const getInitialCartItems = (): any[] => {
   if (typeof window === 'undefined') return [];
   try {
-    const items = JSON.parse(localStorage.getItem("cartItems") || "[]");
-    
-    // Migrate legacy cart items that don't have sizes array
-    const migratedItems = items.map((item: any) => {
-      // If item already has sizes array, return as is
-      if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
-        return item;
-      }
-      
-      // Legacy format: convert sizeId, sizeValue, sizeUnit to sizes array
-      if (item.sizeId || item.sizeValue) {
-        return {
-          ...item,
-          sizes: [{
-            id: item.sizeId || `${item.productId}-legacy`,
-            size_value: item.sizeValue || '',
-            size_unit: item.sizeUnit || '',
-            price: item.price || 0,
-            quantity: item.quantity || 1,
-            type: item.type || 'unit',
-          }],
-        };
-      }
-      
-      // If no size info at all, create empty sizes array
-      return {
-        ...item,
-        sizes: [],
-      };
-    }).filter((item: any) => item.sizes && item.sizes.length > 0);
-    
-    // Save migrated items back to localStorage
-    if (JSON.stringify(items) !== JSON.stringify(migratedItems)) {
-      localStorage.setItem("cartItems", JSON.stringify(migratedItems));
+    const items = JSON.parse(localStorage.getItem('cartItems') || '[]');
+
+    // migrate legacy sizes
+    const migrated = items
+      .map((item: any) => {
+        if (Array.isArray(item.sizes) && item.sizes.length > 0) return item;
+        if (item.sizeId || item.sizeValue) {
+          return {
+            ...item,
+            sizes: [
+              {
+                id: item.sizeId || `${item.productId}-legacy`,
+                size_value: item.sizeValue || '',
+                size_unit: item.sizeUnit || '',
+                price: item.price || 0,
+                quantity: item.quantity || 1,
+                type: item.type || 'unit',
+              },
+            ],
+          };
+        }
+        return { ...item, sizes: [] };
+      })
+      .filter((item: any) => item.sizes.length > 0);
+
+    if (JSON.stringify(items) !== JSON.stringify(migrated)) {
+      localStorage.setItem('cartItems', JSON.stringify(migrated));
     }
-    
-    return migratedItems;
-  } catch (error) {
-    console.error('Error parsing cart items from localStorage:', error);
+
+    return migrated;
+  } catch (err) {
+    console.error('Cart parse error:', err);
     return [];
   }
 };
 
-// Safe localStorage save
 const saveCartToStorage = (items: any[]) => {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem("cartItems", JSON.stringify(items));
-    } catch (error) {
-      console.error('Error saving cart to localStorage:', error);
-    }
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem('cartItems', JSON.stringify(items));
+  } catch (err) {
+    console.error('Cart save error:', err);
   }
 };
 
-const initialState: CartState = {
-  items: getInitialCartItems(),
+const getInitialLastActionAt = (hasItems: boolean): string | null => {
+  if (typeof window === 'undefined') return null;
+  const stored = localStorage.getItem('cartLastActionAt');
+  if (stored) return stored;
+  // If we have items but no timestamp, treat it as a fresh action to force sync
+  return hasItems ? new Date().toISOString() : null;
 };
 
+/* -------------------------------------------------
+   Initial State
+------------------------------------------------- */
+const initialItems = getInitialCartItems();
+const initialState: CartState = {
+  items: initialItems,
+  lastActionAt: getInitialLastActionAt(initialItems.length > 0),
+};
 
+/* -------------------------------------------------
+   Activity marker
+------------------------------------------------- */
+const markActivity = (state: CartState) => {
+  const now = new Date().toISOString();
+  state.lastActionAt = now;
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('cartLastActionAt', now);
+  }
+};
+
+/* -------------------------------------------------
+   Reducer
+------------------------------------------------- */
 export const cartReducer = createReducer(initialState, (builder) => {
   builder
+
+    /* ---------- ADD TO CART ---------- */
     .addCase(addToCart, (state, action) => {
-      const existingItem = state.items.find(item => item.productId === action.payload.productId);
-      
-      if (existingItem) {
-        // Ensure sizes array exists
-        if (!existingItem.sizes || !Array.isArray(existingItem.sizes)) {
-          existingItem.sizes = [];
-        }
-        
-        // Check if this specific size AND type already exists
-        const newSizes = action.payload.sizes || [];
-        newSizes.forEach(newSize => {
-          // Find by both id AND type to differentiate unit vs case
-          const existingSize = existingItem.sizes.find(
-            size => size.id === newSize.id && size.type === newSize.type
+      const existing = state.items.find(
+        (i) => i.productId === action.payload.productId
+      );
+
+      if (existing) {
+        existing.sizes ||= [];
+        action.payload.sizes?.forEach((newSize: any) => {
+          const found = existing.sizes.find(
+            (s: any) => s.id === newSize.id && s.type === newSize.type
           );
-          if (existingSize) {
-            // Size with same type already exists, increase quantity
-            existingSize.quantity += newSize.quantity;
-          } else {
-            // New size or different type, add to sizes array
-            existingItem.sizes.push(newSize);
-          }
+          if (found) found.quantity += newSize.quantity;
+          else existing.sizes.push(newSize);
         });
-        
-        // Recalculate total quantity and price
-        existingItem.quantity = existingItem.sizes.reduce((total, size) => total + (size.quantity || 0), 0);
-        existingItem.price = existingItem.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
+        existing.quantity = existing.sizes.reduce(
+          (t: number, s: any) => t + (s.quantity || 0),
+          0
+        );
+        existing.price = existing.sizes.reduce(
+          (t: number, s: any) => t + (s.quantity || 0) * (s.price || 0),
+          0
+        );
       } else {
-        // New product, ensure sizes array exists
-        const newItem = {
-          ...action.payload,
-          sizes: action.payload.sizes || [],
-        };
-        state.items.push(newItem);
+        state.items.push({ ...action.payload, sizes: action.payload.sizes || [] });
       }
+
       saveCartToStorage(state.items);
+      markActivity(state);
     })
+
+    /* ---------- REMOVE ---------- */
     .addCase(removeFromCart, (state, action) => {
-      state.items = state.items.filter(item => item.productId !== action.payload);
+      state.items = state.items.filter((i) => i.productId !== action.payload);
       saveCartToStorage(state.items);
+      markActivity(state);
     })
+
+    /* ---------- UPDATE QTY ---------- */
     .addCase(updateQuantity, (state, action) => {
       const { productId, sizeId, quantity } = action.payload;
-      const product = state.items.find((item) => item.productId === productId);
-      if (product && product.sizes && Array.isArray(product.sizes)) {
-        // Find size by id
-        const size = product.sizes.find((size) => size.id === sizeId);
-        if (size) {
-          size.quantity = +quantity;
-        }
-        // ✅ Recalculate product price based on all sizes
-        product.price = product.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
-        // ✅ Recalculate total quantity
-        product.quantity = product.sizes.reduce((total, size) => total + (size.quantity || 0), 0);
+      const product = state.items.find((i) => i.productId === productId);
+      if (product?.sizes) {
+        const size = product.sizes.find((s: any) => s.id === sizeId);
+        if (size) size.quantity = +quantity;
+        product.quantity = product.sizes.reduce((t: number, s: any) => t + (s.quantity || 0), 0);
+        product.price = product.sizes.reduce(
+          (t: number, s: any) => t + (s.quantity || 0) * (s.price || 0),
+          0
+        );
       }
       saveCartToStorage(state.items);
+      markActivity(state);
     })
+
+    /* ---------- UPDATE PRICE ---------- */
+    .addCase(updatePrice, (state, action) => {
+      const { productId, sizeId, price } = action.payload;
+      const product = state.items.find((i) => i.productId === productId);
+      if (product?.sizes) {
+        const size = product.sizes.find((s: any) => s.id === sizeId);
+        if (size) size.price = price;
+        product.price = product.sizes.reduce(
+          (t: number, s: any) => t + (s.quantity || 0) * (s.price || 0),
+          0
+        );
+      }
+      saveCartToStorage(state.items);
+      markActivity(state);
+    })
+
+    /* ---------- UPDATE DESCRIPTION ---------- */
+    .addCase(updateDescription, (state, action) => {
+      const { productId, description } = action.payload;
+      const product = state.items.find((i) => i.productId === productId);
+      if (product) product.description = description;
+      saveCartToStorage(state.items);
+      markActivity(state);
+    })
+
+    /* ---------- CLEAR CART ---------- */
     .addCase(clearCart, (state) => {
       state.items = [];
       if (typeof window !== 'undefined') {
-        try {
-          localStorage.removeItem("cartItems");
-        } catch (error) {
-          console.error('Error removing cart from localStorage:', error);
-        }
+        localStorage.removeItem('cartItems');
       }
-    })
-    .addCase(updatePrice, (state, action) => {
-      const { productId, sizeId, price } = action.payload;
-      const product = state.items.find((item) => item.productId === productId);
-      if (product && product.sizes && Array.isArray(product.sizes)) {
-        const size = product.sizes.find((size) => size.id === sizeId);
-        if (size) {
-          size.price = price;
-        }
-        product.price = product.sizes.reduce((total, size) => total + ((size.quantity || 0) * (size.price || 0)), 0);
-      }
-      saveCartToStorage(state.items);
-    })
-    .addCase(updateDescription, (state, action) => {
-  const { productId, description } = action.payload;
-  const product = state.items.find(item => item.productId === productId);
-  if (product) {
-    product.description = description;
-  }
-  saveCartToStorage(state.items);
-})
-
-
+      markActivity(state);
+    });
 });

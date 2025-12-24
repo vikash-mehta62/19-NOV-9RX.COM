@@ -9,6 +9,7 @@ const orderStatusTemplate = require("../templates/orderTemlate");
 const paymentLink = require("../templates/paymentLink");
 const { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate } = require("../templates/profiles");
 const userVerificationTemplate = require("../templates/userVerificationTemplate");
+const signupSuccessTemplate = require("../templates/signupSuccessTemplate");
 const mailSender = require("../utils/mailSender");
 
 // Admin email from environment variable with fallback
@@ -107,11 +108,20 @@ exports.userNotificationCtrl = async (req, res) => {
       });
     }
     const emailContent = userVerificationTemplate(groupname, name, email);
+    const userEmailContent = signupSuccessTemplate(name);
 
+    // Notify Admin
     await mailSender(
       ADMIN_EMAIL,
       "New User Registration - Verification Required",
       emailContent
+    );
+
+    // Notify User
+    await mailSender(
+      email,
+      "Welcome to 9RX - Registration Received",
+      userEmailContent
     );
 
     return res.status(200).json({

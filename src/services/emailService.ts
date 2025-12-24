@@ -52,12 +52,27 @@ export function replaceTemplateVariables(
   template: string,
   variables: Record<string, string>
 ): string {
-  let result = template;
-  Object.entries(variables).forEach(([key, value]) => {
-    const regex = new RegExp(`{{${key}}}`, "g");
-    result = result.replace(regex, value);
+  if (!template) return "";
+  
+  // Regex to match {{ key }} or HTML entity versions
+  // Matches: {{key}}, {{ key }}, &#123;&#123;key&#125;&#125;
+  const variableRegex = /(?:\{\{|&#123;&#123;|&#x7B;&#x7B;)\s*([a-zA-Z0-9_]+)\s*(?:\}\}|&#125;&#125;|&#x7D;&#x7D;)/gi;
+
+  return template.replace(variableRegex, (match, key) => {
+    // Check for direct match
+    if (variables[key] !== undefined) {
+      return variables[key];
+    }
+    
+    // Check for case-insensitive match
+    const lowerKey = key.toLowerCase();
+    if (variables[lowerKey] !== undefined) {
+      return variables[lowerKey];
+    }
+    
+    // Return empty string if not found (clean up placeholders)
+    return "";
   });
-  return result;
 }
 
 // Send email via Resend

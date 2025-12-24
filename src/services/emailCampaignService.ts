@@ -34,9 +34,20 @@ export async function getCampaignRecipients(
     .select("id, email, first_name, last_name, user_id")
     .eq("status", "active");
 
-  const audienceType = targetAudience?.type || "all";
+  const audienceType = typeof targetAudience === 'string' ? targetAudience : (targetAudience?.type || "all");
 
   switch (audienceType) {
+    case "specific":
+      if (targetAudience?.emails && Array.isArray(targetAudience.emails)) {
+        return targetAudience.emails.map((email: string) => ({
+          id: crypto.randomUUID(),
+          email: email,
+          first_name: "",
+          last_name: "",
+          user_id: undefined
+        }));
+      }
+      return [];
     case "pharmacy":
       query = query.contains("tags", ["pharmacy"]);
       break;

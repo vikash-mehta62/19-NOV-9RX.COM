@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -164,6 +165,7 @@ const audienceTypes = [
   { value: "active", label: "Active Users (30 days)", count: "~300" },
   { value: "inactive", label: "Inactive Users (30+ days)", count: "~100" },
   { value: "high_value", label: "High Value Customers", count: "~75" },
+  { value: "specific", label: "Specific Users", count: "Manual" },
 ];
 
 const statusConfig: Record<string, { color: string; icon: any; label: string }> = {
@@ -199,6 +201,10 @@ export default function EmailCampaigns() {
   const [formData, setFormData] = useState(initialFormState);
   const [recipientCount, setRecipientCount] = useState(0);
   const [activeTab, setActiveTab] = useState("all");
+  const [userSelectionOpen, setUserSelectionOpen] = useState(false);
+  const [availableUsers, setAvailableUsers] = useState<any[]>([]);
+  const [selectedUserEmails, setSelectedUserEmails] = useState<string[]>([]);
+  const [userSearch, setUserSearch] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -206,9 +212,100 @@ export default function EmailCampaigns() {
     fetchTemplates();
   }, []);
 
+  const fetchUsers = async () => {
+    try {
+      let query = supabase.from("profiles").select("id, email, first_name, last_name, type");
+      
+      if (userSearch) {
+        query = query.or(`email.ilike.%${userSearch}%,first_name.ilike.%${userSearch}%,last_name.ilike.%${userSearch}%`);
+      }
+      
+      const { data, error } = await query.limit(50);
+      
+      if (error) throw error;
+      setAvailableUsers(data || []);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (userSelectionOpen) {
+      fetchUsers();
+    }
+  }, [userSelectionOpen, userSearch]);
+
   useEffect(() => {
     fetchRecipientCount(formData.target_audience);
   }, [formData.target_audience]);
+
+  const handleUserSelection = (email: string, checked: boolean) => {
+    if (checked) {
+      setSelectedUserEmails(prev => [...prev, email]);
+    } else {
+      setSelectedUserEmails(prev => prev.filter(e => e !== email));
+    }
+  };
+
+  const confirmUserSelection = () => {
+    const currentEmails = (formData as any).specific_emails
+      ? (formData as any).specific_emails.split(/[\n,]/).map((e: string) => e.trim()).filter(Boolean)
+      : [];
+    
+    // Merge new selections with existing ones, removing duplicates
+    const allEmails = Array.from(new Set([...currentEmails, ...selectedUserEmails]));
+    
+    setFormData({
+      ...formData,
+      specific_emails: allEmails.join(", ")
+    } as any);
+    
+    setUserSelectionOpen(false);
+    setSelectedUserEmails([]);
+  };
+
+  const insertVariable = (variable: string) => {
+    const textarea = document.getElementById("html_content") as HTMLTextAreaElement;
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value || "";
+      const newText = text.substring(0, start) + variable + text.substring(end);
+      
+      setFormData({ ...formData, html_content: newText });
+      
+      // Restore cursor position and focus
+      setTimeout(() => {
+        textarea.focus();
+        textarea.selectionStart = textarea.selectionEnd = start + variable.length;
+      }, 0);
+    } else {
+       setFormData({ ...formData, html_content: (formData.html_content || "") + variable });
+    }
+    toast({ title: "Variable Inserted", description: `${variable} added to content.` });
+  };
+
+  const variableGroups = [
+    {
+      name: "User Information",
+      description: "Data from user profile",
+      variables: [
+        { key: "{{user_name}}", label: "Full Name", example: "John Doe" },
+        { key: "{{first_name}}", label: "First Name", example: "John" },
+        { key: "{{last_name}}", label: "Last Name", example: "Doe" },
+        { key: "{{email}}", label: "Email Address", example: "john@example.com" },
+      ]
+    },
+    {
+      name: "System & Links",
+      description: "Auto-generated links and info",
+      variables: [
+        { key: "{{unsubscribe_url}}", label: "Unsubscribe Link", example: "https://..." },
+        { key: "{{company_name}}", label: "Company Name", example: "9RX" },
+        { key: "{{current_year}}", label: "Current Year", example: "2024" },
+      ]
+    }
+  ];
 
   const fetchCampaigns = async () => {
     try {
@@ -242,6 +339,11 @@ export default function EmailCampaigns() {
 
   const fetchRecipientCount = async (audience: string) => {
     try {
+      if (audience === "specific") {
+        setRecipientCount(0);
+        return;
+      }
+
       let query = supabase.from("profiles").select("id", { count: "exact", head: true });
       
       if (audience === "pharmacy") {
@@ -296,16 +398,34 @@ export default function EmailCampaigns() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      let targetAudience: any = { type: formData.target_audience };
+
+      if (formData.target_audience === "specific") {
+        const emails = (formData as any).specific_emails
+          .split(/[\n,]/) // Split by newline or comma
+          .map((e: string) => e.trim())
+          .filter((e: string) => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+          
+        if (emails.length === 0) {
+          throw new Error("Please enter at least one valid email address");
+        }
+        
+        targetAudience = {
+          type: "specific",
+          emails: emails
+        };
+      }
+
       const payload = {
         name: formData.name,
         subject: formData.subject,
         template_id: formData.template_id || null,
         html_content: formData.html_content || getDefaultEmailTemplate(formData.subject),
         campaign_type: formData.campaign_type,
-        target_audience: { type: formData.target_audience },
+        target_audience: targetAudience,
         scheduled_at: formData.scheduled_at || null,
         status: formData.scheduled_at ? "scheduled" : "draft",
-        total_recipients: recipientCount,
+        total_recipients: targetAudience.type === "specific" ? targetAudience.emails.length : recipientCount,
         track_opens: true,
         track_clicks: true,
       };
@@ -334,15 +454,29 @@ export default function EmailCampaigns() {
 
   const handleEdit = (campaign: EmailCampaign) => {
     setEditingCampaign(campaign);
+    
+    // Handle both object and string formats for target_audience
+    const audienceType = typeof campaign.target_audience === 'object' 
+      ? campaign.target_audience?.type 
+      : campaign.target_audience;
+
+    let specificEmails = "";
+    if (audienceType === "specific" && 
+        typeof campaign.target_audience === 'object' && 
+        Array.isArray(campaign.target_audience.emails)) {
+        specificEmails = campaign.target_audience.emails.join(", ");
+    }
+
     setFormData({
       name: campaign.name,
       subject: campaign.subject,
       template_id: campaign.template_id || "",
       html_content: campaign.html_content || "",
       campaign_type: campaign.campaign_type,
-      target_audience: campaign.target_audience?.type || "all",
+      target_audience: audienceType || "all",
       scheduled_at: campaign.scheduled_at ? campaign.scheduled_at.slice(0, 16) : "",
-    });
+      specific_emails: specificEmails,
+    } as any);
     setDialogOpen(true);
   };
 
@@ -401,21 +535,45 @@ export default function EmailCampaigns() {
 
       // Get recipients based on audience
       const audience = selectedCampaign.target_audience?.type || "all";
-      let query = supabase.from("profiles").select("id, email, first_name, last_name");
-      
-      if (audience === "pharmacy") {
-        query = query.eq("type", "Pharmacy");
-      } else if (audience === "group") {
-        query = query.eq("type", "Group");
-      } else if (audience === "active") {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte("last_sign_in_at", thirtyDaysAgo);
-      } else if (audience === "inactive") {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.lt("last_sign_in_at", thirtyDaysAgo);
-      }
+      let recipients;
 
-      const { data: recipients } = await query.not("email", "is", null);
+      if (audience === "specific") {
+        const emails = selectedCampaign.target_audience.emails || [];
+        
+        // 1. Fetch profiles for these emails to get real user data
+        const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, email, first_name, last_name")
+            .in("email", emails);
+
+        // 2. Map emails to recipient objects, preferring profile data if found
+        recipients = emails.map((email: string) => {
+            const profile = profiles?.find((p: any) => p.email.toLowerCase() === email.toLowerCase());
+            return {
+                id: profile?.id || null,
+                email: email,
+                first_name: profile?.first_name || "",
+                last_name: profile?.last_name || ""
+            };
+        });
+      } else {
+        let query = supabase.from("profiles").select("id, email, first_name, last_name");
+        
+        if (audience === "pharmacy") {
+          query = query.eq("type", "Pharmacy");
+        } else if (audience === "group") {
+          query = query.eq("type", "Group");
+        } else if (audience === "active") {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          query = query.gte("last_sign_in_at", thirtyDaysAgo);
+        } else if (audience === "inactive") {
+          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+          query = query.lt("last_sign_in_at", thirtyDaysAgo);
+        }
+
+        const { data } = await query.not("email", "is", null);
+        recipients = data;
+      }
 
       if (!recipients || recipients.length === 0) {
         throw new Error("No recipients found for this audience");
@@ -634,9 +792,10 @@ export default function EmailCampaigns() {
                       <SelectContent>
                         {audienceTypes.map((type) => (
                           <SelectItem key={type.value} value={type.value}>
-                            <span className="flex items-center justify-between w-full">
+                            <div className="flex justify-between w-full items-center min-w-[240px]">
                               <span>{type.label}</span>
-                            </span>
+                              <span className="text-muted-foreground text-xs">{type.count}</span>
+                            </div>
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -646,6 +805,103 @@ export default function EmailCampaigns() {
                       Estimated recipients: <strong>{recipientCount.toLocaleString()}</strong>
                     </p>
                   </div>
+
+                  {formData.target_audience === "specific" && (
+                    <div className="col-span-2">
+                      <Label htmlFor="specific_emails">Specific Email Addresses *</Label>
+                      <Textarea
+                        id="specific_emails"
+                        value={(formData as any).specific_emails || ""}
+                        onChange={(e) => setFormData({ ...formData, specific_emails: e.target.value } as any)}
+                        placeholder="user1@example.com, user2@example.com"
+                        rows={4}
+                        className="font-mono text-sm mt-1.5"
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+              Enter email addresses separated by commas or new lines
+            </p>
+            
+            <div className="mt-2">
+                <Dialog open={userSelectionOpen} onOpenChange={setUserSelectionOpen}>
+                    <DialogTrigger asChild>
+                        <Button variant="outline" size="sm" className="gap-2">
+                            <Users className="h-4 w-4" />
+                            Select Users from List
+                        </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
+                        <DialogHeader>
+                            <DialogTitle>Select Users</DialogTitle>
+                            <DialogDescription>
+                                Search and select users to add to your campaign audience.
+                            </DialogDescription>
+                        </DialogHeader>
+                        
+                        <div className="py-4 space-y-4 flex-1 overflow-hidden flex flex-col">
+                            <Input
+                                placeholder="Search by name or email..."
+                                value={userSearch}
+                                onChange={(e) => setUserSearch(e.target.value)}
+                                className="w-full"
+                            />
+                            
+                            <div className="border rounded-md flex-1 overflow-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px]">Select</TableHead>
+                                            <TableHead>Name</TableHead>
+                                            <TableHead>Email</TableHead>
+                                            <TableHead>Type</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {availableUsers.length === 0 ? (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                                                    No users found
+                                                </TableCell>
+                                            </TableRow>
+                                        ) : (
+                                            availableUsers.map((user) => (
+                                                <TableRow key={user.id}>
+                                                    <TableCell>
+                                                        <Checkbox 
+                                                            checked={selectedUserEmails.includes(user.email)}
+                                                            onCheckedChange={(checked) => handleUserSelection(user.email, checked as boolean)}
+                                                        />
+                                                    </TableCell>
+                                                    <TableCell>{user.first_name} {user.last_name}</TableCell>
+                                                    <TableCell>{user.email}</TableCell>
+                                                    <TableCell>
+                                                        <Badge variant="outline">{user.type || "User"}</Badge>
+                                                    </TableCell>
+                                                </TableRow>
+                                            ))
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            
+                            <div className="flex justify-between items-center pt-2">
+                                <span className="text-sm text-muted-foreground">
+                                    {selectedUserEmails.length} users selected
+                                </span>
+                                <div className="flex gap-2">
+                                    <Button variant="outline" onClick={() => setUserSelectionOpen(false)}>
+                                        Cancel
+                                    </Button>
+                                    <Button onClick={confirmUserSelection}>
+                                        Add Selected Users
+                                    </Button>
+                                </div>
+                            </div>
+                        </div>
+                    </DialogContent>
+                </Dialog>
+            </div>
+          </div>
+        )}
 
                   <div className="col-span-2">
                     <Label htmlFor="template_id">Use Template (Optional)</Label>
@@ -679,7 +935,67 @@ export default function EmailCampaigns() {
                   </div>
 
                   <div className="col-span-2">
-                    <Label htmlFor="html_content">Email Content (HTML)</Label>
+                    <div className="flex items-center gap-2 mb-2 justify-between">
+                      <Label htmlFor="html_content">Email Content (HTML)</Label>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
+                            <code className="text-xs bg-blue-100 px-1 rounded">{"{ }"}</code> Insert Variable
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle>Insert Variable</DialogTitle>
+                            <DialogDescription>
+                              Click on a variable to insert it into your email content. These placeholders will be replaced with actual user data when sending.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-6 mt-4">
+                            {variableGroups.map((group) => (
+                              <div key={group.name} className="space-y-3">
+                                <div className="border-b pb-2">
+                                  <h4 className="font-semibold text-sm">{group.name}</h4>
+                                  <p className="text-xs text-muted-foreground">{group.description}</p>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  {group.variables.map((v) => (
+                                    <Button
+                                      key={v.key}
+                                      variant="outline"
+                                      className="justify-start h-auto py-2 px-3 flex flex-col items-start gap-1 hover:bg-blue-50 hover:border-blue-200 group"
+                                      onClick={() => insertVariable(v.key)}
+                                    >
+                                      <div className="flex w-full justify-between items-center">
+                                        <span className="font-mono text-xs font-bold bg-muted px-1.5 py-0.5 rounded group-hover:bg-blue-100 text-blue-700">
+                                          {v.key}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground font-normal">
+                                          {v.label}
+                                        </span>
+                                      </div>
+                                      <span className="text-[10px] text-muted-foreground/70 w-full text-left truncate">
+                                        Example: {v.example}
+                                      </span>
+                                    </Button>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                            
+                            <div className="p-3 border rounded-md bg-yellow-50/50 border-yellow-200 flex gap-3 items-start">
+                              <div className="mt-0.5">⚠️</div>
+                              <div>
+                                <h4 className="font-semibold text-sm text-yellow-800 mb-1">Important Note</h4>
+                                <p className="text-xs text-yellow-700">
+                                  If a variable value is missing for a user (e.g. they don't have a first name), it will be replaced with an empty string.
+                                  Make sure your sentence still makes sense without it.
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
                     <Textarea
                       id="html_content"
                       value={formData.html_content}

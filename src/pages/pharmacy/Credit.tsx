@@ -38,7 +38,8 @@ const Credit = () => {
           .eq('status', 'active')
           .maybeSingle();
 
-        if (profile?.credit_status === 'good' || profile?.credit_status === 'active' || creditLine) {
+        // Only consider active if there is a formal credit line
+        if (creditLine) {
           setHasActiveCredit(true);
         }
       }
