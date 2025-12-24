@@ -82,7 +82,8 @@ export const TopBar = () => {
     <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 bg-white z-10">
       <SidebarTrigger />
       <div className="flex items-center gap-4">
-        <CartDrawer />
+        {/* Hide CartDrawer for pharmacy users as they have cart in sidebar */}
+        {sessionStorage.getItem('userType') !== 'pharmacy' && <CartDrawer />}
      { sessionStorage.getItem('userType') === 'admin' &&  <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative">

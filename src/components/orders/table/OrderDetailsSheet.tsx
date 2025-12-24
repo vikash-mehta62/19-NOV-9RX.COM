@@ -642,7 +642,6 @@ export const OrderDetailsSheet = ({
         // Show payment terms for unpaid invoices
         doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
       }
-      
       // Footer brand bar
       doc.setFillColor(...brandColor);
       doc.rect(0, pageHeight - 12, pageWidth, 3, "F");
