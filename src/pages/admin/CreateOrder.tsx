@@ -7,6 +7,7 @@ import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
+import axios from "../../../axiosconfig";
 
 // Read preselected customer data synchronously before component renders
 const getPreselectedCustomerData = () => {
@@ -448,6 +449,49 @@ const profileID =
       }
 
       console.log("Order created successfully:", insertedOrder);
+
+      // Send order confirmation email (if email_notifaction OR order_updates is enabled)
+      try {
+        const { data: customerProfileData } = await supabase
+          .from("profiles")
+          .select("email_notifaction, order_updates")
+          .eq("id", orderData.customerId)
+          .single();
+
+        if (customerProfileData?.email_notifaction || customerProfileData?.order_updates) {
+          const emailPayload = {
+            order_number: newOrderId,
+            customerInfo: {
+              name: orderData.customer?.name || "",
+              email: orderData.customer?.email || "",
+              phone: orderData.customer?.phone || "",
+            },
+            items: orderData.cartItems,
+            total_amount: orderData.total,
+            tax_amount: orderData.tax,
+            shipping_cost: orderData.shipping,
+            payment_method: paymentMethod,
+            status: orderToSubmit.status,
+            shippingAddress: {
+              fullName: orderData.shippingAddress?.fullName || "",
+              address: {
+                street: orderData.shippingAddress?.street || "",
+                city: orderData.shippingAddress?.city || "",
+                state: orderData.shippingAddress?.state || "",
+                zip_code: orderData.shippingAddress?.zip_code || "",
+              },
+            },
+          };
+
+          await axios.post("/order-place", emailPayload);
+          console.log("✅ Order confirmation email sent");
+        } else {
+          console.log("📧 Email notification disabled for this customer");
+        }
+      } catch (emailError) {
+        console.error("❌ Failed to send order confirmation email:", emailError);
+        // Don't throw - order was created successfully
+      }
 
       toast({
         title: "Order Created Successfully",

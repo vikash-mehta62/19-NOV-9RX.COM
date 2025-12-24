@@ -479,7 +479,7 @@ const CreateOrderPaymentForm = ({
         .eq("id", newOrder.profile_id)
         .maybeSingle();
 
-      if (profileData?.email_notifaction) {
+      if (profileData?.email_notifaction || profileData?.order_updates ) {
         try {
           await axios.post("/order-place", newOrder);
         } catch (apiError) {

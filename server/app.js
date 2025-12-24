@@ -597,8 +597,8 @@ app.get("/", (req, res) => {
 })
 
 // Start Cron Jobs
-const startAbandonedCartCron = require("./cron/abandonedCartCron");
-startAbandonedCartCron();
+const { startEmailCron } = require("./cron/emailCron");
+startEmailCron(); // Unified email cron: queue processing, automations, abandoned carts, cleanup
 
 app.listen(process.env.PORT, () => {
   console.log(`server is runing on port ${process.env.PORT}`);

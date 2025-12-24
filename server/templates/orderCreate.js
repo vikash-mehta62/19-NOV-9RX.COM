@@ -1,5 +1,54 @@
 const orderConfirmationTemplate = (order) => { 
-    const { customerInfo, shippingAddress, order_number, items, estimated_delivery, payment_status, shipping_method, total_amount } = order;
+    const { 
+        customerInfo, 
+        shippingAddress, 
+        order_number, 
+        items = [], 
+        estimated_delivery, 
+        payment_status = "pending", 
+        payment_method = "card",
+        shipping_method, 
+        total_amount = 0,
+        tax_amount = 0,
+        shipping_cost = 0,
+        status = "new"
+    } = order;
+
+    // Format items for display
+    const formatItems = (items) => {
+        if (!items || items.length === 0) return '<tr><td colspan="4">No items</td></tr>';
+        
+        return items.map(item => {
+            // Handle different item formats
+            const name = item.name || item.product_name || 'Product';
+            const quantity = item.quantity || 1;
+            const price = item.price || item.unit_price || 0;
+            
+            // Handle sizes if present
+            let sizeText = '-';
+            if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
+                sizeText = item.sizes.map(size => `${size.size_value || ''} ${size.size_unit || ''}`).join(", ");
+            } else if (item.size) {
+                sizeText = item.size;
+            }
+            
+            return `
+                <tr>
+                    <td>${name}</td>
+                    <td>${sizeText}</td>
+                    <td>${quantity}</td>
+                    <td>$${(price * quantity).toFixed(2)}</td>
+                </tr>
+            `;
+        }).join("");
+    };
+
+    // Calculate subtotal if not provided
+    const subtotal = items.reduce((sum, item) => {
+        const price = item.price || item.unit_price || 0;
+        const qty = item.quantity || 1;
+        return sum + (price * qty);
+    }, 0);
 
     return `<!DOCTYPE html>
     <html>
@@ -104,64 +153,90 @@ const orderConfirmationTemplate = (order) => {
             .address-box p {
                 margin: 5px 0;
             }
+
+            .totals {
+                text-align: right;
+                margin-top: 15px;
+                padding-top: 10px;
+                border-top: 2px solid #ddd;
+            }
+
+            .totals p {
+                margin: 5px 0;
+            }
+
+            .total-final {
+                font-size: 18px;
+                font-weight: bold;
+                color: #27ae60;
+            }
+
+            .status-badge {
+                display: inline-block;
+                padding: 5px 15px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: bold;
+                text-transform: uppercase;
+            }
+
+            .status-new { background-color: #e3f2fd; color: #1976d2; }
+            .status-processing { background-color: #fff3e0; color: #f57c00; }
+            .status-shipped { background-color: #e8f5e9; color: #388e3c; }
         </style>
     </head>
     
     <body>
         <div class="container">
             <div class="header">🎉 Your Order is Confirmed!</div>
-            <p>Thank you for shopping with us. Your order has been successfully placed.</p>
-          <div class="order-info">
-  <p><span class="highlight">Order Number:</span> ${order_number}</p>
-  
-  <p><span class="highlight">Payment Status:</span> ${payment_status}</p>
-  <p><span class="highlight">Total Amount:</span> $${total_amount.toFixed(2)}</p>
+            <p>Thank you for shopping with us, <strong>${customerInfo?.name || 'Valued Customer'}</strong>!</p>
+            <p>Your order has been successfully placed and is being processed.</p>
 
-  <h3>🛍 Ordered Items:</h3>
-  <table class="product-table">
-    <tr>
-      <th>Product</th>
-      <th>Sizes</th>
-      <th>Quantity</th>
-      <th>Price</th>
-    </tr>
-    ${items.map(item => `
-      <tr>
-        <td>${item.name}</td>
-        <td>
-          ${item.sizes.map(size => `${size.size_value} ${size.size_unit}`).join(", ")}
-        </td>
-        <td>${item.quantity}</td>
-        <td>$${item.price.toFixed(2)}</td>
-      </tr>
-    `).join("")}
-  </table>
-</div>
+            <div class="order-info">
+                <p><span class="highlight">Order Number:</span> #${order_number}</p>
+                <p><span class="highlight">Order Status:</span> <span class="status-badge status-${status}">${status}</span></p>
+                <p><span class="highlight">Payment Method:</span> ${payment_method === 'credit' ? 'Credit Terms' : payment_method === 'card' ? 'Credit Card' : payment_method}</p>
+                <p><span class="highlight">Payment Status:</span> ${payment_status}</p>
 
+                <h3>🛍 Ordered Items:</h3>
+                <table class="product-table">
+                    <tr>
+                        <th>Product</th>
+                        <th>Size</th>
+                        <th>Qty</th>
+                        <th>Price</th>
+                    </tr>
+                    ${formatItems(items)}
+                </table>
+
+                <div class="totals">
+                    <p>Subtotal: $${subtotal.toFixed(2)}</p>
+                    ${tax_amount > 0 ? `<p>Tax: $${Number(tax_amount).toFixed(2)}</p>` : ''}
+                    ${shipping_cost > 0 ? `<p>Shipping: $${Number(shipping_cost).toFixed(2)}</p>` : '<p>Shipping: FREE</p>'}
+                    <p class="total-final">Total: $${Number(total_amount).toFixed(2)}</p>
+                </div>
+            </div>
     
             <div class="address-box">
                 <h3>📦 Shipping Address:</h3>
-                <p><span class="highlight">Name:</span> ${shippingAddress?.fullName}</p>
-                <p><span class="highlight">Street:</span> ${shippingAddress?.address?.street}</p>
-                <p><span class="highlight">City:</span> ${shippingAddress?.address?.city}</p>
-                <p><span class="highlight">State:</span> ${shippingAddress?.address?.state}</p>
-                <p><span class="highlight">Zip Code:</span> ${shippingAddress?.address?.zip_code}</p>
+                <p><span class="highlight">Name:</span> ${shippingAddress?.fullName || customerInfo?.name || '-'}</p>
+                <p><span class="highlight">Street:</span> ${shippingAddress?.address?.street || '-'}</p>
+                <p><span class="highlight">City:</span> ${shippingAddress?.address?.city || '-'}</p>
+                <p><span class="highlight">State:</span> ${shippingAddress?.address?.state || '-'}</p>
+                <p><span class="highlight">Zip Code:</span> ${shippingAddress?.address?.zip_code || '-'}</p>
             </div>
     
-            <a href="https://9rx.com/orders/${order_number}" class="cta">🔍 Visit Website</a>
+            <a href="https://9rx.com/pharmacy/orders" class="cta">📋 View My Orders</a>
     
             <div class="footer">
                 <p>Need help? Contact our support team at <a href="mailto:info@9rx.com">info@9rx.com</a></p>
                 <p>We appreciate your business! 💖</p>
+                <p style="font-size: 12px; color: #999;">© ${new Date().getFullYear()} 9RX Pharmacy Supplies. All rights reserved.</p>
             </div>
         </div>
     </body>
     
     </html>`;
 };
-
-
-
-
 
 module.exports = orderConfirmationTemplate;

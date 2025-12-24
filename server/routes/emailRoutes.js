@@ -4,6 +4,13 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const { resendWebhook, sendgridWebhook, sesWebhook } = require("../controllers/emailWebhooks");
 const { processQueue, retryFailed, getStats, sendTest } = require("../controllers/emailQueueProcessor");
+const { 
+  processEmailQueue, 
+  checkAbandonedCarts, 
+  checkInactiveUsers, 
+  processScheduledAutomations,
+  cleanupOldData 
+} = require("../cron/emailCron");
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -27,6 +34,71 @@ router.get("/queue/stats", getStats);
 
 // Send a test email directly
 router.post("/send-test", sendTest);
+
+// ============================================
+// CRON TRIGGER ENDPOINTS (Manual triggers)
+// ============================================
+
+// Trigger all cron jobs manually
+router.post("/cron/run-all", async (req, res) => {
+  try {
+    const results = {
+      queue: await processEmailQueue(),
+      abandonedCarts: await checkAbandonedCarts(),
+      inactiveUsers: await checkInactiveUsers(),
+      scheduledAutomations: await processScheduledAutomations(),
+    };
+    res.json({ success: true, message: "All cron jobs executed", results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Trigger specific cron jobs
+router.post("/cron/queue", async (req, res) => {
+  try {
+    const result = await processEmailQueue();
+    res.json({ success: true, message: "Queue processed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/cron/abandoned-carts", async (req, res) => {
+  try {
+    const result = await checkAbandonedCarts();
+    res.json({ success: true, message: "Abandoned carts checked", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/cron/inactive-users", async (req, res) => {
+  try {
+    const result = await checkInactiveUsers();
+    res.json({ success: true, message: "Inactive users checked", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/cron/automations", async (req, res) => {
+  try {
+    const result = await processScheduledAutomations();
+    res.json({ success: true, message: "Scheduled automations processed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post("/cron/cleanup", async (req, res) => {
+  try {
+    const result = await cleanupOldData();
+    res.json({ success: true, message: "Cleanup completed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
 
 // ============================================
 // WEBHOOK ENDPOINTS
