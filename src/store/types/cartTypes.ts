@@ -34,3 +34,6 @@ export const updateDescription = createAction<{
   description: string;
 }>("cart/updateDescription");
 export const clearCart = createAction("cart/clearCart");
+
+// Load cart from Supabase on login
+export const loadCart = createAction<CartItem[]>("cart/loadCart");

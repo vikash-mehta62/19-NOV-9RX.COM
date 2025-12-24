@@ -714,53 +714,57 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         </Card>
       )}
 
-      {/* Statement Management */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5" />
-            Account Statements
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-6">
+      {/* Statement Management - Only for Admin, not for Pharmacy */}
+      {!readOnly && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="w-5 h-5" />
+              Account Statements
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-6">
 
 
-            {/* Custom Date Range Statement Generation */}
-            <div className="border-t pt-4">
-              <h4 className="font-medium mb-4">Generate Custom Statement</h4>
-              <StatementDateRangeSelector
-                onDateRangeChange={handleDateRangeChange}
-                onDownload={handleStatementDownload}
-                isGenerating={isGeneratingStatement}
-                maxDateRange={365}
-              />
+              {/* Custom Date Range Statement Generation */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-4">Generate Custom Statement</h4>
+                <StatementDateRangeSelector
+                  onDateRangeChange={handleDateRangeChange}
+                  onDownload={handleStatementDownload}
+                  isGenerating={isGeneratingStatement}
+                  maxDateRange={365}
+                />
+              </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
-      {/* Send Credit Terms Section */}
-      <SendCreditTermsSection userId={userId} />
+      {/* Send Credit Terms Section - Only for Admin, not for Pharmacy */}
+      {!readOnly && <SendCreditTermsSection userId={userId} />}
 
-      {/* Payment Methods */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="w-5 h-5" />
-            Payment Methods
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8 text-muted-foreground">
-            <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-50" />
-            <p>No saved payment methods</p>
-            <p className="text-sm mt-1">
-              Payment methods can be added during checkout
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Payment Methods - Only for Admin, not for Pharmacy */}
+      {!readOnly && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CreditCard className="w-5 h-5" />
+              Payment Methods
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-8 text-muted-foreground">
+              <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-50" />
+              <p>No saved payment methods</p>
+              <p className="text-sm mt-1">
+                Payment methods can be added during checkout
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Credit History */}
       <Card>

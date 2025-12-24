@@ -11,21 +11,13 @@ interface PharmacyProductGridProps {
   viewMode?: "grid" | "compact"
   onViewModeChange?: (mode: "grid" | "compact") => void
   onProductClick?: (product: ProductDetails) => void
-  wishlistItems?: any[]
-  onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
-  onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
-  isInWishlist?: (productId: string, sizeId?: string) => boolean
 }
 
 export const PharmacyProductGrid = ({ 
   products, 
   viewMode = "grid",
   onViewModeChange,
-  onProductClick,
-  wishlistItems = [],
-  onAddToWishlist,
-  onRemoveFromWishlist,
-  isInWishlist
+  onProductClick
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const [localViewMode, setLocalViewMode] = useState<"grid" | "compact">(viewMode)
@@ -110,9 +102,6 @@ export const PharmacyProductGrid = ({
           <PharmacyProductCard 
             product={product} 
             onProductClick={onProductClick}
-            onAddToWishlist={onAddToWishlist}
-            onRemoveFromWishlist={onRemoveFromWishlist}
-            isInWishlist={isInWishlist}
           />
         </div>
       ))}

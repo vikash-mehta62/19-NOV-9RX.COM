@@ -63,11 +63,43 @@ export const WelcomeDashboard = () => {
           (o) => o.status === "pending" || o.status === "processing"
         ).length || 0;
         const lastOrder = orders?.[0];
+
+        // Fetch profile data
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("credit_limit, credit_used, available_credit, reward_points")
+          .eq("id", userProfile.id)
+          .single();
+
+        // Fetch active credit line (this overrides profile data)
+        const { data: creditLineData } = await (supabase as any)
+          .from("user_credit_lines")
+          .select("credit_limit")
+          .eq("user_id", userProfile.id)
+          .eq("status", "active")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        // Calculate available credit
+        let availableCredit = 0;
+        const creditUsed = profileData?.credit_used || 0;
+        
+        if (creditLineData?.credit_limit) {
+          // Use credit line limit if available
+          availableCredit = creditLineData.credit_limit - creditUsed;
+        } else if (profileData?.credit_limit) {
+          // Fallback to profile credit limit
+          availableCredit = profileData.credit_limit - creditUsed;
+        } else if (profileData?.available_credit) {
+          availableCredit = profileData.available_credit;
+        }
+
         setStats({
           totalOrders: count || 0,
           pendingOrders,
-          creditBalance: userProfile.credit_balance || 0,
-          rewardPoints: userProfile.reward_points || 0,
+          creditBalance: availableCredit,
+          rewardPoints: profileData?.reward_points || userProfile.reward_points || 0,
           lastOrderDate: lastOrder?.created_at || null,
         });
       } catch (error) {

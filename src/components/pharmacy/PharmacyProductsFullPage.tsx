@@ -667,10 +667,6 @@ export const PharmacyProductsFullPage = () => {
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     onProductClick={handleProductClick}
-                    wishlistItems={wishlistItems}
-                    onAddToWishlist={addToWishlist}
-                    onRemoveFromWishlist={removeFromWishlist}
-                    isInWishlist={isInWishlist}
                   />
                 )}
                 

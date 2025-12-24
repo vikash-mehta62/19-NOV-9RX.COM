@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Heart, Package, Eye, Palette } from "lucide-react"
+import { Package, Eye, Palette } from "lucide-react"
 import { ProductDetails } from "../../types/product.types"
 
 interface PharmacyProductCardProps {
@@ -15,24 +15,17 @@ interface PharmacyProductCardProps {
     totalStock: number
   }
   onProductClick?: (product: ProductDetails) => void
-  onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
-  onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
-  isInWishlist?: (productId: string, sizeId?: string) => boolean
 }
 
 export const PharmacyProductCard = ({ 
   product, 
-  onProductClick,
-  onAddToWishlist,
-  onRemoveFromWishlist,
-  isInWishlist
+  onProductClick
 }: PharmacyProductCardProps) => {
   const navigate = useNavigate()
   const [imageLoaded, setImageLoaded] = useState(false)
 
   const isOutOfStock = product.totalStock <= 0
   const sizesCount = product.sizes?.length || 0
-  const inWishlist = isInWishlist ? isInWishlist(product.id.toString()) : false
   
   // Check if customization is available
   const hasCustomization = product.customization?.allowed === true
@@ -63,16 +56,6 @@ export const PharmacyProductCard = ({
     }
   }
 
-  const handleWishlistToggle = async (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (!onAddToWishlist || !onRemoveFromWishlist || !isInWishlist) return
-    if (inWishlist) {
-      await onRemoveFromWishlist(product.id.toString())
-    } else {
-      await onAddToWishlist(product)
-    }
-  }
-
   return (
     <Card 
       className={`relative bg-white border rounded-xl overflow-hidden transition-all duration-200 cursor-pointer ${
@@ -82,20 +65,6 @@ export const PharmacyProductCard = ({
       }`}
       onClick={handleCardClick}
     >
-      {/* Wishlist Button - Subtle */}
-      {onAddToWishlist && (
-        <button
-          className={`absolute top-2 right-2 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            inWishlist 
-              ? 'bg-red-50 text-red-500' 
-              : 'bg-white/80 text-gray-400 hover:text-red-500'
-          }`}
-          onClick={handleWishlistToggle}
-        >
-          <Heart className={`w-4 h-4 ${inWishlist ? 'fill-current' : ''}`} />
-        </button>
-      )}
-
       {/* Top Left Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         {sizesCount > 1 && (

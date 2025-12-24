@@ -6,7 +6,8 @@ import {
   updateQuantity,
   clearCart,
   updatePrice,
-  updateDescription
+  updateDescription,
+  loadCart
 } from '../types/cartTypes';
 
 /* -------------------------------------------------
@@ -181,5 +182,15 @@ export const cartReducer = createReducer(initialState, (builder) => {
         localStorage.removeItem('cartItems');
       }
       markActivity(state);
+    })
+
+    /* ---------- LOAD CART FROM SUPABASE ---------- */
+    .addCase(loadCart, (state, action) => {
+      // Only load if current cart is empty or Supabase cart is newer
+      if (action.payload && action.payload.length > 0) {
+        state.items = action.payload;
+        saveCartToStorage(state.items);
+        // Don't mark activity to avoid re-syncing what we just loaded
+      }
     });
 });

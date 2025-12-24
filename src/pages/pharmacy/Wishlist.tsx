@@ -4,19 +4,14 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Heart, ShoppingCart, Trash2, Share2, 
-  AlertCircle, Check, Loader2, Package
+  AlertCircle, Check, Package
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
-import { RootState } from "@/store/store";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { useCart } from "@/hooks/use-cart";
 import { useWishlist } from "@/hooks/use-wishlist";
 
 const Wishlist = () => {
   const navigate = useNavigate();
-  const { addToCart } = useCart();
   const { toast } = useToast();
   const { wishlistItems, loading, removeFromWishlist } = useWishlist();
 
@@ -33,18 +28,25 @@ const Wishlist = () => {
     await removeFromWishlist(productId, sizeId);
   };
 
-  const handleAddToCart = (item: any) => {
-    if (item.product) {
-      navigate(`/pharmacy/product/${item.product.id}`);
+  // Navigate to product page with size selected
+  const handleViewProduct = (item: any) => {
+    const productId = item.product?.id || item.product_id;
+    if (item.size_id) {
+      // Navigate to size detail page directly
+      navigate(`/pharmacy/product/${productId}/${item.size_id}`);
     } else {
-      navigate(`/pharmacy/product/${item.product_id}`);
+      navigate(`/pharmacy/product/${productId}`);
     }
   };
 
   const addAllToCart = () => {
-    const inStockItems = wishlistItems.filter(item => 
-      item.product && (item.product.current_stock > 0 || item.product.stock > 0)
-    );
+    const inStockItems = wishlistItems.filter(item => {
+      if (item.size_id && item.product?.sizes) {
+        const size = item.product.sizes.find((s: any) => s.id === item.size_id);
+        return size && size.stock > 0;
+      }
+      return item.product && (item.product.current_stock > 0 || item.product.stock > 0);
+    });
     
     if (inStockItems.length === 0) {
       toast({
@@ -60,11 +62,18 @@ const Wishlist = () => {
       description: `Please add items to cart from product pages`,
     });
     
-    // Navigate to the first product
+    // Navigate to the first product with size
     if (inStockItems[0].product) {
-      navigate(`/pharmacy/product/${inStockItems[0].product.id}`);
+      handleViewProduct(inStockItems[0]);
     }
   };
+
+  // Get size details from product
+  const getSizeDetails = (item: any) => {
+    if (!item.size_id || !item.product?.sizes) return null;
+    return item.product.sizes.find((s: any) => s.id === item.size_id);
+  };
+
   return (
     <DashboardLayout role="pharmacy">
       <div className="space-y-6 p-6">
@@ -76,7 +85,7 @@ const Wishlist = () => {
               My Wishlist
             </h1>
             <p className="text-gray-500 mt-1">
-              {wishlistItems.length} items saved for later
+              {wishlistItems.length} sizes saved for later
             </p>
           </div>
           {wishlistItems.length > 0 && (
@@ -113,7 +122,7 @@ const Wishlist = () => {
               <Heart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900">Your wishlist is empty</h3>
               <p className="text-gray-500 mt-2 max-w-md mx-auto">
-                Save items you love by clicking the heart icon on any product. They'll appear here for easy access later.
+                Save sizes you love by clicking the heart icon on any product size. They'll appear here for easy access later.
               </p>
               <Button 
                 className="mt-6 bg-emerald-600 hover:bg-emerald-700"
@@ -127,19 +136,29 @@ const Wishlist = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {wishlistItems.map((item) => {
               const product = item.product;
-              const isInStock = product && (product.current_stock > 0 || product.stock > 0);
+              const sizeDetails = getSizeDetails(item);
+              
+              // Use size-specific data if available
+              const displayPrice = sizeDetails?.price || product?.base_price || 0;
+              const displayStock = sizeDetails?.stock ?? product?.current_stock ?? product?.stock ?? 0;
+              const isInStock = displayStock > 0;
+              const displayImage = sizeDetails?.image || sizeDetails?.images?.[0] || product?.image_url || product?.images?.[0] || '';
               const productName = product?.name || 'Unknown Product';
-              const productPrice = product?.base_price || 0;
-              const productImage = product?.image_url || product?.images?.[0] || '';
               const productCategory = product?.category || 'Unknown';
+              const sizeValue = sizeDetails?.size_value || '';
+              const sizeUnit = sizeDetails?.size_unit || '';
 
               return (
-                <Card key={item.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <Card 
+                  key={item.id} 
+                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => handleViewProduct(item)}
+                >
                   <div className="relative">
                     {/* Product Image */}
                     <div className="aspect-square bg-gray-100 p-4">
                       <img
-                        src={getImageUrl(productImage)}
+                        src={getImageUrl(displayImage)}
                         alt={productName}
                         className="w-full h-full object-contain"
                         onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
@@ -148,16 +167,20 @@ const Wishlist = () => {
                     
                     {/* Remove Button */}
                     <button
-                      onClick={() => handleRemoveFromWishlist(item.product_id, item.size_id)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromWishlist(item.product_id, item.size_id);
+                      }}
                       className="absolute top-2 right-2 p-2 bg-white rounded-full shadow-md hover:bg-red-50 transition-colors"
                     >
                       <Heart className="w-5 h-5 text-red-500 fill-red-500" />
                     </button>
 
-                    {/* Size Badge */}
-                    {item.size_id && (
-                      <Badge className="absolute top-2 left-2 bg-blue-500">
-                        Specific Size
+                    {/* Size Badge - Show actual size value */}
+                    {sizeDetails && (
+                      <Badge className="absolute top-2 left-2 bg-blue-600 text-white font-semibold">
+                        <Package className="w-3 h-3 mr-1" />
+                        {sizeValue} {sizeUnit}
                       </Badge>
                     )}
 
@@ -179,18 +202,30 @@ const Wishlist = () => {
                       {productName}
                     </h3>
                     
+                    {/* Size Info */}
+                    {sizeDetails && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        Size: <span className="font-medium text-blue-600">{sizeValue} {sizeUnit}</span>
+                      </div>
+                    )}
+                    
                     <div className="flex items-center gap-2 mt-2">
                       <span className="text-lg font-bold text-emerald-600">
-                        ${productPrice.toFixed(2)}
+                        ${displayPrice.toFixed(2)}
                       </span>
+                      {sizeDetails && product?.base_price && sizeDetails.price !== product.base_price && (
+                        <span className="text-sm text-gray-400 line-through">
+                          ${product.base_price.toFixed(2)}
+                        </span>
+                      )}
                     </div>
 
-                    {/* Stock Status */}
+                    {/* Stock Status with quantity */}
                     <div className={`flex items-center gap-1 mt-2 text-sm ${isInStock ? "text-green-600" : "text-red-500"}`}>
                       {isInStock ? (
                         <>
                           <Check className="w-4 h-4" />
-                          In Stock
+                          In Stock ({displayStock} available)
                         </>
                       ) : (
                         <>
@@ -205,7 +240,10 @@ const Wishlist = () => {
                       <Button
                         className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                         disabled={!isInStock}
-                        onClick={() => handleAddToCart(item)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleViewProduct(item);
+                        }}
                       >
                         <ShoppingCart className="w-4 h-4 mr-1" />
                         View Product
@@ -213,7 +251,10 @@ const Wishlist = () => {
                       <Button
                         variant="outline"
                         size="icon"
-                        onClick={() => handleRemoveFromWishlist(item.product_id, item.size_id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveFromWishlist(item.product_id, item.size_id);
+                        }}
                       >
                         <Trash2 className="w-4 h-4 text-red-500" />
                       </Button>
