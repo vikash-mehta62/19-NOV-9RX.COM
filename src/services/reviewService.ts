@@ -58,7 +58,7 @@ export async function submitReview(
         .from("orders")
         .select("id")
         .eq("id", orderId)
-        .eq("user_id", userId)
+        .eq("profile_id", userId)
         .single()
       isVerifiedPurchase = !!order
     } else {
@@ -66,7 +66,7 @@ export async function submitReview(
       const { data: orders } = await supabase
         .from("orders")
         .select("id, items")
-        .eq("user_id", userId)
+        .eq("profile_id", userId)
         .eq("status", "delivered")
 
       if (orders) {

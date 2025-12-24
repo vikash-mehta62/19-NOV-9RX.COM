@@ -7,6 +7,7 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { awardOrderPoints } from "@/services/rewardsService";
 
 export default function PharmacyOrder() {
   const navigate = useNavigate();
@@ -231,6 +232,25 @@ export default function PharmacyOrder() {
       }
 
       console.log("✅ Order created successfully:", insertedOrder);
+
+      // Award reward points for the order (only for non-credit orders)
+      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0) {
+        try {
+          const rewardResult = await awardOrderPoints(
+            session.user.id,
+            insertedOrder.id,
+            orderData.total,
+            newOrderId
+          );
+          
+          if (rewardResult.success && rewardResult.pointsEarned > 0) {
+            console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+          }
+        } catch (rewardError) {
+          console.error("❌ Error awarding reward points:", rewardError);
+          // Don't throw - order was created successfully
+        }
+      }
 
       // Log order creation activity
       try {

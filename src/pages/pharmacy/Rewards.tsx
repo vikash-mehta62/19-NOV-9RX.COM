@@ -72,6 +72,82 @@ const Rewards = () => {
     }
   }, [userProfile?.id]);
 
+  // Real-time subscription for points updates
+  useEffect(() => {
+    if (!userProfile?.id) return;
+
+    // Subscribe to profile changes (for points updates)
+    const profileChannel = supabase
+      .channel(`profile-points-${userProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${userProfile.id}`
+        },
+        (payload) => {
+          console.log('Profile updated (real-time):', payload);
+          const newData = payload.new as any;
+          if (newData.reward_points !== undefined) {
+            setCurrentPoints(newData.reward_points || 0);
+          }
+          if (newData.lifetime_reward_points !== undefined) {
+            setLifetimePoints(newData.lifetime_reward_points || 0);
+          }
+          // Update tier based on new points
+          if (tiers.length > 0 && newData.reward_points !== undefined) {
+            updateTierFromPoints(newData.reward_points || 0);
+          }
+        }
+      )
+      .subscribe();
+
+    // Subscribe to new reward transactions
+    const transactionsChannel = supabase
+      .channel(`reward-transactions-${userProfile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'reward_transactions',
+          filter: `user_id=eq.${userProfile.id}`
+        },
+        (payload) => {
+          console.log('New transaction (real-time):', payload);
+          const newTransaction = payload.new as RewardTransaction;
+          setRecentActivity(prev => [newTransaction, ...prev.slice(0, 9)]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+      supabase.removeChannel(transactionsChannel);
+    };
+  }, [userProfile?.id, tiers]);
+
+  // Helper function to update tier based on points
+  const updateTierFromPoints = (points: number) => {
+    if (tiers.length === 0) return;
+    
+    let current = tiers[0];
+    let next: RewardTier | null = null;
+    
+    for (let i = tiers.length - 1; i >= 0; i--) {
+      if (points >= tiers[i].min_points) {
+        current = tiers[i];
+        next = tiers[i + 1] || null;
+        break;
+      }
+    }
+    
+    setCurrentTier(current);
+    setNextTier(next);
+  };
+
   // Set points from userProfile when it changes
   useEffect(() => {
     if (userProfile) {
@@ -84,10 +160,31 @@ const Rewards = () => {
     setLoading(true);
     try {
       const userId = userProfile?.id;
-      if (!userId) return;
+      if (!userId) {
+        console.log("No user ID found in userProfile");
+        return;
+      }
 
-      // Use points from userProfile (already set in useEffect above)
-      const points = userProfile?.reward_points || 0;
+      console.log("Fetching rewards data for user:", userId);
+
+      // Fetch fresh user points from database (not from Redux cache)
+      const { data: freshProfile, error: profileError } = await supabase
+        .from("profiles")
+        .select("reward_points, lifetime_reward_points, reward_tier")
+        .eq("id", userId)
+        .single();
+
+      if (profileError) {
+        console.error("Error fetching profile:", profileError);
+      }
+
+      if (freshProfile) {
+        console.log("Fresh profile data:", freshProfile);
+        setCurrentPoints(freshProfile.reward_points || 0);
+        setLifetimePoints(freshProfile.lifetime_reward_points || 0);
+      }
+
+      const points = freshProfile?.reward_points || 0;
 
       // Fetch config
       const { data: configData } = await supabase
@@ -137,15 +234,22 @@ const Rewards = () => {
       }
 
       // Fetch recent transactions
-      const { data: transactionsData } = await supabase
+      const { data: transactionsData, error: transError } = await supabase
         .from("reward_transactions")
         .select("*")
         .eq("user_id", userId)
         .order("created_at", { ascending: false })
         .limit(10);
       
+      if (transError) {
+        console.error("Error fetching transactions:", transError);
+      }
+      
       if (transactionsData) {
+        console.log("Fetched transactions:", transactionsData.length);
         setRecentActivity(transactionsData);
+      } else {
+        console.log("No transactions found for user:", userId);
       }
     } catch (error) {
       console.error("Error fetching rewards data:", error);

@@ -17,6 +17,9 @@ import {
   AlertCircle,
   X,
   Loader2,
+  Gift,
+  Star,
+  Wallet,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,12 +34,15 @@ import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { InvoiceStatus } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { awardOrderPoints, calculateOrderPoints } from "@/services/rewardsService";
+import { getSavedPaymentMethods, SavedPaymentMethod } from "@/services/paymentService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -44,6 +50,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 
 interface CreateOrderPaymentFormProps {
   modalIsOpen: boolean;
@@ -81,6 +94,19 @@ const CreateOrderPaymentForm = ({
   const [tax, settax] = useState(0);
   const taxper = sessionStorage.getItem("taxper");
   const [saveCard, setSaveCard] = useState(false);
+  
+  // State for saved cards (quick fill), rewards, and success popup
+  const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([]);
+  const [loadingSavedCards, setLoadingSavedCards] = useState(false);
+  const [estimatedPoints, setEstimatedPoints] = useState(0);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successData, setSuccessData] = useState<{
+    orderNumber: string;
+    pointsEarned: number;
+    newTotal: number;
+    tierUpgrade: boolean;
+    newTier?: string;
+  } | null>(null);
 
   const [formData, setFormData] = useState({
     amount: 0,
@@ -135,6 +161,41 @@ const CreateOrderPaymentForm = ({
     localStorage.setItem("cartItems", JSON.stringify(cleanedItems));
     return cleanedItems;
   }
+
+  // Fetch saved payment methods
+  useEffect(() => {
+    const fetchSavedCards = async () => {
+      if (!userProfile?.id) return;
+      
+      setLoadingSavedCards(true);
+      try {
+        const methods = await getSavedPaymentMethods(userProfile.id);
+        setSavedCards(methods);
+      } catch (error) {
+        console.error("Error fetching saved cards:", error);
+      } finally {
+        setLoadingSavedCards(false);
+      }
+    };
+    
+    fetchSavedCards();
+  }, [userProfile?.id]);
+
+  // Calculate estimated reward points
+  useEffect(() => {
+    const calculatePoints = async () => {
+      if (!userProfile?.id || !formData.amount) return;
+      
+      try {
+        const points = await calculateOrderPoints(formData.amount, userProfile.id);
+        setEstimatedPoints(points);
+      } catch (error) {
+        console.error("Error calculating points:", error);
+      }
+    };
+    
+    calculatePoints();
+  }, [formData.amount, userProfile?.id]);
 
   useEffect(() => {
     const cleanedCartItems = cleanCartItems(cartItems);
@@ -554,13 +615,55 @@ const CreateOrderPaymentForm = ({
         }
       }
 
-      toast({
-        title: "Payment Successful!",
-        description: `Order #${orderNumber} has been created successfully.`,
-      });
-
-      await clearCart();
-      navigate("/pharmacy/orders");
+      // Award reward points for the order
+      if (newOrder.profile_id && calculatedTotal > 0) {
+        try {
+          const rewardResult = await awardOrderPoints(
+            newOrder.profile_id,
+            newOrder.id,
+            calculatedTotal,
+            orderNumber
+          );
+          
+          // Always show success popup after payment
+          setSuccessData({
+            orderNumber,
+            pointsEarned: rewardResult.success ? rewardResult.pointsEarned : 0,
+            newTotal: rewardResult.success ? rewardResult.newTotal : 0,
+            tierUpgrade: rewardResult.success ? rewardResult.tierUpgrade : false,
+            newTier: rewardResult.success ? rewardResult.newTier?.name : undefined,
+          });
+          setShowSuccessPopup(true);
+          setLoading(false);
+          await clearCart();
+          return; // Don't navigate yet, wait for popup
+        } catch (rewardError) {
+          console.error("Error awarding reward points:", rewardError);
+          // Still show success popup even if rewards fail
+          setSuccessData({
+            orderNumber,
+            pointsEarned: 0,
+            newTotal: 0,
+            tierUpgrade: false,
+          });
+          setShowSuccessPopup(true);
+          setLoading(false);
+          await clearCart();
+          return;
+        }
+      } else {
+        // No profile_id or zero total - still show success popup
+        setSuccessData({
+          orderNumber,
+          pointsEarned: 0,
+          newTotal: 0,
+          tierUpgrade: false,
+        });
+        setShowSuccessPopup(true);
+        setLoading(false);
+        await clearCart();
+        return;
+      }
     } catch (error) {
       console.error("Order creation error:", error);
       setLoading(false);
@@ -765,6 +868,71 @@ const CreateOrderPaymentForm = ({
                 <CardContent className="space-y-6">
                   {paymentType === "credit_card" ? (
                     <>
+                      {/* Saved Cards Section - Quick Fill */}
+                      {savedCards.length > 0 && (
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium flex items-center gap-2">
+                            <Wallet className="w-4 h-4 text-emerald-600" />
+                            Quick Fill from Saved Cards
+                          </Label>
+                          <p className="text-xs text-gray-500">
+                            Select a saved card to auto-fill billing address and expiry. Enter card number and CVV for security.
+                          </p>
+                          <div className="grid gap-2">
+                            {savedCards.filter(c => c.method_type === 'card').map((card) => (
+                              <button
+                                key={card.id}
+                                type="button"
+                                onClick={() => {
+                                  // Pre-fill billing address and expiry from saved card
+                                  const expiryMonth = card.card_expiry_month?.toString().padStart(2, '0') || '';
+                                  const expiryYear = card.card_expiry_year?.toString().slice(-2) || '';
+                                  const expirationDate = expiryMonth && expiryYear ? `${expiryMonth}${expiryYear}` : '';
+                                  
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
+                                    expirationDate: expirationDate || prev.expirationDate,
+                                    address: card.billing_address || prev.address,
+                                    city: card.billing_city || prev.city,
+                                    state: card.billing_state || prev.state,
+                                    zip: card.billing_zip || prev.zip,
+                                  }));
+                                  toast({
+                                    title: "Card Details Filled",
+                                    description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Please enter card number and CVV.`,
+                                  });
+                                }}
+                                className="w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                              >
+                                <div className="p-2 rounded-lg bg-gray-100">
+                                  <CreditCard className="w-5 h-5 text-gray-500" />
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <p className="font-medium text-gray-900">
+                                    {card.card_type?.toUpperCase()} •••• {card.card_last_four}
+                                  </p>
+                                  <p className="text-xs text-gray-500">
+                                    Expires {card.card_expiry_month?.toString().padStart(2, '0')}/{card.card_expiry_year}
+                                  </p>
+                                </div>
+                                {card.is_default && (
+                                  <Badge variant="secondary" className="text-xs">Default</Badge>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                          <div className="relative">
+                            <div className="absolute inset-0 flex items-center">
+                              <span className="w-full border-t" />
+                            </div>
+                            <div className="relative flex justify-center text-xs uppercase">
+                              <span className="bg-white px-2 text-gray-500">Enter card number & CVV</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Card Number */}
                       <div className="space-y-2">
                         <Label htmlFor="cardNumber" className="text-sm font-medium">
@@ -1150,6 +1318,22 @@ const CreateOrderPaymentForm = ({
                       <span className="text-emerald-600">${formData.amount.toFixed(2)}</span>
                     </div>
                   </div>
+
+                  {/* Reward Points Preview */}
+                  {estimatedPoints > 0 && (
+                    <>
+                      <Separator />
+                      <div className="flex items-center justify-between p-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
+                        <div className="flex items-center gap-2">
+                          <Gift className="w-5 h-5 text-pink-600" />
+                          <span className="text-sm font-medium text-gray-700">You'll earn</span>
+                        </div>
+                        <Badge className="bg-pink-600 text-white">
+                          +{estimatedPoints} points
+                        </Badge>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1206,6 +1390,84 @@ const CreateOrderPaymentForm = ({
           </div>
         </div>
       </div>
+
+      {/* Success Popup Dialog */}
+      <Dialog open={showSuccessPopup} onOpenChange={(open) => {
+        if (!open) {
+          setShowSuccessPopup(false);
+          navigate("/pharmacy/orders");
+        }
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-center">
+              <div className="flex flex-col items-center gap-4">
+                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                </div>
+                <span className="text-2xl font-bold text-gray-900">Payment Successful!</span>
+              </div>
+            </DialogTitle>
+            <DialogDescription className="text-center space-y-4 pt-4">
+              <p className="text-gray-600">
+                Your order <span className="font-semibold text-gray-900">#{successData?.orderNumber}</span> has been placed successfully.
+              </p>
+              
+              {/* Reward Points Earned */}
+              {successData?.pointsEarned && successData.pointsEarned > 0 && (
+                <div className="bg-gradient-to-r from-pink-50 to-purple-50 rounded-xl p-4 space-y-3">
+                  <div className="flex items-center justify-center gap-2">
+                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                    <span className="text-lg font-bold text-gray-900">Reward Points Earned!</span>
+                    <Star className="w-6 h-6 text-yellow-500 fill-yellow-500" />
+                  </div>
+                  <div className="text-center">
+                    <span className="text-4xl font-bold text-pink-600">+{successData.pointsEarned}</span>
+                    <span className="text-lg text-gray-600 ml-2">points</span>
+                  </div>
+                  <p className="text-sm text-gray-600">
+                    Your new balance: <span className="font-semibold text-pink-600">{successData.newTotal?.toLocaleString()} points</span>
+                  </p>
+                  
+                  {/* Tier Upgrade */}
+                  {successData.tierUpgrade && successData.newTier && (
+                    <div className="bg-gradient-to-r from-yellow-100 to-amber-100 rounded-lg p-3 mt-2">
+                      <div className="flex items-center justify-center gap-2">
+                        <Gift className="w-5 h-5 text-amber-600" />
+                        <span className="font-semibold text-amber-800">
+                          🎉 Congratulations! You've reached {successData.newTier} status!
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-3 mt-4">
+            <Button 
+              onClick={() => {
+                setShowSuccessPopup(false);
+                navigate("/pharmacy/orders");
+              }}
+              className="w-full bg-emerald-600 hover:bg-emerald-700"
+            >
+              View My Orders
+            </Button>
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setShowSuccessPopup(false);
+                navigate("/pharmacy/rewards");
+              }}
+              className="w-full"
+            >
+              <Gift className="w-4 h-4 mr-2" />
+              View My Rewards
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

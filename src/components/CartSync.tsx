@@ -43,7 +43,7 @@ export const CartSync = () => {
           items: cartItems,
           total: cartTotal,
           status: 'active',
-          last_user_activity_at: lastActionStr,
+          updated_at: lastActionStr,
           abandoned_email_sent_at: null,
         };
 

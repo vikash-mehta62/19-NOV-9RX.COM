@@ -7,6 +7,7 @@ import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { awardOrderPoints } from "@/services/rewardsService";
 import axios from "../../../axiosconfig";
 
 // Read preselected customer data synchronously before component renders
@@ -449,6 +450,25 @@ const profileID =
       }
 
       console.log("Order created successfully:", insertedOrder);
+
+      // Award reward points for the order (only for non-credit orders)
+      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0 && orderData.customerId) {
+        try {
+          const rewardResult = await awardOrderPoints(
+            orderData.customerId,
+            insertedOrder.id,
+            orderData.total,
+            newOrderId
+          );
+          
+          if (rewardResult.success && rewardResult.pointsEarned > 0) {
+            console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+          }
+        } catch (rewardError) {
+          console.error("❌ Error awarding reward points:", rewardError);
+          // Don't throw - order was created successfully
+        }
+      }
 
       // Send order confirmation email (if email_notifaction OR order_updates is enabled)
       try {

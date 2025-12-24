@@ -31,6 +31,7 @@ import CartItemsPricing from "../CartItemsPricing";
 import CustomProductForm from "./Customitems";
 import ProductShowcase from "../pharmacy/ProductShowcase";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { awardOrderPoints } from "@/services/rewardsService";
 
 export interface CreateOrderFormProps {
   initialData?: Partial<OrderFormValues>;
@@ -694,6 +695,26 @@ export function CreateOrderForm({
         .single();
 
       if (orderError) throw new Error(orderError.message);
+
+      // Award reward points for the order (only for non-credit orders)
+      const paymentMethod = data.payment?.method;
+      if (paymentMethod !== "credit" && orderResponse.id && totalAmount > 0 && pId) {
+        try {
+          const rewardResult = await awardOrderPoints(
+            pId,
+            orderResponse.id,
+            totalAmount,
+            orderNumber
+          );
+          
+          if (rewardResult.success && rewardResult.pointsEarned > 0) {
+            console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+          }
+        } catch (rewardError) {
+          console.error("❌ Error awarding reward points:", rewardError);
+          // Don't throw - order was created successfully
+        }
+      }
 
       // Log order creation activity
       try {
