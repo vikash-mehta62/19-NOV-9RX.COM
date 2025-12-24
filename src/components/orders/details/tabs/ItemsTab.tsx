@@ -25,6 +25,8 @@ interface ItemsTabProps {
   orderStatus?: string;
   isVoid?: boolean;
   onOrderUpdate?: () => void;
+  shippingCost?: number;
+  taxAmount?: number;
 }
 
 export const ItemsTab = ({ 
@@ -35,7 +37,9 @@ export const ItemsTab = ({
   userRole, 
   orderStatus, 
   isVoid,
-  onOrderUpdate 
+  onOrderUpdate,
+  shippingCost = 0,
+  taxAmount = 0
 }: ItemsTabProps) => {
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
@@ -549,9 +553,30 @@ export const ItemsTab = ({
         ))}
       </div>
 
-      {/* Order Subtotal */}
+      {/* Order Summary */}
       <Card className="overflow-hidden border-0 shadow-sm">
         <CardContent className="p-0">
+          {/* Subtotal, Shipping, Tax breakdown */}
+          <div className="p-4 space-y-2 bg-gray-50 border-b">
+            <div className="flex justify-between items-center text-sm">
+              <span className="text-gray-600">Items Subtotal ({totalItems} items)</span>
+              <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+            </div>
+            {shippingCost > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Shipping</span>
+                <span className="font-medium text-gray-900">${shippingCost.toFixed(2)}</span>
+              </div>
+            )}
+            {taxAmount > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Tax</span>
+                <span className="font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+              </div>
+            )}
+          </div>
+          
+          {/* Grand Total */}
           <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
@@ -559,12 +584,12 @@ export const ItemsTab = ({
                   <DollarSign className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Items Subtotal</p>
-                  <p className="text-xs text-emerald-200">{totalItems} items total</p>
+                  <p className="text-emerald-100 text-sm font-medium">Order Total</p>
+                  <p className="text-xs text-emerald-200">{totalItems} items</p>
                 </div>
               </div>
               <span className="text-2xl font-bold text-white">
-                ${subtotal.toFixed(2)}
+                ${(subtotal + shippingCost + taxAmount).toFixed(2)}
               </span>
             </div>
           </div>

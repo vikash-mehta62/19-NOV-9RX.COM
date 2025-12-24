@@ -1,0 +1,112 @@
+
+-- =====================================================
+-- UPDATED RPC FUNCTION - Apply referral code
+-- Awards points IMMEDIATELY on signup + saves referral_name
+-- =====================================================
+
+CREATE OR REPLACE FUNCTION apply_referral_code(
+  p_new_user_id UUID,
+  p_referral_code TEXT
+)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_referrer_id UUID;
+  v_referrer_name TEXT;
+  v_existing_referral UUID;
+  v_referral_bonus INTEGER;
+  v_referrer_points INTEGER;
+  v_referrer_lifetime INTEGER;
+  v_referrer_count INTEGER;
+  v_new_user_points INTEGER;
+  v_referral_id UUID;
+BEGIN
+  -- Get referral bonus from config (default 200)
+  SELECT COALESCE(referral_bonus, 200) INTO v_referral_bonus
+  FROM rewards_config LIMIT 1;
+  
+  IF v_referral_bonus IS NULL THEN
+    v_referral_bonus := 200;
+  END IF;
+
+  -- Find referrer by code
+  SELECT id, COALESCE(first_name || ' ' || last_name, company_name, first_name, 'A friend')
+  INTO v_referrer_id, v_referrer_name
+  FROM profiles
+  WHERE referral_code = UPPER(p_referral_code);
+
+  IF v_referrer_id IS NULL THEN
+    RETURN json_build_object('success', false, 'message', 'Invalid referral code');
+  END IF;
+
+  -- Can't refer yourself
+  IF v_referrer_id = p_new_user_id THEN
+    RETURN json_build_object('success', false, 'message', 'You cannot use your own referral code');
+  END IF;
+
+  -- Check if already referred
+  SELECT id INTO v_existing_referral
+  FROM referrals
+  WHERE referred_id = p_new_user_id
+  LIMIT 1;
+
+  IF v_existing_referral IS NOT NULL THEN
+    RETURN json_build_object('success', false, 'message', 'You have already used a referral code');
+  END IF;
+
+  -- Update new user's profile with referrer info AND referral_name
+  UPDATE profiles
+  SET 
+    referred_by = v_referrer_id,
+    referral_name = v_referrer_name
+  WHERE id = p_new_user_id;
+
+  -- Create referral record (COMPLETED immediately with points)
+  INSERT INTO referrals (referrer_id, referred_id, status, points_awarded, completed_at)
+  VALUES (v_referrer_id, p_new_user_id, 'completed', v_referral_bonus, NOW())
+  RETURNING id INTO v_referral_id;
+
+  -- Award points to REFERRER
+  SELECT reward_points, lifetime_reward_points, COALESCE(referral_count, 0)
+  INTO v_referrer_points, v_referrer_lifetime, v_referrer_count
+  FROM profiles WHERE id = v_referrer_id;
+
+  UPDATE profiles
+  SET 
+    reward_points = COALESCE(v_referrer_points, 0) + v_referral_bonus,
+    lifetime_reward_points = COALESCE(v_referrer_lifetime, 0) + v_referral_bonus,
+    referral_count = v_referrer_count + 1
+  WHERE id = v_referrer_id;
+
+  -- Log transaction for referrer
+  INSERT INTO reward_transactions (user_id, points, transaction_type, description, reference_type, reference_id)
+  VALUES (v_referrer_id, v_referral_bonus, 'bonus', 'Referral bonus - new user signed up with your code', 'referral', v_referral_id);
+
+  -- Award points to NEW USER
+  SELECT reward_points INTO v_new_user_points
+  FROM profiles WHERE id = p_new_user_id;
+
+  UPDATE profiles
+  SET 
+    reward_points = COALESCE(v_new_user_points, 0) + v_referral_bonus,
+    lifetime_reward_points = COALESCE(v_new_user_points, 0) + v_referral_bonus
+  WHERE id = p_new_user_id;
+
+  -- Log transaction for new user
+  INSERT INTO reward_transactions (user_id, points, transaction_type, description, reference_type, reference_id)
+  VALUES (p_new_user_id, v_referral_bonus, 'bonus', 'Welcome bonus - signed up with referral code', 'referral', v_referral_id);
+
+  RETURN json_build_object(
+    'success', true,
+    'message', 'Referral applied! You both earned ' || v_referral_bonus || ' bonus points!',
+    'referrer_name', v_referrer_name,
+    'points_awarded', v_referral_bonus
+  );
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION apply_referral_code(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION apply_referral_code(UUID, TEXT) TO anon;

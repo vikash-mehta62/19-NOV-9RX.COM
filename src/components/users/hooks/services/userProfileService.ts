@@ -112,7 +112,7 @@ export const updateUserProfile = async (
     }
 
 console.log(data)
-if(profileData.status==="active" && sessionStorage.getItem('userType') === "admin" && !data.active_notification){
+if(profileData.status==="active" && sessionStorage.getItem('userType') === "admin" && !data.email_notifaction){
   try {
 
     console.log("enter the aactive")
@@ -130,7 +130,7 @@ if(profileData.status==="active" && sessionStorage.getItem('userType') === "admi
       }
     const { data: update, error } = await supabase
     .from("profiles")
-    .update({ active_notification: true })
+    .update({ email_notifaction: true })
     .eq("id", userId); // Corrected eq() usage
   
   if (error) {

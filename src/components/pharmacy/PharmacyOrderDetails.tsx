@@ -16,8 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/supabaseClient"
 import { OrderFormValues, ShippingAddressData } from "@/components/orders/schemas/orderSchema"
-import jsPDF from "jspdf"
-import "jspdf-autotable"
+import { SalesOrderPDFGenerator, SalesOrderData } from "@/utils/sales-order-pdf-generator"
 
 interface PharmacyOrderDetailsProps {
   order: OrderFormValues
@@ -116,21 +115,68 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   const statusInfo = getStatusInfo(order.status)
   const StatusIcon = statusInfo.icon
 
-  // Download PDF
+  // Download PDF using SalesOrderPDFGenerator
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true)
     try {
-      const doc = new jsPDF()
-      doc.setFontSize(20)
-      doc.text("Order Details", 20, 20)
-      doc.setFontSize(12)
-      doc.text(`Order #: ${order.order_number}`, 20, 35)
-      doc.text(`Date: ${new Date(order.date).toLocaleDateString()}`, 20, 42)
-      doc.text(`Status: ${order.status}`, 20, 49)
-      doc.text(`Total: $${total.toFixed(2)}`, 20, 56)
-      doc.save(`Order_${order.order_number}.pdf`)
-      toast({ title: "Downloaded", description: "Order PDF downloaded successfully" })
+      // Prepare items data
+      const pdfItems = order.items.flatMap(item => 
+        item.sizes.map(size => ({
+          name: item.name,
+          size: `${size.size_value} ${size.size_unit}`,
+          quantity: size.quantity,
+          unitPrice: size.price,
+          total: size.quantity * size.price
+        }))
+      )
+
+      // Prepare order data for PDF generator
+      const orderData: SalesOrderData = {
+        orderNumber: order.order_number || "",
+        date: new Date(order.date).toLocaleDateString("en-US", {
+          year: "numeric", month: "short", day: "numeric"
+        }),
+        status: order.payment_status === "paid" ? "paid" : "unpaid",
+        customerInfo: {
+          name: order.customerInfo?.name || "",
+          phone: order.customerInfo?.phone || "",
+          email: order.customerInfo?.email || "",
+          company_name: companyName
+        },
+        shippingAddress: {
+          fullName: order.shippingAddress?.fullName || order.customerInfo?.name || "",
+          phone: order.shippingAddress?.phone || order.customerInfo?.phone || "",
+          email: order.customerInfo?.email,
+          address: {
+            street: shippingStreet,
+            city: shippingCity,
+            state: shippingState,
+            zip_code: shippingZip
+          }
+        },
+        items: pdfItems,
+        subtotal: subtotal,
+        shippingHandling: shipping,
+        tax: tax,
+        total: total
+      }
+
+      const pdfGenerator = new SalesOrderPDFGenerator()
+      const pdfBlob = await pdfGenerator.createPDF(orderData)
+      
+      // Download the PDF
+      const url = URL.createObjectURL(pdfBlob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = `SO_${order.order_number}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      toast({ title: "Downloaded", description: "Sales Order PDF downloaded successfully" })
     } catch (error) {
+      console.error("PDF generation error:", error)
       toast({ title: "Error", description: "Failed to generate PDF", variant: "destructive" })
     } finally {
       setIsGeneratingPDF(false)
@@ -147,7 +193,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold text-gray-900">Order #{order.order_number}</h2>
+                    <h2 className="text-xl font-bold text-gray-900">SO #{order.order_number}</h2>
                     <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={copyOrderNumber}>
                       <Copy className="w-3.5 h-3.5 text-gray-400" />
                     </Button>
@@ -274,7 +320,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 <div className="flex items-center justify-between text-white">
                   <div className="flex items-center gap-2">
                     <Package className="w-4 h-4" />
-                    <span className="font-semibold">Order Items</span>
+                    <span className="font-semibold">SO Items</span>
                   </div>
                   <Badge className="bg-white/20 text-white border-0">
                     {order.items.length} {order.items.length === 1 ? "product" : "products"}
@@ -333,12 +379,12 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
               </CardContent>
             </Card>
 
-            {/* Order Summary */}
+            {/* SO Summary */}
             <Card className="overflow-hidden border-0 shadow-sm">
               <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
                 <div className="flex items-center gap-2 text-white">
                   <DollarSign className="w-4 h-4" />
-                  <span className="font-semibold">Order Summary</span>
+                  <span className="font-semibold">SO Summary</span>
                 </div>
               </div>
               <CardContent className="p-4 space-y-3">
@@ -380,7 +426,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
             {/* Need Help */}
             <Card className="bg-gray-50 border-0">
               <CardContent className="p-4 text-center">
-                <p className="text-sm text-gray-600 mb-2">Need help with this order?</p>
+                <p className="text-sm text-gray-600 mb-2">Need help with this sales order?</p>
                 <Button variant="outline" size="sm">
                   <Mail className="w-4 h-4 mr-1" />
                   Contact Support

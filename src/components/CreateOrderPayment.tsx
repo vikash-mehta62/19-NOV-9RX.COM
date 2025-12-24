@@ -35,7 +35,7 @@ import { InvoiceStatus } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints, calculateOrderPoints } from "@/services/rewardsService";
-import { getSavedPaymentMethods, SavedPaymentMethod } from "@/services/paymentService";
+import { getSavedPaymentMethods, SavedPaymentMethod, chargeSavedCard, saveCardToProfile, canChargeDirectly } from "@/services/paymentService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -98,6 +98,7 @@ const CreateOrderPaymentForm = ({
   // State for saved cards (quick fill), rewards, and success popup
   const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([]);
   const [loadingSavedCards, setLoadingSavedCards] = useState(false);
+  const [selectedSavedCard, setSelectedSavedCard] = useState<SavedPaymentMethod | null>(null);
   const [estimatedPoints, setEstimatedPoints] = useState(0);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successData, setSuccessData] = useState<{
@@ -272,6 +273,18 @@ const CreateOrderPaymentForm = ({
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
 
+    // Skip card validation if using saved card
+    if (selectedSavedCard) {
+      // Only validate billing address for saved card
+      if (!formData.address) newErrors.address = "Address is required";
+      if (!formData.city) newErrors.city = "City is required";
+      if (!formData.state) newErrors.state = "State is required";
+      if (!formData.zip) newErrors.zip = "ZIP code is required";
+      
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+    }
+
     if (paymentType === "credit_card") {
       if (!formData.cardNumber || formData.cardNumber.replace(/\s/g, "").length < 15) {
         newErrors.cardNumber = "Please enter a valid card number";
@@ -345,54 +358,122 @@ const CreateOrderPaymentForm = ({
 
     const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
 
-    // Build payment data for Supabase Edge Function
-    const nameParts = (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount).split(" ");
-    const firstName = nameParts[0] || "Customer";
-    const lastName = nameParts.slice(1).join(" ") || "Customer";
-
-    const paymentRequestData = {
-      payment: paymentType === "credit_card"
-        ? {
-            type: "card" as const,
-            cardNumber: formData.cardNumber.replace(/\s/g, ""),
-            expirationDate: formData.expirationDate,
-            cvv: formData.cvv,
-            cardholderName: formData.cardholderName,
-          }
-        : {
-            type: "ach" as const,
-            accountType: formData.accountType as "checking" | "savings",
-            routingNumber: formData.routingNumber,
-            accountNumber: formData.accountNumber,
-            nameOnAccount: formData.nameOnAccount,
-          },
-      amount: formData.amount,
-      invoiceNumber: invoiceNumber,
-      customerEmail: formDataa?.customerInfo?.email || "",
-      billing: {
-        firstName,
-        lastName,
-        address: formData.address,
-        city: formData.city,
-        state: formData.state,
-        zip: formData.zip,
-        country: formData.country,
-      },
-    };
-
     try {
-      // Call Supabase Edge Function for payment processing
-      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
-        "process-payment",
-        { body: paymentRequestData }
-      );
+      let paymentResponse: any;
 
-      if (paymentError) {
-        throw new Error(paymentError.message || "Payment processing failed");
-      }
+      // ============================================
+      // OPTION 1: Charge Saved Card (Token-based - no card number needed!)
+      // ============================================
+      if (selectedSavedCard && canChargeDirectly(selectedSavedCard)) {
+        console.log("🔵 Charging saved card:", selectedSavedCard.card_last_four);
+        
+        const chargeResult = await chargeSavedCard(
+          selectedSavedCard,
+          formData.amount,
+          invoiceNumber
+        );
 
-      if (!paymentResponse?.success) {
-        throw new Error(paymentResponse?.error || "Payment was declined");
+        if (!chargeResult.success) {
+          throw new Error(chargeResult.errorMessage || chargeResult.message || "Payment failed");
+        }
+
+        paymentResponse = {
+          success: true,
+          transactionId: chargeResult.transactionId,
+          authCode: chargeResult.authCode,
+        };
+        
+        console.log("✅ Saved card charged successfully:", paymentResponse.transactionId);
+      } 
+      // ============================================
+      // OPTION 2: Direct Card/ACH Payment
+      // ============================================
+      else {
+        // Build payment data for Supabase Edge Function
+        const nameParts = (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount).split(" ");
+        const firstName = nameParts[0] || "Customer";
+        const lastName = nameParts.slice(1).join(" ") || "Customer";
+
+        const paymentRequestData = {
+          payment: paymentType === "credit_card"
+            ? {
+                type: "card" as const,
+                cardNumber: formData.cardNumber.replace(/\s/g, ""),
+                expirationDate: formData.expirationDate,
+                cvv: formData.cvv,
+                cardholderName: formData.cardholderName,
+              }
+            : {
+                type: "ach" as const,
+                accountType: formData.accountType as "checking" | "savings",
+                routingNumber: formData.routingNumber,
+                accountNumber: formData.accountNumber,
+                nameOnAccount: formData.nameOnAccount,
+              },
+          amount: formData.amount,
+          invoiceNumber: invoiceNumber,
+          customerEmail: formDataa?.customerInfo?.email || "",
+          billing: {
+            firstName,
+            lastName,
+            address: formData.address,
+            city: formData.city,
+            state: formData.state,
+            zip: formData.zip,
+            country: formData.country,
+          },
+        };
+
+        // Call Supabase Edge Function for payment processing
+        const { data: directPaymentResponse, error: paymentError } = await supabase.functions.invoke(
+          "process-payment",
+          { body: paymentRequestData }
+        );
+
+        if (paymentError) {
+          throw new Error(paymentError.message || "Payment processing failed");
+        }
+
+        if (!directPaymentResponse?.success) {
+          throw new Error(directPaymentResponse?.error || "Payment was declined");
+        }
+
+        paymentResponse = directPaymentResponse;
+
+        // Save card if user opted to save it (create Authorize.net profile)
+        if (saveCard && paymentType === "credit_card" && userProfile?.id && formDataa?.customerInfo?.email) {
+          try {
+            console.log("🔵 Saving card to Authorize.net profile...");
+            const saveResult = await saveCardToProfile(
+              userProfile.id,
+              formDataa.customerInfo.email,
+              formData.cardNumber,
+              formData.expirationDate,
+              formData.cvv,
+              {
+                firstName,
+                lastName,
+                address: formData.address,
+                city: formData.city,
+                state: formData.state,
+                zip: formData.zip,
+                country: formData.country,
+              }
+            );
+
+            if (saveResult.success) {
+              console.log("✅ Card saved to profile:", saveResult.savedMethodId);
+              toast({
+                title: "Card Saved",
+                description: "Your card has been saved for 1-click payments.",
+              });
+            } else {
+              console.error("Failed to save card:", saveResult.error);
+            }
+          } catch (saveError) {
+            console.error("Error saving card:", saveError);
+          }
+        }
       }
 
       // Payment successful - process the order
@@ -563,57 +644,7 @@ const CreateOrderPaymentForm = ({
       // Update stock
       await updateProductStock(cleanedCartItems);
 
-      // Save card if user opted to save it
-      // Note: For full card saving, we would need to create a customer profile in Authorize.net
-      // For now, we save the masked card details locally for display purposes
-      if (saveCard && paymentType === "credit_card" && userProfile?.id) {
-        try {
-          // Extract card details for saving (masked)
-          const cardLast4 = formData.cardNumber.replace(/\s/g, "").slice(-4);
-          const expMonth = parseInt(formData.expirationDate.slice(0, 2));
-          const expYear = parseInt("20" + formData.expirationDate.slice(2, 4));
-          
-          // Detect card type from number
-          const cardNum = formData.cardNumber.replace(/\s/g, "");
-          let cardType = "unknown";
-          if (cardNum.startsWith("4")) cardType = "visa";
-          else if (/^5[1-5]/.test(cardNum)) cardType = "mastercard";
-          else if (/^3[47]/.test(cardNum)) cardType = "amex";
-          else if (/^6(?:011|5)/.test(cardNum)) cardType = "discover";
-
-          // Split cardholder name
-          const nameParts = formData.cardholderName.split(" ");
-          const firstName = nameParts[0] || "";
-          const lastName = nameParts.slice(1).join(" ") || "";
-
-          await supabase.from("saved_payment_methods").insert({
-            profile_id: userProfile.id,
-            payment_profile_id: `local_${Date.now()}`, // Placeholder - would be Authorize.net profile ID
-            method_type: "card",
-            card_last_four: cardLast4,
-            card_type: cardType,
-            card_expiry_month: expMonth,
-            card_expiry_year: expYear,
-            billing_first_name: firstName,
-            billing_last_name: lastName,
-            billing_address: formData.address,
-            billing_city: formData.city,
-            billing_state: formData.state,
-            billing_zip: formData.zip,
-            billing_country: formData.country,
-            is_default: false,
-            nickname: `${cardType.charAt(0).toUpperCase() + cardType.slice(1)} ending in ${cardLast4}`,
-          });
-          
-          toast({
-            title: "Card Saved",
-            description: "Your card has been saved for future purchases.",
-          });
-        } catch (saveError) {
-          console.error("Failed to save card:", saveError);
-          // Don't fail the order if card save fails
-        }
-      }
+      // Note: Card saving is now handled in handleSubmit with Authorize.net Customer Profile
 
       // Award reward points for the order
       if (newOrder.profile_id && calculatedTotal > 0) {
@@ -873,93 +904,175 @@ const CreateOrderPaymentForm = ({
                         <div className="space-y-3">
                           <Label className="text-sm font-medium flex items-center gap-2">
                             <Wallet className="w-4 h-4 text-emerald-600" />
-                            Quick Fill from Saved Cards
+                            Use Saved Card
                           </Label>
                           <p className="text-xs text-gray-500">
-                            Select a saved card to auto-fill billing address and expiry. Enter card number and CVV for security.
+                            {savedCards.some(c => canChargeDirectly(c)) 
+                              ? "Select a saved card to pay instantly without entering card details."
+                              : "Select a saved card to auto-fill billing address. Enter card number and CVV for security."}
                           </p>
                           <div className="grid gap-2">
-                            {savedCards.filter(c => c.method_type === 'card').map((card) => (
-                              <button
-                                key={card.id}
-                                type="button"
-                                onClick={() => {
-                                  // Pre-fill billing address and expiry from saved card
-                                  const expiryMonth = card.card_expiry_month?.toString().padStart(2, '0') || '';
-                                  const expiryYear = card.card_expiry_year?.toString().slice(-2) || '';
-                                  const expirationDate = expiryMonth && expiryYear ? `${expiryMonth}${expiryYear}` : '';
-                                  
-                                  setFormData(prev => ({
-                                    ...prev,
-                                    cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
-                                    expirationDate: expirationDate || prev.expirationDate,
-                                    address: card.billing_address || prev.address,
-                                    city: card.billing_city || prev.city,
-                                    state: card.billing_state || prev.state,
-                                    zip: card.billing_zip || prev.zip,
-                                  }));
-                                  toast({
-                                    title: "Card Details Filled",
-                                    description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Please enter card number and CVV.`,
-                                  });
-                                }}
-                                className="w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
-                              >
-                                <div className="p-2 rounded-lg bg-gray-100">
-                                  <CreditCard className="w-5 h-5 text-gray-500" />
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <p className="font-medium text-gray-900">
-                                    {card.card_type?.toUpperCase()} •••• {card.card_last_four}
-                                  </p>
-                                  <p className="text-xs text-gray-500">
-                                    Expires {card.card_expiry_month?.toString().padStart(2, '0')}/{card.card_expiry_year}
-                                  </p>
-                                </div>
-                                {card.is_default && (
-                                  <Badge variant="secondary" className="text-xs">Default</Badge>
-                                )}
-                              </button>
-                            ))}
+                            {savedCards.filter(c => c.method_type === 'card').map((card) => {
+                              const canCharge = canChargeDirectly(card);
+                              const isSelected = selectedSavedCard?.id === card.id;
+                              
+                              return (
+                                <button
+                                  key={card.id}
+                                  type="button"
+                                  onClick={() => {
+                                    if (canCharge) {
+                                      // Token-based card - select for direct charge
+                                      setSelectedSavedCard(isSelected ? null : card);
+                                      if (!isSelected) {
+                                        // Clear manual card fields when selecting saved card
+                                        setFormData(prev => ({
+                                          ...prev,
+                                          cardNumber: "",
+                                          cvv: "",
+                                          cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
+                                          expirationDate: "",
+                                          address: card.billing_address || prev.address,
+                                          city: card.billing_city || prev.city,
+                                          state: card.billing_state || prev.state,
+                                          zip: card.billing_zip || prev.zip,
+                                        }));
+                                        toast({
+                                          title: "Card Selected",
+                                          description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Click Pay to complete.`,
+                                        });
+                                      }
+                                    } else {
+                                      // Legacy card - just fill billing info
+                                      setSelectedSavedCard(null);
+                                      const expiryMonth = card.card_expiry_month?.toString().padStart(2, '0') || '';
+                                      const expiryYear = card.card_expiry_year?.toString().slice(-2) || '';
+                                      const expirationDate = expiryMonth && expiryYear ? `${expiryMonth}${expiryYear}` : '';
+                                      
+                                      setFormData(prev => ({
+                                        ...prev,
+                                        cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
+                                        expirationDate: expirationDate || prev.expirationDate,
+                                        address: card.billing_address || prev.address,
+                                        city: card.billing_city || prev.city,
+                                        state: card.billing_state || prev.state,
+                                        zip: card.billing_zip || prev.zip,
+                                      }));
+                                      toast({
+                                        title: "Billing Info Filled",
+                                        description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Please enter card number and CVV.`,
+                                      });
+                                    }
+                                  }}
+                                  className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
+                                    isSelected 
+                                      ? "border-emerald-500 bg-emerald-50 shadow-md" 
+                                      : "border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                                  }`}
+                                >
+                                  <div className={`p-2 rounded-lg ${isSelected ? "bg-emerald-100" : "bg-gray-100"}`}>
+                                    <CreditCard className={`w-5 h-5 ${isSelected ? "text-emerald-600" : "text-gray-500"}`} />
+                                  </div>
+                                  <div className="flex-1 text-left">
+                                    <p className="font-medium text-gray-900">
+                                      {card.card_type?.toUpperCase()} •••• {card.card_last_four}
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                      Expires {card.card_expiry_month?.toString().padStart(2, '0')}/{card.card_expiry_year}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    {canCharge && (
+                                      <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                                        1-Click Pay
+                                      </Badge>
+                                    )}
+                                    {card.is_default && (
+                                      <Badge variant="secondary" className="text-xs">Default</Badge>
+                                    )}
+                                    {isSelected && (
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                    )}
+                                  </div>
+                                </button>
+                              );
+                            })}
                           </div>
+                          
+                          {/* Show divider only if no card selected for direct charge */}
+                          {!selectedSavedCard && (
+                            <div className="relative">
+                              <div className="absolute inset-0 flex items-center">
+                                <span className="w-full border-t" />
+                              </div>
+                              <div className="relative flex justify-center text-xs uppercase">
+                                <span className="bg-white px-2 text-gray-500">Or enter new card</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Card Number - Hide when saved card selected */}
+                      {!selectedSavedCard && (
+                        <div className="space-y-2">
+                          <Label htmlFor="cardNumber" className="text-sm font-medium">
+                            Card Number
+                          </Label>
                           <div className="relative">
-                            <div className="absolute inset-0 flex items-center">
-                              <span className="w-full border-t" />
+                            <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            <Input
+                              id="cardNumber"
+                              name="cardNumber"
+                              placeholder="1234 5678 9012 3456"
+                              value={formData.cardNumber}
+                              onChange={handleCardNumberChange}
+                              maxLength={19}
+                              className={`pl-11 h-12 text-lg ${errors.cardNumber ? "border-red-500" : ""}`}
+                            />
+                          </div>
+                          {errors.cardNumber && (
+                            <p className="text-sm text-red-500 flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4" />
+                              {errors.cardNumber}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Saved Card Display */}
+                      {selectedSavedCard && (
+                        <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="p-2 bg-emerald-100 rounded-lg">
+                                <CreditCard className="w-6 h-6 text-emerald-600" />
+                              </div>
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {selectedSavedCard.card_type?.toUpperCase()} •••• {selectedSavedCard.card_last_four}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  Ready to charge ${formData.amount.toFixed(2)}
+                                </p>
+                              </div>
                             </div>
-                            <div className="relative flex justify-center text-xs uppercase">
-                              <span className="bg-white px-2 text-gray-500">Enter card number & CVV</span>
-                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setSelectedSavedCard(null)}
+                              className="text-gray-500 hover:text-gray-700"
+                            >
+                              <X className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
                       )}
 
-                      {/* Card Number */}
-                      <div className="space-y-2">
-                        <Label htmlFor="cardNumber" className="text-sm font-medium">
-                          Card Number
-                        </Label>
-                        <div className="relative">
-                          <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input
-                            id="cardNumber"
-                            name="cardNumber"
-                            placeholder="1234 5678 9012 3456"
-                            value={formData.cardNumber}
-                            onChange={handleCardNumberChange}
-                            maxLength={19}
-                            className={`pl-11 h-12 text-lg ${errors.cardNumber ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {errors.cardNumber && (
-                          <p className="text-sm text-red-500 flex items-center gap-1">
-                            <AlertCircle className="w-4 h-4" />
-                            {errors.cardNumber}
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Expiry & CVV */}
-                      <div className="grid grid-cols-2 gap-4">
+                      {/* Expiry & CVV - Hide when saved card selected */}
+                      {!selectedSavedCard && (
+                        <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <Label htmlFor="expirationDate" className="text-sm font-medium">
                             Expiry Date
@@ -996,8 +1109,10 @@ const CreateOrderPaymentForm = ({
                           )}
                         </div>
                       </div>
+                      )}
 
-                      {/* Cardholder Name */}
+                      {/* Cardholder Name - Hide when saved card selected */}
+                      {!selectedSavedCard && (
                       <div className="space-y-2">
                         <Label htmlFor="cardholderName" className="text-sm font-medium">
                           Cardholder Name
@@ -1017,8 +1132,10 @@ const CreateOrderPaymentForm = ({
                           <p className="text-sm text-red-500">{errors.cardholderName}</p>
                         )}
                       </div>
+                      )}
 
-                      {/* Save Card Checkbox */}
+                      {/* Save Card Checkbox - Hide when saved card selected */}
+                      {!selectedSavedCard && (
                       <div className="flex items-center gap-3 pt-2">
                         <input
                           type="checkbox"
@@ -1031,6 +1148,7 @@ const CreateOrderPaymentForm = ({
                           Save this card for future purchases
                         </Label>
                       </div>
+                      )}
                     </>
                   ) : (
                     <>

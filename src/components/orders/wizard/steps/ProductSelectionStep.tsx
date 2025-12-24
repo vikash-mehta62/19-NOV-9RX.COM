@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { 
   Search, Plus, Minus, Trash2, Package, X, 
-  ShoppingBag, FileText, ChevronDown, ChevronUp,
-  ChevronRight, Layers, FolderOpen, Folder
+  ShoppingBag, FileText, ChevronDown,
+  ChevronRight, Layers, FolderOpen, Folder,
+  Sparkles, ShoppingCart
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
@@ -16,14 +17,19 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Textarea } from "@/components/ui/textarea";
 import CustomProductForm from "@/components/orders/Customitems";
 import { cn } from "@/lib/utils";
+import { useSelector } from "react-redux";
+import { selectUserProfile } from "@/store/selectors/userSelectors";
 
 interface ProductSize {
   id: string;
   size_value: string;
   size_unit: string;
   price: number;
+  originalPrice: number;
   price_per_case: number;
   stock: number;
+  groupIds?: string[];
+  disAllogroupIds?: string[];
 }
 
 interface Product {
@@ -42,6 +48,12 @@ interface CategoryData {
   subcategories: { name: string; count: number }[];
 }
 
+interface GroupPricing {
+  id: string;
+  group_ids: string[];
+  product_arrayjson: { product_id: string; new_price: string }[];
+}
+
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
 }
@@ -49,6 +61,7 @@ export interface ProductSelectionStepProps {
 const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepProps) => {
   const { toast } = useToast();
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
+  const userProfile = useSelector(selectUserProfile);
   
   const [searchQuery, setSearchQuery] = useState("");
   const [products, setProducts] = useState<Product[]>([]);
@@ -64,21 +77,78 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
 
-  // Fetch products
+  // Fetch products with group pricing
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true);
       try {
+        // Fetch group pricing data
+        const { data: groupData } = await supabase
+          .from("group_pricing")
+          .select("*");
+
         const { data, error } = await supabase
           .from("products")
           .select(`
             id, name, sku, category, subcategory, image_url,
-            product_sizes (id, size_value, size_unit, price, price_per_case, stock)
+            product_sizes (id, size_value, size_unit, price, price_per_case, stock, groupIds, disAllogroupIds)
           `)
           .order("name");
 
         if (error) throw error;
-        setProducts(data || []);
+
+        const userId = userProfile?.id;
+
+        // Apply group pricing to products
+        const productsWithGroupPricing = (data || []).map((product: any) => ({
+          ...product,
+          product_sizes: product.product_sizes
+            ?.filter((size: any) => {
+              // Filter out sizes that are disallowed for user's group
+              const disAllowGroupIds = size.disAllogroupIds || [];
+              const isDisallowed = groupData?.some(
+                (group: any) => disAllowGroupIds.includes(group.id) && group.group_ids?.includes(userId)
+              );
+              if (isDisallowed) return false;
+
+              // Check if size is allowed for user's group
+              const groupIds = size.groupIds || [];
+              if (groupIds.length === 0) return true;
+              return groupData?.some(
+                (group: any) => group.group_ids?.includes(userId) && groupIds.includes(group.id)
+              );
+            })
+            .map((size: any) => {
+              let newPrice = size.price;
+              let newPricePerCase = size.price_per_case;
+              
+              // Find applicable group pricing
+              const applicableGroup = groupData?.find(
+                (group: any) =>
+                  group.group_ids?.includes(userId) &&
+                  Array.isArray(group.product_arrayjson) &&
+                  group.product_arrayjson.some((p: any) => p?.product_id === size.id)
+              );
+
+              if (applicableGroup && Array.isArray(applicableGroup.product_arrayjson)) {
+                const groupProduct = applicableGroup.product_arrayjson.find(
+                  (p: any) => p?.product_id === size.id
+                ) as { product_id: string; new_price: string } | undefined;
+                if (groupProduct?.new_price) {
+                  newPrice = parseFloat(groupProduct.new_price) || size.price;
+                }
+              }
+
+              return {
+                ...size,
+                price: newPrice,
+                originalPrice: size.price === newPrice ? 0 : size.price,
+                price_per_case: newPricePerCase,
+              };
+            }) || [],
+        }));
+
+        setProducts(productsWithGroupPricing);
       } catch (error) {
         console.error("Error fetching products:", error);
         toast({ title: "Error", description: "Failed to load products", variant: "destructive" });
@@ -87,7 +157,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
       }
     };
     fetchProducts();
-  }, [toast]);
+  }, [toast, userProfile]);
 
   // Build category structure from products
   const categories = useMemo(() => {
@@ -252,60 +322,65 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
 
   return (
     <div className="space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-gray-900">Add Products</h2>
-          <p className="text-sm text-gray-500">Browse categories or search products</p>
+      {/* Header - Simple Compact Design */}
+      <div className="flex items-center justify-between bg-white border rounded-lg p-3">
+        <div className="flex items-center gap-2">
+          <ShoppingCart className="w-4 h-4 text-emerald-600" />
+          <span className="text-sm font-medium text-gray-900">Add Products</span>
         </div>
         <div className="flex items-center gap-2">
-          <Button onClick={() => setShowCustomProductDialog(true)} variant="outline" size="sm" className="gap-2">
-            <Plus className="w-4 h-4" />
-            Custom Item
+          <Button 
+            onClick={() => setShowCustomProductDialog(true)} 
+            variant="outline" 
+            size="sm"
+            className="h-7 text-xs gap-1"
+          >
+            <Sparkles className="w-3 h-3" />
+            Custom
           </Button>
           {orderTotals.itemCount > 0 && (
-            <Badge className="bg-emerald-100 text-emerald-700 px-3 py-1">
-              <ShoppingBag className="w-4 h-4 mr-1" />
+            <Badge className="bg-emerald-100 text-emerald-700 text-xs">
               {orderTotals.itemCount} items
             </Badge>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4">
-        {/* Left: Category Navigation */}
+      <div className="grid grid-cols-12 gap-3">
+        {/* Left: Category Navigation - Simple */}
         <div className="col-span-12 lg:col-span-3">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-3">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Layers className="w-4 h-4 text-emerald-600" />
+          <Card className="border rounded-lg overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                  <Layers className="w-3 h-3 text-emerald-600" />
                   Categories
-                </h3>
+                </span>
                 {(selectedCategory || selectedSubcategory) && (
-                  <Button variant="ghost" size="sm" className="h-6 text-xs text-gray-500" onClick={handleClearFilters}>
+                  <Button variant="ghost" size="sm" className="h-5 text-xs text-emerald-600 px-1" onClick={handleClearFilters}>
                     Clear
                   </Button>
                 )}
               </div>
-              
+            </div>
+            <CardContent className="p-2">
               <ScrollArea className="h-[380px]">
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {/* All Categories Option */}
                   <button
                     onClick={handleClearFilters}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                      "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs",
                       !selectedCategory 
-                        ? "bg-emerald-100 text-emerald-700 font-medium" 
+                        ? "bg-emerald-600 text-white" 
                         : "hover:bg-gray-100 text-gray-700"
                     )}
                   >
                     <span className="flex items-center gap-2">
-                      <Package className="w-4 h-4" />
-                      All Products
+                      <Package className="w-3 h-3" />
+                      <span>All Products</span>
                     </span>
-                    <Badge variant="secondary" className="text-xs">{products.length}</Badge>
+                    <span className="text-xs">{products.length}</span>
                   </button>
                   
                   {/* Category List */}
@@ -314,27 +389,27 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       <button
                         onClick={() => handleCategoryClick(category.name)}
                         className={cn(
-                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+                          "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs",
                           selectedCategory === category.name && !selectedSubcategory
-                            ? "bg-emerald-100 text-emerald-700 font-medium"
+                            ? "bg-emerald-600 text-white"
                             : expandedCategory === category.name
-                            ? "bg-gray-100 text-gray-900"
+                            ? "bg-emerald-50 text-emerald-900"
                             : "hover:bg-gray-100 text-gray-700"
                         )}
                       >
                         <span className="flex items-center gap-2 truncate">
                           {expandedCategory === category.name ? (
-                            <FolderOpen className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                            <FolderOpen className="w-3 h-3 flex-shrink-0" />
                           ) : (
-                            <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                            <Folder className="w-3 h-3 flex-shrink-0" />
                           )}
                           <span className="truncate">{category.name}</span>
                         </span>
                         <div className="flex items-center gap-1">
-                          <Badge variant="secondary" className="text-xs">{category.count}</Badge>
+                          <span>{category.count}</span>
                           {category.subcategories.length > 0 && (
                             <ChevronRight className={cn(
-                              "w-4 h-4 text-gray-400 transition-transform",
+                              "w-3 h-3 transition-transform",
                               expandedCategory === category.name && "rotate-90"
                             )} />
                           )}
@@ -343,20 +418,20 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       
                       {/* Subcategories */}
                       {expandedCategory === category.name && category.subcategories.length > 0 && (
-                        <div className="ml-4 mt-1 space-y-1 border-l-2 border-emerald-200 pl-2">
+                        <div className="ml-4 mt-0.5 space-y-0.5 pl-2 border-l border-emerald-200">
                           {category.subcategories.map((subcat) => (
                             <button
                               key={subcat.name}
                               onClick={() => handleSubcategoryClick(subcat.name)}
                               className={cn(
-                                "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-sm transition-colors",
+                                "w-full flex items-center justify-between px-2 py-1 rounded text-xs",
                                 selectedSubcategory === subcat.name
-                                  ? "bg-emerald-100 text-emerald-700 font-medium"
+                                  ? "bg-emerald-100 text-emerald-700"
                                   : "hover:bg-gray-100 text-gray-600"
                               )}
                             >
                               <span className="truncate">{subcat.name}</span>
-                              <Badge variant="outline" className="text-xs">{subcat.count}</Badge>
+                              <span>{subcat.count}</span>
                             </button>
                           ))}
                         </div>
@@ -369,191 +444,239 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           </Card>
         </div>
 
-        {/* Middle: Product List */}
+        {/* Middle: Product List - Simple */}
         <div className="col-span-12 lg:col-span-5">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
+          <Card className="border rounded-lg overflow-hidden">
+            <CardContent className="p-0">
               {/* Search */}
-              <div className="relative mb-4">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-                {searchQuery && (
-                  <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery("")}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
-              </div>
-
-              {/* Active Filters */}
-              {(selectedCategory || selectedSubcategory) && (
-                <div className="flex items-center gap-2 mb-3 flex-wrap">
-                  <span className="text-xs text-gray-500">Showing:</span>
-                  {selectedCategory && (
-                    <Badge variant="secondary" className="text-xs gap-1">
-                      {selectedCategory}
-                      {!selectedSubcategory && (
-                        <X className="w-3 h-3 cursor-pointer" onClick={() => { setSelectedCategory(null); setExpandedCategory(null); }} />
-                      )}
-                    </Badge>
-                  )}
-                  {selectedSubcategory && (
-                    <Badge className="bg-emerald-100 text-emerald-700 text-xs gap-1">
-                      {selectedSubcategory}
-                      <X className="w-3 h-3 cursor-pointer" onClick={() => setSelectedSubcategory(null)} />
-                    </Badge>
+              <div className="p-2 border-b bg-gray-50">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400" />
+                  <Input
+                    placeholder="Search..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-7 h-7 text-xs rounded"
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" className="absolute right-0.5 top-1/2 -translate-y-1/2 h-6 w-6 p-0" onClick={() => setSearchQuery("")}>
+                      <X className="w-3 h-3" />
+                    </Button>
                   )}
                 </div>
-              )}
+              </div>
 
               {/* Product List */}
-              <ScrollArea className="h-[350px]">
-                {loading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
-                  </div>
-                ) : filteredProducts.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p>No products found</p>
-                    {(selectedCategory || selectedSubcategory || searchQuery) && (
-                      <Button variant="link" size="sm" onClick={handleClearFilters} className="mt-2">
-                        Clear filters
-                      </Button>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredProducts.map((product) => (
-                      <div key={product.id} className="border rounded-lg overflow-hidden hover:border-emerald-300 transition-colors">
-                        <div
-                          className="flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50"
-                          onClick={() => setExpandedProduct(expandedProduct === product.id ? null : product.id)}
-                        >
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                            <img src={product.image_url || "/placeholder.svg"} alt={product.name} className="w-full h-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+              <ScrollArea className="h-[380px]">
+                <div className="p-1.5">
+                  {loading ? (
+                    <div className="flex items-center justify-center h-24">
+                      <div className="w-5 h-5 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                    </div>
+                  ) : filteredProducts.length === 0 ? (
+                    <div className="text-center py-6">
+                      <Package className="w-8 h-8 mx-auto mb-1 text-gray-300" />
+                      <p className="text-xs text-gray-500">No products found</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      {filteredProducts.map((product) => (
+                        <div key={product.id} className="border rounded overflow-hidden">
+                          {/* Product Header */}
+                          <div
+                            className="flex items-center gap-2 p-1.5 cursor-pointer hover:bg-gray-50"
+                            onClick={() => setExpandedProduct(expandedProduct === product.id ? null : product.id)}
+                          >
+                            <div className="w-8 h-8 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                              <img 
+                                src={product.image_url || "/placeholder.svg"} 
+                                alt="" 
+                                className="w-full h-full object-cover"
+                                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} 
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-gray-900 truncate">{product.name}</p>
+                              <p className="text-xs text-gray-500">{product.product_sizes?.length || 0} sizes</p>
+                            </div>
+                            <ChevronDown className={cn(
+                              "w-3 h-3 text-gray-400 transition-transform",
+                              expandedProduct === product.id && "rotate-180"
+                            )} />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <h4 className="font-medium text-gray-900 truncate text-sm">{product.name}</h4>
-                            <p className="text-xs text-gray-500">SKU: {product.sku} • {product.product_sizes?.length || 0} sizes</p>
-                          </div>
-                          {expandedProduct === product.id ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
-                        </div>
 
-                        {expandedProduct === product.id && product.product_sizes && (
-                          <div className="border-t bg-gray-50 p-3">
-                            <div className="space-y-2">
+                          {/* Expanded Sizes - 2-line layout */}
+                          {expandedProduct === product.id && product.product_sizes && (
+                            <div className="border-t bg-gray-50 p-1.5 space-y-1">
                               {product.product_sizes.map((size) => (
-                                <div key={size.id} className="flex items-center justify-between bg-white p-2 rounded-lg border">
-                                  <div>
-                                    <span className="font-medium text-sm">{size.size_value} {size.size_unit}</span>
-                                    <div className="flex gap-3 text-xs text-gray-500 mt-0.5">
-                                      {size.price_per_case > 0 && <span>Unit: ${size.price_per_case?.toFixed(2)}</span>}
-                                      <span>Case: ${size.price?.toFixed(2)}</span>
-                                    </div>
-                                  </div>
-                                  <div className="flex gap-1">
-                                    {size.price_per_case > 0 && (
-                                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAddSize(product, size, "unit")}>
-                                        <Plus className="w-3 h-3 mr-1" />Unit
-                                      </Button>
+                                <div key={size.id} className="bg-white rounded p-1.5 border">
+                                  {/* Line 1: Size + Discount Badge */}
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-xs font-medium text-gray-900">
+                                      {size.size_value} {size.size_unit}
+                                    </p>
+                                    {size.originalPrice > 0 && (
+                                      <Badge className="bg-red-100 text-red-700 text-xs h-4 px-1">
+                                        {Math.round(((size.originalPrice - size.price) / size.originalPrice) * 100)}% OFF
+                                      </Badge>
                                     )}
-                                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleAddSize(product, size, "case")}>
-                                      <Plus className="w-3 h-3 mr-1" />Case
-                                    </Button>
+                                  </div>
+                                  {/* Line 2: Price + Buttons */}
+                                  <div className="flex items-center justify-between mt-1">
+                                    <div className="flex gap-2 text-xs">
+                                      {size.price_per_case > 0 && (
+                                        <span className="text-gray-600">U: ${size.price_per_case?.toFixed(2)}</span>
+                                      )}
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-gray-900 font-medium">C: ${size.price?.toFixed(2)}</span>
+                                        {size.originalPrice > 0 && (
+                                          <span className="text-gray-400 line-through text-xs">${size.originalPrice?.toFixed(2)}</span>
+                                        )}
+                                      </span>
+                                    </div>
+                                    <div className="flex gap-1">
+                                      {size.price_per_case > 0 && (
+                                        <Button 
+                                          size="sm" 
+                                          variant="outline" 
+                                          className="h-5 px-1.5 text-xs"
+                                          onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "unit"); }}
+                                        >
+                                          <Plus className="w-2.5 h-2.5 mr-0.5" />U
+                                        </Button>
+                                      )}
+                                      <Button 
+                                        size="sm" 
+                                        className="h-5 px-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                        onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); }}
+                                      >
+                                        <Plus className="w-2.5 h-2.5 mr-0.5" />C
+                                      </Button>
+                                    </div>
                                   </div>
                                 </div>
                               ))}
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </ScrollArea>
             </CardContent>
           </Card>
         </div>
 
-        {/* Right: Order Items */}
+        {/* Right: Order Items - Simple */}
         <div className="col-span-12 lg:col-span-4">
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-gray-900">Order Items</h3>
+          <Card className="border rounded-lg overflow-hidden">
+            <div className="px-3 py-2 border-b bg-gray-50">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                  <ShoppingBag className="w-3 h-3 text-emerald-600" />
+                  Order ({cartItems.length})
+                </span>
                 {cartItems.length > 0 && (
-                  <span className="text-sm text-gray-500">
-                    Subtotal: <span className="font-semibold text-emerald-600">${orderTotals.subtotal.toFixed(2)}</span>
-                  </span>
+                  <span className="text-sm font-semibold text-emerald-600">${orderTotals.subtotal.toFixed(2)}</span>
                 )}
               </div>
+            </div>
 
+            <CardContent className="p-0">
               <ScrollArea className="h-[380px]">
                 {cartItems.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <ShoppingBag className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                    <p className="font-medium">No items added</p>
-                    <p className="text-sm">Click on products to add them</p>
+                  <div className="flex flex-col items-center justify-center h-full py-10 px-4">
+                    <ShoppingCart className="w-8 h-8 text-gray-300 mb-2" />
+                    <p className="text-xs text-gray-500 text-center">No items added</p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {cartItems.map((item) => (
-                      <div key={item.productId} className="border rounded-lg p-3 hover:border-gray-300 transition-colors">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                            <img src={item.image || "/placeholder.svg"} alt={item.name} className="w-full h-full object-cover"
-                              onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+                  <div className="p-2 space-y-1.5">
+                    {cartItems.map((item, index) => (
+                      <div key={item.productId} className="bg-white border rounded p-2">
+                        <div className="flex items-start gap-2">
+                          <div className="w-8 h-8 rounded overflow-hidden bg-gray-100 flex-shrink-0">
+                            <img 
+                              src={item.image || "/placeholder.svg"} 
+                              alt={item.name} 
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} 
+                            />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between">
-                              <h4 className="font-medium text-sm text-gray-900 truncate">{item.name}</h4>
-                              <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-50"
-                                onClick={() => handleRemoveItem(item.productId)}>
-                                <Trash2 className="w-3.5 h-3.5" />
+                            <div className="flex items-start justify-between gap-1">
+                              <p className="text-xs font-medium text-gray-900 line-clamp-1">{item.name}</p>
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-5 w-5 p-0 text-gray-400 hover:text-red-500 flex-shrink-0"
+                                onClick={() => handleRemoveItem(item.productId)}
+                              >
+                                <Trash2 className="w-3 h-3" />
                               </Button>
                             </div>
 
-                            <div className="mt-2 space-y-1.5">
+                            {/* Size Items */}
+                            <div className="mt-1.5 space-y-1">
                               {item.sizes?.map((size: any, idx: number) => (
-                                <div key={`${size.id}-${idx}`} className="flex items-center justify-between text-sm bg-gray-50 p-2 rounded">
-                                  <div className="flex items-center gap-2">
+                                <div key={`${size.id}-${idx}`} className="flex items-center justify-between bg-gray-50 p-1.5 rounded text-xs">
+                                  <div className="flex items-center gap-1">
                                     <span className="text-gray-700">{size.size_value} {size.size_unit}</span>
-                                    <Badge variant="outline" className="text-xs h-5">{size.type}</Badge>
+                                    <span className={cn(
+                                      "px-1 rounded text-xs",
+                                      size.type === "case" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"
+                                    )}>
+                                      {size.type === "case" ? "C" : "U"}
+                                    </span>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                    <div className="flex items-center border rounded">
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
+                                    {/* Quantity */}
+                                    <div className="flex items-center bg-white border rounded overflow-hidden">
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-5 w-5 p-0 rounded-none"
                                         onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)}
-                                        disabled={size.quantity <= 1}>
-                                        <Minus className="w-3 h-3" />
+                                        disabled={size.quantity <= 1}
+                                      >
+                                        <Minus className="w-2.5 h-2.5" />
                                       </Button>
-                                      <span className="w-8 text-center text-sm font-medium">{size.quantity}</span>
-                                      <Button variant="ghost" size="sm" className="h-7 w-7 p-0"
-                                        onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
-                                        <Plus className="w-3 h-3" />
+                                      <span className="w-6 text-center text-xs">{size.quantity}</span>
+                                      <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        className="h-5 w-5 p-0 rounded-none"
+                                        onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}
+                                      >
+                                        <Plus className="w-2.5 h-2.5" />
                                       </Button>
                                     </div>
-                                    <span className="font-medium text-gray-900 w-14 text-right">${(size.price * size.quantity).toFixed(2)}</span>
+                                    <span className="font-medium text-gray-900 w-12 text-right">
+                                      ${(size.price * size.quantity).toFixed(2)}
+                                    </span>
                                   </div>
                                 </div>
                               ))}
                             </div>
 
-                            <div className="mt-2 flex items-center justify-between">
-                              <Button variant="ghost" size="sm" className="h-7 text-xs text-blue-600 hover:text-blue-700 p-0"
-                                onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}>
-                                <FileText className="w-3 h-3 mr-1" />
-                                {item.description ? "Edit Note" : "Add Note"}
+                            {/* Notes & Total */}
+                            <div className="mt-1.5 flex items-center justify-between pt-1 border-t border-gray-100">
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="h-5 text-xs text-gray-500 hover:text-emerald-600 p-0 gap-0.5"
+                                onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}
+                              >
+                                <FileText className="w-3 h-3" />
+                                {item.description ? "Edit" : "Note"}
                               </Button>
-                              <span className="text-sm font-semibold text-gray-900">${item.price?.toFixed(2)}</span>
+                              <span className="text-xs font-semibold text-emerald-600">${item.price?.toFixed(2)}</span>
                             </div>
-                            {item.description && <p className="text-xs text-gray-500 italic mt-1 truncate">{item.description}</p>}
+                            {item.description && (
+                              <p className="text-xs text-gray-500 italic mt-1 bg-amber-50 p-1 rounded text-xs">
+                                📝 {item.description}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -566,26 +689,42 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
       </div>
 
-      {/* Notes Dialog */}
+      {/* Notes Dialog - Simple */}
       <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-sm rounded-lg">
           <DialogHeader>
-            <DialogTitle>Product Notes</DialogTitle>
+            <DialogTitle className="flex items-center gap-1 text-sm">
+              <FileText className="w-4 h-4 text-emerald-600" />
+              Product Notes
+            </DialogTitle>
           </DialogHeader>
           {selectedItemForNotes && (
-            <div>
-              <p className="text-sm text-gray-600 mb-2">{selectedItemForNotes.name}</p>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                <div className="w-8 h-8 rounded overflow-hidden bg-white">
+                  <img 
+                    src={selectedItemForNotes.image || "/placeholder.svg"} 
+                    alt={selectedItemForNotes.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <span className="text-xs font-medium text-gray-900">{selectedItemForNotes.name}</span>
+              </div>
               <Textarea
                 value={tempNotes}
                 onChange={(e) => setTempNotes(e.target.value)}
-                placeholder="Add special instructions or notes..."
-                className="min-h-[100px]"
+                placeholder="Add notes..."
+                className="min-h-[80px] text-sm rounded resize-none"
               />
             </div>
           )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowNotesDialog(false)}>Cancel</Button>
-            <Button onClick={handleSaveNotes}>Save</Button>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowNotesDialog(false)} className="h-7 text-xs">
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleSaveNotes} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700">
+              Save
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

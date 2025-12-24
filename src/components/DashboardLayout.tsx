@@ -207,8 +207,8 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
 
         <main className="flex-1 flex flex-col min-h-screen">
           <TopBar />
-          <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-scroll max-w-[100vw]">
-            <div className="mx-auto max-w-7xl">
+          <div className="flex-1 p-4 md:p-6 lg:p-8 overflow-y-scroll max-w-[100vw] ">
+            <div className="mx-auto max-w-[90vw]">
               <AnnouncementDisplay userRole={role} />
               {children}
             </div>

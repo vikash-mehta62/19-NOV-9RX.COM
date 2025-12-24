@@ -767,7 +767,7 @@ const OrderCreationWizardComponent = ({
       }}
     >
     <div className="min-h-screen bg-gray-50" role="main" aria-label="Order Creation Wizard">
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+      <div className="max-w-[90vw] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Main Content Area with Order Summary */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
           {/* Main Content - Takes 2 columns on desktop */}

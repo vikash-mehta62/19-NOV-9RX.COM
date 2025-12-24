@@ -445,6 +445,148 @@ export async function getPaymentTransactions(
   return data;
 }
 
+// ============================================
+// AUTHORIZE.NET CUSTOMER PROFILE (CIM) FUNCTIONS
+// Token-based payment - no card number needed!
+// ============================================
+
+// Save card to Authorize.net Customer Profile
+export async function saveCardToProfile(
+  profileId: string,
+  email: string,
+  cardNumber: string,
+  expirationDate: string,
+  cvv: string,
+  billing: BillingAddress
+): Promise<{ success: boolean; savedMethodId?: string; error?: string }> {
+  try {
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        action: "saveCard",
+        profileId,
+        email,
+        cardNumber: cardNumber.replace(/\s/g, ""),
+        expirationDate,
+        cvv,
+        billing,
+      },
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    if (data?.success) {
+      return {
+        success: true,
+        savedMethodId: data.savedMethodId,
+      };
+    }
+
+    return { success: false, error: data?.error || "Failed to save card" };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Charge a saved card (token-based payment - no card number needed!)
+export async function chargeSavedCard(
+  savedMethod: SavedPaymentMethod,
+  amount: number,
+  invoiceNumber?: string,
+  orderId?: string
+): Promise<PaymentResult> {
+  try {
+    if (!savedMethod.customer_profile_id || !savedMethod.payment_profile_id) {
+      return {
+        success: false,
+        message: "This card cannot be charged. Please enter card details manually.",
+        errorMessage: "Missing customer or payment profile ID",
+      };
+    }
+
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        action: "chargeSavedCard",
+        customerProfileId: savedMethod.customer_profile_id,
+        paymentProfileId: savedMethod.payment_profile_id,
+        amount,
+        invoiceNumber,
+        orderId,
+      },
+    });
+
+    if (error) {
+      return {
+        success: false,
+        message: "Payment processing error",
+        errorMessage: error.message,
+      };
+    }
+
+    if (data?.success) {
+      return {
+        success: true,
+        transactionId: data.transactionId,
+        authCode: data.authCode,
+        message: "Payment successful",
+      };
+    }
+
+    return {
+      success: false,
+      message: data?.error || "Payment failed",
+      errorCode: data?.errorCode,
+      errorMessage: data?.error,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: "Payment processing error",
+      errorMessage: error.message,
+    };
+  }
+}
+
+// Delete a saved card from Authorize.net
+export async function deleteSavedCard(
+  savedMethod: SavedPaymentMethod
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!savedMethod.customer_profile_id || !savedMethod.payment_profile_id) {
+      // Just mark as inactive in database
+      const { error } = await supabase
+        .from("saved_payment_methods")
+        .update({ is_active: false })
+        .eq("id", savedMethod.id);
+
+      return { success: !error, error: error?.message };
+    }
+
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        action: "deleteCard",
+        customerProfileId: savedMethod.customer_profile_id,
+        paymentProfileId: savedMethod.payment_profile_id,
+        savedMethodId: savedMethod.id,
+      },
+    });
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: data?.success || false, error: data?.error };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+// Check if a saved card can be charged directly (has valid profile IDs)
+export function canChargeDirectly(savedMethod: SavedPaymentMethod): boolean {
+  return !!(savedMethod.customer_profile_id && savedMethod.payment_profile_id);
+}
+
 
 // Payment Response interface
 export interface PaymentResponse {

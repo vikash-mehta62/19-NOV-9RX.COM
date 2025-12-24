@@ -14,7 +14,7 @@ export async function getUserReferralCode(userId: string): Promise<string | null
     .from("profiles")
     .select("referral_code")
     .eq("id", userId)
-    .single()
+    .maybeSingle()
 
   if (error || !data?.referral_code) {
     // Generate a new code if doesn't exist
@@ -39,8 +39,37 @@ function generateReferralCode(): string {
   return result
 }
 
-// Apply referral code during signup
+// Apply referral code during signup (uses RPC to bypass RLS)
 export async function applyReferralCode(
+  newUserId: string, 
+  referralCode: string
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // Use RPC function to apply referral (bypasses RLS, works without login)
+    const { data, error } = await supabase.rpc('apply_referral_code', {
+      p_new_user_id: newUserId,
+      p_referral_code: referralCode.trim()
+    })
+
+    if (error) {
+      console.error("RPC apply_referral_code error:", error)
+      // Fallback to direct method
+      return await fallbackApplyReferralCode(newUserId, referralCode)
+    }
+
+    console.log("Referral RPC response:", data)
+    return { 
+      success: data?.success || false, 
+      message: data?.message || "Referral code applied" 
+    }
+  } catch (error) {
+    console.error("Error applying referral code:", error)
+    return { success: false, message: "Failed to apply referral code" }
+  }
+}
+
+// Fallback method if RPC doesn't exist
+async function fallbackApplyReferralCode(
   newUserId: string, 
   referralCode: string
 ): Promise<{ success: boolean; message: string }> {
@@ -50,7 +79,7 @@ export async function applyReferralCode(
       .from("profiles")
       .select("id, first_name, company_name")
       .eq("referral_code", referralCode.toUpperCase())
-      .single()
+      .maybeSingle()
 
     if (findError || !referrer) {
       return { success: false, message: "Invalid referral code" }
@@ -66,7 +95,7 @@ export async function applyReferralCode(
       .from("referrals")
       .select("id")
       .eq("referred_id", newUserId)
-      .single()
+      .maybeSingle()
 
     if (existingReferral) {
       return { success: false, message: "You have already used a referral code" }
@@ -93,13 +122,44 @@ export async function applyReferralCode(
       message: `Referral from ${referrerName} applied! You'll both earn bonus points on your first order.` 
     }
   } catch (error) {
-    console.error("Error applying referral code:", error)
+    console.error("Fallback referral error:", error)
     return { success: false, message: "Failed to apply referral code" }
   }
 }
 
-// Complete referral and award points (called after first order)
+// Complete referral and award points (called after first order) - uses RPC
 export async function completeReferral(
+  userId: string, 
+  orderId: string
+): Promise<{ success: boolean; pointsAwarded: number }> {
+  try {
+    // Use RPC function to complete referral (bypasses RLS)
+    const { data, error } = await supabase.rpc('complete_referral', {
+      p_user_id: userId,
+      p_order_id: orderId
+    })
+
+    if (error) {
+      console.error("RPC complete_referral error:", error)
+      // Fallback to direct method
+      return await fallbackCompleteReferral(userId, orderId)
+    }
+
+    console.log("Complete referral RPC response:", data)
+    
+    if (data?.success) {
+      return { success: true, pointsAwarded: data.total_awarded || 0 }
+    }
+    
+    return { success: false, pointsAwarded: 0 }
+  } catch (error) {
+    console.error("Error completing referral:", error)
+    return { success: false, pointsAwarded: 0 }
+  }
+}
+
+// Fallback method if RPC doesn't exist
+async function fallbackCompleteReferral(
   userId: string, 
   orderId: string
 ): Promise<{ success: boolean; pointsAwarded: number }> {
@@ -108,17 +168,17 @@ export async function completeReferral(
     const { data: config } = await supabase
       .from("rewards_config")
       .select("referral_bonus")
-      .single()
+      .maybeSingle()
 
     const referralBonus = config?.referral_bonus || 200
 
     // Find pending referral for this user
     const { data: referral, error: findError } = await supabase
       .from("referrals")
-      .select("*, referrer:referrer_id(id, reward_points, email, first_name)")
+      .select("*, referrer:referrer_id(id, reward_points, email, first_name, referral_count)")
       .eq("referred_id", userId)
       .eq("status", "pending")
-      .single()
+      .maybeSingle()
 
     if (findError || !referral) {
       return { success: false, pointsAwarded: 0 }
@@ -139,12 +199,14 @@ export async function completeReferral(
     const referrerData = referral.referrer as any
     if (referrerData) {
       const newPoints = (referrerData.reward_points || 0) + referralBonus
+      const newCount = (referrerData.referral_count || 0) + 1
 
       await supabase
         .from("profiles")
         .update({ 
           reward_points: newPoints,
-          referral_count: supabase.rpc('increment_referral_count', { user_id: referrerData.id })
+          lifetime_reward_points: newPoints,
+          referral_count: newCount
         })
         .eq("id", referrerData.id)
 
@@ -159,25 +221,22 @@ export async function completeReferral(
           reference_type: "referral",
           reference_id: referral.id
         })
-
-      // Increment referral count
-      await supabase
-        .from("profiles")
-        .update({ referral_count: (referrerData.referral_count || 0) + 1 })
-        .eq("id", referrerData.id)
     }
 
     // Award points to referred user too
     const { data: referredUser } = await supabase
       .from("profiles")
-      .select("reward_points")
+      .select("reward_points, lifetime_reward_points")
       .eq("id", userId)
-      .single()
+      .maybeSingle()
 
     if (referredUser) {
       await supabase
         .from("profiles")
-        .update({ reward_points: (referredUser.reward_points || 0) + referralBonus })
+        .update({ 
+          reward_points: (referredUser.reward_points || 0) + referralBonus,
+          lifetime_reward_points: (referredUser.lifetime_reward_points || 0) + referralBonus
+        })
         .eq("id", userId)
 
       // Log transaction for referred user
@@ -190,12 +249,12 @@ export async function completeReferral(
           description: "Welcome bonus - referred by a friend",
           reference_type: "referral",
           reference_id: referral.id
-        })
+          })
     }
 
     return { success: true, pointsAwarded: referralBonus * 2 }
   } catch (error) {
-    console.error("Error completing referral:", error)
+    console.error("Fallback complete referral error:", error)
     return { success: false, pointsAwarded: 0 }
   }
 }
@@ -207,7 +266,7 @@ export async function getReferralStats(userId: string): Promise<ReferralStats | 
       .from("profiles")
       .select("referral_code, referral_count")
       .eq("id", userId)
-      .single()
+      .maybeSingle()
 
     const { data: referrals } = await supabase
       .from("referrals")
@@ -233,11 +292,15 @@ export async function getReferralStats(userId: string): Promise<ReferralStats | 
 
 // Validate referral code exists
 export async function validateReferralCode(code: string): Promise<{ valid: boolean; referrerName?: string }> {
+  if (!code || code.trim() === '') {
+    return { valid: false }
+  }
+
   const { data, error } = await supabase
     .from("profiles")
     .select("first_name, company_name")
     .eq("referral_code", code.toUpperCase())
-    .single()
+    .maybeSingle()
 
   if (error || !data) {
     return { valid: false }

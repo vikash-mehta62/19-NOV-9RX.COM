@@ -191,7 +191,7 @@ export function AddUserModal({
         notes: values.notes || null,
         preferred_contact_method: values.preferredContactMethod || "email",
         language_preference: values.languagePreference || "English",
-        credit_limit: values.creditLimit || null,
+        credit_limit: values.creditLimit || 0,
         payment_method: values.paymentMethod || null,
         account_status: "active",
         email_notifaction:values.email_notifaction || false,
@@ -214,7 +214,7 @@ export function AddUserModal({
 
           const { data: update, error } = await supabase
           .from("profiles")
-          .update({ active_notification: true })
+          .update({ email_notifaction: true })
           .eq("id", tempUserData?.id); // Corrected eq() usage
         
         if (error) {

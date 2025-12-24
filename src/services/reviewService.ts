@@ -116,7 +116,7 @@ export async function submitReview(
   }
 }
 
-// Award points for review
+// Award points for review using RPC function (bypasses RLS)
 async function awardReviewPoints(userId: string, reviewId: string): Promise<number> {
   try {
     // Get review bonus from config
@@ -127,20 +127,70 @@ async function awardReviewPoints(userId: string, reviewId: string): Promise<numb
 
     const reviewBonus = config?.review_bonus || 50
 
+    console.log(`🔵 Awarding ${reviewBonus} points to user ${userId} for review ${reviewId}`)
+
+    // Call RPC function to award points (bypasses RLS)
+    const { data, error } = await supabase.rpc('award_review_points', {
+      p_user_id: userId,
+      p_points: reviewBonus,
+      p_review_id: reviewId
+    })
+
+    if (error) {
+      console.error("❌ RPC award_review_points error:", error)
+      
+      // Fallback: Try direct update (might fail due to RLS)
+      console.log("🔄 Trying fallback direct update...")
+      return await fallbackAwardPoints(userId, reviewId, reviewBonus)
+    }
+
+    console.log(`✅ RPC Response:`, data)
+
+    if (data?.success) {
+      console.log(`✅ Review points awarded: ${data.points_awarded} points. New balance: ${data.new_points}`)
+      return data.points_awarded
+    } else {
+      console.error("❌ RPC returned error:", data?.error)
+      return 0
+    }
+  } catch (error) {
+    console.error("Error awarding review points:", error)
+    return 0
+  }
+}
+
+// Fallback method if RPC doesn't exist yet
+async function fallbackAwardPoints(userId: string, reviewId: string, reviewBonus: number): Promise<number> {
+  try {
     // Get user's current points
-    const { data: user } = await supabase
+    const { data: user, error: userError } = await supabase
       .from("profiles")
-      .select("reward_points")
+      .select("reward_points, lifetime_reward_points")
       .eq("id", userId)
       .single()
 
-    if (!user) return 0
+    if (userError || !user) {
+      console.error("Error fetching user:", userError)
+      return 0
+    }
 
-    // Update user points
-    await supabase
+    const newPoints = (user.reward_points || 0) + reviewBonus
+    const newLifetime = (user.lifetime_reward_points || 0) + reviewBonus
+
+    // Try to update (may fail due to RLS)
+    const { error: updateError } = await supabase
       .from("profiles")
-      .update({ reward_points: (user.reward_points || 0) + reviewBonus })
+      .update({ 
+        reward_points: newPoints,
+        lifetime_reward_points: newLifetime
+      })
       .eq("id", userId)
+
+    if (updateError) {
+      console.error("❌ Fallback update failed (RLS issue):", updateError)
+      console.error("⚠️ Please run the SQL migration: supabase/migrations/20241224_award_review_points_function.sql")
+      return 0
+    }
 
     // Mark review as points awarded
     await supabase
@@ -160,9 +210,10 @@ async function awardReviewPoints(userId: string, reviewId: string): Promise<numb
         reference_id: reviewId
       })
 
+    console.log(`✅ Fallback: Points awarded: ${reviewBonus}`)
     return reviewBonus
   } catch (error) {
-    console.error("Error awarding review points:", error)
+    console.error("Fallback error:", error)
     return 0
   }
 }

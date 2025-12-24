@@ -244,7 +244,9 @@ export function TabbedUserForm({
         taxPercantage: values.taxPercantage,
         preferredContactMethod: values.preferredContactMethod || "email",
         languagePreference: values.languagePreference || "English",
-        creditLimit: values.creditLimit,
+creditLimit: values.creditLimit
+  ? Number(values.creditLimit)
+  : 0,
         paymentMethod: values.paymentMethod,
         email_notifaction: values.email_notifaction,
       };

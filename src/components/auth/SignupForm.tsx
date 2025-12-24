@@ -91,17 +91,9 @@ export const SignupForm = () => {
         .upsert([profileData]);
 
       if (profileError) {
-        // console.error("Profile creation error:", profileError);
-        // If profile creation fails, we should clean up the auth user
-        const { error: deleteError } = await supabase.auth.admin.deleteUser(
-          authData.user.id
-        );
-        if (deleteError) {
-          console.error(
-            "Failed to clean up auth user after profile creation failed:",
-            deleteError
-          );
-        }
+        console.error("Profile creation error:", profileError);
+        // Note: Cannot delete auth user from client-side, admin will need to clean up orphaned users
+        // The user can try signing up again with the same email
         throw profileError;
       }
 

@@ -324,7 +324,7 @@ async function queueRewardEmail(userId: string, data: {
 
           <!-- CTA Button -->
           <div style="text-align: center; margin-top: 30px;">
-            <a href="${process.env.VITE_APP_URL || 'https://9rx.com'}/pharmacy/rewards" 
+            <a href="${'https://9rx.com'}/pharmacy/rewards" 
                style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 15px 40px; border-radius: 10px; font-weight: bold; font-size: 16px;">
               View My Rewards →
             </a>
