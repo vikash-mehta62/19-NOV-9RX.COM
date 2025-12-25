@@ -238,9 +238,48 @@ const OrderCreationWizardComponent = ({
   }, []);
 
   // Define wizard steps - memoized to prevent recreation on every render
-  // For pharmacy mode, step 3 (Products) is skipped since they add products from browsing
+  // For pharmacy mode: Customer info is pre-filled, Products step is skipped (they add from browsing)
   const steps: WizardStep[] = useMemo(() => {
-    const allSteps = [
+    if (isPharmacyMode) {
+      // Pharmacy mode: 3 steps only - Address, Review, Payment
+      return [
+        {
+          number: 1,
+          label: "Customer",
+          icon: User,
+          description: "Your info",
+          hidden: true, // Hidden but still exists for data
+        },
+        {
+          number: 2,
+          label: "Addresses",
+          icon: MapPin,
+          description: "Billing & shipping",
+        },
+        {
+          number: 3,
+          label: "Products",
+          icon: Package,
+          description: "From cart",
+          hidden: true, // Hidden - products added from browsing
+        },
+        {
+          number: 4,
+          label: "Review",
+          icon: FileCheck,
+          description: "Verify order",
+        },
+        {
+          number: 5,
+          label: "Payment",
+          icon: CreditCard,
+          description: "Complete",
+        },
+      ];
+    }
+    
+    // Admin mode: All 5 steps
+    return [
       {
         number: 1,
         label: "Customer",
@@ -257,8 +296,7 @@ const OrderCreationWizardComponent = ({
         number: 3,
         label: "Products",
         icon: Package,
-        description: isPharmacyMode ? "From cart" : "Add items",
-        hidden: isPharmacyMode, // Hide this step for pharmacy mode
+        description: "Add items",
       },
       {
         number: 4,
@@ -273,8 +311,6 @@ const OrderCreationWizardComponent = ({
         description: "Complete order",
       },
     ];
-    
-    return allSteps;
   }, [isPharmacyMode]);
 
   // Step validation with comprehensive error handling

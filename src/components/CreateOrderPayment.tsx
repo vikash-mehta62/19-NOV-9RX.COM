@@ -646,12 +646,12 @@ const CreateOrderPaymentForm = ({
       // Update stock
       await updateProductStock(cleanedCartItems);
 
-      // Mark redeemed rewards as used
+      // Mark redeemed rewards as used and apply credit memos
       const appliedDiscounts = discountDetails || data.appliedDiscounts || [];
       if (appliedDiscounts.length > 0) {
-        for (const discount of appliedDiscounts) {
-          if (discount.type === "redeemed_reward" && discount.redemptionId) {
-            console.log("🔄 Marking redemption as used:", discount.redemptionId);
+        for (const discountItem of appliedDiscounts) {
+          if (discountItem.type === "redeemed_reward" && discountItem.redemptionId) {
+            console.log("🔄 Marking redemption as used:", discountItem.redemptionId);
             await (supabase as any)
               .from("reward_redemptions")
               .update({ 
@@ -659,8 +659,25 @@ const CreateOrderPaymentForm = ({
                 used_at: new Date().toISOString(),
                 used_in_order_id: newOrder.id
               })
-              .eq("id", discount.redemptionId);
-            console.log("✅ Marked reward redemption as used:", discount.redemptionId);
+              .eq("id", discountItem.redemptionId);
+            console.log("✅ Marked reward redemption as used:", discountItem.redemptionId);
+          }
+          
+          // Handle credit memo usage - apply to database
+          if (discountItem.type === "credit_memo" && discountItem.creditMemoId) {
+            console.log("💳 Applying credit memo:", discountItem.creditMemoId, "Amount:", discountItem.amount);
+            const { data: creditMemoResult, error: creditMemoError } = await (supabase as any).rpc('apply_credit_memo', {
+              p_credit_memo_id: discountItem.creditMemoId,
+              p_order_id: newOrder.id,
+              p_amount: discountItem.amount,
+              p_applied_by: newOrder.profile_id,
+            });
+            
+            if (creditMemoError) {
+              console.error("❌ Error applying credit memo:", creditMemoError);
+            } else {
+              console.log("✅ Credit memo applied successfully:", creditMemoResult);
+            }
           }
         }
       }

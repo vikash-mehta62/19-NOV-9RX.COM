@@ -322,65 +322,98 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
 
   return (
     <div className="space-y-4">
-      {/* Header - Simple Compact Design */}
-      <div className="flex items-center justify-between bg-white border rounded-lg p-3">
-        <div className="flex items-center gap-2">
-          <ShoppingCart className="w-4 h-4 text-emerald-600" />
-          <span className="text-sm font-medium text-gray-900">Add Products</span>
+      {/* Header with Search and Stats */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+              <Package className="w-5 h-5 text-emerald-600" />
+              Add Products to Order
+            </h2>
+            <p className="text-sm text-gray-600 mt-0.5">
+              {products.length} products available • {filteredProducts.length} showing
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button 
+              onClick={() => setShowCustomProductDialog(true)} 
+              variant="outline" 
+              size="sm"
+              className="h-8 text-xs gap-1.5 border-emerald-300 hover:bg-emerald-50"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              Custom Item
+            </Button>
+            {orderTotals.itemCount > 0 && (
+              <Badge className="bg-emerald-600 text-white text-xs px-2.5 py-1">
+                {orderTotals.itemCount} items • ${orderTotals.subtotal.toFixed(2)}
+              </Badge>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            onClick={() => setShowCustomProductDialog(true)} 
-            variant="outline" 
-            size="sm"
-            className="h-7 text-xs gap-1"
-          >
-            <Sparkles className="w-3 h-3" />
-            Custom
-          </Button>
-          {orderTotals.itemCount > 0 && (
-            <Badge className="bg-emerald-100 text-emerald-700 text-xs">
-              {orderTotals.itemCount} items
-            </Badge>
+        
+        {/* Quick Search Bar */}
+        <div className="mt-3 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Quick search by product name or SKU..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-9 h-10 bg-white border-gray-200 focus:border-emerald-400 focus:ring-emerald-400"
+          />
+          {searchQuery && (
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 hover:bg-gray-100" 
+              onClick={() => setSearchQuery("")}
+            >
+              <X className="w-4 h-4 text-gray-400" />
+            </Button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-3">
-        {/* Left: Category Navigation - Simple */}
+      <div className="grid grid-cols-12 gap-4">
+        {/* Left: Category Navigation */}
         <div className="col-span-12 lg:col-span-3">
-          <Card className="border rounded-lg overflow-hidden">
-            <div className="px-3 py-2 border-b bg-gray-50">
+          <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+            <div className="px-4 py-3 border-b bg-gradient-to-r from-gray-50 to-gray-100">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-emerald-600" />
+                <span className="text-sm font-medium text-gray-800 flex items-center gap-2">
+                  <Layers className="w-4 h-4 text-emerald-600" />
                   Categories
                 </span>
                 {(selectedCategory || selectedSubcategory) && (
-                  <Button variant="ghost" size="sm" className="h-5 text-xs text-emerald-600 px-1" onClick={handleClearFilters}>
-                    Clear
+                  <Button variant="ghost" size="sm" className="h-6 text-xs text-emerald-600 px-2 hover:bg-emerald-50" onClick={handleClearFilters}>
+                    Clear All
                   </Button>
                 )}
               </div>
             </div>
             <CardContent className="p-2">
-              <ScrollArea className="h-[380px]">
-                <div className="space-y-0.5">
+              <ScrollArea className="h-[420px]">
+                <div className="space-y-1">
                   {/* All Categories Option */}
                   <button
                     onClick={handleClearFilters}
                     className={cn(
-                      "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs",
+                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
                       !selectedCategory 
-                        ? "bg-emerald-600 text-white" 
+                        ? "bg-emerald-600 text-white shadow-sm" 
                         : "hover:bg-gray-100 text-gray-700"
                     )}
                   >
                     <span className="flex items-center gap-2">
-                      <Package className="w-3 h-3" />
-                      <span>All Products</span>
+                      <Package className="w-4 h-4" />
+                      <span className="font-medium">All Products</span>
                     </span>
-                    <span className="text-xs">{products.length}</span>
+                    <Badge variant="secondary" className={cn(
+                      "text-xs",
+                      !selectedCategory ? "bg-white/20 text-white" : "bg-gray-200"
+                    )}>
+                      {products.length}
+                    </Badge>
                   </button>
                   
                   {/* Category List */}
@@ -389,17 +422,17 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       <button
                         onClick={() => handleCategoryClick(category.name)}
                         className={cn(
-                          "w-full flex items-center justify-between px-2 py-1.5 rounded text-xs",
+                          "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
                           selectedCategory === category.name && !selectedSubcategory
-                            ? "bg-emerald-600 text-white"
+                            ? "bg-emerald-600 text-white shadow-sm"
                             : expandedCategory === category.name
-                            ? "bg-emerald-50 text-emerald-900"
+                            ? "bg-emerald-50 text-emerald-900 border border-emerald-200"
                             : "hover:bg-gray-100 text-gray-700"
                         )}
                       >
                         <span className="flex items-center gap-2 truncate">
                           {expandedCategory === category.name ? (
-                            <FolderOpen className="w-3 h-3 flex-shrink-0" />
+                            <FolderOpen className="w-4 h-4 flex-shrink-0" />
                           ) : (
                             <Folder className="w-3 h-3 flex-shrink-0" />
                           )}

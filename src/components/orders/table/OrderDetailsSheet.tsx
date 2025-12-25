@@ -1316,6 +1316,13 @@ export const OrderDetailsSheet = ({
                   <ItemsTab
                     items={currentOrder.items}
                     orderId={currentOrder.id}
+                    customerId={currentOrder.customer || (currentOrder as any).location_id || (currentOrder as any).profile_id}
+                    orderNumber={currentOrder.order_number}
+                    customerEmail={currentOrder.customerInfo?.email}
+                    paymentStatus={currentOrder.payment_status}
+                    shippingCost={parseFloat(currentOrder.shipping_cost || "0")}
+                    taxAmount={currentOrder.tax_amount || 0}
+                    discountAmount={Number((currentOrder as any).discount_amount || 0)}
                     onItemsUpdate={(updatedItems) => {
                       // Calculate new subtotal from items
                       const newSubtotal = updatedItems.reduce((acc, item) => {
@@ -1323,7 +1330,8 @@ export const OrderDetailsSheet = ({
                       }, 0);
                       const taxAmount = currentOrder.tax_amount || 0;
                       const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
-                      const newTotal = newSubtotal + taxAmount + shippingCost;
+                      const discountAmount = Number((currentOrder as any).discount_amount || 0);
+                      const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
                       
                       setCurrentOrder(prev => ({ 
                         ...prev, 

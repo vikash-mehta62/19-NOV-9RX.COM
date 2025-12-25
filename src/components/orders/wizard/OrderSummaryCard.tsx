@@ -115,7 +115,7 @@ const OrderSummaryCardComponent = ({
   return (
     <Card
       className={cn(
-        "bg-white shadow-lg border border-gray-200 animate-fade-in",
+        "bg-white shadow-lg border border-gray-200 rounded-xl overflow-hidden",
         "lg:sticky lg:top-8 lg:h-fit",
         "w-full",
         className
@@ -123,18 +123,17 @@ const OrderSummaryCardComponent = ({
       role="region"
       aria-label="Order summary"
     >
-      {/* Header */}
-      <div className="p-4 sm:p-6 pb-3 sm:pb-4">
+      {/* Header with Gradient */}
+      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <ShoppingCart className="h-4 w-4 sm:h-5 sm:w-5 text-gray-600" aria-hidden="true" />
-            <h3 className="text-base sm:text-lg font-semibold text-gray-900">
+            <ShoppingCart className="h-5 w-5 text-white/90" aria-hidden="true" />
+            <h3 className="text-base sm:text-lg font-semibold text-white">
               Order Summary
             </h3>
           </div>
           <Badge
-            variant="secondary"
-            className="bg-blue-100 text-blue-700 hover:bg-blue-100 text-xs sm:text-sm"
+            className="bg-white/20 text-white hover:bg-white/30 text-xs sm:text-sm border-0"
             aria-label={`${itemCount} ${itemCount === 1 ? "item" : "items"} in cart`}
           >
             {itemCount} {itemCount === 1 ? "item" : "items"}
@@ -142,15 +141,13 @@ const OrderSummaryCardComponent = ({
         </div>
       </div>
 
-      <Separator />
-
       {/* Empty Cart State or Items List */}
       {items.length === 0 ? (
         <EmptyCartState />
       ) : (
         <>
           {/* Items List (Collapsible) */}
-          <div className="px-4 sm:px-6 py-3 sm:py-4">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b">
             <Button
               variant="ghost"
               className="w-full justify-between p-0 h-auto hover:bg-transparent min-h-[44px]"
@@ -228,6 +225,7 @@ const OrderSummaryCardComponent = ({
             <PromoAndRewardsSection
               customerId={customerId}
               subtotal={subtotal}
+              shipping={shipping}
               hasFreeShipping={hasFreeShipping}
               onDiscountChange={handleDiscountChange}
             />

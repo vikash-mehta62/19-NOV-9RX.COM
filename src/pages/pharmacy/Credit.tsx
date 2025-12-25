@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wallet, CreditCard, FileText } from "lucide-react";
+import { Wallet, CreditCard, FileText, Receipt } from "lucide-react";
 import CreditApplicationForm from "@/components/credit/CreditApplicationForm";
 import CreditInvoicesList from "@/components/credit/CreditInvoicesList";
 import PendingCreditTerms from "@/components/credit/PendingCreditTerms";
 import { EnhancedPaymentTab } from "@/components/users/EnhancedPaymentTab";
+import CreditMemosList from "@/components/credit/CreditMemosList";
 
 const Credit = () => {
   const [userId, setUserId] = useState<string | null>(null);
@@ -68,8 +69,12 @@ const Credit = () => {
         </div>
 
         {/* Tabs */}
-        <Tabs defaultValue="overview" className="space-y-6">
+        <Tabs defaultValue="credit-memos" className="space-y-6">
           <TabsList className="bg-white border">
+            <TabsTrigger value="credit-memos" className="gap-2">
+              <Receipt className="w-4 h-4" />
+              Credit Memos
+            </TabsTrigger>
             <TabsTrigger value="overview" className="gap-2">
               <CreditCard className="w-4 h-4" />
               Credit Line
@@ -79,6 +84,10 @@ const Credit = () => {
               Invoices & Payments
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="credit-memos">
+            <CreditMemosList />
+          </TabsContent>
 
           <TabsContent value="overview">
             {hasActiveCredit && userId ? (

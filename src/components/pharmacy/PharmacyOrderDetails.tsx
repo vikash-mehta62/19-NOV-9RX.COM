@@ -16,6 +16,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/supabaseClient"
 import { OrderFormValues, ShippingAddressData } from "@/components/orders/schemas/orderSchema"
+import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline"
 import jsPDF from "jspdf"
 import "jspdf-autotable"
 import JsBarcode from "jsbarcode"
@@ -941,6 +942,11 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                   </div>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Order Activity Timeline */}
+            {order.id && (
+              <OrderActivityTimeline orderId={order.id} />
             )}
 
             {/* Need Help */}

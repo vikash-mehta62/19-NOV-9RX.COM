@@ -537,11 +537,14 @@ export const AddressInformationStep = ({
   );
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Address Information</h2>
-        <p className="text-xs sm:text-sm text-gray-500 mt-1">
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
+        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+          <MapPin className="w-5 h-5 text-blue-600" />
+          Address Information
+        </h2>
+        <p className="text-sm text-gray-600 mt-1">
           Enter billing and shipping addresses for this order
         </p>
       </div>

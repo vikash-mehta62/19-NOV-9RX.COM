@@ -15,18 +15,24 @@ import { supabase } from "@/integrations/supabase/client";
 import ProductShowcase from "@/components/pharmacy/ProductShowcase";
 import { useCart } from "@/hooks/use-cart";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 
 interface ItemsTabProps {
   items: OrderFormValues["items"];
   onEdit?: () => void;
   onItemsUpdate?: (items: OrderFormValues["items"]) => void;
   orderId?: string;
+  customerId?: string;
+  orderNumber?: string;
+  customerEmail?: string;
+  paymentStatus?: string;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   orderStatus?: string;
   isVoid?: boolean;
   onOrderUpdate?: () => void;
   shippingCost?: number;
   taxAmount?: number;
+  discountAmount?: number;
 }
 
 export const ItemsTab = ({ 
@@ -34,12 +40,17 @@ export const ItemsTab = ({
   onEdit, 
   onItemsUpdate,
   orderId,
+  customerId,
+  orderNumber,
+  customerEmail,
+  paymentStatus,
   userRole, 
   orderStatus, 
   isVoid,
   onOrderUpdate,
   shippingCost = 0,
-  taxAmount = 0
+  taxAmount = 0,
+  discountAmount = 0
 }: ItemsTabProps) => {
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
@@ -48,6 +59,11 @@ export const ItemsTab = ({
   const [editedItems, setEditedItems] = useState<OrderFormValues["items"]>(items);
   const [isSaving, setIsSaving] = useState(false);
   const [showAddProductDialog, setShowAddProductDialog] = useState(false);
+  
+  // Payment adjustment state
+  const [isPaymentAdjustmentOpen, setIsPaymentAdjustmentOpen] = useState(false);
+  const [paymentAdjustmentData, setPaymentAdjustmentData] = useState<any>(null);
+  const [pendingEditData, setPendingEditData] = useState<any>(null);
   
   const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid;
   
@@ -132,6 +148,14 @@ export const ItemsTab = ({
     });
   }, []);
 
+  // Calculate original total from items
+  const originalTotal = useMemo(() => {
+    const itemsSubtotal = items.reduce((acc, item) => {
+      return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
+    }, 0);
+    return itemsSubtotal + shippingCost + taxAmount - discountAmount;
+  }, [items, shippingCost, taxAmount, discountAmount]);
+
   // Handle save changes
   const handleSaveChanges = useCallback(async () => {
     if (!orderId) {
@@ -150,33 +174,124 @@ export const ItemsTab = ({
         return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
       }, 0);
 
-      // Get current order to preserve other values
+      // Get current order to preserve other values and check payment status
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("tax_amount, shipping_cost")
+        .select("tax_amount, shipping_cost, discount_amount, payment_status, total_amount, order_number, location_id, profile_id")
         .eq("id", orderId)
         .single();
 
       if (fetchError) throw fetchError;
 
-      const taxAmount = currentOrder?.tax_amount || 0;
-      const shippingCost = parseFloat(currentOrder?.shipping_cost || "0");
-      const newTotal = newSubtotal + taxAmount + shippingCost;
+      const orderTaxAmount = currentOrder?.tax_amount || 0;
+      const orderShippingCost = parseFloat(currentOrder?.shipping_cost || "0");
+      const orderDiscountAmount = Number(currentOrder?.discount_amount || 0);
+      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
+      const newTotal = newSubtotal + orderShippingCost + orderTaxAmount - orderDiscountAmount;
+      const originalAmount = Number(currentOrder?.total_amount || 0);
+      const differenceAmount = Number((newTotal - originalAmount).toFixed(2));
 
+      // Check if payment adjustment is needed (only for paid orders with price change)
+      if (currentOrder?.payment_status === 'paid' && differenceAmount !== 0) {
+        // Get customer info for payment adjustment modal
+        const customerIdToUse = customerId || currentOrder?.location_id || currentOrder?.profile_id;
+        
+        const { data: customerProfile } = await supabase
+          .from("profiles")
+          .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
+          .eq("id", customerIdToUse)
+          .single();
+
+        const hasCredit = (customerProfile?.credit_limit || 0) > 0;
+        const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
+        const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
+        const customerName = customerProfile?.company_name || 
+          `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
+          'Customer';
+
+        // Store pending data and show payment adjustment modal
+        setPendingEditData({
+          editedItems,
+          newSubtotal,
+          newTotal,
+        });
+
+        setPaymentAdjustmentData({
+          orderId,
+          orderNumber: orderNumber || currentOrder?.order_number || '',
+          customerId: customerIdToUse,
+          customerName,
+          customerEmail: customerEmail || customerProfile?.email,
+          originalAmount,
+          newAmount: newTotal,
+          hasCredit,
+          availableCredit,
+          creditMemoBalance,
+          orderData: {
+            items: editedItems,
+            tax_amount: orderTaxAmount,
+            shipping_cost: orderShippingCost,
+            customerInfo: {
+              name: customerName,
+              email: customerEmail || customerProfile?.email,
+            },
+          },
+        });
+
+        setIsSaving(false);
+        setIsPaymentAdjustmentOpen(true);
+        return;
+      }
+
+      // No payment adjustment needed - proceed with update directly
+      await saveOrderChanges(editedItems, newSubtotal, newTotal);
+
+    } catch (error) {
+      console.error("Error saving items:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save changes",
+        variant: "destructive",
+      });
+      setIsSaving(false);
+    }
+  }, [orderId, editedItems, customerId, orderNumber, toast]);
+
+  // Actual save function (called directly or after payment adjustment)
+  const saveOrderChanges = useCallback(async (itemsToSave: any[], newSubtotal: number, newTotal: number) => {
+    try {
       // Update order in database
       const { error } = await supabase
         .from("orders")
         .update({
-          items: editedItems,
-          total: newTotal.toFixed(2),
+          items: itemsToSave,
+          total_amount: newTotal,
         })
         .eq("id", orderId);
 
       if (error) throw error;
 
+      // Update invoice if exists
+      const { data: invoiceData } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("order_id", orderId)
+        .maybeSingle();
+
+      if (invoiceData) {
+        await supabase
+          .from("invoices")
+          .update({
+            items: itemsToSave,
+            subtotal: newSubtotal,
+            total_amount: newTotal,
+          })
+          .eq("id", invoiceData.id);
+      }
+
       // Call the callback to update parent state
       if (onItemsUpdate) {
-        onItemsUpdate(editedItems);
+        onItemsUpdate(itemsToSave);
       }
       
       if (onOrderUpdate) {
@@ -198,7 +313,40 @@ export const ItemsTab = ({
     } finally {
       setIsSaving(false);
     }
-  }, [orderId, editedItems, onItemsUpdate, onOrderUpdate, toast]);
+  }, [orderId, onItemsUpdate, onOrderUpdate, toast]);
+
+  // Handle payment adjustment completion
+  const handlePaymentAdjustmentComplete = useCallback(async (result: { success: boolean; adjustmentType: string; transactionId?: string }) => {
+    if (!result.success || !pendingEditData) {
+      setIsPaymentAdjustmentOpen(false);
+      setPendingEditData(null);
+      setPaymentAdjustmentData(null);
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const { editedItems: itemsToSave, newSubtotal, newTotal } = pendingEditData;
+      await saveOrderChanges(itemsToSave, newSubtotal, newTotal);
+      
+      toast({
+        title: "Success",
+        description: `Order updated with payment adjustment (${result.adjustmentType})`,
+      });
+    } catch (error) {
+      console.error("Error after payment adjustment:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update order after payment adjustment",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPaymentAdjustmentOpen(false);
+      setPendingEditData(null);
+      setPaymentAdjustmentData(null);
+      setIsSaving(false);
+    }
+  }, [pendingEditData, saveOrderChanges, toast]);
 
   // Handle add products from cart
   const handleAddProductsFromCart = useCallback(async () => {
@@ -603,6 +751,32 @@ export const ItemsTab = ({
         onAddProducts={handleAddProductsFromCart}
         cartItemsCount={cartItems.length}
       />
+
+      {/* Payment Adjustment Modal for Paid Orders */}
+      {isPaymentAdjustmentOpen && paymentAdjustmentData && (
+        <PaymentAdjustmentModal
+          open={isPaymentAdjustmentOpen}
+          onOpenChange={(open) => {
+            setIsPaymentAdjustmentOpen(open);
+            if (!open) {
+              setPendingEditData(null);
+              setPaymentAdjustmentData(null);
+            }
+          }}
+          orderId={paymentAdjustmentData.orderId}
+          orderNumber={paymentAdjustmentData.orderNumber}
+          customerId={paymentAdjustmentData.customerId}
+          customerName={paymentAdjustmentData.customerName}
+          customerEmail={paymentAdjustmentData.customerEmail || customerEmail}
+          originalAmount={paymentAdjustmentData.originalAmount}
+          newAmount={paymentAdjustmentData.newAmount}
+          hasCredit={paymentAdjustmentData.hasCredit}
+          availableCredit={paymentAdjustmentData.availableCredit}
+          creditMemoBalance={paymentAdjustmentData.creditMemoBalance}
+          orderData={paymentAdjustmentData.orderData}
+          onPaymentComplete={handlePaymentAdjustmentComplete}
+        />
+      )}
     </div>
   );
 };

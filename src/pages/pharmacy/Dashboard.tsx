@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { EnhancedStatsCard } from "@/components/dashboard/EnhancedStatsCard";
-import { Package, Clock, CreditCard, TrendingUp, ShoppingCart } from "lucide-react";
+import { Package, Clock, CreditCard, TrendingUp, ShoppingCart, Wallet, Gift } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,35 @@ import {
 } from "@/components/ui/dialog";
 import ProductShowcase from "@/components/pharmacy/ProductShowcase";
 import { supabase } from "@/supabaseClient";
+import { useNavigate } from "react-router-dom";
 
 export default function PharmacyDashboard() {
+  const navigate = useNavigate();
   const [stats, setStats] = useState([]);
   const [featuredProducts, setFeaturedProducts] = useState([]);
+  const [creditMemoBalance, setCreditMemoBalance] = useState(0);
+  const [rewardPoints, setRewardPoints] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
+        // Get current user
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // Fetch user's credit memo balance and reward points
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("credit_memo_balance, reward_points")
+            .eq("id", session.user.id)
+            .single();
+          
+          if (profile) {
+            setCreditMemoBalance(profile.credit_memo_balance || 0);
+            setRewardPoints(profile.reward_points || 0);
+          }
+        }
+
         // Fetch order statistics
         const { data: orderCounts, error: statsError } = await supabase.rpc("get_order_status_counts");
 
@@ -82,7 +103,7 @@ export default function PharmacyDashboard() {
           const formattedProducts = products.map((product) => ({
             name: product.name,
             sku: product.sku,
-            price: `$${product.price.toFixed(2)}`,
+            price: `${product.price.toFixed(2)}`,
             status: product.current_stock > 10 ? "In Stock" : "Low Stock",
           }));
           setFeaturedProducts(formattedProducts);
@@ -104,6 +125,67 @@ export default function PharmacyDashboard() {
             Welcome back! Here's an overview of your pharmacy's performance.
           </p>
         </div>
+
+        {/* Credit & Rewards Section */}
+        {(creditMemoBalance > 0 || rewardPoints > 0) && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {creditMemoBalance > 0 && (
+              <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-green-100 rounded-full">
+                        <Wallet className="h-6 w-6 text-green-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-green-600 font-medium">Store Credit Available</p>
+                        <p className="text-2xl font-bold text-green-700">${creditMemoBalance.toFixed(2)}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      className="border-green-300 text-green-700 hover:bg-green-100"
+                      onClick={() => navigate("/pharmacy/credit")}
+                    >
+                      View Details
+                    </Button>
+                  </div>
+                  <p className="text-xs text-green-600 mt-2">
+                    Use this credit on your next order at checkout
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+            
+            {rewardPoints > 0 && (
+              <Card className="border-2 border-purple-200 bg-gradient-to-r from-purple-50 to-pink-50">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 bg-purple-100 rounded-full">
+                        <Gift className="h-6 w-6 text-purple-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-purple-600 font-medium">Reward Points</p>
+                        <p className="text-2xl font-bold text-purple-700">{rewardPoints.toLocaleString()}</p>
+                      </div>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      className="border-purple-300 text-purple-700 hover:bg-purple-100"
+                      onClick={() => navigate("/pharmacy/rewards")}
+                    >
+                      Redeem
+                    </Button>
+                  </div>
+                  <p className="text-xs text-purple-600 mt-2">
+                    Redeem points for discounts and rewards
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat, index) => (
@@ -132,6 +214,11 @@ export default function PharmacyDashboard() {
               <div className="space-y-2 text-center md:text-left">
                 <h3 className="text-lg font-semibold text-emerald-700">Need to restock?</h3>
                 <p className="text-gray-600">Place your order quickly with our streamlined ordering process</p>
+                {creditMemoBalance > 0 && (
+                  <p className="text-sm text-green-600">
+                    💰 You have ${creditMemoBalance.toFixed(2)} store credit to use!
+                  </p>
+                )}
               </div>
               <Button
                 onClick={() => (window.location.href = "/pharmacy/products")}

@@ -9,6 +9,8 @@ import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
 import axios from "../../../axiosconfig";
+import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
+import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 
 // Read preselected customer data synchronously before component renders
 const getPreselectedCustomerData = () => {
@@ -34,6 +36,10 @@ export default function CreateOrder() {
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  // Payment adjustment state
+  const [isPaymentAdjustmentOpen, setIsPaymentAdjustmentOpen] = useState(false);
+  const [paymentAdjustmentData, setPaymentAdjustmentData] = useState<any>(null);
+  const [pendingEditOrderData, setPendingEditOrderData] = useState<any>(null);
   // Read preselected data synchronously on first render
   const [preselectedCustomerData] = useState<any>(() => orderId ? null : getPreselectedCustomerData());
   const isEditMode = !!orderId;
@@ -161,7 +167,68 @@ const profileID =
 
       // Check if we're in edit mode
       if (isEditMode && orderId) {
-        // UPDATE EXISTING ORDER
+        // Get old order data for comparison first
+        const { data: oldOrderData } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("id", orderId)
+          .single();
+
+        const originalTotal = oldOrderData?.total_amount || 0;
+        const newTotal = orderData.total;
+        const differenceAmount = Number((newTotal - originalTotal).toFixed(2));
+
+        // Check if payment adjustment is needed (only for paid orders)
+        if (oldOrderData?.payment_status === 'paid' && differenceAmount !== 0) {
+          // Get customer info for payment adjustment modal
+          const { data: customerProfile } = await supabase
+            .from("profiles")
+            .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
+            .eq("id", orderData.customerId)
+            .single();
+
+          const hasCredit = (customerProfile?.credit_limit || 0) > 0;
+          const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
+          const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
+          const customerName = customerProfile?.company_name || 
+            `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
+            orderData.customer?.name || 'Customer';
+          const customerEmail = customerProfile?.email || orderData.customer?.email;
+
+          // Store pending data and show payment adjustment modal
+          setPendingEditOrderData({
+            orderData,
+            oldOrderData,
+          });
+
+          setPaymentAdjustmentData({
+            orderId,
+            orderNumber: oldOrderData?.order_number || '',
+            customerId: orderData.customerId,
+            customerName,
+            customerEmail,
+            originalAmount: originalTotal,
+            newAmount: newTotal,
+            hasCredit,
+            availableCredit,
+            creditMemoBalance,
+            orderData: {
+              items: orderData.cartItems,
+              tax_amount: orderData.tax,
+              shipping_cost: orderData.shipping,
+              customerInfo: {
+                name: customerName,
+                email: customerEmail,
+                phone: orderData.customer?.phone,
+              },
+            },
+          });
+
+          setIsPaymentAdjustmentOpen(true);
+          return;
+        }
+
+        // No payment adjustment needed - proceed with update directly
         const updateData = {
           location_id: orderData.customerId,
           customerInfo: {
@@ -185,13 +252,6 @@ const profileID =
           notes: orderData.specialInstructions,
           purchase_number_external: orderData.poNumber,
         };
-
-        // Get old order data for comparison
-        const { data: oldOrderData } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", orderId)
-          .single();
 
         const { error: updateError } = await supabase
           .from("orders")
@@ -411,6 +471,23 @@ const profileID =
                 .eq("id", discount.offerId);
             }
           }
+
+          // Handle credit memo usage - apply to database
+          if (discount.type === "credit_memo" && discount.creditMemoId && orderData.customerId) {
+            console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
+            const creditMemoResult = await PaymentAdjustmentService.applyCreditMemo(
+              discount.creditMemoId,
+              insertedOrder.id,
+              discount.amount,
+              orderData.customerId
+            );
+            
+            if (!creditMemoResult.success) {
+              console.error("❌ Error applying credit memo:", creditMemoResult.error);
+            } else {
+              console.log("✅ Credit memo applied successfully:", creditMemoResult.data);
+            }
+          }
         }
       }
 
@@ -555,6 +632,110 @@ const profileID =
     );
   }
 
+  // Handle payment adjustment completion
+  const handlePaymentAdjustmentComplete = async (result: { success: boolean; adjustmentType: string; transactionId?: string }) => {
+    if (!result.success || !pendingEditOrderData) {
+      setIsPaymentAdjustmentOpen(false);
+      return;
+    }
+
+    try {
+      const { orderData, oldOrderData } = pendingEditOrderData;
+
+      // Proceed with order update
+      const updateData = {
+        location_id: orderData.customerId,
+        customerInfo: {
+          name: orderData.customer?.name || "",
+          email: orderData.customer?.email || "",
+          phone: orderData.customer?.phone || "",
+          type: orderData.customer?.type || "Pharmacy",
+          address: orderData.billingAddress || {},
+        },
+        shippingAddress: {
+          fullName: orderData.shippingAddress?.fullName || "",
+          email: orderData.shippingAddress?.email || "",
+          phone: orderData.shippingAddress?.phone || "",
+          address: orderData.shippingAddress || {},
+        },
+        items: orderData.cartItems,
+        total_amount: orderData.total,
+        tax_amount: orderData.tax,
+        shipping_cost: orderData.shipping,
+        payment_method: orderData.paymentMethod,
+        notes: orderData.specialInstructions,
+        purchase_number_external: orderData.poNumber,
+      };
+
+      const { error: updateError } = await supabase
+        .from("orders")
+        .update(updateData)
+        .eq("id", orderId);
+
+      if (updateError) throw updateError;
+
+      // Log order update activity
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: userProfile } = await supabase
+        .from("profiles")
+        .select("first_name, last_name, email")
+        .eq("id", user?.id || "")
+        .single();
+
+      await OrderActivityService.logOrderUpdate({
+        orderId: orderId!,
+        orderNumber: oldOrderData?.order_number || "",
+        description: `Order updated with payment adjustment (${result.adjustmentType})`,
+        oldData: oldOrderData,
+        newData: updateData,
+        performedBy: user?.id,
+        performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : undefined,
+        performedByEmail: userProfile?.email,
+      });
+
+      // Update invoice if exists
+      const { data: invoiceData } = await supabase
+        .from("invoices")
+        .select("id")
+        .eq("order_id", orderId)
+        .maybeSingle();
+
+      if (invoiceData) {
+        await supabase
+          .from("invoices")
+          .update({
+            amount: orderData.total,
+            tax_amount: orderData.tax,
+            total_amount: orderData.total,
+            items: orderData.cartItems,
+            customer_info: updateData.customerInfo,
+            shipping_info: updateData.shippingAddress,
+            shippin_cost: orderData.shipping,
+            subtotal: orderData.total,
+          })
+          .eq("id", invoiceData.id);
+      }
+
+      toast({
+        title: "Order Updated Successfully",
+        description: "The order and payment adjustment have been processed",
+      });
+
+      navigate("/admin/orders");
+    } catch (error: any) {
+      console.error("Error updating order after payment adjustment:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPaymentAdjustmentOpen(false);
+      setPendingEditOrderData(null);
+      setPaymentAdjustmentData(null);
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="mb-4">
@@ -633,6 +814,32 @@ const profileID =
             orderShipping={pendingOrderData.shipping}
           />
         </>
+      )}
+
+      {/* Payment Adjustment Modal for Edit Mode */}
+      {isPaymentAdjustmentOpen && paymentAdjustmentData && (
+        <PaymentAdjustmentModal
+          open={isPaymentAdjustmentOpen}
+          onOpenChange={(open) => {
+            setIsPaymentAdjustmentOpen(open);
+            if (!open) {
+              setPendingEditOrderData(null);
+              setPaymentAdjustmentData(null);
+            }
+          }}
+          orderId={paymentAdjustmentData.orderId}
+          orderNumber={paymentAdjustmentData.orderNumber}
+          customerId={paymentAdjustmentData.customerId}
+          customerName={paymentAdjustmentData.customerName}
+          customerEmail={paymentAdjustmentData.customerEmail}
+          originalAmount={paymentAdjustmentData.originalAmount}
+          newAmount={paymentAdjustmentData.newAmount}
+          hasCredit={paymentAdjustmentData.hasCredit}
+          availableCredit={paymentAdjustmentData.availableCredit}
+          creditMemoBalance={paymentAdjustmentData.creditMemoBalance}
+          orderData={paymentAdjustmentData.orderData}
+          onPaymentComplete={handlePaymentAdjustmentComplete}
+        />
       )}
     </DashboardLayout>
   );

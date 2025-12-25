@@ -23,6 +23,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Wallet,
 } from "lucide-react";
 
 interface Offer {
@@ -47,8 +48,19 @@ interface RedeemedReward {
   status: string;
 }
 
+// Credit Memo interface
+interface CreditMemo {
+  id: string;
+  memo_number: string;
+  amount: number;
+  balance: number;
+  reason: string;
+  status: string;
+  expires_at: string;
+}
+
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer" | "redeemed_reward";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward" | "credit_memo";
   name: string;
   amount: number;
   offerId?: string;
@@ -56,11 +68,13 @@ interface AppliedDiscount {
   pointsUsed?: number;
   redemptionId?: string;
   rewardType?: string;
+  creditMemoId?: string;
 }
 
 interface PromoAndRewardsSectionProps {
   customerId?: string;
   subtotal: number;
+  shipping?: number; // Shipping cost to include in credit memo calculation
   hasFreeShipping?: boolean; // User already has free shipping from profile
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
 }
@@ -68,6 +82,7 @@ interface PromoAndRewardsSectionProps {
 export function PromoAndRewardsSection({
   customerId,
   subtotal,
+  shipping = 0,
   hasFreeShipping = false,
   onDiscountChange,
 }: PromoAndRewardsSectionProps) {
@@ -95,6 +110,13 @@ export function PromoAndRewardsSection({
   const [redeemedRewards, setRedeemedRewards] = useState<RedeemedReward[]>([]);
   const [appliedRedeemedReward, setAppliedRedeemedReward] = useState<RedeemedReward | null>(null);
   const [loadingRedeemed, setLoadingRedeemed] = useState(false);
+
+  // Credit Memo state
+  const [creditMemos, setCreditMemos] = useState<CreditMemo[]>([]);
+  const [appliedCreditMemo, setAppliedCreditMemo] = useState<{ memo: CreditMemo; amountUsed: number } | null>(null);
+  const [creditMemoAmountToUse, setCreditMemoAmountToUse] = useState(0);
+  const [loadingCreditMemos, setLoadingCreditMemos] = useState(false);
+  const [totalCreditBalance, setTotalCreditBalance] = useState(0);
 
   // Fetch redeemed rewards that are pending and not expired
   useEffect(() => {
@@ -137,6 +159,41 @@ export function PromoAndRewardsSection({
 
     fetchRedeemedRewards();
   }, [customerId, hasFreeShipping]);
+
+  // Fetch available credit memos
+  useEffect(() => {
+    const fetchCreditMemos = async () => {
+      if (!customerId) return;
+
+      setLoadingCreditMemos(true);
+      try {
+        const { data, error } = await supabase
+          .from("credit_memos")
+          .select("id, memo_number, amount, balance, reason, status, expires_at")
+          .eq("customer_id", customerId)
+          .in("status", ["issued", "partially_applied"])
+          .gt("balance", 0)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching credit memos:", error);
+          return;
+        }
+
+        setCreditMemos(data || []);
+        
+        // Calculate total available balance
+        const totalBalance = (data || []).reduce((sum, m) => sum + (m.balance || 0), 0);
+        setTotalCreditBalance(totalBalance);
+      } catch (error) {
+        console.error("Error fetching credit memos:", error);
+      } finally {
+        setLoadingCreditMemos(false);
+      }
+    };
+
+    fetchCreditMemos();
+  }, [customerId]);
 
   // Fetch user rewards
   useEffect(() => {
@@ -232,6 +289,17 @@ export function PromoAndRewardsSection({
       totalDiscount += appliedPromo.amount;
     }
 
+    // Add credit memo discount
+    if (appliedCreditMemo) {
+      discounts.push({
+        type: "credit_memo",
+        name: `Credit Memo ${appliedCreditMemo.memo.memo_number}`,
+        amount: appliedCreditMemo.amountUsed,
+        creditMemoId: appliedCreditMemo.memo.id,
+      });
+      totalDiscount += appliedCreditMemo.amountUsed;
+    }
+
     // Add redeemed reward discount
     if (appliedRedeemedReward) {
       let rewardDiscount = 0;
@@ -282,7 +350,7 @@ export function PromoAndRewardsSection({
     }
 
     onDiscountChange(discounts, totalDiscount);
-  }, [appliedPromo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange]);
+  }, [appliedPromo, appliedCreditMemo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange]);
 
   // Validate promo code
   const handleApplyPromo = async () => {
@@ -435,6 +503,94 @@ export function PromoAndRewardsSection({
       title: "Reward Removed",
       description: "Redeemed reward has been removed from your order",
     });
+  };
+
+  // Apply credit memo
+  const handleApplyCreditMemo = (memo: CreditMemo, amount: number) => {
+    // Calculate max amount that can be applied (can cover subtotal + shipping, minus other discounts)
+    const otherDiscounts = (appliedPromo?.amount || 0) + 
+      (appliedRedeemedReward ? calculateRedeemedRewardDiscount() : 0) +
+      (useRewards && userRewards ? pointsToUse * userRewards.pointValue : 0);
+    // Credit memo can cover subtotal + shipping (full order total before tax)
+    const orderTotalBeforeTax = subtotal + shipping;
+    const maxApplicable = Math.min(memo.balance, orderTotalBeforeTax - otherDiscounts);
+    const amountToApply = Math.min(amount, maxApplicable);
+
+    if (amountToApply <= 0) {
+      toast({
+        title: "Cannot Apply Credit Memo",
+        description: "Order total is already covered by other discounts",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setAppliedCreditMemo({ memo, amountUsed: amountToApply });
+    setCreditMemoAmountToUse(amountToApply);
+
+    // Update local state - reduce balance from this memo and total
+    // This prevents double usage in same session
+    const newBalance = memo.balance - amountToApply;
+    
+    // Update credit memos list - if balance becomes 0, remove from list
+    if (newBalance <= 0) {
+      setCreditMemos(prev => prev.filter(m => m.id !== memo.id));
+    } else {
+      setCreditMemos(prev => prev.map(m => 
+        m.id === memo.id ? { ...m, balance: newBalance } : m
+      ));
+    }
+    
+    // Update total credit balance
+    setTotalCreditBalance(prev => Math.max(0, prev - amountToApply));
+
+    toast({
+      title: "Credit Memo Applied! 💳",
+      description: `${memo.memo_number} - $${amountToApply.toFixed(2)} applied to your order`,
+    });
+  };
+
+  // Remove applied credit memo - restore the balance
+  const handleRemoveCreditMemo = () => {
+    if (appliedCreditMemo) {
+      const { memo, amountUsed } = appliedCreditMemo;
+      
+      // Restore the balance back to the memo
+      const existingMemo = creditMemos.find(m => m.id === memo.id);
+      if (existingMemo) {
+        // Memo still in list, just update balance
+        setCreditMemos(prev => prev.map(m => 
+          m.id === memo.id ? { ...m, balance: m.balance + amountUsed } : m
+        ));
+      } else {
+        // Memo was removed (balance was 0), add it back
+        setCreditMemos(prev => [...prev, { ...memo, balance: amountUsed }]);
+      }
+      
+      // Restore total credit balance
+      setTotalCreditBalance(prev => prev + amountUsed);
+    }
+    
+    setAppliedCreditMemo(null);
+    setCreditMemoAmountToUse(0);
+    toast({
+      title: "Credit Memo Removed",
+      description: "Credit memo has been removed from your order",
+    });
+  };
+
+  // Helper to calculate redeemed reward discount
+  const calculateRedeemedRewardDiscount = () => {
+    if (!appliedRedeemedReward) return 0;
+    const rewardType = appliedRedeemedReward.reward_type;
+    const rewardValue = Number(appliedRedeemedReward.reward_value) || 0;
+    
+    if (rewardType === "discount" || rewardType === "discount_percent") {
+      return (subtotal * rewardValue) / 100;
+    } else if (rewardType === "credit" || rewardType === "store_credit") {
+      return Math.min(rewardValue, subtotal);
+    }
+    return 0;
   };
 
   const getOfferIcon = (type: string) => {
@@ -776,6 +932,95 @@ export function PromoAndRewardsSection({
                       size="sm"
                       onClick={() => handleApplyRedeemedReward(reward)}
                       className="bg-pink-600 hover:bg-pink-700 text-white"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                ))
+              )
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Credit Memo Section */}
+      {(creditMemos.length > 0 || totalCreditBalance > 0) && (
+        <Card className={appliedCreditMemo ? "border-emerald-200 bg-emerald-50/50" : ""}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Wallet className="h-4 w-4 text-emerald-600" />
+                Credit Memo Balance
+              </div>
+              <Badge className="bg-emerald-100 text-emerald-800">
+                ${totalCreditBalance.toFixed(2)} available
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {appliedCreditMemo ? (
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <Wallet className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-emerald-800">{appliedCreditMemo.memo.memo_number}</p>
+                    <p className="text-sm text-emerald-600">
+                      Saving ${appliedCreditMemo.amountUsed.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveCreditMemo}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              loadingCreditMemos ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : creditMemos.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-2">
+                  No credit memos available
+                </p>
+              ) : (
+                creditMemos.map((memo) => (
+                  <div
+                    key={memo.id}
+                    className="flex items-center justify-between p-3 border border-emerald-100 rounded-lg hover:bg-emerald-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                        <Wallet className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{memo.memo_number}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span className="text-emerald-600 font-medium">
+                            ${memo.balance.toFixed(2)} available
+                          </span>
+                          {memo.expires_at && (
+                            <span className="flex items-center gap-1 text-amber-600">
+                              <Clock className="h-3 w-3" />
+                              {formatExpiryDate(memo.expires_at)}
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                          {memo.reason}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApplyCreditMemo(memo, memo.balance)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
                     >
                       Apply
                     </Button>

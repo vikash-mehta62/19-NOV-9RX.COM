@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
+import { PaymentAdjustmentService } from "@/services/paymentAdjustmentService";
 import axios from "../../../axiosconfig";
 
 export default function PharmacyCreateOrder() {
@@ -311,6 +312,23 @@ export default function PharmacyCreateOrder() {
               console.error("❌ Error marking redemption as used:", updateError);
             } else {
               console.log("✅ Marked reward redemption as used:", discount.redemptionId);
+            }
+          }
+
+          // Handle credit memo usage
+          if (discount.type === "credit_memo" && discount.creditMemoId) {
+            console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
+            const creditMemoResult = await PaymentAdjustmentService.applyCreditMemo(
+              discount.creditMemoId,
+              insertedOrder.id,
+              discount.amount,
+              session.user.id
+            );
+            
+            if (!creditMemoResult.success) {
+              console.error("❌ Error applying credit memo:", creditMemoResult.error);
+            } else {
+              console.log("✅ Credit memo applied successfully:", creditMemoResult.data);
             }
           }
         }
