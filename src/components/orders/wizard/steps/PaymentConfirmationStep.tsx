@@ -24,6 +24,12 @@ export interface PaymentConfirmationStepProps {
   tax: number;
   shipping: number;
   total: number;
+  totalDiscount?: number;
+  appliedDiscounts?: Array<{
+    type: string;
+    name: string;
+    amount: number;
+  }>;
   onPaymentMethodChange?: (method: PaymentMethod) => void;
   onSpecialInstructionsChange?: (instructions: string) => void;
   onPONumberChange?: (poNumber: string) => void;
@@ -51,6 +57,8 @@ export const PaymentConfirmationStep = ({
   tax,
   shipping,
   total,
+  totalDiscount = 0,
+  appliedDiscounts = [],
   onPaymentMethodChange,
   onSpecialInstructionsChange,
   onPONumberChange,
@@ -408,20 +416,48 @@ export const PaymentConfirmationStep = ({
               </span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-gray-700">Tax:</span>
-              <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
               <span className="text-gray-700">Shipping:</span>
               <span className="font-medium text-gray-900">
                 ${shipping.toFixed(2)}
               </span>
             </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-gray-700">Tax:</span>
+              <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+            </div>
+            
+            {/* Show applied discounts */}
+            {appliedDiscounts.length > 0 && (
+              <>
+                <Separator className="bg-green-300" />
+                {appliedDiscounts.map((discount, index) => (
+                  <div key={index} className="flex justify-between text-sm">
+                    <span className="text-green-700 flex items-center gap-1">
+                      <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                        {discount.type === "redeemed_reward" ? "Reward" : 
+                         discount.type === "promo" ? "Promo" : 
+                         discount.type === "offer" ? "Offer" : "Points"}
+                      </Badge>
+                      {discount.name}
+                    </span>
+                    <span className="font-medium text-green-600">
+                      {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+            
             <Separator className="bg-green-300" />
             <div className="flex justify-between text-xl font-bold">
               <span className="text-gray-900">Total:</span>
-              <span className="text-green-700">${total.toFixed(2)}</span>
+              <span className="text-green-700">${Math.max(0, total - totalDiscount).toFixed(2)}</span>
             </div>
+            {totalDiscount > 0 && (
+              <div className="text-right text-sm text-green-600">
+                You save: ${totalDiscount.toFixed(2)}
+              </div>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-green-300">

@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
+import { calculateFinalTotal } from "@/utils/orderCalculations";
 import { useState, useEffect } from "react";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
@@ -147,10 +148,18 @@ export default function PharmacyCreateOrder() {
         const availableCredit = creditLimit - creditUsed;
 
         // Check if order total exceeds available credit
-        if (orderData.total > availableCredit) {
+        // Calculate final total using single source of truth
+        const orderFinalTotal = calculateFinalTotal({
+          subtotal: orderData.subtotal || 0,
+          shipping: orderData.shipping || 0,
+          tax: orderData.tax || 0,
+          discount: Number((orderData.totalDiscount || 0).toFixed(2)),
+        });
+        
+        if (orderFinalTotal > availableCredit) {
           toast({
             title: "Credit Limit Exceeded",
-            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${orderData.total.toFixed(2)}.`,
+            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${orderFinalTotal.toFixed(2)}.`,
             variant: "destructive",
           });
           return;
@@ -192,6 +201,14 @@ export default function PharmacyCreateOrder() {
       };
 
       // Prepare order data for database
+      // Calculate final total using single source of truth
+      const finalTotal = calculateFinalTotal({
+        subtotal: orderData.subtotal || 0,
+        shipping: orderData.shipping || 0,
+        tax: orderData.tax || 0,
+        discount: Number((orderData.totalDiscount || 0).toFixed(2)),
+      });
+      
       const orderToSubmit = {
         order_number: newOrderId,
         profile_id: session.user.id,
@@ -199,7 +216,7 @@ export default function PharmacyCreateOrder() {
         customerInfo: customerInfo,
         shippingAddress: shippingAddressData,
         items: orderData.cartItems,
-        total_amount: orderData.total,
+        total_amount: finalTotal, // Use final total after discounts
         tax_amount: orderData.tax,
         shipping_cost: orderData.shipping,
         payment_method: paymentMethod,
@@ -227,8 +244,10 @@ export default function PharmacyCreateOrder() {
       }
 
       // Handle applied discounts (deduct points, increment offer usage)
+      console.log("📦 Applied discounts:", orderData.appliedDiscounts);
       if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
         for (const discount of orderData.appliedDiscounts) {
+          console.log("🎁 Processing discount:", discount);
           // Handle reward points redemption
           if (discount.type === "rewards" && discount.pointsUsed) {
             // Deduct points from user's profile
@@ -273,6 +292,25 @@ export default function PharmacyCreateOrder() {
                 .from("offers")
                 .update({ used_count: (offer.used_count || 0) + 1 })
                 .eq("id", discount.offerId);
+            }
+          }
+
+          // Handle redeemed reward usage - mark as used
+          if (discount.type === "redeemed_reward" && discount.redemptionId) {
+            console.log("🔄 Marking redemption as used:", discount.redemptionId);
+            const { error: updateError } = await (supabase as any)
+              .from("reward_redemptions")
+              .update({ 
+                status: "used",
+                used_at: new Date().toISOString(),
+                used_in_order_id: insertedOrder.id
+              })
+              .eq("id", discount.redemptionId);
+            
+            if (updateError) {
+              console.error("❌ Error marking redemption as used:", updateError);
+            } else {
+              console.log("✅ Marked reward redemption as used:", discount.redemptionId);
             }
           }
         }
@@ -321,7 +359,8 @@ export default function PharmacyCreateOrder() {
           .eq("id", session.user.id)
           .single();
 
-        const newCreditUsed = (customerProfile?.credit_used || 0) + orderData.total;
+        // Use final total for credit update (already calculated above)
+        const newCreditUsed = (customerProfile?.credit_used || 0) + finalTotal;
 
         await supabase
           .from("profiles")
@@ -332,12 +371,13 @@ export default function PharmacyCreateOrder() {
       console.log("Order created successfully:", insertedOrder);
 
       // Award reward points for the order (only for non-credit orders)
-      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0) {
+      // Use final total for points calculation
+      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0) {
         try {
           const rewardResult = await awardOrderPoints(
             session.user.id,
             insertedOrder.id,
-            orderData.total,
+            finalTotal,
             newOrderId
           );
           
@@ -489,15 +529,20 @@ export default function PharmacyCreateOrder() {
             shipping: {
               method: "FedEx",
             },
+            // Pass discount information
+            appliedDiscounts: pendingOrderData.appliedDiscounts || [],
+            totalDiscount: pendingOrderData.totalDiscount || 0,
           }}
           form={null}
           pId={pendingOrderData.customerId}
           setIsCus={() => {}}
           isCus={false}
-          orderTotal={pendingOrderData.total}
+          orderTotal={Math.max(0, (pendingOrderData.total || 0) - (pendingOrderData.totalDiscount || 0))}
           orderSubtotal={pendingOrderData.subtotal}
           orderTax={pendingOrderData.tax}
           orderShipping={pendingOrderData.shipping}
+          discountAmount={pendingOrderData.totalDiscount || 0}
+          discountDetails={pendingOrderData.appliedDiscounts || []}
         />
       )}
     </DashboardLayout>

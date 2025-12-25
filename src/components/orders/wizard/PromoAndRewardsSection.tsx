@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
+
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -22,6 +22,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronUp,
+  Clock,
 } from "lucide-react";
 
 interface Offer {
@@ -35,24 +36,39 @@ interface Offer {
   promo_code: string | null;
 }
 
+// Redeemed reward from reward_redemptions table
+interface RedeemedReward {
+  id: string;
+  reward_name: string;
+  reward_type: string;
+  reward_value: number;
+  points_spent: number;
+  expires_at: string;
+  status: string;
+}
+
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward";
   name: string;
   amount: number;
   offerId?: string;
   promoCode?: string;
   pointsUsed?: number;
+  redemptionId?: string;
+  rewardType?: string;
 }
 
 interface PromoAndRewardsSectionProps {
   customerId?: string;
   subtotal: number;
+  hasFreeShipping?: boolean; // User already has free shipping from profile
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
 }
 
 export function PromoAndRewardsSection({
   customerId,
   subtotal,
+  hasFreeShipping = false,
   onDiscountChange,
 }: PromoAndRewardsSectionProps) {
   const { toast } = useToast();
@@ -75,6 +91,53 @@ export function PromoAndRewardsSection({
   const [showOffers, setShowOffers] = useState(false);
   const [loadingOffers, setLoadingOffers] = useState(false);
 
+  // Redeemed rewards state (from reward_redemptions table)
+  const [redeemedRewards, setRedeemedRewards] = useState<RedeemedReward[]>([]);
+  const [appliedRedeemedReward, setAppliedRedeemedReward] = useState<RedeemedReward | null>(null);
+  const [loadingRedeemed, setLoadingRedeemed] = useState(false);
+
+  // Fetch redeemed rewards that are pending and not expired
+  useEffect(() => {
+    const fetchRedeemedRewards = async () => {
+      if (!customerId) return;
+
+      setLoadingRedeemed(true);
+      try {
+        const now = new Date().toISOString();
+        const { data, error } = await (supabase as any)
+          .from("reward_redemptions")
+          .select("id, reward_name, reward_type, reward_value, points_spent, expires_at, status")
+          .eq("user_id", customerId)
+          .eq("status", "pending")
+          .gt("expires_at", now)
+          .order("created_at", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching redeemed rewards:", error);
+          return;
+        }
+
+        console.log("Fetched redeemed rewards:", data);
+        
+        // Filter out free shipping rewards if user already has free shipping
+        let filteredRewards = data || [];
+        if (hasFreeShipping) {
+          filteredRewards = filteredRewards.filter(
+            (r: RedeemedReward) => r.reward_type !== "shipping" && r.reward_type !== "free_shipping"
+          );
+        }
+        
+        setRedeemedRewards(filteredRewards);
+      } catch (error) {
+        console.error("Error fetching redeemed rewards:", error);
+      } finally {
+        setLoadingRedeemed(false);
+      }
+    };
+
+    fetchRedeemedRewards();
+  }, [customerId, hasFreeShipping]);
+
   // Fetch user rewards
   useEffect(() => {
     const fetchUserRewards = async () => {
@@ -93,7 +156,7 @@ export function PromoAndRewardsSection({
           // Get point value from rewards_config
           // points_per_dollar = how many points earned per $1
           // For redemption: if you earn 1 point per $1, then 100 points = $1 (point value = $0.01)
-          const { data: config } = await supabase
+          const { data: config } = await (supabase as any)
             .from("rewards_config")
             .select("points_per_dollar, point_redemption_value")
             .limit(1)
@@ -103,10 +166,10 @@ export function PromoAndRewardsSection({
           // Default: 100 points = $1, so 1 point = $0.01
           let pointValue = 0.01;
           if (config?.point_redemption_value) {
-            pointValue = config.point_redemption_value;
+            pointValue = Number(config.point_redemption_value);
           } else if (config?.points_per_dollar) {
             // If earning 1 point per $1, redemption value = $0.01 per point (100 points = $1)
-            pointValue = 1 / (config.points_per_dollar * 100);
+            pointValue = 1 / (Number(config.points_per_dollar) * 100);
           }
 
           setUserRewards({
@@ -147,7 +210,7 @@ export function PromoAndRewardsSection({
           return true;
         });
 
-        setAvailableOffers(qualifyingOffers);
+        setAvailableOffers(qualifyingOffers as Offer[]);
       } catch (error) {
         console.error("Error fetching offers:", error);
       } finally {
@@ -169,7 +232,44 @@ export function PromoAndRewardsSection({
       totalDiscount += appliedPromo.amount;
     }
 
-    // Add rewards discount
+    // Add redeemed reward discount
+    if (appliedRedeemedReward) {
+      let rewardDiscount = 0;
+      const rewardType = appliedRedeemedReward.reward_type;
+      const rewardValue = Number(appliedRedeemedReward.reward_value) || 0;
+      
+      // Handle different reward types
+      if (rewardType === "discount" || rewardType === "discount_percent") {
+        // Percentage discount on subtotal
+        rewardDiscount = (subtotal * rewardValue) / 100;
+      } else if (rewardType === "credit" || rewardType === "store_credit") {
+        // Fixed amount discount (can't exceed remaining total)
+        rewardDiscount = Math.min(rewardValue, subtotal - totalDiscount);
+      }
+      // shipping/free_shipping is handled separately in shipping calculation
+      
+      // For free_shipping, we still need to add it to discounts so OrderCreationWizard knows
+      if (rewardType === "shipping" || rewardType === "free_shipping") {
+        discounts.push({
+          type: "redeemed_reward",
+          name: appliedRedeemedReward.reward_name,
+          amount: 0, // No direct discount, shipping is handled separately
+          redemptionId: appliedRedeemedReward.id,
+          rewardType: rewardType,
+        });
+      } else if (rewardDiscount > 0) {
+        discounts.push({
+          type: "redeemed_reward",
+          name: appliedRedeemedReward.reward_name,
+          amount: rewardDiscount,
+          redemptionId: appliedRedeemedReward.id,
+          rewardType: rewardType,
+        });
+        totalDiscount += rewardDiscount;
+      }
+    }
+
+    // Add rewards discount (points)
     if (useRewards && pointsToUse > 0 && userRewards) {
       const rewardsDiscount = pointsToUse * userRewards.pointValue;
       discounts.push({
@@ -182,7 +282,7 @@ export function PromoAndRewardsSection({
     }
 
     onDiscountChange(discounts, totalDiscount);
-  }, [appliedPromo, useRewards, pointsToUse, userRewards, onDiscountChange]);
+  }, [appliedPromo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange]);
 
   // Validate promo code
   const handleApplyPromo = async () => {
@@ -309,6 +409,34 @@ export function PromoAndRewardsSection({
     setShowOffers(false);
   };
 
+  // Apply redeemed reward
+  const handleApplyRedeemedReward = (reward: RedeemedReward) => {
+    setAppliedRedeemedReward(reward);
+    
+    let discountDescription = "";
+    if (reward.reward_type === "discount_percent") {
+      discountDescription = `${reward.reward_value}% off your order`;
+    } else if (reward.reward_type === "store_credit") {
+      discountDescription = `$${reward.reward_value} store credit`;
+    } else if (reward.reward_type === "free_shipping") {
+      discountDescription = "Free shipping on this order";
+    }
+
+    toast({
+      title: "Reward Applied! 🎁",
+      description: `${reward.reward_name} - ${discountDescription}`,
+    });
+  };
+
+  // Remove applied redeemed reward
+  const handleRemoveRedeemedReward = () => {
+    setAppliedRedeemedReward(null);
+    toast({
+      title: "Reward Removed",
+      description: "Redeemed reward has been removed from your order",
+    });
+  };
+
   const getOfferIcon = (type: string) => {
     switch (type) {
       case "percentage":
@@ -320,6 +448,30 @@ export function PromoAndRewardsSection({
       default:
         return <Tag className="h-4 w-4" />;
     }
+  };
+
+  const getRewardIcon = (type: string) => {
+    switch (type) {
+      case "discount_percent":
+        return <Percent className="h-4 w-4" />;
+      case "store_credit":
+        return <DollarSign className="h-4 w-4" />;
+      case "free_shipping":
+        return <Truck className="h-4 w-4" />;
+      default:
+        return <Gift className="h-4 w-4" />;
+    }
+  };
+
+  const formatExpiryDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const daysLeft = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    
+    if (daysLeft <= 0) return "Expired";
+    if (daysLeft === 1) return "Expires tomorrow";
+    if (daysLeft <= 7) return `Expires in ${daysLeft} days`;
+    return `Expires ${date.toLocaleDateString()}`;
   };
 
   const maxRewardsDiscount = userRewards
@@ -548,6 +700,90 @@ export function PromoAndRewardsSection({
               )}
             </CardContent>
           )}
+        </Card>
+      )}
+
+      {/* Redeemed Rewards Section - Show rewards user has already redeemed */}
+      {redeemedRewards.length > 0 && (
+        <Card className={appliedRedeemedReward ? "border-pink-200 bg-pink-50/50" : ""}>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Gift className="h-4 w-4 text-pink-600" />
+                Your Redeemed Rewards
+              </div>
+              <Badge className="bg-pink-100 text-pink-800">
+                {redeemedRewards.length} available
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {appliedRedeemedReward ? (
+              <div className="flex items-center justify-between p-3 bg-pink-50 border border-pink-200 rounded-lg">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
+                    {getRewardIcon(appliedRedeemedReward.reward_type)}
+                  </div>
+                  <div>
+                    <p className="font-medium text-pink-800">{appliedRedeemedReward.reward_name}</p>
+                    <p className="text-sm text-pink-600">
+                      {(appliedRedeemedReward.reward_type === "discount" || appliedRedeemedReward.reward_type === "discount_percent") && `${appliedRedeemedReward.reward_value}% off`}
+                      {(appliedRedeemedReward.reward_type === "credit" || appliedRedeemedReward.reward_type === "store_credit") && `$${appliedRedeemedReward.reward_value} credit`}
+                      {(appliedRedeemedReward.reward_type === "shipping" || appliedRedeemedReward.reward_type === "free_shipping") && "Free shipping"}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleRemoveRedeemedReward}
+                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                >
+                  <XCircle className="h-4 w-4" />
+                </Button>
+              </div>
+            ) : (
+              loadingRedeemed ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                </div>
+              ) : (
+                redeemedRewards.map((reward) => (
+                  <div
+                    key={reward.id}
+                    className="flex items-center justify-between p-3 border border-pink-100 rounded-lg hover:bg-pink-50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
+                        {getRewardIcon(reward.reward_type)}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm">{reward.reward_name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>
+                            {(reward.reward_type === "discount" || reward.reward_type === "discount_percent") && `${reward.reward_value}% off`}
+                            {(reward.reward_type === "credit" || reward.reward_type === "store_credit") && `$${reward.reward_value} credit`}
+                            {(reward.reward_type === "shipping" || reward.reward_type === "free_shipping") && "Free shipping"}
+                          </span>
+                          <span className="flex items-center gap-1 text-amber-600">
+                            <Clock className="h-3 w-3" />
+                            {formatExpiryDate(reward.expires_at)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={() => handleApplyRedeemedReward(reward)}
+                      className="bg-pink-600 hover:bg-pink-700 text-white"
+                    >
+                      Apply
+                    </Button>
+                  </div>
+                ))
+              )
+            )}
+          </CardContent>
         </Card>
       )}
     </div>

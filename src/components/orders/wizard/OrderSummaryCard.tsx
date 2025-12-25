@@ -9,12 +9,14 @@ import { cn } from "@/lib/utils";
 import { PromoAndRewardsSection } from "./PromoAndRewardsSection";
 
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward";
   name: string;
   amount: number;
   offerId?: string;
   promoCode?: string;
   pointsUsed?: number;
+  redemptionId?: string;
+  rewardType?: string;
 }
 
 export interface OrderSummaryCardProps {
@@ -26,6 +28,7 @@ export interface OrderSummaryCardProps {
   onEditItems?: () => void;
   className?: string;
   customerId?: string;
+  hasFreeShipping?: boolean;
   onDiscountChange?: (discounts: AppliedDiscount[], totalDiscount: number) => void;
 }
 
@@ -38,6 +41,7 @@ const OrderSummaryCardComponent = ({
   onEditItems,
   className,
   customerId,
+  hasFreeShipping = false,
   onDiscountChange,
 }: OrderSummaryCardProps) => {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
@@ -194,7 +198,10 @@ const OrderSummaryCardComponent = ({
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-medium text-gray-900 text-xs sm:text-sm">
-                        ${item.price.toFixed(2)}
+                        ${(item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0
+                          ? item.sizes.reduce((sum, size) => sum + ((size.quantity || 0) * (size.price || 0)), 0)
+                          : item.price
+                        ).toFixed(2)}
                       </p>
                     </div>
                   </div>
@@ -221,6 +228,7 @@ const OrderSummaryCardComponent = ({
             <PromoAndRewardsSection
               customerId={customerId}
               subtotal={subtotal}
+              hasFreeShipping={hasFreeShipping}
               onDiscountChange={handleDiscountChange}
             />
           </div>

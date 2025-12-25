@@ -892,7 +892,17 @@ export function OrdersList({
               <TableCell className="text-center">
                 <div className="flex flex-col items-center">
                   <span className="font-bold text-gray-900">
-                    {formatTotal(parseFloat(order.total ?? "0"))}
+                    {(() => {
+                      // Calculate correct total: Subtotal + Shipping + Tax - Discount
+                      const itemsSubtotal = order.items?.reduce((total, item) => {
+                        return total + (item.sizes?.reduce((sum, size) => sum + size.quantity * size.price, 0) || 0)
+                      }, 0) || 0
+                      const shippingCost = parseFloat(order.shipping_cost || "0")
+                      const taxAmount = parseFloat(order.tax_amount?.toString() || "0")
+                      const discountAmt = parseFloat((order as any).discount_amount?.toString() || "0")
+                      const correctTotal = itemsSubtotal + shippingCost + taxAmount - discountAmt
+                      return formatTotal(correctTotal)
+                    })()}
                   </span>
                   {order.tax_amount > 0 && (
                     <span className="text-xs text-gray-500">

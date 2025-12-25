@@ -72,28 +72,40 @@ export const WelcomeDashboard = () => {
           .single();
 
         // Fetch active credit line (this overrides profile data)
-        const { data: creditLineData } = await (supabase as any)
+        const { data: creditLineData, error: creditError } = await (supabase as any)
           .from("user_credit_lines")
-          .select("credit_limit")
+          .select("credit_limit, available_credit, used_credit")
           .eq("user_id", userProfile.id)
           .eq("status", "active")
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
 
+        console.log("Credit line data:", creditLineData, "Error:", creditError);
+
         // Calculate available credit
         let availableCredit = 0;
-        const creditUsed = profileData?.credit_used || 0;
         
-        if (creditLineData?.credit_limit) {
-          // Use credit line limit if available
-          availableCredit = creditLineData.credit_limit - creditUsed;
-        } else if (profileData?.credit_limit) {
-          // Fallback to profile credit limit
-          availableCredit = profileData.credit_limit - creditUsed;
-        } else if (profileData?.available_credit) {
-          availableCredit = profileData.available_credit;
+        if (creditLineData) {
+          // Use credit line's available_credit directly if available
+          if (creditLineData.available_credit !== null && creditLineData.available_credit !== undefined) {
+            availableCredit = Number(creditLineData.available_credit);
+          } else if (creditLineData.credit_limit) {
+            // Calculate from credit_limit - used_credit
+            const usedCredit = Number(creditLineData.used_credit || 0);
+            availableCredit = Number(creditLineData.credit_limit) - usedCredit;
+          }
+        } else {
+          // Fallback to profile data
+          const creditUsed = profileData?.credit_used || 0;
+          if (profileData?.credit_limit) {
+            availableCredit = profileData.credit_limit - creditUsed;
+          } else if (profileData?.available_credit) {
+            availableCredit = profileData.available_credit;
+          }
         }
+        
+        console.log("Final available credit:", availableCredit);
 
         setStats({
           totalOrders: count || 0,

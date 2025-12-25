@@ -15,6 +15,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "./ErrorBoundary";
+import { calculateFinalTotal, calculateSubtotal, calculateShipping, calculateTax } from "@/utils/orderCalculations";
 import {
   User,
   MapPin,
@@ -26,12 +27,14 @@ import "./wizard-animations.css";
 
 // Applied discount interface
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward";
   name: string;
   amount: number;
   offerId?: string;
   promoCode?: string;
   pointsUsed?: number;
+  redemptionId?: string;
+  rewardType?: string;
 }
 
 const OrderCreationWizardComponent = ({
@@ -65,6 +68,11 @@ const OrderCreationWizardComponent = ({
   // Discount state
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
   const [totalDiscount, setTotalDiscount] = useState(0);
+  
+  // Customer free shipping state (from profile)
+  const [customerHasFreeShipping, setCustomerHasFreeShipping] = useState(
+    initialData?.customer?.freeShipping === true || sessionStorage.getItem("shipping") === "true"
+  );
   
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
@@ -149,13 +157,10 @@ const OrderCreationWizardComponent = ({
   }, [isEditMode, isPharmacyMode, initialData, isInitialized]); // Run when these change
 
   // Calculate order totals - memoized to prevent unnecessary recalculations
+  // Using single source of truth from orderCalculations utility
   const { subtotal, tax, shipping, total } = useMemo(() => {
-    // item.price already contains total price (sum of all sizes * quantities)
-    // So we don't need to multiply by item.quantity again
-    const subtotal = cartItems.reduce(
-      (sum, item) => sum + item.price,
-      0
-    );
+    // Calculate subtotal using utility function
+    const subtotal = calculateSubtotal(cartItems);
     
     // Get tax rate from sessionStorage (set when customer is selected)
     const taxPer = Number(sessionStorage.getItem("taxper") || 0);
@@ -163,18 +168,29 @@ const OrderCreationWizardComponent = ({
     // Check if customer has free shipping from sessionStorage
     const hasFreeShipping = sessionStorage.getItem("shipping") === "true";
     
-    // Calculate shipping cost - handle empty cart case to avoid -Infinity
-    const calculatedShipping = hasFreeShipping || cartItems.length === 0
-      ? 0 
-      : Math.max(0, ...cartItems.map((item) => item.shipping_cost || 0));
+    // Check if free_shipping reward is applied
+    const hasFreeShippingReward = appliedDiscounts.some(
+      (d) => d.rewardType === "free_shipping" || d.rewardType === "shipping" ||
+             (d.type === "offer" && d.name?.toLowerCase().includes("free shipping"))
+    );
     
-    // Calculate tax on subtotal (excluding shipping)
-    const tax = ((subtotal) * taxPer) / 100;
+    // Calculate shipping using utility function
+    const shipping = calculateShipping(cartItems, hasFreeShipping || hasFreeShippingReward);
     
-    const total = subtotal + tax + calculatedShipping;
+    // Calculate tax using utility function
+    const tax = calculateTax(subtotal, taxPer);
     
-    return { subtotal, tax, shipping: calculatedShipping, total };
-  }, [cartItems]);
+    // Calculate total using single source of truth formula
+    // Note: Discount is NOT subtracted here - it's handled separately in totalDiscount state
+    const total = calculateFinalTotal({
+      subtotal,
+      shipping,
+      tax,
+      discount: 0, // Discount applied separately via totalDiscount
+    });
+    
+    return { subtotal, tax, shipping, total };
+  }, [cartItems, appliedDiscounts]);
 
   // Persist form data whenever key state changes
   useEffect(() => {
@@ -311,6 +327,7 @@ const OrderCreationWizardComponent = ({
     // Set free shipping in sessionStorage (purane code ke according)
     const hasFreeShipping = customer.freeShipping === true;
     sessionStorage.setItem("shipping", hasFreeShipping.toString());
+    setCustomerHasFreeShipping(hasFreeShipping);
     
     // Autofill billing address from customer data if available
     if (customer.billing_address && Object.keys(customer.billing_address).length > 0) {
@@ -730,6 +747,8 @@ const OrderCreationWizardComponent = ({
             tax={tax}
             shipping={shipping}
             total={total}
+            totalDiscount={totalDiscount}
+            appliedDiscounts={appliedDiscounts}
             onPaymentMethodChange={handlePaymentMethodChange}
             onSpecialInstructionsChange={handleSpecialInstructionsChange}
             onPONumberChange={handlePONumberChange}
@@ -834,7 +853,8 @@ const OrderCreationWizardComponent = ({
               shipping={shipping}
               total={total}
               onEditItems={handleEditItems}
-              customerId={selectedCustomer?.id}
+              customerId={selectedCustomer?.id || initialData?.customerId}
+              hasFreeShipping={customerHasFreeShipping}
               onDiscountChange={handleDiscountChange}
             />
           </aside>

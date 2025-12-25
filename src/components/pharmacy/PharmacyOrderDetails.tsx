@@ -70,7 +70,12 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   }, 0)
   const shipping = parseFloat(order.shipping_cost || "0")
   const tax = parseFloat(order.tax_amount?.toString() || "0")
-  const total = subtotal + shipping + tax
+  const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0")
+  const discountDetails = (order as any).discount_details || []
+  
+  // Calculate correct total: Subtotal + Shipping + Tax - Discount
+  // Don't use stored total_amount as it may have discount already subtracted
+  const total = subtotal + shipping + tax - discountAmount
   
   // Count total line items (sizes across all products)
   const totalLineItems = order.items.reduce(
@@ -364,13 +369,20 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       // ===== SUMMARY SECTION =====
       const handling = Number((order as any)?.po_handling_charges || 0)
       const fred = Number((order as any)?.po_fred_charges || 0)
-      const pdfTotal = subtotal + handling + fred + shipping + tax
+      const pdfDiscountAmount = discountAmount
+      const pdfTotal = subtotal + handling + fred + shipping + tax - pdfDiscountAmount
 
-      const summaryBody = [
+      const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ]
+      
+      // Add discount row if applicable
+      if (pdfDiscountAmount > 0) {
+        const discountName = discountDetails.length > 0 ? discountDetails[0].name || "Discount" : "Discount"
+        summaryBody.push([discountName, `-$${pdfDiscountAmount.toFixed(2)}`])
+      }
 
       ;(doc as any).autoTable({
         body: summaryBody,
@@ -598,10 +610,18 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       }
       const handling = Number((order as any)?.po_handling_charges || 0)
       const fred = Number((order as any)?.po_fred_charges || 0)
-      const pdfTotal = subtotal + handling + fred + shipping + tax
+      const printDiscountAmount = discountAmount
+      const pdfTotal = subtotal + handling + fred + shipping + tax - printDiscountAmount
+
+      // Build summary body with discount if applicable
+      const printSummaryBody: any[] = [["Subtotal", `$${subtotal.toFixed(2)}`], ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`], ["Tax", `$${(fred + tax).toFixed(2)}`]]
+      if (printDiscountAmount > 0) {
+        const discountName = discountDetails.length > 0 ? discountDetails[0].name || "Discount" : "Discount"
+        printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
+      }
 
       ;(doc as any).autoTable({
-        body: [["Subtotal", `$${subtotal.toFixed(2)}`], ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`], ["Tax", `$${(fred + tax).toFixed(2)}`]],
+        body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
         margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
@@ -873,11 +893,38 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                   <span className="text-gray-600">Tax</span>
                   <span className="font-medium">${tax.toFixed(2)}</span>
                 </div>
+                
+                {/* Show discount if applied */}
+                {discountAmount > 0 && (
+                  <>
+                    <Separator />
+                    {discountDetails.map((discount: any, index: number) => (
+                      <div key={index} className="flex justify-between text-sm">
+                        <span className="text-green-600">{discount.name || "Discount"}</span>
+                        <span className="font-medium text-green-600">
+                          {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                        </span>
+                      </div>
+                    ))}
+                    {discountDetails.length === 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-green-600">Discount</span>
+                        <span className="font-medium text-green-600">-${discountAmount.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </>
+                )}
+                
                 <Separator />
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-lg font-bold text-gray-900">Total</span>
                   <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="text-right text-sm text-green-600">
+                    You saved: ${discountAmount.toFixed(2)}
+                  </div>
+                )}
               </CardContent>
             </Card>
 

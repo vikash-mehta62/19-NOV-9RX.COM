@@ -150,6 +150,9 @@ setOrders([])
             poApproved: order.poApproved,
             po_handling_charges: order.po_handling_charges,
             po_fred_charges: order.po_fred_charges,
+            // Add discount fields
+            discount_amount: order.discount_amount || 0,
+            discount_details: order.discount_details || [],
             customerInfo: order.customerInfo || {
               name:
                 profileData.first_name && profileData.last_name

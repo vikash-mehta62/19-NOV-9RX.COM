@@ -274,14 +274,17 @@ const Rewards = () => {
         .update({ reward_points: newPoints })
         .eq("id", userId);
 
-      // Create redemption record
+      // Create redemption record with reward details for checkout use
       await supabase
         .from("reward_redemptions")
         .insert({
           user_id: userId,
           reward_item_id: reward.id,
           points_spent: reward.points_required,
-          status: "pending",
+          status: "pending", // Pending until used at checkout
+          reward_type: reward.type, // Store type for checkout
+          reward_value: reward.value, // Store value for checkout
+          reward_name: reward.name, // Store name for display
           expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() // 30 days
         });
 
@@ -298,7 +301,7 @@ const Rewards = () => {
       setCurrentPoints(newPoints);
       toast({
         title: "Reward Redeemed! 🎉",
-        description: `You've successfully redeemed "${reward.name}". Check your email for details.`,
+        description: `You've successfully redeemed "${reward.name}". It's now available to use at checkout!`,
       });
 
       fetchData(); // Refresh data

@@ -1,10 +1,12 @@
 import { OrderFormValues, ShippingAddressData } from "../../schemas/orderSchema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { 
   Package, DollarSign, User, MapPin, Truck, 
   Calendar, FileText, CreditCard, Building, Phone, Mail
 } from "lucide-react";
+import { calculateFinalTotal } from "@/utils/orderCalculations";
 
 interface OverviewTabProps {
   order: OrderFormValues;
@@ -51,7 +53,16 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
   const subtotal = calculateSubtotal();
   const shipping = parseFloat(order.shipping_cost || "0");
   const tax = parseFloat(order.tax_amount?.toString() || "0");
-  const total = subtotal + shipping + tax;
+  const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
+  const discountDetails = (order as any).discount_details || [];
+  
+  // Calculate total using single source of truth
+  const total = calculateFinalTotal({
+    subtotal,
+    shipping,
+    tax,
+    discount: discountAmount,
+  });
 
   // Get shipping address
   const shippingStreet = getAddressField(order.shippingAddress, "shipping", "street1") || 
@@ -246,11 +257,39 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
               <span className="text-gray-600">Tax</span>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
+            
+            {/* Show discount if applied */}
+            {discountAmount > 0 && (
+              <>
+                <Separator />
+                {discountDetails && discountDetails.length > 0 ? (
+                  discountDetails.map((discount: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center py-2">
+                      <span className="text-green-600">{discount.name || "Discount"}</span>
+                      <span className="font-medium text-green-600">
+                        {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-green-600">Discount</span>
+                    <span className="font-medium text-green-600">-${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </>
+            )}
+            
             <div className="border-t pt-3 mt-2">
               <div className="flex justify-between items-center">
                 <span className="text-lg font-bold text-gray-900">Total</span>
                 <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
               </div>
+              {discountAmount > 0 && (
+                <div className="text-right mt-1">
+                  <span className="text-sm text-green-600">You saved: ${discountAmount.toFixed(2)}</span>
+                </div>
+              )}
             </div>
           </div>
         </CardContent>

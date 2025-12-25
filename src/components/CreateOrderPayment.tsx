@@ -24,9 +24,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  calculateOrderTotal,
   generateOrderId,
 } from "./orders/utils/orderUtils";
+import { calculateFinalTotal, calculateSubtotal } from "@/utils/orderCalculations";
 import { useCart } from "@/hooks/use-cart";
 import { validateOrderItems } from "./orders/form/OrderFormValidation";
 import { useSelector } from "react-redux";
@@ -70,6 +70,8 @@ interface CreateOrderPaymentFormProps {
   orderSubtotal?: number;
   orderTax?: number;
   orderShipping?: number;
+  discountAmount?: number;
+  discountDetails?: any[];
 }
 
 const CreateOrderPaymentForm = ({
@@ -84,6 +86,8 @@ const CreateOrderPaymentForm = ({
   orderSubtotal,
   orderTax,
   orderShipping,
+  discountAmount = 0,
+  discountDetails = [],
 }: CreateOrderPaymentFormProps) => {
   const [paymentType, setPaymentType] = useState("credit_card");
   const { toast } = useToast();
@@ -94,7 +98,7 @@ const CreateOrderPaymentForm = ({
   const [tax, settax] = useState(0);
   const taxper = sessionStorage.getItem("taxper");
   const [saveCard, setSaveCard] = useState(false);
-  
+  console.log(formDataa,"formDataa")
   // State for saved cards (quick fill), rewards, and success popup
   const [savedCards, setSavedCards] = useState<SavedPaymentMethod[]>([]);
   const [loadingSavedCards, setLoadingSavedCards] = useState(false);
@@ -202,45 +206,33 @@ const CreateOrderPaymentForm = ({
     const cleanedCartItems = cleanCartItems(cartItems);
 
     if (formDataa) {
-      // Use passed order totals if available, otherwise calculate from cart
-      let totalAmount: number;
-      let newtax: number;
-      let shippingCost: number;
+      // Calculate subtotal from cart items
+      const subtotal = orderSubtotal || calculateSubtotal(cleanedCartItems);
+      const shipping = orderShipping !== undefined ? orderShipping : totalShippingCost;
+      const taxAmount = orderTax || 0;
+      const discount = Number((discountAmount || 0).toFixed(2));
       
-      if (orderTotal !== undefined && orderTotal > 0) {
-        // Use the passed order totals from the wizard
-        totalAmount = orderSubtotal || 0;
-        newtax = orderTax || 0;
-        shippingCost = orderShipping || 0;
-        settax(newtax);
-        setFormData((prevData) => ({
-          ...prevData,
-          nameOnAccount: formDataa.customerInfo?.name || "",
-          cardholderName: formDataa.customerInfo?.name || "",
-          address: formDataa.customerInfo?.address?.street || "",
-          city: formDataa.customerInfo?.address?.city || "",
-          state: formDataa.customerInfo?.address?.state || "",
-          zip: formDataa.customerInfo?.address?.zip_code || "",
-          amount: orderTotal,
-        }));
-      } else {
-        // Fallback to calculating from cart items
-        totalAmount = calculateOrderTotal(cleanedCartItems, totalShippingCost || 0);
-        newtax = ((totalAmount - totalShippingCost) * Number(taxper)) / 100;
-        settax(newtax);
-        setFormData((prevData) => ({
-          ...prevData,
-          nameOnAccount: formDataa.customerInfo?.name || "",
-          cardholderName: formDataa.customerInfo?.name || "",
-          address: formDataa.customerInfo?.address?.street || "",
-          city: formDataa.customerInfo?.address?.city || "",
-          state: formDataa.customerInfo?.address?.state || "",
-          zip: formDataa.customerInfo?.address?.zip_code || "",
-          amount: totalAmount + newtax,
-        }));
-      }
+      // Use single source of truth for final total
+      const finalTotal = calculateFinalTotal({
+        subtotal,
+        shipping,
+        tax: taxAmount,
+        discount,
+      });
+      
+      settax(taxAmount);
+      setFormData((prevData) => ({
+        ...prevData,
+        nameOnAccount: formDataa.customerInfo?.name || "",
+        cardholderName: formDataa.customerInfo?.name || "",
+        address: formDataa.customerInfo?.address?.street || "",
+        city: formDataa.customerInfo?.address?.city || "",
+        state: formDataa.customerInfo?.address?.state || "",
+        zip: formDataa.customerInfo?.address?.zip_code || "",
+        amount: finalTotal,
+      }));
     }
-  }, [orderTotal, orderSubtotal, orderTax, orderShipping]);
+  }, [orderTotal, orderSubtotal, orderTax, orderShipping, discountAmount, cartItems, totalShippingCost]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -513,7 +505,11 @@ const CreateOrderPaymentForm = ({
       const data = formDataa;
       validateOrderItems(data.items);
 
-      const calculatedTotal = calculateOrderTotal(cleanedCartItems, totalShippingCost || 0);
+      // Use formData.amount as single source of truth - DO NOT recalculate
+      const finalTotal = formData.amount;
+      const subtotal = orderSubtotal || calculateSubtotal(cleanedCartItems);
+      const shipping = orderShipping !== undefined ? orderShipping : totalShippingCost;
+      const discount = Number((discountAmount || 0).toFixed(2));
 
       if (userProfile?.id == null) {
         toast({
@@ -543,8 +539,8 @@ const CreateOrderPaymentForm = ({
         profile_id: profileID,
         location_id: pId,
         status: data.status || "new",
-        total_amount: calculatedTotal + tax,
-        shipping_cost: totalShippingCost || 0,
+        total_amount: finalTotal,
+        shipping_cost: shipping,
         tax_amount: Number(tax),
         items: cleanedCartItems,
         payment_status: "paid",
@@ -557,6 +553,9 @@ const CreateOrderPaymentForm = ({
         estimated_delivery: data.shipping?.estimatedDelivery || defaultEstimatedDelivery.toISOString(),
         customization: isCus || false,
         void: false,
+        // Add discount information
+        discount_amount: discount,
+        discount_details: discountDetails || data.appliedDiscounts || [],
       };
 
       const { data: orderResponse, error: orderError } = await supabase
@@ -585,13 +584,13 @@ const CreateOrderPaymentForm = ({
         due_date: dueDate.toISOString(),
         profile_id: newOrder.profile_id,
         status: "pending" as InvoiceStatus,
-        amount: parseFloat((calculatedTotal + tax).toString()) || 0,
-        tax_amount: orderData.tax_amount || 0,
-        total_amount: parseFloat((calculatedTotal + (isCus ? 0.5 : 0)).toString()),
+        amount: finalTotal,
+        tax_amount: Number(tax),
+        total_amount: finalTotal,
         payment_status: "paid",
         payment_transication: response.data.transactionId || "",
         payment_method: "card" as const,
-        shippin_cost: totalShippingCost || 0,
+        shippin_cost: shipping,
         notes: newOrder.notes || null,
         items: newOrder.items || [],
         customer_info: newOrder.customerInfo || {
@@ -600,7 +599,10 @@ const CreateOrderPaymentForm = ({
           phone: (newOrder.customerInfo as any)?.phone || "",
         },
         shipping_info: orderData.shippingAddress || {},
-        subtotal: calculatedTotal || parseFloat(calculatedTotal.toString()),
+        subtotal: subtotal,
+        // Add discount information
+        discount_amount: discount,
+        discount_details: discountDetails || [],
       };
 
       const { data: invoicedata2, error } = await supabase
@@ -612,7 +614,7 @@ const CreateOrderPaymentForm = ({
       if (error) throw error;
 
       // Log activities
-      await logOrderActivities(newOrder, orderNumber, calculatedTotal, response, invoiceNumber, invoicedata2);
+      await logOrderActivities(newOrder, orderNumber, finalTotal, response, invoiceNumber, invoicedata2);
 
       // Send email notification
       const { data: profileData } = await supabase
@@ -644,15 +646,34 @@ const CreateOrderPaymentForm = ({
       // Update stock
       await updateProductStock(cleanedCartItems);
 
+      // Mark redeemed rewards as used
+      const appliedDiscounts = discountDetails || data.appliedDiscounts || [];
+      if (appliedDiscounts.length > 0) {
+        for (const discount of appliedDiscounts) {
+          if (discount.type === "redeemed_reward" && discount.redemptionId) {
+            console.log("🔄 Marking redemption as used:", discount.redemptionId);
+            await (supabase as any)
+              .from("reward_redemptions")
+              .update({ 
+                status: "used",
+                used_at: new Date().toISOString(),
+                used_in_order_id: newOrder.id
+              })
+              .eq("id", discount.redemptionId);
+            console.log("✅ Marked reward redemption as used:", discount.redemptionId);
+          }
+        }
+      }
+
       // Note: Card saving is now handled in handleSubmit with Authorize.net Customer Profile
 
       // Award reward points for the order
-      if (newOrder.profile_id && calculatedTotal > 0) {
+      if (newOrder.profile_id && finalTotal > 0) {
         try {
           const rewardResult = await awardOrderPoints(
             newOrder.profile_id,
             newOrder.id,
-            calculatedTotal,
+            finalTotal, // Use final total for points
             orderNumber
           );
           
@@ -709,7 +730,7 @@ const CreateOrderPaymentForm = ({
   const logOrderActivities = async (
     newOrder: any,
     orderNumber: string,
-    calculatedTotal: number,
+    totalAmount: number,
     response: any,
     invoiceNumber: string,
     invoicedata2: any
@@ -725,7 +746,7 @@ const CreateOrderPaymentForm = ({
       await OrderActivityService.logOrderCreation({
         orderId: newOrder.id,
         orderNumber: orderNumber,
-        totalAmount: calculatedTotal + tax,
+        totalAmount: totalAmount,
         status: newOrder.status,
         paymentMethod: "card",
         performedBy: session?.user?.id,
@@ -743,14 +764,14 @@ const CreateOrderPaymentForm = ({
         metadata: {
           invoice_number: invoiceNumber,
           invoice_id: invoicedata2?.id,
-          amount: calculatedTotal + tax,
+          amount: totalAmount,
         },
       });
 
       await OrderActivityService.logPaymentReceived({
         orderId: newOrder.id,
         orderNumber: orderNumber,
-        amount: calculatedTotal + tax,
+        amount: totalAmount,
         paymentMethod: "card",
         paymentId: response.data.transactionId,
         performedBy: session?.user?.id,
@@ -797,7 +818,15 @@ const CreateOrderPaymentForm = ({
     }
   };
 
-  const subtotal = formData.amount - tax - totalShippingCost;
+  // Calculate actual subtotal from cart items (before discount)
+  const actualSubtotal = orderSubtotal || cartItems.reduce((sum, item) => {
+    if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
+      return sum + item.sizes.reduce((sizeSum, size) => {
+        return sizeSum + ((size.quantity || 0) * (size.price || 0));
+      }, 0);
+    }
+    return sum + (item.price || 0);
+  }, 0);
 
   if (!modalIsOpen) return null;
 
@@ -1412,7 +1441,7 @@ const CreateOrderPaymentForm = ({
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Subtotal</span>
-                      <span className="font-medium">${subtotal.toFixed(2)}</span>
+                      <span className="font-medium">${actualSubtotal.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Shipping</span>
@@ -1430,11 +1459,39 @@ const CreateOrderPaymentForm = ({
                       <span className="text-gray-600">Tax ({taxper || 0}%)</span>
                       <span className="font-medium">${tax.toFixed(2)}</span>
                     </div>
+                    
+                    {/* Show discount if applied */}
+                    {discountAmount > 0 && (
+                      <>
+                        <Separator />
+                        {discountDetails && discountDetails.length > 0 ? (
+                          discountDetails.map((discount: any, index: number) => (
+                            <div key={index} className="flex justify-between text-sm">
+                              <span className="text-green-600">{discount.name || "Discount"}</span>
+                              <span className="font-medium text-green-600">
+                                {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                              </span>
+                            </div>
+                          ))
+                        ) : (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-green-600">Discount</span>
+                            <span className="font-medium text-green-600">-${discountAmount.toFixed(2)}</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
                       <span className="text-emerald-600">${formData.amount.toFixed(2)}</span>
                     </div>
+                    {discountAmount > 0 && (
+                      <div className="text-right text-sm text-green-600">
+                        You save: ${discountAmount.toFixed(2)}
+                      </div>
+                    )}
                   </div>
 
                   {/* Reward Points Preview */}

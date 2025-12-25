@@ -1,4 +1,4 @@
-import {
+﻿import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -580,13 +580,26 @@ export const OrderDetailsSheet = ({
       const fred = Number((currentOrder as any)?.po_fred_charges || 0);
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
-      const total = subtotal + handling + fred + shipping + tax;
+      const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
+      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
+      const total = subtotal + handling + fred + shipping + tax - discountAmount;
 
-      const summaryBody = [
+      // Get discount details for display
+      const discountDetails = (currentOrder as any)?.discount_details || [];
+      const discountLabel = discountDetails.length > 0 
+        ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
+        : "Discount";
+
+      const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
+      
+      // Add discount row if discount exists
+      if (discountAmount > 0) {
+        summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
+      }
 
       (doc as any).autoTable({
         body: summaryBody,
@@ -940,13 +953,26 @@ export const OrderDetailsSheet = ({
       const fred = Number((currentOrder as any)?.po_fred_charges || 0);
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
-      const total = subtotal + handling + fred + shipping + tax;
+      const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
+      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
+      const total = subtotal + handling + fred + shipping + tax - discountAmount;
 
-      const summaryBody = [
+      // Get discount details for display
+      const discountDetails = (currentOrder as any)?.discount_details || [];
+      const discountLabel = discountDetails.length > 0 
+        ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
+        : "Discount";
+
+      const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
+      
+      // Add discount row if discount exists
+      if (discountAmount > 0) {
+        summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
+      }
 
       (doc as any).autoTable({
         body: summaryBody,

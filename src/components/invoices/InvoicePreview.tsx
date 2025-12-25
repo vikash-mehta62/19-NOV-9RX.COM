@@ -60,6 +60,9 @@ interface InvoicePreviewProps {
     payment_notes: string
     created_at: string
     payment_transication: string
+    // Discount fields
+    discount_amount?: number
+    discount_details?: any[]
   }
 }
 
@@ -102,7 +105,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   })
 
   const isPaid = invoice?.payment_status === "paid"
-  const subtotalAmount = (invoice?.subtotal || 0) - (invoice?.tax || 0) - Number(invoice?.shippin_cost || 0)
+  // Subtotal is the items total (before tax, shipping, and discount)
+  const subtotalAmount = invoice?.subtotal || 0
 
   // Generate barcode
   const generateBarcode = (text: string): string => {
@@ -296,10 +300,20 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       // ===== SUMMARY SECTION =====
       const shippingCost = Number(invoice?.shippin_cost || 0)
       const taxAmount = invoice?.tax || 0
-      const totalAmount = invoice?.total || 0
+      const invoiceDiscountAmount = Number((invoice as any)?.discount_amount || 0)
+      const invoiceDiscountDetails = (invoice as any)?.discount_details || []
+      // Calculate correct total: Subtotal + Shipping + Tax - Discount
+      const totalAmount = subtotalAmount + shippingCost + taxAmount - invoiceDiscountAmount
+
+      // Build summary body with discount if applicable
+      const invoiceSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+      if (invoiceDiscountAmount > 0) {
+        const discountName = invoiceDiscountDetails.length > 0 ? invoiceDiscountDetails[0].name || "Discount" : "Discount"
+        invoiceSummaryBody.push([discountName, `-$${invoiceDiscountAmount.toFixed(2)}`])
+      }
 
       ;(doc as any).autoTable({
-        body: [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]],
+        body: invoiceSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
         margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
@@ -503,10 +517,20 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       const shippingCost = Number(invoice?.shippin_cost || 0)
       const taxAmount = invoice?.tax || 0
-      const totalAmount = invoice?.total || 0
+      const printDiscountAmount = Number((invoice as any)?.discount_amount || 0)
+      const printDiscountDetails = (invoice as any)?.discount_details || []
+      // Calculate correct total: Subtotal + Shipping + Tax - Discount
+      const totalAmount = subtotalAmount + shippingCost + taxAmount - printDiscountAmount
+
+      // Build summary body with discount if applicable
+      const printSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+      if (printDiscountAmount > 0) {
+        const discountName = printDiscountDetails.length > 0 ? printDiscountDetails[0].name || "Discount" : "Discount"
+        printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
+      }
 
       ;(doc as any).autoTable({
-        body: [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]],
+        body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35 } },
         margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
@@ -714,9 +738,34 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               <div className="flex justify-between text-sm"><span className="text-gray-600">Sub Total</span><span className="font-medium text-gray-900">${subtotalAmount.toFixed(2)}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-600">Tax</span><span className="font-medium text-gray-900">${(invoice?.tax || 0).toFixed(2)}</span></div>
               <div className="flex justify-between text-sm"><span className="text-gray-600">Shipping Cost</span><span className="font-medium text-gray-900">${Number(invoice?.shippin_cost || 0).toFixed(2)}</span></div>
+              {/* Show discount if applied */}
+              {Number((invoice as any)?.discount_amount || 0) > 0 && (
+                <>
+                  <Separator />
+                  {((invoice as any)?.discount_details || []).map((discount: any, index: number) => (
+                    <div key={index} className="flex justify-between text-sm">
+                      <span className="text-green-600">{discount.name || "Discount"}</span>
+                      <span className="font-medium text-green-600">
+                        {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                      </span>
+                    </div>
+                  ))}
+                  {((invoice as any)?.discount_details || []).length === 0 && (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-green-600">Discount</span>
+                      <span className="font-medium text-green-600">-${Number((invoice as any)?.discount_amount || 0).toFixed(2)}</span>
+                    </div>
+                  )}
+                </>
+              )}
               <Separator />
-              <div className="flex justify-between"><span className="font-semibold text-gray-900">Total</span><span className="font-bold text-lg text-gray-900">${(invoice?.total || 0).toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="font-semibold text-red-600">Balance Due</span><span className="font-bold text-lg text-red-600">{isPaid ? "$0.00" : `$${(invoice?.total || 0).toFixed(2)}`}</span></div>
+              <div className="flex justify-between"><span className="font-semibold text-gray-900">Total</span><span className="font-bold text-lg text-gray-900">${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}</span></div>
+              {Number((invoice as any)?.discount_amount || 0) > 0 && (
+                <div className="text-right text-sm text-green-600">
+                  You saved: ${Number((invoice as any)?.discount_amount || 0).toFixed(2)}
+                </div>
+              )}
+              <div className="flex justify-between"><span className="font-semibold text-red-600">Balance Due</span><span className="font-bold text-lg text-red-600">{isPaid ? "$0.00" : `$${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}`}</span></div>
             </CardContent>
           </Card>
         </div>
