@@ -1,4 +1,4 @@
-import { Users, Heart, ChevronRight } from "lucide-react";
+import { Users, Heart, ChevronRight, Star } from "lucide-react";
 import {
   Carousel,
   CarouselContent,
@@ -23,96 +23,75 @@ const PartnersSection = () => {
 
     const interval = setInterval(() => {
       api.scrollNext();
-    }, 3000);
+    }, 4000);
 
     return () => clearInterval(interval);
   }, [api]);
-
-  const stats = [
-    { 
-      icon: Users, 
-      value: "150+", 
-      label: "Happy Clients",
-      color: "text-emerald-600",
-      bg: "bg-emerald-100"
-    },
-    { 
-      icon: Heart, 
-      value: "98%", 
-      label: "Satisfaction",
-      color: "text-emerald-600",
-      bg: "bg-emerald-100"
-    },
-  ];
 
   const testimonials = [
     {
       name: "Ryan Yanicko",
       role: "Cannon Pharmacy Mooresville",
-      content: "Snehal and 9Rx have been excellent to work with getting our pharmacy bags and labels designed and delivered. They took the time to address our concerns and make sure the product was exactly to our specifications. The product quality is excellent and they are very reliable with ordering and delivery of the products.",
+      content: "Snehal and 9Rx have been excellent to work with. The product quality is excellent and they are very reliable with ordering and delivery.",
       initials: "RY",
-      gradient: "from-emerald-400 to-teal-500",
-      logo: cannon
+      gradient: "from-blue-500 to-indigo-600",
+      logo: cannon,
+      rating: 5
     },
     {
       name: "Mark Cantrell",
-      role: "Operations Manager, Cannon Pharmacy Main",
-      content: "It has been a pleasure and wonderful experience working with 9rx. The products are wonderful and are customized to our exact specifications perfectly. The service and customer service are unparalleled and unmatched by any vendor that I have or currently work with. We are extremely pleased and lucky to have the amazing opportunity to do business with 9rx. We HIGHLY recommend this company and its services. Extremely Impressed and Pleased.",
+      role: "Operations Manager, Cannon Pharmacy",
+      content: "The service and customer service are unparalleled. We are extremely pleased and lucky to have the opportunity to do business with 9rx.",
       initials: "MC",
-      gradient: "from-blue-400 to-indigo-500",
-      logo: cannon
+      gradient: "from-indigo-500 to-blue-600",
+      logo: cannon,
+      rating: 5
     },
     {
       name: "Khristina, PharmD",
-      role: "Valley Health Pharmacy, Director of Pharmacy Operations",
-      content: "I am incredibly impressed with the service I have received from 9RX when purchasing our pharmacy supplies (prescription labels, custom bags and medication droppers/adaptors). 9RX is truly reliable, offering high-quality items that meet all of our needs. The ordering process was straightforward, and the products arrived on time and in excellent condition. What stood out the most, however, was the excellent customer service. Snehal and the team have been responsive, knowledgeable, and always available to assist with any questions or concerns. I can confidently recommend 9RX to anyone looking for top-notch pharmacy supplies and reliable service.",
+      role: "Valley Health Pharmacy",
+      content: "9RX is truly reliable, offering high-quality items. The ordering process was straightforward, and products arrived on time.",
       initials: "KP",
-      gradient: "from-purple-400 to-pink-500",
-      logo: valley
+      gradient: "from-blue-600 to-indigo-500",
+      logo: valley,
+      rating: 5
     },
     {
       name: "Manan Patel",
       role: "Independent Pharmacy Owner",
-      content: "I'm extremely satisfied with my purchases of pharmacy vials and other supplies from 9-Rx.com past 8 months and more. The quality of the products is very good and the service was fast and reliable. What helped my all businesses the most was the affordability of the pharmacy supplies when reimbursement rate is very challenging now a days. But what truly sets then apart is the trustworthiness of the team. They're knowledgeable, responsive, and genuinely care about their customers. Overall, I highly recommend for all your pharmacy needs. Thanks Much Snehal and Rajesh.",
+      content: "The quality of products is very good and the service was fast and reliable. What truly sets them apart is the trustworthiness of the team.",
       initials: "MP",
-      gradient: "from-orange-400 to-red-500",
-      logo: vistara
+      gradient: "from-indigo-600 to-blue-500",
+      logo: vistara,
+      rating: 5
     }
   ];
 
   return (
-    <section className="py-20 bg-emerald-50 relative overflow-hidden">
+    <section className="py-12 sm:py-16 lg:py-20 bg-white relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden pointer-events-none">
-        <div className="absolute -top-[20%] -right-[10%] w-[500px] h-[500px] rounded-full bg-emerald-100/40 blur-3xl" />
-        <div className="absolute top-[20%] -left-[10%] w-[400px] h-[400px] rounded-full bg-teal-100/40 blur-3xl" />
+        <div className="absolute -top-[20%] -right-[10%] w-[300px] sm:w-[400px] h-[300px] sm:h-[400px] rounded-full bg-blue-50 blur-3xl" />
+        <div className="absolute top-[40%] -left-[10%] w-[200px] sm:w-[300px] h-[200px] sm:h-[300px] rounded-full bg-indigo-50 blur-3xl" />
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
-        <div className="flex flex-col lg:flex-row justify-between items-end mb-16 gap-8">
-          <div className="max-w-2xl">
-            <h2 className="text-3xl md:text-4xl font-bold text-slate-900 mb-4">
-              Trusted by Leading Pharmacy Groups
-            </h2>
-            <p className="text-slate-600 text-lg">
-              Join hundreds of satisfied pharmacies who have enhanced their operations with our premium pharmacy supplies and packaging solutions.
-            </p>
+        {/* Header */}
+        <div className="text-center mb-8 sm:mb-12">
+          <div className="inline-flex items-center gap-2 bg-blue-100 text-blue-700 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full font-semibold text-xs sm:text-sm mb-3 sm:mb-4">
+            <Heart className="w-3 sm:w-4 h-3 sm:h-4" />
+            Customer Stories
           </div>
-
-          <div className="flex gap-8">
-            {stats.map((stat, index) => (
-              <div key={index} className="flex flex-col items-center text-center">
-                <div className={`w-12 h-12 rounded-2xl ${stat.bg} flex items-center justify-center mb-3`}>
-                  <stat.icon className={`w-6 h-6 ${stat.color}`} />
-                </div>
-                <div className="font-bold text-2xl text-slate-900">{stat.value}</div>
-                <div className="text-sm text-slate-500 font-medium">{stat.label}</div>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900 mb-3 sm:mb-4">
+            Trusted by Leading Pharmacies
+          </h2>
+          <p className="text-slate-600 max-w-2xl mx-auto text-sm sm:text-base px-4">
+            Join hundreds of satisfied pharmacies who have enhanced their operations with our premium supplies.
+          </p>
         </div>
 
-        <div className="relative px-12">
+        {/* Testimonials Carousel */}
+        <div className="relative px-2 sm:px-4 md:px-12">
           <Carousel
             setApi={setApi}
             opts={{
@@ -123,35 +102,44 @@ const PartnersSection = () => {
           >
             <CarouselContent>
               {testimonials.map((testimonial, index) => (
-                <CarouselItem key={index} className="md:basis-1/2 lg:basis-1/2">
-                  <div className="h-full bg-white rounded-3xl p-8 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group flex flex-col">
-                    <div className="flex items-start gap-4 mb-6">
+                <CarouselItem key={index} className="basis-full sm:basis-1/2 lg:basis-1/2 pl-3 sm:pl-4">
+                  <div className="h-full bg-gradient-to-br from-slate-50 to-white rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
+                    {/* Rating */}
+                    <div className="flex gap-0.5 sm:gap-1 mb-3 sm:mb-4">
+                      {[...Array(testimonial.rating)].map((_, i) => (
+                        <Star key={i} className="w-3 sm:w-4 h-3 sm:h-4 text-amber-400 fill-amber-400" />
+                      ))}
+                    </div>
+
+                    {/* Quote */}
+                    <p className="text-slate-600 leading-relaxed mb-4 sm:mb-6 line-clamp-3 text-sm sm:text-base">
+                      "{testimonial.content}"
+                    </p>
+
+                    {/* Author */}
+                    <div className="flex items-center gap-2 sm:gap-3">
                       {testimonial.logo ? (
                         <img 
                           src={testimonial.logo} 
-                          alt={`${testimonial.name} logo`} 
-                          className="w-12 h-12 rounded-full object-cover shadow-md"
+                          alt={`${testimonial.name}`} 
+                          className="w-8 sm:w-10 h-8 sm:h-10 rounded-full object-cover shadow-md"
                         />
                       ) : (
-                        <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${testimonial.gradient} flex items-center justify-center text-white font-bold text-lg shadow-md`}>
+                        <div className={`w-8 sm:w-10 h-8 sm:h-10 rounded-full bg-gradient-to-br ${testimonial.gradient} flex items-center justify-center text-white font-bold text-xs sm:text-sm shadow-md`}>
                           {testimonial.initials}
                         </div>
                       )}
                       <div>
-                        <h4 className="font-bold text-slate-900 text-lg">{testimonial.name}</h4>
-                        <p className="text-emerald-600 font-medium text-sm">{testimonial.role}</p>
+                        <h4 className="font-bold text-slate-900 text-sm sm:text-base">{testimonial.name}</h4>
+                        <p className="text-blue-600 text-xs sm:text-sm">{testimonial.role}</p>
                       </div>
                     </div>
-
-                    <p className="text-slate-600 leading-relaxed mb-6 flex-grow line-clamp-4">
-                      {testimonial.content}
-                    </p>
                   </div>
                 </CarouselItem>
               ))}
             </CarouselContent>
-            <CarouselPrevious className="left-0" />
-            <CarouselNext className="right-0" />
+            <CarouselPrevious className="left-0 hidden md:flex" />
+            <CarouselNext className="right-0 hidden md:flex" />
           </Carousel>
         </div>
       </div>

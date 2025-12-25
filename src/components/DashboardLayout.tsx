@@ -120,18 +120,38 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       },
     ],
     pharmacy: [
-      { icon: Package, label: "Products", path: "/pharmacy/products" },
-      { icon: ShoppingCart, label: "Your Cart", path: "/pharmacy/order/create", badge: totalCartItems > 0 ? totalCartItems.toString() : undefined },
-      { icon: FileText, label: "My Orders", path: "/pharmacy/orders" },
-      { icon: History, label: "Order History", path: "/pharmacy/order-history" },
-      { icon: Receipt, label: "Invoices", path: "/pharmacy/invoices" },
-      { icon: FileBarChart, label: "Statements", path: "/pharmacy/statements" },
-      { icon: Wallet, label: "Credit Balance", path: "/pharmacy/credit" },
-      { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" },
-      { icon: Gift, label: "Rewards", path: "/pharmacy/rewards" },
-      { icon: Heart, label: "Wishlist", path: "/pharmacy/wishlist" },
-      { icon: Settings, label: "Settings", path: "/pharmacy/settings" },
-      { icon: HelpCircle, label: "Help & Support", path: "/pharmacy/help" },
+      {
+        label: "Shop",
+        items: [
+          { icon: Package, label: "Products", path: "/pharmacy/products" },
+          { icon: ShoppingCart, label: "Create Order", path: "/pharmacy/order/create", badge: totalCartItems > 0 ? totalCartItems.toString() : undefined },
+          { icon: Heart, label: "Wishlist", path: "/pharmacy/wishlist" },
+        ],
+      },
+      {
+        label: "Orders & Invoices",
+        items: [
+          { icon: FileText, label: "My Orders", path: "/pharmacy/orders" },
+          { icon: History, label: "Order History", path: "/pharmacy/order-history" },
+          { icon: Receipt, label: "Invoices", path: "/pharmacy/invoices" },
+          { icon: FileBarChart, label: "Statements", path: "/pharmacy/statements" },
+        ],
+      },
+      {
+        label: "Payments & Rewards",
+        items: [
+          { icon: Wallet, label: "Credit Balance", path: "/pharmacy/credit" },
+          { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" },
+          { icon: Gift, label: "Rewards", path: "/pharmacy/rewards" },
+        ],
+      },
+      {
+        label: "Account",
+        items: [
+          { icon: Settings, label: "Settings", path: "/pharmacy/settings" },
+          { icon: HelpCircle, label: "Help & Support", path: "/pharmacy/help" },
+        ],
+      },
     ],
     group: [
       {
@@ -197,7 +217,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
               <SidebarHeader />
               <SidebarGroup>
                 <SidebarGroupContent>
-                  <SidebarNavigation items={menuItems[role]} isGrouped={role === "group" || role === "admin"} />
+                  <SidebarNavigation items={menuItems[role]} isGrouped={role === "group" || role === "admin" || role === "pharmacy"} />
                 </SidebarGroupContent>
               </SidebarGroup>
               <SidebarProfile />

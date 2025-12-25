@@ -74,9 +74,9 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                       <SidebarGroupLabel 
                         className={`
                           px-3 py-2 text-xs font-bold uppercase tracking-wider flex items-center gap-2 cursor-pointer
-                          rounded-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800
+                          rounded-lg transition-all duration-200 hover:bg-gray-100 dark:hover:bg-gray-800 min-h-[40px]
                           ${hasActiveItem 
-                            ? "text-transparent bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text" 
+                            ? "text-emerald-700" 
                             : "text-gray-500 hover:text-gray-700"
                           }
                         `}
@@ -89,7 +89,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                         {group.label}
                         <div className="flex-1 h-px bg-gradient-to-r from-gray-200 to-transparent ml-2"></div>
                         {hasActiveItem && (
-                          <div className="h-2 w-2 rounded-full bg-gradient-to-r from-blue-500 to-purple-500"></div>
+                          <div className="h-2 w-2 rounded-full bg-emerald-500"></div>
                         )}
                       </SidebarGroupLabel>
                     </CollapsibleTrigger>
@@ -107,12 +107,13 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                                   <SidebarMenuButton
                                     onClick={() => navigate(item.path)}
                                     className={`
-                                      group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-300 hover:scale-[1.02]
+                                      group relative flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 min-h-[44px]
+                                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
                                       ${isCollapsed ? "justify-center" : ""}
                                       ${
                                         isActive
-                                          ? "bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-lg shadow-purple-500/25"
-                                          : "hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 text-gray-700 hover:text-gray-900 dark:hover:from-gray-800 dark:hover:to-gray-700"
+                                          ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/25"
+                                          : "hover:bg-emerald-50 text-gray-700 hover:text-emerald-700"
                                       }
                                     `}
                                   >
@@ -137,7 +138,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                                               className={`text-xs font-bold ${
                                                 isActive 
                                                   ? "bg-white/30 text-white" 
-                                                  : "bg-blue-100 text-blue-700"
+                                                  : "bg-emerald-100 text-emerald-700"
                                               }`}
                                             >
                                               {item.badge}
@@ -190,24 +191,22 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                   <SidebarMenuButton
                     onClick={() => navigate(item.path)}
                     className={`
-                      group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-300 hover:scale-[1.02]
+                      group relative flex items-center gap-3 px-3 py-3 rounded-xl transition-all duration-200 min-h-[44px]
+                      focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
                       ${isCollapsed ? "justify-center" : ""}
                       ${
                         isActive
-                          ? "bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 text-white shadow-xl shadow-purple-500/30 hover:shadow-2xl hover:shadow-purple-500/40"
-                          : "hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 text-gray-700 hover:text-gray-900 dark:hover:from-gray-800 dark:hover:to-gray-700"
+                          ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/25"
+                          : "hover:bg-emerald-50 text-gray-700 hover:text-emerald-700"
                       }
                     `}
                   >
-                    <div className={`relative ${isActive ? "animate-pulse" : ""}`}>
+                    <div className={`relative`}>
                       <item.icon
-                        className={`h-5 w-5 transition-all duration-300 flex-shrink-0 ${
-                          isActive ? "scale-110 drop-shadow-lg" : "group-hover:scale-110 group-hover:rotate-3"
+                        className={`h-5 w-5 transition-all duration-200 flex-shrink-0 ${
+                          isActive ? "scale-110" : "group-hover:scale-110"
                         }`}
                       />
-                      {isActive && (
-                        <div className="absolute inset-0 bg-white/30 rounded-full blur-md"></div>
-                      )}
                     </div>
 
                     {!isCollapsed && (
@@ -222,10 +221,10 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                           {item.badge && (
                             <Badge
                               variant={isActive ? "secondary" : "default"}
-                              className={`text-xs font-bold transition-all duration-300 ${
+                              className={`text-xs font-bold transition-all duration-200 ${
                                 isActive 
-                                  ? "bg-white/30 text-white backdrop-blur-sm shadow-lg" 
-                                  : "bg-gradient-to-r from-blue-100 to-purple-100 text-blue-700 hover:from-blue-200 hover:to-purple-200"
+                                  ? "bg-white/30 text-white" 
+                                  : "bg-emerald-100 text-emerald-700"
                               }`}
                             >
                               {item.badge}
@@ -240,7 +239,7 @@ export const SidebarNavigation = ({ items, isGrouped = false }: SidebarNavigatio
                           )}
 
                           {isActive && (
-                            <ChevronRight className="h-4 w-4 opacity-90 animate-pulse" />
+                            <ChevronRight className="h-4 w-4 opacity-90" />
                           )}
                         </div>
                       </>

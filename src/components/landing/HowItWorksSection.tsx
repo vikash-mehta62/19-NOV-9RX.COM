@@ -11,8 +11,8 @@ const HowItWorksSection = () => {
       step: "01",
       title: "Create Your Account",
       description: "Sign up in seconds and unlock exclusive wholesale pricing, volume discounts, and personalized recommendations.",
-      color: "from-violet-500 to-purple-600",
-      bgColor: "bg-violet-50",
+      color: "from-blue-500 to-indigo-600",
+      bgColor: "bg-blue-50",
       features: ["Free registration", "Instant access", "No credit card required"]
     },
     {
@@ -20,8 +20,8 @@ const HowItWorksSection = () => {
       step: "02", 
       title: "Browse & Select",
       description: "Explore our extensive catalog of 500+ pharmacy supplies. Filter by category, compare prices, and find exactly what you need.",
-      color: "from-blue-500 to-cyan-500",
-      bgColor: "bg-blue-50",
+      color: "from-indigo-500 to-blue-600",
+      bgColor: "bg-indigo-50",
       features: ["500+ products", "Smart search", "Real-time stock"]
     },
     {
@@ -29,8 +29,8 @@ const HowItWorksSection = () => {
       step: "03",
       title: "Secure Checkout",
       description: "Add items to cart, apply volume discounts automatically, and complete your order with our secure payment system.",
-      color: "from-emerald-500 to-teal-500",
-      bgColor: "bg-emerald-50",
+      color: "from-blue-600 to-indigo-500",
+      bgColor: "bg-blue-50",
       features: ["Volume discounts", "Multiple payment options", "Order tracking"]
     },
     {
@@ -38,8 +38,8 @@ const HowItWorksSection = () => {
       step: "04",
       title: "Fast Delivery",
       description: "Same-day dispatch for orders before 3 PM EST. Track your shipment in real-time and receive quality products at your doorstep.",
-      color: "from-orange-500 to-amber-500",
-      bgColor: "bg-orange-50",
+      color: "from-indigo-600 to-blue-500",
+      bgColor: "bg-indigo-50",
       features: ["Same-day dispatch", "Real-time tracking", "Secure packaging"]
     }
   ];
@@ -52,18 +52,17 @@ const HowItWorksSection = () => {
   }, []);
 
   return (
-    <section ref={sectionRef} className="py-24 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative overflow-hidden">
-      {/* Animated background elements */}
+    <section ref={sectionRef} className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-blue-50/30 to-white relative overflow-hidden">
+      {/* Animated background elements - Unified blue theme */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-20 left-10 w-96 h-96 bg-gradient-to-br from-violet-200/40 to-purple-200/40 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-10 w-80 h-80 bg-gradient-to-br from-emerald-200/40 to-teal-200/40 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-br from-blue-100/30 to-cyan-100/30 rounded-full blur-3xl" />
+        <div className="absolute top-20 left-10 w-64 sm:w-96 h-64 sm:h-96 bg-gradient-to-br from-blue-200/30 to-indigo-200/30 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-56 sm:w-80 h-56 sm:h-80 bg-gradient-to-br from-indigo-200/30 to-blue-200/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
         
-        {/* Floating particles */}
-        {[...Array(20)].map((_, i) => (
+        {/* Floating particles - blue theme */}
+        {[...Array(8)].map((_, i) => (
           <div
             key={i}
-            className="absolute w-2 h-2 bg-emerald-400/20 rounded-full animate-float"
+            className="absolute w-2 h-2 bg-blue-400/20 rounded-full animate-float hidden sm:block"
             style={{
               left: `${Math.random() * 100}%`,
               top: `${Math.random() * 100}%`,
@@ -76,29 +75,29 @@ const HowItWorksSection = () => {
 
       <div className="container mx-auto px-4 relative z-10">
         {/* Header */}
-        <div className="text-center mb-20">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-violet-100 to-purple-100 text-violet-700 px-5 py-2.5 rounded-full font-semibold text-sm mb-6 shadow-sm">
-            <Sparkles className="w-4 h-4" />
+        <div className="text-center mb-12 sm:mb-16 lg:mb-20">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-semibold text-xs sm:text-sm mb-4 sm:mb-6 shadow-sm">
+            <Sparkles className="w-3 sm:w-4 h-3 sm:h-4" />
             Simple 4-Step Process
           </div>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
+            <span className="text-slate-900">
               How It Works
             </span>
           </h2>
-          <p className="text-slate-600 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+          <p className="text-slate-600 text-base sm:text-lg md:text-xl max-w-2xl mx-auto leading-relaxed px-4">
             Get started in minutes with our streamlined ordering process designed for busy pharmacy professionals
           </p>
         </div>
 
         {/* Progress bar */}
-        <div className="max-w-4xl mx-auto mb-16">
+        <div className="max-w-4xl mx-auto mb-10 sm:mb-16 px-4">
           <div className="flex items-center justify-between relative">
             {/* Background line */}
-            <div className="absolute top-6 left-0 right-0 h-1 bg-slate-200 rounded-full" />
+            <div className="absolute top-5 sm:top-6 left-0 right-0 h-0.5 sm:h-1 bg-blue-100 rounded-full" />
             {/* Active line */}
             <div 
-              className="absolute top-6 left-0 h-1 bg-gradient-to-r from-violet-500 via-emerald-500 to-orange-500 rounded-full transition-all duration-500"
+              className="absolute top-5 sm:top-6 left-0 h-0.5 sm:h-1 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-full transition-all duration-500"
               style={{ width: `${(activeStep / (steps.length - 1)) * 100}%` }}
             />
             
@@ -106,9 +105,9 @@ const HowItWorksSection = () => {
               <button
                 key={index}
                 onClick={() => setActiveStep(index)}
-                className={`relative z-10 w-12 h-12 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-500 ${
+                className={`relative z-10 w-10 sm:w-12 h-10 sm:h-12 rounded-full flex items-center justify-center font-bold text-xs sm:text-sm transition-all duration-500 ${
                   index <= activeStep
-                    ? `bg-gradient-to-br ${step.color} text-white shadow-lg scale-110`
+                    ? `bg-gradient-to-br ${step.color} text-white shadow-lg scale-105 sm:scale-110`
                     : 'bg-white text-slate-400 border-2 border-slate-200'
                 }`}
               >
@@ -120,37 +119,37 @@ const HowItWorksSection = () => {
 
         {/* Main content - Active step showcase */}
         <div className="max-w-6xl mx-auto">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
             {/* Left - Visual */}
-            <div className="relative">
-              <div className={`${steps[activeStep].bgColor} rounded-3xl p-8 md:p-12 relative overflow-hidden transition-all duration-500`}>
+            <div className="relative order-2 lg:order-1">
+              <div className={`${steps[activeStep].bgColor} rounded-2xl sm:rounded-3xl p-6 sm:p-8 md:p-12 relative overflow-hidden transition-all duration-500`}>
                 {/* Decorative elements */}
-                <div className="absolute top-0 right-0 w-40 h-40 bg-white/50 rounded-full blur-2xl" />
-                <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/30 rounded-full blur-xl" />
+                <div className="absolute top-0 right-0 w-32 sm:w-40 h-32 sm:h-40 bg-white/50 rounded-full blur-2xl" />
+                <div className="absolute bottom-0 left-0 w-24 sm:w-32 h-24 sm:h-32 bg-white/30 rounded-full blur-xl" />
                 
                 {/* Icon */}
-                <div className={`relative w-24 h-24 md:w-32 md:h-32 rounded-3xl bg-gradient-to-br ${steps[activeStep].color} flex items-center justify-center mb-8 shadow-2xl transform transition-all duration-500 hover:scale-105`}>
+                <div className={`relative w-16 sm:w-20 md:w-24 lg:w-32 h-16 sm:h-20 md:h-24 lg:h-32 rounded-2xl sm:rounded-3xl bg-gradient-to-br ${steps[activeStep].color} flex items-center justify-center mb-6 sm:mb-8 shadow-2xl transform transition-all duration-500 hover:scale-105 mx-auto lg:mx-0`}>
                   {(() => {
                     const IconComponent = steps[activeStep].icon;
-                    return <IconComponent className="w-12 h-12 md:w-16 md:h-16 text-white" />;
+                    return <IconComponent className="w-8 sm:w-10 md:w-12 lg:w-16 h-8 sm:h-10 md:h-12 lg:h-16 text-white" />;
                   })()}
                 </div>
 
                 {/* Step number */}
-                <div className="absolute top-8 right-8 text-8xl md:text-9xl font-black text-black/5">
+                <div className="absolute top-4 sm:top-8 right-4 sm:right-8 text-6xl sm:text-8xl md:text-9xl font-black text-black/5">
                   {steps[activeStep].step}
                 </div>
 
                 {/* Features list */}
-                <div className="space-y-3 relative z-10">
+                <div className="space-y-2 sm:space-y-3 relative z-10">
                   {steps[activeStep].features.map((feature, idx) => (
                     <div 
                       key={idx}
-                      className="flex items-center gap-3 bg-white/80 backdrop-blur-sm rounded-xl px-4 py-3 shadow-sm"
+                      className="flex items-center gap-2 sm:gap-3 bg-white/80 backdrop-blur-sm rounded-lg sm:rounded-xl px-3 sm:px-4 py-2 sm:py-3 shadow-sm"
                       style={{ animationDelay: `${idx * 100}ms` }}
                     >
-                      <CheckCircle className={`w-5 h-5 bg-gradient-to-br ${steps[activeStep].color} bg-clip-text text-transparent`} style={{ color: 'currentColor' }} />
-                      <span className="font-medium text-slate-700">{feature}</span>
+                      <CheckCircle className={`w-4 sm:w-5 h-4 sm:h-5 bg-gradient-to-br ${steps[activeStep].color} bg-clip-text text-transparent flex-shrink-0`} style={{ color: 'currentColor' }} />
+                      <span className="font-medium text-slate-700 text-sm sm:text-base">{feature}</span>
                     </div>
                   ))}
                 </div>
@@ -158,28 +157,28 @@ const HowItWorksSection = () => {
             </div>
 
             {/* Right - Content */}
-            <div className="space-y-6">
-              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r ${steps[activeStep].color} text-white font-semibold text-sm shadow-lg`}>
+            <div className="space-y-4 sm:space-y-6 text-center lg:text-left order-1 lg:order-2">
+              <div className={`inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r ${steps[activeStep].color} text-white font-semibold text-xs sm:text-sm shadow-lg`}>
                 Step {steps[activeStep].step}
               </div>
               
-              <h3 className="text-3xl md:text-4xl font-bold text-slate-900">
+              <h3 className="text-2xl sm:text-3xl md:text-4xl font-bold text-slate-900">
                 {steps[activeStep].title}
               </h3>
               
-              <p className="text-slate-600 text-lg leading-relaxed">
+              <p className="text-slate-600 text-base sm:text-lg leading-relaxed">
                 {steps[activeStep].description}
               </p>
 
               {/* Navigation dots */}
-              <div className="flex items-center gap-3 pt-4">
+              <div className="flex items-center gap-2 sm:gap-3 pt-2 sm:pt-4 justify-center lg:justify-start">
                 {steps.map((_, idx) => (
                   <button
                     key={idx}
                     onClick={() => setActiveStep(idx)}
                     className={`h-2 rounded-full transition-all duration-300 ${
                       idx === activeStep 
-                        ? `w-8 bg-gradient-to-r ${steps[idx].color}` 
+                        ? `w-6 sm:w-8 bg-gradient-to-r ${steps[idx].color}` 
                         : 'w-2 bg-slate-300 hover:bg-slate-400'
                     }`}
                   />
@@ -190,13 +189,13 @@ const HowItWorksSection = () => {
         </div>
 
         {/* Bottom CTA */}
-        <div className="text-center mt-16">
+        <div className="text-center mt-12 sm:mt-16">
           <a
             href="/login"
-            className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-4 rounded-2xl font-semibold text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group"
+            className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 sm:px-8 py-3 sm:py-4 rounded-xl sm:rounded-2xl font-semibold text-base sm:text-lg shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 group"
           >
             Get Started Now
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform" />
           </a>
         </div>
       </div>

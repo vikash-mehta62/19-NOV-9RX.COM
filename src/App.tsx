@@ -6,6 +6,11 @@ import PrivacyPolicy from "./pages/PrivacyPolicy";
 import TermsOfService from "./pages/TermsOfService";
 import ShippingInfo from "./pages/ShippingInfo";
 import ReturnPolicy from "./pages/ReturnPolicy";
+import AboutUs from "./pages/AboutUs";
+import Blog from "./pages/Blog";
+import Contact from "./pages/Contact";
+import Newsletter from "./pages/Newsletter";
+import Sitemap from "./pages/Sitemap";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminUsers from "./pages/admin/Users";
 import AdminProducts from "./pages/admin/Products";
@@ -45,6 +50,7 @@ import PharmacyRewards from "./pages/pharmacy/Rewards";
 import PharmacyWishlist from "./pages/pharmacy/Wishlist";
 import PharmacyHelp from "./pages/pharmacy/Help";
 import PharmacyPaymentMethods from "./pages/pharmacy/PaymentMethods";
+import PharmacyNotifications from "./pages/pharmacy/Notifications";
 import GroupDashboard from "./pages/group/Dashboard";
 import GroupOrder from "./pages/group/Order";
 import GroupOrders from "./pages/group/Orders";
@@ -197,6 +203,11 @@ function App() {
       <Route path="/terms-of-service" element={<TermsOfService />} />
       <Route path="/shipping-info" element={<ShippingInfo />} />
       <Route path="/return-policy" element={<ReturnPolicy />} />
+      <Route path="/about-us" element={<AboutUs />} />
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/newsletter" element={<Newsletter />} />
+      <Route path="/sitemap" element={<Sitemap />} />
       <Route path="/cart-price" element={<CartItemsPricing />} />
 
       {/* Admin Routes */}
@@ -446,6 +457,11 @@ function App() {
       <Route path="/pharmacy/payment-methods" element={
         <ProtectedRoute allowedRoles={['pharmacy']}>
           <PharmacyPaymentMethods />
+        </ProtectedRoute>
+      } />
+      <Route path="/pharmacy/notifications" element={
+        <ProtectedRoute allowedRoles={['pharmacy']}>
+          <PharmacyNotifications />
         </ProtectedRoute>
       } />
       {/* Group Routes */}

@@ -10,11 +10,13 @@ import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
 import { PaymentAdjustmentService } from "@/services/paymentAdjustmentService";
+import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
 
 export default function PharmacyCreateOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { clearCart } = useCart();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [prefilledData, setPrefilledData] = useState<any>(null);
@@ -455,6 +457,9 @@ export default function PharmacyCreateOrder() {
         title: "Order Created Successfully",
         description: `Order ${newOrderId} has been created and is ready for processing`,
       });
+
+      // Clear cart after successful order creation
+      await clearCart();
 
       // Navigate back to orders list
       navigate("/pharmacy/orders");

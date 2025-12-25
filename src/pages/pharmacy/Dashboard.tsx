@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { EnhancedStatsCard } from "@/components/dashboard/EnhancedStatsCard";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { Package, Clock, CreditCard, TrendingUp, ShoppingCart, Wallet, Gift } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -119,12 +120,11 @@ export default function PharmacyDashboard() {
   return (
     <DashboardLayout role="pharmacy">
       <div className="flex-1 space-y-6 p-8 pt-6">
-        <div className="flex flex-col gap-4">
-          <h1 className="text-3xl font-bold tracking-tight">Pharmacy Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome back! Here's an overview of your pharmacy's performance.
-          </p>
-        </div>
+        <PageHeader
+          title="Pharmacy Dashboard"
+          description="Welcome back! Here's an overview of your pharmacy's performance."
+          showBreadcrumbs={true}
+        />
 
         {/* Credit & Rewards Section */}
         {(creditMemoBalance > 0 || rewardPoints > 0) && (

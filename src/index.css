@@ -97,6 +97,104 @@
 
   body {
     @apply bg-background text-foreground;
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Dark mode enhancements */
+  .dark {
+    color-scheme: dark;
+  }
+
+  /* Smooth transitions for theme changes */
+  .dark *,
+  .light * {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+}
+
+/* Dark mode specific component overrides */
+@layer components {
+  /* Cards in dark mode */
+  .dark .card-dark {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  /* Inputs in dark mode */
+  .dark input,
+  .dark textarea,
+  .dark select {
+    @apply bg-gray-800 border-gray-700 text-gray-100;
+  }
+
+  .dark input::placeholder,
+  .dark textarea::placeholder {
+    @apply text-gray-500;
+  }
+
+  /* Buttons in dark mode */
+  .dark .btn-primary {
+    @apply bg-emerald-600 hover:bg-emerald-500;
+  }
+
+  /* Tables in dark mode */
+  .dark table {
+    @apply bg-gray-800;
+  }
+
+  .dark th {
+    @apply bg-gray-900 text-gray-200;
+  }
+
+  .dark td {
+    @apply border-gray-700;
+  }
+
+  .dark tr:hover {
+    @apply bg-gray-700/50;
+  }
+
+  /* Modals/Dialogs in dark mode */
+  .dark [role="dialog"] {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  /* Dropdowns in dark mode */
+  .dark [role="menu"],
+  .dark [role="listbox"] {
+    @apply bg-gray-800 border-gray-700;
+  }
+
+  .dark [role="menuitem"]:hover,
+  .dark [role="option"]:hover {
+    @apply bg-gray-700;
+  }
+
+  /* Badges in dark mode */
+  .dark .badge-default {
+    @apply bg-gray-700 text-gray-200;
+  }
+
+  /* Skeleton loading in dark mode */
+  .dark .animate-pulse {
+    @apply bg-gray-700;
+  }
+
+  /* Scrollbar in dark mode */
+  .dark ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    @apply bg-gray-800;
+  }
+
+  .dark ::-webkit-scrollbar-thumb {
+    @apply bg-gray-600 rounded-full;
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-500;
   }
 }
 
@@ -186,11 +284,15 @@
 
 @keyframes shimmer {
   0% {
-    background-position: -1000px 0;
+    background-position: -200% 0;
   }
   100% {
-    background-position: 1000px 0;
+    background-position: 200% 0;
   }
+}
+
+.animate-shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
 }
 
 .sidebar-shimmer {

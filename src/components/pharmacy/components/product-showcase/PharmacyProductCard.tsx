@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Package, Eye, Palette } from "lucide-react"
 import { ProductDetails } from "../../types/product.types"
+import { ScaleOnTap } from "@/components/ui/MicroInteractions"
 
 interface PharmacyProductCardProps {
   product: ProductDetails & {
@@ -57,14 +58,19 @@ export const PharmacyProductCard = ({
   }
 
   return (
-    <Card 
-      className={`relative bg-white border rounded-xl overflow-hidden transition-all duration-200 cursor-pointer ${
-        isOutOfStock 
-          ? "border-gray-200 opacity-60" 
-          : "border-gray-200 hover:border-emerald-300 hover:shadow-md"
-      }`}
-      onClick={handleCardClick}
-    >
+    <ScaleOnTap>
+      <Card 
+        className={`relative bg-white border rounded-xl overflow-hidden transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
+          isOutOfStock 
+            ? "border-gray-200 opacity-60" 
+            : "border-gray-200 hover:border-emerald-300 hover:shadow-md hover:-translate-y-1"
+        }`}
+        onClick={handleCardClick}
+        tabIndex={0}
+        role="article"
+        aria-label={`${product.name}. Starting at $${product.displayPrice.toFixed(2)} per case. ${isOutOfStock ? 'Out of stock' : 'In stock'}`}
+        onKeyDown={(e) => e.key === 'Enter' && handleCardClick()}
+      >
       {/* Top Left Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         {sizesCount > 1 && (
@@ -145,18 +151,20 @@ export const PharmacyProductCard = ({
         {/* View Sizes Button */}
         {!isOutOfStock && (
           <Button
-            className="w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg mt-2"
+            className="w-full h-11 min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl mt-2 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-95 transition-transform"
             onClick={(e) => {
               e.stopPropagation()
               handleCardClick()
             }}
+            aria-label={sizesCount > 1 ? `View ${sizesCount} sizes for ${product.name}` : `View details for ${product.name}`}
           >
-            <Eye className="w-4 h-4 mr-1.5" />
+            <Eye className="w-4 h-4 mr-1.5" aria-hidden="true" />
             {sizesCount > 1 ? `View ${sizesCount} Sizes` : 'View Details'}
           </Button>
         )}
       </div>
     </Card>
+    </ScaleOnTap>
   )
 }
 

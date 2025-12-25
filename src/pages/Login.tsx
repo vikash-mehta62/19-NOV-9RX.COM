@@ -156,12 +156,12 @@ const Login = () => {
     <div className="flex min-h-screen overflow-hidden font-sans">
       {/* Left Side - Visual Section with Animated Background */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
-        {/* Animated Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700">
+        {/* Animated Gradient Background - Standardized to Emerald */}
+        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700">
           {/* Animated floating shapes */}
           <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
-          <div className="absolute bottom-20 right-20 w-96 h-96 bg-purple-400/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl animate-bounce" style={{ animationDuration: '3s' }} />
+          <div className="absolute bottom-20 right-20 w-96 h-96 bg-teal-400/20 rounded-full blur-3xl animate-pulse delay-1000" />
+          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-emerald-400/10 rounded-full blur-2xl animate-bounce" style={{ animationDuration: '3s' }} />
           
           {/* Grid pattern overlay */}
           <div className="absolute inset-0 opacity-10" style={{
@@ -193,13 +193,14 @@ const Login = () => {
                 <div
                   key={index}
                   className="flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-xl p-4 hover:bg-white/20 transition-all duration-300"
+                  role="listitem"
                 >
-                  <div className="w-10 h-10 bg-yellow-400 rounded-lg flex items-center justify-center flex-shrink-0">
-                    <feature.icon className="h-5 w-5 text-gray-900" />
+                  <div className="w-10 h-10 bg-amber-400 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <feature.icon className="h-5 w-5 text-gray-900" aria-hidden="true" />
                   </div>
                   <div>
                     <p className="font-semibold text-sm">{feature.title}</p>
-                    <p className="text-xs text-blue-200">{feature.description}</p>
+                    <p className="text-xs text-emerald-100">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -208,53 +209,59 @@ const Login = () => {
             {/* Testimonial Card */}
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-6 relative">
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-1">
+                <div className="flex items-center gap-1" role="img" aria-label="5 star rating">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                    <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" aria-hidden="true" />
                   ))}
                 </div>
                 <div className="flex gap-2">
                   <button
                     onClick={prevTestimonial}
-                    className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                    className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    aria-label="Previous testimonial"
                   >
-                    <ChevronLeft className="h-4 w-4" />
+                    <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                   </button>
                   <button
                     onClick={nextTestimonial}
-                    className="p-1 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                    className="p-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    aria-label="Next testimonial"
                   >
-                    <ChevronRight className="h-4 w-4" />
+                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
                   </button>
                 </div>
               </div>
               
               <div className={`transition-opacity duration-300 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
-                <p className="text-blue-50 italic mb-4">
+                <p className="text-emerald-50 italic mb-4">
                   "{testimonials[currentTestimonial].text}"
                 </p>
                 <div className="flex items-center gap-3">
                   <img
                     src={testimonials[currentTestimonial].image}
-                    alt={testimonials[currentTestimonial].name}
+                    alt=""
+                    aria-hidden="true"
                     className="w-10 h-10 rounded-full border-2 border-white/30"
                   />
                   <div>
                     <p className="font-semibold text-sm">{testimonials[currentTestimonial].name}</p>
-                    <p className="text-xs text-blue-200">{testimonials[currentTestimonial].role}</p>
+                    <p className="text-xs text-emerald-200">{testimonials[currentTestimonial].role}</p>
                   </div>
                 </div>
               </div>
 
               {/* Testimonial indicators */}
-              <div className="flex justify-center gap-2 mt-4">
+              <div className="flex justify-center gap-2 mt-4" role="tablist" aria-label="Testimonial navigation">
                 {testimonials.map((_, index) => (
                   <button
                     key={index}
                     onClick={() => setCurrentTestimonial(index)}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      index === currentTestimonial ? 'bg-white w-6' : 'bg-white/40'
+                    className={`h-2 rounded-full transition-all min-h-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white ${
+                      index === currentTestimonial ? 'bg-white w-6' : 'bg-white/40 w-2 hover:bg-white/60'
                     }`}
+                    role="tab"
+                    aria-selected={index === currentTestimonial}
+                    aria-label={`Go to testimonial ${index + 1}`}
                   />
                 ))}
               </div>
@@ -264,11 +271,11 @@ const Login = () => {
           {/* Bottom Stats & Trust Badges */}
           <div className="space-y-6">
             {/* Stats */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-4 gap-4" role="list" aria-label="Company statistics">
               {stats.map((stat, index) => (
-                <div key={index} className="text-center">
-                  <p className="text-2xl font-bold text-yellow-300">{stat.value}</p>
-                  <p className="text-xs text-blue-200">{stat.label}</p>
+                <div key={index} className="text-center" role="listitem">
+                  <p className="text-2xl font-bold text-amber-300">{stat.value}</p>
+                  <p className="text-xs text-emerald-200">{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -296,9 +303,9 @@ const Login = () => {
       {/* Right Side - Form Section */}
       <div className="w-full lg:w-1/2 min-h-screen overflow-y-auto bg-gray-50">
         {/* Mobile Header */}
-        <div className="lg:hidden bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white text-center">
+        <div className="lg:hidden bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white text-center">
           <img src="/final.png" alt="9RX Logo" className="h-12 mx-auto brightness-0 invert mb-3" />
-          <p className="text-sm text-blue-100">Your Trusted Pharmacy Supplier</p>
+          <p className="text-sm text-emerald-100">Your Trusted Pharmacy Supplier</p>
         </div>
 
         <div className="flex items-center justify-center min-h-[calc(100vh-120px)] lg:min-h-screen p-4 sm:p-6 lg:p-8">
@@ -332,13 +339,13 @@ const Login = () => {
                   <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-xl h-12">
                     <TabsTrigger
                       value="login"
-                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 font-semibold transition-all"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-emerald-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Sign In
                     </TabsTrigger>
                     <TabsTrigger
                       value="signup"
-                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-purple-600 font-semibold transition-all"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-emerald-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-emerald-500"
                     >
                       Sign Up
                     </TabsTrigger>
@@ -364,17 +371,17 @@ const Login = () => {
                 </div>
 
                 {/* Benefits */}
-                <div className="grid grid-cols-3 gap-3 text-center">
-                  <div className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors">
-                    <Truck className="h-5 w-5 mx-auto text-blue-600 mb-1" />
+                <div className="grid grid-cols-3 gap-3 text-center" role="list" aria-label="Benefits">
+                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
+                    <Truck className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">Free Shipping</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-green-50 hover:bg-green-100 transition-colors">
-                    <HeartHandshake className="h-5 w-5 mx-auto text-green-600 mb-1" />
+                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
+                    <HeartHandshake className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">Best Prices</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-purple-50 hover:bg-purple-100 transition-colors">
-                    <Clock className="h-5 w-5 mx-auto text-purple-600 mb-1" />
+                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
+                    <Clock className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">24/7 Support</p>
                   </div>
                 </div>
@@ -384,9 +391,9 @@ const Login = () => {
             {/* Bottom text */}
             <p className="text-center text-gray-500 text-sm mt-6">
               By signing in, you agree to our{" "}
-              <a href="/terms" className="text-blue-600 hover:underline">Terms of Service</a>
+              <a href="/terms" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Terms of Service</a>
               {" "}and{" "}
-              <a href="/privacy" className="text-blue-600 hover:underline">Privacy Policy</a>
+              <a href="/privacy" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Privacy Policy</a>
             </p>
           </div>
         </div>

@@ -380,10 +380,11 @@ export const ReviewOrderStep = ({
                 Go back to add products to your order
               </p>
               <Button 
-                variant="outline" 
-                className="mt-4"
+                variant="default" 
+                className="mt-4 bg-blue-600 hover:bg-blue-700"
                 onClick={onEditProducts}
               >
+                <Package className="h-4 w-4 mr-2" />
                 Add Products
               </Button>
             </div>

@@ -11,6 +11,7 @@ import { useState, useEffect } from "react";
 import { CartDrawer } from "../pharmacy/components/CartDrawer";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDistanceToNow } from "date-fns";
+// import { ThemeToggle } from "@/components/ui/ThemeToggle";
 
 interface Notification {
   id: string;
@@ -79,9 +80,12 @@ export const TopBar = () => {
   };
 
   return (
-    <div className="h-16 border-b border-gray-200 flex items-center justify-between px-6 sticky top-0 bg-white z-10">
+    <div className="h-16 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 bg-white dark:bg-gray-900 z-10 transition-colors">
       <SidebarTrigger />
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2">
+        {/* Theme Toggle - temporarily disabled */}
+        {/* <ThemeToggle variant="icon" /> */}
+        
         {/* Hide CartDrawer for pharmacy users as they have cart in sidebar */}
         {sessionStorage.getItem('userType') !== 'pharmacy' && <CartDrawer />}
      { sessionStorage.getItem('userType') === 'admin' &&  <DropdownMenu>

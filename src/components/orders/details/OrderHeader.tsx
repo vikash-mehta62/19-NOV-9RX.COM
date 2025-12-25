@@ -145,12 +145,12 @@ export const OrderHeader = ({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {userRole === "admin" && order.status !== "cancelled" && !order.void && onEdit && (
+            {/* {userRole === "admin" && order.status !== "cancelled" && !order.void && onEdit && (
               <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
                 <Edit className="w-4 h-4" />
                 <span className="hidden sm:inline">Edit</span>
               </Button>
-            )}
+            )} */}
 
             {onDownload && (
               <Button

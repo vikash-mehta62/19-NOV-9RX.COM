@@ -64,8 +64,8 @@ const TrustSection = () => {
       suffix: "+",
       label: "Partner Pharmacies",
       description: "Trusted nationwide",
-      color: "from-violet-500 to-purple-600",
-      bgColor: "bg-violet-50"
+      color: "from-blue-500 to-indigo-600",
+      bgColor: "bg-blue-50"
     },
     {
       icon: Package,
@@ -73,8 +73,8 @@ const TrustSection = () => {
       suffix: "+",
       label: "Products Available",
       description: "Complete catalog",
-      color: "from-blue-500 to-cyan-500",
-      bgColor: "bg-blue-50"
+      color: "from-indigo-500 to-blue-600",
+      bgColor: "bg-indigo-50"
     },
     {
       icon: HeartHandshake,
@@ -82,8 +82,8 @@ const TrustSection = () => {
       suffix: "%",
       label: "Satisfaction Rate",
       description: "Happy customers",
-      color: "from-emerald-500 to-teal-500",
-      bgColor: "bg-emerald-50"
+      color: "from-blue-600 to-indigo-500",
+      bgColor: "bg-blue-50"
     },
     {
       icon: Truck,
@@ -91,8 +91,8 @@ const TrustSection = () => {
       suffix: "",
       label: "",
       description: "Same-day dispatch for orders before 3 PM EST",
-      color: "from-amber-500 to-orange-500",
-      bgColor: "bg-amber-50"
+      color: "from-indigo-600 to-blue-500",
+      bgColor: "bg-indigo-50"
     }
   ];
 
@@ -101,109 +101,107 @@ const TrustSection = () => {
       icon: Shield,
       title: "Quality Guaranteed",
       description: "All products meet FDA standards and quality certifications",
-      gradient: "from-blue-500 to-cyan-500"
+      gradient: "from-blue-500 to-indigo-600"
     },
     {
       icon: Users,
       title: "Expert Support",
       description: "Dedicated account managers for personalized service",
-      gradient: "from-violet-500 to-purple-500"
+      gradient: "from-indigo-500 to-blue-600"
     },
     {
       icon: Clock,
       title: "24/7 Availability",
       description: "Round-the-clock customer support and ordering",
-      gradient: "from-emerald-500 to-teal-500"
+      gradient: "from-blue-600 to-indigo-500"
     },
     {
       icon: Truck,
       title: "Fast Shipping",
       description: "Same-day dispatch for orders before 3 PM EST",
-      gradient: "from-orange-500 to-amber-500"
+      gradient: "from-indigo-600 to-blue-500"
     }
   ];
 
   return (
-    <section ref={sectionRef} className="py-24 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative overflow-hidden">
-      {/* Background decorations */}
+    <section ref={sectionRef} className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-indigo-50/30 to-white relative overflow-hidden">
+      {/* Background decorations - Unified blue theme */}
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-100/50 via-transparent to-transparent" />
-        <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-violet-100/50 via-transparent to-transparent" />
+        <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-blue-100/40 via-transparent to-transparent" />
+        <div className="absolute bottom-0 right-0 w-full h-full bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-indigo-100/40 via-transparent to-transparent" />
         
         {/* Floating shapes */}
-        <div className="absolute top-20 left-20 w-64 h-64 bg-emerald-200/30 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-80 h-80 bg-violet-200/30 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
+        <div className="absolute top-20 left-20 w-48 sm:w-64 h-48 sm:h-64 bg-blue-200/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-56 sm:w-80 h-56 sm:h-80 bg-indigo-200/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
       </div>
 
       <div className="container mx-auto px-4 relative z-10">
         {/* Header */}
-        <div className="text-center mb-20">
-          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-100 to-teal-100 text-emerald-700 px-5 py-2.5 rounded-full font-semibold text-sm mb-6 shadow-sm">
-            <Sparkles className="w-4 h-4" />
+        <div className="text-center mb-12 sm:mb-16 lg:mb-20">
+          <div className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-700 px-4 sm:px-5 py-2 sm:py-2.5 rounded-full font-semibold text-xs sm:text-sm mb-4 sm:mb-6 shadow-sm">
+            <Sparkles className="w-3 sm:w-4 h-3 sm:h-4" />
             Why Choose Us
           </div>
-          <h2 className="text-4xl md:text-5xl lg:text-6xl font-bold mb-6">
-            <span className="bg-gradient-to-r from-slate-900 via-slate-700 to-slate-900 bg-clip-text text-transparent">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-4 sm:mb-6">
+            <span className="text-slate-900">
               Industry-Leading
             </span>
             <br />
-            <span className="bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
               Standards
             </span>
           </h2>
-          <p className="text-slate-600 text-lg md:text-xl max-w-2xl mx-auto leading-relaxed">
+          <p className="text-slate-600 text-base sm:text-lg md:text-xl max-w-2xl mx-auto leading-relaxed px-4">
             Join hundreds of pharmacies that rely on 9Rx for their trusted and high-quality packaging supply needs
           </p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-20">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 mb-12 sm:mb-16 lg:mb-20">
           {stats.map((stat, index) => (
             <div
               key={index}
-              className={`group relative bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 overflow-hidden`}
+              className={`group relative bg-white rounded-xl sm:rounded-2xl lg:rounded-3xl p-4 sm:p-6 lg:p-8 shadow-lg sm:shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-1 sm:hover:-translate-y-2 overflow-hidden`}
             >
               {/* Background gradient on hover */}
               <div className={`absolute inset-0 bg-gradient-to-br ${stat.color} opacity-0 group-hover:opacity-5 transition-opacity duration-500`} />
               
               {/* Icon */}
-              <div className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
-                <stat.icon className="w-8 h-8 text-white" />
+              <div className={`w-10 sm:w-12 lg:w-16 h-10 sm:h-12 lg:h-16 rounded-lg sm:rounded-xl lg:rounded-2xl bg-gradient-to-br ${stat.color} flex items-center justify-center mb-3 sm:mb-4 lg:mb-6 group-hover:scale-110 transition-transform duration-300 shadow-lg`}>
+                <stat.icon className="w-5 sm:w-6 lg:w-8 h-5 sm:h-6 lg:h-8 text-white" />
               </div>
               
               {/* Value */}
-              <div className="text-4xl md:text-5xl font-bold text-slate-900 mb-2 tabular-nums">
+              <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 mb-1 sm:mb-2 tabular-nums">
                 {stat.value}{stat.suffix}
               </div>
               
               {/* Label */}
-              <div className="font-semibold text-slate-800 mb-1">{stat.label}</div>
-              <div className="text-sm text-slate-500">{stat.description}</div>
+              <div className="font-semibold text-slate-800 text-xs sm:text-sm lg:text-base mb-0.5 sm:mb-1">{stat.label}</div>
+              <div className="text-xs sm:text-sm text-slate-500 hidden sm:block">{stat.description}</div>
               
               {/* Decorative corner */}
-              <div className={`absolute -bottom-4 -right-4 w-24 h-24 bg-gradient-to-br ${stat.color} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity`} />
+              <div className={`absolute -bottom-4 -right-4 w-16 sm:w-20 lg:w-24 h-16 sm:h-20 lg:h-24 bg-gradient-to-br ${stat.color} opacity-10 rounded-full blur-2xl group-hover:opacity-20 transition-opacity`} />
             </div>
           ))}
         </div>
-        
-    
 
         {/* Bottom CTA */}
-        <div className="text-center mt-16">
-          <div className="inline-flex items-center gap-4 bg-gradient-to-r from-slate-100 to-slate-50 rounded-2xl p-2 shadow-lg">
-            <div className="flex -space-x-3">
+        <div className="text-center mt-12 sm:mt-16">
+          <div className="inline-flex items-center gap-3 sm:gap-4 bg-gradient-to-r from-slate-100 to-slate-50 rounded-xl sm:rounded-2xl p-2 shadow-lg">
+            <div className="flex -space-x-2 sm:-space-x-3">
               {[...Array(4)].map((_, i) => (
                 <div
                   key={i}
-                  className="w-10 h-10 rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 border-2 border-white flex items-center justify-center text-white text-xs font-bold"
+                  className="w-8 sm:w-10 h-8 sm:h-10 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 border-2 border-white flex items-center justify-center text-white text-[10px] sm:text-xs font-bold"
                 >
                   {['JD', 'MK', 'AS', 'RB'][i]}
                 </div>
               ))}
             </div>
-            <div className="pr-4">
-              <p className="text-sm font-semibold text-slate-900">Join 250+ pharmacies</p>
-              <p className="text-xs text-slate-500">who trust us for their supplies</p>
+            <div className="pr-2 sm:pr-4">
+              <p className="text-xs sm:text-sm font-semibold text-slate-900">Join 250+ pharmacies</p>
+              <p className="text-[10px] sm:text-xs text-slate-500">who trust us for their supplies</p>
             </div>
           </div>
         </div>

@@ -12,6 +12,7 @@ import { ProductDialog } from "./product-card/ProductDialog";
 import type { ProductDetails } from "../types/product.types";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { CartAddAnimation } from "@/components/ui/MicroInteractions";
 
 interface ProductCardProps {
   product: ProductDetails;
@@ -43,6 +44,7 @@ export const ProductCard = ({
   const [selectedTypeBySize, setSelectedTypeBySize] = useState<{
     [sizeId: string]: "case" | "unit";
   }>({});
+  const [showCartSuccess, setShowCartSuccess] = useState(false);
   const isInCart = formItems.some(
     (item: any) => item.productId?.toString() === product.id?.toString()
   );
@@ -160,6 +162,7 @@ export const ProductCard = ({
         const success = await addToCart(cartItem);
 
         if (success) {
+          setShowCartSuccess(true);
           toast({
             title: "Added to Cart",
             description: (
@@ -172,7 +175,10 @@ export const ProductCard = ({
             ),
           });
 
-          setDialogOpen(false);
+          setTimeout(() => {
+            setDialogOpen(false);
+            setShowCartSuccess(false);
+          }, 800);
         } else {
           throw new Error("Failed to add to cart");
         }
@@ -193,15 +199,20 @@ export const ProductCard = ({
   return (
     <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
       <DialogTrigger asChild>
-        <Card
-          className="
-        group cursor-pointer 
-        rounded-2xl border border-gray-200 bg-white 
-        shadow-sm hover:shadow-md 
-        transition-all duration-300
-        p-4 flex items-center gap-4
-      "
-        >
+        <CartAddAnimation isActive={showCartSuccess}>
+          <Card
+            className="
+          group cursor-pointer 
+          rounded-2xl border border-gray-200 bg-white 
+          shadow-sm hover:shadow-md hover:border-emerald-300
+          transition-all duration-300
+          p-4 flex items-center gap-4
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
+        "
+            tabIndex={0}
+            role="button"
+            aria-label={`View ${product.name} details`}
+          >
           {/* LEFT — IMAGE */}
           <div
             className="
@@ -237,6 +248,7 @@ export const ProductCard = ({
             {/* <div className="mt-2 text-sm font-bold text-green-600">${product.price}</div> */}
           </div>
         </Card>
+        </CartAddAnimation>
       </DialogTrigger>
 
       <ProductDialog

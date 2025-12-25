@@ -6,6 +6,9 @@ import TrustSection from "@/components/landing/TrustSection";
 import FAQSection from "@/components/landing/FAQSection";
 import NewsletterSection from "@/components/landing/NewsletterSection";
 import PartnersSection from "@/components/landing/PartnersSection";
+import RewardsSection from "@/components/landing/RewardsSection";
+import FeaturedProducts from "@/components/landing/FeaturedProducts";
+import StatsBar from "@/components/landing/StatsBar";
 import Footer from "@/components/landing/Footer";
 // FestivalBanner removed from landing page for cleaner hero design
 import { Button } from "@/components/ui/button";
@@ -75,16 +78,20 @@ const Index = () => {
       {/* Hero Section */}
       <HeroSection />
       
+      {/* Stats Bar - Social Proof */}
+      <StatsBar />
+      
+      {/* Featured Products */}
+      <FeaturedProducts />
+      
       {/* How It Works */}
       <HowItWorksSection />
       
-  
+      {/* Rewards Program */}
+      <RewardsSection />
       
-      {/* Partners & Certifications */}
+      {/* Partners & Testimonials */}
       <PartnersSection />
-      
-      {/* Testimonials */}
-      {/* <TestimonialsSection /> */}
       
       {/* Trust Section */}
       <TrustSection />
@@ -98,44 +105,64 @@ const Index = () => {
       {/* Footer */}
       <Footer />
 
-      {/* Fixed Contact Button */}
-      <div className="fixed right-0 top-1/3 transform -translate-y-1/2 z-50 flex flex-col gap-6">
-        <Button
-          asChild
-          className="w-5 absolute right-0 lg:w-48 bg-white text-emerald-600 hover:bg-emerald-50 shadow-lg rounded-l-lg rounded-r-none transition-all duration-300 md:flex"
+      {/* Fixed Contact Buttons - Always Visible */}
+      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-col gap-2 sm:gap-3">
+        {/* Phone Button */}
+        <a
+          href="tel:+18009696295"
+          className="group flex items-center bg-white shadow-xl sm:shadow-2xl rounded-l-xl sm:rounded-l-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 border border-slate-200"
         >
-          <a
-            href="tel:+18009696295"
-            className="flex items-center justify-center gap-2"
-          >
-            <Phone className="w-5 h-5 text-emerald-600 animate-pulse" />
-            <span className="hidden md:block">+1 800 969 6295</span>
-          </a>
-        </Button>
-        <br />
+          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 pr-3 sm:pr-5">
+            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
+              <Phone className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+            </div>
+            <div className="hidden md:block">
+              <p className="text-xs text-slate-500 font-medium">Call Us Now</p>
+              <p className="text-sm font-bold text-slate-800">+1 800 969 6295</p>
+            </div>
+          </div>
+        </a>
 
-        {/* Inquiry Form Toggle Button */}
-        <Button
+        {/* Quick Inquiry Button */}
+        <button
+          type="button"
           onClick={() => setShowForm(!showForm)}
-          className="w-5 lg:w-48 bg-emerald-600 text-white rounded-l-lg rounded-r-none hover:bg-emerald-700 transition-all duration-300 md:block"
+          className="group flex items-center bg-gradient-to-r from-blue-600 to-indigo-600 shadow-xl sm:shadow-2xl rounded-l-xl sm:rounded-l-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-700 cursor-pointer"
         >
-          <span className="hidden lg:block">Quick Inquiry</span>
-          <span className="block lg:hidden">
-            <ShieldQuestion />
-          </span>
-        </Button>
+          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 pr-3 sm:pr-5">
+            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
+              <ShieldQuestion className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+            </div>
+            <div className="hidden md:block text-left">
+              <p className="text-xs text-blue-200 font-medium">Need Help?</p>
+              <p className="text-sm font-bold text-white">Quick Inquiry</p>
+            </div>
+          </div>
+        </button>
 
         {/* Floating Inquiry Form */}
         {showForm && (
-          <div className="absolute right-0 top-full mt-2 bg-white shadow-xl rounded-l-lg p-4 w-80 animate-fade-in border border-gray-100">
-            <h3 className="font-semibold text-gray-900 mb-3">Quick Inquiry</h3>
-            <form onSubmit={handleSubmit} className="space-y-3">
+          <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full bottom-20 sm:bottom-auto mt-0 sm:mt-3 bg-white shadow-2xl rounded-xl sm:rounded-l-2xl sm:rounded-br-2xl p-4 sm:p-5 w-[calc(100vw-1rem)] sm:w-80 border border-slate-200 z-[10000] max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm sm:text-base">Quick Inquiry</h3>
+                <p className="text-xs text-slate-500">We'll respond within 2 hours</p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="w-7 sm:w-8 h-7 sm:h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <span className="text-slate-500 text-lg leading-none">×</span>
+              </button>
+            </div>
+            <form onSubmit={handleSubmit} className="space-y-2 sm:space-y-3">
               <Input
                 type="text"
                 placeholder="Your Name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full"
+                className="w-full h-10 sm:h-11 rounded-lg sm:rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
                 required
               />
               <Input
@@ -143,7 +170,7 @@ const Index = () => {
                 placeholder="Email Address"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full"
+                className="w-full h-10 sm:h-11 rounded-lg sm:rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
                 required
               />
               <Input
@@ -151,22 +178,29 @@ const Index = () => {
                 placeholder="Phone Number"
                 value={contact}
                 onChange={(e) => setContact(e.target.value)}
-                className="w-full"
+                className="w-full h-10 sm:h-11 rounded-lg sm:rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 text-sm"
               />
               <Textarea
-                placeholder="Your Message"
+                placeholder="How can we help you?"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full"
+                className="w-full rounded-lg sm:rounded-xl border-slate-200 focus:border-blue-500 focus:ring-blue-500 resize-none text-sm"
                 rows={3}
                 required
               />
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-emerald-600 text-white hover:bg-emerald-700"
+                className="w-full h-10 sm:h-11 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg sm:rounded-xl font-semibold shadow-lg shadow-blue-500/25 transition-all text-sm"
               >
-                {isLoading ? "Sending..." : "Send Inquiry"}
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Sending...
+                  </span>
+                ) : (
+                  "Send Inquiry"
+                )}
               </Button>
             </form>
           </div>

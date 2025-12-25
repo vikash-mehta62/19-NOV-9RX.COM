@@ -23,7 +23,7 @@ import { useSelector } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
 import { 
   Loader2, Search, Filter, SlidersHorizontal, X, 
-  ShoppingCart, User, Bell, Menu, FileText, Settings, 
+  ShoppingCart, User, Menu, FileText, Settings, 
   Package, LogOut, Receipt, ChevronDown, Gift, CreditCard,
   HelpCircle, Heart, History, Star, Wallet, FileBarChart
 } from "lucide-react"
@@ -404,26 +404,6 @@ export const PharmacyProductsFullPage = () => {
 
             {/* Right Actions */}
             <div className="flex items-center gap-2">
-              {/* Cart Button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="relative"
-                onClick={() => navigate("/pharmacy/order/create")}
-              >
-                <ShoppingCart className="w-5 h-5 text-gray-600" />
-                {totalCartItems > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-emerald-600 text-[10px]">
-                    {totalCartItems}
-                  </Badge>
-                )}
-              </Button>
-
-              {/* Notifications */}
-              <Button variant="ghost" size="sm" className="hidden sm:flex">
-                <Bell className="w-5 h-5 text-gray-600" />
-              </Button>
-
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -449,7 +429,7 @@ export const PharmacyProductsFullPage = () => {
                   {/* Shopping */}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/order/create")}>
                     <ShoppingCart className="w-4 h-4 mr-2 text-emerald-600" />
-                    Cart ({totalCartItems})
+                    Create Order {totalCartItems > 0 ? `(${totalCartItems} items)` : ""}
                   </DropdownMenuItem>
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/orders")}>
                     <Package className="w-4 h-4 mr-2 text-blue-600" />

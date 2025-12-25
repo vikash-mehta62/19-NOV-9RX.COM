@@ -3,20 +3,26 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "@/hooks/use-cart";
-import { ShoppingCart, X, ChevronUp } from "lucide-react";
+import { ShoppingCart, X, ChevronUp, ArrowRight, Trash2, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 export const FloatingCartButton = () => {
   const navigate = useNavigate();
-  const { cartItems, cartTotal } = useCart();
+  const location = useLocation();
+  const { cartItems, cartTotal, removeFromCart } = useCart();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
+  const { toast } = useToast();
 
   const totalItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
+
+  // Hide floating cart on order create page (cart is shown in OrderSummaryCard)
+  const isOnOrderCreatePage = location.pathname.includes("/order/create");
 
   useEffect(() => {
     const handleScroll = () => {
@@ -43,7 +49,23 @@ export const FloatingCartButton = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  if (totalItems === 0) return null;
+  const handleRemoveItem = async (productId: string, productName: string) => {
+    const success = await removeFromCart(productId);
+    if (success) {
+      toast({
+        title: "Item Removed",
+        description: `${productName} removed from cart`,
+      });
+    }
+  };
+
+  const handleViewDetails = (productId: string) => {
+    setIsExpanded(false);
+    navigate(`/pharmacy/product/${productId}`);
+  };
+
+  // Don't show if no items or on order create page
+  if (totalItems === 0 || isOnOrderCreatePage) return null;
 
   return (
     <>
@@ -63,13 +85,13 @@ export const FloatingCartButton = () => {
                   initial={{ scale: 0.8, opacity: 0 }}
                   animate={{ scale: 1, opacity: 1 }}
                   exit={{ scale: 0.8, opacity: 0 }}
-                  className="absolute bottom-16 right-0 w-72 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden mb-2"
+                  className="absolute bottom-16 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden mb-2"
                 >
                   {/* Header */}
                   <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-white">
                       <ShoppingCart className="h-5 w-5" />
-                      <span className="font-semibold">Your Cart</span>
+                      <span className="font-semibold">Your Cart ({totalItems})</span>
                     </div>
                     <button
                       onClick={() => setIsExpanded(false)}
@@ -79,63 +101,71 @@ export const FloatingCartButton = () => {
                     </button>
                   </div>
 
-                  {/* Cart Summary */}
-                  <div className="p-4 space-y-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Items in cart</span>
-                      <span className="font-semibold">{totalItems}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600">Subtotal</span>
+                  {/* Cart Items */}
+                  <div className="p-3 max-h-64 overflow-y-auto">
+                    {cartItems.slice(0, 5).map((item, index) => (
+                      <div
+                        key={item.productId || index}
+                        className="flex items-start gap-3 py-3 border-b border-gray-100 last:border-0"
+                      >
+                        <div className="w-12 h-12 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex-shrink-0">
+                          <img
+                            src={item.image || "/placeholder.svg"}
+                            alt={item.name}
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900 truncate">{item.name}</p>
+                          <p className="text-xs text-gray-500">Qty: {item.quantity}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <button
+                              onClick={() => handleViewDetails(item.productId)}
+                              className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              View
+                            </button>
+                            <span className="text-gray-300">|</span>
+                            <button
+                              onClick={() => handleRemoveItem(item.productId, item.name)}
+                              className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Remove
+                            </button>
+                          </div>
+                        </div>
+                        <span className="text-sm font-semibold text-emerald-600">
+                          ${item.price?.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                    {cartItems.length > 5 && (
+                      <p className="text-xs text-gray-500 text-center py-2">
+                        +{cartItems.length - 5} more items
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="p-3 bg-gray-50 border-t">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm text-gray-600">Subtotal:</span>
                       <span className="text-lg font-bold text-emerald-600">
                         ${cartTotal.toFixed(2)}
                       </span>
                     </div>
-
-                    {/* Preview Items */}
-                    <div className="flex -space-x-2 py-2">
-                      {cartItems.slice(0, 4).map((item, index) => (
-                        <div
-                          key={item.id || index}
-                          className="w-10 h-10 rounded-full border-2 border-white bg-gray-100 overflow-hidden"
-                        >
-                          <img
-                            src={item.image || "/placeholder.svg"}
-                            alt=""
-                            className="w-full h-full object-cover"
-                          />
-                        </div>
-                      ))}
-                      {cartItems.length > 4 && (
-                        <div className="w-10 h-10 rounded-full border-2 border-white bg-emerald-100 flex items-center justify-center text-xs font-semibold text-emerald-700">
-                          +{cartItems.length - 4}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-                        onClick={() => {
-                          setIsExpanded(false);
-                          // Navigate to checkout/order create page where full cart is shown
-                          navigate("/pharmacy/order/create");
-                        }}
-                      >
-                        View Cart
-                      </Button>
-                      <Button
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                        onClick={() => {
-                          setIsExpanded(false);
-                          navigate("/pharmacy/order/create");
-                        }}
-                      >
-                        Checkout
-                      </Button>
-                    </div>
+                    <Button
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2 min-h-[44px] rounded-xl"
+                      onClick={() => {
+                        setIsExpanded(false);
+                        navigate("/pharmacy/order/create");
+                      }}
+                    >
+                      Proceed to Checkout
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
                   </div>
                 </motion.div>
               )}

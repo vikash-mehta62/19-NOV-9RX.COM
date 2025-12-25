@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useWizardState } from "./useWizardState";
 import { WizardNavigation } from "./WizardNavigation";
 import { OrderSummaryCard } from "./OrderSummaryCard";
@@ -6,6 +7,7 @@ import { OrderCreationWizardProps, WizardStep, Customer } from "./types";
 import { useCart } from "@/hooks/use-cart";
 import { CustomerSelectionStep } from "./steps/CustomerSelectionStep";
 import { AddressInformationStep } from "./steps/AddressInformationStep";
+import { CustomerAndAddressStep } from "./steps/CustomerAndAddressStep";
 import { ProductSelectionStep } from "./steps/ProductSelectionStep";
 import { ReviewOrderStep } from "./steps/ReviewOrderStep";
 import { PaymentConfirmationStep } from "./steps/PaymentConfirmationStep";
@@ -44,8 +46,10 @@ const OrderCreationWizardComponent = ({
   onComplete,
   onCancel,
 }: OrderCreationWizardProps) => {
-  const totalSteps = 5;
+  // Pharmacy mode has 3 steps, Admin mode has 5 steps
+  const totalSteps = isPharmacyMode ? 3 : 5;
   const wizardState = useWizardState(totalSteps);
+  const navigate = useNavigate();
   const [formData, setFormData] = useState(initialData || {});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -127,14 +131,14 @@ const OrderCreationWizardComponent = ({
         }
       }
 
-      // For pharmacy mode, skip directly to step 2 (addresses) since:
-      // 1. Customer is already selected (themselves)
-      // 2. They already have items in cart from browsing products
-      // 3. They don't need the "Add Products" step - they browse products separately
+      // For pharmacy mode: Start at step 1 (combined Customer+Address step)
+      // Customer is pre-filled, they just need to confirm addresses
       if (isPharmacyMode) {
-        console.log("Pharmacy mode: Skipping to addresses step (step 2)");
-        wizardState.markStepComplete(1);
-        wizardState.goToStep(2);
+        console.log("Pharmacy mode: Starting at combined Customer+Address step (step 1)");
+        // Don't skip any steps - pharmacy mode only has 3 steps now
+        // Step 1: Customer + Address (combined)
+        // Step 2: Review
+        // Step 3: Payment
       } else if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
         // Check if we should skip directly to products (step 3)
         // This happens when customer AND addresses are already provided (from ViewProfileModal)
@@ -241,36 +245,22 @@ const OrderCreationWizardComponent = ({
   // For pharmacy mode: Customer info is pre-filled, Products step is skipped (they add from browsing)
   const steps: WizardStep[] = useMemo(() => {
     if (isPharmacyMode) {
-      // Pharmacy mode: 3 steps only - Address, Review, Payment
+      // Pharmacy mode: 3 visible steps - Customer+Address (combined), Review, Payment
       return [
         {
           number: 1,
-          label: "Customer",
+          label: "Info & Address",
           icon: User,
-          description: "Your info",
-          hidden: true, // Hidden but still exists for data
+          description: "Your details",
         },
         {
           number: 2,
-          label: "Addresses",
-          icon: MapPin,
-          description: "Billing & shipping",
-        },
-        {
-          number: 3,
-          label: "Products",
-          icon: Package,
-          description: "From cart",
-          hidden: true, // Hidden - products added from browsing
-        },
-        {
-          number: 4,
           label: "Review",
           icon: FileCheck,
           description: "Verify order",
         },
         {
-          number: 5,
+          number: 3,
           label: "Payment",
           icon: CreditCard,
           description: "Complete",
@@ -530,16 +520,9 @@ const OrderCreationWizardComponent = ({
         setIsSubmitting(false);
       }
     } else {
-      // For pharmacy mode, skip step 3 (Products) - go directly from step 2 to step 4
-      if (isPharmacyMode && wizardState.currentStep === 2) {
-        // Mark step 2 and 3 as complete, go to step 4
-        wizardState.markStepComplete(2);
-        wizardState.markStepComplete(3);
-        wizardState.goToStep(4);
-      } else {
-        // Move to next step (goToNextStep already marks current step as complete)
-        wizardState.goToNextStep();
-      }
+      // Pharmacy mode has 3 steps, Admin mode has 5 steps
+      // Just move to next step normally
+      wizardState.goToNextStep();
       
       // Scroll to top of page for next step
       window.scrollTo({ top: 0, behavior: "smooth" });
@@ -550,23 +533,8 @@ const OrderCreationWizardComponent = ({
     // Clear validation errors when going back
     setValidationErrors([]);
     
-    // For pharmacy mode, handle step skipping
-    if (isPharmacyMode) {
-      // From step 5 (Payment) go to step 4 (Review)
-      if (wizardState.currentStep === 5) {
-        wizardState.goToStep(4);
-      }
-      // From step 4 (Review) skip step 3 and go to step 2 (Address)
-      else if (wizardState.currentStep === 4) {
-        wizardState.goToStep(2);
-      }
-      // From step 2 (Address) go to step 1 (Customer) - but customer is locked in pharmacy mode
-      else {
-        wizardState.goToPreviousStep();
-      }
-    } else {
-      wizardState.goToPreviousStep();
-    }
+    // Just go to previous step - both modes work the same now
+    wizardState.goToPreviousStep();
     
     // Scroll to top of page
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -592,6 +560,36 @@ const OrderCreationWizardComponent = ({
 
   // Determine if current step can proceed
   const canProceedFromCurrentStep = (): boolean => {
+    // Pharmacy mode has different step validation
+    if (isPharmacyMode) {
+      switch (wizardState.currentStep) {
+        case 1:
+          // Combined Customer + Address step - both addresses must be filled
+          return !!(
+            billingAddress?.street &&
+            billingAddress?.city &&
+            billingAddress?.state &&
+            billingAddress?.zip_code &&
+            shippingAddress?.street &&
+            shippingAddress?.city &&
+            shippingAddress?.state &&
+            shippingAddress?.zip_code &&
+            shippingAddress?.fullName &&
+            shippingAddress?.email &&
+            shippingAddress?.phone
+          );
+        case 2:
+          // Review step - cart must have items
+          return cartItems.length > 0;
+        case 3:
+          // Payment step
+          return !!(paymentMethod && termsAccepted && accuracyConfirmed);
+        default:
+          return false;
+      }
+    }
+    
+    // Admin mode validation
     switch (wizardState.currentStep) {
       case 1:
         // Customer must be selected
@@ -631,16 +629,6 @@ const OrderCreationWizardComponent = ({
   };
 
   const handleStepClick = useCallback((stepNumber: number) => {
-    // For pharmacy mode, don't allow clicking on step 3 (Products)
-    if (isPharmacyMode && stepNumber === 3) {
-      toast({
-        title: "Not Available",
-        description: "Products are added from the product browsing page",
-        variant: "default",
-      });
-      return;
-    }
-    
     // Only allow navigation if step can be navigated to
     if (wizardState.canNavigateToStep(stepNumber)) {
       // Clear validation errors when navigating
@@ -656,25 +644,45 @@ const OrderCreationWizardComponent = ({
         variant: "destructive",
       });
     }
-  }, [wizardState, toast, isPharmacyMode]);
+  }, [wizardState, toast]);
 
   const handleEditItems = useCallback(() => {
-    // Navigate to products step
-    wizardState.goToStep(3);
-  }, [wizardState]);
+    // Navigate to products step (admin) or products page (pharmacy)
+    if (isPharmacyMode) {
+      // In pharmacy mode, redirect to products page to edit items
+      navigate("/pharmacy/products");
+    } else {
+      wizardState.goToStep(3);
+    }
+  }, [wizardState, isPharmacyMode, navigate]);
 
   // Handle edit navigation from review step
   const handleEditCustomer = useCallback(() => {
-    wizardState.goToStep(1);
-  }, [wizardState]);
+    if (isPharmacyMode) {
+      // In pharmacy mode, go to step 1 (combined customer+address)
+      wizardState.goToStep(1);
+    } else {
+      wizardState.goToStep(1);
+    }
+  }, [wizardState, isPharmacyMode]);
 
   const handleEditAddress = useCallback(() => {
-    wizardState.goToStep(2);
-  }, [wizardState]);
+    if (isPharmacyMode) {
+      // In pharmacy mode, go to step 1 (combined customer+address)
+      wizardState.goToStep(1);
+    } else {
+      wizardState.goToStep(2);
+    }
+  }, [wizardState, isPharmacyMode]);
 
   const handleEditProducts = useCallback(() => {
-    wizardState.goToStep(3);
-  }, [wizardState]);
+    if (isPharmacyMode) {
+      // In pharmacy mode, redirect to products page to add items
+      navigate("/pharmacy/products");
+    } else {
+      wizardState.goToStep(3);
+    }
+  }, [wizardState, isPharmacyMode, navigate]);
 
   // Handle place order without payment (Admin only)
   const handlePlaceOrderWithoutPayment = useCallback(async () => {
@@ -734,6 +742,68 @@ const OrderCreationWizardComponent = ({
 
   // Render current step content
   const renderStepContent = () => {
+    // Pharmacy mode has different step mapping (3 steps instead of 5)
+    if (isPharmacyMode) {
+      switch (wizardState.currentStep) {
+        case 1:
+          // Combined Customer + Address step for pharmacy
+          return (
+            <CustomerAndAddressStep
+              customer={selectedCustomer}
+              billingAddress={billingAddress}
+              shippingAddress={shippingAddress}
+              onBillingAddressChange={handleBillingAddressChange}
+              onShippingAddressChange={handleShippingAddressChange}
+            />
+          );
+        case 2:
+          // Review step
+          return (
+            <ReviewOrderStep
+              customer={selectedCustomer || undefined}
+              billingAddress={billingAddress}
+              shippingAddress={shippingAddress}
+              cartItems={cartItems}
+              subtotal={subtotal}
+              tax={tax}
+              shipping={shipping}
+              total={total}
+              onEditCustomer={handleEditCustomer}
+              onEditAddress={handleEditAddress}
+              onEditProducts={handleEditProducts}
+            />
+          );
+        case 3:
+          // Payment step
+          return (
+            <PaymentConfirmationStep
+              cartItems={cartItems}
+              subtotal={subtotal}
+              tax={tax}
+              shipping={shipping}
+              total={total}
+              totalDiscount={totalDiscount}
+              appliedDiscounts={appliedDiscounts}
+              onPaymentMethodChange={handlePaymentMethodChange}
+              onSpecialInstructionsChange={handleSpecialInstructionsChange}
+              onPONumberChange={handlePONumberChange}
+              onTermsAcceptedChange={setTermsAccepted}
+              onAccuracyConfirmedChange={setAccuracyConfirmed}
+              initialPaymentMethod={paymentMethod}
+              initialSpecialInstructions={specialInstructions}
+              initialPONumber={poNumber}
+              initialTermsAccepted={termsAccepted}
+              initialAccuracyConfirmed={accuracyConfirmed}
+              isEditMode={isEditMode}
+              isAdmin={false}
+            />
+          );
+        default:
+          return null;
+      }
+    }
+    
+    // Admin mode - 5 steps
     switch (wizardState.currentStep) {
       case 1:
         return (
@@ -741,8 +811,8 @@ const OrderCreationWizardComponent = ({
             selectedCustomerId={selectedCustomer?.id}
             onCustomerSelect={handleCustomerSelect}
             onAddNewCustomer={handleAddNewCustomer}
-            isEditMode={isEditMode || isPharmacyMode}
-            lockedCustomer={(isEditMode || isPharmacyMode) ? selectedCustomer : undefined}
+            isEditMode={isEditMode}
+            lockedCustomer={isEditMode ? selectedCustomer : undefined}
           />
         );
       case 2:
@@ -796,7 +866,7 @@ const OrderCreationWizardComponent = ({
             initialTermsAccepted={termsAccepted}
             initialAccuracyConfirmed={accuracyConfirmed}
             isEditMode={isEditMode}
-            isAdmin={!isPharmacyMode}
+            isAdmin={true}
           />
         );
       default:

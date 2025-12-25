@@ -202,12 +202,12 @@ export const LoginForm = () => {
             onChange={handleEmailChange}
             required
             disabled={isLoading}
-            className={`pl-10 pr-10 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all ${
+            className={`pl-10 pr-10 h-12 rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all ${
               emailValid === false ? "border-red-300 focus:border-red-500" : ""
-            } ${emailValid === true ? "border-green-300" : ""}`}
+            } ${emailValid === true ? "border-emerald-300" : ""}`}
           />
           {emailValid === true && (
-            <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+            <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-emerald-500" />
           )}
         </div>
         {emailValid === false && (
@@ -231,7 +231,7 @@ export const LoginForm = () => {
             required
             disabled={isLoading}
             minLength={6}
-            className="pl-10 pr-12 h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 transition-all"
+            className="pl-10 pr-12 h-12 rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 transition-all"
           />
           <button
             type="button"
@@ -250,7 +250,7 @@ export const LoginForm = () => {
             id="remember"
             checked={rememberMe}
             onCheckedChange={(checked) => setRememberMe(checked as boolean)}
-            className="border-gray-300 data-[state=checked]:bg-blue-600"
+            className="border-gray-300 data-[state=checked]:bg-emerald-600 data-[state=checked]:border-emerald-600"
           />
           <Label
             htmlFor="remember"
@@ -261,7 +261,7 @@ export const LoginForm = () => {
         </div>
         <Link
           to="/reset-password-page"
-          className="text-sm text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+          className="text-sm text-emerald-600 hover:text-emerald-700 hover:underline font-medium transition-colors"
         >
           Forgot password?
         </Link>
@@ -270,7 +270,7 @@ export const LoginForm = () => {
       {/* Submit Button */}
       <Button
         type="submit"
-        className="w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all duration-300"
+        className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-300 min-h-[48px] focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
         disabled={isLoading}
       >
         {isLoading ? (
@@ -287,7 +287,7 @@ export const LoginForm = () => {
       <div className="text-center">
         <p className="text-xs text-gray-500">
           New to 9RX?{" "}
-          <span className="text-blue-600 font-medium">
+          <span className="text-emerald-600 font-medium">
             Create an account to get started
           </span>
         </p>
