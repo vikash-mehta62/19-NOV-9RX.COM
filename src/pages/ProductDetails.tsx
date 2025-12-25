@@ -505,49 +505,102 @@ const ProductDetails = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="bg-white shadow-sm border-b">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
+        <Navbar />
+        
+        {/* Enhanced Loading Header */}
+        <div className="bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 pt-16">
           <div className="container mx-auto px-4 py-4">
-            <Skeleton className="h-10 w-32 mb-4" />
-            <div className="flex items-center gap-4">
-              <Skeleton className="h-6 w-20" />
-              <Skeleton className="h-8 w-64" />
+            <div className="flex items-center gap-2 mb-3">
+              <Skeleton className="h-6 w-6 rounded" />
+              <Skeleton className="h-4 w-24" />
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-5 w-16 rounded-full" />
+                <Skeleton className="h-5 w-20 rounded-full" />
+              </div>
+              <Skeleton className="h-8 w-80" />
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-24 rounded" />
+                <Skeleton className="h-4 w-20 rounded" />
+                <Skeleton className="h-4 w-16 rounded" />
+              </div>
             </div>
           </div>
         </div>
 
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-            {/* Image Loading Skeleton */}
-            <div className="space-y-6">
-              <Skeleton className="aspect-square rounded-2xl" />
-              <div className="grid grid-cols-4 gap-3">
-                {[...Array(4)].map((_, i) => (
-                  <Skeleton key={i} className="aspect-square rounded-lg" />
-                ))}
+        <div className="container mx-auto px-4 py-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 mb-6">
+            {/* Enhanced Image Loading Skeleton */}
+            <div className="space-y-4">
+              <div className="bg-white rounded-2xl p-8 shadow-lg border border-gray-200">
+                <Skeleton className="aspect-square rounded-xl" />
               </div>
             </div>
 
-            {/* Details Loading Skeleton */}
-            <div className="space-y-8">
-              <Card>
-                <CardContent className="p-6">
-                  <Skeleton className="h-8 w-3/4 mb-4" />
-                  <Skeleton className="h-4 w-1/2 mb-4" />
-                  <Skeleton className="h-20 w-full" />
+            {/* Enhanced Details Loading Skeleton */}
+            <div className="space-y-4">
+              <Card className="shadow-sm border border-gray-200 bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 w-20" />
+                  </div>
+                  <Skeleton className="h-20 w-full rounded" />
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardContent className="p-6">
-                  <Skeleton className="h-6 w-1/3 mb-4" />
-                  <div className="space-y-3">
-                    {[...Array(3)].map((_, i) => (
-                      <Skeleton key={i} className="h-16 w-full rounded-xl" />
+              <Card className="shadow-sm border border-gray-200 bg-white">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Skeleton className="h-4 w-4 rounded" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                  <div className="space-y-2">
+                    {[...Array(4)].map((_, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <Skeleton className="h-2 w-2 rounded-full mt-1" />
+                        <Skeleton className="h-4 w-full rounded" />
+                      </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
+            </div>
+          </div>
+
+          {/* Enhanced Size Cards Loading */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="h-4 w-4 rounded" />
+                <Skeleton className="h-6 w-40" />
+              </div>
+              <Skeleton className="h-6 w-16 rounded-full" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="bg-white rounded-xl overflow-hidden border border-gray-200">
+                  <div className="aspect-[4/3] bg-gray-50 p-4">
+                    <Skeleton className="w-full h-full rounded" />
+                  </div>
+                  <div className="p-3 space-y-2">
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="h-6 w-24" />
+                    <div className="flex items-center gap-1">
+                      <Skeleton className="h-2 w-2 rounded-full" />
+                      <Skeleton className="h-3 w-16" />
+                    </div>
+                    <div className="flex items-center gap-2 pt-2">
+                      <Skeleton className="h-10 w-24 rounded-lg" />
+                      <Skeleton className="h-10 flex-1 rounded-lg" />
+                    </div>
+                  </div>
+                </Card>
+              ))}
             </div>
           </div>
         </div>
@@ -593,7 +646,7 @@ return (
     <Navbar />
 
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 pt-16">
-      {/* Enhanced Header with Modern Design */}
+      {/* Enhanced Header with Modern Design & Micro-interactions */}
       <div className="bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 overflow-hidden">
         {/* Decorative Background Elements */}
         <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 via-blue-500/5 to-purple-500/5"></div>
@@ -601,72 +654,104 @@ return (
         <div className="absolute bottom-0 left-0 w-96 h-96 bg-gradient-to-tr from-purple-400/10 to-pink-400/10 rounded-full blur-3xl"></div>
         
         <div className="relative container mx-auto px-4 py-3">
-          {/* Back Button */}
+          {/* Back Button with enhanced hover effect */}
           <Button
             variant="ghost"
             onClick={() => navigate("/")}
-            className="mb-2 hover:bg-gray-100 transition-all duration-200 rounded-lg group text-sm h-8"
+            className="mb-2 hover:bg-gray-100/80 transition-all duration-300 rounded-xl group text-sm h-9 px-3 backdrop-blur-sm"
           >
-            <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform duration-300" />
-            <span className="font-medium">Back to Products</span>
+            <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 group-hover:scale-110 transition-all duration-300" />
+            <span className="font-medium group-hover:text-emerald-600 transition-colors duration-300">Back to Products</span>
           </Button>
 
-          {/* Product Info Section */}
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+          {/* Product Info Section with enhanced layout */}
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             {/* Left: Category + Product Name */}
-            <div className="flex-1 space-y-2">
-              {/* Category & Subcategory Badges */}
+            <div className="flex-1 space-y-3">
+              {/* Category & Subcategory Badges with animations */}
               <div className="flex flex-wrap items-center gap-2">
                 {product.category && (
-                  <Badge className="bg-emerald-600 text-white px-2 py-0.5 text-[10px] font-semibold rounded">
+                  <Badge className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
                     {product.category}
                   </Badge>
                 )}
-                {/* Subcategory - placeholder for future implementation */}
+                {/* Enhanced Subcategory badge */}
                 {product.category && (
-                  <Badge className="bg-blue-600 text-white px-2 py-0.5 text-[10px] font-semibold rounded">
+                  <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
                     {product.category.split(' ')[0]} Series
                   </Badge>
                 )}
               </div>
               
-              <h1 className="text-lg sm:text-xl font-bold leading-tight text-gray-900">
+              {/* Product name with better typography */}
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold leading-tight text-gray-900 tracking-tight">
                 {product.name}
               </h1>
 
-              {/* Additional Info Pills */}
+              {/* Enhanced Additional Info Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
                 {product.sku && (
-                  <div className="flex items-center gap-1 bg-gray-100 px-2 py-0.5 rounded">
-                    <Package className="w-3 h-3 text-gray-600" />
-                    <span className="text-[11px]">SKU: <span className="font-semibold text-gray-800">{product.sku}</span></span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors duration-200 cursor-help">
+                          <Package className="w-3.5 h-3.5 text-gray-600" />
+                          <span className="text-xs font-mono font-semibold text-gray-800">{product.sku}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Product SKU</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
                 
                 {product.quantity_per_case && (
-                  <div className="flex items-center gap-1 bg-purple-50 px-2 py-0.5 rounded">
-                    <Layers className="w-3 h-3 text-purple-600" />
-                    <span className="text-[11px] font-semibold text-purple-700">{product.quantity_per_case}/case</span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg transition-colors duration-200 cursor-help">
+                          <Layers className="w-3.5 h-3.5 text-purple-600" />
+                          <span className="text-xs font-bold text-purple-700">{product.quantity_per_case}/case</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Units per case</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
 
                 {product.sizes && product.sizes.length > 0 && (
-                  <div className="flex items-center gap-1 bg-indigo-50 px-2 py-0.5 rounded">
-                    <Layers className="w-3 h-3 text-indigo-600" />
-                    <span className="text-[11px] font-semibold text-indigo-700">{product.sizes.length} Sizes</span>
-                  </div>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors duration-200 cursor-help">
+                          <Layers className="w-3.5 h-3.5 text-indigo-600" />
+                          <span className="text-xs font-bold text-indigo-700">{product.sizes.length} Size{product.sizes.length > 1 ? 's' : ''}</span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Available size options</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
                 )}
               </div>
             </div>
 
-            {/* Right: Stock Status / Availability */}
+            {/* Right: Enhanced Stock Status / Availability */}
             <div className="lg:text-right">
-              <div className="inline-flex items-center gap-2 bg-green-50 px-3 py-1.5 rounded-lg border border-green-200">
-                <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div>
-                <span className="text-xs font-semibold text-green-700">In Stock</span>
+              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-all duration-200">
+                <div className="relative">
+                  <div className="h-2.5 w-2.5 bg-green-500 rounded-full"></div>
+                  <div className="absolute inset-0 h-2.5 w-2.5 bg-green-500 rounded-full animate-ping opacity-75"></div>
+                </div>
+                <span className="text-sm font-bold text-green-700">In Stock</span>
               </div>
               {!isLoggedIn && (
-                <div className="text-xs text-gray-500 mt-1">
+                <div className="text-xs text-gray-500 mt-2 flex items-center gap-1">
+                  <HelpCircle className="w-3 h-3" />
                   Login to view prices
                 </div>
               )}
@@ -681,48 +766,65 @@ return (
         {/* ---------------- TOP: IMAGE LEFT | DESCRIPTION RIGHT ---------------- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 mb-4 lg:mb-8">
           
-          {/* LEFT: MAIN PRODUCT IMAGE */}
+          {/* LEFT: ENHANCED MAIN PRODUCT IMAGE */}
           <div>
-            <div className="bg-white rounded-lg lg:rounded-2xl p-4 lg:p-8 shadow-lg border border-gray-200 lg:sticky lg:top-24">
-              <ImageWithLoader
-                src={selectedImage}
-                alt={product.name}
-                className="w-full h-auto object-contain max-h-[300px] lg:max-h-[500px]"
-              />
+            <div className="bg-white rounded-2xl lg:rounded-3xl p-6 lg:p-10 shadow-xl border border-gray-200 lg:sticky lg:top-24 relative overflow-hidden group">
+              {/* Subtle background pattern */}
+              <div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_1px_1px,_rgba(0,0,0,0.15)_1px,_transparent_0)] bg-[length:30px_30px]"></div>
+              
+              {/* Decorative gradient overlay on hover */}
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-blue-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+              
+              <div className="relative z-10">
+                <ImageWithLoader
+                  src={selectedImage}
+                  alt={product.name}
+                  className="w-full h-auto object-contain max-h-[300px] lg:max-h-[500px] transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
+              
+              {/* Image label with enhanced styling */}
+              <div className="absolute bottom-4 left-4 right-4 bg-gradient-to-r from-black/80 to-black/60 backdrop-blur-sm text-white text-sm px-4 py-2 rounded-xl text-center font-medium">
+                Main Product Image
+              </div>
             </div>
           </div>
 
           {/* RIGHT: DESCRIPTION & KEY FEATURES */}
           <div className="space-y-3 lg:space-y-6">
 
-            {/* Description */}
+            {/* Enhanced Description */}
             {product.description && (
-              <Card className="shadow-sm border border-gray-200 bg-white">
-                <CardContent className="p-4">
-                  <h3 className="font-semibold text-sm flex items-center mb-2 text-gray-900">
-                    <Info className="w-4 h-4 mr-1.5 text-indigo-600" />
-                    Description
+              <Card className="shadow-lg border border-gray-200 bg-white hover:shadow-xl transition-all duration-300 group">
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-base flex items-center mb-3 text-gray-900 group-hover:text-emerald-600 transition-colors duration-300">
+                    <div className="w-8 h-8 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-lg flex items-center justify-center mr-3">
+                      <Info className="w-4 h-4 text-white" />
+                    </div>
+                    Product Description
                   </h3>
-                  <p className="text-gray-700 leading-relaxed text-xs">
+                  <p className="text-gray-700 leading-relaxed text-sm">
                     {product.description}
                   </p>
                 </CardContent>
               </Card>
             )}
 
-            {/* Key Features */}
+            {/* Enhanced Key Features */}
             {product.key_features && (
-              <Card className="shadow-sm border border-gray-200 bg-white">
-                <CardContent className="p-4">
-                  <h3 className="font-semibold text-sm flex items-center mb-2 text-gray-900">
-                    <Layers className="w-4 h-4 mr-1.5 text-purple-600" />
+              <Card className="shadow-lg border border-gray-200 bg-white hover:shadow-xl transition-all duration-300 group">
+                <CardContent className="p-5">
+                  <h3 className="font-bold text-base flex items-center mb-4 text-gray-900 group-hover:text-purple-600 transition-colors duration-300">
+                    <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center mr-3">
+                      <Layers className="w-4 h-4 text-white" />
+                    </div>
                     Key Features
                   </h3>
-                  <div className="space-y-1.5">
+                  <div className="space-y-3">
                     {product.key_features.split(",").map((feature, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <div className="w-1 h-1 bg-purple-500 rounded-full mt-1.5 flex-shrink-0"></div>
-                        <span className="text-gray-700 text-xs">{feature.trim()}</span>
+                      <div key={index} className="flex items-start gap-3 group/item hover:bg-purple-50 p-2 rounded-lg transition-colors duration-200">
+                        <div className="w-2 h-2 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full mt-2 flex-shrink-0 group-hover/item:scale-125 transition-transform duration-200"></div>
+                        <span className="text-gray-700 text-sm leading-relaxed">{feature.trim()}</span>
                       </div>
                     ))}
                   </div>
@@ -736,12 +838,16 @@ return (
         <div className="pb-20 lg:pb-8">
           {product.sizes && product.sizes.length > 0 && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-base flex items-center text-gray-900">
-                  <Package className="w-4 h-4 mr-2 text-purple-600" />
-                  Select Size & Add to Cart
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="font-bold text-lg flex items-center text-gray-900 group">
+                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center mr-3 group-hover:scale-110 transition-transform duration-300">
+                    <Package className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="group-hover:text-purple-600 transition-colors duration-300">
+                    Select Size & Add to Cart
+                  </span>
                 </h3>
-                <Badge className="bg-purple-100 text-purple-700 text-xs px-2 py-1">
+                <Badge className="bg-gradient-to-r from-purple-100 to-purple-200 text-purple-800 text-sm px-3 py-1.5 rounded-full font-bold shadow-sm">
                   {product.sizes.length} Options
                 </Badge>
               </div>
@@ -955,72 +1061,127 @@ return (
           )}
         </div>
 
-        {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) ------------- */}
+        {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) - Enhanced ------------- */}
         {isLoggedIn && selectedSizes.size > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white border-t-2 border-emerald-200 shadow-2xl z-50 p-3 lg:p-4">
-            <div className="container mx-auto">
-              <div className="flex items-center justify-between gap-3 lg:gap-4">
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-600 mb-0.5">{selectedSizes.size} size(s) selected</p>
-                  <div className="flex items-center gap-3">
-                    <p className="text-xl lg:text-2xl font-bold text-gray-900">
-                      ${Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
-                        const size = product.sizes.find(s => s.id === sizeId)
-                        if (!size) return total
-                        const price = getSizePrice(size) || 0
-                        return total + (price * quantity)
-                      }, 0).toFixed(2)}
-                    </p>
-                    <span className="text-xs text-emerald-600 flex items-center gap-1">
-                      <Gift className="w-3 h-3" />
-                      Earn {Math.round(Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
-                        const size = product.sizes.find(s => s.id === sizeId)
-                        if (!size) return total
-                        const price = getSizePrice(size) || 0
-                        return total + (price * quantity)
-                      }, 0))} pts
-                    </span>
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-2 border-emerald-200 shadow-2xl z-50 safe-area-inset-bottom">
+            {/* Decorative gradient line */}
+            <div className="h-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500"></div>
+            
+            <div className="p-3 sm:p-4 lg:p-5">
+              <div className="container mx-auto max-w-7xl">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+                  {/* Left: Selection Summary */}
+                  <div className="flex-1 min-w-0 w-full sm:w-auto">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <p className="text-xs font-medium text-gray-700">
+                          {selectedSizes.size} size{selectedSizes.size > 1 ? 's' : ''} selected
+                        </p>
+                      </div>
+                      <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5">
+                        {Array.from(selectedSizes.values()).reduce((sum, qty) => sum + qty, 0)} items
+                      </Badge>
+                    </div>
+                    
+                    <div className="flex items-center gap-3 sm:gap-4">
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-xs text-gray-500">Total:</span>
+                        <p className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
+                          ${Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
+                            const size = product.sizes.find(s => s.id === sizeId)
+                            if (!size) return total
+                            const price = getSizePrice(size) || 0
+                            return total + (price * quantity)
+                          }, 0).toFixed(2)}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                        <Gift className="w-3 h-3" />
+                        <span className="text-xs font-medium">
+                          +{Math.round(Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
+                            const size = product.sizes.find(s => s.id === sizeId)
+                            if (!size) return total
+                            const price = getSizePrice(size) || 0
+                            return total + (price * quantity)
+                          }, 0))} pts
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                  
+                  {/* Right: Add to Cart Button */}
+                  <Button
+                    className="h-12 sm:h-14 px-6 sm:px-8 lg:px-10 text-sm sm:text-base bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl w-full sm:w-auto min-w-[140px] sm:min-w-[160px] group"
+                    onClick={handleAddToCart}
+                    disabled={addingToCart}
+                  >
+                    {addingToCart ? (
+                      <>
+                        <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                        <span className="hidden sm:inline">Adding to Cart...</span>
+                        <span className="sm:hidden">Adding...</span>
+                      </>
+                    ) : (
+                      <>
+                        <ShoppingCart className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform duration-200" />
+                        <span className="hidden sm:inline">Add to Cart</span>
+                        <span className="sm:hidden">Add</span>
+                      </>
+                    )}
+                  </Button>
                 </div>
-                
-                <Button
-                  className="h-12 px-6 lg:px-8 text-base bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 rounded-lg"
-                  onClick={handleAddToCart}
-                  disabled={addingToCart}
-                >
-                  {addingToCart ? (
-                    <>
-                      <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    <>
-                      <ShoppingCart className="w-5 h-5 mr-2" />
-                      Add to Cart
-                    </>
-                  )}
-                </Button>
               </div>
             </div>
           </div>
         )}
 
-        {/* ------------- LOGIN REQUIRED ------------- */}
+        {/* ------------- ENHANCED LOGIN REQUIRED SECTION ------------- */}
         {!isLoggedIn && (
           <div className="mt-8">
-            <Card className="shadow-lg border-2 border-indigo-200 text-center p-8 bg-gradient-to-br from-indigo-50 to-purple-50">
-              <UserPlus className="w-12 h-12 mx-auto mb-3 text-indigo-600" />
-              <p className="font-bold text-xl text-gray-900 mb-2">Login Required</p>
-              <p className="text-sm text-gray-600 mb-4">
-                Sign in to view prices and add items to cart
-              </p>
-              <Button
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white h-12 px-8 font-bold rounded-xl"
-                onClick={() => navigate("/login")}
-              >
-                <UserPlus className="w-5 h-5 mr-2" />
-                Login / Signup
-              </Button>
+            <Card className="shadow-2xl border-2 border-indigo-200 text-center p-8 bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 relative overflow-hidden">
+              {/* Decorative background elements */}
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-400/20 to-purple-400/20 rounded-full blur-2xl"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-gradient-to-tr from-purple-400/20 to-pink-400/20 rounded-full blur-2xl"></div>
+              
+              <div className="relative z-10">
+                {/* Enhanced icon with gradient */}
+                <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                  <UserPlus className="w-8 h-8 text-white" />
+                </div>
+                
+                <h2 className="font-black text-2xl lg:text-3xl text-gray-900 mb-3 tracking-tight">
+                  Login Required
+                </h2>
+                <p className="text-base text-gray-600 mb-6 max-w-md mx-auto leading-relaxed">
+                  Sign in to view exclusive pricing, add items to cart, and access your personalized dashboard
+                </p>
+                
+                {/* Enhanced features list */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-sm">
+                  <div className="flex items-center justify-center gap-2 text-gray-700">
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                    <span>View Pricing</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-gray-700">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <span>Add to Cart</span>
+                  </div>
+                  <div className="flex items-center justify-center gap-2 text-gray-700">
+                    <div className="w-2 h-2 bg-purple-500 rounded-full"></div>
+                    <span>Earn Rewards</span>
+                  </div>
+                </div>
+                
+                <Button
+                  className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 text-white h-14 px-10 font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-lg"
+                  onClick={() => navigate("/login")}
+                >
+                  <UserPlus className="w-6 h-6 mr-3" />
+                  Login / Sign Up
+                </Button>
+              </div>
             </Card>
           </div>
         )}

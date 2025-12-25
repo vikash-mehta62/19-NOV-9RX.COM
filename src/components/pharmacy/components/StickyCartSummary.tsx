@@ -41,7 +41,7 @@ export const StickyCartSummary = () => {
 
   return (
     // Only show on desktop (lg and above) - FloatingCartButton handles mobile
-    <div className="fixed bottom-4 right-4 z-50 hidden lg:block">
+    <div className="fixed bottom-4 right-4 z-40 hidden lg:block">
       {/* Expanded View */}
       {isExpanded && (
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 mb-2 w-80 overflow-hidden animate-in slide-in-from-bottom-2">
