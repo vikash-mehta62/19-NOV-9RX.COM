@@ -105,53 +105,50 @@ const Index = () => {
       {/* Footer */}
       <Footer />
 
-      {/* Fixed Contact Buttons - Always Visible */}
-      <div className="fixed right-0 top-1/2 -translate-y-1/2 z-[9999] flex flex-col gap-2 sm:gap-3">
-        {/* Phone Button */}
+      {/* Fixed Contact Buttons - Optimized for all screen sizes */}
+      {/* <div className="fixed right-2 sm:right-3 md:right-4 lg:right-5 xl:right-6 top-1/2 -translate-y-1/2 z-[45] flex flex-col gap-2 sm:gap-2.5">
         <a
           href="tel:+18009696295"
-          className="group flex items-center bg-white shadow-xl sm:shadow-2xl rounded-l-xl sm:rounded-l-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/20 border border-slate-200"
+          className="group flex items-center bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-l-xl overflow-hidden transition-all duration-300 hover:shadow-blue-500/20 border border-slate-200/50 hover:bg-white hover:scale-105"
         >
-          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 pr-3 sm:pr-5">
-            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg sm:rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-110 transition-transform">
-              <Phone className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+          <div className="flex items-center gap-2 px-2 sm:px-2.5 md:px-3 py-2 sm:py-2.5 pr-2 sm:pr-2.5 md:pr-3">
+            <div className="w-7 sm:w-8 md:w-9 h-7 sm:h-8 md:h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-blue-500/30 group-hover:scale-110 transition-transform">
+              <Phone className="w-3.5 sm:w-4 md:w-4.5 h-3.5 sm:h-4 md:h-4.5 text-white" />
             </div>
-            <div className="hidden md:block">
-              <p className="text-xs text-slate-500 font-medium">Call Us Now</p>
-              <p className="text-sm font-bold text-slate-800">+1 800 969 6295</p>
+            <div className="hidden xl:block">
+              <p className="text-[10px] text-slate-500 font-medium">Call Us</p>
+              <p className="text-xs font-bold text-slate-800">+1 800 969 6295</p>
             </div>
           </div>
         </a>
 
-        {/* Quick Inquiry Button */}
         <button
           type="button"
           onClick={() => setShowForm(!showForm)}
-          className="group flex items-center bg-gradient-to-r from-blue-600 to-indigo-600 shadow-xl sm:shadow-2xl rounded-l-xl sm:rounded-l-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-700 cursor-pointer"
+          className="group flex items-center bg-gradient-to-r from-blue-600 to-indigo-600 shadow-lg hover:shadow-xl rounded-l-xl overflow-hidden transition-all duration-300 hover:shadow-blue-500/30 hover:from-blue-700 hover:to-indigo-700 cursor-pointer hover:scale-105"
         >
-          <div className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 sm:py-3 pr-3 sm:pr-5">
-            <div className="w-8 sm:w-10 h-8 sm:h-10 bg-white/20 backdrop-blur rounded-lg sm:rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform">
-              <ShieldQuestion className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+          <div className="flex items-center gap-2 px-2 sm:px-2.5 md:px-3 py-2 sm:py-2.5 pr-2 sm:pr-2.5 md:pr-3">
+            <div className="w-7 sm:w-8 md:w-9 h-7 sm:h-8 md:h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center group-hover:scale-110 transition-transform">
+              <ShieldQuestion className="w-3.5 sm:w-4 md:w-4.5 h-3.5 sm:h-4 md:h-4.5 text-white" />
             </div>
-            <div className="hidden md:block text-left">
-              <p className="text-xs text-blue-200 font-medium">Need Help?</p>
-              <p className="text-sm font-bold text-white">Quick Inquiry</p>
+            <div className="hidden xl:block text-left">
+              <p className="text-[10px] text-blue-200 font-medium">Need Help?</p>
+              <p className="text-xs font-bold text-white">Quick Inquiry</p>
             </div>
           </div>
         </button>
 
-        {/* Floating Inquiry Form */}
         {showForm && (
-          <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full bottom-20 sm:bottom-auto mt-0 sm:mt-3 bg-white shadow-2xl rounded-xl sm:rounded-l-2xl sm:rounded-br-2xl p-4 sm:p-5 w-[calc(100vw-1rem)] sm:w-80 border border-slate-200 z-[10000] max-h-[70vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="fixed sm:absolute right-2 sm:right-0 top-auto sm:top-full bottom-20 sm:bottom-auto mt-0 sm:mt-2 bg-white/98 backdrop-blur-xl shadow-2xl rounded-xl sm:rounded-l-2xl sm:rounded-br-2xl p-4 w-[calc(100vw-1rem)] sm:w-72 md:w-80 border border-slate-200/50 z-[46] max-h-[70vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-bold text-slate-900 text-sm sm:text-base">Quick Inquiry</h3>
+                <h3 className="font-bold text-slate-900 text-sm">Quick Inquiry</h3>
                 <p className="text-xs text-slate-500">We'll respond within 2 hours</p>
               </div>
               <button 
                 type="button"
                 onClick={() => setShowForm(false)}
-                className="w-7 sm:w-8 h-7 sm:h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+                className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
               >
                 <span className="text-slate-500 text-lg leading-none">×</span>
               </button>
@@ -205,7 +202,7 @@ const Index = () => {
             </form>
           </div>
         )}
-      </div>
+      </div> */}
     </div>
   );
 };

@@ -232,11 +232,11 @@ const HeroSection = () => {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
         </div>
 
-        <div className="container mx-auto px-4 relative z-10 pt-24 sm:pt-28 pb-16 sm:pb-20">
-          <div className="grid lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-            {/* Left Content */}
-            <div className="lg:col-span-7 space-y-5 sm:space-y-8 text-center lg:text-left">
-              {/* Badge */}
+        <div className="max-w-[90vw] mx-auto px-4 relative z-10 pt-16 sm:pt-20 lg:pt-24 pb-12 sm:pb-16 lg:pb-20">
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-8 xl:gap-10 items-start min-h-[calc(100vh-8rem)]">
+            {/* Left Content - Text first on mobile, left on desktop */}
+            <div className="lg:col-span-8 space-y-4 sm:space-y-6 lg:space-y-7 text-center lg:text-left max-w-4xl order-first lg:order-first">
+              {/* Badge - Laptop optimized */}
               <div className="inline-flex items-center gap-2 sm:gap-3 flex-wrap justify-center lg:justify-start">
                 <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-xl border border-blue-500/30 rounded-full pl-1.5 pr-3 sm:pr-4 py-1.5">
                   <div className="w-6 sm:w-7 h-6 sm:h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
@@ -244,19 +244,20 @@ const HeroSection = () => {
                   </div>
                   <span className="text-blue-300 text-xs sm:text-sm font-medium">#1 Pharmacy Supplier</span>
                 </div>
-                <div className="hidden sm:flex items-center gap-1.5 text-slate-400 text-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-sm">
                   <div className="flex -space-x-1.5">
                     {[image1, image2, image3].map((img, i) => (
                       <img key={i} src={img} alt="" className="w-5 sm:w-6 h-5 sm:h-6 rounded-full border-2 border-slate-900 object-cover" />
                     ))}
                   </div>
-                  <span>{pharmacyCount}+ pharmacies trust us</span>
+                  <span className="hidden sm:inline">{pharmacyCount}+ pharmacies trust us</span>
+                  <span className="sm:hidden">{pharmacyCount}+ trust us</span>
                 </div>
               </div>
 
-              {/* Main Heading */}
-              <div className="space-y-2 sm:space-y-4">
-                <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-[1.1] sm:leading-[1.05] tracking-tight">
+              {/* Main Heading - Better laptop sizing */}
+              <div className="space-y-2 sm:space-y-3">
+                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold leading-[1.1] sm:leading-[1.05] tracking-tight">
                   <span className="text-white">Premium</span>
                   <br />
                   <span className="text-white">Pharmacy</span>
@@ -264,7 +265,7 @@ const HeroSection = () => {
                   <span className="relative inline-block">
                     <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-sky-400 bg-clip-text text-transparent">Supplies</span>
                     <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                      <path d="M2 10C50 2 150 2 198 10" stroke="url(#underline-blue)" strokeWidth="3" strokeLinecap="round"/>
+                      <path d="M2 10C50 2 150 2 198 10" stroke="url(#underline-blue)" strokeWidth="2" strokeLinecap="round"/>
                       <defs><linearGradient id="underline-blue" x1="0" y1="0" x2="200" y2="0">
                         <stop stopColor="#60a5fa" /><stop offset="0.5" stopColor="#818cf8" /><stop offset="1" stopColor="#38bdf8" />
                       </linearGradient></defs>
@@ -273,25 +274,25 @@ const HeroSection = () => {
                 </h1>
               </div>
 
-              {/* Description */}
-              <p className="text-base sm:text-lg md:text-xl text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed px-2 sm:px-0">
+              {/* Description - Better laptop sizing */}
+              <p className="text-sm sm:text-base md:text-lg lg:text-lg xl:text-xl text-slate-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed px-2 sm:px-0">
                 Quality pharmacy packaging and supplies at competitive prices. 
                 Join <span className="text-blue-400 font-semibold">{pharmacyCount}+</span> independent pharmacies 
                 that trust us for their daily operations.
               </p>
 
-              {/* CTA Buttons */}
+              {/* CTA Buttons - Laptop optimized */}
               <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2 justify-center lg:justify-start px-2 sm:px-0">
                 <Button onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
-                  className="group relative bg-blue-600 hover:bg-blue-700 text-white px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg font-semibold rounded-xl sm:rounded-2xl shadow-2xl shadow-blue-500/30 overflow-hidden min-h-[48px] sm:min-h-[56px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 w-full sm:w-auto">
+                  className="group relative bg-blue-600 hover:bg-blue-700 text-white px-5 sm:px-6 lg:px-7 py-3 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl shadow-2xl shadow-blue-500/30 overflow-hidden min-h-[44px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 w-full sm:w-auto">
                   <span className="relative z-10 flex items-center justify-center gap-2">
                     Get Started Free
-                    <ArrowRight className="w-4 sm:w-5 h-4 sm:h-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
+                    <ArrowRight className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
                   </span>
                 </Button>
                 <Button onClick={() => navigate("/products")}
-                  className="group bg-white/5 border border-white/10 text-white hover:bg-white/10 px-6 sm:px-8 py-5 sm:py-6 text-base sm:text-lg font-semibold rounded-xl sm:rounded-2xl backdrop-blur-sm min-h-[48px] sm:min-h-[56px] focus-visible:ring-2 focus-visible:ring-white w-full sm:w-auto">
-                  <ShoppingBag className="w-4 sm:w-5 h-4 sm:h-5 mr-2 text-blue-400" aria-hidden="true" />
+                  className="group bg-white/5 border border-white/10 text-white hover:bg-white/10 px-5 sm:px-6 lg:px-7 py-3 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl backdrop-blur-sm min-h-[44px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-white w-full sm:w-auto">
+                  <ShoppingBag className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5 mr-2 text-blue-400" aria-hidden="true" />
                   Browse Products
                 </Button>
               </div>
@@ -307,82 +308,82 @@ const HeroSection = () => {
               </div>
             </div>
 
-            {/* Right Content - Product Card */}
-            <div className="lg:col-span-5 relative hidden lg:block">
-              <div style={{ transform: `translate(${mousePosition.x * 0.5}px, ${mousePosition.y * 0.5}px)`, transition: 'transform 0.3s ease-out' }}>
-                {/* Glow effect */}
-                <div className={`absolute -inset-4 bg-gradient-to-br ${slides[activeSlide].color} opacity-20 rounded-[40px] blur-2xl`} />
+            {/* Right Content - Product Card second on mobile, right on desktop */}
+            <div className="lg:col-span-4 relative order-last lg:order-last mt-8 lg:mt-12 xl:mt-16">
+              <div className="relative max-w-sm mx-auto lg:max-w-none" style={{ transform: `translate(${mousePosition.x * 0.3}px, ${mousePosition.y * 0.3}px)`, transition: 'transform 0.3s ease-out' }}>
+                {/* Compact glow effect */}
+                <div className={`absolute -inset-2 bg-gradient-to-br ${slides[activeSlide].color} opacity-15 rounded-[20px] blur-lg`} />
                 
-                {/* Main card */}
-                <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-white/10 rounded-[32px] p-8 overflow-hidden">
+                {/* Responsive main card */}
+                <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-white/10 rounded-[20px] p-4 lg:p-5 overflow-hidden">
                   {/* Card header */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full bg-gradient-to-br ${slides[activeSlide].color}`} />
-                      <span className="text-white/60 text-sm font-medium">Featured Product</span>
+                  <div className="flex items-center justify-between mb-3 lg:mb-4">
+                    <div className="flex items-center gap-1.5">
+                      <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${slides[activeSlide].color}`} />
+                      <span className="text-white/60 text-xs font-medium">Featured</span>
                     </div>
                     <div className="flex gap-1">
                       {slides.map((_, i) => (
                         <button key={i} onClick={() => setActiveSlide(i)}
-                          className={`w-2 h-2 rounded-full transition-all ${i === activeSlide ? `w-6 bg-gradient-to-r ${slides[i].color}` : 'bg-white/20 hover:bg-white/30'}`} />
+                          className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeSlide ? `w-4 bg-gradient-to-r ${slides[i].color}` : 'bg-white/20 hover:bg-white/30'}`} />
                       ))}
                     </div>
                   </div>
 
-                  {/* Product image area */}
-                  <div className="relative h-52 mb-6 rounded-2xl bg-gradient-to-br from-white/5 to-transparent flex items-center justify-center overflow-hidden">
+                  {/* Product image area - Responsive height */}
+                  <div className="relative h-28 sm:h-32 lg:h-32 mb-3 lg:mb-4 rounded-xl bg-gradient-to-br from-white/5 to-transparent flex items-center justify-center overflow-hidden">
                     <div className={`absolute inset-0 bg-gradient-to-br ${slides[activeSlide].color} opacity-10`} />
-                    <Package className="w-28 h-28 text-white/30" />
-                    <div className="absolute top-3 right-3 bg-blue-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
-                      POPULAR
+                    <Package className="w-14 sm:w-16 lg:w-16 h-14 sm:h-16 lg:h-16 text-white/30" />
+                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
+                      HOT
                     </div>
                   </div>
 
                   {/* Product info */}
-                  <div className="space-y-4">
-                    <h3 className="text-2xl font-bold text-white">{slides[activeSlide].title}</h3>
-                    <p className="text-slate-400">{slides[activeSlide].subtitle}</p>
+                  <div className="space-y-2 lg:space-y-3">
+                    <h3 className="text-base lg:text-lg font-bold text-white leading-tight">{slides[activeSlide].title}</h3>
+                    <p className="text-slate-400 text-sm">{slides[activeSlide].subtitle}</p>
                     
                     {/* Rating */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       <div className="flex">
-                        {[...Array(5)].map((_, i) => <Star key={i} className="w-4 h-4 text-amber-400 fill-amber-400" />)}
+                        {[...Array(5)].map((_, i) => <Star key={i} className="w-3 h-3 text-amber-400 fill-amber-400" />)}
                       </div>
-                      <span className="text-slate-400 text-sm">4.9 (2.4k reviews)</span>
+                      <span className="text-slate-400 text-xs">4.9 (2.4k)</span>
                     </div>
 
                     {/* CTA */}
                     <button 
                       onClick={() => navigate("/products")}
-                      className={`w-full mt-2 bg-gradient-to-r ${slides[activeSlide].color} text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg`}
+                      className={`w-full bg-gradient-to-r ${slides[activeSlide].color} text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg text-sm`}
                     >
                       View Products
-                      <ChevronRight className="w-4 h-4" />
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
 
-                {/* Floating stat cards */}
-                <div className="absolute -left-16 top-1/4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl p-4 animate-float shadow-xl">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Users className="w-6 h-6 text-white" aria-hidden="true" />
+                {/* Floating stat cards - Responsive positioning */}
+                <div className="absolute -left-6 sm:-left-8 lg:-left-8 top-6 sm:top-8 lg:top-8 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg">
+                  <div className="flex items-center gap-1.5 lg:gap-2">
+                    <div className="w-7 lg:w-8 h-7 lg:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-md">
+                      <Users className="w-3.5 lg:w-4 h-3.5 lg:h-4 text-white" aria-hidden="true" />
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-white">{pharmacyCount}+</div>
-                      <div className="text-xs text-slate-400">Happy Customers</div>
+                      <div className="text-base lg:text-lg font-bold text-white">{pharmacyCount}+</div>
+                      <div className="text-[8px] lg:text-[9px] text-slate-400">Customers</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="absolute -right-12 bottom-1/4 bg-white/10 backdrop-blur-xl border border-white/10 rounded-2xl p-4 animate-float shadow-xl" style={{ animationDelay: '1s' }}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Star className="w-6 h-6 text-white" />
+                <div className="absolute -right-4 sm:-right-6 lg:-right-6 bottom-6 sm:bottom-8 lg:bottom-8 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg" style={{ animationDelay: '1s' }}>
+                  <div className="flex items-center gap-1.5 lg:gap-2">
+                    <div className="w-7 lg:w-8 h-7 lg:h-8 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-lg flex items-center justify-center shadow-md">
+                      <Star className="w-3.5 lg:w-4 h-3.5 lg:h-4 text-white" />
                     </div>
                     <div>
-                      <div className="text-2xl font-bold text-white">98%</div>
-                      <div className="text-xs text-slate-400">Satisfaction</div>
+                      <div className="text-base lg:text-lg font-bold text-white">98%</div>
+                      <div className="text-[8px] lg:text-[9px] text-slate-400">Rating</div>
                     </div>
                   </div>
                 </div>
@@ -390,17 +391,17 @@ const HeroSection = () => {
             </div>
           </div>
 
-          {/* Bottom Features Bar */}
-          <div className="mt-12 sm:mt-16 lg:mt-20 pt-8 sm:pt-12 border-t border-white/10">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6" role="list" aria-label="Service features">
+          {/* Bottom Features Bar - Laptop optimized */}
+          <div className="mt-8 sm:mt-10 lg:mt-12 xl:mt-16 pt-6 sm:pt-8 lg:pt-10 border-t border-white/10">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5" role="list" aria-label="Service features">
               {features.map((feature, i) => (
-                <div key={i} className="group flex flex-col sm:flex-row items-center gap-2 sm:gap-4 p-3 sm:p-4 rounded-xl sm:rounded-2xl hover:bg-white/5 transition-all cursor-pointer text-center sm:text-left" role="listitem">
-                  <div className="w-10 sm:w-12 lg:w-14 h-10 sm:h-12 lg:h-14 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-xl sm:rounded-2xl flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-indigo-500/30 transition-colors shadow-lg flex-shrink-0">
-                    <feature.icon className="w-5 sm:w-6 lg:w-7 h-5 sm:h-6 lg:h-7 text-blue-400" aria-hidden="true" />
+                <div key={i} className="group flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl hover:bg-white/5 transition-all cursor-pointer text-center sm:text-left" role="listitem">
+                  <div className="w-10 sm:w-10 lg:w-11 xl:w-12 h-10 sm:h-10 lg:h-11 xl:h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-lg sm:rounded-xl flex items-center justify-center group-hover:from-blue-500/30 group-hover:to-indigo-500/30 transition-colors shadow-lg flex-shrink-0">
+                    <feature.icon className="w-5 sm:w-5 lg:w-5.5 xl:w-6 h-5 sm:h-5 lg:h-5.5 xl:h-6 text-blue-400" aria-hidden="true" />
                   </div>
                   <div>
-                    <div className="font-semibold text-white text-xs sm:text-sm lg:text-base">{feature.label}</div>
-                    <div className="text-xs sm:text-sm text-slate-500 hidden sm:block">{feature.value}</div>
+                    <div className="font-semibold text-white text-xs sm:text-sm lg:text-sm xl:text-base">{feature.label}</div>
+                    <div className="text-xs sm:text-xs lg:text-sm text-slate-500 hidden sm:block">{feature.value}</div>
                   </div>
                 </div>
               ))}
