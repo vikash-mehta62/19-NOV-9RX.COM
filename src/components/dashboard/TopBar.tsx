@@ -80,9 +80,9 @@ export const TopBar = () => {
   };
 
   return (
-    <div className="h-16 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-6 sticky top-0 bg-white dark:bg-gray-900 z-10 transition-colors">
+    <div className="h-12 sm:h-14 md:h-16 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between px-3 sm:px-4 md:px-6 sticky top-0 bg-white dark:bg-gray-900 z-10 transition-colors">
       <SidebarTrigger />
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         {/* Theme Toggle - temporarily disabled */}
         {/* <ThemeToggle variant="icon" /> */}
         
@@ -90,42 +90,42 @@ export const TopBar = () => {
         {sessionStorage.getItem('userType') !== 'pharmacy' && <CartDrawer />}
      { sessionStorage.getItem('userType') === 'admin' &&  <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="relative">
-              <Bell className="h-5 w-5" />
+            <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10">
+              <Bell className="h-4 w-4 sm:h-5 sm:w-5" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-600 text-[10px] font-medium text-white flex items-center justify-center">
+                <span className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 h-3.5 w-3.5 sm:h-4 sm:w-4 rounded-full bg-red-600 text-[9px] sm:text-[10px] font-medium text-white flex items-center justify-center">
                   {unreadCount}
                 </span>
               )}
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-80">
+          <DropdownMenuContent align="end" className="w-64 sm:w-72 md:w-80">
             {notifications.length > 0 ? (
               notifications.map((notification) => (
                 <DropdownMenuItem
                   key={notification.id}
-                  className="flex flex-col items-start p-4 space-y-1 cursor-pointer"
+                  className="flex flex-col items-start p-2.5 sm:p-3 md:p-4 space-y-0.5 sm:space-y-1 cursor-pointer"
                   onClick={() => markAsRead(notification.id)}
                 >
                   <div className="flex items-center justify-between w-full">
                     <span
-                      className={`text-sm ${
+                      className={`text-xs sm:text-sm ${
                         notification.read ? "text-gray-500" : "font-medium"
                       }`}
                     >
                       {notification.message}
                     </span>
                     {!notification.read && (
-                      <span className="h-2 w-2 rounded-full bg-blue-500" />
+                      <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-blue-500" />
                     )}
                   </div>
-                  <span className="text-xs text-gray-500">
+                  <span className="text-[10px] sm:text-xs text-gray-500">
                     {notification.time}
                   </span>
                 </DropdownMenuItem>
               ))
             ) : (
-              <div className="p-4 text-sm text-gray-500 text-center">
+              <div className="p-3 sm:p-4 text-xs sm:text-sm text-gray-500 text-center">
                 No notifications
               </div>
             )}

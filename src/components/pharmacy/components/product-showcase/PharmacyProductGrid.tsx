@@ -48,17 +48,17 @@ export const PharmacyProductGrid = ({
   if (isLoading) {
     return (
       <div className={currentViewMode === "grid" 
-        ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-        : "grid grid-cols-1 sm:grid-cols-2 gap-5"
+        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4"
+        : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
       }>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-          <div key={i} className="bg-white rounded-2xl overflow-hidden border border-gray-200">
+          <div key={i} className="bg-white rounded-xl overflow-hidden border border-gray-200">
             <div className="aspect-[4/3] bg-gray-100 animate-pulse" />
-            <div className="p-4 space-y-3">
-              <div className="h-5 bg-gray-200 rounded-lg animate-pulse" />
-              <div className="h-4 bg-gray-200 rounded-lg w-2/3 animate-pulse" />
-              <div className="h-12 bg-gray-100 rounded-xl animate-pulse" />
-              <div className="h-11 bg-gray-200 rounded-xl animate-pulse" />
+            <div className="p-3 space-y-2">
+              <div className="h-4 bg-gray-200 rounded-lg animate-pulse" />
+              <div className="h-3 bg-gray-200 rounded-lg w-2/3 animate-pulse" />
+              <div className="h-10 bg-gray-100 rounded-lg animate-pulse" />
+              <div className="h-10 bg-gray-200 rounded-lg animate-pulse" />
             </div>
           </div>
         ))}
@@ -69,19 +69,19 @@ export const PharmacyProductGrid = ({
   // Empty state
   if (productItems.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 px-4 bg-white rounded-2xl border border-gray-200">
-        <div className="bg-emerald-50 p-8 rounded-full mb-6">
-          <Search className="h-16 w-16 text-emerald-400" />
+      <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4 bg-white rounded-xl sm:rounded-2xl border border-gray-200">
+        <div className="bg-emerald-50 p-6 sm:p-8 rounded-full mb-4 sm:mb-6">
+          <Search className="h-12 w-12 sm:h-16 sm:w-16 text-emerald-400" />
         </div>
-        <h3 className="text-xl font-bold text-gray-800 mb-2">No Products Found</h3>
-        <p className="text-gray-500 text-center max-w-md mb-6">
+        <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">No Products Found</h3>
+        <p className="text-gray-500 text-center text-sm sm:text-base max-w-md mb-4 sm:mb-6">
           We couldn't find any products matching your criteria. Try adjusting your filters.
         </p>
         <Button 
           onClick={() => window.location.reload()} 
-          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl px-6"
+          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg sm:rounded-xl px-4 sm:px-6 h-9 sm:h-10 text-sm"
         >
-          <RefreshCw className="h-4 w-4 mr-2" />
+          <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
           Reset Filters
         </Button>
       </div>
@@ -90,8 +90,8 @@ export const PharmacyProductGrid = ({
 
   return (
     <div className={currentViewMode === "grid" 
-      ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5"
-      : "grid grid-cols-1 sm:grid-cols-2 gap-5"
+      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4"
+      : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
       {productItems.map((product, index) => (
         <div 

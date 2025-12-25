@@ -373,7 +373,7 @@ export const PharmacyProductsFullPage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Announcements */}
-      <div className="max-w-7xl mx-auto px-4 pt-4">
+      <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4">
         <AnnouncementDisplay userRole="pharmacy" />
       </div>
 
@@ -382,15 +382,15 @@ export const PharmacyProductsFullPage = () => {
 
       {/* Top Header Bar */}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 sm:py-3">
+          <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Logo */}
-            <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Logo" className="h-10 w-auto" />
+            <div className="flex items-center gap-2 sm:gap-3">
+              <img src="/logo.png" alt="Logo" className="h-8 sm:h-10 w-auto" />
             </div>
 
             {/* Search Bar with Autocomplete */}
-            <div className="flex-1 max-w-xl">
+            <div className="flex-1 max-w-md sm:max-w-xl">
               <SearchAutocomplete
                 value={searchQuery}
                 onChange={setSearchQuery}
@@ -398,26 +398,26 @@ export const PharmacyProductsFullPage = () => {
                   const product = products.find(p => p.id === productId)
                   if (product) handleProductClick(product)
                 }}
-                placeholder="Search products, categories..."
+                placeholder="Search products..."
               />
             </div>
 
             {/* Right Actions */}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 sm:gap-2">
               {/* Profile Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="flex items-center gap-2">
-                    <Avatar className="h-8 w-8">
+                  <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2">
+                    <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                       <AvatarImage src={userProfile?.avatar} />
-                      <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs">
+                      <AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs">
                         {userProfile?.first_name?.[0] || userProfile?.company_name?.[0] || "U"}
                       </AvatarFallback>
                     </Avatar>
-                    <ChevronDown className="w-4 h-4 text-gray-500 hidden sm:block" />
+                    <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 text-gray-500 hidden sm:block" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuContent align="end" className="w-56 sm:w-64">
                   <DropdownMenuLabel>
                     <div className="flex flex-col">
                       <span className="font-medium">{userProfile?.first_name || userProfile?.company_name || "User"}</span>
@@ -501,7 +501,7 @@ export const PharmacyProductsFullPage = () => {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">
         {/* Welcome Dashboard - Personalized greeting with stats */}
         <WelcomeDashboard />
 
@@ -528,10 +528,10 @@ export const PharmacyProductsFullPage = () => {
         <RecentlyViewed />
 
         {/* Products Section */}
-        <div className="flex gap-6">
+        <div className="flex gap-4 lg:gap-6">
           {/* Desktop Filter Sidebar */}
-          <aside className="hidden lg:block w-64 flex-shrink-0">
-            <div className="sticky top-24">
+          <aside className="hidden lg:block w-56 xl:w-64 flex-shrink-0">
+            <div className="sticky top-20">
               <PharmacyFilterSidebar
                 searchQuery={searchQuery}
                 setSearchQuery={setSearchQuery}
@@ -549,24 +549,24 @@ export const PharmacyProductsFullPage = () => {
           </aside>
 
           {/* Products Grid */}
-          <div className="flex-1 space-y-4">
+          <div className="flex-1 space-y-3 sm:space-y-4">
             {/* Toolbar */}
-            <div className="flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-gray-100">
-              <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between bg-white p-2 sm:p-3 rounded-lg sm:rounded-xl shadow-sm border border-gray-100">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* Mobile Filter Button */}
                 <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="sm" className="lg:hidden border-emerald-200 text-emerald-700 hover:bg-emerald-50">
-                      <Filter className="w-4 h-4 mr-2" />
+                    <Button variant="outline" size="sm" className="lg:hidden border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3">
+                      <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                       Filters
                     </Button>
                   </SheetTrigger>
-                  <SheetContent side="left" className="w-[300px] p-0">
-                    <SheetHeader className="p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
-                      <SheetTitle className="text-white">Filters</SheetTitle>
+                  <SheetContent side="left" className="w-[280px] sm:w-[300px] p-0">
+                    <SheetHeader className="p-3 sm:p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
+                      <SheetTitle className="text-white text-sm sm:text-base">Filters</SheetTitle>
                     </SheetHeader>
                     <ScrollArea className="h-[calc(100vh-60px)]">
-                      <div className="p-4">
+                      <div className="p-3 sm:p-4">
                         <PharmacyFilterSidebar
                           searchQuery={searchQuery}
                           setSearchQuery={setSearchQuery}
@@ -585,9 +585,9 @@ export const PharmacyProductsFullPage = () => {
                   </SheetContent>
                 </Sheet>
 
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                  <span className="text-sm text-gray-700">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-500 rounded-full"></div>
+                  <span className="text-xs sm:text-sm text-gray-700">
                     <span className="font-semibold text-emerald-600">{filteredProducts.length}</span> products
                     {selectedCategory !== "all" && (
                       <span className="hidden sm:inline text-gray-500"> in "{selectedCategory}"</span>
@@ -596,22 +596,22 @@ export const PharmacyProductsFullPage = () => {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 {/* View Toggle */}
                 <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
                   <button
                     onClick={() => setViewMode("grid")}
-                    className={`p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
                     </svg>
                   </button>
                   <button
                     onClick={() => setViewMode("compact")}
-                    className={`p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
+                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
                       <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
                     </svg>
                   </button>
@@ -619,8 +619,8 @@ export const PharmacyProductsFullPage = () => {
 
                 {/* Sort */}
                 <Select value={sortBy} onValueChange={setSortBy}>
-                  <SelectTrigger className="w-[140px] text-sm h-9 border-gray-200">
-                    <SelectValue placeholder="Sort by" />
+                  <SelectTrigger className="w-[100px] sm:w-[140px] text-xs sm:text-sm h-8 sm:h-9 border-gray-200">
+                    <SelectValue placeholder="Sort" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="featured">Featured</SelectItem>
@@ -634,9 +634,9 @@ export const PharmacyProductsFullPage = () => {
 
             {/* Products */}
             {loading ? (
-              <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl shadow-sm border border-gray-100">
-                <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
-                <p className="text-gray-600">Loading products...</p>
+              <div className="flex flex-col items-center justify-center h-48 sm:h-64 bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100">
+                <Loader2 className="animate-spin text-emerald-500 mb-3 sm:mb-4" size={32} />
+                <p className="text-gray-600 text-sm sm:text-base">Loading products...</p>
               </div>
             ) : (
               <div className="space-y-6">

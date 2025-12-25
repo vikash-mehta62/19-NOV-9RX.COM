@@ -14,16 +14,16 @@ interface StatsGridProps {
 export function StatsGrid({ stats, revenueChartData, isLoading }: StatsGridProps) {
   if (isLoading) {
     return (
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {[1, 2, 3, 4].map((i) => (
           <Card key={i} className="relative overflow-hidden">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-10 w-10 rounded-full" />
+              <Skeleton className="h-8 w-8 sm:h-10 sm:w-10 rounded-full" />
             </CardHeader>
             <CardContent>
-              <Skeleton className="h-8 w-32 mb-2" />
-              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-6 sm:h-8 w-24 sm:w-32 mb-2" />
+              <Skeleton className="h-3 sm:h-4 w-20 sm:w-24" />
             </CardContent>
           </Card>
         ))}
@@ -39,7 +39,7 @@ export function StatsGrid({ stats, revenueChartData, isLoading }: StatsGridProps
   };
 
   return (
-    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
       <ModernStatCard
         title="Total Sales"
         value={`$${stats.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}

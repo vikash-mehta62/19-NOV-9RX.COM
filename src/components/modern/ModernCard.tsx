@@ -9,7 +9,7 @@ interface ModernCardProps {
 
 export function ModernCard({ children, className }: ModernCardProps) {
   return (
-    <Card className={cn('p-6 hover:shadow-lg transition-shadow', className)}>
+    <Card className={cn('p-3 sm:p-4 md:p-6 hover:shadow-lg transition-shadow', className)}>
       {children}
     </Card>
   );

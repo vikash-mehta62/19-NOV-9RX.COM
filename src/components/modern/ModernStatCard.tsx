@@ -37,26 +37,26 @@ export function ModernStatCard({
   return (
     <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
       <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass}`} />
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-        <CardTitle className="text-sm font-medium text-gray-600">{title}</CardTitle>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-1 sm:pb-2 relative p-3 sm:p-4 md:p-6">
+        <CardTitle className="text-xs sm:text-sm font-medium text-gray-600">{title}</CardTitle>
         {icon && (
-          <div className={`h-10 w-10 flex items-center justify-center ${bgClass} rounded-full`}>
-            {icon}
+          <div className={`h-8 w-8 sm:h-10 sm:w-10 flex items-center justify-center ${bgClass} rounded-full`}>
+            <span className="scale-75 sm:scale-100">{icon}</span>
           </div>
         )}
       </CardHeader>
-      <CardContent className="relative">
-        <div className="text-3xl font-bold text-gray-900 mb-2">{value}</div>
+      <CardContent className="relative p-3 sm:p-4 md:p-6 pt-0">
+        <div className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{value}</div>
         {(change || subtitle) && (
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-wrap">
             {change && trend !== 'neutral' && (
-              <span className={`flex items-center gap-1 font-medium ${
+              <span className={`flex items-center gap-0.5 sm:gap-1 font-medium ${
                 trend === 'up' ? 'text-green-600' : 'text-red-600'
               }`}>
                 {trend === 'up' ? (
-                  <TrendingUp className="h-4 w-4" />
+                  <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4" />
                 ) : (
-                  <TrendingDown className="h-4 w-4" />
+                  <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4" />
                 )}
                 {change}
               </span>
@@ -64,7 +64,7 @@ export function ModernStatCard({
             {subtitle && <span className="text-gray-500">{subtitle}</span>}
           </div>
         )}
-        {chart && <div className="mt-4">{chart}</div>}
+        {chart && <div className="mt-2 sm:mt-4">{chart}</div>}
       </CardContent>
     </Card>
   );

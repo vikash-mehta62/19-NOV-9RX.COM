@@ -113,37 +113,37 @@ export const PharmacyProductCard = ({
       </div>
 
       {/* Product Info */}
-      <div className="p-3 space-y-2">
+      <div className="p-2.5 sm:p-3 space-y-1.5 sm:space-y-2">
         {/* Product Name */}
-        <h3 className="font-semibold text-gray-900 text-sm leading-tight line-clamp-2 hover:text-emerald-600 transition-colors min-h-[40px]">
+        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-emerald-600 transition-colors min-h-[32px] sm:min-h-[40px]">
           {product.name}
         </h3>
 
         {/* Starting Price - Large & Bold */}
-        <div className="pt-1">
-          <span className="text-xs text-gray-500">Starting at</span>
+        <div className="pt-0.5 sm:pt-1">
+          <span className="text-[10px] sm:text-xs text-gray-500">Starting at</span>
           <div>
-            <span className="text-xl font-bold text-gray-900">
+            <span className="text-base sm:text-xl font-bold text-gray-900">
               ${product.displayPrice.toFixed(2)}
             </span>
-            <span className="text-sm text-gray-500 ml-1">/ case</span>
+            <span className="text-xs sm:text-sm text-gray-500 ml-0.5 sm:ml-1">/ case</span>
           </div>
         </div>
 
         {/* Units per Case + Unit Price */}
         {unitsPerCase > 0 && (
-          <div className="flex items-center text-xs text-gray-500">
-            <Package className="w-3.5 h-3.5 mr-1 text-gray-400" />
-            <span>{unitsPerCase} units per case</span>
-            <span className="mx-1.5">·</span>
-            <span>${unitPrice.toFixed(2)} per unit</span>
+          <div className="flex items-center text-[10px] sm:text-xs text-gray-500 flex-wrap">
+            <Package className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-0.5 sm:mr-1 text-gray-400" />
+            <span>{unitsPerCase} units/case</span>
+            <span className="mx-1">·</span>
+            <span>${unitPrice.toFixed(2)}/unit</span>
           </div>
         )}
 
         {/* Stock Status */}
-        <div className="flex items-center gap-1.5">
-          <span className={`w-2 h-2 rounded-full ${isOutOfStock ? 'bg-red-500' : 'bg-emerald-500'}`} />
-          <span className={`text-xs font-medium ${isOutOfStock ? 'text-red-600' : 'text-emerald-600'}`}>
+        <div className="flex items-center gap-1 sm:gap-1.5">
+          <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${isOutOfStock ? 'bg-red-500' : 'bg-emerald-500'}`} />
+          <span className={`text-[10px] sm:text-xs font-medium ${isOutOfStock ? 'text-red-600' : 'text-emerald-600'}`}>
             {isOutOfStock ? 'Out of Stock' : 'In Stock'}
           </span>
         </div>
@@ -151,14 +151,14 @@ export const PharmacyProductCard = ({
         {/* View Sizes Button */}
         {!isOutOfStock && (
           <Button
-            className="w-full h-11 min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-xl mt-2 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-95 transition-transform"
+            className="w-full h-9 sm:h-11 min-h-[36px] sm:min-h-[44px] text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg sm:rounded-xl mt-1.5 sm:mt-2 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-95 transition-transform"
             onClick={(e) => {
               e.stopPropagation()
               handleCardClick()
             }}
             aria-label={sizesCount > 1 ? `View ${sizesCount} sizes for ${product.name}` : `View details for ${product.name}`}
           >
-            <Eye className="w-4 h-4 mr-1.5" aria-hidden="true" />
+            <Eye className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" aria-hidden="true" />
             {sizesCount > 1 ? `View ${sizesCount} Sizes` : 'View Details'}
           </Button>
         )}
