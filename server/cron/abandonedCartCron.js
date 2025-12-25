@@ -14,8 +14,8 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Automation configuration
 const AUTOMATION_CONFIG = {
-  checkInterval: 60 * 1000, // Check every 1 minute
-  abandonedTimeout: 1 * 60 * 1000, // 1 minutes for testing (usually 1-2 hours)
+  checkInterval: 24 * 60 * 60 * 1000, // Check every 24 hours
+  abandonedTimeout: 24 * 60 * 60 * 1000, // 24 hours for abandoned cart detection
 };
 
 async function checkAbandonedCarts() {

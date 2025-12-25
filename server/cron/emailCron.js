@@ -52,6 +52,9 @@ const CONFIG = {
   
   // Retry
   retryInterval: 5 * 60 * 1000, // 5 minutes
+  
+  // Duplicate prevention
+  duplicateCheckHours: 24, // Don't send same email type to same user within 24 hours
 };
 
 // ============================================
@@ -80,6 +83,81 @@ const log = (emoji, message, data = null) => {
 };
 
 // ============================================
+// DUPLICATE EMAIL PREVENTION
+// ============================================
+/**
+ * Check if a similar email was already sent/queued recently
+ * @param {string} email - Recipient email
+ * @param {string} triggerType - Type of email (abandoned_cart, inactive_user, etc.)
+ * @param {string} userId - User ID (optional)
+ * @returns {Promise<boolean>} - true if duplicate exists, false if safe to send
+ */
+async function isDuplicateEmail(email, triggerType, userId = null) {
+  try {
+    const cutoffTime = new Date(Date.now() - CONFIG.duplicateCheckHours * 60 * 60 * 1000).toISOString();
+    
+    // Check email_queue for pending/processing/sent emails of same type
+    const { data: queuedEmails, error: queueError } = await supabase
+      .from("email_queue")
+      .select("id, created_at")
+      .eq("email", email)
+      .in("status", ["pending", "processing", "sent"])
+      .gte("created_at", cutoffTime)
+      .limit(1);
+
+    if (queueError) {
+      log("⚠️", `Duplicate check queue error: ${queueError.message}`);
+      return false; // Allow sending if check fails
+    }
+
+    if (queuedEmails && queuedEmails.length > 0) {
+      log("🚫", `Duplicate found in queue for ${email} (type: ${triggerType})`);
+      return true;
+    }
+
+    // Check email_logs for recently sent emails of same type
+    const { data: sentEmails, error: logError } = await supabase
+      .from("email_logs")
+      .select("id, sent_at")
+      .eq("email_address", email)
+      .eq("status", "sent")
+      .gte("sent_at", cutoffTime)
+      .limit(1);
+
+    if (logError) {
+      log("⚠️", `Duplicate check logs error: ${logError.message}`);
+      return false;
+    }
+
+    if (sentEmails && sentEmails.length > 0) {
+      log("🚫", `Duplicate found in logs for ${email} (type: ${triggerType})`);
+      return true;
+    }
+
+    // If userId provided, also check automation_executions
+    if (userId && triggerType) {
+      const { data: executions, error: execError } = await supabase
+        .from("automation_executions")
+        .select("id, executed_at")
+        .eq("user_id", userId)
+        .eq("status", "completed")
+        .gte("executed_at", cutoffTime)
+        .limit(1);
+
+      if (!execError && executions && executions.length > 0) {
+        log("🚫", `Duplicate execution found for user ${userId} (type: ${triggerType})`);
+        return true;
+      }
+    }
+
+    return false; // No duplicate found, safe to send
+  } catch (error) {
+    log("❌", `Duplicate check error: ${error.message}`);
+    return false; // Allow sending if check fails
+  }
+}
+
+// ============================================
 // 1. PROCESS EMAIL QUEUE
 // ============================================
 async function processEmailQueue() {
@@ -103,6 +181,29 @@ async function processEmailQueue() {
 
     for (const queuedEmail of pendingEmails) {
       results.processed++;
+
+      // CHECK FOR DUPLICATE - Skip if same email was sent recently
+      const metadata = queuedEmail.metadata || {};
+      const triggerType = metadata.trigger_type || "transactional";
+      
+      // Check if this exact email was already sent (by checking email_logs)
+      const { data: recentlySent } = await supabase
+        .from("email_logs")
+        .select("id")
+        .eq("email_address", queuedEmail.email)
+        .eq("subject", queuedEmail.subject)
+        .eq("status", "sent")
+        .gte("sent_at", new Date(Date.now() - CONFIG.duplicateCheckHours * 60 * 60 * 1000).toISOString())
+        .limit(1);
+
+      if (recentlySent && recentlySent.length > 0) {
+        log("🚫", `Skipping duplicate email to ${queuedEmail.email} - already sent recently`);
+        await supabase
+          .from("email_queue")
+          .update({ status: "cancelled", error_message: "Duplicate email - already sent recently" })
+          .eq("id", queuedEmail.id);
+        continue;
+      }
 
       // Mark as processing
       await supabase
@@ -296,6 +397,18 @@ async function checkAbandonedCarts() {
         const profile = cart.profiles;
         if (!profile?.email) continue;
 
+        // CHECK FOR DUPLICATE EMAIL - Prevent sending same email again
+        const isDuplicate = await isDuplicateEmail(profile.email, "abandoned_cart", cart.user_id);
+        if (isDuplicate) {
+          log("⏭️", `Skipping ${profile.email} - duplicate email prevention`);
+          // Mark cart as processed to avoid checking again
+          await supabase
+            .from("carts")
+            .update({ abandoned_email_sent_at: new Date().toISOString() })
+            .eq("id", cart.id);
+          continue;
+        }
+
         // Check cooldown - has this user received this automation recently?
         const cooldownDate = new Date(Date.now() - automation.cooldown_days * 24 * 60 * 60 * 1000);
         const { data: recentExec } = await supabase
@@ -467,6 +580,13 @@ async function checkInactiveUsers() {
 
       for (const user of inactiveUsers) {
         if (!user.email) continue;
+
+        // CHECK FOR DUPLICATE EMAIL - Prevent sending same email again
+        const isDuplicate = await isDuplicateEmail(user.email, "inactive_user", user.id);
+        if (isDuplicate) {
+          log("⏭️", `Skipping inactive user ${user.email} - duplicate email prevention`);
+          continue;
+        }
 
         // Check cooldown
         const cooldownDate = new Date(Date.now() - automation.cooldown_days * 24 * 60 * 60 * 1000);
