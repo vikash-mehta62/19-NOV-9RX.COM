@@ -83,7 +83,7 @@ import ProductDetails from "./pages/ProductDetails";
 import AccessRequests from "./pages/AccessRequests";
 import { CartSync } from "./components/CartSync";
 
-import { runEmailCronJobs } from "./services/emailCronService";
+// Email cron is handled by backend server only - see server/cron/emailCron.js
 
 export let CATEGORY_CONFIGS: Record<
   string,
@@ -143,22 +143,8 @@ function App() {
   const location = useLocation();
   useAuthCheck();
 
-
-  useEffect(() => {
-    // Run email cron jobs every minute to process queue and automations
-    const runCron = async () => {
-      console.log("Running email cron jobs...");
-      await runEmailCronJobs();
-    };
-
-    // Run immediately on app load
-    runCron();
-
-    // Schedule every minute
-    const intervalId = setInterval(runCron, 60 * 1000);
-
-    return () => clearInterval(intervalId);
-  }, []);
+  // NOTE: Email cron jobs are now handled by backend server only
+  // Frontend no longer processes email queue to prevent duplicate sends
 
   useEffect(() => {
 
