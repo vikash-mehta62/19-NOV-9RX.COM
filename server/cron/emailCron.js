@@ -173,10 +173,10 @@ async function isDuplicateEmail(email, automationId, triggerType, userId = null)
 // 1. PROCESS EMAIL QUEUE
 // ============================================
 async function processEmailQueue() {
-  const results = { processed: 0, sent: 0, failed: 0, skipped: 0 };
+  const results = { processed: 0, sent: 0, failed: 0 };
 
   try {
-    // Get pending emails that are due
+    // Get pending emails that are due to send
     const { data: pendingEmails, error } = await supabase
       .from("email_queue")
       .select("*")
@@ -194,76 +194,19 @@ async function processEmailQueue() {
     for (const queuedEmail of pendingEmails) {
       results.processed++;
 
-      // STRONG DUPLICATE CHECK - Multiple layers of protection
-      const metadata = queuedEmail.metadata || {};
-      
-      // Layer 1: Check if this exact queue item was already processed (status changed by another process)
-      const { data: currentStatus } = await supabase
-        .from("email_queue")
-        .select("status")
-        .eq("id", queuedEmail.id)
-        .single();
-      
-      if (currentStatus && currentStatus.status !== "pending") {
-        log("⏭️", `Skipping ${queuedEmail.email} - status already changed to ${currentStatus.status}`);
-        results.skipped++;
-        continue;
-      }
-
-      // Layer 2: Check if same email+subject was sent in last 24 hours
-      const { data: recentlySent } = await supabase
-        .from("email_logs")
-        .select("id, sent_at")
-        .eq("email_address", queuedEmail.email)
-        .eq("subject", queuedEmail.subject)
-        .eq("status", "sent")
-        .gte("sent_at", new Date(Date.now() - CONFIG.duplicateCheckHours * 60 * 60 * 1000).toISOString())
-        .limit(1);
-
-      if (recentlySent && recentlySent.length > 0) {
-        log("🚫", `DUPLICATE BLOCKED: ${queuedEmail.email} - same email sent at ${recentlySent[0].sent_at}`);
-        await supabase
-          .from("email_queue")
-          .update({ status: "cancelled", error_message: "Duplicate email - already sent recently" })
-          .eq("id", queuedEmail.id);
-        results.skipped++;
-        continue;
-      }
-
-      // Layer 3: Check if another queue item with same email+subject is already sent/processing
-      const { data: otherQueueItems } = await supabase
-        .from("email_queue")
-        .select("id, status")
-        .eq("email", queuedEmail.email)
-        .eq("subject", queuedEmail.subject)
-        .in("status", ["sent", "processing"])
-        .neq("id", queuedEmail.id)
-        .limit(1);
-
-      if (otherQueueItems && otherQueueItems.length > 0) {
-        log("🚫", `DUPLICATE BLOCKED: ${queuedEmail.email} - another queue item already ${otherQueueItems[0].status}`);
-        await supabase
-          .from("email_queue")
-          .update({ status: "cancelled", error_message: "Duplicate - another queue item exists" })
-          .eq("id", queuedEmail.id);
-        results.skipped++;
-        continue;
-      }
-
-      // Mark as processing with atomic update (only if still pending)
-      const { error: updateError, count } = await supabase
+      // Mark as processing (simple update)
+      const { error: updateError } = await supabase
         .from("email_queue")
         .update({ status: "processing", last_attempt_at: new Date().toISOString() })
         .eq("id", queuedEmail.id)
-        .eq("status", "pending"); // Only update if still pending (atomic check)
+        .eq("status", "pending");
 
       if (updateError) {
         log("❌", `Update error for ${queuedEmail.email}: ${updateError.message}`);
-        results.skipped++;
         continue;
       }
 
-      // Verify the update actually happened
+      // Verify status changed
       const { data: verifyStatus } = await supabase
         .from("email_queue")
         .select("status")
@@ -271,12 +214,9 @@ async function processEmailQueue() {
         .single();
 
       if (!verifyStatus || verifyStatus.status !== "processing") {
-        log("⏭️", `Skipping ${queuedEmail.email} - could not acquire lock (status: ${verifyStatus?.status || 'unknown'})`);
-        results.skipped++;
+        log("⏭️", `Skipping ${queuedEmail.email} - already picked by another process`);
         continue;
       }
-
-      log("🔒", `Lock acquired for ${queuedEmail.email}`);
 
       try {
         // Prepare variables for substitution
