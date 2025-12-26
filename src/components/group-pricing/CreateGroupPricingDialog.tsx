@@ -87,7 +87,7 @@ const createFormSchema = (products: any[]) =>
               return false;
             }
     
-            // सबसे कम price निकालें
+            // Get the minimum price
             const minPrice = Math.min(...selectedProduct.product_sizes.map(size => size.price));
     
             return data.discountValue <= minPrice;
@@ -184,12 +184,12 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
       })) || [];
 
       const groupedProductSizes = productsResponse.data.map(product => ({
-        label: product.name, // प्रोडक्ट का नाम हेडिंग के रूप में
+        label: product.name, // Product name as heading
         options: product.product_sizes.map(size => ({
           value: size.id,
           label: `${size.size_value} ${size.size_unit}`,
           actual_price: size.price,
-          groupLabel: product.name // सर्च में ग्रुप नाम भी दिखाने के लिए
+          groupLabel: product.name // To show group name in search
         }))
       }));
       

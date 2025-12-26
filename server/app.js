@@ -10,6 +10,17 @@ const connectDB = require("./config/db");
 dotenv.config();
 connectDB();
 
+// Response compression for reduced bandwidth
+const compression = require("compression");
+app.use(compression({
+  level: 6, // Balanced compression level
+  threshold: 1024, // Only compress responses > 1KB
+  filter: (req, res) => {
+    if (req.headers['x-no-compression']) return false;
+    return compression.filter(req, res);
+  }
+}));
+
 // Simple in-memory rate limiter (no extra dependency needed)
 const rateLimitStore = new Map();
 

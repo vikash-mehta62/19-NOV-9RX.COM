@@ -29,19 +29,19 @@ export default function GroupOrder() {
 
 
  const fetchLocations = async () => {
-    if (!userProfile?.id) return; // Agar ID nahi hai to return kar do
+    if (!userProfile?.id) return; // If no ID, return
   
     try {
       const res = await fetchCustomerLocation(userProfile.id);
       if (!res) return;
   
-      // Map ko async function banana padega
+      // Format locations with async function
       const formatLocations = async (data) => {
         return Promise.all(data.map(async (location, index) => {
           const startOfMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
           const endOfMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
   
-          // ✅ Supabase se orders count fetch karo
+          // Fetch orders count from Supabase
           const { count, error } = await supabase
             .from("orders")
             .select("*", { count: "exact", head: true })
@@ -70,7 +70,7 @@ export default function GroupOrder() {
             type: location.type || "N/A",
             status: location.status || "pending",
             manager: location?.locations?.find(item => item.manager)?.manager || "N/A",
-            ordersThisMonth: count || 0 // Agar count undefined ho to 0 set karna
+            ordersThisMonth: count || 0 // If count is undefined, set to 0
           };
         }));
       };
@@ -145,7 +145,7 @@ export default function GroupOrder() {
   
       console.log("Successfully fetched profile:", data);
   
-      // Billing address को सुरक्षित तरीके से एक्सेस करें
+      // Safely access billing address
       const billingAddress = (data.billing_address || {}) as any;
   
 
@@ -173,10 +173,10 @@ export default function GroupOrder() {
     }
   };
   
-  // ✅ UseEffect to log updated orderData
+  // UseEffect to log updated orderData
   useEffect(() => {
     console.log("Updated order data:", orderData);
-  }, [orderData]); // Jab bhi orderData update hoga, tab yeh effect chalega
+  }, [orderData]); // When orderData updates, this effect runs
   
 
 

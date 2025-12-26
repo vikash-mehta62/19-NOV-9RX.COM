@@ -51,6 +51,7 @@ import {
   TrendingUp, Mail, Eye, BarChart3, Sparkles
 } from "lucide-react";
 import { format } from "date-fns";
+import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
 
 
 interface EmailAutomation {
@@ -571,6 +572,9 @@ export default function EmailAutomations() {
                           ))}
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Need a new template? <a href="/admin/email-templates" className="text-emerald-600 hover:underline">Create one with the Visual Editor →</a>
+                      </p>
                     </div>
 
 

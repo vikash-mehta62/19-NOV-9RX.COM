@@ -51,6 +51,7 @@ import {
   CheckCircle2, XCircle, RefreshCw, Copy, ExternalLink
 } from "lucide-react";
 import { format } from "date-fns";
+import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
 
 
 interface EmailCampaign {
@@ -739,7 +740,7 @@ export default function EmailCampaigns() {
                 <Plus className="mr-2 h-4 w-4" /> New Campaign
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingCampaign ? "Edit Campaign" : "Create New Campaign"}</DialogTitle>
                 <DialogDescription>
@@ -935,78 +936,15 @@ export default function EmailCampaigns() {
                   </div>
 
                   <div className="col-span-2">
-                    <div className="flex items-center gap-2 mb-2 justify-between">
-                      <Label htmlFor="html_content">Email Content (HTML)</Label>
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-7 text-xs gap-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200">
-                            <code className="text-xs bg-blue-100 px-1 rounded">{"{ }"}</code> Insert Variable
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="max-w-2xl">
-                          <DialogHeader>
-                            <DialogTitle>Insert Variable</DialogTitle>
-                            <DialogDescription>
-                              Click on a variable to insert it into your email content. These placeholders will be replaced with actual user data when sending.
-                            </DialogDescription>
-                          </DialogHeader>
-                          <div className="space-y-6 mt-4">
-                            {variableGroups.map((group) => (
-                              <div key={group.name} className="space-y-3">
-                                <div className="border-b pb-2">
-                                  <h4 className="font-semibold text-sm">{group.name}</h4>
-                                  <p className="text-xs text-muted-foreground">{group.description}</p>
-                                </div>
-                                <div className="grid grid-cols-2 gap-3">
-                                  {group.variables.map((v) => (
-                                    <Button
-                                      key={v.key}
-                                      variant="outline"
-                                      className="justify-start h-auto py-2 px-3 flex flex-col items-start gap-1 hover:bg-blue-50 hover:border-blue-200 group"
-                                      onClick={() => insertVariable(v.key)}
-                                    >
-                                      <div className="flex w-full justify-between items-center">
-                                        <span className="font-mono text-xs font-bold bg-muted px-1.5 py-0.5 rounded group-hover:bg-blue-100 text-blue-700">
-                                          {v.key}
-                                        </span>
-                                        <span className="text-xs text-muted-foreground font-normal">
-                                          {v.label}
-                                        </span>
-                                      </div>
-                                      <span className="text-[10px] text-muted-foreground/70 w-full text-left truncate">
-                                        Example: {v.example}
-                                      </span>
-                                    </Button>
-                                  ))}
-                                </div>
-                              </div>
-                            ))}
-                            
-                            <div className="p-3 border rounded-md bg-yellow-50/50 border-yellow-200 flex gap-3 items-start">
-                              <div className="mt-0.5">⚠️</div>
-                              <div>
-                                <h4 className="font-semibold text-sm text-yellow-800 mb-1">Important Note</h4>
-                                <p className="text-xs text-yellow-700">
-                                  If a variable value is missing for a user (e.g. they don't have a first name), it will be replaced with an empty string.
-                                  Make sure your sentence still makes sense without it.
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-                        </DialogContent>
-                      </Dialog>
+                    <Label>Email Content</Label>
+                    <div className="mt-2">
+                      <VisualEmailEditor
+                        key={editingCampaign?.id || 'new'}
+                        initialHtml={formData.html_content}
+                        onChange={(html) => setFormData({ ...formData, html_content: html })}
+                        variables={["user_name", "first_name", "last_name", "email", "unsubscribe_url", "company_name"]}
+                      />
                     </div>
-                    <Textarea
-                      id="html_content"
-                      value={formData.html_content}
-                      onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                      placeholder="Leave empty to use default template, or paste your HTML..."
-                      rows={8}
-                      className="font-mono text-sm"
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Variables: {"{{user_name}}"}, {"{{first_name}}"}, {"{{email}}"}, {"{{unsubscribe_url}}"}
-                    </p>
                   </div>
 
                   <div className="col-span-2">

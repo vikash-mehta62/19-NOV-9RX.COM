@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import JsBarcode from "jsbarcode";
 
-// आवश्यक फ़ील्ड के साथ अद्यतनित Size इंटरफ़ेस
+// Updated Size interface with required fields
 interface Size {
   size_value: string;
   size_unit: string;
@@ -21,7 +21,7 @@ interface Size {
   isUnit?: boolean;
 }
 
-// बारकोड को base64 इमेज के रूप में जनरेट करें
+// Generate barcode as base64 image
 const generateBarcode = (text: string): string => {
   const canvas = document.createElement("canvas");
   JsBarcode(canvas, text, {
@@ -36,41 +36,41 @@ const generateBarcode = (text: string): string => {
 };
 
 /**
- * एक ही PDF लेबल (4x2 इंच) को जनरेट करता है जो इमेज में दिखाए गए सटीक प्रारूप से मेल खाता है
- * @param productName उत्पाद का नाम
- * @param size एक ही आकार ऑब्जेक्ट जिसके लिए लेबल जनरेट करना है
+ * Generates a single PDF label (4x2 inches) matching the exact format shown in the image
+ * @param productName The product name
+ * @param size A single size object for which to generate the label
  */
 export const generateSingleProductLabelPDF = async (
   productName: string,
   size: Size,
   isUnit: boolean
 ) => {
-  // लेबल के आयाम mm में (4 इंच = 101.6 mm, 2 इंच = 50.8 mm)
-  const labelWidth = 101.6; // 4 इंच
-  const labelHeight = 50.8; // 2 इंच
+  // Label dimensions in mm (4 inches = 101.6 mm, 2 inches = 50.8 mm)
+  const labelWidth = 101.6; // 4 inches
+  const labelHeight = 50.8; // 2 inches
 
-  // लेबल के लिए कस्टम पेज आकार के साथ एक नया jsPDF इंस्टेंस बनाएँ
+  // Create a new jsPDF instance with custom page size for the label
   const doc = new jsPDF({
     orientation: "landscape",
     unit: "mm",
     format: [labelWidth, labelHeight],
   });
 
-  // बढ़े हुए मार्जिन के साथ गोल आयत की बॉर्डर बनाएँ
-  const margin = 4; // मार्जिन 2mm से बढ़ाकर 4mm किया गया
+  // Create rounded rectangle border with increased margin
+  const margin = 4; // Margin increased from 2mm to 4mm
 
-  // हेडर अनुभाग - छोटे फ़ॉन्ट
-  let yPos = margin + 3; // नए मार्जिन के आधार पर शुरुआती स्थिति को समायोजित किया गया
+  // Header section - smaller font
+  let yPos = margin + 3; // Adjusted starting position based on new margin
   const headerFontSize = 9;
   const websiteFontSize = 8;
-  const contentMargin = 8; // बाएं/दाएं के लिए नया, बढ़ा हुआ सामग्री मार्जिन
+  const contentMargin = 8; // New, increased content margin for left/right
 
-  // बाईं ओर: 9RX LLC
+  // Left side: 9RX LLC
   doc.setFontSize(headerFontSize);
   doc.setFont("helvetica", "bold");
   doc.text("9RX LLC", contentMargin, yPos);
 
-  // दाईं ओर: फ़ोन नंबर
+  // Right side: Phone number
   doc.setFontSize(headerFontSize);
   doc.setFont("helvetica", "bold");
   doc.text("1 800 969 6295", labelWidth - contentMargin, yPos, {
@@ -78,32 +78,32 @@ export const generateSingleProductLabelPDF = async (
   });
   yPos += 3.5;
 
-  // वेबसाइट
+  // Website
   doc.setFontSize(websiteFontSize);
   doc.setFont("helvetica", "normal");
   doc.text("WWW.9RX.COM", contentMargin, yPos);
   yPos += 2.5;
 
-  // क्षैतिज रेखा विभाजक
+  // Horizontal line separator
   doc.setLineWidth(0.3);
   doc.line(contentMargin, yPos, labelWidth - contentMargin, yPos);
   yPos += 6;
 
-  // बाएं कॉलम की सामग्री - केवल मान दिखाएँ, लेबल नहीं
-  const leftX = contentMargin; // बाएं मार्जिन के साथ संरेखित करने के लिए 8mm पर सेट किया गया
-  const rightX = labelWidth / 2 + 5; // दाएं कॉलम की सामग्री की शुरुआत
+  // Left column content - show only values, not labels
+  const leftX = contentMargin; // Set to 8mm to align with left margin
+  const rightX = labelWidth / 2 + 5; // Start of right column content
 
-  // उत्पाद का नाम (केवल मान, कोई लेबल नहीं)
+  // Product name (value only, no label)
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   const productNameLines = doc.splitTextToSize(
     productName || "PRODUCT NAME",
-    labelWidth / 2 - leftX - 2 // उत्पाद के नाम के लिए अधिकतम चौड़ाई
+    labelWidth / 2 - leftX - 2 // Max width for product name
   );
   doc.text(productNameLines, leftX, yPos);
   yPos += productNameLines.length * 3.5 + 2;
 
-  // आकार (केवल मान, कोई लेबल नहीं)
+  // Size (value only, no label)
   doc.setFontSize(12);
   doc.setFont("helvetica", "bold");
   const sizeText = `${size.size_value || "N/A"}${
@@ -113,7 +113,7 @@ export const generateSingleProductLabelPDF = async (
   doc.text(sizeLines, leftX, yPos);
   yPos += sizeLines.length * 3.5 + 3.5;
 
-  // प्रति केस मात्रा (केवल मान, कोई लेबल नहीं)
+  // Quantity per case (value only, no label)
   doc.setFontSize(10);
   doc.setFont("helvetica", "bold");
   doc.text(
@@ -126,10 +126,10 @@ export const generateSingleProductLabelPDF = async (
     yPos
   );
 
-  // दाएं कॉलम की सामग्री
-  let rightYPos = 18; // दाएं कॉलम के लिए शुरुआती Y स्थिति को समायोजित किया गया
+  // Right column content
+  let rightYPos = 18; // Adjusted starting Y position for right column
 
-  // LOT# (बोल्ड लेबल)
+  // LOT# (bold label)
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("LOT#", rightX, rightYPos);
@@ -138,7 +138,7 @@ export const generateSingleProductLabelPDF = async (
   doc.text(size.lotNumber || "", rightX + 12, rightYPos);
   rightYPos += 4.5;
 
-  // NDC# (बोल्ड लेबल)
+  // NDC# (bold label)
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("NDC#", rightX, rightYPos);
@@ -147,7 +147,7 @@ export const generateSingleProductLabelPDF = async (
   doc.text(size.ndcCode || "", rightX + 12, rightYPos);
   rightYPos += 4.5;
 
-  // EXPIRY: (बोल्ड लेबल)
+  // EXPIRY: (bold label)
   doc.setFontSize(9);
   doc.setFont("helvetica", "bold");
   doc.text("EXPIRY:", rightX, rightYPos);
@@ -156,15 +156,15 @@ export const generateSingleProductLabelPDF = async (
   doc.text(size.exipry || "", rightX + 18, rightYPos);
   rightYPos += 6;
 
-  // बारकोड जनरेट करें और जोड़ें
+  // Generate and add barcode
   if (size.upcCode) {
     try {
       const barcodeData = generateBarcode(String(size.upcCode));
       const barcodeWidth = 35;
       const barcodeHeight = 8;
-      // नए सामग्री मार्जिन के साथ बारकोड को दाईं ओर संरेखित करें
+      // Align barcode to the right with new content margin
       const barcodeX = labelWidth - contentMargin - barcodeWidth;
-      // बारकोड इमेज जोड़ें
+      // Add barcode image
       doc.addImage(
         barcodeData,
         "PNG",
@@ -175,7 +175,7 @@ export const generateSingleProductLabelPDF = async (
       );
       rightYPos += barcodeHeight + 1.5;
 
-      // बारकोड के नीचे SKU टेक्स्ट जोड़ें
+      // Add SKU text below barcode
       doc.setFontSize(7);
       doc.setFont("helvetica", "normal");
       doc.text(String(size.upcCode), barcodeX + barcodeWidth / 2, rightYPos, {
@@ -183,7 +183,7 @@ export const generateSingleProductLabelPDF = async (
       });
     } catch (error) {
       console.error(
-        `SKU ${size.sku} के लिए बारकोड जनरेट करने में त्रुटि:`,
+        `Error generating barcode for SKU ${size.sku}:`,
         error
       );
       doc.setFontSize(7);
@@ -191,7 +191,7 @@ export const generateSingleProductLabelPDF = async (
     }
   }
 
-  // फ़ाइल नाम के लिए उत्पाद और SKU नामों को साफ़ करें
+  // Clean product and SKU names for filename
   const fileNameProductName = productName
     .replace(/[^a-zA-Z0-9]/g, "_")
     .substring(0, 30);

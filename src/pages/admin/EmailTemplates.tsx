@@ -32,7 +32,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Pencil, Trash2, Mail, Eye, Code, FileText } from "lucide-react";
+import { Plus, Pencil, Trash2, Mail, Eye, Code, FileText, Wand2 } from "lucide-react";
+import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
 
 interface EmailTemplate {
   id: string;
@@ -193,7 +194,7 @@ export default function EmailTemplates() {
                 <Plus className="mr-2 h-4 w-4" /> New Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingTemplate ? "Edit Template" : "Create New Template"}</DialogTitle>
               </DialogHeader>
@@ -252,18 +253,27 @@ export default function EmailTemplates() {
                       id="variables"
                       value={formData.variables}
                       onChange={(e) => setFormData({ ...formData, variables: e.target.value })}
-                      placeholder="user_name, order_number, cart_total"
+                      placeholder="first_name, order_number, cart_total"
                     />
                     <p className="text-sm text-muted-foreground mt-1">
                       Use {"{{variable_name}}"} in your template
                     </p>
                   </div>
                   <div className="col-span-2">
-                    <Tabs defaultValue="html">
+                    <Tabs defaultValue="visual">
                       <TabsList>
-                        <TabsTrigger value="html"><Code className="h-4 w-4 mr-2" /> HTML</TabsTrigger>
+                        <TabsTrigger value="visual"><Wand2 className="h-4 w-4 mr-2" /> Visual Editor</TabsTrigger>
+                        <TabsTrigger value="html"><Code className="h-4 w-4 mr-2" /> HTML Code</TabsTrigger>
                         <TabsTrigger value="text"><FileText className="h-4 w-4 mr-2" /> Plain Text</TabsTrigger>
                       </TabsList>
+                      <TabsContent value="visual" className="mt-4">
+                        <VisualEmailEditor
+                          key={editingTemplate?.id || 'new'}
+                          initialHtml={formData.html_content}
+                          onChange={(html) => setFormData({ ...formData, html_content: html })}
+                          variables={formData.variables ? formData.variables.split(",").map(v => v.trim()).filter(Boolean) : []}
+                        />
+                      </TabsContent>
                       <TabsContent value="html">
                         <Label htmlFor="html_content">HTML Content *</Label>
                         <Textarea
