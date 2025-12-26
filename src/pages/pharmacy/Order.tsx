@@ -19,6 +19,7 @@ export default function PharmacyOrder() {
   const [currentUserId, setCurrentUserId] = useState<string>("");
 
   useEffect(() => {
+    console.log("PharmacyOrder mounted/updated", { isLoading, prefilledData: !!prefilledData });
     const loadUserData = async () => {
       // Verify user is logged in and is a pharmacy
       const userType = sessionStorage.getItem("userType");

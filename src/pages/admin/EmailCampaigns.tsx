@@ -348,11 +348,11 @@ export default function EmailCampaigns() {
       let query = supabase.from("profiles").select("id", { count: "exact", head: true });
       
       if (audience === "pharmacy") {
-        query = query.eq("type", "Pharmacy");
+        query = query.eq("type", "pharmacy");
       } else if (audience === "group") {
-        query = query.eq("type", "Group");
+        query = query.eq("type", "group");
       } else if (audience === "hospital") {
-        query = query.eq("type", "Hospital");
+        query = query.eq("type", "hospital");
       } else if (audience === "active") {
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         query = query.gte("last_sign_in_at", thirtyDaysAgo);
@@ -398,6 +398,7 @@ export default function EmailCampaigns() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     try {
       let targetAudience: any = { type: formData.target_audience };
 
@@ -430,6 +431,9 @@ export default function EmailCampaigns() {
         track_opens: true,
         track_clicks: true,
       };
+
+      console.log('Saving campaign with payload:', payload); // Debug log
+      console.log('HTML content length:', payload.html_content?.length); // Debug log
 
       if (editingCampaign) {
         const { error } = await supabase
@@ -561,9 +565,9 @@ export default function EmailCampaigns() {
         let query = supabase.from("profiles").select("id, email, first_name, last_name");
         
         if (audience === "pharmacy") {
-          query = query.eq("type", "Pharmacy");
+          query = query.eq("type", "pharmacy");
         } else if (audience === "group") {
-          query = query.eq("type", "Group");
+          query = query.eq("type", "group");
         } else if (audience === "active") {
           const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
           query = query.gte("last_sign_in_at", thirtyDaysAgo);
@@ -943,6 +947,7 @@ export default function EmailCampaigns() {
                         initialHtml={formData.html_content}
                         onChange={(html) => setFormData({ ...formData, html_content: html })}
                         variables={["user_name", "first_name", "last_name", "email", "unsubscribe_url", "company_name"]}
+                        templates={templates}
                       />
                     </div>
                   </div>

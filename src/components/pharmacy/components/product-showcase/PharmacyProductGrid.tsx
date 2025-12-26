@@ -96,12 +96,11 @@ export const PharmacyProductGrid = ({
       {productItems.map((product, index) => (
         <div 
           key={product.id} 
-          className="animate-fade-in"
-          style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}
         >
           <PharmacyProductCard 
             product={product} 
-            onProductClick={onProductClick}
+            onProductClick={() => onProductClick?.(product)}
+            viewMode={currentViewMode}
           />
         </div>
       ))}

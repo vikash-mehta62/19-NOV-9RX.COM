@@ -515,3 +515,92 @@
   -ms-user-select: none;
   user-select: none;
 }
+
+/* Slider Styles - Simplified and Reliable */
+.slider-premium {
+  position: relative;
+}
+
+/* Slider container - ensure proper interaction */
+.slider-container {
+  padding: 8px 0;
+  position: relative;
+  z-index: 10;
+}
+
+.slider-container * {
+  pointer-events: auto !important;
+}
+
+/* Ensure sliders have proper pointer events */
+[data-radix-slider-root] {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  position: relative !important;
+  z-index: 10 !important;
+}
+
+[data-radix-slider-track] {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
+[data-radix-slider-thumb] {
+  cursor: grab !important;
+  pointer-events: auto !important;
+  z-index: 11 !important;
+}
+
+[data-radix-slider-thumb]:active {
+  cursor: grabbing !important;
+}
+
+/* Drag and Drop Styles - Only apply to drag handles */
+.dragging {
+  cursor: grabbing !important;
+}
+
+.dragging * {
+  cursor: grabbing !important;
+}
+
+.drag-line {
+  height: 2px;
+  background: #10b981;
+  border-radius: 2px;
+}
+
+/* Prevent text selection during drag - but NOT for sliders */
+.dragging *:not([data-radix-slider-root]):not([data-radix-slider-track]):not([data-radix-slider-thumb]) {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  pointer-events: none !important;
+}
+
+/* Allow drag handle to work during dragging */
+.dragging [data-drag-handle] {
+  pointer-events: auto !important;
+  cursor: grabbing !important;
+}
+
+/* Make drag handle more visible - but don't interfere with sliders */
+[data-drag-handle] {
+  background: rgba(255, 0, 0, 0.8) !important;
+  backdrop-filter: blur(4px);
+  border: 2px solid red !important;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3) !important;
+  z-index: 9999 !important;
+  position: absolute !important;
+  pointer-events: auto !important;
+}
+
+[data-drag-handle]:hover {
+  background: rgba(16, 185, 129, 0.8) !important;
+  border-color: rgba(16, 185, 129, 0.8) !important;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3) !important;
+}
+
+
+

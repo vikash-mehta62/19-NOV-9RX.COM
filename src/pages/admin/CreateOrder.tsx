@@ -11,6 +11,7 @@ import { awardOrderPoints } from "@/services/rewardsService";
 import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
+import { calculateFinalTotal } from "@/utils/orderCalculations";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -473,8 +474,13 @@ const profileID =
         },
       };
 
-      // Calculate final total after discounts
-      const finalTotal = Math.max(0, orderData.total - (orderData.totalDiscount || 0));
+      // Calculate final total after discounts using utility
+      const finalTotal = calculateFinalTotal({
+        subtotal: orderData.total - (orderData.tax || 0) - (orderData.shipping || 0), // Extract subtotal
+        shipping: orderData.shipping || 0,
+        tax: orderData.tax || 0,
+        discount: orderData.totalDiscount || 0,
+      });
       
       // Determine payment status based on final total
       let initialPaymentStatus = "pending";

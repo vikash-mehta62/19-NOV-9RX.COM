@@ -331,7 +331,7 @@ const CustomerSelectionStepComponent = ({
             {filteredCustomers.map((customer) => (
               <Card
                 key={customer.id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 active:scale-95 animate-fade-in ${
+                className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 active:scale-95 ${
                   selectedCustomerId === customer.id
                     ? "border-2 border-blue-500 bg-blue-50"
                     : "border border-gray-200"

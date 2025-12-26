@@ -92,8 +92,6 @@ const OrderCreationWizardComponent = ({
         return;
       }
       
-      console.log("Loading initial data:", { isEditMode, isPharmacyMode, initialData });
-      
       // Set customer
       if (initialData.customer) {
         setSelectedCustomer(initialData.customer);
@@ -134,11 +132,10 @@ const OrderCreationWizardComponent = ({
       // For pharmacy mode: Start at step 1 (combined Customer+Address step)
       // Customer is pre-filled, they just need to confirm addresses
       if (isPharmacyMode) {
-        console.log("Pharmacy mode: Starting at combined Customer+Address step (step 1)");
-        // Don't skip any steps - pharmacy mode only has 3 steps now
-        // Step 1: Customer + Address (combined)
-        // Step 2: Review
-        // Step 3: Payment
+        // Ensure we are at step 1
+        if (wizardState.currentStep !== 1) {
+          wizardState.goToStep(1);
+        }
       } else if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
         // Check if we should skip directly to products (step 3)
         // This happens when customer AND addresses are already provided (from ViewProfileModal)
@@ -799,7 +796,17 @@ const OrderCreationWizardComponent = ({
             />
           );
         default:
-          return null;
+          console.error(`Invalid step ${wizardState.currentStep} for pharmacy mode`);
+          return (
+            <div className="text-center p-8">
+              <h3 className="text-lg font-semibold text-red-600">Error: Invalid Step</h3>
+              <p>Current step: {wizardState.currentStep}</p>
+              <p>Mode: Pharmacy</p>
+              <Button onClick={() => wizardState.goToStep(1)} className="mt-4">
+                Reset to Step 1
+              </Button>
+            </div>
+          );
       }
     }
     
@@ -870,7 +877,17 @@ const OrderCreationWizardComponent = ({
           />
         );
       default:
-        return null;
+        console.error(`Invalid step ${wizardState.currentStep} for admin mode`);
+        return (
+          <div className="text-center p-8">
+            <h3 className="text-lg font-semibold text-red-600">Error: Invalid Step</h3>
+            <p>Current step: {wizardState.currentStep}</p>
+            <p>Mode: Admin</p>
+            <Button onClick={() => wizardState.goToStep(1)} className="mt-4">
+              Reset to Step 1
+            </Button>
+          </div>
+        );
     }
   };
 
@@ -921,11 +938,11 @@ const OrderCreationWizardComponent = ({
             )}
 
             <section 
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 min-h-[400px] sm:min-h-[500px] animate-fade-in"
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 min-h-[400px] sm:min-h-[500px]"
               aria-label={`Step ${wizardState.currentStep} of ${totalSteps}: ${steps[wizardState.currentStep - 1]?.label}`}
               role="region"
             >
-              <div key={wizardState.currentStep} className="animate-slide-up">
+              <div key={wizardState.currentStep}>
                 {renderStepContent()}
               </div>
             </section>
