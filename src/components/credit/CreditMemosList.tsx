@@ -155,13 +155,14 @@ const CreditMemosList = () => {
         <CardContent className="p-4">
           <div className="flex items-start gap-3">
             <Info className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-blue-900">Credit Memo Kya Hai?</p>
-              <p className="text-sm text-blue-700 mt-1">
-                Jab admin aapke order mein price kam karta hai ya refund deta hai, toh aapko credit memo milta hai. 
-                Yeh balance aap apne next order mein use kar sakte ho checkout ke time.
-              </p>
-            </div>
+          <div>
+  <p className="text-sm font-medium text-blue-900">What is a Credit Memo?</p>
+  <p className="text-sm text-blue-700 mt-1">
+    When the admin reduces the price of your order or issues a refund, you receive a credit memo.
+    This balance can be used during checkout on your next order.
+  </p>
+</div>
+
           </div>
         </CardContent>
       </Card>
