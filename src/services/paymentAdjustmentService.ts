@@ -374,6 +374,23 @@ export const PaymentAdjustmentService = {
       });
 
       if (error) throw error;
+      
+      // Log activity for credit memo application
+      if (data?.success) {
+        await OrderActivityService.logActivity({
+          orderId: orderId,
+          activityType: 'updated',
+          description: `Credit memo of ${amount.toFixed(2)} applied - New total: ${data.new_order_total?.toFixed(2) || '0.00'}`,
+          performedBy: appliedBy,
+          metadata: {
+            credit_memo_id: creditMemoId,
+            applied_amount: amount,
+            new_order_total: data.new_order_total,
+            new_payment_status: data.new_payment_status,
+          },
+        });
+      }
+      
       return { success: true, data };
     } catch (error: any) {
       console.error('Error applying credit memo:', error);

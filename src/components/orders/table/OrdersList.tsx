@@ -923,7 +923,7 @@ export function OrdersList({
                         {order.status?.toUpperCase() || "PENDING"}
                       </Badge>
 
-                      {order.status === "credit_approval_processing" && (
+                      {order.status === "credit_approval_processing" && userRole === "admin" && (
                         <button
                           onClick={() => handleApproveCredit(order)}
                           className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-medium

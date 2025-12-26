@@ -13,6 +13,91 @@ import { PaymentAdjustmentService } from "@/services/paymentAdjustmentService";
 import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
 
+// Invoice creation function for paid orders
+const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number) => {
+  try {
+    console.log(`🧾 Creating invoice for paid order: ${order.id}`);
+
+    // Get invoice number
+    const year = new Date().getFullYear();
+    const { data: inData, error: fetchError } = await supabase
+      .from("centerize_data")
+      .select("id, invoice_no, invoice_start")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+    const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+    // Update invoice_no to next
+    if (inData?.[0]?.id) {
+      const { error: updateError } = await supabase
+        .from("centerize_data")
+        .update({ invoice_no: newInvNo })
+        .eq("id", inData[0].id);
+
+      if (updateError) throw new Error(updateError.message);
+    }
+
+    // Create invoice number
+    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+
+    // Calculate due date
+    const estimatedDeliveryDate = new Date(order.estimated_delivery || new Date());
+    const dueDate = new Date(estimatedDeliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const invoiceData = {
+      invoice_number: invoiceNumber,
+      order_id: order.id,
+      profile_id: order.profile_id,
+      due_date: dueDate,
+      status: "pending",
+      amount: totalAmount, // Original subtotal amount
+      tax_amount: taxAmount,
+      total_amount: order.total_amount, // Final total (0 after credit memo)
+      payment_status: "paid", // Mark as paid since credit memo covered it
+      payment_method: order.payment_method,
+      notes: order.notes || null,
+      purchase_number_external: order.purchase_number_external,
+      items: order.items,
+      customer_info: order.customerInfo,
+      shipping_info: order.shippingAddress,
+      shippin_cost: order.shipping_cost,
+      subtotal: totalAmount, // Original subtotal
+      // Add discount information for proper invoice display
+      discount_amount: order.discount_amount || 0,
+      discount_details: order.discount_details || [],
+    };
+
+    // Insert invoice
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .insert(invoiceData);
+
+    if (invoiceError) throw new Error(invoiceError.message);
+
+    console.log(`✅ Invoice Created Successfully: ${invoiceNumber}`);
+
+    // Update order to mark invoice as created
+    const { error: orderUpdateError } = await supabase
+      .from("orders")
+      .update({
+        invoice_created: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+
+    if (orderUpdateError) throw new Error(orderUpdateError.message);
+
+    console.log("🟢 Order updated with invoice_created = true");
+  } catch (err: any) {
+    console.error("❌ Invoice create error:", err.message);
+    throw new Error(err.message);
+  }
+};
+
 export default function PharmacyCreateOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -110,6 +195,14 @@ export default function PharmacyCreateOrder() {
     console.log("Applied discounts:", orderData.appliedDiscounts);
     
     try {
+      // Calculate final total using single source of truth
+      const finalTotal = calculateFinalTotal({
+        subtotal: orderData.subtotal || 0,
+        shipping: orderData.shipping || 0,
+        tax: orderData.tax || 0,
+        discount: Number((orderData.totalDiscount || 0).toFixed(2)),
+      });
+      
       // Get current session
       const { data: { session } } = await supabase.auth.getSession();
 
@@ -126,7 +219,8 @@ export default function PharmacyCreateOrder() {
       const paymentMethod = orderData.paymentMethod;
       
       // If payment method is "card", open payment modal instead of creating order directly
-      if (paymentMethod === "card") {
+      // BUT if total is 0, skip payment modal and create order directly
+      if (paymentMethod === "card" && finalTotal > 0) {
         // Store order data and open payment modal
         setPendingOrderData(orderData);
         setIsPaymentModalOpen(true);
@@ -151,18 +245,10 @@ export default function PharmacyCreateOrder() {
         const availableCredit = creditLimit - creditUsed;
 
         // Check if order total exceeds available credit
-        // Calculate final total using single source of truth
-        const orderFinalTotal = calculateFinalTotal({
-          subtotal: orderData.subtotal || 0,
-          shipping: orderData.shipping || 0,
-          tax: orderData.tax || 0,
-          discount: Number((orderData.totalDiscount || 0).toFixed(2)),
-        });
-        
-        if (orderFinalTotal > availableCredit) {
+        if (finalTotal > availableCredit) {
           toast({
             title: "Credit Limit Exceeded",
-            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${orderFinalTotal.toFixed(2)}.`,
+            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${finalTotal.toFixed(2)}.`,
             variant: "destructive",
           });
           return;
@@ -204,14 +290,18 @@ export default function PharmacyCreateOrder() {
       };
 
       // Prepare order data for database
-      // Calculate final total using single source of truth
-      const finalTotal = calculateFinalTotal({
-        subtotal: orderData.subtotal || 0,
-        shipping: orderData.shipping || 0,
-        tax: orderData.tax || 0,
-        discount: Number((orderData.totalDiscount || 0).toFixed(2)),
-      });
+      // Determine payment status based on final total
+      let initialPaymentStatus = "pending";
+      let orderStatus = "new";
       
+      if (finalTotal === 0) {
+        initialPaymentStatus = "paid"; // If total is 0 after discounts, mark as paid
+        orderStatus = "pending"; // Set to pending so invoice gets created
+      } else if (paymentMethod === "credit") {
+        initialPaymentStatus = "pending"; // Credit orders need approval
+        orderStatus = "credit_approval_processing";
+      }
+
       const orderToSubmit = {
         order_number: newOrderId,
         profile_id: session.user.id,
@@ -225,8 +315,8 @@ export default function PharmacyCreateOrder() {
         payment_method: paymentMethod,
         notes: orderData.specialInstructions,
         purchase_number_external: orderData.poNumber,
-        status: paymentMethod === "credit" ? "credit_approval_processing" : "new",
-        payment_status: paymentMethod === "credit" ? "pending" : "pending",
+        status: orderStatus,
+        payment_status: initialPaymentStatus,
         customization: false,
         void: false,
         // Store discount information
@@ -244,6 +334,23 @@ export default function PharmacyCreateOrder() {
       if (error) {
         console.error("Error creating order:", error);
         throw error;
+      }
+
+      // Create invoice if order is paid (total = 0 from credit memo)
+      if (initialPaymentStatus === "paid" && finalTotal === 0) {
+        console.log("🧾 Creating invoice for paid order (credit memo covered full amount)");
+        // Pass original subtotal, not finalTotal (0)
+        const originalSubtotal = orderData.subtotal || 0;
+        await createInvoiceForPaidOrder(insertedOrder, originalSubtotal, orderData.tax || 0);
+        
+        // Update order status to "new" after invoice creation (like normal flow)
+        await supabase
+          .from("orders")
+          .update({ 
+            status: "new",
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", insertedOrder.id);
       }
 
       // Handle applied discounts (deduct points, increment offer usage)

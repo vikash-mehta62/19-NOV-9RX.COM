@@ -12,6 +12,91 @@ import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 
+// Invoice creation function for paid orders
+const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
+  try {
+    console.log(`🧾 Creating invoice for paid order: ${order.id}`);
+
+    // Get invoice number
+    const year = new Date().getFullYear();
+    const { data: inData, error: fetchError } = await supabase
+      .from("centerize_data")
+      .select("id, invoice_no, invoice_start")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+    const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+    // Update invoice_no to next
+    if (inData?.[0]?.id) {
+      const { error: updateError } = await supabase
+        .from("centerize_data")
+        .update({ invoice_no: newInvNo })
+        .eq("id", inData[0].id);
+
+      if (updateError) throw new Error(updateError.message);
+    }
+
+    // Create invoice number
+    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+
+    // Calculate due date
+    const estimatedDeliveryDate = new Date();
+    const dueDate = new Date(estimatedDeliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const invoiceData = {
+      invoice_number: invoiceNumber,
+      order_id: order.id,
+      profile_id: order.profile_id,
+      due_date: dueDate,
+      status: "pending",
+      amount: totalAmount, // Original subtotal amount
+      tax_amount: taxAmount,
+      total_amount: order.total_amount, // Final total (0 after credit memo)
+      payment_status: "paid",
+      payment_method: order.payment_method,
+      notes: order.notes || null,
+      purchase_number_external: order.purchase_number_external,
+      items: order.items,
+      customer_info: order.customerInfo,
+      shipping_info: order.shippingAddress,
+      shippin_cost: order.shipping_cost,
+      subtotal: totalAmount, // Original subtotal
+      // Add discount information for proper invoice display
+      discount_amount: order.discount_amount || 0,
+      discount_details: order.discount_details || [],
+    };
+
+    // Insert invoice
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .insert(invoiceData);
+
+    if (invoiceError) throw new Error(invoiceError.message);
+
+    console.log(`✅ Invoice Created Successfully: ${invoiceNumber}`);
+
+    // Update order to mark invoice as created
+    const { error: orderUpdateError } = await supabase
+      .from("orders")
+      .update({
+        invoice_created: true,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", order.id);
+
+    if (orderUpdateError) throw new Error(orderUpdateError.message);
+
+    console.log("🟢 Order updated with invoice_created = true");
+  } catch (err: any) {
+    console.error("❌ Invoice create error:", err.message);
+    throw new Error(err.message);
+  }
+};
+
 // Read preselected customer data synchronously before component renders
 const getPreselectedCustomerData = () => {
   try {
@@ -316,7 +401,8 @@ const profileID =
       const paymentMethod = orderData.paymentMethod;
       
       // If payment method is "card", open payment modal instead of creating order directly
-      if (paymentMethod === "card") {
+      // BUT if total is 0, skip payment modal and create order directly
+      if (paymentMethod === "card" && finalTotal > 0) {
         // Store order data and open payment modal
         console.log("Opening payment modal with orderData:", orderData);
         console.log("Customer ID being passed to payment modal:", orderData.customerId);
@@ -387,6 +473,21 @@ const profileID =
         },
       };
 
+      // Calculate final total after discounts
+      const finalTotal = Math.max(0, orderData.total - (orderData.totalDiscount || 0));
+      
+      // Determine payment status based on final total
+      let initialPaymentStatus = "pending";
+      let orderStatus = "new";
+      
+      if (finalTotal === 0) {
+        initialPaymentStatus = "paid"; // If total is 0 after discounts, mark as paid
+        orderStatus = "pending"; // Set to pending so invoice gets created
+      } else if (paymentMethod === "credit") {
+        initialPaymentStatus = "pending"; // Credit orders need approval
+        orderStatus = "credit_approval_processing";
+      }
+
       // Prepare order data for database
       const orderToSubmit = {
         order_number: newOrderId,
@@ -395,14 +496,14 @@ const profileID =
         customerInfo: customerInfo,
         shippingAddress: shippingAddressData,
         items: orderData.cartItems,
-        total_amount: orderData.total,
+        total_amount: finalTotal, // Use final total after discounts
         tax_amount: orderData.tax,
         shipping_cost: orderData.shipping,
         payment_method: paymentMethod,
         notes: orderData.specialInstructions,
         purchase_number_external: orderData.poNumber,
-        status: paymentMethod === "credit" ? "credit_approval_processing" : "new",
-        payment_status: paymentMethod === "credit" ? "pending" : "pending",
+        status: orderStatus,
+        payment_status: initialPaymentStatus,
         customization: false,
         void: false,
         // Store discount information
@@ -420,6 +521,23 @@ const profileID =
       if (error) {
         console.error("Error creating order:", error);
         throw error;
+      }
+
+      // Create invoice if order is paid (total = 0 from credit memo)
+      if (initialPaymentStatus === "paid" && finalTotal === 0) {
+        console.log("🧾 Creating invoice for paid order (credit memo covered full amount)");
+        // Pass original subtotal, not finalTotal (0)
+        const originalSubtotal = orderData.total || 0; // Admin uses orderData.total
+        await createInvoiceForOrder(insertedOrder, originalSubtotal, orderData.tax || 0);
+        
+        // Update order status to "new" after invoice creation (like normal flow)
+        await supabase
+          .from("orders")
+          .update({ 
+            status: "new",
+            updated_at: new Date().toISOString() 
+          })
+          .eq("id", insertedOrder.id);
       }
 
       // Handle applied discounts (deduct points, increment offer usage)

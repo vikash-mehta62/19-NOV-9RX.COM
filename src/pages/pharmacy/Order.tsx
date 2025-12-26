@@ -132,7 +132,8 @@ export default function PharmacyOrder() {
       const paymentMethod = orderData.paymentMethod;
       
       // If payment method is "card", open payment modal
-      if (paymentMethod === "card") {
+      // BUT if total is 0, skip payment modal and create order directly
+      if (paymentMethod === "card" && orderData.total > 0) {
         setPendingOrderData(orderData);
         setIsPaymentModalOpen(true);
         return;
