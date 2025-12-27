@@ -114,7 +114,7 @@ async function sendViaNodeAPI(
   payload: EmailPayload
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
-    const baseUrl = import.meta.env.VITE_APP_BASE_URL || "http://localhost:4000";
+    const baseUrl = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in/";
     const response = await fetch(`${baseUrl}/api/email/send-test`, {
       method: "POST",
       headers: {

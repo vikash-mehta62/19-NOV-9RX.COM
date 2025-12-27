@@ -212,6 +212,7 @@ export function PaymentAdjustmentModal({
             status: 'pending_additional_payment',
             adjustment_amount: absoluteDifference,
             original_amount: originalAmount,
+            paid_amount: originalAmount, // Amount already paid
             adjustment_reason: reason || `Order ${orderNumber} modified - additional payment required`,
           };
 

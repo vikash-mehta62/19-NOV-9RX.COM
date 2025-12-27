@@ -229,7 +229,32 @@ export const OrderDetailsSheet = ({
   const sendMail = async () => {
     setLoading(true);
     try {
-      await axios.post("/paynow-user", order);
+      // Fetch fresh order data from database to ensure accurate information
+      const { data: freshOrder, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", currentOrder.id)
+        .single();
+      
+      if (error) throw error;
+      
+      // Prepare order data with all required fields for email template
+      const orderData = {
+        id: freshOrder.id,
+        order_number: freshOrder.order_number,
+        customerInfo: freshOrder.customerInfo,
+        items: freshOrder.items,
+        total: freshOrder.total_amount,
+        total_amount: freshOrder.total_amount,
+        tax_amount: freshOrder.tax_amount || 0,
+        shipping_cost: freshOrder.shipping_cost || 0,
+        paid_amount: freshOrder.paid_amount || 0,
+        date: freshOrder.date || freshOrder.created_at,
+        status: freshOrder.status,
+        payment_status: freshOrder.payment_status,
+      };
+      
+      await axios.post("/paynow-user", orderData);
       toast({
         title: "Payment Link sent successfully",
         description: "",
