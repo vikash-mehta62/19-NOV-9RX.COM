@@ -9,7 +9,12 @@ const {
   checkAbandonedCarts, 
   checkInactiveUsers, 
   processScheduledAutomations,
-  cleanupOldData 
+  cleanupOldData,
+  triggerAutomation,
+  checkBirthdayEmails,
+  checkSignupAnniversary,
+  checkRestockReminders,
+  trackConversion,
 } = require("../cron/emailCron");
 
 // Initialize Supabase client
@@ -95,6 +100,89 @@ router.post("/cron/cleanup", async (req, res) => {
   try {
     const result = await cleanupOldData();
     res.json({ success: true, message: "Cleanup completed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// AUTOMATION TRIGGER ENDPOINTS
+// ============================================
+
+// Trigger automation for a specific event (welcome, order_placed, etc.)
+router.post("/trigger/:triggerType", async (req, res) => {
+  try {
+    const { triggerType } = req.params;
+    const eventData = req.body;
+
+    if (!eventData.email) {
+      return res.status(400).json({ success: false, error: "Email is required" });
+    }
+
+    const validTriggers = [
+      "welcome", "order_placed", "order_shipped", "order_delivered",
+      "birthday", "signup_anniversary", "first_purchase", "restock_reminder", "custom"
+    ];
+
+    if (!validTriggers.includes(triggerType)) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Invalid trigger type. Valid types: ${validTriggers.join(", ")}` 
+      });
+    }
+
+    const result = await triggerAutomation(triggerType, eventData);
+    res.json({ 
+      success: true, 
+      message: `Triggered ${result.triggered} automation(s)`, 
+      result 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Track conversion (call when user makes a purchase)
+router.post("/track-conversion", async (req, res) => {
+  try {
+    const { userId, orderId, orderTotal } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, error: "userId is required" });
+    }
+
+    await trackConversion(userId, orderId, orderTotal);
+    res.json({ success: true, message: "Conversion tracked" });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Check birthday emails manually
+router.post("/cron/birthdays", async (req, res) => {
+  try {
+    const result = await checkBirthdayEmails();
+    res.json({ success: true, message: "Birthday check completed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Check anniversary emails manually
+router.post("/cron/anniversaries", async (req, res) => {
+  try {
+    const result = await checkSignupAnniversary();
+    res.json({ success: true, message: "Anniversary check completed", result });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Check restock reminders manually
+router.post("/cron/restock", async (req, res) => {
+  try {
+    const result = await checkRestockReminders();
+    res.json({ success: true, message: "Restock reminder check completed", result });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }

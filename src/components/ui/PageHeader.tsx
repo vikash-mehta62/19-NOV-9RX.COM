@@ -26,20 +26,20 @@ export function PageHeader({
   children,
 }: PageHeaderProps) {
   return (
-    <div className={cn("mb-6 space-y-4", className)}>
+    <div className={cn("mb-6 sm:mb-8 space-y-3 sm:space-y-4", className)}>
       {/* Breadcrumbs */}
       {showBreadcrumbs && (
         <Breadcrumb items={breadcrumbs} className="mb-2" />
       )}
 
       {/* Title Row */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+        <div className="space-y-1 min-w-0">
+          <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 dark:text-gray-100 tracking-tight truncate">
             {title}
           </h1>
           {description && (
-            <p className="text-gray-600 text-sm sm:text-base">
+            <p className="text-gray-600 dark:text-gray-400 text-sm sm:text-base line-clamp-2">
               {description}
             </p>
           )}
@@ -47,7 +47,7 @@ export function PageHeader({
 
         {/* Actions */}
         {actions && (
-          <div className="flex items-center gap-3 flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0 flex-wrap sm:flex-nowrap">
             {actions}
           </div>
         )}
@@ -76,20 +76,21 @@ export function CompactPageHeader({
   className,
 }: CompactPageHeaderProps) {
   return (
-    <div className={cn("mb-4 flex items-center justify-between gap-4", className)}>
-      <div className="flex items-center gap-3 min-w-0">
+    <div className={cn("mb-4 sm:mb-6 flex items-center justify-between gap-3 sm:gap-4", className)}>
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {backHref && (
           <a
             href={backHref}
-            className="flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600 transition-colors p-2 -ml-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-2 -ml-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 min-h-[44px] min-w-[44px] justify-center"
+            aria-label={backLabel}
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             <span className="hidden sm:inline">{backLabel}</span>
           </a>
         )}
-        <h1 className="text-xl font-semibold text-gray-900 truncate">
+        <h1 className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100 truncate">
           {title}
         </h1>
       </div>
@@ -109,6 +110,7 @@ interface SectionHeaderProps {
   description?: string;
   actions?: ReactNode;
   className?: string;
+  size?: "sm" | "default" | "lg";
 }
 
 export function SectionHeader({
@@ -116,15 +118,22 @@ export function SectionHeader({
   description,
   actions,
   className,
+  size = "default",
 }: SectionHeaderProps) {
+  const titleSizes = {
+    sm: "text-base font-medium",
+    default: "text-lg font-semibold",
+    lg: "text-xl font-semibold",
+  };
+
   return (
-    <div className={cn("flex items-start justify-between gap-4 mb-4", className)}>
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-gray-900">
+    <div className={cn("flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 sm:gap-4 mb-4 sm:mb-6", className)}>
+      <div className="space-y-1 min-w-0">
+        <h2 className={cn("text-gray-900 dark:text-gray-100", titleSizes[size])}>
           {title}
         </h2>
         {description && (
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             {description}
           </p>
         )}

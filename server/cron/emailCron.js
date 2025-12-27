@@ -960,6 +960,519 @@ function startEmailCron() {
   log("✅", "Email Cron Service Started Successfully");
 }
 
+// ============================================
+// 7. TRIGGER EVENT-BASED AUTOMATIONS
+// ============================================
+/**
+ * Trigger automation for a specific event
+ * @param {string} triggerType - Type of trigger (welcome, order_placed, order_shipped, etc.)
+ * @param {object} eventData - Data about the event
+ * @returns {Promise<{triggered: number, errors: string[]}>}
+ */
+async function triggerAutomation(triggerType, eventData) {
+  const results = { triggered: 0, errors: [] };
+
+  try {
+    // Get active automations for this trigger type
+    const { data: automations, error: autoError } = await supabase
+      .from("email_automations")
+      .select("*")
+      .eq("trigger_type", triggerType)
+      .eq("is_active", true)
+      .order("priority", { ascending: false });
+
+    if (autoError) throw autoError;
+    if (!automations || automations.length === 0) {
+      log("ℹ️", `No active automations for trigger: ${triggerType}`);
+      return results;
+    }
+
+    const { email, userId, firstName, lastName, ...extraData } = eventData;
+
+    if (!email) {
+      results.errors.push("Email is required");
+      return results;
+    }
+
+    for (const automation of automations) {
+      try {
+        // Check for duplicate
+        const isDuplicate = await isDuplicateEmail(email, automation.id, triggerType, userId);
+        if (isDuplicate) {
+          log("⏭️", `Skipping ${email} - duplicate for ${triggerType}`);
+          continue;
+        }
+
+        // Check cooldown
+        if (userId && automation.cooldown_days > 0) {
+          const cooldownDate = new Date(Date.now() - automation.cooldown_days * 24 * 60 * 60 * 1000);
+          const { data: recentExec } = await supabase
+            .from("automation_executions")
+            .select("id")
+            .eq("automation_id", automation.id)
+            .eq("user_id", userId)
+            .eq("status", "completed")
+            .gte("executed_at", cooldownDate.toISOString())
+            .limit(1);
+
+          if (recentExec && recentExec.length > 0) {
+            log("⏭️", `Skipping ${email} - within cooldown for ${automation.name}`);
+            continue;
+          }
+        }
+
+        // Check send limit
+        if (userId) {
+          const { count: totalSent } = await supabase
+            .from("automation_executions")
+            .select("*", { count: "exact", head: true })
+            .eq("automation_id", automation.id)
+            .eq("user_id", userId)
+            .eq("status", "completed");
+
+          if ((totalSent || 0) >= automation.send_limit_per_user) {
+            log("⏭️", `Skipping ${email} - send limit reached for ${automation.name}`);
+            continue;
+          }
+        }
+
+        // Get template
+        if (!automation.template_id) {
+          log("⚠️", `Automation ${automation.name} has no template`);
+          continue;
+        }
+
+        const { data: template } = await supabase
+          .from("email_templates")
+          .select("*")
+          .eq("id", automation.template_id)
+          .eq("is_active", true)
+          .single();
+
+        if (!template) {
+          log("⚠️", `Template not found for automation ${automation.name}`);
+          continue;
+        }
+
+        const userName = `${firstName || ""} ${lastName || ""}`.trim() || "Customer";
+        const trackingId = crypto.randomUUID();
+        const delayHours = automation.trigger_conditions?.delay_hours || 0;
+        const scheduledAt = new Date(Date.now() + delayHours * 60 * 60 * 1000);
+
+        const variables = {
+          user_name: userName,
+          first_name: firstName || "",
+          last_name: lastName || "",
+          email: email,
+          ...extraData,
+          unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${trackingId}&e=${encodeURIComponent(email)}`,
+          company_name: "9RX",
+          current_year: new Date().getFullYear().toString(),
+        };
+
+        const subject = replaceTemplateVariables(template.subject, variables);
+        const htmlContent = replaceTemplateVariables(template.html_content, variables);
+
+        // Queue email (with delay if configured)
+        const { error: queueError } = await supabase.from("email_queue").insert({
+          email: email,
+          subject,
+          html_content: htmlContent,
+          text_content: template.text_content || null,
+          automation_id: automation.id,
+          template_id: automation.template_id,
+          status: "pending",
+          priority: automation.priority || 5,
+          scheduled_at: scheduledAt.toISOString(),
+          metadata: {
+            user_id: userId,
+            tracking_id: trackingId,
+            first_name: firstName,
+            last_name: lastName,
+            trigger_type: triggerType,
+            ...extraData,
+          },
+        });
+
+        if (queueError) {
+          results.errors.push(`Failed to queue for ${automation.name}: ${queueError.message}`);
+          continue;
+        }
+
+        // Record execution
+        await supabase.from("automation_executions").insert({
+          automation_id: automation.id,
+          user_id: userId || null,
+          status: "completed",
+          executed_at: new Date().toISOString(),
+          trigger_data: { email, trigger_type: triggerType, ...extraData },
+        });
+
+        results.triggered++;
+        log("📧", `${triggerType} email queued for ${email} (Automation: ${automation.name})`);
+      } catch (err) {
+        results.errors.push(`Error in ${automation.name}: ${err.message}`);
+      }
+    }
+  } catch (error) {
+    log("❌", `Trigger automation error (${triggerType}):`, error.message);
+    results.errors.push(error.message);
+  }
+
+  return results;
+}
+
+// ============================================
+// 8. CHECK BIRTHDAY EMAILS
+// ============================================
+async function checkBirthdayEmails() {
+  let triggered = 0;
+
+  try {
+    const { data: automations, error: autoError } = await supabase
+      .from("email_automations")
+      .select("*")
+      .eq("trigger_type", "birthday")
+      .eq("is_active", true);
+
+    if (autoError) throw autoError;
+    if (!automations || automations.length === 0) return { triggered: 0 };
+
+    // Get today's date (month and day)
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDay = today.getDate();
+
+    for (const automation of automations) {
+      // Find users with birthday today
+      const { data: users, error: userError } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name, date_of_birth")
+        .not("email", "is", null)
+        .not("date_of_birth", "is", null);
+
+      if (userError || !users) continue;
+
+      // Filter users whose birthday is today
+      const birthdayUsers = users.filter(user => {
+        if (!user.date_of_birth) return false;
+        const dob = new Date(user.date_of_birth);
+        return dob.getMonth() + 1 === todayMonth && dob.getDate() === todayDay;
+      });
+
+      for (const user of birthdayUsers) {
+        const result = await triggerAutomation("birthday", {
+          email: user.email,
+          userId: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+        });
+        triggered += result.triggered;
+      }
+    }
+
+    if (triggered > 0) {
+      log("🎂", `Birthday emails queued: ${triggered}`);
+    }
+  } catch (error) {
+    log("❌", "Birthday check error:", error.message);
+  }
+
+  return { triggered };
+}
+
+// ============================================
+// 9. CHECK SIGNUP ANNIVERSARY EMAILS
+// ============================================
+async function checkSignupAnniversary() {
+  let triggered = 0;
+
+  try {
+    const { data: automations, error: autoError } = await supabase
+      .from("email_automations")
+      .select("*")
+      .eq("trigger_type", "signup_anniversary")
+      .eq("is_active", true);
+
+    if (autoError) throw autoError;
+    if (!automations || automations.length === 0) return { triggered: 0 };
+
+    const today = new Date();
+    const todayMonth = today.getMonth() + 1;
+    const todayDay = today.getDate();
+
+    for (const automation of automations) {
+      const { data: users, error: userError } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name, created_at")
+        .not("email", "is", null);
+
+      if (userError || !users) continue;
+
+      // Filter users whose signup anniversary is today (at least 1 year ago)
+      const anniversaryUsers = users.filter(user => {
+        if (!user.created_at) return false;
+        const signupDate = new Date(user.created_at);
+        const yearsSinceSignup = today.getFullYear() - signupDate.getFullYear();
+        return yearsSinceSignup >= 1 && 
+               signupDate.getMonth() + 1 === todayMonth && 
+               signupDate.getDate() === todayDay;
+      });
+
+      for (const user of anniversaryUsers) {
+        const signupDate = new Date(user.created_at);
+        const years = today.getFullYear() - signupDate.getFullYear();
+        
+        const result = await triggerAutomation("signup_anniversary", {
+          email: user.email,
+          userId: user.id,
+          firstName: user.first_name,
+          lastName: user.last_name,
+          years_as_customer: years.toString(),
+        });
+        triggered += result.triggered;
+      }
+    }
+
+    if (triggered > 0) {
+      log("🎉", `Anniversary emails queued: ${triggered}`);
+    }
+  } catch (error) {
+    log("❌", "Anniversary check error:", error.message);
+  }
+
+  return { triggered };
+}
+
+// ============================================
+// 10. CHECK RESTOCK REMINDERS
+// ============================================
+/**
+ * Check for users who might need to restock based on their purchase history
+ * Analyzes order frequency and sends reminders when it's time to reorder
+ */
+async function checkRestockReminders() {
+  let triggered = 0;
+
+  try {
+    const { data: automations, error: autoError } = await supabase
+      .from("email_automations")
+      .select("*")
+      .eq("trigger_type", "restock_reminder")
+      .eq("is_active", true);
+
+    if (autoError) throw autoError;
+    if (!automations || automations.length === 0) return { triggered: 0 };
+
+    for (const automation of automations) {
+      // Default restock interval is 30 days if not specified
+      const restockDays = automation.trigger_conditions?.restock_days || 30;
+      const minOrders = automation.trigger_conditions?.min_orders || 2; // Need at least 2 orders to calculate frequency
+
+      // Find users with multiple orders to analyze purchase patterns
+      const { data: orderStats, error: statsError } = await supabase
+        .from("orders")
+        .select(`
+          profile_id,
+          created_at,
+          total,
+          profiles!inner (id, email, first_name, last_name)
+        `)
+        .eq("status", "delivered")
+        .order("created_at", { ascending: false });
+
+      if (statsError || !orderStats) continue;
+
+      // Group orders by user
+      const userOrders = {};
+      for (const order of orderStats) {
+        const userId = order.profile_id;
+        if (!userId) continue;
+        
+        if (!userOrders[userId]) {
+          userOrders[userId] = {
+            profile: order.profiles,
+            orders: [],
+          };
+        }
+        userOrders[userId].orders.push({
+          date: new Date(order.created_at),
+          total: order.total,
+        });
+      }
+
+      // Analyze each user's purchase pattern
+      for (const [userId, userData] of Object.entries(userOrders)) {
+        const { profile, orders } = userData;
+        
+        // Need minimum orders to calculate frequency
+        if (orders.length < minOrders) continue;
+        if (!profile?.email) continue;
+
+        // Calculate average days between orders
+        let totalDaysBetween = 0;
+        for (let i = 0; i < orders.length - 1; i++) {
+          const daysBetween = (orders[i].date - orders[i + 1].date) / (1000 * 60 * 60 * 24);
+          totalDaysBetween += daysBetween;
+        }
+        const avgDaysBetween = totalDaysBetween / (orders.length - 1);
+
+        // Check if it's time to remind (last order was around their average purchase interval ago)
+        const lastOrderDate = orders[0].date;
+        const daysSinceLastOrder = (new Date() - lastOrderDate) / (1000 * 60 * 60 * 24);
+
+        // Send reminder if days since last order is within 10% of their average interval
+        // or if it exceeds the configured restock_days
+        const shouldRemind = daysSinceLastOrder >= Math.min(avgDaysBetween * 0.9, restockDays);
+
+        if (!shouldRemind) continue;
+
+        // Check for duplicate
+        const isDuplicate = await isDuplicateEmail(profile.email, automation.id, "restock_reminder", userId);
+        if (isDuplicate) continue;
+
+        // Get last ordered products for personalization
+        const { data: lastOrderItems } = await supabase
+          .from("order_items")
+          .select(`
+            quantity,
+            product_name,
+            products (name, image_url)
+          `)
+          .eq("order_id", orders[0].id)
+          .limit(5);
+
+        const productList = (lastOrderItems || [])
+          .map(item => item.product_name || item.products?.name || "Product")
+          .join(", ");
+
+        const result = await triggerAutomation("restock_reminder", {
+          email: profile.email,
+          userId: userId,
+          firstName: profile.first_name,
+          lastName: profile.last_name,
+          days_since_order: Math.round(daysSinceLastOrder).toString(),
+          avg_order_frequency: Math.round(avgDaysBetween).toString(),
+          last_products: productList,
+          total_orders: orders.length.toString(),
+        });
+
+        triggered += result.triggered;
+      }
+    }
+
+    if (triggered > 0) {
+      log("📦", `Restock reminder emails queued: ${triggered}`);
+    }
+  } catch (error) {
+    log("❌", "Restock reminder check error:", error.message);
+  }
+
+  return { triggered };
+}
+
+// ============================================
+// 11. TRACK CONVERSION
+// ============================================
+/**
+ * Track a conversion from an email (e.g., user made a purchase after receiving email)
+ * @param {string} userId - User ID who converted
+ * @param {string} orderId - Order ID (optional)
+ * @param {number} orderTotal - Order total (optional)
+ */
+async function trackConversion(userId, orderId = null, orderTotal = null) {
+  try {
+    // Find recent automation executions for this user (within last 7 days)
+    const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    
+    const { data: executions, error } = await supabase
+      .from("automation_executions")
+      .select("automation_id")
+      .eq("user_id", userId)
+      .eq("status", "completed")
+      .gte("executed_at", cutoffDate);
+
+    if (error || !executions || executions.length === 0) return;
+
+    // Get unique automation IDs
+    const automationIds = [...new Set(executions.map(e => e.automation_id))];
+
+    // Increment conversion count for each automation
+    for (const automationId of automationIds) {
+      const { data: automation } = await supabase
+        .from("email_automations")
+        .select("total_conversions")
+        .eq("id", automationId)
+        .single();
+
+      if (automation) {
+        await supabase
+          .from("email_automations")
+          .update({ total_conversions: (automation.total_conversions || 0) + 1 })
+          .eq("id", automationId);
+      }
+    }
+
+    log("💰", `Conversion tracked for user ${userId} - ${automationIds.length} automations credited`);
+  } catch (error) {
+    log("❌", "Conversion tracking error:", error.message);
+  }
+}
+
+// ============================================
+// MAIN CRON STARTER (UPDATED)
+// ============================================
+function startEmailCron() {
+  log("🚀", "========================================");
+  log("🚀", "Email Cron Service Starting...");
+  log("📋", "Configuration:", {
+    queueInterval: `${CONFIG.queueInterval / 1000}s`,
+    abandonedCartInterval: `${CONFIG.abandonedCartInterval / 60000}m`,
+    inactiveUserInterval: `${CONFIG.inactiveUserInterval / 60000}m`,
+    automationInterval: `${CONFIG.automationInterval / 1000}s`,
+    retryInterval: `${CONFIG.retryInterval / 60000}m`,
+  });
+  log("🚀", "========================================");
+
+  // 1. Process email queue (every 30 seconds)
+  setInterval(processEmailQueue, CONFIG.queueInterval);
+
+  // 2. Retry failed emails (every 5 minutes)
+  setInterval(retryFailedEmails, CONFIG.retryInterval);
+
+  // 3. Check abandoned carts (every 5 minutes)
+  setInterval(checkAbandonedCarts, CONFIG.abandonedCartInterval);
+
+  // 4. Check inactive users (every hour)
+  setInterval(checkInactiveUsers, CONFIG.inactiveUserInterval);
+
+  // 5. Process scheduled automations (every minute)
+  setInterval(processScheduledAutomations, CONFIG.automationInterval);
+
+  // 6. Cleanup old data (every 24 hours)
+  setInterval(cleanupOldData, CONFIG.cleanupInterval);
+
+  // 7. Check birthdays (every hour - will only send once per day due to duplicate check)
+  setInterval(checkBirthdayEmails, CONFIG.inactiveUserInterval);
+
+  // 8. Check signup anniversaries (every hour)
+  setInterval(checkSignupAnniversary, CONFIG.inactiveUserInterval);
+
+  // 9. Check restock reminders (every 6 hours)
+  setInterval(checkRestockReminders, 6 * 60 * 60 * 1000);
+
+  // Run initial checks after 5 seconds
+  setTimeout(async () => {
+    log("🔄", "Running initial checks...");
+    await processEmailQueue();
+    await checkAbandonedCarts();
+    await processScheduledAutomations();
+    log("✅", "Initial checks complete");
+  }, 5000);
+
+  log("✅", "Email Cron Service Started Successfully");
+}
+
 module.exports = {
   startEmailCron,
   processEmailQueue,
@@ -968,4 +1481,9 @@ module.exports = {
   checkInactiveUsers,
   processScheduledAutomations,
   cleanupOldData,
+  triggerAutomation,
+  checkBirthdayEmails,
+  checkSignupAnniversary,
+  checkRestockReminders,
+  trackConversion,
 };

@@ -16,6 +16,7 @@ export default {
         DEFAULT: "1rem",
         sm: "1.5rem",
         lg: "2rem",
+        xl: "2.5rem",
       },
       screens: {
         sm: "640px",
@@ -25,7 +26,29 @@ export default {
         "2xl": "1400px",
       },
     },
+    screens: {
+      xs: "375px",
+      sm: "640px",
+      md: "768px",
+      lg: "1024px",
+      xl: "1280px",
+      "2xl": "1440px",
+      "3xl": "1920px",
+    },
     extend: {
+      spacing: {
+        "11": "2.75rem", // 44px - touch target
+        "13": "3.25rem",
+        "15": "3.75rem",
+        "18": "4.5rem",
+        "22": "5.5rem",
+      },
+      minHeight: {
+        "touch": "44px",
+      },
+      minWidth: {
+        "touch": "44px",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: "0" },
@@ -75,6 +98,10 @@ export default {
           "0%": { transform: "translateY(20px)", opacity: "0" },
           "100%": { transform: "translateY(0)", opacity: "1" },
         },
+        "slide-down": {
+          "0%": { transform: "translateY(-20px)", opacity: "0" },
+          "100%": { transform: "translateY(0)", opacity: "1" },
+        },
         "scale-in": {
           "0%": { transform: "scale(0.95)", opacity: "0" },
           "100%": { transform: "scale(1)", opacity: "1" },
@@ -87,6 +114,10 @@ export default {
           "0%": { width: "0%" },
           "100%": { width: "100%" },
         },
+        "bounce-subtle": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-5px)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -96,19 +127,23 @@ export default {
         "spin-slow": "spin-slow 20s linear infinite",
         "gradient-shift": "gradient-shift 3s ease infinite",
         slide: "slide 40s linear infinite",
-        "fade-in": "fade-in 0.3s ease-in-out",
-        "fade-out": "fade-out 0.3s ease-in-out",
+        "fade-in": "fade-in 0.3s ease-out",
+        "fade-out": "fade-out 0.3s ease-out",
         "slide-in-right": "slide-in-right 0.3s ease-out",
         "slide-in-left": "slide-in-left 0.3s ease-out",
         "slide-up": "slide-up 0.3s ease-out",
+        "slide-down": "slide-down 0.3s ease-out",
         "scale-in": "scale-in 0.2s ease-out",
         "pulse-subtle": "pulse-subtle 2s ease-in-out infinite",
         "progress-fill": "progress-fill 0.5s ease-out",
+        "bounce-subtle": "bounce-subtle 2s ease-in-out infinite",
       },
       backgroundImage: {
         "gradient-conic": "conic-gradient(var(--tw-gradient-stops))",
         "grid-white":
           "linear-gradient(to right, rgb(255 255 255 / 0.1) 1px, transparent 1px), linear-gradient(to bottom, rgb(255 255 255 / 0.1) 1px, transparent 1px)",
+        "grid-gray":
+          "linear-gradient(to right, rgb(0 0 0 / 0.05) 1px, transparent 1px), linear-gradient(to bottom, rgb(0 0 0 / 0.05) 1px, transparent 1px)",
       },
       colors: {
         border: "hsl(var(--border))",
@@ -119,6 +154,16 @@ export default {
         primary: {
           DEFAULT: "#10b981",
           foreground: "#ffffff",
+          50: "#ecfdf5",
+          100: "#d1fae5",
+          200: "#a7f3d0",
+          300: "#6ee7b7",
+          400: "#34d399",
+          500: "#10b981",
+          600: "#059669",
+          700: "#047857",
+          800: "#065f46",
+          900: "#064e3b",
         },
         secondary: {
           DEFAULT: "#f3f4f6",
@@ -127,14 +172,22 @@ export default {
         success: {
           DEFAULT: "#10b981",
           foreground: "#ffffff",
+          light: "#ecfdf5",
         },
         warning: {
           DEFAULT: "#f59e0b",
           foreground: "#ffffff",
+          light: "#fffbeb",
         },
         destructive: {
           DEFAULT: "#ef4444",
           foreground: "#ffffff",
+          light: "#fef2f2",
+        },
+        info: {
+          DEFAULT: "#3b82f6",
+          foreground: "#ffffff",
+          light: "#eff6ff",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",
@@ -157,9 +210,26 @@ export default {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+        xl: "1rem",
+        "2xl": "1.5rem",
+        "3xl": "2rem",
       },
       fontFamily: {
-        sans: ["Inter", "sans-serif"],
+        sans: ["Inter", "system-ui", "-apple-system", "sans-serif"],
+        mono: ["JetBrains Mono", "Fira Code", "monospace"],
+      },
+      fontSize: {
+        "2xs": ["0.625rem", { lineHeight: "0.875rem" }],
+      },
+      boxShadow: {
+        "inner-sm": "inset 0 1px 2px 0 rgb(0 0 0 / 0.05)",
+        "glow-sm": "0 0 10px rgb(16 185 129 / 0.3)",
+        "glow": "0 0 20px rgb(16 185 129 / 0.4)",
+        "glow-lg": "0 0 30px rgb(16 185 129 / 0.5)",
+      },
+      transitionDuration: {
+        "250": "250ms",
+        "350": "350ms",
       },
     },
   },

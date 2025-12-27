@@ -162,6 +162,17 @@ const automationTemplates = [
     cooldown: 30,
   },
   {
+    id: "restock_reminder",
+    name: "Restock Reminder",
+    icon: Package,
+    color: "bg-amber-500",
+    description: "Remind users to reorder based on purchase history",
+    trigger_type: "restock_reminder",
+    restock_days: 30,
+    send_limit: 1,
+    cooldown: 14,
+  },
+  {
     id: "delivery_feedback",
     name: "Delivery + Feedback",
     icon: CheckCircle2,
@@ -194,8 +205,16 @@ const initialFormState = {
   delay_hours: 24,
   min_cart_value: 0,
   inactive_days: 30,
+  restock_days: 30,
 };
 
+interface FullTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  html_content: string;
+  template_type: string;
+}
 
 export default function EmailAutomations() {
   const [automations, setAutomations] = useState<EmailAutomation[]>([]);
@@ -205,12 +224,17 @@ export default function EmailAutomations() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewTemplate, setPreviewTemplate] = useState<FullTemplate | null>(null);
+  const [previewAutomation, setPreviewAutomation] = useState<EmailAutomation | null>(null);
   const [editingAutomation, setEditingAutomation] = useState<EmailAutomation | null>(null);
   const [selectedAutomation, setSelectedAutomation] = useState<EmailAutomation | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [testEmail, setTestEmail] = useState("");
   const [testing, setTesting] = useState(false);
   const [activeTab, setActiveTab] = useState("all");
+  const [runningCron, setRunningCron] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -276,11 +300,63 @@ export default function EmailAutomations() {
       delay_hours: template.delay_hours || 0,
       min_cart_value: template.min_cart_value || 0,
       inactive_days: template.inactive_days || 30,
+      restock_days: template.restock_days || 30,
       send_limit_per_user: template.send_limit,
       cooldown_days: template.cooldown,
     });
     setEditingAutomation(null);
     setDialogOpen(true);
+  };
+
+  const handlePreviewTemplate = async (automation: EmailAutomation) => {
+    if (!automation.template_id) {
+      toast({ title: "No Template", description: "This automation has no template assigned", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { data: template, error } = await supabase
+        .from("email_templates")
+        .select("id, name, subject, html_content, template_type")
+        .eq("id", automation.template_id)
+        .single();
+
+      if (error || !template) {
+        throw new Error("Template not found");
+      }
+
+      setPreviewTemplate(template);
+      setPreviewAutomation(automation);
+      setPreviewOpen(true);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const handleSaveTemplate = async (htmlContent: string) => {
+    if (!previewTemplate) return;
+
+    setSavingTemplate(true);
+    try {
+      const { error } = await supabase
+        .from("email_templates")
+        .update({ 
+          html_content: htmlContent,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", previewTemplate.id);
+
+      if (error) throw error;
+
+      toast({ title: "Template Saved! ✨", description: "Your changes have been saved" });
+      setPreviewOpen(false);
+      setPreviewTemplate(null);
+      setPreviewAutomation(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setSavingTemplate(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -293,6 +369,8 @@ export default function EmailAutomations() {
         triggerConditions.min_cart_value = formData.min_cart_value;
       } else if (formData.trigger_type === "inactive_user") {
         triggerConditions.inactive_days = formData.inactive_days;
+      } else if (formData.trigger_type === "restock_reminder") {
+        triggerConditions.restock_days = formData.restock_days;
       } else {
         triggerConditions.delay_hours = formData.delay_hours;
       }
@@ -345,6 +423,7 @@ export default function EmailAutomations() {
       delay_hours: automation.trigger_conditions?.delay_hours || 24,
       min_cart_value: automation.trigger_conditions?.min_cart_value || 0,
       inactive_days: automation.trigger_conditions?.inactive_days || 30,
+      restock_days: automation.trigger_conditions?.restock_days || 30,
     });
     setDialogOpen(true);
   };
@@ -452,6 +531,29 @@ export default function EmailAutomations() {
     }
   };
 
+  const handleRunCron = async () => {
+    setRunningCron(true);
+    try {
+      const response = await fetch('/api/email/cron/run-all', { method: 'POST' });
+      const data = await response.json();
+      
+      if (data.success) {
+        toast({
+          title: "Cron Jobs Executed ⚡",
+          description: `Queue: ${data.results?.queue?.sent || 0} sent, Abandoned: ${data.results?.abandonedCarts?.triggered || 0}, Inactive: ${data.results?.inactiveUsers?.triggered || 0}`,
+        });
+        fetchAutomations();
+        fetchRecentExecutions();
+      } else {
+        throw new Error(data.error || "Failed to run cron");
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setRunningCron(false);
+    }
+  };
+
   const getTriggerInfo = (type: string) => {
     return triggerTypes.find((t) => t.value === type);
   };
@@ -489,6 +591,19 @@ export default function EmailAutomations() {
             <p className="text-muted-foreground">Set up automated email triggers that run 24/7</p>
           </div>
           <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleRunCron}
+              disabled={runningCron}
+              className="bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700"
+            >
+              {runningCron ? (
+                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Zap className="mr-2 h-4 w-4" />
+              )}
+              Run Now
+            </Button>
             <Button variant="outline" onClick={() => { fetchRecentExecutions(); setHistoryOpen(true); }}>
               <History className="mr-2 h-4 w-4" /> History
             </Button>
@@ -617,7 +732,20 @@ export default function EmailAutomations() {
                       </div>
                     )}
 
-                    {!["abandoned_cart", "inactive_user"].includes(formData.trigger_type) && (
+                    {formData.trigger_type === "restock_reminder" && (
+                      <div className="col-span-2">
+                        <Label htmlFor="restock_days">Restock Interval (Days)</Label>
+                        <Input
+                          id="restock_days"
+                          type="number"
+                          value={formData.restock_days}
+                          onChange={(e) => setFormData({ ...formData, restock_days: parseInt(e.target.value) || 30 })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Default days between orders (system also analyzes user's actual purchase frequency)</p>
+                      </div>
+                    )}
+
+                    {!["abandoned_cart", "inactive_user", "restock_reminder"].includes(formData.trigger_type) && (
                       <div className="col-span-2">
                         <Label htmlFor="delay_hours">Delay (Hours)</Label>
                         <Input
@@ -829,7 +957,7 @@ export default function EmailAutomations() {
                         </TableCell>
                         <TableCell>
                           <div className="text-sm space-y-1">
-                            {automation.trigger_conditions?.delay_hours !== undefined && (
+                            {automation.trigger_conditions?.delay_hours !== undefined && automation.trigger_type !== "restock_reminder" && (
                               <p className="flex items-center gap-1">
                                 <Clock className="h-3 w-3" /> {automation.trigger_conditions.delay_hours}h delay
                               </p>
@@ -839,6 +967,9 @@ export default function EmailAutomations() {
                             )}
                             {automation.trigger_conditions?.inactive_days && (
                               <p>After: {automation.trigger_conditions.inactive_days} days</p>
+                            )}
+                            {automation.trigger_conditions?.restock_days && (
+                              <p>Restock: {automation.trigger_conditions.restock_days} days</p>
                             )}
                             <p className="text-muted-foreground">
                               Limit: {automation.send_limit_per_user}/user
@@ -884,6 +1015,16 @@ export default function EmailAutomations() {
                         </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handlePreviewTemplate(automation)}
+                              title="Preview & Edit Template"
+                              disabled={!automation.template_id}
+                              className="bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                             <Button 
                               variant="outline" 
                               size="sm" 
@@ -1027,6 +1168,39 @@ export default function EmailAutomations() {
                     })}
                   </TableBody>
                 </Table>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Preview & Edit Template Dialog */}
+        <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
+          <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 overflow-hidden">
+            <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <DialogTitle className="flex items-center gap-2 text-lg">
+                    <Eye className="h-5 w-5 text-emerald-600" />
+                    Edit Email Template
+                  </DialogTitle>
+                  <DialogDescription className="mt-1">
+                    {previewAutomation?.name} → {previewTemplate?.name}
+                  </DialogDescription>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="outline" className="bg-white">
+                    {previewTemplate?.template_type}
+                  </Badge>
+                </div>
+              </div>
+            </DialogHeader>
+            <div className="flex-1 overflow-hidden" style={{ height: 'calc(95vh - 100px)' }}>
+              {previewTemplate && (
+                <VisualEmailEditor
+                  initialHtml={previewTemplate.html_content}
+                  onSave={handleSaveTemplate}
+                  templateName={previewTemplate.name}
+                />
               )}
             </div>
           </DialogContent>

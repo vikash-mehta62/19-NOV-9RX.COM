@@ -205,14 +205,14 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full bg-gray-50/50">
+      <div className="min-h-screen flex w-full bg-gray-50 dark:bg-gray-900">
         <Sidebar
           collapsible="icon"
-          className={`border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 transition-all duration-300 shadow-xl ${
+          className={`border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 z-50 transition-all duration-300 shadow-lg ${
             isMobile ? "w-full max-w-[280px]" : ""
           }`}
         >
-          <SidebarContent>
+          <SidebarContent className="scrollbar-thin">
             <div className="flex flex-col h-full">
               <SidebarHeader />
               <SidebarGroup>
@@ -225,10 +225,10 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           </SidebarContent>
         </Sidebar>
 
-        <main className="flex-1 flex flex-col min-h-screen">
+        <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
           <TopBar />
-          <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 overflow-y-auto">
-            <div className="mx-auto max-w-7xl">
+          <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 overflow-y-auto">
+            <div className="mx-auto max-w-7xl w-full">
               <AnnouncementDisplay userRole={role} />
               {children}
             </div>

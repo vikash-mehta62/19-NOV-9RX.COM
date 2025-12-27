@@ -11,6 +11,7 @@ const { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate } =
 const userVerificationTemplate = require("../templates/userVerificationTemplate");
 const signupSuccessTemplate = require("../templates/signupSuccessTemplate");
 const mailSender = require("../utils/mailSender");
+const { triggerAutomation, trackConversion } = require("../cron/emailCron");
 
 // Admin email from environment variable with fallback
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "sppatel@9rx.com";
@@ -36,6 +37,28 @@ exports.orderSatusCtrl = async (req, res) => {
       "Order Status Update",
       emailContent
     );
+
+    // Trigger automation based on order status
+    const status = order.status?.toLowerCase();
+    if (status === 'shipped') {
+      await triggerAutomation('order_shipped', {
+        email: order.customerInfo.email,
+        userId: order.userId || order.profile_id,
+        firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
+        lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
+        order_number: order.orderNumber || order.id,
+        tracking_number: order.trackingNumber || '',
+        shipping_method: order.shippingMethod || '',
+      });
+    } else if (status === 'delivered') {
+      await triggerAutomation('order_delivered', {
+        email: order.customerInfo.email,
+        userId: order.userId || order.profile_id,
+        firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
+        lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
+        order_number: order.orderNumber || order.id,
+      });
+    }
 
     return res.status(200).json({
       success: true,
@@ -83,6 +106,39 @@ exports.orderPlacedCtrl = async (req, res) => {
       emailContentAdmin
     );
 
+    // Trigger order_placed automation
+    await triggerAutomation('order_placed', {
+      email: order.customerInfo.email,
+      userId: order.userId || order.profile_id,
+      firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
+      lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
+      order_number: order.orderNumber || order.id,
+      order_total: order.totalAmount || order.total,
+      item_count: order.items?.length || 0,
+    });
+
+    // Track conversion (user made a purchase)
+    if (order.userId || order.profile_id) {
+      await trackConversion(
+        order.userId || order.profile_id,
+        order.orderNumber || order.id,
+        order.totalAmount || order.total
+      );
+    }
+
+    // Check if this is user's first purchase
+    // Note: This would need to be checked against order history
+    // For now, we'll trigger first_purchase automation and let the automation's
+    // send_limit_per_user handle preventing duplicates
+    await triggerAutomation('first_purchase', {
+      email: order.customerInfo.email,
+      userId: order.userId || order.profile_id,
+      firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
+      lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
+      order_number: order.orderNumber || order.id,
+      order_total: order.totalAmount || order.total,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Order status email sent successfully!",
@@ -100,7 +156,7 @@ exports.orderPlacedCtrl = async (req, res) => {
 
 exports.userNotificationCtrl = async (req, res) => {
   try {
-    const { groupname, name, email } = req.body;
+    const { groupname, name, email, userId } = req.body;
     if (!name || !email) {
       return res.status(400).json({
         success: false,
@@ -123,6 +179,16 @@ exports.userNotificationCtrl = async (req, res) => {
       "Welcome to 9RX - Registration Received",
       userEmailContent
     );
+
+    // Trigger welcome automation
+    const nameParts = name.split(' ');
+    await triggerAutomation('welcome', {
+      email: email,
+      userId: userId,
+      firstName: nameParts[0] || name,
+      lastName: nameParts.slice(1).join(' ') || '',
+      group_name: groupname || '',
+    });
 
     return res.status(200).json({
       success: true,
