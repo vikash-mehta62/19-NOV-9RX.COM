@@ -37,9 +37,16 @@ import {
   Plus, Pencil, Trash2, Image, Eye, EyeOff, GripVertical, Copy,
   Sparkles, Monitor, Smartphone, Layout, PanelTop, Square, Tag,
   MousePointerClick, BarChart3, RefreshCw, ArrowUp, ArrowDown,
-  ExternalLink, Calendar, CheckCircle2, XCircle, Clock, Upload, X, Loader2
+  ExternalLink, Calendar, CheckCircle2, XCircle, Clock, Upload, X, Loader2,
+  TestTube, Target, PartyPopper
 } from "lucide-react";
 import { format } from "date-fns";
+import { BannerAnalyticsDashboard } from "@/components/admin/banners/BannerAnalyticsDashboard";
+import { ABTestManager } from "@/components/admin/banners/ABTestManager";
+import { UserTargetingEditor } from "@/components/admin/banners/UserTargetingEditor";
+import { BannerDesignStudio } from "@/components/admin/banners/BannerDesignStudio";
+import { BannerInitializer } from "@/components/admin/banners/BannerInitializer";
+import { FestivalThemeManager } from "@/components/admin/banners/FestivalThemeManager";
 
 interface Banner {
   id: string;
@@ -61,6 +68,16 @@ interface Banner {
   click_count: number;
   view_count: number;
   created_at: string;
+  // New targeting fields
+  target_user_types: string[];
+  target_devices: string[];
+  target_locations: string[];
+  target_time_start: string | null;
+  target_time_end: string | null;
+  // A/B testing fields
+  ab_test_group: string;
+  ab_test_id: string | null;
+  ab_test_traffic_split: number;
 }
 
 interface Category {
@@ -177,8 +194,13 @@ const initialFormState = {
   text_color: "#FFFFFF",
   overlay_opacity: 0.3,
   target_page: "",
+  // New targeting fields
+  target_user_types: ["all"],
+  target_devices: ["all"],
+  target_locations: [] as string[],
+  target_time_start: null as string | null,
+  target_time_end: null as string | null
 };
-
 
 export default function Banners() {
   const [banners, setBanners] = useState<Banner[]>([]);
@@ -190,6 +212,7 @@ export default function Banners() {
   const [previewBanner, setPreviewBanner] = useState<Banner | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [activeTab, setActiveTab] = useState("all");
+  const [mainTab, setMainTab] = useState("banners");
   const [uploading, setUploading] = useState(false);
   const [uploadingMobile, setUploadingMobile] = useState(false);
   const [selectedSize, setSelectedSize] = useState(bannerSizePresets[0]);
@@ -320,6 +343,12 @@ export default function Banners() {
         text_color: formData.text_color,
         overlay_opacity: formData.overlay_opacity,
         target_page: formData.target_page || null,
+        // New targeting fields
+        target_user_types: formData.target_user_types,
+        target_devices: formData.target_devices,
+        target_locations: formData.target_locations,
+        target_time_start: formData.target_time_start,
+        target_time_end: formData.target_time_end,
       };
 
       if (editingBanner) {
@@ -362,6 +391,12 @@ export default function Banners() {
       text_color: banner.text_color || "#FFFFFF",
       overlay_opacity: banner.overlay_opacity || 0.3,
       target_page: banner.target_page || "",
+      // New targeting fields
+      target_user_types: banner.target_user_types || ["all"],
+      target_devices: banner.target_devices || ["all"],
+      target_locations: banner.target_locations || [],
+      target_time_start: banner.target_time_start,
+      target_time_end: banner.target_time_end,
     });
     setDialogOpen(true);
   };
@@ -474,7 +509,6 @@ export default function Banners() {
     totalViews: banners.reduce((sum, b) => sum + (b.view_count || 0), 0),
   };
 
-
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -482,616 +516,730 @@ export default function Banners() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Banner Management</h1>
-            <p className="text-muted-foreground">Manage homepage banners and sliders</p>
+            <p className="text-muted-foreground">Manage homepage banners, analytics, and A/B testing</p>
           </div>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openNewDialog}>
-                <Plus className="mr-2 h-4 w-4" /> Add Banner
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingBanner ? "Edit Banner" : "Add New Banner"}</DialogTitle>
-                <DialogDescription>
-                  {editingBanner ? "Update your banner details" : "Create a new banner for your website"}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="col-span-2">
-                    <Label htmlFor="title">Title *</Label>
-                    <Input
-                      id="title"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                      placeholder="Summer Sale - 50% Off"
-                      required
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="subtitle">Subtitle</Label>
-                    <Textarea
-                      id="subtitle"
-                      value={formData.subtitle}
-                      onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
-                      placeholder="Limited time offer on all products"
-                      rows={2}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="banner_type">Banner Type *</Label>
-                    <Select
-                      value={formData.banner_type}
-                      onValueChange={(value) => setFormData({ ...formData, banner_type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="hero">Hero Banner (Homepage)</SelectItem>
-                        <SelectItem value="strip">Promo Strip (Top Bar)</SelectItem>
-                        <SelectItem value="sidebar">Sidebar Banner</SelectItem>
-                        <SelectItem value="popup">Popup Banner</SelectItem>
-                        <SelectItem value="category">Category Page</SelectItem>
-                        <SelectItem value="product">Product Page</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="display_order">Display Order</Label>
-                    <Input
-                      id="display_order"
-                      type="number"
-                      value={formData.display_order}
-                      onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
-                    />
-                  </div>
-                  {/* Banner Size Selection */}
-                  <div className="col-span-2">
-                    <Label>Recommended Banner Size</Label>
-                    <Select
-                      value={selectedSize.id}
-                      onValueChange={handleSizePresetChange}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {bannerSizePresets.map((preset) => (
-                          <SelectItem key={preset.id} value={preset.id}>
-                            {preset.name} {preset.width > 0 && `(${preset.width}×${preset.height}px)`}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {selectedSize.description} - Recommended: {selectedSize.id === "custom" ? `${customWidth}×${customHeight}px` : `${selectedSize.width}×${selectedSize.height}px`}
-                    </p>
-                  </div>
-
-                  {selectedSize.id === "custom" && (
-                    <>
-                      <div>
-                        <Label htmlFor="custom_width">Custom Width (px)</Label>
-                        <Input
-                          id="custom_width"
-                          type="number"
-                          value={customWidth}
-                          onChange={(e) => setCustomWidth(parseInt(e.target.value) || 0)}
-                          placeholder="1920"
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor="custom_height">Custom Height (px)</Label>
-                        <Input
-                          id="custom_height"
-                          type="number"
-                          value={customHeight}
-                          onChange={(e) => setCustomHeight(parseInt(e.target.value) || 0)}
-                          placeholder="600"
-                        />
-                      </div>
-                    </>
-                  )}
-
-                  {/* Desktop Image Upload */}
-                  <div className="col-span-2">
-                    <Label>Desktop Banner Image *</Label>
-                    <div className="mt-2 space-y-3">
-                      {formData.image_url ? (
-                        <div className="relative">
-                          <img
-                            src={formData.image_url}
-                            alt="Desktop Preview"
-                            className="w-full h-40 object-cover rounded-lg border"
-                            onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-                          />
-                          <div 
-                            className="absolute inset-0 flex items-center justify-center rounded-lg"
-                            style={{ backgroundColor: `rgba(0,0,0,${formData.overlay_opacity})` }}
-                          >
-                            <div className="text-center p-4" style={{ color: formData.text_color }}>
-                              <h3 className="font-bold text-lg">{formData.title || "Banner Title"}</h3>
-                              {formData.subtitle && <p className="text-sm opacity-90">{formData.subtitle}</p>}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            className="absolute top-2 right-2"
-                            onClick={() => removeImage("image_url")}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
-                          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-                            {uploading ? (
-                              <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
-                            ) : (
-                              <>
-                                <Upload className="h-10 w-10 text-muted-foreground mb-3" />
-                                <p className="text-sm text-muted-foreground">
-                                  <span className="font-semibold">Click to upload</span> or drag and drop
-                                </p>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                  PNG, JPG, WebP (Max 5MB) - {selectedSize.id === "custom" ? `${customWidth}×${customHeight}px` : `${selectedSize.width}×${selectedSize.height}px`}
-                                </p>
-                              </>
-                            )}
-                          </div>
-                          <input
-                            type="file"
-                            className="hidden"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, "image_url")}
-                            disabled={uploading}
-                          />
-                        </label>
-                      )}
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Or enter URL:</span>
-                        <Input
-                          value={formData.image_url}
-                          onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-                          placeholder="https://example.com/banner.jpg"
-                          className="flex-1 h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Mobile Image Upload */}
-                  <div className="col-span-2 p-4 border rounded-lg bg-muted/30">
-                    <Label className="flex items-center gap-2 text-base font-semibold">
-                      <Smartphone className="h-5 w-5" /> Mobile Banner Image (Optional)
-                    </Label>
-                    <p className="text-xs text-muted-foreground mt-1 mb-3">
-                      Upload a separate image optimized for mobile devices for better user experience
-                    </p>
-                    
-                    {/* Mobile Size Recommendations */}
-                    <div className="flex flex-wrap gap-2 mb-3">
-                      <Badge variant="outline" className="text-xs">
-                        📱 Portrait: 768×1024px
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        📱 Square: 768×768px
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        📱 Wide: 768×400px
-                      </Badge>
-                    </div>
-
-                    <div className="flex gap-4">
-                      {/* Upload Area */}
-                      <div className="flex-1">
-                        {formData.mobile_image_url ? (
-                          <div className="relative">
-                            <img
-                              src={formData.mobile_image_url}
-                              alt="Mobile Preview"
-                              className="w-full max-w-xs h-40 object-cover rounded-lg border"
-                              onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
-                            />
-                            <Button
-                              type="button"
-                              variant="destructive"
-                              size="sm"
-                              className="absolute top-2 right-2"
-                              onClick={() => removeImage("mobile_image_url")}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                            <p className="text-xs text-green-600 mt-2">✓ Mobile image uploaded</p>
-                          </div>
-                        ) : (
-                          <label className="flex flex-col items-center justify-center w-full max-w-xs h-40 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50/50 transition-colors bg-blue-50/20">
-                            <div className="flex flex-col items-center justify-center p-4">
-                              {uploadingMobile ? (
-                                <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
-                              ) : (
-                                <>
-                                  <Smartphone className="h-10 w-10 text-blue-500 mb-2" />
-                                  <p className="text-sm font-medium text-blue-700">Upload Mobile Image</p>
-                                  <p className="text-xs text-muted-foreground mt-1 text-center">
-                                    PNG, JPG, WebP (Max 5MB)<br />
-                                    Recommended: 768×400px
-                                  </p>
-                                </>
-                              )}
-                            </div>
-                            <input
-                              type="file"
-                              className="hidden"
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, "mobile_image_url")}
-                              disabled={uploadingMobile}
-                            />
-                          </label>
-                        )}
-                      </div>
-
-                      {/* Preview Mockup */}
-                      <div className="hidden md:block">
-                        <div className="w-24 h-40 bg-gray-900 rounded-xl p-1 shadow-lg">
-                          <div className="w-full h-full bg-white rounded-lg overflow-hidden flex items-center justify-center">
-                            {formData.mobile_image_url ? (
-                              <img
-                                src={formData.mobile_image_url}
-                                alt="Phone Preview"
-                                className="w-full h-full object-cover"
-                              />
-                            ) : (
-                              <div className="text-center p-2">
-                                <Smartphone className="h-6 w-6 text-gray-300 mx-auto" />
-                                <p className="text-[8px] text-gray-400 mt-1">Preview</p>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 mt-3">
-                      <span className="text-xs text-muted-foreground">Or enter URL:</span>
-                      <Input
-                        value={formData.mobile_image_url}
-                        onChange={(e) => setFormData({ ...formData, mobile_image_url: e.target.value })}
-                        placeholder="https://example.com/banner-mobile.jpg"
-                        className="flex-1 h-8 text-sm"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="link_url">Link URL</Label>
-                    <Input
-                      id="link_url"
-                      value={formData.link_url}
-                      onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
-                      placeholder="/products or https://..."
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="link_text">Button Text</Label>
-                    <Input
-                      id="link_text"
-                      value={formData.link_text}
-                      onChange={(e) => setFormData({ ...formData, link_text: e.target.value })}
-                      placeholder="Shop Now"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="text_color">Text Color</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        id="text_color"
-                        type="color"
-                        value={formData.text_color}
-                        onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
-                        className="w-14 h-10 p-1"
-                      />
-                      <Input
-                        value={formData.text_color}
-                        onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <Label htmlFor="overlay_opacity">Overlay Opacity</Label>
-                    <Input
-                      id="overlay_opacity"
-                      type="range"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={formData.overlay_opacity}
-                      onChange={(e) => setFormData({ ...formData, overlay_opacity: parseFloat(e.target.value) })}
-                      className="w-full"
-                    />
-                    <p className="text-xs text-muted-foreground">{Math.round(formData.overlay_opacity * 100)}% dark overlay</p>
-                  </div>
-                  <div>
-                    <Label htmlFor="start_date">Start Date</Label>
-                    <Input
-                      id="start_date"
-                      type="date"
-                      value={formData.start_date}
-                      onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="end_date">End Date</Label>
-                    <Input
-                      id="end_date"
-                      type="date"
-                      value={formData.end_date}
-                      onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2 pt-6">
-                    <Switch
-                      id="is_active"
-                      checked={formData.is_active}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                    />
-                    <Label htmlFor="is_active">Active immediately</Label>
-                  </div>
-                </div>
-                <div className="flex justify-end gap-2 pt-4 border-t">
-                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">{editingBanner ? "Update" : "Create"} Banner</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
         </div>
 
-        {/* Quick Templates */}
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-purple-500" />
-              Quick Start Templates
-            </CardTitle>
-            <CardDescription>Create common banners in seconds</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              {bannerTemplates.map((template) => {
-                const Icon = template.icon;
-                return (
-                  <button
-                    key={template.id}
-                    onClick={() => handleQuickTemplate(template)}
-                    className="p-4 rounded-lg border hover:border-primary hover:bg-primary/5 transition-all text-left group"
-                  >
-                    <div className={`w-10 h-10 rounded-lg ${template.color} flex items-center justify-center mb-3`}>
-                      <Icon className="h-5 w-5 text-white" />
-                    </div>
-                    <h4 className="font-medium text-sm group-hover:text-primary">{template.name}</h4>
-                    <p className="text-xs text-muted-foreground mt-1">{template.description}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
+        {/* Main Tabs */}
+        <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-4">
+          <TabsList className="grid w-full grid-cols-6">
+            <TabsTrigger value="banners" className="flex items-center gap-2">
+              <Image className="h-4 w-4" />
+              Banners
+            </TabsTrigger>
+            <TabsTrigger value="festivals" className="flex items-center gap-2">
+              <PartyPopper className="h-4 w-4" />
+              Festivals
+            </TabsTrigger>
+            <TabsTrigger value="design" className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              Design Studio
+            </TabsTrigger>
+            <TabsTrigger value="analytics" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </TabsTrigger>
+            <TabsTrigger value="abtests" className="flex items-center gap-2">
+              <TestTube className="h-4 w-4" />
+              A/B Tests
+            </TabsTrigger>
+            <TabsTrigger value="targeting" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Targeting
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold">{stats.total}</div>
-              <p className="text-xs text-muted-foreground">Total Banners</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-              <p className="text-xs text-muted-foreground">Active Now</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-600">{stats.scheduled}</div>
-              <p className="text-xs text-muted-foreground">Scheduled</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-purple-600">{stats.totalViews.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total Views</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-amber-600">{stats.totalClicks.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">Total Clicks</p>
-            </CardContent>
-          </Card>
-        </div>
-
-
-        {/* Banners Table */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <Image className="h-5 w-5" /> All Banners
-              </CardTitle>
-              <Tabs value={activeTab} onValueChange={setActiveTab}>
-                <TabsList>
-                  <TabsTrigger value="all">All</TabsTrigger>
-                  <TabsTrigger value="active">Active</TabsTrigger>
-                  <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-                  <TabsTrigger value="hero">Hero</TabsTrigger>
-                  <TabsTrigger value="strip">Strip</TabsTrigger>
-                </TabsList>
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="text-center py-8">
-                <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
-                <p className="mt-2 text-muted-foreground">Loading banners...</p>
-              </div>
-            ) : filteredBanners.length === 0 ? (
-              <div className="text-center py-12">
-                <Image className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No banners found</h3>
-                <p className="text-muted-foreground mt-1">
-                  {activeTab === "all" ? "Create your first banner to get started!" : `No ${activeTab} banners`}
-                </p>
-                <Button className="mt-4" onClick={openNewDialog}>
-                  <Plus className="mr-2 h-4 w-4" /> Create Banner
-                </Button>
-              </div>
+          <TabsContent value="banners" className="space-y-6">
+            {/* Show initializer if no banners exist */}
+            {!loading && banners.length === 0 ? (
+              <BannerInitializer onComplete={fetchBanners} />
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-16">Order</TableHead>
-                    <TableHead>Preview</TableHead>
-                    <TableHead>Details</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Stats</TableHead>
-                    <TableHead>Duration</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredBanners.map((banner, index) => {
-                    const status = getBannerStatus(banner);
-                    const StatusIcon = status.icon;
-                    const typeConfig = bannerTypeConfig[banner.banner_type] || bannerTypeConfig.hero;
-                    const TypeIcon = typeConfig.icon;
-
-                    return (
-                      <TableRow key={banner.id}>
-                        <TableCell>
-                          <div className="flex flex-col items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => moveOrder(banner.id, "up")}
-                              disabled={index === 0}
-                              className="h-6 w-6 p-0"
-                            >
-                              <ArrowUp className="h-3 w-3" />
-                            </Button>
-                            <span className="text-sm font-medium">{banner.display_order}</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => moveOrder(banner.id, "down")}
-                              disabled={index === filteredBanners.length - 1}
-                              className="h-6 w-6 p-0"
-                            >
-                              <ArrowDown className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div 
-                            className="relative h-16 w-28 rounded overflow-hidden cursor-pointer group"
-                            onClick={() => { setPreviewBanner(banner); setPreviewOpen(true); }}
-                          >
-                            <img
-                              src={banner.image_url}
-                              alt={banner.title}
-                              className="h-full w-full object-cover"
-                              onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+              <>
+                {/* Banner Management Content */}
+                <div className="flex justify-end">
+                  <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button onClick={openNewDialog}>
+                        <Plus className="mr-2 h-4 w-4" /> Add Banner
+                      </Button>
+                    </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{editingBanner ? "Edit Banner" : "Add New Banner"}</DialogTitle>
+                    <DialogDescription>
+                      {editingBanner ? "Update your banner details" : "Create a new banner for your website"}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-6">
+                    <Tabs defaultValue="basic" className="w-full">
+                      <TabsList className="grid w-full grid-cols-3">
+                        <TabsTrigger value="basic">Basic Info</TabsTrigger>
+                        <TabsTrigger value="design">Design & Media</TabsTrigger>
+                        <TabsTrigger value="targeting">Targeting</TabsTrigger>
+                      </TabsList>
+                      
+                      <TabsContent value="basic" className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="col-span-2">
+                            <Label htmlFor="title">Title *</Label>
+                            <Input
+                              id="title"
+                              value={formData.title}
+                              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                              placeholder="Summer Sale - 50% Off"
+                              required
                             />
-                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                              <Eye className="h-5 w-5 text-white" />
-                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell>
+                          <div className="col-span-2">
+                            <Label htmlFor="subtitle">Subtitle</Label>
+                            <Textarea
+                              id="subtitle"
+                              value={formData.subtitle}
+                              onChange={(e) => setFormData({ ...formData, subtitle: e.target.value })}
+                              placeholder="Limited time offer on all products"
+                              rows={2}
+                            />
+                          </div>
                           <div>
-                            <p className="font-medium">{banner.title}</p>
-                            {banner.subtitle && (
-                              <p className="text-sm text-muted-foreground truncate max-w-[200px]">
-                                {banner.subtitle}
-                              </p>
-                            )}
-                            {banner.link_url && (
-                              <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
-                                <ExternalLink className="h-3 w-3" />
-                                <span className="truncate max-w-[150px]">{banner.link_url}</span>
+                            <Label htmlFor="banner_type">Banner Type *</Label>
+                            <Select
+                              value={formData.banner_type}
+                              onValueChange={(value) => setFormData({ ...formData, banner_type: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="hero">Hero Banner (Homepage)</SelectItem>
+                                <SelectItem value="strip">Promo Strip (Top Bar)</SelectItem>
+                                <SelectItem value="sidebar">Sidebar Banner</SelectItem>
+                                <SelectItem value="popup">Popup Banner</SelectItem>
+                                <SelectItem value="category">Category Page</SelectItem>
+                                <SelectItem value="product">Product Page</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="display_order">Display Order</Label>
+                            <Input
+                              id="display_order"
+                              type="number"
+                              value={formData.display_order}
+                              onChange={(e) => setFormData({ ...formData, display_order: parseInt(e.target.value) || 0 })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="link_url">Link URL</Label>
+                            <Input
+                              id="link_url"
+                              value={formData.link_url}
+                              onChange={(e) => setFormData({ ...formData, link_url: e.target.value })}
+                              placeholder="/products or https://..."
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="link_text">Button Text</Label>
+                            <Input
+                              id="link_text"
+                              value={formData.link_text}
+                              onChange={(e) => setFormData({ ...formData, link_text: e.target.value })}
+                              placeholder="Shop Now"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="start_date">Start Date</Label>
+                            <Input
+                              id="start_date"
+                              type="date"
+                              value={formData.start_date}
+                              onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="end_date">End Date</Label>
+                            <Input
+                              id="end_date"
+                              type="date"
+                              value={formData.end_date}
+                              onChange={(e) => setFormData({ ...formData, end_date: e.target.value })}
+                            />
+                          </div>
+                          <div className="flex items-center space-x-2 pt-6">
+                            <Switch
+                              id="is_active"
+                              checked={formData.is_active}
+                              onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                            />
+                            <Label htmlFor="is_active">Active immediately</Label>
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="design" className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          {/* Banner Size Selection */}
+                          <div className="col-span-2">
+                            <Label>Recommended Banner Size</Label>
+                            <Select
+                              value={selectedSize.id}
+                              onValueChange={handleSizePresetChange}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {bannerSizePresets.map((preset) => (
+                                  <SelectItem key={preset.id} value={preset.id}>
+                                    {preset.name} {preset.width > 0 && `(${preset.width}×${preset.height}px)`}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {selectedSize.description} - Recommended: {selectedSize.id === "custom" ? `${customWidth}×${customHeight}px` : `${selectedSize.width}×${selectedSize.height}px`}
+                            </p>
+                          </div>
+
+                          {selectedSize.id === "custom" && (
+                            <>
+                              <div>
+                                <Label htmlFor="custom_width">Custom Width (px)</Label>
+                                <Input
+                                  id="custom_width"
+                                  type="number"
+                                  value={customWidth}
+                                  onChange={(e) => setCustomWidth(parseInt(e.target.value) || 0)}
+                                  placeholder="1920"
+                                />
                               </div>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className={`flex items-center gap-2 ${typeConfig.color}`}>
-                            <TypeIcon className="h-4 w-4" />
-                            <span className="text-sm">{typeConfig.label}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="text-sm space-y-1">
-                            <div className="flex items-center gap-1">
-                              <Eye className="h-3 w-3 text-muted-foreground" />
-                              <span>{(banner.view_count || 0).toLocaleString()}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MousePointerClick className="h-3 w-3 text-muted-foreground" />
-                              <span>{(banner.click_count || 0).toLocaleString()}</span>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          {banner.start_date || banner.end_date ? (
-                            <div className="text-sm">
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-muted-foreground" />
-                                {banner.start_date ? format(new Date(banner.start_date), "MMM d") : "Now"} - 
-                                {banner.end_date ? format(new Date(banner.end_date), "MMM d") : "∞"}
+                              <div>
+                                <Label htmlFor="custom_height">Custom Height (px)</Label>
+                                <Input
+                                  id="custom_height"
+                                  type="number"
+                                  value={customHeight}
+                                  onChange={(e) => setCustomHeight(parseInt(e.target.value) || 0)}
+                                  placeholder="600"
+                                />
                               </div>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground text-sm">Always</span>
+                            </>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <button onClick={() => toggleActive(banner.id, banner.is_active)}>
-                            <span className={`px-2 py-1 rounded text-xs flex items-center gap-1 w-fit ${status.color}`}>
-                              <StatusIcon className="h-3 w-3" />
-                              {status.label}
-                            </span>
-                          </button>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="sm" onClick={() => handleDuplicate(banner)} title="Duplicate">
-                              <Copy className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleEdit(banner)} title="Edit">
-                              <Pencil className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(banner.id)} title="Delete">
-                              <Trash2 className="h-4 w-4 text-red-500" />
-                            </Button>
+
+                          {/* Desktop Image Upload */}
+                          <div className="col-span-2">
+                            <Label>Desktop Banner Image *</Label>
+                            <div className="mt-2 space-y-3">
+                              {formData.image_url ? (
+                                <div className="relative">
+                                  <img
+                                    src={formData.image_url}
+                                    alt="Desktop Preview"
+                                    className="w-full h-40 object-cover rounded-lg border"
+                                    onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+                                  />
+                                  <div 
+                                    className="absolute inset-0 flex items-center justify-center rounded-lg"
+                                    style={{ backgroundColor: `rgba(0,0,0,${formData.overlay_opacity})` }}
+                                  >
+                                    <div className="text-center p-4" style={{ color: formData.text_color }}>
+                                      <h3 className="font-bold text-lg">{formData.title || "Banner Title"}</h3>
+                                      {formData.subtitle && <p className="text-sm opacity-90">{formData.subtitle}</p>}
+                                    </div>
+                                  </div>
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="sm"
+                                    className="absolute top-2 right-2"
+                                    onClick={() => removeImage("image_url")}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <label className="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed rounded-lg cursor-pointer hover:bg-muted/50 transition-colors">
+                                  <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                                    {uploading ? (
+                                      <Loader2 className="h-10 w-10 text-muted-foreground animate-spin" />
+                                    ) : (
+                                      <>
+                                        <Upload className="h-10 w-10 text-muted-foreground mb-3" />
+                                        <p className="text-sm text-muted-foreground">
+                                          <span className="font-semibold">Click to upload</span> or drag and drop
+                                        </p>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                          PNG, JPG, WebP (Max 5MB) - {selectedSize.id === "custom" ? `${customWidth}×${customHeight}px` : `${selectedSize.width}×${selectedSize.height}px`}
+                                        </p>
+                                      </>
+                                    )}
+                                  </div>
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    accept="image/*"
+                                    onChange={(e) => handleImageUpload(e, "image_url")}
+                                    disabled={uploading}
+                                  />
+                                </label>
+                              )}
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">Or enter URL:</span>
+                                <Input
+                                  value={formData.image_url}
+                                  onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+                                  placeholder="https://example.com/banner.jpg"
+                                  className="flex-1 h-8 text-sm"
+                                />
+                              </div>
+                            </div>
                           </div>
-                        </TableCell>
-                      </TableRow>
+
+                          {/* Mobile Image Upload */}
+                          <div className="col-span-2 p-4 border rounded-lg bg-muted/30">
+                            <Label className="flex items-center gap-2 text-base font-semibold">
+                              <Smartphone className="h-5 w-5" /> Mobile Banner Image (Optional)
+                            </Label>
+                            <p className="text-xs text-muted-foreground mt-1 mb-3">
+                              Upload a separate image optimized for mobile devices for better user experience
+                            </p>
+                            
+                            {/* Mobile Size Recommendations */}
+                            <div className="flex flex-wrap gap-2 mb-3">
+                              <Badge variant="outline" className="text-xs">
+                                📱 Portrait: 768×1024px
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                📱 Square: 768×768px
+                              </Badge>
+                              <Badge variant="outline" className="text-xs">
+                                📱 Wide: 768×400px
+                              </Badge>
+                            </div>
+
+                            <div className="flex gap-4">
+                              {/* Upload Area */}
+                              <div className="flex-1">
+                                {formData.mobile_image_url ? (
+                                  <div className="relative">
+                                    <img
+                                      src={formData.mobile_image_url}
+                                      alt="Mobile Preview"
+                                      className="w-full max-w-xs h-40 object-cover rounded-lg border"
+                                      onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+                                    />
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      size="sm"
+                                      className="absolute top-2 right-2"
+                                      onClick={() => removeImage("mobile_image_url")}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                    <p className="text-xs text-green-600 mt-2">✓ Mobile image uploaded</p>
+                                  </div>
+                                ) : (
+                                  <label className="flex flex-col items-center justify-center w-full max-w-xs h-40 border-2 border-dashed border-blue-300 rounded-lg cursor-pointer hover:bg-blue-50/50 transition-colors bg-blue-50/20">
+                                    <div className="flex flex-col items-center justify-center p-4">
+                                      {uploadingMobile ? (
+                                        <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
+                                      ) : (
+                                        <>
+                                          <Smartphone className="h-10 w-10 text-blue-500 mb-2" />
+                                          <p className="text-sm font-medium text-blue-700">Upload Mobile Image</p>
+                                          <p className="text-xs text-muted-foreground mt-1 text-center">
+                                            PNG, JPG, WebP (Max 5MB)<br />
+                                            Recommended: 768×400px
+                                          </p>
+                                        </>
+                                      )}
+                                    </div>
+                                    <input
+                                      type="file"
+                                      className="hidden"
+                                      accept="image/*"
+                                      onChange={(e) => handleImageUpload(e, "mobile_image_url")}
+                                      disabled={uploadingMobile}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+
+                              {/* Preview Mockup */}
+                              <div className="hidden md:block">
+                                <div className="w-24 h-40 bg-gray-900 rounded-xl p-1 shadow-lg">
+                                  <div className="w-full h-full bg-white rounded-lg overflow-hidden flex items-center justify-center">
+                                    {formData.mobile_image_url ? (
+                                      <img
+                                        src={formData.mobile_image_url}
+                                        alt="Phone Preview"
+                                        className="w-full h-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="text-center p-2">
+                                        <Smartphone className="h-6 w-6 text-gray-300 mx-auto" />
+                                        <p className="text-[8px] text-gray-400 mt-1">Preview</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 mt-3">
+                              <span className="text-xs text-muted-foreground">Or enter URL:</span>
+                              <Input
+                                value={formData.mobile_image_url}
+                                onChange={(e) => setFormData({ ...formData, mobile_image_url: e.target.value })}
+                                placeholder="https://example.com/banner-mobile.jpg"
+                                className="flex-1 h-8 text-sm"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <Label htmlFor="text_color">Text Color</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                id="text_color"
+                                type="color"
+                                value={formData.text_color}
+                                onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
+                                className="w-14 h-10 p-1"
+                              />
+                              <Input
+                                value={formData.text_color}
+                                onChange={(e) => setFormData({ ...formData, text_color: e.target.value })}
+                                className="flex-1"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="overlay_opacity">Overlay Opacity</Label>
+                            <Input
+                              id="overlay_opacity"
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.1"
+                              value={formData.overlay_opacity}
+                              onChange={(e) => setFormData({ ...formData, overlay_opacity: parseFloat(e.target.value) })}
+                              className="w-full"
+                            />
+                            <p className="text-xs text-muted-foreground">{Math.round(formData.overlay_opacity * 100)}% dark overlay</p>
+                          </div>
+                        </div>
+                      </TabsContent>
+
+                      <TabsContent value="targeting" className="space-y-4">
+                        <UserTargetingEditor
+                          data={{
+                            target_user_types: formData.target_user_types,
+                            target_devices: formData.target_devices,
+                            target_locations: formData.target_locations,
+                            target_time_start: formData.target_time_start,
+                            target_time_end: formData.target_time_end,
+                          }}
+                          onChange={(targetingData) => setFormData({ ...formData, ...targetingData })}
+                        />
+                      </TabsContent>
+                    </Tabs>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t">
+                      <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">{editingBanner ? "Update" : "Create"} Banner</Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Quick Templates */}
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                  Quick Start Templates
+                </CardTitle>
+                <CardDescription>Create common banners in seconds</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  {bannerTemplates.map((template) => {
+                    const Icon = template.icon;
+                    return (
+                      <button
+                        key={template.id}
+                        onClick={() => handleQuickTemplate(template)}
+                        className="p-4 rounded-lg border hover:border-primary hover:bg-primary/5 transition-all text-left group"
+                      >
+                        <div className={`w-10 h-10 rounded-lg ${template.color} flex items-center justify-center mb-3`}>
+                          <Icon className="h-5 w-5 text-white" />
+                        </div>
+                        <h4 className="font-medium text-sm group-hover:text-primary">{template.name}</h4>
+                        <p className="text-xs text-muted-foreground mt-1">{template.description}</p>
+                      </button>
                     );
                   })}
-                </TableBody>
-              </Table>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold">{stats.total}</div>
+                  <p className="text-xs text-muted-foreground">Total Banners</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-green-600">{stats.active}</div>
+                  <p className="text-xs text-muted-foreground">Active Now</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-blue-600">{stats.scheduled}</div>
+                  <p className="text-xs text-muted-foreground">Scheduled</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-purple-600">{stats.totalViews.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">Total Views</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-2xl font-bold text-amber-600">{stats.totalClicks.toLocaleString()}</div>
+                  <p className="text-xs text-muted-foreground">Total Clicks</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Banners Table */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Image className="h-5 w-5" /> All Banners
+                  </CardTitle>
+                  <Tabs value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList>
+                      <TabsTrigger value="all">All</TabsTrigger>
+                      <TabsTrigger value="active">Active</TabsTrigger>
+                      <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
+                      <TabsTrigger value="hero">Hero</TabsTrigger>
+                      <TabsTrigger value="strip">Strip</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">
+                    <RefreshCw className="h-8 w-8 animate-spin mx-auto text-muted-foreground" />
+                    <p className="mt-2 text-muted-foreground">Loading banners...</p>
+                  </div>
+                ) : filteredBanners.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Image className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-medium">No banners found</h3>
+                    <p className="text-muted-foreground mt-1">
+                      {activeTab === "all" ? "Create your first banner to get started!" : `No ${activeTab} banners`}
+                    </p>
+                    <Button className="mt-4" onClick={openNewDialog}>
+                      <Plus className="mr-2 h-4 w-4" /> Create Banner
+                    </Button>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-16">Order</TableHead>
+                        <TableHead>Preview</TableHead>
+                        <TableHead>Details</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Stats</TableHead>
+                        <TableHead>Duration</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredBanners.map((banner, index) => {
+                        const status = getBannerStatus(banner);
+                        const StatusIcon = status.icon;
+                        const typeConfig = bannerTypeConfig[banner.banner_type] || bannerTypeConfig.hero;
+                        const TypeIcon = typeConfig.icon;
+
+                        return (
+                          <TableRow key={banner.id}>
+                            <TableCell>
+                              <div className="flex flex-col items-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => moveOrder(banner.id, "up")}
+                                  disabled={index === 0}
+                                  className="h-6 w-6 p-0"
+                                >
+                                  <ArrowUp className="h-3 w-3" />
+                                </Button>
+                                <span className="text-sm font-medium">{banner.display_order}</span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => moveOrder(banner.id, "down")}
+                                  disabled={index === filteredBanners.length - 1}
+                                  className="h-6 w-6 p-0"
+                                >
+                                  <ArrowDown className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div 
+                                className="relative h-16 w-28 rounded overflow-hidden cursor-pointer group"
+                                onClick={() => { setPreviewBanner(banner); setPreviewOpen(true); }}
+                              >
+                                <img
+                                  src={banner.image_url}
+                                  alt={banner.title}
+                                  className="h-full w-full object-cover"
+                                  onError={(e) => (e.currentTarget.src = "/placeholder.svg")}
+                                />
+                                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                  <Eye className="h-5 w-5 text-white" />
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div>
+                                <p className="font-medium">{banner.title}</p>
+                                {banner.subtitle && (
+                                  <p className="text-sm text-muted-foreground truncate max-w-[200px]">
+                                    {banner.subtitle}
+                                  </p>
+                                )}
+                                {banner.link_url && (
+                                  <div className="flex items-center gap-1 text-xs text-blue-600 mt-1">
+                                    <ExternalLink className="h-3 w-3" />
+                                    <span className="truncate max-w-[150px]">{banner.link_url}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className={`flex items-center gap-2 ${typeConfig.color}`}>
+                                <TypeIcon className="h-4 w-4" />
+                                <span className="text-sm">{typeConfig.label}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className="text-sm space-y-1">
+                                <div className="flex items-center gap-1">
+                                  <Eye className="h-3 w-3 text-muted-foreground" />
+                                  <span>{(banner.view_count || 0).toLocaleString()}</span>
+                                </div>
+                                <div className="flex items-center gap-1">
+                                  <MousePointerClick className="h-3 w-3 text-muted-foreground" />
+                                  <span>{(banner.click_count || 0).toLocaleString()}</span>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              {banner.start_date || banner.end_date ? (
+                                <div className="text-sm">
+                                  <div className="flex items-center gap-1">
+                                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                                    {banner.start_date ? format(new Date(banner.start_date), "MMM d") : "Now"} - 
+                                    {banner.end_date ? format(new Date(banner.end_date), "MMM d") : "∞"}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-sm">Always</span>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              <button onClick={() => toggleActive(banner.id, banner.is_active)}>
+                                <span className={`px-2 py-1 rounded text-xs flex items-center gap-1 w-fit ${status.color}`}>
+                                  <StatusIcon className="h-3 w-3" />
+                                  {status.label}
+                                </span>
+                              </button>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-1">
+                                <Button variant="ghost" size="sm" onClick={() => handleDuplicate(banner)} title="Duplicate">
+                                  <Copy className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleEdit(banner)} title="Edit">
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(banner.id)} title="Delete">
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
+              </CardContent>
+            </Card>
+              </>
             )}
-          </CardContent>
-        </Card>
+          </TabsContent>
+
+          <TabsContent value="festivals">
+            <FestivalThemeManager onBannerCreated={fetchBanners} />
+          </TabsContent>
+
+          <TabsContent value="design">
+            <BannerDesignStudio onSave={() => fetchBanners()} />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <BannerAnalyticsDashboard />
+          </TabsContent>
+
+          <TabsContent value="abtests">
+            <ABTestManager />
+          </TabsContent>
+
+          <TabsContent value="targeting">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Target className="h-5 w-5 text-purple-600" />
+                  Banner Targeting Overview
+                </CardTitle>
+                <CardDescription>
+                  View and manage targeting settings for all banners
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-12">
+                  <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">Targeting Management</h3>
+                  <p className="text-muted-foreground mt-1 mb-4">
+                    Configure targeting settings when creating or editing banners
+                  </p>
+                  <Button onClick={openNewDialog}>
+                    <Plus className="mr-2 h-4 w-4" /> Create Targeted Banner
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
 
         {/* Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>

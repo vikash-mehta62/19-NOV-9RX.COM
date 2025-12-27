@@ -20,6 +20,7 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useState, useEffect } from "react";
+import { BannerSlider } from "@/components/pharmacy/components/BannerSlider";
 import image1 from "../../assests/home/1.png";
 import image2 from "../../assests/home/2.png";
 import image3 from "../../assests/home/3.png";
@@ -415,6 +416,23 @@ const HeroSection = () => {
           <div className="w-6 h-10 border-2 border-slate-600 rounded-full flex justify-center pt-2">
             <div className="w-1.5 h-3 bg-blue-400 rounded-full animate-scroll" />
           </div>
+        </div>
+      </section>
+
+      {/* Banner Section */}
+      <section className="relative py-8 sm:py-12 lg:py-16 bg-gradient-to-b from-slate-950 to-slate-900">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <BannerSlider
+            bannerType="hero"
+            userType="guest"
+            deviceType={typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop'}
+            userLocation="US"
+            className="w-full"
+            autoPlay={true}
+            autoPlayInterval={6000}
+            showControls={true}
+            showIndicators={true}
+          />
         </div>
       </section>
 

@@ -14,6 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import ProductShowcase from "@/components/pharmacy/ProductShowcase";
+import { BannerSlider } from "@/components/pharmacy/components/BannerSlider";
 import { supabase } from "@/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
@@ -200,6 +201,21 @@ export default function PharmacyDashboard() {
               trend={stat.trend}
             />
           ))}
+        </div>
+
+        {/* Banner Section */}
+        <div className="w-full">
+          <BannerSlider
+            bannerType="hero"
+            userType="pharmacy"
+            deviceType={typeof window !== 'undefined' && window.innerWidth < 768 ? 'mobile' : 'desktop'}
+            userLocation="US"
+            className="w-full"
+            autoPlay={true}
+            autoPlayInterval={5000}
+            showControls={true}
+            showIndicators={true}
+          />
         </div>
 
         <Card className="border-2 border-emerald-100">

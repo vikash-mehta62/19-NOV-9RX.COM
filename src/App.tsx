@@ -4,6 +4,7 @@ import { useToast } from "./hooks/use-toast";
 import { useAuthCheck } from "./useAuthCheck";
 import { supabase } from "./integrations/supabase/client";
 import { CartSync } from "./components/CartSync";
+import BannerSeeder from "./components/BannerSeeder";
 import { Loader2 } from "lucide-react";
 
 // Loading component for lazy loaded routes
@@ -186,6 +187,7 @@ function App() {
   return (
     <>
       <CartSync />
+      <BannerSeeder />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
