@@ -137,7 +137,7 @@ export const ReviewOrderStep = ({
       </Card>
 
       {/* Address Information Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
         {/* Billing Address Card */}
         <Card>
           <CardHeader>

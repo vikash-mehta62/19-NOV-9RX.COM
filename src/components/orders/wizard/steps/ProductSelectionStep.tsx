@@ -374,9 +374,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
-        {/* Left: Category Navigation - Hidden on mobile, shown on xl */}
-        <div className="hidden xl:block xl:col-span-3">
+      <div className="grid grid-cols-1 2xl:grid-cols-12 gap-4">
+        {/* Left: Category Navigation - Hidden on mobile, shown on 2xl */}
+        <div className="hidden 2xl:block 2xl:col-span-3">
           <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
             <div className="px-4 py-3 border-b bg-gradient-to-r from-gray-50 to-gray-100">
               <div className="flex items-center justify-between">
@@ -478,7 +478,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
 
         {/* Middle: Product List */}
-        <div className="xl:col-span-5">
+        <div className="2xl:col-span-5">
           <Card className="border rounded-lg overflow-hidden">
             <CardContent className="p-0">
               {/* Search */}
@@ -602,7 +602,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
 
         {/* Right: Order Items */}
-        <div className="xl:col-span-4">
+        <div className="2xl:col-span-4">
           <Card className="border rounded-lg overflow-hidden">
             <div className="px-3 py-2 border-b bg-gray-50">
               <div className="flex items-center justify-between">

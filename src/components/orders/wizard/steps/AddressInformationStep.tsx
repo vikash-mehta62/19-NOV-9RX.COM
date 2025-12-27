@@ -552,8 +552,8 @@ export const AddressInformationStep = ({
         </p>
       </div>
 
-      {/* Address Cards - Side by side on large desktop only, stacked on mobile/tablet */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6" role="group" aria-label="Address information">
+      {/* Address Cards - Side by side on 1536px+ screens only, stacked below */}
+      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-4 sm:gap-6" role="group" aria-label="Address information">
         <div className="min-w-0">{renderBillingCard()}</div>
         <div className="min-w-0">{renderShippingCard()}</div>
       </div>
