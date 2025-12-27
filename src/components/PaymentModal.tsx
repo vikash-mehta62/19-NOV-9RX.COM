@@ -293,9 +293,11 @@ interface PaymentFormProps {
   orderId: string
   orders: any
   payNow?: boolean
+  isBalancePayment?: boolean
+  previousPaidAmount?: number
 }
 
-const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false }: PaymentFormProps) => {
+const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0 }: PaymentFormProps) => {
   const [paymentType, setPaymentType] = useState("credit_card")
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -497,8 +499,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     // Manual payment handling
     if (paymentType === "manaul_payemnt") {
       try {
+        // Calculate new paid_amount for manual payment
+        const newPaidAmount = previousPaidAmount + formData.amount
+        const orderTotal = Number(orders.total_amount || 0)
+        const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
+        
         await supabase.from("orders").update({
-          payment_status: "paid",
+          payment_status: newPaymentStatus,
+          paid_amount: newPaidAmount,
           notes: formData.notes,
           updated_at: new Date().toISOString(),
         }).eq("id", orderId)
@@ -506,12 +514,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         const { data: existingInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).maybeSingle()
 
         if (!existingInvoice) {
-          const orderInfo = { ...orders, profile_id: orders.customer, id: orderId, paymentMethod: "manual", payment_status: "paid" }
+          const orderInfo = { ...orders, profile_id: orders.customer, id: orderId, paymentMethod: "manual", payment_status: newPaymentStatus }
           await createInvoice(orderInfo, formData.amount, orders.tax_amount || 0)
         }
 
         await supabase.from("invoices").update({
-          payment_status: "paid",
+          payment_status: newPaymentStatus,
+          paid_amount: newPaidAmount,
           updated_at: new Date().toISOString(),
           payment_method: "manual",
           payment_notes: formData.notes,
@@ -604,7 +613,17 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
       if (response.success) {
         setPaymentSuccess(true)
-        await supabase.from("orders").update({ payment_status: "paid", updated_at: new Date().toISOString() }).eq("id", orderId)
+        
+        // Calculate new paid_amount - add current payment to previous paid amount
+        const newPaidAmount = previousPaidAmount + formData.amount
+        const orderTotal = Number(orders.total_amount || 0)
+        const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
+        
+        await supabase.from("orders").update({ 
+          payment_status: newPaymentStatus, 
+          paid_amount: newPaidAmount,
+          updated_at: new Date().toISOString() 
+        }).eq("id", orderId)
 
         const { data: invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
         if (!invoiceData) {
@@ -612,7 +631,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }
 
         await supabase.from("invoices").update({
-          payment_status: "paid",
+          payment_status: newPaymentStatus,
+          paid_amount: newPaidAmount,
           updated_at: new Date().toISOString(),
           payment_transication: response.transactionId || "",
           payment_method: paymentType === "credit_card" ? "card" : "ach",

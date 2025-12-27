@@ -177,7 +177,7 @@ export const ItemsTab = ({
       // Get current order to preserve other values and check payment status
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("tax_amount, shipping_cost, discount_amount, payment_status, total_amount, order_number, location_id, profile_id")
+        .select("tax_amount, shipping_cost, discount_amount, payment_status, total_amount, order_number, location_id, profile_id, paid_amount")
         .eq("id", orderId)
         .single();
 
@@ -191,60 +191,99 @@ export const ItemsTab = ({
       const originalAmount = Number(currentOrder?.total_amount || 0);
       const differenceAmount = Number((newTotal - originalAmount).toFixed(2));
 
-      // Check if payment adjustment is needed (only for paid orders with price change)
-      if (currentOrder?.payment_status === 'paid' && differenceAmount !== 0) {
-        // Get customer info for payment adjustment modal
-        const customerIdToUse = customerId || currentOrder?.location_id || currentOrder?.profile_id;
+      // Get the paid_amount - if not set and order is paid, use original total_amount
+      let paidAmount = Number(currentOrder?.paid_amount || 0);
+      if (paidAmount === 0 && currentOrder?.payment_status === 'paid') {
+        paidAmount = originalAmount;
+      }
+
+      // If this is a paid order and paid_amount is not set, set it now
+      // This ensures we track the original paid amount before any modifications
+      if (currentOrder?.payment_status === 'paid' && (!currentOrder?.paid_amount || currentOrder.paid_amount === 0)) {
+        // Update paid_amount in database to preserve original paid amount
+        await supabase
+          .from("orders")
+          .update({ paid_amount: originalAmount })
+          .eq("id", orderId);
         
-        const { data: customerProfile } = await supabase
-          .from("profiles")
-          .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
-          .eq("id", customerIdToUse)
-          .single();
+        // Also update invoice if exists
+        const { data: invoiceData } = await supabase
+          .from('invoices')
+          .select('id')
+          .eq('order_id', orderId)
+          .maybeSingle();
+        
+        if (invoiceData) {
+          await supabase
+            .from("invoices")
+            .update({ paid_amount: originalAmount })
+            .eq("id", invoiceData.id);
+        }
+        
+        console.log(`💰 Set paid_amount for order ${orderId}: $${originalAmount}`);
+      }
 
-        const hasCredit = (customerProfile?.credit_limit || 0) > 0;
-        const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
-        const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
-        const customerName = customerProfile?.company_name || 
-          `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
-          'Customer';
+      // Check if payment adjustment is needed (only for paid orders with price change)
+      // Use paid_amount for comparison instead of total_amount
+      if (currentOrder?.payment_status === 'paid' && paidAmount > 0) {
+        const balanceDue = Number((newTotal - paidAmount).toFixed(2));
+        
+        if (balanceDue > 0) {
+          // Need to collect additional payment
+          const customerIdToUse = customerId || currentOrder?.location_id || currentOrder?.profile_id;
+        
+          const { data: customerProfile } = await supabase
+            .from("profiles")
+            .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
+            .eq("id", customerIdToUse)
+            .single();
 
-        // Store pending data and show payment adjustment modal
-        setPendingEditData({
-          editedItems,
-          newSubtotal,
-          newTotal,
-        });
+          const hasCredit = (customerProfile?.credit_limit || 0) > 0;
+          const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
+          const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
+          const customerName = customerProfile?.company_name || 
+            `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
+            'Customer';
 
-        setPaymentAdjustmentData({
-          orderId,
-          orderNumber: orderNumber || currentOrder?.order_number || '',
-          customerId: customerIdToUse,
-          customerName,
-          customerEmail: customerEmail || customerProfile?.email,
-          originalAmount,
-          newAmount: newTotal,
-          hasCredit,
-          availableCredit,
-          creditMemoBalance,
-          orderData: {
-            items: editedItems,
-            tax_amount: orderTaxAmount,
-            shipping_cost: orderShippingCost,
-            customerInfo: {
-              name: customerName,
-              email: customerEmail || customerProfile?.email,
+          // Store pending data and show payment adjustment modal
+          setPendingEditData({
+            editedItems,
+            newSubtotal,
+            newTotal,
+          });
+
+          setPaymentAdjustmentData({
+            orderId,
+            orderNumber: orderNumber || currentOrder?.order_number || '',
+            customerId: customerIdToUse,
+            customerName,
+            customerEmail: customerEmail || customerProfile?.email,
+            originalAmount: paidAmount, // Use paid_amount as original (what was actually paid)
+            newAmount: newTotal,
+            hasCredit,
+            availableCredit,
+            creditMemoBalance,
+            orderData: {
+              items: editedItems,
+              tax_amount: orderTaxAmount,
+              shipping_cost: orderShippingCost,
+              customerInfo: {
+                name: customerName,
+                email: customerEmail || customerProfile?.email,
+              },
             },
-          },
-        });
+          });
 
-        setIsSaving(false);
-        setIsPaymentAdjustmentOpen(true);
-        return;
+          setIsSaving(false);
+          setIsPaymentAdjustmentOpen(true);
+          return;
+        }
       }
 
       // No payment adjustment needed - proceed with update directly
-      await saveOrderChanges(editedItems, newSubtotal, newTotal);
+      // But if there's balance due, update payment_status to partial_paid
+      const shouldUpdatePaymentStatus = paidAmount > 0 && newTotal > paidAmount;
+      await saveOrderChanges(editedItems, newSubtotal, newTotal, shouldUpdatePaymentStatus ? 'partial_paid' : undefined);
 
     } catch (error) {
       console.error("Error saving items:", error);
@@ -258,15 +297,40 @@ export const ItemsTab = ({
   }, [orderId, editedItems, customerId, orderNumber, toast]);
 
   // Actual save function (called directly or after payment adjustment)
-  const saveOrderChanges = useCallback(async (itemsToSave: any[], newSubtotal: number, newTotal: number) => {
+  const saveOrderChanges = useCallback(async (itemsToSave: any[], newSubtotal: number, newTotal: number, newPaymentStatus?: string) => {
     try {
+      // Get current order data for activity logging
+      const { data: currentOrderData } = await supabase
+        .from("orders")
+        .select("total_amount, items, order_number, payment_status, paid_amount")
+        .eq("id", orderId)
+        .single();
+
+      const oldTotal = Number(currentOrderData?.total_amount || 0);
+      const oldItemCount = currentOrderData?.items?.length || 0;
+      const newItemCount = itemsToSave.length;
+      const paidAmount = Number(currentOrderData?.paid_amount || 0);
+
+      // Determine if payment status should change
+      let updatePaymentStatus = newPaymentStatus;
+      if (!updatePaymentStatus && paidAmount > 0 && newTotal > paidAmount) {
+        updatePaymentStatus = 'partial_paid';
+      }
+
+      // Build update object
+      const orderUpdate: any = {
+        items: itemsToSave,
+        total_amount: newTotal,
+      };
+      
+      if (updatePaymentStatus) {
+        orderUpdate.payment_status = updatePaymentStatus;
+      }
+
       // Update order in database
       const { error } = await supabase
         .from("orders")
-        .update({
-          items: itemsToSave,
-          total_amount: newTotal,
-        })
+        .update(orderUpdate)
         .eq("id", orderId);
 
       if (error) throw error;
@@ -279,14 +343,58 @@ export const ItemsTab = ({
         .maybeSingle();
 
       if (invoiceData) {
+        const invoiceUpdate: any = {
+          items: itemsToSave,
+          subtotal: newSubtotal,
+          total_amount: newTotal,
+        };
+        
+        if (updatePaymentStatus) {
+          invoiceUpdate.payment_status = updatePaymentStatus;
+        }
+        
         await supabase
           .from("invoices")
-          .update({
-            items: itemsToSave,
-            subtotal: newSubtotal,
-            total_amount: newTotal,
-          })
+          .update(invoiceUpdate)
           .eq("id", invoiceData.id);
+      }
+
+      // Log activity for items change
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const { OrderActivityService } = await import("@/services/orderActivityService");
+        
+        let activityDescription = `Order items modified. Total changed from ${oldTotal.toFixed(2)} to ${newTotal.toFixed(2)}`;
+        if (updatePaymentStatus === 'partial_paid') {
+          const balanceDue = newTotal - paidAmount;
+          activityDescription += `. Balance due: ${balanceDue.toFixed(2)}`;
+        }
+
+        await OrderActivityService.logActivity({
+          orderId: orderId!,
+          activityType: "updated",
+          description: activityDescription,
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+          oldData: { 
+            total_amount: oldTotal, 
+            item_count: oldItemCount,
+            items: currentOrderData?.items 
+          },
+          newData: { 
+            total_amount: newTotal, 
+            item_count: newItemCount,
+            items: itemsToSave 
+          },
+          metadata: {
+            order_number: currentOrderData?.order_number,
+            change_type: "items_modified",
+            amount_difference: newTotal - oldTotal,
+          },
+        });
+      } catch (activityError) {
+        console.error("Failed to log items change activity:", activityError);
       }
 
       // Call the callback to update parent state

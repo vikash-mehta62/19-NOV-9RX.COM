@@ -1,4 +1,4 @@
-﻿import {
+import {
   Sheet,
   SheetContent,
   SheetDescription,
@@ -84,6 +84,7 @@ export const OrderDetailsSheet = ({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [chargesOpen, setChargesOpen] = useState(false);
   const [isPackingSlipModalOpen, setIsPackingSlipModalOpen] = useState(false);
+  const [paidAmount, setPaidAmount] = useState(0);
   
   // Ref to track if component is mounted (prevents memory leaks)
   const isMountedRef = useRef(true);
@@ -138,6 +139,32 @@ export const OrderDetailsSheet = ({
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  // Fetch paid amount from order
+  const fetchPaidAmount = useCallback(async () => {
+    if (!currentOrder?.id) return;
+    try {
+      const { data: orderData } = await supabase
+        .from("orders")
+        .select("paid_amount, total_amount, payment_status")
+        .eq("id", currentOrder.id)
+        .maybeSingle();
+      
+      if (!isMountedRef.current) return;
+      
+      let amount = Number(orderData?.paid_amount || 0);
+      if (amount === 0 && orderData?.payment_status === 'paid') {
+        amount = Number(orderData?.total_amount || 0);
+      }
+      setPaidAmount(amount);
+    } catch (error) {
+      console.error("Error fetching paid amount:", error);
+    }
+  }, [currentOrder?.id]);
+
+  useEffect(() => {
+    fetchPaidAmount();
+  }, [fetchPaidAmount]);
 
   // Clear cart when editing
   useEffect(() => {
@@ -528,7 +555,7 @@ export const OrderDetailsSheet = ({
             tableBody.push([
               "",
               {
-                content: `↳ ${item.description.trim()}`,
+                content: `? ${item.description.trim()}`,
                 styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
               },
               "",
@@ -623,6 +650,37 @@ export const OrderDetailsSheet = ({
       doc.setTextColor(255, 255, 255);
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
       doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
+
+      // Add Paid Amount and Balance Due
+      let pdfPaidAmountY = summaryFinalY + 14;
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94); // Green
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, pdfPaidAmountY + 7);
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" });
+        pdfPaidAmountY += 12;
+      }
+      
+      const pdfBalanceDue = Math.max(0, total - paidAmount);
+      if (pdfBalanceDue > 0) {
+        doc.setFillColor(239, 68, 68); // Red
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text("BALANCE DUE", pageWidth - margin - 80, pdfPaidAmountY + 7);
+        doc.text(`$${pdfBalanceDue.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" });
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94); // Green
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 8, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text("FULLY PAID", pageWidth - margin - 50, pdfPaidAmountY + 5.5, { align: "center" });
+      }
 
       // ===== FOOTER =====
       const footerY = pageHeight - 30;
@@ -901,7 +959,7 @@ export const OrderDetailsSheet = ({
             tableBody.push([
               "",
               {
-                content: `↳ ${item.description.trim()}`,
+                content: `? ${item.description.trim()}`,
                 styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
               },
               "",
@@ -996,6 +1054,37 @@ export const OrderDetailsSheet = ({
       doc.setTextColor(255, 255, 255);
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
       doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
+
+      // Add Paid Amount and Balance Due for Print
+      let printPaidAmountY = summaryFinalY + 14;
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94); // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7);
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" });
+        printPaidAmountY += 12;
+      }
+      
+      const printBalanceDue = Math.max(0, total - paidAmount);
+      if (printBalanceDue > 0) {
+        doc.setFillColor(239, 68, 68); // Red
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(255, 255, 255);
+        doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7);
+        doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" });
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94); // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(255, 255, 255);
+        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" });
+      }
 
       // ===== FOOTER =====
       const footerY = pageHeight - 30;
@@ -1141,7 +1230,7 @@ export const OrderDetailsSheet = ({
       Swal.close();
 
       Swal.fire({
-        title: "Order Approved ✅",
+        title: "Order Approved ?",
         icon: "success",
       }).then(() => window.location.reload());
     } catch (error) {
@@ -1185,7 +1274,7 @@ export const OrderDetailsSheet = ({
       Swal.close();
 
       Swal.fire({
-        title: "Order Rejected ❌",
+        title: "Order Rejected ?",
         text: "Stock has been reduced successfully!",
         icon: "warning",
         confirmButtonText: "OK",

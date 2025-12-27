@@ -25,6 +25,7 @@ export function OrderTotals({
   const [total, setTotal] = useState(0);
   const [tax, setTax] = useState(0);
   const [taxper, setTaxper] = useState(0);
+  const [paidAmount, setPaidAmount] = useState(0);
 
   useEffect(() => {
     if (!orderData?.customer) return;
@@ -69,6 +70,36 @@ export function OrderTotals({
 
         console.log("Successfully fetched order:", orderDetails);
         setShippingCost(Number(orderDetails.shipping_cost));
+
+        // Fetch Payment Transactions
+        const { data: transactions, error: txError } = await supabase
+          .from("payment_transactions")
+          .select("amount, status, transaction_type")
+          .eq("order_id", orderData.id);
+
+        if (txError) {
+          console.error("Error fetching transactions:", txError);
+        } else {
+          const totalPaid = transactions
+            ?.filter(tx => ['approved', 'completed', 'success'].includes(tx.status?.toLowerCase()))
+            .reduce((sum, tx) => {
+              if (tx.transaction_type?.toLowerCase() === 'refund') {
+                return sum - Number(tx.amount);
+              }
+              return sum + Number(tx.amount);
+            }, 0) || 0;
+          
+          // If no transactions found but order is marked as paid, assume full amount is paid
+          // This handles legacy orders without transaction records
+          if (totalPaid === 0 && orderDetails.payment_status === 'paid') {
+             // Use original total amount from order details if available, or assume fully paid
+             // For modified orders, this might need manual adjustment if we can't find original amount
+             setPaidAmount(Number(orderDetails.total_amount));
+          } else {
+             setPaidAmount(totalPaid);
+          }
+        }
+
       } catch (err) {
         console.error("Unexpected Error:", err);
       }
@@ -121,6 +152,20 @@ export function OrderTotals({
         <span>Total:</span>
         <span>${total.toFixed(2)}</span>
       </div>
+
+      {paidAmount > 0 && (
+        <>
+          <div className="flex justify-between text-sm text-green-600 font-medium pt-2 border-t mt-2">
+            <span>Paid Amount:</span>
+            <span>${paidAmount.toFixed(2)}</span>
+          </div>
+          
+          <div className="flex justify-between text-base font-bold text-red-600">
+            <span>Balance Due:</span>
+            <span>${Math.max(0, total - paidAmount).toFixed(2)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

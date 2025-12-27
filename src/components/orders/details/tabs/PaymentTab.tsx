@@ -8,6 +8,8 @@ import {
   Building, Hash, Truck, Calculator
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentTabProps {
   order: OrderFormValues;
@@ -17,6 +19,46 @@ interface PaymentTabProps {
 }
 
 export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: PaymentTabProps) => {
+  const [paidAmount, setPaidAmount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPaidAmount = async () => {
+      if (!order.id) return;
+      
+      setLoading(true);
+      try {
+        // Fetch order with paid_amount field
+        const { data: orderData, error } = await supabase
+          .from("orders")
+          .select("paid_amount, total_amount, payment_status")
+          .eq("id", order.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching order:", error);
+          setLoading(false);
+          return;
+        }
+
+        // Use paid_amount if set, otherwise use total_amount for paid orders
+        let amount = Number(orderData?.paid_amount || 0);
+        if (amount === 0 && orderData?.payment_status === 'paid') {
+          amount = Number(orderData?.total_amount || 0);
+        }
+        
+        setPaidAmount(amount);
+        console.log("💳 PaymentTab - Paid Amount:", amount);
+      } catch (error) {
+        console.error("Error fetching paid amount:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPaidAmount();
+  }, [order.id]);
+
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
       return total + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -29,8 +71,10 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
   const handling = parseFloat(order.po_handling_charges || "0");
   const fred = parseFloat(order.po_fred_charges || "0");
   const total = subtotal + shipping + tax + handling + fred;
+  const balanceDue = Math.max(0, total - paidAmount);
 
   const isPaid = order.payment_status === "paid";
+  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
 
   // Get payment method display name
   const getPaymentMethodDisplay = (method: string) => {
@@ -54,6 +98,8 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
         <CardHeader className={`border-b pb-4 ${
           isPaid 
             ? "bg-gradient-to-r from-green-50 to-emerald-50" 
+            : isPartiallyPaid
+            ? "bg-gradient-to-r from-yellow-50 to-amber-50"
             : "bg-gradient-to-r from-red-50 to-rose-50"
         }`}>
           <div className="flex items-center justify-between">
@@ -61,6 +107,8 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
               <div className={`p-2 bg-white rounded-lg shadow-sm`}>
                 {isPaid ? (
                   <CheckCircle2 className="w-5 h-5 text-green-600" />
+                ) : isPartiallyPaid ? (
+                  <AlertCircle className="w-5 h-5 text-yellow-600" />
                 ) : (
                   <XCircle className="w-5 h-5 text-red-600" />
                 )}
@@ -68,7 +116,7 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
               <div>
                 <CardTitle className="text-lg">Payment Status</CardTitle>
                 <p className="text-sm text-gray-500 mt-0.5">
-                  {isPaid ? "Payment received" : "Payment pending"}
+                  {isPaid ? "Payment received" : isPartiallyPaid ? "Partially paid" : "Payment pending"}
                 </p>
               </div>
             </div>
@@ -76,10 +124,12 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
               className={`px-4 py-1.5 text-sm font-semibold ${
                 isPaid
                   ? "bg-green-100 text-green-800 border-green-300"
+                  : isPartiallyPaid
+                  ? "bg-yellow-100 text-yellow-800 border-yellow-300"
                   : "bg-red-100 text-red-800 border-red-300"
               } border`}
             >
-              {isPaid ? "Paid" : "Unpaid"}
+              {isPaid ? "Paid" : isPartiallyPaid ? "Partial" : "Unpaid"}
             </Badge>
           </div>
         </CardHeader>
@@ -97,19 +147,38 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
 
           {/* Payment Required Alert */}
           {!isPaid && !poIs && (
-            <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
+            <div className={`p-4 rounded-lg border ${
+              isPartiallyPaid 
+                ? "bg-yellow-50 border-yellow-200" 
+                : "bg-amber-50 border-amber-200"
+            }`}>
               <div className="flex items-start gap-3">
-                <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                <AlertCircle className={`w-5 h-5 mt-0.5 flex-shrink-0 ${
+                  isPartiallyPaid ? "text-yellow-600" : "text-amber-600"
+                }`} />
                 <div className="flex-1">
-                  <p className="font-semibold text-amber-900 mb-1">Payment Required</p>
-                  <p className="text-sm text-amber-700 mb-4">
-                    This order has not been paid yet. Send a payment link to the customer.
+                  <p className={`font-semibold mb-1 ${
+                    isPartiallyPaid ? "text-yellow-900" : "text-amber-900"
+                  }`}>
+                    {isPartiallyPaid ? "Balance Due" : "Payment Required"}
+                  </p>
+                  <p className={`text-sm mb-4 ${
+                    isPartiallyPaid ? "text-yellow-700" : "text-amber-700"
+                  }`}>
+                    {isPartiallyPaid 
+                      ? `Customer has paid $${paidAmount.toFixed(2)}. Balance of $${balanceDue.toFixed(2)} is still due.`
+                      : "This order has not been paid yet. Send a payment link to the customer."
+                    }
                   </p>
                   <div className="flex flex-wrap gap-2">
                     <Link to={`/pay-now?orderid=${order.id}`}>
-                      <Button size="sm" className="bg-amber-600 hover:bg-amber-700">
+                      <Button size="sm" className={
+                        isPartiallyPaid 
+                          ? "bg-yellow-600 hover:bg-yellow-700" 
+                          : "bg-amber-600 hover:bg-amber-700"
+                      }>
                         <CreditCard className="w-4 h-4 mr-1.5" />
-                        Create Payment Link
+                        {isPartiallyPaid ? "Collect Balance" : "Create Payment Link"}
                       </Button>
                     </Link>
                     {onSendPaymentLink && (
@@ -118,7 +187,11 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
                         variant="outline"
                         onClick={onSendPaymentLink}
                         disabled={isSendingLink}
-                        className="border-amber-300 text-amber-700 hover:bg-amber-100"
+                        className={`${
+                          isPartiallyPaid 
+                            ? "border-yellow-300 text-yellow-700 hover:bg-yellow-100"
+                            : "border-amber-300 text-amber-700 hover:bg-amber-100"
+                        }`}
                       >
                         {isSendingLink ? "Sending..." : "Send Payment Link"}
                       </Button>
@@ -225,6 +298,39 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
                 <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
               </div>
             </div>
+
+            {/* Paid Amount */}
+            {paidAmount > 0 && (
+              <div className="flex justify-between items-center py-2 border-t">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-green-600 font-medium">Paid Amount</span>
+                </div>
+                <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+              </div>
+            )}
+
+            {/* Balance Due - Show when there's amount to collect */}
+            {balanceDue > 0 && (
+              <div className="flex justify-between items-center py-2 bg-red-50 px-3 rounded-lg -mx-1 border border-red-200">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                  <span className="text-red-600 font-bold">Balance Due</span>
+                </div>
+                <span className="text-xl font-bold text-red-600">${balanceDue.toFixed(2)}</span>
+              </div>
+            )}
+
+            {/* Fully Paid Message - Show when paid >= total */}
+            {paidAmount > 0 && balanceDue === 0 && total > 0 && (
+              <div className="flex justify-between items-center py-2 bg-green-50 px-3 rounded-lg -mx-1 border border-green-200">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <span className="text-green-600 font-medium">Fully Paid</span>
+                </div>
+                <span className="text-sm text-green-600">No balance due</span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

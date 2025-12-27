@@ -50,20 +50,40 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   const { toast } = useToast()
   const [companyName, setCompanyName] = useState("")
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
+  const [paidAmount, setPaidAmount] = useState(0)
 
-  // Fetch company name
+  // Fetch company name and paid amount
   useEffect(() => {
-    const fetchCompany = async () => {
+    const fetchData = async () => {
       if (!order?.customer) return
+      
+      // Fetch company name
       const { data } = await supabase
         .from("profiles")
         .select("company_name")
         .eq("id", order.customer)
         .maybeSingle()
       if (data) setCompanyName(data.company_name || "")
+      
+      // Fetch paid_amount from order
+      if (order?.id) {
+        const { data: orderData } = await supabase
+          .from("orders")
+          .select("paid_amount, total_amount, payment_status")
+          .eq("id", order.id)
+          .maybeSingle()
+        
+        if (orderData) {
+          let amount = Number(orderData.paid_amount || 0)
+          if (amount === 0 && orderData.payment_status === 'paid') {
+            amount = Number(orderData.total_amount || 0)
+          }
+          setPaidAmount(amount)
+        }
+      }
     }
-    fetchCompany()
-  }, [order?.customer])
+    fetchData()
+  }, [order?.customer, order?.id])
 
   // Calculate totals
   const subtotal = order.items.reduce((total, item) => {
@@ -408,6 +428,37 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
 
+      // Add Paid Amount and Balance Due
+      let pdfPaidAmountY = summaryFinalY + 14
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, pdfPaidAmountY + 7)
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" })
+        pdfPaidAmountY += 12
+      }
+      
+      const pdfBalanceDue = Math.max(0, pdfTotal - paidAmount)
+      if (pdfBalanceDue > 0) {
+        doc.setFillColor(239, 68, 68) // Red
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("BALANCE DUE", pageWidth - margin - 80, pdfPaidAmountY + 7)
+        doc.text(`$${pdfBalanceDue.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" })
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 8, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        doc.text("FULLY PAID", pageWidth - margin - 50, pdfPaidAmountY + 5.5, { align: "center" })
+      }
+
       // ===== FOOTER =====
       const footerY = pageHeight - 30
       doc.setDrawColor(220, 220, 220)
@@ -636,6 +687,38 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+
+      // Add Paid Amount and Balance Due for Print
+      let printPaidAmountY = summaryFinalY + 14
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        printPaidAmountY += 12
+        printPaidAmountY += 12
+      }
+      
+      const printBalanceDue = Math.max(0, pdfTotal - paidAmount)
+      if (printBalanceDue > 0) {
+        doc.setFillColor(239, 68, 68) // Red
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7)
+        doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" })
+      }
 
       const footerY = pageHeight - 30
       doc.setDrawColor(220, 220, 220)
@@ -926,6 +1009,46 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                     You saved: ${discountAmount.toFixed(2)}
                   </div>
                 )}
+                
+                {/* Paid Amount */}
+                {paidAmount > 0 && (
+                  <div className="flex justify-between text-sm pt-2 border-t">
+                    <span className="text-green-600 font-medium">✓ Paid Amount</span>
+                    <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+                  </div>
+                )}
+                
+                {/* Balance Due */}
+                {(() => {
+                  const balanceDue = Math.max(0, total - paidAmount);
+                  const isPartiallyPaid = order.payment_status === 'partial_paid' || (paidAmount > 0 && paidAmount < total);
+                  const canPay = balanceDue > 0 && (order.payment_status === 'unpaid' || order.payment_status === 'pending' || order.payment_status === 'partial_paid');
+                  
+                  return (
+                    <>
+                      {balanceDue > 0 ? (
+                        <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                          <div className="flex justify-between items-center">
+                            <span className="text-red-600 font-bold">Balance Due</span>
+                            <span className="text-xl font-bold text-red-600">${balanceDue.toFixed(2)}</span>
+                          </div>
+                          {canPay && (
+                            <a href={`/pay-now?orderid=${order.id}`} target="_blank" rel="noopener noreferrer">
+                              <Button className="w-full mt-3 bg-red-600 hover:bg-red-700">
+                                <CreditCard className="w-4 h-4 mr-2" />
+                                Pay Now - ${balanceDue.toFixed(2)}
+                              </Button>
+                            </a>
+                          )}
+                        </div>
+                      ) : paidAmount > 0 && (
+                        <div className="mt-2 p-2 bg-green-50 rounded-lg border border-green-200 text-center">
+                          <span className="text-green-600 font-medium">✓ Fully Paid</span>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </CardContent>
             </Card>
 

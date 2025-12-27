@@ -30,6 +30,7 @@ interface InvoicePreviewProps {
     profile_id: string
     invoice_number: any
     order_number: any
+    order_id?: string
     customerInfo?: {
       name: string
       phone: string
@@ -63,6 +64,8 @@ interface InvoicePreviewProps {
     // Discount fields
     discount_amount?: number
     discount_details?: any[]
+    // Paid amount field
+    paid_amount?: number
   }
 }
 
@@ -71,6 +74,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const invoiceRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [companyName, setCompanyName] = useState("")
+  const [paidAmount, setPaidAmount] = useState(0)
 
   if (!invoice) {
     return (
@@ -98,7 +102,62 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     } catch (error) { console.error("Error fetching user:", error) }
   }
 
-  useEffect(() => { fetchUser() }, [invoice])
+  const fetchPaidAmount = async () => {
+    try {
+      if (!invoice?.id) return
+      
+      // First try to get from invoice table
+      const { data: invoiceData } = await supabase
+        .from("invoices")
+        .select("paid_amount, total_amount, payment_status, order_id")
+        .eq("id", invoice.id)
+        .maybeSingle()
+      
+      let amount = Number(invoiceData?.paid_amount || 0)
+      
+      // Always try to get latest from linked order (source of truth)
+      if (invoiceData?.order_id) {
+        const { data: orderData } = await supabase
+          .from("orders")
+          .select("paid_amount, total_amount, payment_status")
+          .eq("id", invoiceData.order_id)
+          .maybeSingle()
+        
+        const orderPaidAmount = Number(orderData?.paid_amount || 0)
+        
+        // If order has paid_amount, use it (and sync to invoice if different)
+        if (orderPaidAmount > 0) {
+          amount = orderPaidAmount
+          
+          // Sync invoice paid_amount with order if different
+          if (orderPaidAmount !== Number(invoiceData?.paid_amount || 0)) {
+            await supabase
+              .from("invoices")
+              .update({ 
+                paid_amount: orderPaidAmount,
+                payment_status: orderData?.payment_status 
+              })
+              .eq("id", invoice.id)
+          }
+        } else if (orderData?.payment_status === 'paid') {
+          // If order is paid but paid_amount not set, use total
+          amount = Number(orderData?.total_amount || 0)
+        }
+      }
+      
+      // Fallback: if invoice is paid but no paid_amount, use total
+      if (amount === 0 && invoiceData?.payment_status === 'paid') {
+        amount = Number(invoiceData?.total_amount || 0)
+      }
+      
+      setPaidAmount(amount)
+    } catch (error) { console.error("Error fetching paid amount:", error) }
+  }
+
+  useEffect(() => { 
+    fetchUser()
+    fetchPaidAmount()
+  }, [invoice])
 
   const formattedDate = new Date(invoice.created_at).toLocaleDateString("en-US", {
     year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC",
@@ -328,6 +387,37 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
 
+      // Add Paid Amount and Balance Due
+      let paidAmountY = summaryFinalY + 14
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, paidAmountY + 7)
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
+        paidAmountY += 12
+      }
+      
+      const balanceDue = Math.max(0, totalAmount - paidAmount)
+      if (balanceDue > 0) {
+        doc.setFillColor(239, 68, 68) // Red
+        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("BALANCE DUE", pageWidth - margin - 80, paidAmountY + 7)
+        doc.text(`$${balanceDue.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 8, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        doc.text("FULLY PAID", pageWidth - margin - 50, paidAmountY + 5.5, { align: "center" })
+      }
+
       // ===== FOOTER =====
       const footerY = pageHeight - 30
       doc.setDrawColor(220, 220, 220)
@@ -545,6 +635,37 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
 
+      // Add Paid Amount and Balance Due for Print
+      let printPaidAmountY = summaryFinalY + 14
+      if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
+        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        printPaidAmountY += 12
+      }
+      
+      const printBalanceDue = Math.max(0, totalAmount - paidAmount)
+      if (printBalanceDue > 0) {
+        doc.setFillColor(239, 68, 68) // Red
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(10)
+        doc.setTextColor(255, 255, 255)
+        doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7)
+        doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+      } else if (paidAmount > 0) {
+        doc.setFillColor(34, 197, 94) // Green
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F")
+        doc.setFont("helvetica", "bold")
+        doc.setFontSize(9)
+        doc.setTextColor(255, 255, 255)
+        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" })
+      }
+
       const footerY = pageHeight - 30
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.3)
@@ -718,8 +839,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className="overflow-hidden border-0 shadow-sm">
             <CardContent className="p-4">
-              <Badge className={`mb-4 px-4 py-1.5 text-sm font-semibold ${isPaid ? "bg-emerald-100 text-emerald-700 border-emerald-200" : "bg-red-100 text-red-700 border-red-200"}`}>
-                {isPaid ? <><CheckCircle className="w-4 h-4 mr-1.5" /> Paid</> : <><XCircle className="w-4 h-4 mr-1.5" /> Unpaid</>}
+              <Badge className={`mb-4 px-4 py-1.5 text-sm font-semibold ${isPaid ? "bg-emerald-100 text-emerald-700 border-emerald-200" : invoice?.payment_status === 'partial_paid' ? "bg-yellow-100 text-yellow-700 border-yellow-200" : "bg-red-100 text-red-700 border-red-200"}`}>
+                {isPaid ? <><CheckCircle className="w-4 h-4 mr-1.5" /> Paid</> : invoice?.payment_status === 'partial_paid' ? <><CheckCircle className="w-4 h-4 mr-1.5" /> Partial Paid</> : <><XCircle className="w-4 h-4 mr-1.5" /> Unpaid</>}
               </Badge>
               {isPaid && (
                 <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
@@ -765,7 +886,15 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                   You saved: ${Number((invoice as any)?.discount_amount || 0).toFixed(2)}
                 </div>
               )}
-              <div className="flex justify-between"><span className="font-semibold text-red-600">Balance Due</span><span className="font-bold text-lg text-red-600">{isPaid ? "$0.00" : `$${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}`}</span></div>
+              {/* Paid Amount Display */}
+              {paidAmount > 0 && (
+                <div className="flex justify-between p-2 bg-green-50 rounded border border-green-200">
+                  <span className="font-semibold text-green-600">✓ Paid Amount</span>
+                  <span className="font-bold text-lg text-green-600">${paidAmount.toFixed(2)}</span>
+                </div>
+              )}
+              {/* Balance Due */}
+              <div className="flex justify-between"><span className="font-semibold text-red-600">Balance Due</span><span className="font-bold text-lg text-red-600">${Math.max(0, (subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)) - paidAmount).toFixed(2)}</span></div>
             </CardContent>
           </Card>
         </div>

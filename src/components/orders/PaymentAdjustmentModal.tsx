@@ -386,12 +386,16 @@ export function PaymentAdjustmentModal({
               <span className="font-medium">${originalAmount.toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
+              <span className="text-gray-600">Paid Amount:</span>
+              <span className="font-medium text-green-600">${originalAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-sm">
               <span className="text-gray-600">New Amount:</span>
               <span className="font-medium">${newAmount.toFixed(2)}</span>
             </div>
             <Separator />
             <div className="flex justify-between font-semibold">
-              <span>{isIncrease ? 'Additional Payment:' : 'Refund/Credit:'}</span>
+              <span>{isIncrease ? 'Balance Due:' : 'Refund/Credit:'}</span>
               <span className={isIncrease ? 'text-red-600' : 'text-green-600'}>
                 {isIncrease ? '+' : '-'}${absoluteDifference.toFixed(2)}
               </span>

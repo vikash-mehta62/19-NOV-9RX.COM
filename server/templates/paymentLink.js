@@ -1,5 +1,5 @@
 const paymentLink = (order) => {
-    const { id, customerInfo, order_number, status, items, total, date, tax_amount, shipping_cost } = order;
+    const { id, customerInfo, order_number, status, items, total, date, tax_amount, shipping_cost, paid_amount, adjustment_amount } = order;
     console.log(order)
     // Calculate subtotal
     const subtotal = items?.reduce((sum, item) => {
@@ -8,6 +8,13 @@ const paymentLink = (order) => {
         }
         return sum + (item.price * item.quantity);
     }, 0) || 0;
+
+    // Calculate balance due
+    const paidAmountNum = parseFloat(paid_amount) || 0;
+    const totalNum = parseFloat(total) || 0;
+    const balanceDue = adjustment_amount ? parseFloat(adjustment_amount) : Math.max(0, totalNum - paidAmountNum);
+    const isPartialPayment = paidAmountNum > 0 && balanceDue > 0;
+    const amountToPay = isPartialPayment ? balanceDue : totalNum;
 
     const formatCurrency = (amount) => {
         const num = parseFloat(amount) || 0;
@@ -168,9 +175,38 @@ const paymentLink = (order) => {
                                             <div style="border-top: 2px solid #e5e7eb; padding-top: 12px;">
                                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                                     <tr>
-                                                        <td style="font-size: 18px; font-weight: 700; color: #1f2937;">Total Amount</td>
-                                                        <td style="font-size: 24px; font-weight: 700; color: #059669; text-align: right;">${formatCurrency(total)}</td>
+                                                        <td style="font-size: 16px; font-weight: 600; color: #1f2937;">Total Amount</td>
+                                                        <td style="font-size: 18px; font-weight: 600; color: #374151; text-align: right;">${formatCurrency(total)}</td>
                                                     </tr>
+                                                    ${isPartialPayment ? `
+                                                    <tr>
+                                                        <td style="font-size: 14px; color: #059669; padding-top: 8px;">✓ Already Paid</td>
+                                                        <td style="font-size: 14px; font-weight: 600; color: #059669; text-align: right; padding-top: 8px;">${formatCurrency(paidAmountNum)}</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <td colspan="2" style="padding-top: 12px;">
+                                                            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px;">
+                                                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                                                    <tr>
+                                                                        <td style="font-size: 16px; font-weight: 700; color: #dc2626;">Balance Due</td>
+                                                                        <td style="font-size: 22px; font-weight: 700; color: #dc2626; text-align: right;">${formatCurrency(balanceDue)}</td>
+                                                                    </tr>
+                                                                </table>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    ` : `
+                                                    <tr>
+                                                        <td colspan="2" style="padding-top: 8px;">
+                                                            <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                                                <tr>
+                                                                    <td style="font-size: 14px; font-weight: 600; color: #dc2626;">Amount Due</td>
+                                                                    <td style="font-size: 22px; font-weight: 700; color: #059669; text-align: right;">${formatCurrency(total)}</td>
+                                                                </tr>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                    `}
                                                 </table>
                                             </div>
                                         </td>
@@ -182,7 +218,7 @@ const paymentLink = (order) => {
                             <div style="padding: 0 30px 35px; text-align: center;">
                                 <a href="https://9rx.com/pay-now?orderid=${id}" 
                                    style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 18px 50px; border-radius: 12px; font-size: 18px; font-weight: 700; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);">
-                                    💳 Pay Now - ${formatCurrency(total)}
+                                    💳 ${isPartialPayment ? `Pay Balance - ${formatCurrency(balanceDue)}` : `Pay Now - ${formatCurrency(total)}`}
                                 </a>
                                 <p style="margin: 16px 0 0 0; font-size: 13px; color: #9ca3af;">
                                     🔒 Secure payment powered by Authorize.net

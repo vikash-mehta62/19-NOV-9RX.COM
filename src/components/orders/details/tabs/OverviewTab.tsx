@@ -2,11 +2,15 @@ import { OrderFormValues, ShippingAddressData } from "../../schemas/orderSchema"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { 
   Package, DollarSign, User, MapPin, Truck, 
-  Calendar, FileText, CreditCard, Building, Phone, Mail
+  Calendar, FileText, CreditCard, Building, Phone, Mail, CheckCircle2, AlertCircle
 } from "lucide-react";
 import { calculateFinalTotal } from "@/utils/orderCalculations";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Link } from "react-router-dom";
 
 interface OverviewTabProps {
   order: OrderFormValues;
@@ -44,6 +48,46 @@ const getAddressField = (
 };
 
 export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
+  const [paidAmount, setPaidAmount] = useState(0);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPaidAmount = async () => {
+      if (!order.id) return;
+      
+      setLoading(true);
+      try {
+        // Fetch order with paid_amount field
+        const { data: orderData, error } = await supabase
+          .from("orders")
+          .select("paid_amount, total_amount, payment_status")
+          .eq("id", order.id)
+          .single();
+
+        if (error) {
+          console.error("Error fetching order:", error);
+          setLoading(false);
+          return;
+        }
+
+        // Use paid_amount if set, otherwise use total_amount for paid orders
+        let amount = Number(orderData?.paid_amount || 0);
+        if (amount === 0 && orderData?.payment_status === 'paid') {
+          amount = Number(orderData?.total_amount || 0);
+        }
+        
+        setPaidAmount(amount);
+        console.log("📊 OverviewTab - Paid Amount:", amount);
+      } catch (error) {
+        console.error("Error fetching paid amount:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPaidAmount();
+  }, [order.id]);
+
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
       return total + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -63,6 +107,24 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
     tax,
     discount: discountAmount,
   });
+
+  // Debug logging
+  console.log("📊 OverviewTab Calculations:", {
+    subtotal,
+    shipping,
+    tax,
+    discountAmount,
+    total,
+    paidAmount,
+    balanceDue: Math.max(0, total - paidAmount),
+    orderTotal: order.total,
+    paymentStatus: order.payment_status
+  });
+
+  const isPaid = order.payment_status === "paid";
+  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
+  const isUnpaid = !isPaid && !isPartiallyPaid;
+  const balanceDue = Math.max(0, total - paidAmount);
 
   // Get shipping address
   const shippingStreet = getAddressField(order.shippingAddress, "shipping", "street1") || 
@@ -121,10 +183,12 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
                 className={`mt-0.5 text-xs ${
                   order.payment_status === "paid" 
                     ? "bg-green-100 text-green-700" 
+                    : isPartiallyPaid
+                    ? "bg-yellow-100 text-yellow-700"
                     : "bg-red-100 text-red-700"
                 }`}
               >
-                {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+                {order.payment_status === "paid" ? "Paid" : isPartiallyPaid ? "Partial" : "Unpaid"}
               </Badge>
             </div>
           </div>
@@ -285,6 +349,51 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
                 <span className="text-lg font-bold text-gray-900">Total</span>
                 <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
               </div>
+              
+              {/* Paid Amount */}
+              {paidAmount > 0 && (
+                <div className="flex justify-between items-center mt-2 pt-2 border-t">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-green-600 font-medium">Paid Amount</span>
+                  </div>
+                  <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+                </div>
+              )}
+
+              {/* Balance Due - Show when there's amount to collect */}
+              {balanceDue > 0 && (
+                <div className="mt-2 p-3 bg-red-50 rounded-lg border border-red-200">
+                  <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-red-500" />
+                      <span className="text-red-600 font-bold">Balance Due</span>
+                    </div>
+                    <span className="text-xl font-bold text-red-600">${balanceDue.toFixed(2)}</span>
+                  </div>
+                  {/* Payment Link Button */}
+                  <div className="mt-3 pt-3 border-t border-red-200">
+                    <Link to={`/pay-now?orderid=${order.id}`}>
+                      <Button size="sm" className="w-full bg-red-600 hover:bg-red-700">
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        Collect Balance Payment
+                      </Button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* Fully Paid Message - Show when paid >= total */}
+              {paidAmount > 0 && balanceDue === 0 && total > 0 && (
+                <div className="flex justify-between items-center mt-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-500" />
+                    <span className="text-green-600 font-medium">Fully Paid</span>
+                  </div>
+                  <span className="text-sm text-green-600">No balance due</span>
+                </div>
+              )}
+              
               {discountAmount > 0 && (
                 <div className="text-right mt-1">
                   <span className="text-sm text-green-600">You saved: ${discountAmount.toFixed(2)}</span>

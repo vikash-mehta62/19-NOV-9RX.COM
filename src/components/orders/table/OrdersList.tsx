@@ -943,6 +943,15 @@ export function OrdersList({
                       >
                         {order?.payment_status?.toUpperCase() || "UNPAID"}
                       </Badge>
+                      
+                      {/* Balance Due Indicator for Paid Orders with Modified Amounts */}
+                      {order?.payment_status?.toLowerCase() === "paid" && (
+                        <div className="text-xs text-gray-600">
+                          <span className="text-green-600">✓ Paid</span>
+                          {/* Note: Real-time balance calculation would require additional API call */}
+                        </div>
+                      )}
+                      
                       {(order?.payment_status?.toLowerCase() === "unpaid" ||
                         order?.payment_status?.toLowerCase() === "pending") &&
                         order.status !== "credit_approval_processing" &&
