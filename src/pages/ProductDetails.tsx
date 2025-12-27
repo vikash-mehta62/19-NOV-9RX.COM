@@ -922,8 +922,9 @@ return (
                       <div className="p-3 space-y-2">
                         {/* Product Name + Size - Clickable */}
                         <h4 
-                          className="font-semibold text-gray-900 text-sm leading-tight cursor-pointer hover:text-emerald-600 transition-colors line-clamp-2"
+                          className="font-semibold text-gray-900 text-sm leading-tight cursor-pointer hover:text-emerald-600 transition-colors line-clamp-2 min-h-[40px]"
                           onClick={() => navigate(`/pharmacy/product/${product.id}/${size.id}`)}
+                          title={`${product.name} – ${size.size_value}${size.size_unit}`}
                         >
                           {product.name}
                           <span className="text-emerald-600"> – {size.size_value}{size.size_unit}</span>

@@ -136,7 +136,7 @@ const ProductCard = ({ product, viewMode, onClick }: ProductCardProps) => {
                   {product.category}
                 </Badge>
               )}
-              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-emerald-600 mb-2">{product.name}</h3>
+              <h3 className="text-lg font-semibold text-gray-900 group-hover:text-emerald-600 mb-2 line-clamp-2">{product.name}</h3>
               <p className="text-gray-600 text-sm line-clamp-2 mb-4">{product.description || "Premium pharmacy supply"}</p>
             </div>
             <div className="flex items-center justify-between flex-wrap gap-3">

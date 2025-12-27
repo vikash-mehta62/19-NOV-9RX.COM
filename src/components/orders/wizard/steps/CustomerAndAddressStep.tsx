@@ -225,7 +225,7 @@ export const CustomerAndAddressStep = ({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-gray-500 mb-0.5">Name</p>
               <p className="text-sm font-medium text-gray-900">{customer?.name || "-"}</p>
@@ -249,7 +249,7 @@ export const CustomerAndAddressStep = ({
       <Separator />
 
       {/* Address Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
         {/* Billing Address */}
         <Card className={`transition-all duration-300 ${isEditingBilling ? "border-blue-500 shadow-lg" : ""}`}>
           <CardHeader className="pb-2">
@@ -283,7 +283,7 @@ export const CustomerAndAddressStep = ({
                   <Input className={errors["billing.street"] ? "border-red-500" : ""} placeholder="123 Main St" value={billingForm.street} onChange={(e) => setBillingForm({ ...billingForm, street: e.target.value })} />
                   {errors["billing.street"] && <p className="text-xs text-red-500">{errors["billing.street"]}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="space-y-1">
                     <Label className="text-xs">City <span className="text-red-500">*</span></Label>
                     <Input className={errors["billing.city"] ? "border-red-500" : ""} placeholder="City" value={billingForm.city} onChange={(e) => setBillingForm({ ...billingForm, city: e.target.value })} />
@@ -343,7 +343,7 @@ export const CustomerAndAddressStep = ({
               {isEditingShipping && !sameAsBilling ? (
                 <div className="space-y-4">
                   {/* Contact Info */}
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">Full Name <span className="text-red-500">*</span></Label>
                       <Input className={errors["shipping.fullName"] ? "border-red-500" : ""} placeholder="Full name" value={shippingForm.fullName} onChange={(e) => setShippingForm({ ...shippingForm, fullName: e.target.value })} />
@@ -366,7 +366,7 @@ export const CustomerAndAddressStep = ({
                     <Input className={errors["shipping.street"] ? "border-red-500" : ""} placeholder="123 Main St" value={shippingForm.street} onChange={(e) => setShippingForm({ ...shippingForm, street: e.target.value })} />
                     {errors["shipping.street"] && <p className="text-xs text-red-500">{errors["shipping.street"]}</p>}
                   </div>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="space-y-1">
                       <Label className="text-xs">City <span className="text-red-500">*</span></Label>
                       <Input className={errors["shipping.city"] ? "border-red-500" : ""} placeholder="City" value={shippingForm.city} onChange={(e) => setShippingForm({ ...shippingForm, city: e.target.value })} />

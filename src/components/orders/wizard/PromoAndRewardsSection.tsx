@@ -671,7 +671,7 @@ export function PromoAndRewardsSection({
             </div>
           ) : (
             <>
-              <div className="flex gap-2">
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Input
                   placeholder="Enter promo code"
                   value={promoCode}
@@ -679,13 +679,13 @@ export function PromoAndRewardsSection({
                     setPromoCode(e.target.value.toUpperCase());
                     setPromoError("");
                   }}
-                  className="flex-1 uppercase"
+                  className="flex-1 min-w-0 uppercase"
                   onKeyDown={(e) => e.key === "Enter" && handleApplyPromo()}
                 />
                 <Button
                   onClick={handleApplyPromo}
                   disabled={isValidating || !promoCode.trim()}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-blue-600 hover:bg-blue-700 w-full sm:w-auto shrink-0"
                 >
                   {isValidating ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -709,20 +709,24 @@ export function PromoAndRewardsSection({
       {userRewards && userRewards.points > 0 && (
         <Card className={useRewards ? "border-amber-200 bg-amber-50/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift className="h-4 w-4 text-amber-600" />
-                Reward Points
-                {userRewards.tier && (
-                  <Badge variant="outline" className="text-xs">
-                    <Star className="h-3 w-3 mr-1 text-amber-500" />
-                    {userRewards.tier}
+            <CardTitle className="text-sm">
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span>Reward Points</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {userRewards.tier && (
+                    <Badge variant="outline" className="text-xs">
+                      <Star className="h-3 w-3 mr-1 text-amber-500" />
+                      {userRewards.tier}
+                    </Badge>
+                  )}
+                  <Badge className="bg-amber-100 text-amber-800 text-xs">
+                    {userRewards.points.toLocaleString()} pts
                   </Badge>
-                )}
+                </div>
               </div>
-              <Badge className="bg-amber-100 text-amber-800">
-                {userRewards.points.toLocaleString()} pts available
-              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -800,17 +804,17 @@ export function PromoAndRewardsSection({
         <Card>
           <CardHeader className="pb-3">
             <button
-              className="w-full flex items-center justify-between"
+              className="w-full flex items-center justify-between gap-2"
               onClick={() => setShowOffers(!showOffers)}
             >
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-purple-600" />
-                Available Offers ({availableOffers.length})
+              <CardTitle className="text-sm flex items-center gap-2 whitespace-nowrap">
+                <Sparkles className="h-4 w-4 text-purple-600 shrink-0" />
+                <span>Offers ({availableOffers.length})</span>
               </CardTitle>
               {showOffers ? (
-                <ChevronUp className="h-4 w-4 text-gray-500" />
+                <ChevronUp className="h-4 w-4 text-gray-500 shrink-0" />
               ) : (
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown className="h-4 w-4 text-gray-500 shrink-0" />
               )}
             </button>
           </CardHeader>
@@ -824,14 +828,14 @@ export function PromoAndRewardsSection({
                 availableOffers.map((offer) => (
                   <div
                     key={offer.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="p-3 border rounded-lg hover:bg-gray-50 transition-colors space-y-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 shrink-0">
                         {getOfferIcon(offer.offer_type)}
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">{offer.title}</p>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm text-gray-900 break-words">{offer.title}</p>
                         <p className="text-xs text-muted-foreground">
                           {offer.offer_type === "percentage" &&
                             `${offer.discount_value}% off`}
@@ -847,7 +851,7 @@ export function PromoAndRewardsSection({
                       size="sm"
                       variant="outline"
                       onClick={() => handleApplyOffer(offer)}
-                      className="text-purple-600 border-purple-200 hover:bg-purple-50"
+                      className="text-purple-600 border-purple-200 hover:bg-purple-50 w-full"
                     >
                       Apply
                     </Button>
@@ -863,14 +867,16 @@ export function PromoAndRewardsSection({
       {redeemedRewards.length > 0 && (
         <Card className={appliedRedeemedReward ? "border-pink-200 bg-pink-50/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Gift className="h-4 w-4 text-pink-600" />
-                Your Redeemed Rewards
+            <CardTitle className="text-sm">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-pink-600 shrink-0" />
+                  <span>Your Redeemed Rewards</span>
+                </div>
+                <Badge className="bg-pink-100 text-pink-800 w-fit text-xs">
+                  {redeemedRewards.length} available
+                </Badge>
               </div>
-              <Badge className="bg-pink-100 text-pink-800">
-                {redeemedRewards.length} available
-              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -907,15 +913,15 @@ export function PromoAndRewardsSection({
                 redeemedRewards.map((reward) => (
                   <div
                     key={reward.id}
-                    className="flex items-center justify-between p-3 border border-pink-100 rounded-lg hover:bg-pink-50 transition-colors"
+                    className="p-3 border border-pink-100 rounded-lg hover:bg-pink-50 transition-colors space-y-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 shrink-0">
                         {getRewardIcon(reward.reward_type)}
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">{reward.reward_name}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm break-words">{reward.reward_name}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span>
                             {(reward.reward_type === "discount" || reward.reward_type === "discount_percent") && `${reward.reward_value}% off`}
                             {(reward.reward_type === "credit" || reward.reward_type === "store_credit") && `$${reward.reward_value} credit`}
@@ -931,7 +937,7 @@ export function PromoAndRewardsSection({
                     <Button
                       size="sm"
                       onClick={() => handleApplyRedeemedReward(reward)}
-                      className="bg-pink-600 hover:bg-pink-700 text-white"
+                      className="bg-pink-600 hover:bg-pink-700 text-white w-full"
                     >
                       Apply
                     </Button>
@@ -947,14 +953,16 @@ export function PromoAndRewardsSection({
       {(creditMemos.length > 0 || totalCreditBalance > 0) && (
         <Card className={appliedCreditMemo ? "border-emerald-200 bg-emerald-50/50" : ""}>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-emerald-600" />
-                Credit Memo Balance
+            <CardTitle className="text-sm">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2">
+                  <Wallet className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>Credit Memo Balance</span>
+                </div>
+                <Badge className="bg-emerald-100 text-emerald-800 w-fit text-xs">
+                  ${totalCreditBalance.toFixed(2)} available
+                </Badge>
               </div>
-              <Badge className="bg-emerald-100 text-emerald-800">
-                ${totalCreditBalance.toFixed(2)} available
-              </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -993,15 +1001,15 @@ export function PromoAndRewardsSection({
                 creditMemos.map((memo) => (
                   <div
                     key={memo.id}
-                    className="flex items-center justify-between p-3 border border-emerald-100 rounded-lg hover:bg-emerald-50 transition-colors"
+                    className="p-3 border border-emerald-100 rounded-lg hover:bg-emerald-50 transition-colors space-y-2"
                   >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <div className="flex items-start gap-2">
+                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
                         <Wallet className="h-4 w-4" />
                       </div>
-                      <div>
-                        <p className="font-medium text-sm">{memo.memo_number}</p>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-sm break-words">{memo.memo_number}</p>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
                           <span className="text-emerald-600 font-medium">
                             ${memo.balance.toFixed(2)} available
                           </span>
@@ -1012,7 +1020,7 @@ export function PromoAndRewardsSection({
                             </span>
                           )}
                         </div>
-                        <p className="text-xs text-gray-500 truncate max-w-[200px]">
+                        <p className="text-xs text-gray-500 break-words">
                           {memo.reason}
                         </p>
                       </div>
@@ -1020,7 +1028,7 @@ export function PromoAndRewardsSection({
                     <Button
                       size="sm"
                       onClick={() => handleApplyCreditMemo(memo, memo.balance)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
                     >
                       Apply
                     </Button>

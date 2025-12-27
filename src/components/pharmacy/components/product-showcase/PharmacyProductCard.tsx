@@ -115,7 +115,7 @@ export const PharmacyProductCard = ({
       {/* Product Info */}
       <div className="p-2.5 sm:p-3 space-y-1.5 sm:space-y-2">
         {/* Product Name */}
-        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-emerald-600 transition-colors min-h-[32px] sm:min-h-[40px]">
+        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-emerald-600 transition-colors min-h-[32px] sm:min-h-[40px]" title={product.name}>
           {product.name}
         </h3>
 

@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface Address {
   street: string;
@@ -221,8 +222,8 @@ export const AddressInformationStep = ({
       <CardContent>
         {isEditingBilling ? (
           <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2 min-w-0">
                 <Label htmlFor="billing-company">Company Name</Label>
                 <Input
                   id="billing-company"
@@ -231,9 +232,10 @@ export const AddressInformationStep = ({
                   onChange={(e) =>
                     setBillingForm({ ...billingForm, company_name: e.target.value })
                   }
+                  className="w-full"
                 />
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 min-w-0">
                 <Label htmlFor="billing-attention">Attention</Label>
                 <Input
                   id="billing-attention"
@@ -242,6 +244,7 @@ export const AddressInformationStep = ({
                   onChange={(e) =>
                     setBillingForm({ ...billingForm, attention: e.target.value })
                   }
+                  className="w-full"
                 />
               </div>
             </div>
@@ -254,15 +257,15 @@ export const AddressInformationStep = ({
                 placeholder="123 Main St"
                 value={billingForm.street}
                 onChange={(e) => setBillingForm({ ...billingForm, street: e.target.value })}
-                className={errors["billing.street"] ? "border-red-500" : ""}
+                className={cn("w-full", errors["billing.street"] ? "border-red-500" : "")}
               />
               {errors["billing.street"] && (
                 <p className="text-sm text-red-500">{errors["billing.street"]}</p>
               )}
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="billing-city">
+            <div className="grid grid-cols-3 gap-2 sm:gap-4">
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="billing-city" className="text-xs sm:text-sm">
                   City <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -270,14 +273,14 @@ export const AddressInformationStep = ({
                   placeholder="City"
                   value={billingForm.city}
                   onChange={(e) => setBillingForm({ ...billingForm, city: e.target.value })}
-                  className={errors["billing.city"] ? "border-red-500" : ""}
+                  className={cn("w-full", errors["billing.city"] ? "border-red-500" : "")}
                 />
                 {errors["billing.city"] && (
-                  <p className="text-sm text-red-500">{errors["billing.city"]}</p>
+                  <p className="text-xs text-red-500">{errors["billing.city"]}</p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="billing-state">
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="billing-state" className="text-xs sm:text-sm">
                   State <span className="text-red-500">*</span>
                 </Label>
                 <Input
@@ -285,15 +288,15 @@ export const AddressInformationStep = ({
                   placeholder="State"
                   value={billingForm.state}
                   onChange={(e) => setBillingForm({ ...billingForm, state: e.target.value })}
-                  className={errors["billing.state"] ? "border-red-500" : ""}
+                  className={cn("w-full", errors["billing.state"] ? "border-red-500" : "")}
                 />
                 {errors["billing.state"] && (
-                  <p className="text-sm text-red-500">{errors["billing.state"]}</p>
+                  <p className="text-xs text-red-500">{errors["billing.state"]}</p>
                 )}
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="billing-zip">
-                  ZIP Code <span className="text-red-500">*</span>
+              <div className="space-y-2 min-w-0">
+                <Label htmlFor="billing-zip" className="text-xs sm:text-sm">
+                  ZIP <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="billing-zip"
@@ -302,15 +305,15 @@ export const AddressInformationStep = ({
                   onChange={(e) =>
                     setBillingForm({ ...billingForm, zip_code: e.target.value })
                   }
-                  className={errors["billing.zip_code"] ? "border-red-500" : ""}
+                  className={cn("w-full", errors["billing.zip_code"] ? "border-red-500" : "")}
                 />
                 {errors["billing.zip_code"] && (
-                  <p className="text-sm text-red-500">{errors["billing.zip_code"]}</p>
+                  <p className="text-xs text-red-500">{errors["billing.zip_code"]}</p>
                 )}
               </div>
             </div>
-            <div className="flex justify-end">
-              <Button onClick={handleSaveBilling} className="min-h-[44px]" aria-label="Save billing address">
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button onClick={handleSaveBilling} className="min-h-[44px] w-full sm:w-auto" aria-label="Save billing address">
                 <Check className="h-4 w-4 mr-2" aria-hidden="true" />
                 Save Billing Address
               </Button>
@@ -379,9 +382,9 @@ export const AddressInformationStep = ({
           {isEditingShipping && !sameAsBilling ? (
             <div className="space-y-4">
               {/* Contact Information */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-name">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-name" className="text-xs sm:text-sm">
                     Full Name <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -391,14 +394,14 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, fullName: e.target.value })
                     }
-                    className={errors["shipping.fullName"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.fullName"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.fullName"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.fullName"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.fullName"]}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-email">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-email" className="text-xs sm:text-sm">
                     Email <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -409,14 +412,14 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, email: e.target.value })
                     }
-                    className={errors["shipping.email"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.email"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.email"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.email"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.email"]}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-phone">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-phone" className="text-xs sm:text-sm">
                     Phone <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -426,10 +429,10 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, phone: e.target.value })
                     }
-                    className={errors["shipping.phone"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.phone"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.phone"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.phone"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.phone"]}</p>
                   )}
                 </div>
               </div>
@@ -446,15 +449,15 @@ export const AddressInformationStep = ({
                   onChange={(e) =>
                     setShippingForm({ ...shippingForm, street: e.target.value })
                   }
-                  className={errors["shipping.street"] ? "border-red-500" : ""}
+                  className={cn("w-full", errors["shipping.street"] ? "border-red-500" : "")}
                 />
                 {errors["shipping.street"] && (
                   <p className="text-sm text-red-500">{errors["shipping.street"]}</p>
                 )}
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-city">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-city" className="text-xs sm:text-sm">
                     City <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -464,14 +467,14 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, city: e.target.value })
                     }
-                    className={errors["shipping.city"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.city"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.city"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.city"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.city"]}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-state">
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-state" className="text-xs sm:text-sm">
                     State <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -481,15 +484,15 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, state: e.target.value })
                     }
-                    className={errors["shipping.state"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.state"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.state"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.state"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.state"]}</p>
                   )}
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="shipping-zip">
-                    ZIP Code <span className="text-red-500">*</span>
+                <div className="space-y-2 min-w-0">
+                  <Label htmlFor="shipping-zip" className="text-xs sm:text-sm">
+                    ZIP <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="shipping-zip"
@@ -498,15 +501,15 @@ export const AddressInformationStep = ({
                     onChange={(e) =>
                       setShippingForm({ ...shippingForm, zip_code: e.target.value })
                     }
-                    className={errors["shipping.zip_code"] ? "border-red-500" : ""}
+                    className={cn("w-full", errors["shipping.zip_code"] ? "border-red-500" : "")}
                   />
                   {errors["shipping.zip_code"] && (
-                    <p className="text-sm text-red-500">{errors["shipping.zip_code"]}</p>
+                    <p className="text-xs text-red-500">{errors["shipping.zip_code"]}</p>
                   )}
                 </div>
               </div>
-              <div className="flex justify-end">
-                <Button onClick={handleSaveShipping} className="min-h-[44px]" aria-label="Save shipping address">
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button onClick={handleSaveShipping} className="min-h-[44px] w-full sm:w-auto" aria-label="Save shipping address">
                   <Check className="h-4 w-4 mr-2" aria-hidden="true" />
                   Save Shipping Address
                 </Button>
@@ -549,10 +552,10 @@ export const AddressInformationStep = ({
         </p>
       </div>
 
-      {/* Address Cards - Side by side on desktop, stacked on mobile */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6" role="group" aria-label="Address information">
-        {renderBillingCard()}
-        {renderShippingCard()}
+      {/* Address Cards - Side by side on large desktop only, stacked on mobile/tablet */}
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6" role="group" aria-label="Address information">
+        <div className="min-w-0">{renderBillingCard()}</div>
+        <div className="min-w-0">{renderShippingCard()}</div>
       </div>
     </div>
   );

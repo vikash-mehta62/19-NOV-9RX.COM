@@ -505,8 +505,9 @@ export const InlineProductSizes = ({
 
                     {/* Product Name + Size */}
                     <h4 
-                      className="font-semibold text-gray-900 text-sm leading-tight mb-1 cursor-pointer hover:text-emerald-600"
+                      className="font-semibold text-gray-900 text-sm leading-tight mb-1 cursor-pointer hover:text-emerald-600 line-clamp-2 min-h-[40px]"
                       onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                      title={`${displayProduct.name} – ${size.size_value}${size.size_unit}`}
                     >
                       {displayProduct.name}
                       <span className="text-emerald-600"> – {size.size_value}{size.size_unit}</span>

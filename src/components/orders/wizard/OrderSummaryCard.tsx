@@ -117,7 +117,7 @@ const OrderSummaryCardComponent = ({
       className={cn(
         "bg-white shadow-lg border border-gray-200 rounded-xl overflow-hidden",
         "lg:sticky lg:top-8 lg:h-fit",
-        "w-full",
+        "w-full max-w-full",
         className
       )}
       role="region"
@@ -186,7 +186,7 @@ const OrderSummaryCardComponent = ({
                       aria-hidden="true"
                     />
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate text-xs sm:text-sm">
+                      <p className="font-medium text-gray-900 truncate text-xs sm:text-sm" title={item.name}>
                         {item.name}
                       </p>
                       <p className="text-gray-500 text-xs">

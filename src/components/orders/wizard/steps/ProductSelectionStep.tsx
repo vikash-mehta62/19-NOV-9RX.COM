@@ -374,9 +374,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-4">
-        {/* Left: Category Navigation */}
-        <div className="col-span-12 lg:col-span-3">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4">
+        {/* Left: Category Navigation - Hidden on mobile, shown on xl */}
+        <div className="hidden xl:block xl:col-span-3">
           <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
             <div className="px-4 py-3 border-b bg-gradient-to-r from-gray-50 to-gray-100">
               <div className="flex items-center justify-between">
@@ -477,8 +477,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           </Card>
         </div>
 
-        {/* Middle: Product List - Simple */}
-        <div className="col-span-12 lg:col-span-5">
+        {/* Middle: Product List */}
+        <div className="xl:col-span-5">
           <Card className="border rounded-lg overflow-hidden">
             <CardContent className="p-0">
               {/* Search */}
@@ -529,7 +529,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-medium text-gray-900 truncate">{product.name}</p>
+                              <p className="text-xs font-medium text-gray-900 truncate" title={product.name}>{product.name}</p>
                               <p className="text-xs text-gray-500">{product.product_sizes?.length || 0} sizes</p>
                             </div>
                             <ChevronDown className={cn(
@@ -542,21 +542,21 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           {expandedProduct === product.id && product.product_sizes && (
                             <div className="border-t bg-gray-50 p-1.5 space-y-1">
                               {product.product_sizes.map((size) => (
-                                <div key={size.id} className="bg-white rounded p-1.5 border">
+                                <div key={size.id} className="bg-white rounded p-2 border">
                                   {/* Line 1: Size + Discount Badge */}
                                   <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-gray-900">
+                                    <p className="text-sm font-medium text-gray-900">
                                       {size.size_value} {size.size_unit}
                                     </p>
                                     {size.originalPrice > 0 && (
-                                      <Badge className="bg-red-100 text-red-700 text-xs h-4 px-1">
+                                      <Badge className="bg-red-100 text-red-700 text-xs h-5 px-1.5">
                                         {Math.round(((size.originalPrice - size.price) / size.originalPrice) * 100)}% OFF
                                       </Badge>
                                     )}
                                   </div>
                                   {/* Line 2: Price + Buttons */}
-                                  <div className="flex items-center justify-between mt-1">
-                                    <div className="flex gap-2 text-xs">
+                                  <div className="flex items-center justify-between mt-2">
+                                    <div className="flex gap-3 text-sm">
                                       {size.price_per_case > 0 && (
                                         <span className="text-gray-600">U: ${size.price_per_case?.toFixed(2)}</span>
                                       )}
@@ -567,23 +567,23 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                                         )}
                                       </span>
                                     </div>
-                                    <div className="flex gap-1">
+                                    <div className="flex gap-2">
                                       {size.price_per_case > 0 && (
                                         <Button 
                                           size="sm" 
                                           variant="outline" 
-                                          className="h-5 px-1.5 text-xs"
+                                          className="h-8 px-3 text-sm min-w-[50px]"
                                           onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "unit"); }}
                                         >
-                                          <Plus className="w-2.5 h-2.5 mr-0.5" />U
+                                          <Plus className="w-3.5 h-3.5 mr-1" />U
                                         </Button>
                                       )}
                                       <Button 
                                         size="sm" 
-                                        className="h-5 px-1.5 text-xs bg-emerald-600 hover:bg-emerald-700"
+                                        className="h-8 px-3 text-sm bg-emerald-600 hover:bg-emerald-700 min-w-[50px]"
                                         onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); }}
                                       >
-                                        <Plus className="w-2.5 h-2.5 mr-0.5" />C
+                                        <Plus className="w-3.5 h-3.5 mr-1" />C
                                       </Button>
                                     </div>
                                   </div>
@@ -601,8 +601,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           </Card>
         </div>
 
-        {/* Right: Order Items - Simple */}
-        <div className="col-span-12 lg:col-span-4">
+        {/* Right: Order Items */}
+        <div className="xl:col-span-4">
           <Card className="border rounded-lg overflow-hidden">
             <div className="px-3 py-2 border-b bg-gray-50">
               <div className="flex items-center justify-between">
@@ -638,7 +638,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-start justify-between gap-1">
-                              <p className="text-xs font-medium text-gray-900 line-clamp-1">{item.name}</p>
+                              <p className="text-xs font-medium text-gray-900 line-clamp-1" title={item.name}>{item.name}</p>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 

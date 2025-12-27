@@ -908,12 +908,12 @@ const OrderCreationWizardComponent = ({
         });
       }}
     >
-    <div className="min-h-screen bg-gray-50" role="main" aria-label="Order Creation Wizard">
-      <div className="max-w-[90vw] mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+    <div className="min-h-screen bg-gray-50 w-full max-w-full overflow-x-hidden" role="main" aria-label="Order Creation Wizard">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Main Content Area with Order Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 sm:gap-6">
           {/* Main Content - Takes 2 columns on desktop */}
-          <div className="lg:col-span-2">
+          <div className="min-w-0">
             {/* Validation Errors Alert */}
             {validationErrors.length > 0 && (
               <Alert 
@@ -965,7 +965,7 @@ const OrderCreationWizardComponent = ({
 
           {/* Order Summary - Sidebar on desktop, top on mobile */}
           <aside 
-            className="lg:col-span-1 order-first lg:order-last"
+            className="min-w-0 order-first lg:order-last"
             aria-label="Order summary"
             role="complementary"
           >

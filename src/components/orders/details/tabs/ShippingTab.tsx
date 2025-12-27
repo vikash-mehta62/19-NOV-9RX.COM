@@ -403,32 +403,35 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
                       placeholder="Apt, Suite, etc."
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                    <div className="min-w-0">
                       <Label htmlFor="address-city">City</Label>
                       <Input
                         id="address-city"
                         value={addressForm.city}
                         onChange={(e) => setAddressForm(prev => ({ ...prev, city: e.target.value }))}
                         placeholder="City"
+                        className="w-full"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label htmlFor="address-state">State</Label>
                       <Input
                         id="address-state"
                         value={addressForm.state}
                         onChange={(e) => setAddressForm(prev => ({ ...prev, state: e.target.value }))}
                         placeholder="State"
+                        className="w-full"
                       />
                     </div>
-                    <div>
+                    <div className="min-w-0">
                       <Label htmlFor="address-zip">ZIP Code</Label>
                       <Input
                         id="address-zip"
                         value={addressForm.zipCode}
                         onChange={(e) => setAddressForm(prev => ({ ...prev, zipCode: e.target.value }))}
                         placeholder="ZIP"
+                        className="w-full"
                       />
                     </div>
                   </div>
