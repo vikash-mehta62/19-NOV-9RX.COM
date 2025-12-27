@@ -919,16 +919,20 @@ return (
                       </div>
 
                       {/* Product Info */}
-                      <div className="p-3 space-y-2">
+                      <div className="p-3 space-y-2 min-w-0 overflow-hidden">
                         {/* Product Name + Size - Clickable */}
-                        <h4 
-                          className="font-semibold text-gray-900 text-sm leading-tight cursor-pointer hover:text-emerald-600 transition-colors line-clamp-2 min-h-[40px]"
+                        <div 
+                          className="cursor-pointer hover:text-emerald-600 transition-colors min-w-0"
                           onClick={() => navigate(`/pharmacy/product/${product.id}/${size.id}`)}
                           title={`${product.name} – ${size.size_value}${size.size_unit}`}
                         >
-                          {product.name}
-                          <span className="text-emerald-600"> – {size.size_value}{size.size_unit}</span>
-                        </h4>
+                          <p className="font-semibold text-emerald-600 text-sm sm:text-base truncate">
+                            {size.size_value}{size.size_unit}
+                          </p>
+                          <p className="text-xs text-gray-500 line-clamp-1 uppercase">
+                            {product.name}
+                          </p>
+                        </div>
 
                         {/* SKU */}
                         {size.sku && (

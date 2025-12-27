@@ -449,8 +449,8 @@ export const InlineProductSizes = ({
               const discountPercent = hasDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0
 
               return (
-                <Card key={sizeId} className={`${sizeInCart ? 'border-emerald-400 ring-1 ring-emerald-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-xl transition-all hover:shadow-md`}>
-                  <CardContent className="p-4">
+                <Card key={sizeId} className={`${sizeInCart ? 'border-emerald-400 ring-1 ring-emerald-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-xl transition-all hover:shadow-md overflow-hidden`}>
+                  <CardContent className="p-4 min-w-0">
                     {/* Product Image */}
                     <div 
                       className="relative aspect-[4/3] bg-gray-50 rounded-lg overflow-hidden mb-3 cursor-pointer group"
@@ -504,14 +504,18 @@ export const InlineProductSizes = ({
                     </div>
 
                     {/* Product Name + Size */}
-                    <h4 
-                      className="font-semibold text-gray-900 text-sm leading-tight mb-1 cursor-pointer hover:text-emerald-600 line-clamp-2 min-h-[40px]"
+                    <div 
+                      className="mb-2 cursor-pointer hover:text-emerald-600 min-w-0 overflow-hidden"
                       onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
                       title={`${displayProduct.name} – ${size.size_value}${size.size_unit}`}
                     >
-                      {displayProduct.name}
-                      <span className="text-emerald-600"> – {size.size_value}{size.size_unit}</span>
-                    </h4>
+                      <p className="font-semibold text-emerald-600 text-sm sm:text-base truncate">
+                        {size.size_value}{size.size_unit}
+                      </p>
+                      <p className="text-xs text-gray-500 line-clamp-1 break-words uppercase">
+                        {displayProduct.name}
+                      </p>
+                    </div>
 
                     {/* SKU */}
                     {size.sku && (
@@ -519,21 +523,21 @@ export const InlineProductSizes = ({
                     )}
 
                     {/* Case Price - Large & Bold */}
-                    <div className="mb-1">
-                      <span className="text-xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
-                      <span className="text-sm text-gray-500 ml-1">/ case</span>
+                    <div className="mb-1 flex flex-wrap items-baseline gap-1">
+                      <span className="text-lg sm:text-xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
+                      <span className="text-xs sm:text-sm text-gray-500">/ case</span>
                       {hasDiscount && (
-                        <span className="text-sm text-gray-400 line-through ml-2">${size.originalPrice.toFixed(2)}</span>
+                        <span className="text-xs sm:text-sm text-gray-400 line-through">${size.originalPrice.toFixed(2)}</span>
                       )}
                     </div>
 
                     {/* Units per Case + Unit Price */}
                     {unitsPerCase > 0 && (
-                      <div className="flex items-center text-xs text-gray-500 mb-2">
-                        <Package className="w-3.5 h-3.5 mr-1 text-gray-400" />
-                        <span>{unitsPerCase} units per case</span>
-                        <span className="mx-1.5">·</span>
-                        <span>${unitPrice.toFixed(2)} per unit</span>
+                      <div className="flex flex-wrap items-center text-xs text-gray-500 mb-2 gap-x-1">
+                        <Package className="w-3.5 h-3.5 mr-0.5 text-gray-400 shrink-0" />
+                        <span className="whitespace-nowrap">{unitsPerCase} units/case</span>
+                        <span>·</span>
+                        <span className="whitespace-nowrap">${unitPrice.toFixed(2)}/unit</span>
                       </div>
                     )}
 
@@ -579,23 +583,23 @@ export const InlineProductSizes = ({
                         )}
 
                         {/* Quantity + Add to Cart */}
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
                           {/* Quantity Selector */}
-                          <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
+                          <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50 shrink-0">
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100"
+                              className="h-9 w-9 sm:h-10 sm:w-10 rounded-l-lg rounded-r-none hover:bg-gray-100"
                               onClick={() => handleQuantityChange(sizeId, -1)}
                               disabled={selection.quantity <= 1}
                             >
                               <Minus className="w-4 h-4" />
                             </Button>
-                            <span className="w-10 text-center font-semibold text-sm">{selection.quantity}</span>
+                            <span className="w-8 sm:w-10 text-center font-semibold text-sm">{selection.quantity}</span>
                             <Button
                               variant="ghost"
                               size="icon"
-                              className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100"
+                              className="h-9 w-9 sm:h-10 sm:w-10 rounded-r-lg rounded-l-none hover:bg-gray-100"
                               onClick={() => handleQuantityChange(sizeId, 1)}
                               disabled={selection.quantity >= size.stock}
                             >
@@ -605,16 +609,16 @@ export const InlineProductSizes = ({
 
                           {/* Add to Cart */}
                           <Button
-                            className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+                            className="flex-1 h-9 sm:h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm min-w-0"
                             onClick={() => handleAddToCart(size)}
                             disabled={isAdding[sizeId] || sizeInCart}
                           >
                             {isAdding[sizeId] ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : sizeInCart ? (
-                              <><Check className="w-4 h-4 mr-1" /> Added</>
+                              <><Check className="w-4 h-4 mr-1 shrink-0" /><span className="truncate">Added</span></>
                             ) : (
-                              <><ShoppingCart className="w-4 h-4 mr-1" /> Add to Cart</>
+                              <><ShoppingCart className="w-4 h-4 mr-1 shrink-0" /><span className="truncate">Add to Cart</span></>
                             )}
                           </Button>
                         </div>
