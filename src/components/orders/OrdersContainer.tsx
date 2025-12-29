@@ -92,6 +92,18 @@ export const OrdersContainer = ({
   const navigate = useNavigate();
   const [orderStatus, setOrderStatus] = useState<string>("");
   
+  // Stats from database (not paginated)
+  const [dbStats, setDbStats] = useState({
+    total: 0,
+    newOrders: 0,
+    processing: 0,
+    shipped: 0,
+    delivered: 0,
+    cancelled: 0,
+    totalRevenue: 0,
+    pendingPayment: 0,
+  });
+  
   // Sorting state
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -155,6 +167,96 @@ export const OrdersContainer = ({
 
     fetchOrders();
   }, [orderStatus, poIs, toast]);
+
+  // Fetch stats from database (not paginated)
+  useEffect(() => {
+    const fetchStats = async () => {
+      if (poIs) return; // Don't fetch stats for PO page
+      
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+
+        const role = sessionStorage.getItem('userType');
+        
+        let query = supabase
+          .from("orders")
+          .select("status, payment_status, total_amount, void")
+          .is("deleted_at", null);
+
+        // Apply role-based filters
+        if (role === "pharmacy") {
+          query = query.eq("profile_id", session.user.id);
+        } else if (role === "group") {
+          const { data: groupProfiles } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("group_id", session.user.id);
+          
+          if (groupProfiles && groupProfiles.length > 0) {
+            const userIds = groupProfiles.map(user => user.id);
+            query = query.in("profile_id", userIds);
+          }
+        }
+
+        const { data: allOrders, error } = await query;
+        
+        if (error) throw error;
+
+        // Calculate stats from all orders
+        const stats = {
+          total: 0,
+          newOrders: 0,
+          processing: 0,
+          shipped: 0,
+          delivered: 0,
+          cancelled: 0,
+          totalRevenue: 0,
+          pendingPayment: 0,
+        };
+
+        allOrders?.forEach((order: any) => {
+          if (order.void) return; // Skip voided orders
+          
+          const status = order.status?.toLowerCase();
+          const total = parseFloat(order.total_amount || "0");
+          
+          stats.total++;
+          
+          switch (status) {
+            case "new":
+            case "pending":
+              stats.newOrders++;
+              break;
+            case "processing":
+              stats.processing++;
+              break;
+            case "shipped":
+              stats.shipped++;
+              break;
+            case "delivered":
+            case "completed":
+              stats.delivered++;
+              break;
+            case "cancelled":
+              stats.cancelled++;
+              break;
+          }
+
+          stats.totalRevenue += total;
+          if (order.payment_status?.toLowerCase() !== "paid") {
+            stats.pendingPayment += total;
+          }
+        });
+
+        setDbStats(stats);
+      } catch (error) {
+        console.error("Error fetching order stats:", error);
+      }
+    };
+
+    fetchStats();
+  }, [orderStatus, poIs, orders]);
 
   console.log(orders);
 
@@ -237,51 +339,6 @@ export const OrdersContainer = ({
     navigate("/admin/orders/create");
   };
 
-  // Calculate order stats for summary cards
-  const orderStats = useMemo(() => {
-    const stats = {
-      total: orders.length,
-      newOrders: 0,
-      processing: 0,
-      shipped: 0,
-      delivered: 0,
-      cancelled: 0,
-      totalRevenue: 0,
-      pendingPayment: 0,
-    };
-
-    orders.forEach((order: any) => {
-      const status = order.status?.toLowerCase();
-      const total = parseFloat(order.total || order.total_amount || "0");
-      
-      switch (status) {
-        case "new":
-          stats.newOrders++;
-          break;
-        case "processing":
-          stats.processing++;
-          break;
-        case "shipped":
-          stats.shipped++;
-          break;
-        case "delivered":
-        case "completed":
-          stats.delivered++;
-          break;
-        case "cancelled":
-          stats.cancelled++;
-          break;
-      }
-
-      stats.totalRevenue += total;
-      if (order.payment_status?.toLowerCase() !== "paid") {
-        stats.pendingPayment += total;
-      }
-    });
-
-    return stats;
-  }, [orders]);
-
   const handleCardClick = (filter: string) => {
     if (filter === "all") {
       setStatusFilter2("all");
@@ -295,7 +352,7 @@ export const OrdersContainer = ({
       {/* Order Summary Cards */}
       {!poIs && userRole === "admin" && (
         <OrderSummaryCards 
-          stats={orderStats} 
+          stats={dbStats} 
           isLoading={loading}
           onCardClick={handleCardClick}
           activeFilter={statusFilter2}

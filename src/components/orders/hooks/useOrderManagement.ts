@@ -542,10 +542,7 @@ setOrders([])
       }
 
       // Send the updated order to the backend
-      if (
-        newStatus !== "processing" &&
-        updatedOrder.profile_id.email_notifaction
-      ) {
+      if (updatedOrder.profile_id?.email_notifaction) {
         try {
           await axios.post("/order-status", updatedOrder);
           console.log("Order status sent successfully to backend.");

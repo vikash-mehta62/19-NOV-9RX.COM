@@ -15,13 +15,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 export interface ProductShowcaseProps {
-
   groupShow?: boolean;
   isEditing?: boolean;
   form?: any;
-
+  onProductClick?: (product: ProductDetails) => void;
 }
-const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseProps) => {
+const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }: ProductShowcaseProps) => {
   const { toast } = useToast();
   const [products, setProducts] = useState<ProductDetails[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -378,6 +377,7 @@ const ProductShowcase = ({ groupShow,isEditing=false,form={} }: ProductShowcaseP
               products={filteredProducts} 
               viewMode={viewMode}
               onViewModeChange={setViewMode}
+              onProductClick={onProductClick}
             />
           )}
         </main>

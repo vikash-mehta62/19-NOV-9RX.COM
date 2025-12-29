@@ -66,7 +66,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   });
   const [sortConfig, setSortConfig] = useState<SortConfig | null>(null);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
-  const [allInvoicesForStats, setAllInvoicesForStats] = useState<Invoice[]>([]);
+  const [allInvoicesForStats, setAllInvoicesForStats] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
   const [page, setPage] = useState(1);
@@ -76,17 +76,17 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   // Calculate stats from all invoices
   const stats = {
     total: allInvoicesForStats.length,
-    totalAmount: allInvoicesForStats.reduce((sum, inv) => sum + (inv.amount || 0), 0),
-    paid: allInvoicesForStats.filter(inv => inv.orders?.payment_status === "paid").length,
+    totalAmount: allInvoicesForStats.reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
+    paid: allInvoicesForStats.filter(inv => inv.payment_status === "paid").length,
     paidAmount: allInvoicesForStats
-      .filter(inv => inv.orders?.payment_status === "paid")
-      .reduce((sum, inv) => sum + (inv.amount || 0), 0),
-    unpaid: allInvoicesForStats.filter(inv => inv.orders?.payment_status === "unpaid" && !inv.void).length,
+      .filter(inv => inv.payment_status === "paid")
+      .reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
+    unpaid: allInvoicesForStats.filter(inv => inv.payment_status === "unpaid" || inv.payment_status === "partial_paid").length,
     unpaidAmount: allInvoicesForStats
-      .filter(inv => inv.orders?.payment_status === "unpaid" && !inv.void)
-      .reduce((sum, inv) => sum + (inv.amount || 0), 0),
+      .filter(inv => inv.payment_status === "unpaid" || inv.payment_status === "partial_paid")
+      .reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
     overdue: allInvoicesForStats.filter(inv => {
-      if (inv.orders?.payment_status === "paid" || inv.void) return false;
+      if (inv.payment_status === "paid" || inv.void) return false;
       const dueDate = new Date(inv.due_date);
       return dueDate < new Date();
     }).length,
@@ -100,7 +100,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
     try {
       let query = supabase
         .from("invoices")
-        .select(`*, orders (id, payment_status, void)`)
+        .select(`id, payment_status, amount, total_amount, due_date, void`)
         .eq("void", false);
 
       if (role === "pharmacy") {
@@ -119,8 +119,15 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         }
       }
 
-      const { data } = await query;
-      setAllInvoicesForStats((data || []).filter(isInvoice));
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error("Error fetching invoice stats:", error);
+        return;
+      }
+      
+      console.log("Fetched invoices for stats:", data?.length);
+      setAllInvoicesForStats(data || []);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }

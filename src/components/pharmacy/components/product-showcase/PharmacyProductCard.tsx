@@ -47,13 +47,13 @@ export const PharmacyProductCard = ({
   const handleCardClick = () => {
     if (onProductClick) {
       onProductClick(product)
+      return
+    }
+    const userType = sessionStorage.getItem('userType')
+    if (userType === 'admin') {
+      navigate(`/product/${product.id}`)
     } else {
-      const userType = sessionStorage.getItem('userType')
-      if (userType === 'admin') {
-        navigate(`/product/${product.id}`)
-      } else {
-        navigate(`/pharmacy/product/${product.id}`)
-      }
+      navigate(`/pharmacy/product/${product.id}`)
     }
   }
 

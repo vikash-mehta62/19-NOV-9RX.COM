@@ -99,7 +99,7 @@ export const PharmacyProductGrid = ({
         >
           <PharmacyProductCard 
             product={product} 
-            onProductClick={() => onProductClick?.(product)}
+            onProductClick={onProductClick}
             viewMode={currentViewMode}
           />
         </div>

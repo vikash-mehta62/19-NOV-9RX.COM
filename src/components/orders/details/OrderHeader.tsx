@@ -1,9 +1,13 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, Truck, CreditCard, Ban } from "lucide-react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
+import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
+import { TrackingDialog } from "../components/TrackingDialog";
+import { supabase } from "@/integrations/supabase/client";
 
 interface OrderHeaderProps {
   order: OrderFormValues;
@@ -43,6 +47,11 @@ export const OrderHeader = ({
   poIs,
 }: OrderHeaderProps) => {
   const { toast } = useToast();
+  const [showShipConfirmDialog, setShowShipConfirmDialog] = useState(false);
+  const [showTrackingDialog, setShowTrackingDialog] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
+  const [isShipping, setIsShipping] = useState(false);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -51,6 +60,59 @@ export const OrderHeader = ({
       description: "Order number copied to clipboard",
       duration: 2000,
     });
+  };
+
+  const handleShipConfirm = () => {
+    setShowShipConfirmDialog(false);
+    setShowTrackingDialog(true);
+  };
+
+  const handleTrackingSubmit = async () => {
+    if (!trackingNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a tracking number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsShipping(true);
+    try {
+      // Update order in database with tracking info
+      const { error } = await supabase
+        .from("orders")
+        .update({
+          tracking_number: trackingNumber,
+          shipping_method: shippingMethod,
+          status: "shipped"
+        })
+        .eq("id", order.id);
+
+      if (error) throw error;
+
+      // Call the onShipOrder callback to trigger email and refresh
+      if (onShipOrder) {
+        onShipOrder();
+      }
+
+      setShowTrackingDialog(false);
+      setTrackingNumber("");
+      
+      toast({
+        title: "Success",
+        description: `Order shipped with tracking number: ${trackingNumber}`,
+      });
+    } catch (error) {
+      console.error("Error shipping order:", error);
+      toast({
+        title: "Error",
+        description: "Failed to ship order",
+        variant: "destructive",
+      });
+    } finally {
+      setIsShipping(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -210,7 +272,7 @@ export const OrderHeader = ({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onShipOrder}
+                onClick={() => setShowShipConfirmDialog(true)}
                 className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
               >
                 <Truck className="w-4 h-4 text-indigo-600" />
@@ -233,6 +295,26 @@ export const OrderHeader = ({
           </div>
         </div>
       )}
+
+      {/* Ship Order Confirmation Dialog */}
+      <ConfirmationDialog
+        isOpen={showShipConfirmDialog}
+        onOpenChange={setShowShipConfirmDialog}
+        title="Ship Order"
+        description="Are you sure you want to mark this order as shipped? You'll be able to add tracking information next."
+        onConfirm={handleShipConfirm}
+      />
+
+      {/* Tracking Information Dialog */}
+      <TrackingDialog
+        isOpen={showTrackingDialog}
+        onOpenChange={setShowTrackingDialog}
+        trackingNumber={trackingNumber}
+        onTrackingNumberChange={setTrackingNumber}
+        shippingMethod={shippingMethod}
+        onShippingMethodChange={setShippingMethod}
+        onSubmit={handleTrackingSubmit}
+      />
     </Card>
   );
 };

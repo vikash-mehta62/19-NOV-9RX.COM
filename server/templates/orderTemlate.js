@@ -1,6 +1,45 @@
 const orderStatusTemplate = (order) => { 
-    const { customerInfo, shippingAddress, order_number, status, items, estimated_delivery, payment_status, shipping_method, total_amount, tracking_number } = order;
+    const { customerInfo, shippingAddress, order_number, status, items, estimated_delivery, payment_status, shipping_method, total_amount, tracking_number, paid_amount } = order;
   
+    // Calculate balance due
+    const paidAmt = paid_amount || 0;
+    const balanceDue = Math.max(0, total_amount - paidAmt);
+    const isPartialPaid = payment_status === 'partial_paid' || (paidAmt > 0 && balanceDue > 0);
+
+    // Get status badge color
+    const getStatusColor = (status) => {
+      switch(status?.toLowerCase()) {
+        case 'shipped': return '#2ecc71';
+        case 'delivered': return '#27ae60';
+        case 'processing': return '#9b59b6';
+        case 'pending': return '#f39c12';
+        case 'cancelled': return '#e74c3c';
+        default: return '#3498db';
+      }
+    };
+
+    // Get payment status badge color
+    const getPaymentStatusColor = (paymentStatus) => {
+      switch(paymentStatus?.toLowerCase()) {
+        case 'paid': return '#27ae60';
+        case 'partial_paid': return '#f39c12';
+        case 'unpaid': return '#e74c3c';
+        case 'refunded': return '#9b59b6';
+        default: return '#95a5a6';
+      }
+    };
+
+    // Format payment status display
+    const formatPaymentStatus = (paymentStatus) => {
+      switch(paymentStatus?.toLowerCase()) {
+        case 'paid': return 'Paid';
+        case 'partial_paid': return 'Partially Paid';
+        case 'unpaid': return 'Unpaid';
+        case 'refunded': return 'Refunded';
+        default: return paymentStatus || 'Unknown';
+      }
+    };
+
     return `<!DOCTYPE html>
     <html>
     
@@ -38,7 +77,7 @@ const orderStatusTemplate = (order) => {
             .status-badge {
                 display: inline-block;
                 padding: 8px 15px;
-                background-color: ${status === 'shipped' ? '#2ecc71' : '#e74c3c'};
+                background-color: ${getStatusColor(status)};
                 color: #ffffff;
                 border-radius: 5px;
                 font-size: 14px;
@@ -61,6 +100,71 @@ const orderStatusTemplate = (order) => {
             .highlight {
                 font-weight: bold;
                 color: #2c3e50;
+            }
+
+            .payment-section {
+                background-color: #fff3cd;
+                border: 1px solid #ffc107;
+                padding: 12px;
+                border-radius: 8px;
+                margin: 15px 0;
+                text-align: left;
+            }
+
+            .payment-section.paid {
+                background-color: #d4edda;
+                border-color: #28a745;
+            }
+
+            .payment-section.partial {
+                background-color: #fff3cd;
+                border-color: #ffc107;
+            }
+
+            .payment-section.unpaid {
+                background-color: #f8d7da;
+                border-color: #dc3545;
+            }
+
+            .payment-row {
+                display: flex;
+                justify-content: space-between;
+                padding: 5px 0;
+                border-bottom: 1px dashed #ddd;
+            }
+
+            .payment-row:last-child {
+                border-bottom: none;
+            }
+
+            .payment-label {
+                font-weight: bold;
+                color: #2c3e50;
+            }
+
+            .payment-value {
+                font-weight: bold;
+            }
+
+            .payment-value.green {
+                color: #27ae60;
+            }
+
+            .payment-value.orange {
+                color: #f39c12;
+            }
+
+            .payment-value.red {
+                color: #e74c3c;
+            }
+
+            .payment-status-badge {
+                display: inline-block;
+                padding: 4px 10px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+                color: #fff;
             }
     
             .cta {
@@ -123,11 +227,32 @@ const orderStatusTemplate = (order) => {
             <div class="order-info">
                 <p><span class="highlight">Customer Name:</span> ${customerInfo.name}</p>
                 <p><span class="highlight">Order Number:</span> ${order_number}</p>
-            
-                <p><span class="highlight">Payment Status:</span> ${payment_status}</p>
           ${status.toUpperCase() === "SHIPPED" ? `<p><span class="highlight">Shipping Method:</span> ${shipping_method}</p>` : ""}
 
-                <p><span class="highlight">Total Amount:</span> $${total_amount.toFixed(2)}</p>
+                <!-- Payment Summary Section -->
+                <div class="payment-section ${payment_status === 'paid' ? 'paid' : (isPartialPaid ? 'partial' : 'unpaid')}">
+                    <h4 style="margin: 0 0 10px 0; color: #2c3e50;">💰 Payment Summary</h4>
+                    <div class="payment-row">
+                        <span class="payment-label">Total Amount:</span>
+                        <span class="payment-value">$${total_amount.toFixed(2)}</span>
+                    </div>
+                    <div class="payment-row">
+                        <span class="payment-label">Paid Amount:</span>
+                        <span class="payment-value green">$${paidAmt.toFixed(2)}</span>
+                    </div>
+                    ${balanceDue > 0 ? `
+                    <div class="payment-row">
+                        <span class="payment-label">Balance Due:</span>
+                        <span class="payment-value red">$${balanceDue.toFixed(2)}</span>
+                    </div>
+                    ` : ''}
+                    <div class="payment-row">
+                        <span class="payment-label">Payment Status:</span>
+                        <span class="payment-status-badge" style="background-color: ${getPaymentStatusColor(payment_status)}">
+                            ${formatPaymentStatus(payment_status)}
+                        </span>
+                    </div>
+                </div>
     
                 <h3>Ordered Products:</h3>
                 <table class="product-table">

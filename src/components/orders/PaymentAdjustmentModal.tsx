@@ -37,6 +37,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import axios from "../../../axiosconfig";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PaymentAdjustmentModalProps {
   open: boolean;
@@ -242,6 +243,72 @@ export function PaymentAdjustmentModal({
             setSendingEmail(false);
           }
         } else if (selectedAction === 'use_credit' && hasCredit) {
+          // Check if sufficient credit is available
+          if (availableCredit < absoluteDifference) {
+            throw new Error(`Insufficient credit. Available: $${availableCredit.toFixed(2)}, Required: $${absoluteDifference.toFixed(2)}`);
+          }
+
+          // Update credit_used in profiles table
+          const { data: currentProfile, error: profileFetchError } = await supabase
+            .from('profiles')
+            .select('credit_used')
+            .eq('id', customerId)
+            .single();
+
+          if (profileFetchError) throw profileFetchError;
+
+          const currentCreditUsed = Number(currentProfile?.credit_used || 0);
+          const newCreditUsed = currentCreditUsed + absoluteDifference;
+
+          const { error: updateError } = await supabase
+            .from('profiles')
+            .update({ credit_used: newCreditUsed })
+            .eq('id', customerId);
+
+          if (updateError) throw updateError;
+
+          // Update order payment_status to 'paid' and paid_amount to newAmount
+          const { error: orderUpdateError } = await supabase
+            .from('orders')
+            .update({ 
+              payment_status: 'paid',
+              paid_amount: newAmount 
+            })
+            .eq('id', orderId);
+
+          if (orderUpdateError) {
+            console.error('Error updating order payment status:', orderUpdateError);
+          }
+
+          // Also update invoice if exists
+          const { data: invoiceData } = await supabase
+            .from('invoices')
+            .select('id')
+            .eq('order_id', orderId)
+            .maybeSingle();
+
+          if (invoiceData) {
+            await supabase
+              .from('invoices')
+              .update({ 
+                payment_status: 'paid',
+                paid_amount: newAmount 
+              })
+              .eq('id', invoiceData.id);
+          }
+
+          // Record account transaction for credit history
+          await PaymentAdjustmentService.recordAccountTransaction({
+            customerId,
+            orderId,
+            transactionType: 'debit',
+            referenceType: 'order',
+            description: `Credit order approved - Order ${orderNumber}`,
+            amount: absoluteDifference,
+            processedBy: customerId,
+          });
+
+          // Create adjustment record
           result = await PaymentAdjustmentService.createAdjustment({
             orderId,
             customerId,
@@ -251,7 +318,12 @@ export function PaymentAdjustmentModal({
             differenceAmount: absoluteDifference,
             paymentMethod: 'credit',
             paymentStatus: 'completed',
-            reason: reason || `Order ${orderNumber} modified - charged to credit`,
+            reason: reason || `Order ${orderNumber} modified - charged to credit line`,
+          });
+
+          toast({
+            title: "Credit Applied",
+            description: `$${absoluteDifference.toFixed(2)} charged to credit line. New credit used: $${newCreditUsed.toFixed(2)}`,
           });
         } else {
           throw new Error('Invalid action selected');

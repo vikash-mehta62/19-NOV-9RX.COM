@@ -189,7 +189,6 @@ export const ItemsTab = ({
       // Correct formula: Total = Subtotal + Shipping + Tax - Discount
       const newTotal = newSubtotal + orderShippingCost + orderTaxAmount - orderDiscountAmount;
       const originalAmount = Number(currentOrder?.total_amount || 0);
-      const differenceAmount = Number((newTotal - originalAmount).toFixed(2));
 
       // Get the paid_amount - if not set and order is paid, use original total_amount
       let paidAmount = Number(currentOrder?.paid_amount || 0);
@@ -225,65 +224,53 @@ export const ItemsTab = ({
 
       // Check if payment adjustment is needed (only for paid orders with price change)
       // Use paid_amount for comparison instead of total_amount
-      if (currentOrder?.payment_status === 'paid' && paidAmount > 0) {
-        const balanceDue = Number((newTotal - paidAmount).toFixed(2));
-        
-        if (balanceDue > 0) {
-          // Need to collect additional payment
-          const customerIdToUse = customerId || currentOrder?.location_id || currentOrder?.profile_id;
-        
-          const { data: customerProfile } = await supabase
-            .from("profiles")
-            .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
-            .eq("id", customerIdToUse)
-            .single();
+      // ALWAYS show payment adjustment modal for ALL saves
+      const customerIdToUse = customerId || currentOrder?.location_id || currentOrder?.profile_id;
+    
+      const { data: customerProfile } = await supabase
+        .from("profiles")
+        .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
+        .eq("id", customerIdToUse)
+        .single();
 
-          const hasCredit = (customerProfile?.credit_limit || 0) > 0;
-          const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
-          const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
-          const customerName = customerProfile?.company_name || 
-            `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
-            'Customer';
+      const hasCredit = (customerProfile?.credit_limit || 0) > 0;
+      const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
+      const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
+      const customerName = customerProfile?.company_name || 
+        `${customerProfile?.first_name || ''} ${customerProfile?.last_name || ''}`.trim() || 
+        'Customer';
 
-          // Store pending data and show payment adjustment modal
-          setPendingEditData({
-            editedItems,
-            newSubtotal,
-            newTotal,
-          });
+      // Store pending data and show payment adjustment modal
+      setPendingEditData({
+        editedItems,
+        newSubtotal,
+        newTotal,
+      });
 
-          setPaymentAdjustmentData({
-            orderId,
-            orderNumber: orderNumber || currentOrder?.order_number || '',
-            customerId: customerIdToUse,
-            customerName,
-            customerEmail: customerEmail || customerProfile?.email,
-            originalAmount: paidAmount, // Use paid_amount as original (what was actually paid)
-            newAmount: newTotal,
-            hasCredit,
-            availableCredit,
-            creditMemoBalance,
-            orderData: {
-              items: editedItems,
-              tax_amount: orderTaxAmount,
-              shipping_cost: orderShippingCost,
-              customerInfo: {
-                name: customerName,
-                email: customerEmail || customerProfile?.email,
-              },
-            },
-          });
+      setPaymentAdjustmentData({
+        orderId,
+        orderNumber: orderNumber || currentOrder?.order_number || '',
+        customerId: customerIdToUse,
+        customerName,
+        customerEmail: customerEmail || customerProfile?.email,
+        originalAmount: paidAmount > 0 ? paidAmount : originalAmount, // Use paid_amount if available
+        newAmount: newTotal,
+        hasCredit,
+        availableCredit,
+        creditMemoBalance,
+        orderData: {
+          items: editedItems,
+          tax_amount: orderTaxAmount,
+          shipping_cost: orderShippingCost,
+          customerInfo: {
+            name: customerName,
+            email: customerEmail || customerProfile?.email,
+          },
+        },
+      });
 
-          setIsSaving(false);
-          setIsPaymentAdjustmentOpen(true);
-          return;
-        }
-      }
-
-      // No payment adjustment needed - proceed with update directly
-      // But if there's balance due, update payment_status to partial_paid
-      const shouldUpdatePaymentStatus = paidAmount > 0 && newTotal > paidAmount;
-      await saveOrderChanges(editedItems, newSubtotal, newTotal, shouldUpdatePaymentStatus ? 'partial_paid' : undefined);
+      setIsSaving(false);
+      setIsPaymentAdjustmentOpen(true);
 
     } catch (error) {
       console.error("Error saving items:", error);
@@ -294,7 +281,7 @@ export const ItemsTab = ({
       });
       setIsSaving(false);
     }
-  }, [orderId, editedItems, customerId, orderNumber, toast]);
+  }, [orderId, editedItems, customerId, orderNumber, customerEmail, toast]);
 
   // Actual save function (called directly or after payment adjustment)
   const saveOrderChanges = useCallback(async (itemsToSave: any[], newSubtotal: number, newTotal: number, newPaymentStatus?: string) => {
@@ -885,6 +872,7 @@ export const ItemsTab = ({
           onPaymentComplete={handlePaymentAdjustmentComplete}
         />
       )}
+
     </div>
   );
 };
@@ -897,44 +885,333 @@ interface AddProductDialogProps {
   cartItemsCount: number;
 }
 
+interface ProductSize {
+  id: string;
+  size_value: string;
+  size_unit: string;
+  price: number;
+  originalPrice?: number;
+  stock: number;
+  sku?: string;
+  quantity_per_case?: number;
+  image?: string;
+}
+
+interface SelectedProduct {
+  id: string;
+  name: string;
+  description?: string;
+  image_url?: string;
+  images?: string[];
+  sizes: ProductSize[];
+  category?: string;
+  subcategory?: string;
+}
+
 const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }: AddProductDialogProps) => {
+  const [selectedProduct, setSelectedProduct] = useState<SelectedProduct | null>(null);
+  const [sizeQuantities, setSizeQuantities] = useState<Record<string, number>>({});
+  const { addToCart } = useCart();
+  const { toast } = useToast();
+
+  const handleProductClick = (product: any) => {
+    setSelectedProduct(product);
+    // Initialize quantities to 0 for all sizes
+    const initialQuantities: Record<string, number> = {};
+    product.sizes?.forEach((size: ProductSize) => {
+      initialQuantities[size.id] = 0;
+    });
+    setSizeQuantities(initialQuantities);
+  };
+
+  const handleBackToProducts = () => {
+    setSelectedProduct(null);
+    setSizeQuantities({});
+  };
+
+  const handleQuantityChange = (sizeId: string, quantity: number) => {
+    setSizeQuantities(prev => ({
+      ...prev,
+      [sizeId]: Math.max(0, quantity)
+    }));
+  };
+
+  const handleAddSelectedSizes = async () => {
+    if (!selectedProduct) return;
+
+    const sizesToAdd = selectedProduct.sizes.filter(
+      size => sizeQuantities[size.id] > 0
+    );
+
+    if (sizesToAdd.length === 0) {
+      toast({
+        title: "No sizes selected",
+        description: "Please select at least one size with quantity",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Add each selected size to cart
+    for (const size of sizesToAdd) {
+      const quantity = sizeQuantities[size.id];
+      await addToCart({
+        productId: selectedProduct.id,
+        name: selectedProduct.name,
+        description: selectedProduct.description || "",
+        price: size.price,
+        image: getProductImage(),
+        quantity: quantity,
+        sizes: [{
+          id: size.id,
+          size_value: size.size_value,
+          size_unit: size.size_unit,
+          price: size.price,
+          quantity: quantity,
+          type: "case",
+          sku: size.sku || "",
+        }],
+        customizations: {},
+        notes: "",
+        shipping_cost: 0,
+      });
+    }
+
+    toast({
+      title: "Added to cart",
+      description: `${sizesToAdd.length} size(s) added to cart`,
+    });
+
+    handleBackToProducts();
+  };
+
+  const getProductImage = () => {
+    if (!selectedProduct) return "/placeholder.svg";
+    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/";
+    if (selectedProduct.images && selectedProduct.images.length > 0) {
+      if (selectedProduct.images[0].startsWith("http")) return selectedProduct.images[0];
+      return basePath + selectedProduct.images[0];
+    }
+    return selectedProduct.image_url || "/placeholder.svg";
+  };
+
+  const totalSelectedItems = Object.values(sizeQuantities).reduce((sum, qty) => sum + qty, 0);
+  const totalSelectedAmount = selectedProduct?.sizes.reduce((sum, size) => {
+    return sum + (size.price * (sizeQuantities[size.id] || 0));
+  }, 0) || 0;
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(isOpen) => {
+      if (!isOpen) {
+        setSelectedProduct(null);
+        setSizeQuantities({});
+      }
+      onOpenChange(isOpen);
+    }}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Search className="w-5 h-5" />
-            Add Products to Order
+            {selectedProduct ? (
+              <>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={handleBackToProducts}
+                  className="mr-2 h-8 px-2"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Back
+                </Button>
+                <Package className="w-5 h-5" />
+                {selectedProduct.name}
+              </>
+            ) : (
+              <>
+                <Search className="w-5 h-5" />
+                Add Products to Order
+              </>
+            )}
           </DialogTitle>
         </DialogHeader>
         
         <ScrollArea className="h-[60vh] pr-4">
-          <ProductShowcase groupShow={true} isEditing={false} />
+          {selectedProduct ? (
+            // Product Detail View with Sizes
+            <div className="space-y-4">
+              {/* Product Header */}
+              <div className="flex gap-4 p-4 bg-gray-50 rounded-lg">
+                <img 
+                  src={getProductImage()} 
+                  alt={selectedProduct.name}
+                  className="w-24 h-24 object-contain rounded-lg bg-white p-2"
+                />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg">{selectedProduct.name}</h3>
+                  {selectedProduct.description && (
+                    <p className="text-sm text-gray-600 mt-1">{selectedProduct.description}</p>
+                  )}
+                  <div className="flex gap-2 mt-2">
+                    {selectedProduct.category && (
+                      <Badge variant="outline">{selectedProduct.category}</Badge>
+                    )}
+                    {selectedProduct.subcategory && (
+                      <Badge variant="secondary">{selectedProduct.subcategory}</Badge>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Sizes Table */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="grid grid-cols-6 gap-4 px-4 py-3 bg-gray-100 text-xs font-semibold text-gray-600 uppercase">
+                  <div>Size</div>
+                  <div>SKU</div>
+                  <div>Price/Case</div>
+                  <div>Stock</div>
+                  <div>Quantity</div>
+                  <div className="text-right">Total</div>
+                </div>
+                
+                {selectedProduct.sizes && selectedProduct.sizes.length > 0 ? (
+                  selectedProduct.sizes.map((size) => (
+                    <div 
+                      key={size.id} 
+                      className="grid grid-cols-6 gap-4 px-4 py-3 border-t items-center hover:bg-gray-50"
+                    >
+                      <div className="font-medium">
+                        {size.size_value} {size.size_unit}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {size.sku || '-'}
+                      </div>
+                      <div>
+                        <span className="font-semibold text-emerald-600">${size.price.toFixed(2)}</span>
+                        {size.originalPrice && size.originalPrice > size.price && (
+                          <span className="text-xs text-gray-400 line-through ml-1">
+                            ${size.originalPrice.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <div>
+                        <Badge 
+                          variant={size.stock > 0 ? "secondary" : "destructive"}
+                          className={size.stock > 0 ? "bg-emerald-100 text-emerald-700" : ""}
+                        >
+                          {size.stock > 0 ? `${size.stock} in stock` : 'Out of stock'}
+                        </Badge>
+                      </div>
+                      <div>
+                        {size.stock > 0 ? (
+                          <div className="flex items-center gap-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleQuantityChange(size.id, (sizeQuantities[size.id] || 0) - 1)}
+                              disabled={!sizeQuantities[size.id]}
+                            >
+                              -
+                            </Button>
+                            <Input
+                              type="number"
+                              value={sizeQuantities[size.id] || 0}
+                              onChange={(e) => handleQuantityChange(size.id, parseInt(e.target.value) || 0)}
+                              className="w-16 h-8 text-center"
+                              min={0}
+                            />
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleQuantityChange(size.id, (sizeQuantities[size.id] || 0) + 1)}
+                            >
+                              +
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 text-sm">N/A</span>
+                        )}
+                      </div>
+                      <div className="text-right font-semibold">
+                        ${((sizeQuantities[size.id] || 0) * size.price).toFixed(2)}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="p-8 text-center text-gray-500">
+                    No sizes available for this product
+                  </div>
+                )}
+              </div>
+
+              {/* Selection Summary */}
+              {totalSelectedItems > 0 && (
+                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="font-medium text-emerald-800">
+                        {totalSelectedItems} case{totalSelectedItems !== 1 ? 's' : ''} selected
+                      </span>
+                    </div>
+                    <div className="text-lg font-bold text-emerald-700">
+                      Total: ${totalSelectedAmount.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            // Product Grid View
+            <ProductShowcase 
+              groupShow={true} 
+              isEditing={false} 
+              onProductClick={handleProductClick}
+            />
+          )}
         </ScrollArea>
 
         <DialogFooter className="border-t pt-4">
           <div className="flex items-center justify-between w-full">
             <div className="text-sm text-gray-600">
-              {cartItemsCount > 0 ? (
+              {selectedProduct ? (
+                totalSelectedItems > 0 ? (
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                    {totalSelectedItems} case{totalSelectedItems !== 1 ? 's' : ''} • ${totalSelectedAmount.toFixed(2)}
+                  </Badge>
+                ) : (
+                  <span>Select sizes and quantities</span>
+                )
+              ) : cartItemsCount > 0 ? (
                 <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
-                  {cartItemsCount} product{cartItemsCount !== 1 ? 's' : ''} selected
+                  {cartItemsCount} product{cartItemsCount !== 1 ? 's' : ''} in cart
                 </Badge>
               ) : (
-                <span>Select products to add</span>
+                <span>Click on a product to view sizes</span>
               )}
             </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => onOpenChange(false)}>
                 Cancel
               </Button>
-              <Button 
-                onClick={onAddProducts}
-                disabled={cartItemsCount === 0}
-                className="bg-emerald-600 hover:bg-emerald-700"
-              >
-                <Plus className="w-4 h-4 mr-2" />
-                Add {cartItemsCount > 0 ? `${cartItemsCount} Product${cartItemsCount !== 1 ? 's' : ''}` : 'Products'}
-              </Button>
+              {selectedProduct ? (
+                <Button 
+                  onClick={handleAddSelectedSizes}
+                  disabled={totalSelectedItems === 0}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add to Cart
+                </Button>
+              ) : (
+                <Button 
+                  onClick={onAddProducts}
+                  disabled={cartItemsCount === 0}
+                  className="bg-emerald-600 hover:bg-emerald-700"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Add {cartItemsCount > 0 ? `${cartItemsCount} Product${cartItemsCount !== 1 ? 's' : ''}` : 'Products'}
+                </Button>
+              )}
             </div>
           </div>
         </DialogFooter>

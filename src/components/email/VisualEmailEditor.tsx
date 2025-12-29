@@ -219,7 +219,7 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
   // Responsive CSS for mobile devices
   const responsiveStyles = `
     <style type="text/css">
-      @media only screen and (max-width: 600px) {
+      @media only screen and (max-width: 480px) {
         .email-row td.email-column {
           display: block !important;
           width: 100% !important;
@@ -964,75 +964,63 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
   };
 
   const convertToBlocks = () => {
-    // Enhanced HTML to blocks conversion
-    const htmlContent = initialHtml || '';
+    // Enhanced HTML to blocks conversion with multi-column support
+    const htmlToConvert = editingExistingHtml ? (initialHtml || htmlContent || '') : (htmlContent || initialHtml || '');
+    
+    console.log('🔄 Converting HTML to blocks...');
+    
     const newRows: EmailRow[] = [];
     
-    if (htmlContent.trim()) {
-      // Try to parse and extract meaningful content
+    if (htmlToConvert.trim()) {
       const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, 'text/html');
+      const doc = parser.parseFromString(htmlToConvert, 'text/html');
       
       let blockIndex = 0;
       let customFooterData: any = {};
+      const baseTimestamp = Date.now();
       
-      // 1. Find and extract Footer to prevent duplication (since we always add a fresh one)
-      // We look for the footer container by its signature content or style
-      const totalTextLength = doc.body.textContent?.length || 0;
+      // Helper to generate unique IDs
+      const getUniqueId = () => {
+        const id = `${baseTimestamp}-${blockIndex}-${Math.random().toString(36).substr(2, 5)}`;
+        blockIndex++;
+        return id;
+      };
+
+      // 1. Find and remove footer to prevent duplication
+      const allDivs = Array.from(doc.querySelectorAll('div'));
+      let footerElement: Element | null = null;
       
-      let footerCandidates = Array.from(doc.querySelectorAll('div')).filter(el => {
-        const text = el.textContent || '';
+      for (const el of allDivs) {
         const style = el.getAttribute('style') || '';
+        const text = el.textContent || '';
         
-        // Safety check: The footer should not contain the main content variables
-        if (text.includes('{{first_name}}') || text.includes('{{order_number}}')) return false;
+        const hasFooterBgColor = style.includes('background:#1f2937') || 
+                                  style.includes('background: #1f2937') ||
+                                  style.includes('background-color:#1f2937');
         
-        // Safety check: Exclude oversized containers, but be less strict if we have strong footer signals
-        const hasCopyright = text.toLowerCase().includes('all rights reserved');
-        const hasContactInfo = (text.includes('Phone:') && text.includes('Email:')) || 
-                               (text.includes('9RX LLC') && text.includes('Charlotte, NC'));
-                               
-        // If it looks exactly like a footer, ignore the size check
-        if (!hasCopyright && !hasContactInfo) {
-           if (totalTextLength > 300 && text.length > totalTextLength * 0.8) return false;
+        const hasFooterContent = text.includes('9RX LLC') || 
+                                  text.includes('Phone:') || 
+                                  text.toLowerCase().includes('all rights reserved');
+        
+        const hasMainContent = text.includes('{{first_name}}') || 
+                               text.includes('{{order_number}}') || 
+                               text.includes('{{cart_items}}');
+        
+        if (hasFooterBgColor && hasFooterContent && !hasMainContent) {
+          if (!footerElement || el.contains(footerElement)) {
+            footerElement = el;
+          }
         }
-
-        const hasFooterStyle = style.includes('padding:40px 30px 30px') || 
-                               style.includes('padding: 40px 30px 30px');
-        
-        // Strong signal: Has copyright text
-        if (hasCopyright) return true;
-        
-        // Strong signal: Has contact info (Company + Address/Phone/Email)
-        if (hasContactInfo) return true;
-        
-        // Medium signal: Has specific footer style AND at least some contact info
-        const partialContact = text.includes('Phone:') || text.includes('Email:') || text.includes('Website:');
-        if (hasFooterStyle && partialContact) return true;
-        
-        return false;
-      });
-
-      // Filter out nested candidates (keep only the outermost ones)
-      // If candidate A contains candidate B, we only want to keep A (the parent)
-      footerCandidates = footerCandidates.filter(candidate => {
-        return !footerCandidates.some(other => other !== candidate && other.contains(candidate));
-      });
-
-      // Pick the primary footer element (usually the last one in the DOM)
-      const footerElement = footerCandidates.length > 0 ? footerCandidates[footerCandidates.length - 1] : null;
+      }
       
       if (footerElement) {
-        console.log('🗑️ Footer found in HTML, extracting data and removing to prevent duplication');
-        
-        // Extract data to preserve customizations
+        // Extract footer data
         const h3 = footerElement.querySelector('h3');
         const pTags = footerElement.querySelectorAll('p');
         
         if (h3) customFooterData.companyName = h3.textContent?.trim();
         if (pTags.length > 0) customFooterData.address = pTags[0].textContent?.trim();
         
-        // Try to extract contact info (Phone, Email, Website)
         pTags.forEach(p => {
           const text = p.textContent || '';
           if (text.includes('Phone:')) customFooterData.phone = text.replace('Phone:', '').trim();
@@ -1040,19 +1028,17 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           if (text.includes('Website:')) customFooterData.website = text.replace('Website:', '').trim();
         });
         
-        // Remove ALL identified footer candidates to ensure clean state
-        // (In case there are multiple footer-like sections or split containers)
-        footerCandidates.forEach(el => el.remove());
+        footerElement.remove();
       }
 
-      // Helper to find background color up the tree
+      // Helper functions
       const findBackgroundColor = (el: Element | null): string | null => {
         let current = el;
         let steps = 0;
-        while (current && steps < 4) { // Look up to 4 parents
+        while (current && steps < 4) {
           const style = current.getAttribute('style') || '';
           const bgMatch = style.match(/background(?:-color)?:\s*([^;]+)/i);
-          if (bgMatch && bgMatch[1] && !bgMatch[1].includes('transparent') && !bgMatch[1].includes('rgba(0, 0, 0, 0)')) {
+          if (bgMatch && bgMatch[1] && !bgMatch[1].includes('transparent')) {
             return bgMatch[1].trim();
           }
           current = current.parentElement;
@@ -1061,221 +1047,262 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
         return null;
       };
 
-      // Helper to find text color
       const findTextColor = (el: Element | null): string | null => {
-         const style = el?.getAttribute('style') || '';
-         const colorMatch = style.match(/color:\s*([^;]+)/i);
-         return colorMatch ? colorMatch[1].trim() : null;
+        const style = el?.getAttribute('style') || '';
+        const colorMatch = style.match(/(?:^|;)\s*color:\s*([^;]+)/i);
+        return colorMatch ? colorMatch[1].trim() : null;
       };
 
-      // Helper to add block as a row
-      const addBlockAsRow = (block: EmailBlock) => {
-        newRows.push({
-          id: `row-${Date.now()}-${blockIndex}`,
-          columns: [{
-            id: `col-${Date.now()}-${blockIndex}`,
-            width: 100,
-            block: block
-          }]
-        });
-        blockIndex++;
-      };
-
-      // Recursive function to process nodes in order
-      const processNode = (node: Node) => {
-        if (node.nodeType !== Node.ELEMENT_NODE) return;
-        const el = node as Element;
-        
-        // Skip script and style tags
-        if (['SCRIPT', 'STYLE', 'META', 'HEAD', 'TITLE'].includes(el.tagName)) return;
-
-        // 1. Check for Coupon (Heuristic)
+      // Parse a single element and return a block
+      const parseElementToBlock = (el: Element): EmailBlock | null => {
         const style = el.getAttribute('style') || '';
         const text = el.textContent || '';
-        const isCouponCandidate = (style.includes('border') && style.includes('dashed')) || 
-                                  (text.includes('% OFF') || text.includes('Code:'));
         
-        // Only treat as coupon if it seems to be a container for it
-        if (isCouponCandidate && el.tagName === 'DIV' && text.length < 200) {
-           const discount = text.match(/(\d+%?\s*OFF)/i)?.[1] || 'Special Offer';
-           const code = text.match(/Code:\s*([A-Z0-9]+)/i)?.[1] || 'SAVE';
-           
-           addBlockAsRow({
-              id: `block-${Date.now()}-${blockIndex}`,
-              type: 'coupon',
-              content: {
-                 ...blockDefaults.coupon,
-                 discount: discount,
-                 code: code,
-                 description: text.replace(discount, '').replace(code, '').replace('Code:', '').trim().substring(0, 50),
-                 bgColor: findBackgroundColor(el) || '#fef3c7'
-              }
-           });
-           return; // Don't process children of coupon
+        // Skip footer-like elements
+        if ((style.includes('background:#1f2937') || style.includes('background: #1f2937')) && 
+            (text.includes('9RX LLC') || text.includes('Phone:'))) {
+          return null;
         }
 
-        // 2. Check for Header
-        if (isHeaderElement(el)) {
-           addBlockAsRow({
-              id: `block-${Date.now()}-${blockIndex}`,
-              type: 'header',
-              content: {
-                 ...blockDefaults.header,
-                 text: el.textContent?.trim() || 'Header',
-                 bgColor: findBackgroundColor(el) || 'transparent', // No default green
-                 textColor: findTextColor(el) || '#000000'
-              }
-           });
-           return;
+        // Check for Header - look for div with h1/h2 inside or h1-h6 directly
+        const headerEl = el.querySelector('h1, h2, h3, h4, h5, h6');
+        if (headerEl || el.tagName.match(/^H[1-6]$/)) {
+          const actualHeader = headerEl || el;
+          // Get background from parent div (the container)
+          const bgColor = findBackgroundColor(el) || '#10b981';
+          const textColor = findTextColor(actualHeader) || '#ffffff';
+          
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'header',
+            content: {
+              ...blockDefaults.header,
+              text: actualHeader.textContent?.trim() || 'Header',
+              bgColor: bgColor,
+              textColor: textColor
+            }
+          };
         }
 
-        // 3. Check for Button
-        if (el.tagName === 'A' && (style.includes('background') || el.classList.contains('button') || style.includes('padding'))) {
-            addBlockAsRow({
-              id: `block-${Date.now()}-${blockIndex}`,
-              type: 'button',
-              content: {
-                 ...blockDefaults.button,
-                 text: el.textContent?.trim() || 'Button',
-                 url: el.getAttribute('href') || '#',
-                 bgColor: findBackgroundColor(el) || '#10b981',
-                 textColor: findTextColor(el) || '#ffffff'
-              }
-           });
-           return;
-        }
-
-        // Check for Divider
-        if (el.tagName === 'HR') {
-           addBlockAsRow({
-              id: `block-${Date.now()}-${blockIndex}`,
-              type: 'divider',
-              content: { ...blockDefaults.divider }
-           });
-           return;
+        // Check for Button (A tag with background)
+        const buttonEl = el.tagName === 'A' ? el : el.querySelector('a.email-button, a[style*="background"]');
+        if (buttonEl && (buttonEl.getAttribute('style')?.includes('background') || buttonEl.classList.contains('email-button'))) {
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'button',
+            content: {
+              ...blockDefaults.button,
+              text: buttonEl.textContent?.trim() || 'Button',
+              url: buttonEl.getAttribute('href') || '#',
+              bgColor: findBackgroundColor(buttonEl) || '#10b981',
+              textColor: findTextColor(buttonEl) || '#ffffff'
+            }
+          };
         }
 
         // Check for Image
-        if (el.tagName === 'IMG') {
-           const src = el.getAttribute('src') || '';
-           if (src) {
-             addBlockAsRow({
-                id: `block-${Date.now()}-${blockIndex}`,
-                type: 'image',
-                content: {
-                   ...blockDefaults.image,
-                   url: src,
-                   alt: el.getAttribute('alt') || 'Image',
-                   width: el.getAttribute('width') || '100',
-                   // Try to detect alignment from parent
-                   align: el.parentElement?.style.textAlign || 'center'
-                }
-             });
-           }
-           return;
+        const imgEl = el.tagName === 'IMG' ? el : el.querySelector('img');
+        if (imgEl && imgEl.getAttribute('src')) {
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'image',
+            content: {
+              ...blockDefaults.image,
+              url: imgEl.getAttribute('src') || '',
+              alt: imgEl.getAttribute('alt') || 'Image',
+              width: imgEl.getAttribute('width') || '100'
+            }
+          };
         }
 
-        // 4. Check for Text (P or DIV/SPAN with only text)
-        const hasBlockChildren = el.querySelector('div, table, h1, h2, h3, h4, h5, h6, a, p, img, ul, ol, li, blockquote');
-        const isTextNode = (el.tagName === 'P' || el.tagName === 'SPAN' || (el.tagName === 'DIV' && !hasBlockChildren));
-        
-        if (isTextNode) {
-           // Improved text extraction:
-           // 1. Preserve <br> as newlines
-           // 2. Preserve non-breaking spaces (&nbsp;)
-           // 3. Collapse source code whitespace (newlines/indentation) to single space UNLESS pre-wrap is set
-           
-           const clone = el.cloneNode(true) as Element;
-           const uniqueNewline = '%%%NEWLINE%%%';
-           clone.querySelectorAll('br').forEach(br => br.replaceWith(uniqueNewline));
-           
-           let text = clone.textContent || '';
-           
-           const style = el.getAttribute('style') || '';
-           const preservesWhitespace = style.includes('white-space:pre') || style.includes('white-space: pre');
-
-           if (!preservesWhitespace) {
-              // Collapse standard whitespace chars (space, tab, cr, lf) into single space
-              text = text.replace(/[\r\n\t ]+/g, ' ');
-           } else {
-              // If pre-wrap, we still want to remove source code indentation/newlines if they are just formatting
-              // But we want to keep significant spaces. 
-              // Since generateHtml doesn't add source indentation, we can trust textContent mostly.
-              // But let's at least normalize non-breaking spaces if needed.
-              // Actually, if it's pre-wrap, we should just trust it, but we might want to handle the <br> placeholder.
-           }
-           
-           // Restore explicit line breaks from <br>
-           text = text.split(uniqueNewline).join('\n');
-           
-           const textContent = text; // Don't trim if pre-wrap? Maybe trim end is ok. Let's keep it safe.
-
-           if (textContent && textContent.trim().length > 0) {
-              addBlockAsRow({
-                 id: `block-${Date.now()}-${blockIndex}`,
-                 type: 'text',
-                 content: {
-                    ...blockDefaults.text,
-                    text: textContent, // Keep original spaces
-                    color: findTextColor(el) || '#374151'
-                 }
-              });
-           }
-           return;
+        // Check for Divider
+        if (el.tagName === 'HR' || el.querySelector('hr')) {
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'divider',
+            content: { ...blockDefaults.divider }
+          };
         }
 
-        // 5. Recurse for containers (div, table, etc.)
-        Array.from(el.children).forEach(child => processNode(child));
+        // Check for Coupon
+        if ((style.includes('border') && style.includes('dashed')) || 
+            (text.includes('% OFF') || text.includes('Code:'))) {
+          const discount = text.match(/(\d+%?\s*OFF)/i)?.[1] || 'Special Offer';
+          const code = text.match(/Code:\s*([A-Z0-9]+)/i)?.[1] || 'SAVE';
+          return {
+            id: `block-${getUniqueId()}`,
+            type: 'coupon',
+            content: {
+              ...blockDefaults.coupon,
+              discount: discount,
+              code: code,
+              bgColor: findBackgroundColor(el) || '#fef3c7'
+            }
+          };
+        }
+
+        // Check for Text (P tag or div with text content)
+        const pEl = el.tagName === 'P' ? el : el.querySelector('p');
+        if (pEl || (el.tagName === 'DIV' && !el.querySelector('table, div, a[style*="background"]'))) {
+          const textEl = pEl || el;
+          const textContent = textEl.textContent?.trim() || '';
+          if (textContent && textContent.length > 0) {
+            return {
+              id: `block-${getUniqueId()}`,
+              type: 'text',
+              content: {
+                ...blockDefaults.text,
+                text: textContent,
+                color: findTextColor(textEl) || '#374151'
+              }
+            };
+          }
+        }
+
+        return null;
       };
 
-      // Start processing from body
-      Array.from(doc.body.children).forEach(child => processNode(child));
+      // Find all tables that look like email rows (have TR > TD structure)
+      // First try with class, then fallback to all tables
+      let emailRowTables = Array.from(doc.querySelectorAll('table.email-row'));
       
-      // Always add a footer
+      // If no tables with class found, find all tables that have the email row structure
+      if (emailRowTables.length === 0) {
+        emailRowTables = Array.from(doc.querySelectorAll('table')).filter(table => {
+          // Check if this table has TD cells (it's a content table, not a wrapper)
+          const hasCells = table.querySelector('td');
+          // Skip tables that are inside other tables (nested)
+          const isNested = table.parentElement?.closest('table') !== null;
+          return hasCells && !isNested;
+        });
+      }
+      
+      console.log('📊 Found email row tables:', emailRowTables.length);
+      
+      if (emailRowTables.length > 0) {
+        // Process each table as a row
+        emailRowTables.forEach((table, tableIdx) => {
+          const cells = Array.from(table.querySelectorAll(':scope > tbody > tr > td, :scope > tr > td'));
+          console.log(`  Table ${tableIdx}: ${cells.length} cells`);
+          
+          const columns: any[] = [];
+          
+          cells.forEach((cell, cellIdx) => {
+            const widthAttr = cell.getAttribute('width');
+            const styleWidth = cell.getAttribute('style')?.match(/width:\s*(\d+)/)?.[1];
+            const width = widthAttr ? parseInt(widthAttr) : (styleWidth ? parseInt(styleWidth) : Math.floor(100 / cells.length));
+            
+            // Find the content div inside the cell
+            const contentDiv = cell.querySelector('div') || cell;
+            console.log(`    Cell ${cellIdx}: width=${width}, tag=${contentDiv.tagName}, content preview:`, contentDiv.textContent?.substring(0, 50));
+            
+            const block = parseElementToBlock(contentDiv);
+            console.log(`    Cell ${cellIdx} block:`, block ? `${block.type} - ${block.content?.text?.substring(0, 30) || 'no text'}` : 'null');
+            
+            if (block) {
+              const colId = getUniqueId();
+              columns.push({
+                id: `col-${colId}`,
+                width: width,
+                block: block
+              });
+            }
+          });
+          
+          console.log(`  Table ${tableIdx} columns created:`, columns.length);
+          
+          if (columns.length > 0) {
+            const rowId = getUniqueId();
+            newRows.push({
+              id: `row-${rowId}`,
+              columns: columns
+            });
+          }
+        });
+      } else {
+        // Fallback: Process all elements recursively (for non-standard HTML)
+        console.log('⚠️ No tables found, using fallback recursive processing');
+        const processNode = (node: Node) => {
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+          const el = node as Element;
+          
+          if (['SCRIPT', 'STYLE', 'META', 'HEAD', 'TITLE'].includes(el.tagName)) return;
+          
+          const block = parseElementToBlock(el);
+          if (block) {
+            const rowId = getUniqueId();
+            newRows.push({
+              id: `row-${rowId}`,
+              columns: [{
+                id: `col-${rowId}`,
+                width: 100,
+                block: block
+              }]
+            });
+            return;
+          }
+          
+          // Recurse for containers
+          Array.from(el.children).forEach(child => processNode(child));
+        };
+        
+        Array.from(doc.body.children).forEach(child => processNode(child));
+      }
+      
+      console.log('📦 Blocks created:', newRows.length);
+      
+      // Always add footer at the end
+      const footerUniqueId = getUniqueId();
       newRows.push({
-        id: `row-${Date.now()}-${blockIndex}`,
+        id: `row-${footerUniqueId}`,
         locked: true,
         columns: [{
-          id: `col-${Date.now()}-${blockIndex}`,
+          id: `col-${footerUniqueId}`,
           width: 100,
           block: {
-            id: `block-${Date.now()}-${blockIndex}`,
+            id: `block-${footerUniqueId}`,
             type: 'footer',
             content: { ...blockDefaults.footer, ...customFooterData }
           }
         }]
       });
-      blockIndex++;
       
-      // If no blocks were created (parsing failed), fallback to basic structure
-      if (newRows.length <= 1) { // Only footer or empty
-        const fallbackRows: EmailRow[] = [
+      // Fallback if no blocks created
+      if (newRows.length <= 1) {
+        const textContent = doc.body.textContent?.trim() || '';
+        const fallbackText = textContent.length > 0 
+          ? textContent.substring(0, 500) + (textContent.length > 500 ? '...' : '')
+          : 'Content conversion incomplete. Please check Code view.';
+        
+        const fallbackId1 = getUniqueId();
+        const fallbackId2 = getUniqueId();
+        
+        newRows.unshift(
           {
-            id: `row-${Date.now()}-0`,
+            id: `row-${fallbackId1}`,
             columns: [{
-              id: `col-${Date.now()}-0`,
+              id: `col-${fallbackId1}`,
               width: 100,
               block: {
-                id: `block-${Date.now()}-0`,
+                id: `block-${fallbackId1}`,
                 type: 'header',
                 content: { ...blockDefaults.header, text: 'Edit Your Header' }
               }
             }]
           },
           {
-            id: `row-${Date.now()}-1`,
+            id: `row-${fallbackId2}`,
             columns: [{
-              id: `col-${Date.now()}-1`,
+              id: `col-${fallbackId2}`,
               width: 100,
               block: {
-                id: `block-${Date.now()}-1`,
+                id: `block-${fallbackId2}`,
                 type: 'text',
-                content: { ...blockDefaults.text, text: 'Content conversion incomplete. Please check Code view.' }
+                content: { ...blockDefaults.text, text: fallbackText }
               }
             }]
           }
-        ];
-        newRows.unshift(...fallbackRows);
+        );
       }
     }
     
