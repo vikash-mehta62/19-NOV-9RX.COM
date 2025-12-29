@@ -8,9 +8,41 @@ export const fetchProductsService = async (
   category: string,
   searchQuery: string
 ) => {
+  console.log('=== FETCH PRODUCTS SERVICE ===');
+  console.log('Parameters:', { page, pageSize, category, searchQuery });
+  
   const offset = (page - 1) * pageSize;
 
-  let query = supabase
+  // If no search query, return all products
+  if (!searchQuery) {
+    console.log('No search query - fetching all products');
+    let query = supabase
+      .from("products")
+      .select(
+        `
+        *,
+        sizes:product_sizes(*)
+      `,
+        { count: "exact" }
+      )
+      .order("squanence", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (category !== "all") {
+      query = query.eq("category", category);
+    }
+
+    const result = await query;
+    console.log('All products result:', result);
+    return result;
+  }
+
+  const searchTerm = searchQuery.trim();
+  console.log('Search term:', searchTerm);
+  
+  // First try basic product search (name, description, category)
+  console.log('Trying basic product search...');
+  let basicQuery = supabase
     .from("products")
     .select(
       `
@@ -19,18 +51,147 @@ export const fetchProductsService = async (
     `,
       { count: "exact" }
     )
-    .order("squanence", { ascending: true }) // Sorting by sequence
+    .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,category.ilike.%${searchTerm}%`)
+    .order("squanence", { ascending: true })
     .range(offset, offset + pageSize - 1);
 
   if (category !== "all") {
-    query = query.eq("category", category);
+    basicQuery = basicQuery.eq("category", category);
   }
 
-  if (searchQuery) {
-    query = query.ilike("name", `%${searchQuery}%`);
+  const basicResult = await basicQuery;
+  console.log('Basic search result:', basicResult);
+
+  if (basicResult.data && basicResult.data.length > 0) {
+    console.log('Found products in basic search, returning:', basicResult.data.length);
+    return basicResult;
   }
 
-  return query;
+  // If no basic results, try size-based search
+  console.log('No basic results found, trying size-based search...');
+  const sizeResult = await fetchProductsBySizeSearch(page, pageSize, category, searchQuery);
+  console.log('Size search final result:', sizeResult);
+  return sizeResult;
+};
+
+// Advanced search function for searching in product sizes
+const fetchProductsBySizeSearch = async (
+  page: number,
+  pageSize: number,
+  category: string,
+  searchQuery: string
+) => {
+  const offset = (page - 1) * pageSize;
+  const searchTerm = searchQuery.trim();
+
+  try {
+    console.log('=== SIZE SEARCH DEBUG ===');
+    console.log('Search term:', searchTerm);
+    
+    // First, let's check what sizes exist in the database
+    const { data: sampleSizes, error: sampleError } = await supabase
+      .from("product_sizes")
+      .select("size_value, size_unit, sku")
+      .limit(5);
+    
+    console.log('Sample sizes in database:', sampleSizes);
+    
+    // Try different search approaches
+    console.log('Trying size_value search...');
+    const { data: sizeValueMatch } = await supabase
+      .from("product_sizes")
+      .select("product_id, size_value, size_unit, sku")
+      .ilike("size_value", `%${searchTerm}%`);
+    console.log('Size value matches:', sizeValueMatch);
+    
+    console.log('Trying size_unit search...');
+    const { data: sizeUnitMatch } = await supabase
+      .from("product_sizes")
+      .select("product_id, size_value, size_unit, sku")
+      .ilike("size_unit", `%${searchTerm}%`);
+    console.log('Size unit matches:', sizeUnitMatch);
+    
+    console.log('Trying combined search...');
+    // Search in product_sizes table for matching sizes
+    const { data: matchingSizes, error: sizeError } = await supabase
+      .from("product_sizes")
+      .select("product_id, size_value, size_unit, sku, price, stock")
+      .or(`size_value.ilike.%${searchTerm}%,size_unit.ilike.%${searchTerm}%,sku.ilike.%${searchTerm}%`);
+
+    console.log('Combined search result:', matchingSizes);
+    console.log('Search error:', sizeError);
+
+    if (sizeError) {
+      console.error("Size search error:", sizeError);
+      return { data: [], error: null, count: 0 };
+    }
+
+    if (!matchingSizes || matchingSizes.length === 0) {
+      console.log('No matching sizes found - trying alternative search');
+      
+      // Try a more flexible search
+      const { data: flexibleMatch } = await supabase
+        .from("product_sizes")
+        .select("product_id, size_value, size_unit, sku")
+        .or(`size_value::text.ilike.%${searchTerm}%,size_unit::text.ilike.%${searchTerm}%`);
+      
+      console.log('Flexible search result:', flexibleMatch);
+      
+      if (!flexibleMatch || flexibleMatch.length === 0) {
+        return { data: [], error: null, count: 0 };
+      }
+    }
+
+    // Use the matching sizes we found
+    const sizesToUse = matchingSizes && matchingSizes.length > 0 ? matchingSizes : [];
+    
+    if (sizesToUse.length === 0) {
+      return { data: [], error: null, count: 0 };
+    }
+
+    // Extract unique product IDs
+    const productIds = [...new Set(sizesToUse.map(size => size.product_id))];
+    console.log('Product IDs with matching sizes:', productIds);
+
+    if (productIds.length === 0) {
+      return { data: [], error: null, count: 0 };
+    }
+
+    // Now fetch products with those IDs
+    let productsQuery = supabase
+      .from("products")
+      .select(
+        `
+        *,
+        sizes:product_sizes(*)
+      `,
+        { count: "exact" }
+      )
+      .in("id", productIds)
+      .order("squanence", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+
+    if (category !== "all") {
+      productsQuery = productsQuery.eq("category", category);
+    }
+
+    const result = await productsQuery;
+    console.log('Final products result:', result);
+    
+    // Add matching size info to products for highlighting
+    if (result.data) {
+      result.data = result.data.map(product => ({
+        ...product,
+        matchingSizes: sizesToUse.filter(size => size.product_id === product.id)
+      }));
+      console.log('Products with matchingSizes added:', result.data);
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Size search error:", error);
+    return { data: [], error: null, count: 0 };
+  }
 };
 
 export const addProductService = async (data: ProductFormValues) => {

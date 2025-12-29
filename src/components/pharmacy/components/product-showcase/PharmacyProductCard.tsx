@@ -5,25 +5,31 @@ import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Package, Eye, Palette } from "lucide-react"
+import { Package, Eye, Palette, ChevronDown, ChevronUp } from "lucide-react"
 import { ProductDetails } from "../../types/product.types"
 import { ScaleOnTap } from "@/components/ui/MicroInteractions"
+import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator"
+import { getSearchMatches } from "@/utils/searchHighlight"
 
 interface PharmacyProductCardProps {
   product: ProductDetails & {
     displayPrice: number
     displayImage: string
     totalStock: number
+    matchingSizes?: any[]
   }
   onProductClick?: (product: ProductDetails) => void
+  searchQuery?: string
 }
 
 export const PharmacyProductCard = ({ 
   product, 
-  onProductClick
+  onProductClick,
+  searchQuery = ""
 }: PharmacyProductCardProps) => {
   const navigate = useNavigate()
   const [imageLoaded, setImageLoaded] = useState(false)
+  const [showSizes, setShowSizes] = useState(false)
 
   const isOutOfStock = product.totalStock <= 0
   const sizesCount = product.sizes?.length || 0
@@ -34,6 +40,31 @@ export const PharmacyProductCard = ({
   // Calculate units per case from first size
   const unitsPerCase = product.sizes?.[0]?.quantity_per_case || 0
   const unitPrice = unitsPerCase > 0 ? product.displayPrice / unitsPerCase : 0
+
+  // Get search matches for highlighting
+  const searchMatches = getSearchMatches(product, searchQuery)
+
+  // Check if this product was found via size search
+  const hasMatchingSizes = product.matchingSizes && product.matchingSizes.length > 0
+  
+  // Auto-expand sizes if found via size search
+  useState(() => {
+    if (hasMatchingSizes && searchQuery) {
+      setShowSizes(true)
+    }
+  })
+
+  // Function to check if a size matches the search query
+  const isSizeMatching = (size: any) => {
+    if (!searchQuery || !hasMatchingSizes) return false
+    const query = searchQuery.toLowerCase().trim()
+    return (
+      size.size_value?.toLowerCase().includes(query) ||
+      size.size_unit?.toLowerCase().includes(query) ||
+      size.sku?.toLowerCase().includes(query) ||
+      `${size.size_value}${size.size_unit}`.toLowerCase().includes(query)
+    )
+  }
 
   const getImageUrl = () => {
     const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
@@ -119,6 +150,15 @@ export const PharmacyProductCard = ({
           {product.name}
         </h3>
 
+        {/* Search Match Indicator */}
+        {searchQuery && searchMatches.length > 0 && (
+          <SearchMatchIndicator 
+            matches={searchMatches} 
+            searchQuery={searchQuery}
+            className="mb-1"
+          />
+        )}
+
         {/* Starting Price - Large & Bold */}
         <div className="pt-0.5 sm:pt-1">
           <span className="text-[10px] sm:text-xs text-gray-500">Starting at</span>
@@ -147,6 +187,77 @@ export const PharmacyProductCard = ({
             {isOutOfStock ? 'Out of Stock' : 'In Stock'}
           </span>
         </div>
+
+        {/* Size Toggle Button - Show if has sizes and search query */}
+        {sizesCount > 0 && (hasMatchingSizes || searchQuery) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full h-8 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 mt-1"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowSizes(!showSizes)
+            }}
+          >
+            {showSizes ? (
+              <>
+                <ChevronUp className="w-3 h-3 mr-1" />
+                Hide Sizes
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-3 h-3 mr-1" />
+                Show {sizesCount} Sizes
+              </>
+            )}
+          </Button>
+        )}
+
+        {/* Expanded Sizes Section */}
+        {showSizes && product.sizes && product.sizes.length > 0 && (
+          <div className="mt-2 p-2 bg-gray-50 rounded-lg border">
+            <div className="text-xs font-medium text-gray-700 mb-2">Available Sizes:</div>
+            <div className="space-y-1.5 max-h-32 overflow-y-auto">
+              {product.sizes.map((size, index) => {
+                const isMatching = isSizeMatching(size)
+                return (
+                  <div 
+                    key={index} 
+                    className={`flex items-center justify-between p-2 rounded text-xs ${
+                      isMatching 
+                        ? 'bg-emerald-100 border border-emerald-200' 
+                        : 'bg-white border border-gray-200'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className={`font-medium ${isMatching ? 'text-emerald-800' : 'text-gray-900'}`}>
+                        {size.size_value} {size.size_unit}
+                      </span>
+                      {isMatching && (
+                        <Badge variant="secondary" className="bg-emerald-200 text-emerald-800 text-xs px-1 py-0">
+                          Match
+                        </Badge>
+                      )}
+                      {size.sku && (
+                        <span className="text-gray-500 text-xs">SKU: {size.sku}</span>
+                      )}
+                    </div>
+                    <div className="text-right">
+                      <div className={`font-semibold ${isMatching ? 'text-emerald-800' : 'text-gray-900'}`}>
+                        ${(size.price || 0).toFixed(2)}
+                      </div>
+                      {size.stock !== undefined && (
+                        <div className="text-xs text-gray-500">
+                          Stock: {size.stock}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* View Sizes Button */}
         {!isOutOfStock && (

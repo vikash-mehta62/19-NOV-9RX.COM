@@ -26,6 +26,9 @@ import {
 import { ProductCardSkeleton } from "@/components/ui/LoadingState";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
+import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
+import { getSearchMatches } from "@/utils/searchHighlight";
+import { SizeMatchBanner } from "@/components/search/SizeMatchBanner";
 
 interface Product {
   id: string;
@@ -43,11 +46,15 @@ interface ProductCardProps {
   product: Product;
   viewMode: "grid" | "list";
   onClick: () => void;
+  searchQuery?: string;
 }
 
-const ProductCard = ({ product, viewMode, onClick }: ProductCardProps) => {
+const ProductCard = ({ product, viewMode, onClick, searchQuery = "" }: ProductCardProps) => {
   const [imageUrl, setImageUrl] = useState<string>("/placeholder.svg");
   const [isImageLoaded, setIsImageLoaded] = useState(false);
+
+  // Get search matches for highlighting
+  const searchMatches = getSearchMatches(product, searchQuery);
   const [isInView, setIsInView] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +144,16 @@ const ProductCard = ({ product, viewMode, onClick }: ProductCardProps) => {
                 </Badge>
               )}
               <h3 className="text-lg font-semibold text-gray-900 group-hover:text-emerald-600 mb-2 line-clamp-2">{product.name}</h3>
+              
+              {/* Search Match Indicator */}
+              {searchQuery && searchMatches.length > 0 && (
+                <SearchMatchIndicator 
+                  matches={searchMatches} 
+                  searchQuery={searchQuery}
+                  className="mb-2"
+                />
+              )}
+              
               <p className="text-gray-600 text-sm line-clamp-2 mb-4">{product.description || "Premium pharmacy supply"}</p>
             </div>
             <div className="flex items-center justify-between flex-wrap gap-3">
@@ -215,6 +232,16 @@ const ProductCard = ({ product, viewMode, onClick }: ProductCardProps) => {
       </div>
       <div className="p-5">
         <h3 className="font-semibold text-gray-900 group-hover:text-emerald-600 line-clamp-2 mb-3 min-h-[48px]">{product.name}</h3>
+        
+        {/* Search Match Indicator */}
+        {searchQuery && searchMatches.length > 0 && (
+          <SearchMatchIndicator 
+            matches={searchMatches} 
+            searchQuery={searchQuery}
+            className="mb-3"
+          />
+        )}
+        
         {product.sizes?.length > 0 && (
           <div className="flex items-center justify-between text-sm mb-3 pb-3 border-b border-gray-100">
             <span className="text-gray-600">Available sizes</span>
@@ -330,12 +357,13 @@ const Products = () => {
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" aria-hidden="true" />
                 <Input 
-                  placeholder="Search products..." 
+                  placeholder="Search products, sizes, SKU, NDC codes..." 
                   value={searchQuery} 
                   onChange={(e) => setSearchQuery(e.target.value)} 
                   className="pl-12 h-12 rounded-xl border-gray-200 bg-gray-50 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-0"
                   aria-label="Search products"
                   role="searchbox"
+                  title="Search in: Product name, description, category, SKU, size values, NDC/UPC codes"
                 />
                 {searchQuery && (
                   <button 
@@ -536,6 +564,14 @@ const Products = () => {
             </div>
           )}
 
+          {/* Size Match Banner */}
+          {!loading && !error && searchQuery && filteredProducts.length > 0 && (
+            <SizeMatchBanner 
+              searchQuery={searchQuery}
+              matchingCount={filteredProducts.filter(p => p.matchingSizes && p.matchingSizes.length > 0).length}
+            />
+          )}
+
           {/* Products Grid */}
           {!loading && !error && filteredProducts.length > 0 && (
             <div 
@@ -550,6 +586,7 @@ const Products = () => {
                   product={product} 
                   viewMode={viewMode} 
                   onClick={() => navigate(`/product/${product.id}`)} 
+                  searchQuery={searchQuery}
                 />
               ))}
             </div>

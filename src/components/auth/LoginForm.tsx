@@ -151,6 +151,17 @@ export const LoginForm = () => {
         description: `Successfully logged in as ${profileData.type}.`,
       });
 
+      // Check for returnUrl parameter
+      const urlParams = new URLSearchParams(location.search);
+      const returnUrl = urlParams.get('returnUrl');
+      
+      if (returnUrl) {
+        // Decode and navigate to the return URL
+        const decodedReturnUrl = decodeURIComponent(returnUrl);
+        navigate(decodedReturnUrl, { replace: true });
+        return;
+      }
+
       // Navigate to appropriate dashboard
       const dashboardRoutes: Record<string, string> = {
         admin: "/admin/dashboard",

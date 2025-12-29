@@ -16,6 +16,7 @@ import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFil
 import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid"
 import { InlineProductSizes } from "./components/InlineProductSizes"
 import { supabase } from "@/supabaseClient"
+import { SizeMatchBanner } from "@/components/search/SizeMatchBanner"
 import { useToast } from "@/hooks/use-toast"
 import { ProductDetails } from "./types/product.types"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
@@ -207,16 +208,54 @@ export const PharmacyProductsFullPage = () => {
 
   // Filter products
   const filteredProducts = useMemo(() => {
+    console.log('=== PHARMACY PRODUCTS FILTERING ===');
+    console.log('Search query:', searchQuery);
+    console.log('Total products:', products.length);
+    
     let filtered = products
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
+      console.log('Filtering with query:', query);
+      
       filtered = filtered.filter(
-        (product) =>
-          product.name.toLowerCase().includes(query) ||
-          product.description.toLowerCase().includes(query) ||
-          product.sku?.toLowerCase().includes(query)
+        (product) => {
+          // Basic product search
+          const basicMatch = product.name.toLowerCase().includes(query) ||
+                            product.description.toLowerCase().includes(query) ||
+                            product.sku?.toLowerCase().includes(query)
+          
+          if (basicMatch) {
+            console.log('Basic match found:', product.name);
+            return true;
+          }
+          
+          // Size-based search
+          const sizeMatch = product.sizes?.some(size => {
+            const sizeValueMatch = size.size_value?.toString().toLowerCase().includes(query);
+            const sizeUnitMatch = size.size_unit?.toLowerCase().includes(query);
+            const sizeSkuMatch = size.sku?.toLowerCase().includes(query);
+            const combinedMatch = `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''));
+            
+            if (sizeValueMatch || sizeUnitMatch || sizeSkuMatch || combinedMatch) {
+              console.log('Size match found:', {
+                product: product.name,
+                size: `${size.size_value}${size.size_unit}`,
+                sizeValueMatch,
+                sizeUnitMatch,
+                sizeSkuMatch,
+                combinedMatch
+              });
+              return true;
+            }
+            return false;
+          });
+          
+          return sizeMatch;
+        }
       )
+      
+      console.log('Filtered products count:', filtered.length);
     }
 
     if (selectedCategory !== "all") {
@@ -248,6 +287,23 @@ export const PharmacyProductsFullPage = () => {
       filtered = [...filtered].sort((a, b) => Number(b.squanence || 0) - Number(a.squanence || 0))
     }
 
+    // Add matching size info for highlighting
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase()
+      filtered = filtered.map(product => ({
+        ...product,
+        matchingSizes: product.sizes?.filter(size => 
+          size.size_value?.toString().toLowerCase().includes(query) ||
+          size.size_unit?.toLowerCase().includes(query) ||
+          size.sku?.toLowerCase().includes(query) ||
+          `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''))
+        ) || []
+      }))
+      
+      console.log('Products with matching sizes:', filtered.filter(p => p.matchingSizes && p.matchingSizes.length > 0));
+    }
+
+    console.log('Final filtered products:', filtered.length);
     return filtered
   }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange, sortBy])
 
@@ -640,6 +696,14 @@ export const PharmacyProductsFullPage = () => {
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Size Match Banner */}
+                {!selectedProduct && searchQuery && filteredProducts.length > 0 && (
+                  <SizeMatchBanner 
+                    searchQuery={searchQuery}
+                    matchingCount={filteredProducts.filter(p => p.matchingSizes && p.matchingSizes.length > 0).length}
+                  />
+                )}
+
                 {/* Show all products when no product is selected */}
                 {!selectedProduct && (
                   <PharmacyProductGrid 
@@ -647,6 +711,7 @@ export const PharmacyProductsFullPage = () => {
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     onProductClick={handleProductClick}
+                    searchQuery={searchQuery}
                   />
                 )}
                 

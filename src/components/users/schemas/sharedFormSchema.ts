@@ -63,6 +63,7 @@ export const baseUserSchema = z.object({
   email_notifaction: z.boolean().optional(),
   locations: z.array(locationSchema).default([]).optional(),
   referralName: z.string().optional(), // Admin-only field
+  stateId: z.string().optional(), // State ID field
 });
 
 export type BaseUserFormData = z.infer<typeof baseUserSchema>;

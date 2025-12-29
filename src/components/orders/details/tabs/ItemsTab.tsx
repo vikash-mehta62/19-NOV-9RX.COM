@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import ProductShowcase from "@/components/pharmacy/ProductShowcase";
+import { ProductSelectionStep } from "@/components/orders/wizard/steps/ProductSelectionStep";
 import { useCart } from "@/hooks/use-cart";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
@@ -1008,7 +1009,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
       }
       onOpenChange(isOpen);
     }}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden">
+      <DialogContent className="max-w-7xl max-h-[95vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {selectedProduct ? (
@@ -1034,7 +1035,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
           </DialogTitle>
         </DialogHeader>
         
-        <ScrollArea className="h-[60vh] pr-4">
+        <div className="h-[75vh] overflow-hidden">
           {selectedProduct ? (
             // Product Detail View with Sizes
             <div className="space-y-4">
@@ -1161,14 +1162,12 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
               )}
             </div>
           ) : (
-            // Product Grid View
-            <ProductShowcase 
-              groupShow={true} 
-              isEditing={false} 
-              onProductClick={handleProductClick}
-            />
+            // Use the new responsive ProductSelectionStep interface
+            <div className="h-full">
+              <ProductSelectionStep onCartUpdate={() => {}} />
+            </div>
           )}
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="border-t pt-4">
           <div className="flex items-center justify-between w-full">

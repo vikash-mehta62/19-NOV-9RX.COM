@@ -76,6 +76,7 @@ export interface ProductDetails {
     basePrice?: number;
   };
   sizes?: ProductSize[];
+  matchingSizes?: ProductSize[]; // For size-based search results
   poAccept?: boolean;
   quantityPerCase?: number;
   tierPricing?: {

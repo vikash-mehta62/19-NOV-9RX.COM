@@ -30,6 +30,8 @@ import {
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
+import { getSearchMatches } from "@/utils/searchHighlight";
 
 const Products = () => {
   const navigate = useNavigate();
@@ -125,10 +127,11 @@ const Products = () => {
                 <div className="relative flex-1 max-w-md">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
-                    placeholder="Search products..."
+                    placeholder="Search products, sizes, SKU, NDC codes..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-10 h-10 bg-gray-50 border-gray-200 focus:bg-white"
+                    title="Search in: Product name, description, category, SKU, size values, NDC/UPC codes"
                   />
                   {searchQuery && (
                     <button
@@ -314,6 +317,16 @@ const Products = () => {
                   <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 group-hover:text-emerald-600 transition-colors">
                     {product.name}
                   </h3>
+                  
+                  {/* Search Match Indicator */}
+                  {searchQuery && (
+                    <SearchMatchIndicator 
+                      matches={getSearchMatches(product, searchQuery)} 
+                      searchQuery={searchQuery}
+                      className="mb-2"
+                    />
+                  )}
+                  
                   <p className="text-xs text-gray-500 mb-2">SKU: {product.sku || "N/A"}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold text-emerald-600">
@@ -367,6 +380,16 @@ const Products = () => {
                     <TableCell>
                       <div>
                         <p className="font-medium text-gray-900">{product.name}</p>
+                        
+                        {/* Search Match Indicator */}
+                        {searchQuery && (
+                          <SearchMatchIndicator 
+                            matches={getSearchMatches(product, searchQuery)} 
+                            searchQuery={searchQuery}
+                            className="mt-1"
+                          />
+                        )}
+                        
                         {product.description && (
                           <p className="text-xs text-gray-500 line-clamp-1">{product.description}</p>
                         )}

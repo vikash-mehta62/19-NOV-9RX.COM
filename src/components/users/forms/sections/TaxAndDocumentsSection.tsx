@@ -24,9 +24,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 
 interface TaxAndDocumentsSectionProps {
   form: UseFormReturn<BaseUserFormData>;
+  isAdmin?: boolean;
 }
 
-export function TaxAndDocumentsSection({ form }: TaxAndDocumentsSectionProps) {
+export function TaxAndDocumentsSection({ form, isAdmin = false }: TaxAndDocumentsSectionProps) {
   const { toast } = useToast();
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -68,27 +69,45 @@ export function TaxAndDocumentsSection({ form }: TaxAndDocumentsSectionProps) {
       </CardHeader>
       <CardContent className="space-y-4">
 
+        {/* Payment Terms - Admin Only */}
+        {isAdmin && (
+          <FormField
+            control={form.control}
+            name="paymentTerms"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Payment Terms</FormLabel>
+                <Select
+                  onValueChange={field.onChange}
+                  defaultValue={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select payment terms" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="prepay">Prepay</SelectItem>
+                    <SelectItem value="credit">Credit</SelectItem>
+                    <SelectItem value="net_30">Net 30</SelectItem>
+                  </SelectContent>
+                </Select>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
+        {/* State ID */}
         <FormField
           control={form.control}
-          name="paymentTerms"
+          name="stateId"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Payment Terms</FormLabel>
-              <Select
-                onValueChange={field.onChange}
-                defaultValue={field.value}
-              >
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment terms" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="prepay">Prepay</SelectItem>
-                  <SelectItem value="credit">Credit</SelectItem>
-                  <SelectItem value="net_30">Net 30</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>State ID</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter State ID" {...field} />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

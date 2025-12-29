@@ -45,6 +45,7 @@ export interface Product {
   size_value?: number;
   base_price: number;
   displayPrice?: number; // Minimum price from sizes
+  matchingSizes?: any[]; // For size-based search results
   image_url?: string;
   images?: string[];
   sizes?: ProductSize[];

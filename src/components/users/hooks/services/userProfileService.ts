@@ -82,6 +82,7 @@ export const updateUserProfile = async (
       email_notifaction:values.email_notifaction,
       taxPercantage: Number(values.taxPercantage) || 0,
       referral_name: values.referralName?.trim() || null,
+      state_id: values.stateId?.trim() || null,
       updated_at: new Date().toISOString(),
     };
 

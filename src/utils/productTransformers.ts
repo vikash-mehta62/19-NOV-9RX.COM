@@ -17,6 +17,8 @@ export const transformProductData = (productsData: any[]): Product[] => {
       ...product,
       // Add displayPrice for minimum price
       displayPrice: minPrice,
+      // Preserve matchingSizes if it exists (from size search)
+      matchingSizes: product.matchingSizes || [],
       sizes: product.sizes?.map((size: any) => ({
         ...size,
         size_value: String(size.size_value),

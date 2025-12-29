@@ -5,7 +5,7 @@ const mailSender = require("../utils/mailSender");
 // Initialize Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
 // Helper for variable replacement

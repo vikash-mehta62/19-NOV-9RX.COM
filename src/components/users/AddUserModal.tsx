@@ -196,6 +196,7 @@ export function AddUserModal({
         account_status: "active",
         email_notifaction:values.email_notifaction || false,
         referral_name: values.referralName || null, // Admin-only field
+        state_id: values.stateId || null, // State ID field
 
       };
 

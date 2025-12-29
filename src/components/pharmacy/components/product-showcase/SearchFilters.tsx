@@ -186,10 +186,11 @@ export const SearchFilters = ({
       <div className="relative">
         <Search className="absolute left-4 top-3.5 h-5 w-5 text-purple-600" />
         <Input
-          placeholder="Search by product name, SKU, or description..."
+          placeholder="Search by product name, SKU, sizes, NDC codes..."
           className="pl-12 py-6 rounded-xl border-purple-200 focus:ring-2 focus:ring-purple-500 focus:border-purple-500 bg-white shadow-sm"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          title="Advanced search: Product name, description, category, SKU, size values, NDC/UPC codes"
         />
       </div>
 

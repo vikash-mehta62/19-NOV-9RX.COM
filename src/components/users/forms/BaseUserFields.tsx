@@ -10,9 +10,10 @@ import { useEffect } from "react";
 interface BaseUserFieldsProps {
   form: UseFormReturn<BaseUserFormData>;
   self?:boolean
+  isAdmin?: boolean
 }
 
-export function BaseUserFields({ form , self=false}: BaseUserFieldsProps) {
+export function BaseUserFields({ form , self=false, isAdmin = false}: BaseUserFieldsProps) {
   const customerType = form.watch("type") as "pharmacy" | "hospital" | "group";
   useEffect(() => {
     form.setValue("billingAddress.phone", form.getValues("workPhone"));
@@ -30,7 +31,7 @@ export function BaseUserFields({ form , self=false}: BaseUserFieldsProps) {
       <BasicInformationSection form={form}  self={self}/>
       {customerType && <CustomerTypeFields form={form} type={customerType} />}
       <ContactInformationSection form={form} />
-      <TaxAndDocumentsSection form={form} />
+      <TaxAndDocumentsSection form={form} isAdmin={isAdmin} />
       <AddressInformationSection form={form} self={self} />
     </div>
   );

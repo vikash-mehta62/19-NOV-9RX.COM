@@ -394,7 +394,7 @@ creditLimit: values.creditLimit
           </TabsContent>
 
           <TabsContent value="tax" className="space-y-4 mt-4">
-            <TaxAndDocumentsSection form={form} />
+            <TaxAndDocumentsSection form={form} isAdmin={isAdmin} />
           </TabsContent>
         </Tabs>
 

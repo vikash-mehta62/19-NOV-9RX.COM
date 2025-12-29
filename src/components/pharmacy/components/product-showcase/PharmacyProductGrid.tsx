@@ -11,13 +11,15 @@ interface PharmacyProductGridProps {
   viewMode?: "grid" | "compact"
   onViewModeChange?: (mode: "grid" | "compact") => void
   onProductClick?: (product: ProductDetails) => void
+  searchQuery?: string
 }
 
 export const PharmacyProductGrid = ({ 
   products, 
   viewMode = "grid",
   onViewModeChange,
-  onProductClick
+  onProductClick,
+  searchQuery = ""
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const currentViewMode = onViewModeChange ? viewMode : "grid"
@@ -48,15 +50,16 @@ export const PharmacyProductGrid = ({
   }, [products])
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 300)
-    return () => clearTimeout(timer)
+    // Use requestAnimationFrame for better performance
+    const timeoutId = setTimeout(() => setIsLoading(false), 100)
+    return () => clearTimeout(timeoutId)
   }, [products])
 
   // Loading skeleton
   if (isLoading) {
     return (
       <div className={currentViewMode === "grid" 
-        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4"
+        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 sm:gap-4"
         : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
       }>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -98,7 +101,7 @@ export const PharmacyProductGrid = ({
 
   return (
     <div className={currentViewMode === "grid" 
-      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4"
+      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 sm:gap-4"
       : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
       {productItems.map((product) => (
@@ -108,6 +111,7 @@ export const PharmacyProductGrid = ({
           <PharmacyProductCard 
             product={product} 
             onProductClick={onProductClick}
+            searchQuery={searchQuery}
           />
         </div>
       ))}

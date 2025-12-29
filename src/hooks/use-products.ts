@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Product } from "@/types/product";
 import { useToast } from "@/hooks/use-toast";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
@@ -11,6 +11,7 @@ import {
   bulkAddProductsService 
 } from "@/services/productService";
 import { transformProductData } from "@/utils/productTransformers";
+import { testSizeSearch, getSizeReference } from "@/utils/testSizeSearch";
 
 export const PAGE_SIZE = 10;
 
@@ -50,42 +51,117 @@ export const useProducts = () => {
   const [totalProducts, setTotalProducts] = useState(0);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
-  const [loading,setLoading] = useState(false)
+  const [loading, setLoading] = useState(false);
+  
+  // Debouncing refs
+  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const abortControllerRef = useRef<AbortController>();
 
-  const fetchProducts = async (page = 1) => {
-    setLoading(true)
+  const fetchProducts = useCallback(async (page = 1, search = searchQuery, category = selectedCategory) => {
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+    
+    setLoading(true);
     try {
+      console.log('=== USE-PRODUCTS FETCH ===');
+      console.log('Fetching products with:', { page, search, category });
+      
       const { data: productsData, error, count } = await fetchProductsService(
         page,
         PAGE_SIZE,
-        selectedCategory,
-        searchQuery
+        category,
+        search
       );
 
+      console.log('=== FETCH RESULT ===');
+      console.log('Products data:', productsData);
+      console.log('Error:', error);
+      console.log('Count:', count);
+
       if (error) {
-        toast({ title: "Error", description: formatErrorMessage(error) });
         console.error("Error fetching products:", error);
+        toast({ title: "Error", description: formatErrorMessage(error) });
       } else {
-        console.log(productsData)
         const transformedProducts = transformProductData(productsData || []);
+        console.log('Transformed products:', transformedProducts);
         setProducts(transformedProducts);
         setTotalProducts(count || 0);
-    setLoading(false)
-
       }
-    } catch (error) {
-      console.error("Error in fetchProducts:", error);
-      toast({ 
-        title: "Error", 
-        description: formatErrorMessage(error),
-        variant: "destructive"
-      });
+    } catch (error: any) {
+      // Don't show error if request was aborted
+      if (error.name !== 'AbortError') {
+        console.error("Error in fetchProducts:", error);
+        toast({ 
+          title: "Error", 
+          description: formatErrorMessage(error),
+          variant: "destructive"
+        });
+      }
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [toast]);
 
+  // Debounced search effect
   useEffect(() => {
-    fetchProducts(currentPage);
-  }, [currentPage, selectedCategory, searchQuery]);
+    // Clear existing timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Set new timeout for debounced search
+    searchTimeoutRef.current = setTimeout(() => {
+      console.log('Debounced search triggered:', { searchQuery, selectedCategory });
+      
+      // Test size search if query looks like a size
+      if (searchQuery && (searchQuery.match(/\d/) || searchQuery.toLowerCase().includes('oz') || searchQuery.toLowerCase().includes('ml'))) {
+        console.log('Testing size search for:', searchQuery);
+        testSizeSearch(searchQuery);
+      }
+      
+      setCurrentPage(1); // Reset to first page on search
+      fetchProducts(1, searchQuery, selectedCategory);
+    }, 300); // 300ms debounce
+
+    // Cleanup timeout on unmount
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery, selectedCategory, fetchProducts]);
+
+  // Page change effect (no debouncing needed)
+  useEffect(() => {
+    if (currentPage > 1) {
+      fetchProducts(currentPage);
+    }
+  }, [currentPage, fetchProducts]);
+
+  // Initial load effect
+  useEffect(() => {
+    console.log('Initial load triggered');
+    // Get size reference for debugging
+    getSizeReference();
+    fetchProducts(1, "", "all");
+  }, []);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const handleAddProduct = async (data: ProductFormValues) => {
     try {

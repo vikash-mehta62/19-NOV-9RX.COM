@@ -67,6 +67,7 @@ export const useEditUserForm = ({
       portalLanguage: "English",
       email_notifaction:false,
       referralName: "",
+      stateId: "",
     },
   });
 
@@ -120,6 +121,7 @@ export const useEditUserForm = ({
           portalLanguage: data.portal_language || "English",
           email_notifaction:data.email_notifaction,
           referralName: data.referral_name || "",
+          stateId: data.state_id || "",
         });
       }
     } catch (error: any) {

@@ -13,6 +13,7 @@ interface SharedUserFormProps {
   submitLabel: string;
   isSubmitting?: boolean;
   self?: boolean;
+  isAdmin?: boolean;
 }
 
 export function SharedUserForm({
@@ -20,7 +21,8 @@ export function SharedUserForm({
   onSubmit,
   submitLabel,
   isSubmitting = false,
-  self=false
+  self=false,
+  isAdmin = false
 }: SharedUserFormProps) {
 
   console.log(form.getValues())
@@ -135,7 +137,7 @@ export function SharedUserForm({
         )}
         className="space-y-6"
       >
-        <BaseUserFields form={form} self={self} />
+        <BaseUserFields form={form} self={self} isAdmin={isAdmin} />
 
         {userType === "group" && (
           <GroupUserFields form={form as UseFormReturn<any>} />
