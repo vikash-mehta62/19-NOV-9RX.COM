@@ -24,19 +24,28 @@ export const PharmacyProductGrid = ({
   const currentViewMode = onViewModeChange ? viewMode : localViewMode
 
   const productItems = useMemo(() => {
-    return products.map(product => ({
-      ...product,
-      displayPrice: product.sizes && product.sizes.length > 0 
-        ? product.sizes[0].price 
-        : product.base_price || product.price || 0,
-      displayImage: product.image_url || 
-        (product.images && product.images[0]) || 
-        (product.sizes && product.sizes[0]?.image) || 
-        '/placeholder.svg',
-      totalStock: product.sizes 
-        ? product.sizes.reduce((sum, size) => sum + (size.stock || 0), 0)
-        : product.stock || 0
-    }))
+    return products.map(product => {
+      // Find minimum price from all sizes
+      let minPrice = product.base_price || product.price || 0;
+      
+      if (product.sizes && product.sizes.length > 0) {
+        const sizePrices = product.sizes.map(size => size.price || 0).filter(price => price > 0);
+        if (sizePrices.length > 0) {
+          minPrice = Math.min(...sizePrices);
+        }
+      }
+      
+      return {
+        ...product,
+        displayPrice: minPrice,
+        displayImage: product.image_url || 
+          (product.images && product.images[0]) || 
+          '/placeholder.svg',
+        totalStock: product.sizes 
+          ? product.sizes.reduce((sum, size) => sum + (size.stock || 0), 0)
+          : product.stock || 0
+      }
+    })
   }, [products])
 
   useEffect(() => {
@@ -100,7 +109,6 @@ export const PharmacyProductGrid = ({
           <PharmacyProductCard 
             product={product} 
             onProductClick={onProductClick}
-            viewMode={currentViewMode}
           />
         </div>
       ))}

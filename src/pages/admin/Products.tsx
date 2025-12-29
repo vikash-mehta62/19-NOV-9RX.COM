@@ -292,7 +292,7 @@ const Products = () => {
                   <p className="text-xs text-gray-500 mb-2">SKU: {product.sku || "N/A"}</p>
                   <div className="flex items-center justify-between">
                     <span className="text-lg font-bold text-emerald-600">
-                      ${Number(product.base_price || 0).toFixed(2)}
+                      ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
                     </span>
                     <Badge 
                       variant="outline" 
@@ -358,7 +358,7 @@ const Products = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-semibold text-emerald-600">
-                      ${Number(product.base_price || 0).toFixed(2)}
+                      ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
                     </TableCell>
                     <TableCell className="text-center">
                       <Badge 
