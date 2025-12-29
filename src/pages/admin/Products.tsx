@@ -13,7 +13,6 @@ import {
   Search, Grid3X3, List, Package, X, Loader2, 
   Edit, Trash2, Eye, MoreHorizontal, Filter
 } from "lucide-react";
-import { PRODUCT_CATEGORIES } from "@/types/product";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
 const Products = () => {
   const navigate = useNavigate();
@@ -57,6 +57,31 @@ const Products = () => {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+  const [categories, setCategories] = useState<string[]>([]);
+
+  // Fetch categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('category_configs')
+          .select('category_name')
+          .order('category_name');
+        
+        if (error) {
+          console.error('Error fetching categories:', error);
+          return;
+        }
+        
+        const categoryNames = data?.map(item => item.category_name) || [];
+        setCategories(categoryNames);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   const handleSubmit = async (data: ProductFormValues): Promise<void> => {
     setIsSubmitting(true);
@@ -123,7 +148,7 @@ const Products = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {PRODUCT_CATEGORIES.map((category) => (
+                    {categories.map((category) => (
                       <SelectItem key={category} value={category}>
                         {category}
                       </SelectItem>

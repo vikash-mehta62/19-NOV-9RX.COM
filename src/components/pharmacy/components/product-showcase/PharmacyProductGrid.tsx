@@ -20,8 +20,7 @@ export const PharmacyProductGrid = ({
   onProductClick
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
-  const [localViewMode, setLocalViewMode] = useState<"grid" | "compact">(viewMode)
-  const currentViewMode = onViewModeChange ? viewMode : localViewMode
+  const currentViewMode = onViewModeChange ? viewMode : "grid"
 
   const productItems = useMemo(() => {
     return products.map(product => {
@@ -102,7 +101,7 @@ export const PharmacyProductGrid = ({
       ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 sm:gap-4"
       : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
-      {productItems.map((product, index) => (
+      {productItems.map((product) => (
         <div 
           key={product.id} 
         >
