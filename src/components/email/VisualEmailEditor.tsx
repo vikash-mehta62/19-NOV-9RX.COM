@@ -1456,12 +1456,6 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           </TooltipProvider>
         </div>
         <div className="flex items-center gap-2">
-          {viewMode === "preview" && (
-            <div className="flex items-center bg-white rounded-lg border p-0.5">
-              <Button type="button" variant={deviceView === "desktop" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("desktop"); }} className="h-7 px-2"><Monitor className="w-4 h-4" /></Button>
-              <Button type="button" variant={deviceView === "mobile" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("mobile"); }} className="h-7 px-2"><Smartphone className="w-4 h-4" /></Button>
-            </div>
-          )}
           {variables.length > 0 && viewMode === "edit" && (
             <Select onValueChange={(v) => navigator.clipboard.writeText(`{{${v}}}`)}><SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue placeholder="📋 Variables" /></SelectTrigger><SelectContent>{variables.map(v => (<SelectItem key={v} value={v} className="text-xs">{`{{${v}}}`}</SelectItem>))}</SelectContent></Select>
           )}
@@ -1485,24 +1479,41 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
             </Tooltip>
           </TooltipProvider>
           
-          {/* Mobile Optimize button */}
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); optimizeForMobile(); }} 
-                  className="h-8 gap-1 text-orange-600 border-orange-200 hover:bg-orange-50 hover:border-orange-300"
-                >
-                  <Zap className="w-4 h-4" />
-                  <span className="hidden sm:inline">Mobile</span>
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Auto-optimize for mobile devices</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {/* Desktop/Mobile Toggle button */}
+          <div className="flex items-center bg-white rounded-lg border p-0.5">
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant={deviceView === "desktop" ? "secondary" : "ghost"} 
+                    size="sm" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("desktop"); }} 
+                    className="h-7 px-2"
+                  >
+                    <Monitor className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Desktop View</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    type="button" 
+                    variant={deviceView === "mobile" ? "secondary" : "ghost"} 
+                    size="sm" 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("mobile"); }} 
+                    className="h-7 px-2"
+                  >
+                    <Smartphone className="w-4 h-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Mobile View</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           
           {/* A/B Testing button */}
           {onVariantCreate && (
@@ -1795,10 +1806,10 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
 
           {/* Center - Canvas (Scrollable) */}
           <div className="flex-1 flex items-start justify-center p-8 bg-gray-100/50 overflow-y-auto" style={{ backgroundColor: globalStyle.bgColor }}>
-            <div className="w-full max-w-[500px] relative">
+            <div className={`relative transition-all duration-300 ${deviceView === "mobile" ? "w-[375px]" : "w-full max-w-[500px]"}`}>
               <div 
-                className="bg-white shadow-xl transition-all h-fit min-h-[400px]" 
-                style={{ backgroundColor: globalStyle.contentBg, borderRadius: `${globalStyle.borderRadius}px` }}
+                className={`bg-white shadow-xl transition-all h-fit min-h-[400px] ${deviceView === "mobile" ? "border-4 border-gray-800 rounded-3xl" : ""}`}
+                style={{ backgroundColor: globalStyle.contentBg, borderRadius: deviceView === "mobile" ? "24px" : `${globalStyle.borderRadius}px` }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   if (!isDraggingNewBlock) return;
@@ -1885,12 +1896,12 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                             </div>
                         )}
 
-                        <div className="flex w-full items-start" style={{ gap: '0' }}>
+                        <div className={`flex w-full items-start ${deviceView === "mobile" ? "flex-col" : ""}`} style={{ gap: '0' }}>
                             {row.columns.map((col, colIndex) => {
                                const isSelected = selectedBlock === col.block.id;
                                
                                return (
-                               <div key={col.id} style={{ width: `${col.width}%` }} className={`relative group/col transition-all p-1 ${isSelected ? 'z-10' : 'z-0'}`}>
+                               <div key={col.id} style={{ width: deviceView === "mobile" ? "100%" : `${col.width}%` }} className={`relative group/col transition-all p-1 ${isSelected ? 'z-10' : 'z-0'}`}>
                                   {/* Hover Outline for Column */}
                                   {!row.locked && !isSelected && (
                                      <div className="absolute inset-0 border-2 border-transparent group-hover/col:border-blue-400 pointer-events-none rounded transition-colors" />
