@@ -35,6 +35,9 @@ import {
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AccessRequestDetailDialog } from '@/components/admin/AccessRequestDetailDialog';
+import axios from 'axios';
+
+const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
 export default function AccessRequests() {
   const { toast } = useToast();
@@ -60,7 +63,7 @@ export default function AccessRequests() {
       setLoading(true);
       let query = supabase
         .from('profiles')
-        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, license_number, dea_number, npi_number, tax_id, display_name')
+        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, tax_id, display_name')
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -112,12 +115,35 @@ export default function AccessRequests() {
 
   const handleApprove = async (profileId: string) => {
     try {
+      // First get the user details to check notification preference
+      const { data: userData, error: userError } = await supabase
+        .from('profiles')
+        .select('email, first_name, last_name, company_name, email_notifaction')
+        .eq('id', profileId)
+        .single();
+
+      if (userError) throw userError;
+
       const { error } = await supabase
         .from('profiles')
         .update({ status: 'active', account_status: 'approved' })
         .eq('id', profileId);
 
       if (error) throw error;
+
+      // Send email notification if user has email_notifaction enabled
+      if (userData && userData.email_notifaction && userData.email) {
+        const userName = userData.first_name || userData.company_name || 'User';
+        try {
+          await axios.post(`${BASE_URL}/active`, {
+            name: userName,
+            email: userData.email,
+            admin: true // true means account is active
+          });
+        } catch (emailError) {
+          console.error('Error sending activation email:', emailError);
+        }
+      }
 
       toast({
         title: 'Access Approved',

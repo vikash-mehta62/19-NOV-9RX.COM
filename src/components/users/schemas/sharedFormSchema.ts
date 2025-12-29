@@ -2,12 +2,12 @@ import * as z from "zod";
 
 export const addressSchema = z.object({
   attention: z.string().optional(),
-  countryRegion: z.string().optional(),
-  street1: z.string().optional(),
+  countryRegion: z.string().min(1, "Country is required"),
+  street1: z.string().min(1, "Street Address 1 is required"),
   street2: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zip_code: z.string().optional(),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zip_code: z.string().min(1, "ZIP Code is required"),
   phone: z.string().optional(),
   faxNumber: z.string().optional(),
 });

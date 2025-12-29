@@ -1479,41 +1479,43 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
             </Tooltip>
           </TooltipProvider>
           
-          {/* Desktop/Mobile Toggle button */}
-          <div className="flex items-center bg-white rounded-lg border p-0.5">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    type="button" 
-                    variant={deviceView === "desktop" ? "secondary" : "ghost"} 
-                    size="sm" 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("desktop"); }} 
-                    className="h-7 px-2"
-                  >
-                    <Monitor className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Desktop View</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    type="button" 
-                    variant={deviceView === "mobile" ? "secondary" : "ghost"} 
-                    size="sm" 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("mobile"); }} 
-                    className="h-7 px-2"
-                  >
-                    <Smartphone className="w-4 h-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Mobile View</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+          {/* Desktop/Mobile Toggle - Only in Edit mode */}
+          {viewMode === "edit" && (
+            <div className="flex items-center bg-white rounded-lg border p-0.5">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      type="button" 
+                      variant={deviceView === "desktop" ? "secondary" : "ghost"} 
+                      size="sm" 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("desktop"); }} 
+                      className="h-7 px-2"
+                    >
+                      <Monitor className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Desktop View</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      type="button" 
+                      variant={deviceView === "mobile" ? "secondary" : "ghost"} 
+                      size="sm" 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeviceView("mobile"); }} 
+                      className="h-7 px-2"
+                    >
+                      <Smartphone className="w-4 h-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Mobile View</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+          )}
           
           {/* A/B Testing button */}
           {onVariantCreate && (
@@ -1616,48 +1618,55 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
       {viewMode === "code" ? (
         <div className="p-4 bg-gray-900"><pre className="text-green-400 text-sm font-mono overflow-auto max-h-[500px] p-4">{currentHtml}</pre></div>
       ) : viewMode === "preview" ? (
-        <div className="bg-gray-100 p-6 min-h-[500px] flex items-start justify-center">
-          <div className={`transition-all duration-300 ${deviceView === "mobile" ? "w-[375px]" : "w-[600px]"}`} style={{ transform: deviceView === "mobile" ? "scale(0.9)" : "scale(1)" }}>
-            {deviceView === "mobile" && (
-              <div className="bg-gray-800 rounded-t-3xl p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-gray-600" />
-                  <span className="text-xs text-gray-400">9:41</span>
-                </div>
-                <div className="w-20 h-5 bg-gray-700 rounded-full" />
-                <div className="flex items-center gap-1">
-                  <div className="w-4 h-2 bg-gray-600 rounded-sm" />
-                  <div className="w-4 h-2 bg-gray-600 rounded-sm" />
-                  <div className="w-6 h-3 bg-gray-600 rounded-sm" />
-                </div>
+        <div className="bg-gray-100 p-4 min-h-[450px] overflow-auto">
+          {/* Combined Mobile + Laptop Preview - Scaled to fit */}
+          <div className="flex items-start justify-center gap-6" style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>
+            {/* Mobile Preview */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+                <Smartphone className="w-3 h-3" /> Mobile (375px)
               </div>
-            )}
-            <iframe 
-              srcDoc={currentHtml} 
-              className={`w-full bg-white shadow-2xl ${deviceView === "mobile" ? "h-[600px] rounded-b-3xl border-x-4 border-b-4 border-gray-800" : "h-[500px] rounded-xl"}`} 
-              title="Email Preview" 
-              style={{ 
-                transformOrigin: 'top center',
-                ...(deviceView === "mobile" ? { 
-                  maxWidth: '375px',
-                } : {})
-              }}
-            />
-            {deviceView === "mobile" && (
-              <div className="bg-gray-800 rounded-b-3xl p-2 flex justify-center -mt-1">
-                <div className="w-32 h-1 bg-gray-600 rounded-full" />
+              <div 
+                className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border-[10px] border-gray-800 relative"
+                style={{ width: '375px', height: '700px' }}
+              >
+                {/* Notch */}
+                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-gray-800 rounded-b-2xl z-10"></div>
+                <iframe 
+                  srcDoc={currentHtml} 
+                  className="w-full h-full bg-white"
+                  title="Email Preview Mobile" 
+                  style={{ border: 'none' }}
+                />
               </div>
-            )}
-          </div>
-          {deviceView === "mobile" && (
-            <div className="ml-4 p-4 bg-white rounded-lg shadow-sm border max-w-xs">
-              <h4 className="font-medium text-sm text-gray-700 mb-2">📱 Mobile Preview</h4>
-              <p className="text-xs text-gray-500">
-                This simulates how your email will appear on a mobile device (iPhone). 
-                Actual rendering may vary slightly across different email clients.
-              </p>
             </div>
-          )}
+
+            {/* Laptop Preview */}
+            <div className="flex flex-col items-center">
+              <div className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
+                <Monitor className="w-3 h-3" /> Desktop (600px)
+              </div>
+              <div className="relative">
+                {/* Screen */}
+                <div 
+                  className="bg-gray-800 rounded-t-lg p-3"
+                  style={{ width: '640px' }}
+                >
+                  <div className="bg-white rounded overflow-hidden" style={{ height: '420px' }}>
+                    <iframe 
+                      srcDoc={currentHtml} 
+                      className="w-full h-full bg-white"
+                      title="Email Preview Desktop" 
+                      style={{ border: 'none' }}
+                    />
+                  </div>
+                </div>
+                {/* Stand */}
+                <div className="bg-gray-300 h-4 rounded-b mx-auto" style={{ width: '660px' }}></div>
+                <div className="bg-gray-400 h-2 rounded-b-lg mx-auto" style={{ width: '180px' }}></div>
+              </div>
+            </div>
+          </div>
         </div>
       ) : htmlEditMode ? (
         <div className="flex min-h-[500px]">
@@ -1808,8 +1817,8 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           <div className="flex-1 flex items-start justify-center p-8 bg-gray-100/50 overflow-y-auto" style={{ backgroundColor: globalStyle.bgColor }}>
             <div className={`relative transition-all duration-300 ${deviceView === "mobile" ? "w-[375px]" : "w-full max-w-[500px]"}`}>
               <div 
-                className={`bg-white shadow-xl transition-all h-fit min-h-[400px] ${deviceView === "mobile" ? "border-4 border-gray-800 rounded-3xl" : ""}`}
-                style={{ backgroundColor: globalStyle.contentBg, borderRadius: deviceView === "mobile" ? "24px" : `${globalStyle.borderRadius}px` }}
+                className={`bg-white shadow-xl transition-all h-fit min-h-[400px] ${deviceView === "mobile" ? "border-4 border-gray-800 rounded-[2rem]" : ""}`}
+                style={{ backgroundColor: globalStyle.contentBg, borderRadius: deviceView === "mobile" ? "2rem" : `${globalStyle.borderRadius}px` }}
                 onDragOver={(e) => {
                   e.preventDefault();
                   if (!isDraggingNewBlock) return;

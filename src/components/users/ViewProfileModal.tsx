@@ -88,6 +88,7 @@ import {
 } from "@/components/ui/popover";
 import { orderStatementService } from "@/services/orderStatementService";
 import { orderStatementDownloadService } from "@/services/orderStatementDownloadService";
+import axios from "axios";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -440,6 +441,22 @@ export function ViewProfileModal({
         .eq("id", userId);
 
       if (error) throw error;
+
+      // Send activation email if user has email_notifaction enabled and status is being set to active
+      if (newStatus === "active" && profile?.email_notifaction && profile?.email) {
+        const userName = profile.first_name || profile.company_name || 'User';
+        const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
+        try {
+          await axios.post(`${BASE_URL}/active`, {
+            name: userName,
+            email: profile.email,
+            admin: true // true means account is active
+          });
+        } catch (emailError) {
+          console.error('Error sending activation email:', emailError);
+          // Don't fail the activation if email fails
+        }
+      }
 
       toast({ 
         title: "Success", 

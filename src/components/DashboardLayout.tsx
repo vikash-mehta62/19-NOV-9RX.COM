@@ -115,6 +115,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         items: [
           { icon: Settings, label: "Settings", path: "/admin/settings" },
           { icon: CreditCard, label: "Payments", path: "/admin/payment-transactions" },
+          { icon: Users, label: "Store Approval", path: "/admin/access-requests" },
           { icon: Logs, label: "Activity Logs", path: "/admin/logs" },
         ],
       },

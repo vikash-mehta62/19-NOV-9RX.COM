@@ -169,7 +169,7 @@ export function BasicInformationSection({
       </CardContent>
 
       {/* Admin-Only: Referral Information */}
-      {isAdmin && (
+      {isAdmin && !self && (
         <CardContent className="pt-0">
           <Card className="border-amber-200 bg-amber-50/50">
             <CardHeader className="pb-2">

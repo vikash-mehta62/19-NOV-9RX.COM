@@ -27,19 +27,30 @@ export const TopBar = () => {
     if (sessionStorage.getItem('userType') !== 'admin') return;
 
     const fetchNotifications = async () => {
-      const { data } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-      
-      if (data) {
-        setNotifications(data.map((n: any) => ({
-          id: n.id,
-          message: n.message,
-          time: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
-          read: n.read
-        })));
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(10);
+        
+        if (error) {
+          // Table might not exist, silently ignore
+          console.log('Notifications table not available');
+          return;
+        }
+        
+        if (data) {
+          setNotifications(data.map((n: any) => ({
+            id: n.id,
+            message: n.message,
+            time: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
+            read: n.read
+          })));
+        }
+      } catch (err) {
+        // Silently ignore if table doesn't exist
+        console.log('Notifications not available');
       }
     };
 
@@ -76,7 +87,7 @@ export const TopBar = () => {
       )
     );
     
-    await supabase.from('notifications').update({ read: true }).eq('id', id);
+    await supabase.from('notifications').update({ read: true }).eq('id', id).catch(() => {});
   };
 
   return (
