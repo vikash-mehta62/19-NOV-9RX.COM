@@ -44,6 +44,8 @@ export interface CustomerAndAddressStepProps {
   shippingAddress?: ShippingAddress;
   onBillingAddressChange: (address: BillingAddress) => void;
   onShippingAddressChange: (address: ShippingAddress) => void;
+  isGroupMode?: boolean;
+  selectedPharmacyName?: string;
 }
 
 export const CustomerAndAddressStep = ({
@@ -52,6 +54,8 @@ export const CustomerAndAddressStep = ({
   shippingAddress,
   onBillingAddressChange,
   onShippingAddressChange,
+  isGroupMode = false,
+  selectedPharmacyName,
 }: CustomerAndAddressStepProps) => {
   const [isEditingBilling, setIsEditingBilling] = useState(!billingAddress?.street);
   const [isEditingShipping, setIsEditingShipping] = useState(!shippingAddress?.street);
@@ -203,11 +207,22 @@ export const CustomerAndAddressStep = ({
       <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
         <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <User className="w-5 h-5 text-blue-600" />
-          Customer & Address Information
+          {isGroupMode ? "Pharmacy & Address Information" : "Customer & Address Information"}
         </h2>
         <p className="text-sm text-gray-600 mt-1">
-          Review your information and confirm addresses for this order
+          {isGroupMode 
+            ? "Review selected pharmacy information and confirm addresses for this order"
+            : "Review your information and confirm addresses for this order"
+          }
         </p>
+        {isGroupMode && selectedPharmacyName && (
+          <div className="mt-2 flex items-center gap-2">
+            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">
+              <MapPin className="w-3 h-3 mr-1" />
+              {selectedPharmacyName}
+            </Badge>
+          </div>
+        )}
       </div>
 
       {/* Customer Info Card - Read-only */}
@@ -216,7 +231,7 @@ export const CustomerAndAddressStep = ({
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <User className="w-4 h-4 text-blue-600" />
-              Your Information
+              {isGroupMode ? "Selected Pharmacy Information" : "Your Information"}
             </CardTitle>
             <Badge variant="secondary" className="bg-blue-100 text-blue-700">
               <Lock className="w-3 h-3 mr-1" />

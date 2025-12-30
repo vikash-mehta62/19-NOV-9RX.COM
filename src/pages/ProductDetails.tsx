@@ -613,7 +613,18 @@ const ProductDetails = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-          <Button onClick={() => navigate("/")} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={() => {
+            const userType = sessionStorage.getItem('userType')?.toLowerCase();
+            if (userType === 'group') {
+              navigate("/group/products");
+            } else if (userType === 'admin') {
+              navigate("/admin/products");
+            } else if (userType === 'pharmacy') {
+              navigate("/pharmacy/products");
+            } else {
+              navigate("/");
+            }
+          }} className="bg-emerald-600 hover:bg-emerald-700">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Go Back
           </Button>
@@ -657,7 +668,18 @@ return (
           {/* Back Button with enhanced hover effect */}
           <Button
             variant="ghost"
-            onClick={() => navigate("/")}
+            onClick={() => {
+              const userType = sessionStorage.getItem('userType')?.toLowerCase();
+              if (userType === 'group') {
+                navigate("/group/products");
+              } else if (userType === 'admin') {
+                navigate("/admin/products");
+              } else if (userType === 'pharmacy') {
+                navigate("/pharmacy/products");
+              } else {
+                navigate("/");
+              }
+            }}
             className="mb-2 hover:bg-gray-100/80 transition-all duration-300 rounded-xl group text-sm h-9 px-3 backdrop-blur-sm"
           >
             <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 group-hover:scale-110 transition-all duration-300" />

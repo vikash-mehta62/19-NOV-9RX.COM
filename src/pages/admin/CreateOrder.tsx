@@ -11,7 +11,6 @@ import { awardOrderPoints } from "@/services/rewardsService";
 import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
-import { calculateFinalTotal } from "@/utils/orderCalculations";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -53,11 +52,11 @@ const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount:
       order_id: order.id,
       profile_id: order.profile_id,
       due_date: dueDate,
-      status: "pending",
+      status: "paid" as const,
       amount: totalAmount, // Original subtotal amount
       tax_amount: taxAmount,
-      total_amount: order.total_amount, // Final total (0 after credit memo)
-      payment_status: "paid",
+      total_amount: Math.max(0, order.total_amount || 0), // Final total (0 after discount, never negative)
+      payment_status: "paid" as const,
       payment_method: order.payment_method,
       notes: order.notes || null,
       purchase_number_external: order.purchase_number_external,
@@ -401,6 +400,14 @@ const profileID =
       // Check payment method
       const paymentMethod = orderData.paymentMethod;
       
+      // orderData.total already has discount applied from OrderCreationWizard
+      // (it's calculated as: Math.max(0, total - totalDiscount))
+      const finalTotal = Math.max(0, orderData.total || 0);
+      
+      console.log("🔵 Admin Order - Final total:", finalTotal);
+      console.log("🔵 Admin Order - Total discount:", orderData.totalDiscount);
+      console.log("🔵 Admin Order - Original total:", orderData.originalTotal);
+      
       // If payment method is "card", open payment modal instead of creating order directly
       // BUT if total is 0, skip payment modal and create order directly
       if (paymentMethod === "card" && finalTotal > 0) {
@@ -474,14 +481,6 @@ const profileID =
         },
       };
 
-      // Calculate final total after discounts using utility
-      const finalTotal = calculateFinalTotal({
-        subtotal: orderData.total - (orderData.tax || 0) - (orderData.shipping || 0), // Extract subtotal
-        shipping: orderData.shipping || 0,
-        tax: orderData.tax || 0,
-        discount: orderData.totalDiscount || 0,
-      });
-      
       // Determine payment status based on final total
       let initialPaymentStatus = "pending";
       let orderStatus = "new";
@@ -532,9 +531,29 @@ const profileID =
       // Create invoice if order is paid (total = 0 from credit memo)
       if (initialPaymentStatus === "paid" && finalTotal === 0) {
         console.log("🧾 Creating invoice for paid order (credit memo covered full amount)");
-        // Pass original subtotal, not finalTotal (0)
-        const originalSubtotal = orderData.total || 0; // Admin uses orderData.total
+        // Pass original total (before discount), not finalTotal (0)
+        const originalSubtotal = orderData.originalTotal || orderData.subtotal || 0;
         await createInvoiceForOrder(insertedOrder, originalSubtotal, orderData.tax || 0);
+        
+        // Apply credit memo if used
+        const appliedDiscounts = orderData.appliedDiscounts || [];
+        for (const discount of appliedDiscounts) {
+          if (discount.type === "credit_memo" && discount.creditMemoId && orderData.customerId) {
+            console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
+            const creditMemoResult = await PaymentAdjustmentService.applyCreditMemo(
+              discount.creditMemoId,
+              insertedOrder.id,
+              discount.amount,
+              orderData.customerId
+            );
+            
+            if (!creditMemoResult.success) {
+              console.error("❌ Error applying credit memo:", creditMemoResult.error);
+            } else {
+              console.log("✅ Credit memo applied successfully:", creditMemoResult.data);
+            }
+          }
+        }
         
         // Update order status to "new" after invoice creation (like normal flow)
         await supabase
@@ -549,6 +568,8 @@ const profileID =
       // Handle applied discounts (deduct points, increment offer usage)
       if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
         for (const discount of orderData.appliedDiscounts) {
+          console.log("🎁 Processing discount:", discount);
+          
           // Handle reward points redemption
           if (discount.type === "rewards" && discount.pointsUsed && orderData.customerId) {
             // Deduct points from user's profile
@@ -576,6 +597,8 @@ const profileID =
                   reference_type: "order",
                   reference_id: insertedOrder.id,
                 });
+              
+              console.log(`✅ Deducted ${discount.pointsUsed} points from customer ${orderData.customerId}`);
             }
           }
 
@@ -593,11 +616,32 @@ const profileID =
                 .from("offers")
                 .update({ used_count: (offer.used_count || 0) + 1 })
                 .eq("id", discount.offerId);
+              
+              console.log(`✅ Incremented offer usage for offer ${discount.offerId}`);
             }
           }
 
-          // Handle credit memo usage - apply to database
-          if (discount.type === "credit_memo" && discount.creditMemoId && orderData.customerId) {
+          // Handle redeemed reward usage - mark as used
+          if (discount.type === "redeemed_reward" && discount.redemptionId) {
+            console.log("🔄 Marking redemption as used:", discount.redemptionId);
+            const { error: updateError } = await supabase
+              .from("reward_redemptions")
+              .update({ 
+                status: "used",
+                used_at: new Date().toISOString(),
+                used_in_order_id: insertedOrder.id
+              })
+              .eq("id", discount.redemptionId);
+            
+            if (updateError) {
+              console.error("❌ Error marking redemption as used:", updateError);
+            } else {
+              console.log("✅ Marked reward redemption as used:", discount.redemptionId);
+            }
+          }
+
+          // Handle credit memo usage - apply to database (only if not already applied above for $0 orders)
+          if (discount.type === "credit_memo" && discount.creditMemoId && orderData.customerId && finalTotal > 0) {
             console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
             const creditMemoResult = await PaymentAdjustmentService.applyCreditMemo(
               discount.creditMemoId,
@@ -714,9 +758,14 @@ const profileID =
         // Don't throw - order was created successfully
       }
 
+      // Show success message
+      const successMessage = finalTotal === 0 
+        ? `Order ${newOrderId} has been created (fully discounted - no payment required)`
+        : `Order ${newOrderId} has been created and is ready for processing`;
+
       toast({
         title: "Order Created Successfully",
-        description: `Order ${newOrderId} has been created and is ready for processing`,
+        description: successMessage,
       });
 
       // Navigate back to orders list
@@ -927,6 +976,9 @@ const profileID =
               shipping: {
                 method: "FedEx",
               },
+              // Pass discount information
+              appliedDiscounts: pendingOrderData.appliedDiscounts || [],
+              totalDiscount: pendingOrderData.totalDiscount || 0,
             }}
             form={null}
             pId={pendingOrderData.customerId}
@@ -936,6 +988,8 @@ const profileID =
             orderSubtotal={pendingOrderData.subtotal}
             orderTax={pendingOrderData.tax}
             orderShipping={pendingOrderData.shipping}
+            discountAmount={pendingOrderData.totalDiscount || 0}
+            discountDetails={pendingOrderData.appliedDiscounts || []}
           />
         </>
       )}

@@ -189,10 +189,12 @@ const CreateOrderPaymentForm = ({
   // Calculate estimated reward points
   useEffect(() => {
     const calculatePoints = async () => {
-      if (!userProfile?.id || !formData.amount) return;
+      // Use pId (customer ID) if available, otherwise use userProfile.id
+      const targetUserId = pId || userProfile?.id;
+      if (!targetUserId || !formData.amount) return;
       
       try {
-        const points = await calculateOrderPoints(formData.amount, userProfile.id);
+        const points = await calculateOrderPoints(formData.amount, targetUserId);
         setEstimatedPoints(points);
       } catch (error) {
         console.error("Error calculating points:", error);
@@ -200,7 +202,7 @@ const CreateOrderPaymentForm = ({
     };
     
     calculatePoints();
-  }, [formData.amount, userProfile?.id]);
+  }, [formData.amount, userProfile?.id, pId]);
 
   useEffect(() => {
     const cleanedCartItems = cleanCartItems(cartItems);

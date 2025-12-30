@@ -86,6 +86,7 @@ const PharmacyHelp = lazy(() => import("./pages/pharmacy/Help"));
 const PharmacyPaymentMethods = lazy(() => import("./pages/pharmacy/PaymentMethods"));
 const PharmacyNotifications = lazy(() => import("./pages/pharmacy/Notifications"));
 const PharmacyInvoices = lazy(() => import("./pages/pharmacy/Invoices"));
+const PharmacyBuyAgain = lazy(() => import("./pages/pharmacy/BuyAgain"));
 
 // Lazy loaded Group pages
 const GroupDashboard = lazy(() => import("./pages/group/Dashboard"));
@@ -226,6 +227,11 @@ function App() {
           <Route path="/admin/products" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminProducts />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/product/:productId" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <ProductDetails />
             </ProtectedRoute>
           } />
           <Route path="/admin/inventory" element={
@@ -452,6 +458,11 @@ function App() {
               <PharmacyNotifications />
             </ProtectedRoute>
           } />
+          <Route path="/pharmacy/buy-again" element={
+            <ProtectedRoute allowedRoles={['pharmacy']}>
+              <PharmacyBuyAgain />
+            </ProtectedRoute>
+          } />
 
           {/* Group Routes */}
           <Route path="/group/dashboard" element={
@@ -482,6 +493,11 @@ function App() {
           <Route path="/group/products" element={
             <ProtectedRoute allowedRoles={['group']}>
               <GroupProducts />
+            </ProtectedRoute>
+          } />
+          <Route path="/group/product/:productId" element={
+            <ProtectedRoute allowedRoles={['group']}>
+              <ProductDetails />
             </ProtectedRoute>
           } />
           <Route path="/group/analytics" element={

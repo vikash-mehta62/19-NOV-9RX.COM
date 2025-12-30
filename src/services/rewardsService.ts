@@ -59,25 +59,10 @@ export async function calculateOrderPoints(orderTotal: number, userId: string): 
   const config = await getRewardsConfig()
   if (!config?.program_enabled) return 0
 
-  const tiers = await getRewardTiers()
-  
-  // Get user's current points to determine tier multiplier
-  const { data: user } = await supabase
-    .from("profiles")
-    .select("reward_points")
-    .eq("id", userId)
-    .single()
-
-  const currentPoints = user?.reward_points || 0
-  const currentTier = getUserTier(currentPoints, tiers)
-  
-  // Calculate base points (points per dollar * order total)
+  // Simple calculation: 1$ = 1 point (no tier multiplier)
   const basePoints = Math.floor(orderTotal * config.points_per_dollar)
   
-  // Apply tier multiplier
-  const earnedPoints = Math.floor(basePoints * currentTier.multiplier)
-  
-  return earnedPoints
+  return basePoints
 }
 
 // Award points to user after order completion
@@ -111,6 +96,41 @@ export async function awardOrderPoints(
       }
     }
 
+    // Check if points already awarded for this order (prevent duplicate)
+    const { data: existingTransaction } = await supabase
+      .from("reward_transactions")
+      .select("id")
+      .eq("reference_id", orderId)
+      .eq("reference_type", "order")
+      .eq("transaction_type", "earn")
+      .maybeSingle()
+
+    if (existingTransaction) {
+      console.log(`⚠️ Points already awarded for order ${orderId}, skipping duplicate`)
+      // Return current user data without awarding again
+      const { data: user } = await supabase
+        .from("profiles")
+        .select("reward_points")
+        .eq("id", userId)
+        .single()
+      
+      const tiers = await getRewardTiers()
+      const currentPoints = user?.reward_points || 0
+      const currentTier = getUserTier(currentPoints, tiers)
+      const nextTier = getNextTier(currentPoints, tiers)
+      
+      return {
+        success: true,
+        pointsEarned: 0, // Already awarded
+        newTotal: currentPoints,
+        oldTier: currentTier,
+        newTier: currentTier,
+        nextTier,
+        pointsToNextTier: nextTier ? nextTier.min_points - currentPoints : 0,
+        tierUpgrade: false
+      }
+    }
+
     const tiers = await getRewardTiers()
     
     // Get user's current points
@@ -125,9 +145,8 @@ export async function awardOrderPoints(
     const currentPoints = user.reward_points || 0
     const oldTier = getUserTier(currentPoints, tiers)
     
-    // Calculate points earned
-    const basePoints = Math.floor(orderTotal * config.points_per_dollar)
-    const pointsEarned = Math.floor(basePoints * oldTier.multiplier)
+    // Calculate points earned - Simple: 1$ = 1 point (no tier multiplier)
+    const pointsEarned = Math.floor(orderTotal * config.points_per_dollar)
     
     const newTotal = currentPoints + pointsEarned
     const newTier = getUserTier(newTotal, tiers)

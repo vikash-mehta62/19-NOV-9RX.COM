@@ -51,6 +51,7 @@ const AdminDashboard = () => {
   // Alerts
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
   const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
+  const [recentAccessRequests, setRecentAccessRequests] = useState<any[]>([]);
   
   // Lists
   const [topPharmacies, setTopPharmacies] = useState<any[]>([]);
@@ -92,6 +93,7 @@ const AdminDashboard = () => {
       // Load additional data
       await Promise.all([
         loadPendingAccessRequests(),
+        loadRecentAccessRequests(),
         loadRecentOrders(),
         loadTopPharmacies(),
         loadOutstandingPayments(),
@@ -152,6 +154,23 @@ const AdminDashboard = () => {
       return;
     }
     setPendingAccessRequests(data || []);
+  };
+
+  // Load recent access requests (only PENDING status)
+  const loadRecentAccessRequests = async () => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, email, company_name, type, created_at, status, mobile_phone, work_phone')
+      .eq('status', 'pending')
+      .neq('type', 'admin')
+      .order('created_at', { ascending: false })
+      .limit(5);
+    
+    if (error) {
+      console.error('Error fetching recent access requests:', error);
+      return;
+    }
+    setRecentAccessRequests(data || []);
   };
 
   const loadRecentOrders = async () => {
@@ -442,7 +461,7 @@ const AdminDashboard = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Recent Orders */}
             {recentOrders.length > 0 && (
               <Card>
@@ -478,6 +497,58 @@ const AdminDashboard = () => {
                 </CardContent>
               </Card>
             )}
+
+            {/* Access Requests Section - Only Pending */}
+            <Card className="border-orange-200">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Bell className="h-5 w-5 text-orange-600" />
+                    Access Requests
+                    {recentAccessRequests.length > 0 && (
+                      <Badge variant="destructive" className="ml-1">{recentAccessRequests.length} pending</Badge>
+                    )}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => window.location.href = '/admin/access-requests'}
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                  >
+                    View All
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {recentAccessRequests.length > 0 ? (
+                  <div className="space-y-2">
+                    {recentAccessRequests.map((request) => (
+                      <div 
+                        key={request.id} 
+                        className="flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
+                        onClick={() => handleViewAccessRequest(request)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-sm truncate">
+                            {request.company_name || `${request.first_name} ${request.last_name}`}
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{request.email}</div>
+                        </div>
+                        <div className="flex items-center gap-2 ml-2">
+                          <Badge variant="outline" className="capitalize text-xs">{request.type}</Badge>
+                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">Pending</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-sm text-muted-foreground text-center py-8">
+                    <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                    No pending requests
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
             {/* Best Performing Products */}
             <Card>

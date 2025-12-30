@@ -48,6 +48,8 @@ export interface OrderCreationWizardProps {
   initialData?: any;
   isEditMode?: boolean;
   isPharmacyMode?: boolean;
+  userType?: "admin" | "pharmacy" | "group";
+  selectedPharmacyId?: string;
   onComplete?: (data: any) => void;
   onCancel?: () => void;
 }

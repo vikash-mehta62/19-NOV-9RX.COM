@@ -23,6 +23,10 @@ const WizardNavigationComponent = ({
   const userType = sessionStorage.getItem("userType")?.toLowerCase();
   const isAdmin = userType === "admin";
   
+  // Admin ke liye Review step (step 4) pe bhi "Place Order Without Payment" dikhana hai
+  const isReviewStep = isAdmin && totalSteps === 5 && currentStep === 4;
+  const showPlaceOrderWithoutPayment = (isLastStep || isReviewStep) && isAdmin && onPlaceOrderWithoutPayment;
+  
   // Determine button text based on payment method
   const getButtonText = () => {
     if (!isLastStep) return "Continue";
@@ -65,8 +69,8 @@ const WizardNavigationComponent = ({
 
           {/* Right side - Continue or Place Order */}
           <div className="order-1 sm:order-2 flex flex-col sm:flex-row gap-2">
-            {/* Place Order Without Payment - Only for Admin on last step */}
-            {isLastStep && isAdmin && onPlaceOrderWithoutPayment && (
+            {/* Place Order Without Payment - For Admin on Review step (step 4) or last step */}
+            {showPlaceOrderWithoutPayment && (
               <Button
                 type="button"
                 variant="outline"

@@ -1,7 +1,7 @@
 import { useCart } from "@/hooks/use-cart";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ShoppingCart, Trash2, Plus, Minus } from "lucide-react";
+import { ShoppingCart, Trash2, Plus, Minus, MapPin } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -9,16 +9,109 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { selectUserProfile } from "@/store/selectors/userSelectors";
+import { supabase } from "@/integrations/supabase/client";
+
+// Fetch customer locations for group users - Using original logic
+const fetchCustomerLocation = async (userId: string) => {
+  try {
+    console.log("CartDrawer: Fetching locations for group user:", userId);
+    
+    // Original logic: Fetch profiles where group_id matches the user ID
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("group_id", userId);
+
+    if (error) {
+      console.error("CartDrawer: Failed to fetch customer information:", error);
+      throw new Error("Failed to fetch customer information: " + error.message);
+    }
+
+    if (!data || data.length === 0) {
+      console.log("CartDrawer: No locations found with group_id:", userId);
+      return [];
+    }
+
+    console.log("CartDrawer: Found locations:", data.length);
+    return data;
+  } catch (error) {
+    console.error("CartDrawer: Error fetching customer info:", error);
+    return [];
+  }
+};
 
 export const CartDrawer = () => {
   const { cartItems, removeFromCart, updateQuantity } = useCart();
   const { toast } = useToast();
   const [isOpen, setIsOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showPharmacySelection, setShowPharmacySelection] = useState(false);
+  const [selectedPharmacy, setSelectedPharmacy] = useState<string>("");
+  const [pharmacies, setPharmacies] = useState<any[]>([]);
   const navigate = useNavigate();
+  const userProfile = useSelector(selectUserProfile);
+
+  // Fetch pharmacies for group users
+  useEffect(() => {
+    const fetchPharmacies = async () => {
+      const userType = sessionStorage.getItem("userType")?.toLowerCase();
+      if (userType === "group" && userProfile?.id) {
+        try {
+          const locations = await fetchCustomerLocation(userProfile.id);
+          
+          // Format locations for display - Using original logic
+          const formattedPharmacies = await Promise.all(
+            locations.map(async (location: any, index: number) => {
+              // Extract address information
+              const billingAddr = location.billing_address || {};
+              const addressParts = [
+                billingAddr.street1 || billingAddr.street || "N/A",
+                billingAddr.city || "N/A", 
+                billingAddr.zip_code || "N/A"
+              ].filter(part => part !== "N/A");
+
+              return {
+                id: location.id || `temp-${index + 1}`,
+                name: location.display_name?.trim() || 
+                      location.first_name?.trim() || 
+                      location.company_name?.trim() || 
+                      `Pharmacy ${index + 1}`,
+                address: addressParts.length > 0 ? addressParts.join(", ") : "Address not available",
+                email: location.email || "N/A",
+                phone: location.mobile_phone || location.phone || "N/A",
+              };
+            })
+          );
+          
+          console.log("CartDrawer: Final formatted pharmacies:", formattedPharmacies);
+          setPharmacies(formattedPharmacies);
+        } catch (error) {
+          console.error("Error fetching pharmacies:", error);
+        }
+      }
+    };
+
+    fetchPharmacies();
+  }, [userProfile]);
 
   const shippingCost =
     sessionStorage.getItem("shipping") === "true"
@@ -61,14 +154,67 @@ export const CartDrawer = () => {
   };
 
   const handleCheckout = async () => {
+    const userType = sessionStorage.getItem("userType")?.toLowerCase();
+    
+    // For group users, show pharmacy selection first
+    if (userType === "group") {
+      if (pharmacies.length === 0) {
+        toast({
+          title: "No Pharmacies Found",
+          description: "No pharmacy locations found for your group. Please contact support.",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      if (pharmacies.length === 1) {
+        // If only one pharmacy, auto-select it
+        setSelectedPharmacy(pharmacies[0].id);
+        proceedToOrder(pharmacies[0].id);
+      } else {
+        // Show pharmacy selection modal
+        setShowPharmacySelection(true);
+      }
+      return;
+    }
+
+    // For other user types, proceed directly
     setIsProcessing(true);
     try {
       setIsOpen(false);
-
-      const userType = sessionStorage.getItem("userType")?.toLowerCase();
-      if (userType === "group") navigate("/group/order");
-      else if (userType === "pharmacy") navigate("/pharmacy/order/create");
+      
+      if (userType === "pharmacy") navigate("/pharmacy/order/create");
       else if (userType === "admin") navigate("/admin/orders", { state: { createOrder: true } });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to process checkout",
+        variant: "destructive",
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const proceedToOrder = async (pharmacyId?: string) => {
+    setIsProcessing(true);
+    try {
+      const finalPharmacyId = pharmacyId || selectedPharmacy;
+      
+      if (finalPharmacyId) {
+        // Set the selected pharmacy in session storage for group order
+        sessionStorage.setItem("selectedPharmacyId", finalPharmacyId);
+        
+        // Fetch and set pharmacy data
+        const selectedPharmacyData = pharmacies.find(p => p.id === finalPharmacyId);
+        if (selectedPharmacyData) {
+          sessionStorage.setItem("selectedPharmacyData", JSON.stringify(selectedPharmacyData));
+        }
+      }
+      
+      setIsOpen(false);
+      setShowPharmacySelection(false);
+      navigate("/group/order");
     } catch (error) {
       toast({
         title: "Error",

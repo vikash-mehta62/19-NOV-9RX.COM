@@ -442,8 +442,9 @@ export function PromoAndRewardsSection({
     setUseRewards(checked);
     if (checked && userRewards) {
       // Default to using all available points (up to order total)
+      // Use Math.round to avoid floating point precision issues
       const maxPointsValue = subtotal / userRewards.pointValue;
-      const maxPoints = Math.min(userRewards.points, Math.floor(maxPointsValue));
+      const maxPoints = Math.min(userRewards.points, Math.round(maxPointsValue));
       setPointsToUse(maxPoints);
     } else {
       setPointsToUse(0);
@@ -637,6 +638,14 @@ export function PromoAndRewardsSection({
       )
     : 0;
 
+  // Calculate max points that can be used (use Math.round to avoid floating point issues)
+  const maxPointsCanUse = userRewards
+    ? Math.min(
+        userRewards.points,
+        Math.round(maxRewardsDiscount / userRewards.pointValue)
+      )
+    : 0;
+
   return (
     <div className="space-y-4">
       {/* Promo Code Section */}
@@ -751,17 +760,13 @@ export function PromoAndRewardsSection({
                     <Input
                       type="number"
                       min={0}
-                      max={Math.min(
-                        userRewards.points,
-                        Math.floor(maxRewardsDiscount / userRewards.pointValue)
-                      )}
+                      max={maxPointsCanUse}
                       value={pointsToUse}
                       onChange={(e) =>
                         setPointsToUse(
                           Math.min(
                             parseInt(e.target.value) || 0,
-                            userRewards.points,
-                            Math.floor(maxRewardsDiscount / userRewards.pointValue)
+                            maxPointsCanUse
                           )
                         )
                       }
@@ -781,17 +786,10 @@ export function PromoAndRewardsSection({
                   size="sm"
                   className="w-full"
                   onClick={() => {
-                    const maxPoints = Math.min(
-                      userRewards.points,
-                      Math.floor(maxRewardsDiscount / userRewards.pointValue)
-                    );
-                    setPointsToUse(maxPoints);
+                    setPointsToUse(maxPointsCanUse);
                   }}
                 >
-                  Use Maximum ({Math.min(
-                    userRewards.points,
-                    Math.floor(maxRewardsDiscount / userRewards.pointValue)
-                  )} pts)
+                  Use Maximum ({maxPointsCanUse} pts)
                 </Button>
               </div>
             )}

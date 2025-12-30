@@ -14,6 +14,7 @@ import { PaymentConfirmationStep } from "./steps/PaymentConfirmationStep";
 import type { BillingAddress, ShippingAddress, PaymentMethod } from "./types";
 import { validateStep, ValidationError } from "./validation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "./ErrorBoundary";
@@ -43,11 +44,13 @@ const OrderCreationWizardComponent = ({
   initialData,
   isEditMode = false,
   isPharmacyMode = false,
+  userType = "admin",
+  selectedPharmacyId,
   onComplete,
   onCancel,
 }: OrderCreationWizardProps) => {
-  // Pharmacy mode has 3 steps, Admin mode has 5 steps
-  const totalSteps = isPharmacyMode ? 3 : 5;
+  // Determine total steps based on user type
+  const totalSteps = isPharmacyMode || userType === "group" ? 3 : 5;
   const wizardState = useWizardState(totalSteps);
   const navigate = useNavigate();
   const [formData, setFormData] = useState(initialData || {});
@@ -65,8 +68,9 @@ const OrderCreationWizardComponent = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [poNumber, setPONumber] = useState("");
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
+  // Admin ke liye terms aur accuracy by default true
+  const [termsAccepted, setTermsAccepted] = useState(userType === "admin" ? true : false);
+  const [accuracyConfirmed, setAccuracyConfirmed] = useState(userType === "admin" ? true : false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   
   // Discount state
@@ -85,6 +89,56 @@ const OrderCreationWizardComponent = ({
   useEffect(() => {
     const loadInitialData = async () => {
       if (isInitialized) return; // Prevent multiple runs
+      
+      // For group users, automatically set customer data from selected pharmacy
+      if (userType === "group" && selectedPharmacyId) {
+        try {
+          const pharmacyData = JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}");
+          if (pharmacyData && pharmacyData.profileData) {
+            const profile = pharmacyData.profileData;
+            const billingAddr = profile.billing_address || {};
+            
+            const groupCustomer: Customer = {
+              id: profile.id,
+              name: profile.first_name || pharmacyData.name || "Customer",
+              email: profile.email?.includes('noreply') ? profile.email : profile.email || "customer@example.com",
+              phone: profile.mobile_phone || pharmacyData.contact_phone || "",
+              type: "Pharmacy",
+              company_name: pharmacyData.name,
+              billing_address: {
+                street: billingAddr.street1 || billingAddr.street || "",
+                city: billingAddr.city || "",
+                state: billingAddr.state || "",
+                zip_code: billingAddr.zip_code || "",
+              },
+              freeShipping: profile.freeShipping || false,
+              tax_percentage: profile.tax_percentage || 0,
+            };
+            
+            setSelectedCustomer(groupCustomer);
+            setBillingAddress({
+              street: groupCustomer.billing_address?.street || "",
+              city: groupCustomer.billing_address?.city || "",
+              state: groupCustomer.billing_address?.state || "",
+              zip_code: groupCustomer.billing_address?.zip_code || "",
+            });
+            setShippingAddress({
+              fullName: groupCustomer.name,
+              email: groupCustomer.email,
+              phone: groupCustomer.phone,
+              street: groupCustomer.billing_address?.street || "",
+              city: groupCustomer.billing_address?.city || "",
+              state: groupCustomer.billing_address?.state || "",
+              zip_code: groupCustomer.billing_address?.zip_code || "",
+            });
+            setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
+          }
+        } catch (error) {
+          console.error("Error loading group customer data:", error);
+        }
+        setIsInitialized(true);
+        return;
+      }
       
       // If neither edit mode nor pharmacy mode, or no initial data, just mark as initialized
       if ((!isEditMode && !isPharmacyMode) || !initialData) {
@@ -129,9 +183,9 @@ const OrderCreationWizardComponent = ({
         }
       }
 
-      // For pharmacy mode: Start at step 1 (combined Customer+Address step)
+      // For pharmacy mode or group mode: Start at step 1 (combined Customer+Address step)
       // Customer is pre-filled, they just need to confirm addresses
-      if (isPharmacyMode) {
+      if (isPharmacyMode || userType === "group") {
         // Ensure we are at step 1
         if (wizardState.currentStep !== 1) {
           wizardState.goToStep(1);
@@ -240,15 +294,16 @@ const OrderCreationWizardComponent = ({
 
   // Define wizard steps - memoized to prevent recreation on every render
   // For pharmacy mode: Customer info is pre-filled, Products step is skipped (they add from browsing)
+  // For group mode: Similar to pharmacy mode but with group-specific labels
   const steps: WizardStep[] = useMemo(() => {
-    if (isPharmacyMode) {
-      // Pharmacy mode: 3 visible steps - Customer+Address (combined), Review, Payment
+    if (isPharmacyMode || userType === "group") {
+      // Pharmacy/Group mode: 3 visible steps - Customer+Address (combined), Review, Payment
       return [
         {
           number: 1,
-          label: "Info & Address",
+          label: userType === "group" ? "Pharmacy Info" : "Info & Address",
           icon: User,
-          description: "Your details",
+          description: userType === "group" ? "Selected pharmacy details" : "Your details",
         },
         {
           number: 2,
@@ -298,7 +353,7 @@ const OrderCreationWizardComponent = ({
         description: "Complete order",
       },
     ];
-  }, [isPharmacyMode]);
+  }, [isPharmacyMode, userType]);
 
   // Step validation with comprehensive error handling
   const validateCurrentStep = async (): Promise<boolean> => {
@@ -395,7 +450,17 @@ const OrderCreationWizardComponent = ({
       customer,
       customerId: customer.id,
     }));
-  }, []);
+
+    // Admin mode: Auto-navigate to Address step after customer selection
+    if (!isPharmacyMode && userType !== "group") {
+      // Mark step 1 as complete and go to step 2 (Address)
+      setTimeout(() => {
+        wizardState.markStepComplete(1);
+        wizardState.goToStep(2);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }, 300);
+    }
+  }, [isPharmacyMode, userType, wizardState]);
 
   // Handle add new customer - memoized
   const handleAddNewCustomer = useCallback(() => {
@@ -460,7 +525,7 @@ const OrderCreationWizardComponent = ({
     setValidationErrors([]);
 
     if (wizardState.currentStep === totalSteps) {
-      // Last step - submit the order
+      // Last step - handle payment based on payment method
       setIsSubmitting(true);
       try {
         // Calculate final total with discounts
@@ -492,20 +557,62 @@ const OrderCreationWizardComponent = ({
         console.log("Final order data being sent:", orderData);
         console.log("Selected customer ID:", selectedCustomer?.id);
         console.log("Customer ID in orderData:", orderData.customerId);
+        console.log("Payment method:", paymentMethod);
 
-        // Note: Actual order submission is handled by the parent component (CreateOrder.tsx)
-        // This simulates processing time for better UX
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-        
-        // Mark final step as complete
-        wizardState.markStepComplete(totalSteps);
-        
-        toast({
-          title: "Order Placed Successfully",
-          description: "Your order has been submitted and is being processed",
-        });
+        // Handle different payment methods
+        if (paymentMethod === "card") {
+          // For credit card payments, redirect to payment page
+          console.log("Credit card payment selected - should redirect to payment page");
+          
+          // Store order data in sessionStorage for payment page
+          sessionStorage.setItem("pendingOrderData", JSON.stringify(orderData));
+          
+          // Mark final step as complete
+          wizardState.markStepComplete(totalSteps);
+          
+          toast({
+            title: "Redirecting to Payment",
+            description: "Please complete your payment to finalize the order",
+          });
 
-        onComplete?.(orderData);
+          // Call onComplete with payment redirect flag
+          onComplete?.({
+            ...orderData,
+            requiresPayment: true,
+            paymentMethod: "card"
+          });
+          
+        } else if (paymentMethod === "credit" || paymentMethod === "manual") {
+          // For credit account or manual payment, create order directly
+          console.log(`${paymentMethod} payment selected - creating order directly`);
+          
+          // Note: Actual order submission is handled by the parent component (CreateOrder.tsx)
+          // This simulates processing time for better UX
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          
+          // Mark final step as complete
+          wizardState.markStepComplete(totalSteps);
+          
+          toast({
+            title: "Order Placed Successfully",
+            description: `Your order has been submitted with ${paymentMethod} payment`,
+          });
+
+          onComplete?.(orderData);
+        } else {
+          // Default case - create order directly
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          
+          // Mark final step as complete
+          wizardState.markStepComplete(totalSteps);
+          
+          toast({
+            title: "Order Placed Successfully",
+            description: "Your order has been submitted and is being processed",
+          });
+
+          onComplete?.(orderData);
+        }
       } catch (error) {
         console.error("Order submission error:", error);
         toast({
@@ -739,11 +846,11 @@ const OrderCreationWizardComponent = ({
 
   // Render current step content
   const renderStepContent = () => {
-    // Pharmacy mode has different step mapping (3 steps instead of 5)
-    if (isPharmacyMode) {
+    // Pharmacy mode or Group mode has different step mapping (3 steps instead of 5)
+    if (isPharmacyMode || userType === "group") {
       switch (wizardState.currentStep) {
         case 1:
-          // Combined Customer + Address step for pharmacy
+          // Combined Customer + Address step for pharmacy/group
           return (
             <CustomerAndAddressStep
               customer={selectedCustomer}
@@ -751,6 +858,10 @@ const OrderCreationWizardComponent = ({
               shippingAddress={shippingAddress}
               onBillingAddressChange={handleBillingAddressChange}
               onShippingAddressChange={handleShippingAddressChange}
+              isGroupMode={userType === "group"}
+              selectedPharmacyName={userType === "group" ? 
+                JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}")?.name : undefined
+              }
             />
           );
         case 2:

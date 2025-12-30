@@ -5,7 +5,6 @@ import { BannerSlider } from "./components/BannerSlider"
 import { CategoryCards } from "./components/CategoryCards"
 import { QuickReorder } from "./components/QuickReorder"
 import { WelcomeDashboard } from "./components/WelcomeDashboard"
-import { CategoryPills } from "./components/CategoryPills"
 import { DealsSection } from "./components/DealsSection"
 import { RecentlyViewed } from "./components/RecentlyViewed"
 import { FloatingCartButton } from "./components/FloatingCartButton"
@@ -566,12 +565,6 @@ export const PharmacyProductsFullPage = () => {
           bannerType="hero" 
           autoPlay={true} 
           autoPlayInterval={5000}
-        />
-
-        {/* Category Pills - Horizontal scrollable categories */}
-        <CategoryPills 
-          selectedCategory={selectedCategory}
-          onCategorySelect={handleCategorySelect}
         />
 
         {/* Deals of the Day Section */}

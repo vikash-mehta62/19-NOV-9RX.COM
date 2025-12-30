@@ -8,6 +8,79 @@ import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
+import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
+
+// Invoice creation function for paid orders (when total is 0)
+const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
+  try {
+    console.log(`🧾 Creating invoice for paid order: ${order.id}`);
+
+    const year = new Date().getFullYear();
+    const { data: inData, error: fetchError } = await supabase
+      .from("centerize_data")
+      .select("id, invoice_no, invoice_start")
+      .order("id", { ascending: false })
+      .limit(1);
+
+    if (fetchError) throw new Error(fetchError.message);
+
+    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+    const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+    if (inData?.[0]?.id) {
+      const { error: updateError } = await supabase
+        .from("centerize_data")
+        .update({ invoice_no: newInvNo })
+        .eq("id", inData[0].id);
+
+      if (updateError) throw new Error(updateError.message);
+    }
+
+    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+    const invoiceData = {
+      invoice_number: invoiceNumber,
+      order_id: order.id,
+      profile_id: order.profile_id,
+      due_date: dueDate,
+      status: "paid" as const,
+      amount: totalAmount, // Original subtotal amount
+      tax_amount: taxAmount,
+      total_amount: Math.max(0, order.total_amount || 0), // Final total (0 after discount, never negative)
+      payment_status: "paid" as const,
+      payment_method: order.payment_method,
+      notes: order.notes || null,
+      purchase_number_external: order.purchase_number_external,
+      items: order.items,
+      customer_info: order.customerInfo,
+      shipping_info: order.shippingAddress,
+      shippin_cost: order.shipping_cost,
+      subtotal: totalAmount, // Original subtotal
+      discount_amount: order.discount_amount || 0,
+      discount_details: order.discount_details || [],
+    };
+
+    const { error: invoiceError } = await supabase
+      .from("invoices")
+      .insert(invoiceData);
+
+    if (invoiceError) throw new Error(invoiceError.message);
+
+    console.log(`✅ Invoice Created Successfully: ${invoiceNumber}`);
+
+    await supabase
+      .from("orders")
+      .update({ invoice_created: true, updated_at: new Date().toISOString() })
+      .eq("id", order.id);
+
+    console.log("🟢 Order updated with invoice_created = true");
+    return invoiceNumber;
+  } catch (err: any) {
+    console.error("❌ Invoice create error:", err.message);
+    throw new Error(err.message);
+  }
+};
 
 export default function PharmacyOrder() {
   const navigate = useNavigate();
@@ -113,8 +186,12 @@ export default function PharmacyOrder() {
     loadUserData();
   }, [navigate, toast]);
 
+
   const handleComplete = async (orderData: any) => {
     console.log("🔵 Pharmacy Order completed:", orderData);
+    console.log("🔵 Order total:", orderData.total);
+    console.log("🔵 Total discount:", orderData.totalDiscount);
+    console.log("🔵 Final total (after discount):", orderData.total - (orderData.totalDiscount || 0));
     
     try {
       // Get current session
@@ -132,12 +209,24 @@ export default function PharmacyOrder() {
       // Check payment method
       const paymentMethod = orderData.paymentMethod;
       
+      // Calculate final total after discounts
+      const finalTotal = Math.max(0, (orderData.total || 0) - (orderData.totalDiscount || 0));
+      
+      console.log("🔵 Payment method:", paymentMethod);
+      console.log("🔵 Final total for payment check:", finalTotal);
+      
       // If payment method is "card", open payment modal
       // BUT if total is 0, skip payment modal and create order directly
-      if (paymentMethod === "card" && orderData.total > 0) {
+      if (paymentMethod === "card" && finalTotal > 0) {
+        console.log("✅ Credit card payment - opening payment page");
         setPendingOrderData(orderData);
         setIsPaymentModalOpen(true);
         return;
+      }
+      
+      // If total is 0 (fully discounted), create order directly without payment
+      if (finalTotal === 0) {
+        console.log("✅ Total is $0 - creating order directly without payment");
       }
 
       // If payment method is "credit", check credit limit
@@ -157,10 +246,10 @@ export default function PharmacyOrder() {
         const creditLimit = customerProfile.credit_limit || 0;
         const availableCredit = creditLimit - creditUsed;
 
-        if (orderData.total > availableCredit) {
+        if (finalTotal > availableCredit) {
           toast({
             title: "Credit Limit Exceeded",
-            description: `Available credit: $${availableCredit.toFixed(2)}. Order total: $${orderData.total.toFixed(2)}.`,
+            description: `Available credit: ${availableCredit.toFixed(2)}. Order total: ${finalTotal.toFixed(2)}.`,
             variant: "destructive",
           });
           return;
@@ -201,6 +290,19 @@ export default function PharmacyOrder() {
         },
       };
 
+      // Determine payment status based on total and payment method
+      let paymentStatus = "pending";
+      let orderStatus = "new";
+      
+      if (finalTotal === 0) {
+        // If total is 0 (fully discounted), mark as paid
+        paymentStatus = "paid";
+        orderStatus = "new";
+      } else if (paymentMethod === "credit") {
+        paymentStatus = "pending";
+        orderStatus = "credit_approval_processing";
+      }
+
       // Prepare order data
       const orderToSubmit = {
         order_number: newOrderId,
@@ -209,17 +311,24 @@ export default function PharmacyOrder() {
         customerInfo: customerInfo,
         shippingAddress: shippingAddressData,
         items: orderData.cartItems,
-        total_amount: orderData.total,
+        total_amount: finalTotal, // Use final total after discounts
         tax_amount: orderData.tax,
         shipping_cost: orderData.shipping,
         payment_method: paymentMethod,
         notes: orderData.specialInstructions,
         purchase_number_external: orderData.poNumber,
-        status: paymentMethod === "credit" ? "credit_approval_processing" : "new",
-        payment_status: paymentMethod === "credit" ? "pending" : "pending",
+        status: orderStatus,
+        payment_status: paymentStatus,
         customization: false,
         void: false,
+        // Store discount information
+        discount_amount: orderData.totalDiscount || 0,
+        discount_details: orderData.appliedDiscounts || [],
       };
+
+      console.log("Final order data for pharmacy:", orderToSubmit);
+      console.log("Final total:", finalTotal);
+      console.log("Payment status:", paymentStatus);
 
       // Insert order
       const { data: insertedOrder, error } = await supabase
@@ -235,13 +344,119 @@ export default function PharmacyOrder() {
 
       console.log("✅ Order created successfully:", insertedOrder);
 
-      // Award reward points for the order (only for non-credit orders)
-      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0) {
+      // Create invoice if order is paid (total = 0 from credit memo/discount)
+      if (paymentStatus === "paid" && finalTotal === 0) {
+        console.log("🧾 Creating invoice for paid order (fully discounted - no payment required)");
+        // Use originalTotal (before discount) or subtotal for invoice amount
+        const originalSubtotal = orderData.originalTotal || orderData.subtotal || 0;
+        await createInvoiceForOrder(insertedOrder, originalSubtotal, orderData.tax || 0);
+        
+        // Apply credit memo if used
+        const appliedDiscounts = orderData.appliedDiscounts || [];
+        for (const discount of appliedDiscounts) {
+          if (discount.type === "credit_memo" && discount.creditMemoId) {
+            console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
+            const creditMemoResult = await PaymentAdjustmentService.applyCreditMemo(
+              discount.creditMemoId,
+              insertedOrder.id,
+              discount.amount,
+              session.user.id
+            );
+            
+            if (!creditMemoResult.success) {
+              console.error("❌ Error applying credit memo:", creditMemoResult.error);
+            } else {
+              console.log("✅ Credit memo applied successfully:", creditMemoResult.data);
+            }
+          }
+        }
+      }
+
+      // Handle applied discounts (deduct points, increment offer usage)
+      console.log("📦 Applied discounts:", orderData.appliedDiscounts);
+      if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
+        for (const discount of orderData.appliedDiscounts) {
+          console.log("🎁 Processing discount:", discount);
+          
+          // Handle reward points redemption
+          if (discount.type === "rewards" && discount.pointsUsed) {
+            // Deduct points from pharmacy's profile
+            const { data: currentProfile } = await supabase
+              .from("profiles")
+              .select("reward_points")
+              .eq("id", session.user.id)
+              .single();
+
+            if (currentProfile) {
+              const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discount.pointsUsed);
+              await supabase
+                .from("profiles")
+                .update({ reward_points: newPoints })
+                .eq("id", session.user.id);
+
+              // Log reward transaction
+              await supabase
+                .from("reward_transactions")
+                .insert({
+                  user_id: session.user.id,
+                  points: -discount.pointsUsed,
+                  transaction_type: "redeem",
+                  description: `Redeemed ${discount.pointsUsed} points for order ${newOrderId}`,
+                  reference_type: "order",
+                  reference_id: insertedOrder.id,
+                });
+              
+              console.log(`✅ Deducted ${discount.pointsUsed} points from pharmacy ${session.user.id}`);
+            }
+          }
+
+          // Handle promo code / offer usage
+          if ((discount.type === "promo" || discount.type === "offer") && discount.offerId) {
+            // Increment used_count on the offer
+            const { data: offer } = await supabase
+              .from("offers")
+              .select("used_count")
+              .eq("id", discount.offerId)
+              .single();
+
+            if (offer) {
+              await supabase
+                .from("offers")
+                .update({ used_count: (offer.used_count || 0) + 1 })
+                .eq("id", discount.offerId);
+              
+              console.log(`✅ Incremented offer usage for offer ${discount.offerId}`);
+            }
+          }
+
+          // Handle redeemed reward usage - mark as used
+          if (discount.type === "redeemed_reward" && discount.redemptionId) {
+            console.log("🔄 Marking redemption as used:", discount.redemptionId);
+            const { error: updateError } = await supabase
+              .from("reward_redemptions")
+              .update({ 
+                status: "used",
+                used_at: new Date().toISOString(),
+                used_in_order_id: insertedOrder.id
+              })
+              .eq("id", discount.redemptionId);
+            
+            if (updateError) {
+              console.error("❌ Error marking redemption as used:", updateError);
+            } else {
+              console.log("✅ Marked reward redemption as used:", discount.redemptionId);
+            }
+          }
+        }
+      }
+
+      // Award reward points for the order (only for non-credit orders and if total > 0)
+      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0) {
         try {
           const rewardResult = await awardOrderPoints(
             session.user.id,
             insertedOrder.id,
-            orderData.total,
+            finalTotal,
             newOrderId
           );
           
@@ -269,8 +484,8 @@ export default function PharmacyOrder() {
         const activityResult = await OrderActivityService.logOrderCreation({
           orderId: insertedOrder.id,
           orderNumber: newOrderId,
-          totalAmount: orderData.total,
-          status: orderToSubmit.status,
+          totalAmount: finalTotal,
+          status: orderStatus,
           paymentMethod: paymentMethod,
           performedBy: session.user.id,
           performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "Pharmacy User",
@@ -290,14 +505,14 @@ export default function PharmacyOrder() {
       }
 
       // If credit payment, update credit_used
-      if (paymentMethod === "credit") {
+      if (paymentMethod === "credit" && finalTotal > 0) {
         const { data: customerProfile } = await supabase
           .from("profiles")
           .select("credit_used")
           .eq("id", session.user.id)
           .single();
 
-        const newCreditUsed = (customerProfile?.credit_used || 0) + orderData.total;
+        const newCreditUsed = (customerProfile?.credit_used || 0) + finalTotal;
 
         await supabase
           .from("profiles")
@@ -307,9 +522,14 @@ export default function PharmacyOrder() {
 
       console.log("Order created successfully:", insertedOrder);
 
+      // Show success message
+      const successMessage = finalTotal === 0 
+        ? `Order ${newOrderId} has been created (fully discounted - no payment required)`
+        : `Order ${newOrderId} has been created and is ready for processing`;
+
       toast({
         title: "Order Created Successfully",
-        description: `Order ${newOrderId} has been created and is ready for processing`,
+        description: successMessage,
       });
 
       navigate("/pharmacy/orders");
@@ -322,6 +542,7 @@ export default function PharmacyOrder() {
       });
     }
   };
+
 
   const handleCancel = () => {
     navigate("/pharmacy/orders");
@@ -390,11 +611,20 @@ export default function PharmacyOrder() {
             shipping: {
               method: "FedEx",
             },
+            // Pass discount information
+            appliedDiscounts: pendingOrderData.appliedDiscounts || [],
+            totalDiscount: pendingOrderData.totalDiscount || 0,
           }}
           form={null}
           pId={currentUserId}
           setIsCus={() => {}}
           isCus={false}
+          orderTotal={Math.max(0, (pendingOrderData.total || 0) - (pendingOrderData.totalDiscount || 0))}
+          orderSubtotal={pendingOrderData.subtotal}
+          orderTax={pendingOrderData.tax}
+          orderShipping={pendingOrderData.shipping}
+          discountAmount={pendingOrderData.totalDiscount || 0}
+          discountDetails={pendingOrderData.appliedDiscounts || []}
         />
       )}
     </DashboardLayout>
