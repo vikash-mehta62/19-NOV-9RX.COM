@@ -46,10 +46,12 @@ interface EmailRow {
 
 interface VisualEmailEditorProps { 
   initialHtml?: string; 
-  onChange: (html: string) => void; 
+  onChange?: (html: string) => void; 
   variables?: string[];
   templates?: Array<{ id: string; name: string; subject: string; html_content: string; }>;
   onVariantCreate?: (variant: { name: string; html: string }) => void;
+  onSave?: (html: string) => void;
+  templateName?: string;
 }
 
 // History state for undo/redo
@@ -198,7 +200,7 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
               </div>` : ""}
               <div style="border-top:1px solid #374151;padding-top:20px;margin-top:20px;font-size:12px;">
                 <p style="margin:0 0 8px;">© ${new Date().getFullYear()} ${content.companyName || "9RX LLC"}. All rights reserved.</p>
-                ${content.showUnsubscribe ? `<p style="margin:0;"><a href="{{unsubscribe_url}}" style="color:${content.textColor || "#9ca3af"};text-decoration:underline;">Unsubscribe</a> | <a href="https://9rx.com/privacy" style="color:${content.textColor || "#9ca3af"};text-decoration:underline;">Privacy Policy</a></p>` : ""}
+                ${content.showUnsubscribe ? `<p style="margin:0;"><a href="{{unsubscribe_url}}" style="color:${content.textColor || "#9ca3af"};text-decoration:underline;">Unsubscribe</a> | <a href="https://9rx.com/privacy-policy" style="color:${content.textColor || "#9ca3af"};text-decoration:underline;">Privacy Policy</a></p>` : ""}
               </div>
             </div>`; break;
             default: blockHtml = "";
@@ -244,7 +246,7 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">${responsiveStyles}</head><body style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px;background:${globalStyle.bgColor || "#f1f5f9"};"><div style="background:${globalStyle.contentBg || "#ffffff"};border-radius:${globalStyle.borderRadius || 12}px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">${bodyContent}</div></body></html>`;
 }
 
-export function VisualEmailEditor({ initialHtml, onChange, variables = [], templates = [], onVariantCreate }: VisualEmailEditorProps) {
+export function VisualEmailEditor({ initialHtml, onChange, variables = [], templates = [], onVariantCreate, onSave, templateName }: VisualEmailEditorProps) {
   const { toast } = useToast();
   const [rows, setRows] = useState<EmailRow[]>([]);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
@@ -679,14 +681,14 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
     if (rows.length > 0) {
       const generatedHtml = generateHtml(rows, globalStyle);
       // console.log('Generated HTML from rows:', generatedHtml.substring(0, 200) + '...'); // Debug log
-      onChange(generatedHtml);
+      onChange?.(generatedHtml);
       setEditingExistingHtml(false);
       
       // Save to history (debounced effect)
       saveToHistory(rows, globalStyle);
     } else if (htmlEditMode && htmlContent) {
       // console.log('Using HTML edit mode content:', htmlContent.substring(0, 200) + '...'); // Debug log
-      onChange(htmlContent);
+      onChange?.(htmlContent);
     }
   }, [rows, globalStyle, htmlEditMode, htmlContent]);
 
@@ -744,7 +746,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
     // Force immediate HTML generation for image updates
     if (content.url !== undefined) {
       const newHtml = generateHtml(updatedRows, globalStyle);
-      onChange(newHtml);
+      onChange?.(newHtml);
     }
   };
 
@@ -919,7 +921,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
     if (templateId.startsWith('db_')) {
       const dbTemplate = template as any; 
       setHtmlContent(dbTemplate.html_content || '');
-      onChange(dbTemplate.html_content || '');
+      onChange?.(dbTemplate.html_content || '');
       setEditingExistingHtml(true);
       setShowTemplates(false);
       setHtmlEditMode(false);
@@ -1682,7 +1684,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
               value={htmlContent}
               onChange={(e) => {
                 setHtmlContent(e.target.value);
-                onChange(e.target.value);
+                onChange?.(e.target.value);
               }}
               className="w-full h-[400px] font-mono text-sm"
               placeholder="Enter your HTML content here..."

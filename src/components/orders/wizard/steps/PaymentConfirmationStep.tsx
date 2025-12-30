@@ -373,8 +373,10 @@ export const PaymentConfirmationStep = ({
                 I accept the terms and conditions
               </label>
               <p className="text-xs text-gray-600 mt-1">
-                By checking this box, you agree to our terms of service and privacy
-                policy
+                By checking this box, you agree to our{" "}
+                <a href="/terms-of-service" target="_blank" className="text-emerald-600 hover:underline">terms of service</a>
+                {" "}and{" "}
+                <a href="/privacy-policy" target="_blank" className="text-emerald-600 hover:underline">privacy policy</a>
               </p>
             </div>
           </div>

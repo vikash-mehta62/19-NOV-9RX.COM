@@ -391,9 +391,9 @@ const Login = () => {
             {/* Bottom text */}
             <p className="text-center text-gray-500 text-sm mt-6">
               By signing in, you agree to our{" "}
-              <a href="/terms" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Terms of Service</a>
+              <a href="/terms-of-service" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Terms of Service</a>
               {" "}and{" "}
-              <a href="/privacy" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Privacy Policy</a>
+              <a href="/privacy-policy" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Privacy Policy</a>
             </p>
           </div>
         </div>
