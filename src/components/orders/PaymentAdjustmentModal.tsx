@@ -60,7 +60,7 @@ interface PaymentAdjustmentModalProps {
   }) => void;
 }
 
-type AdjustmentAction = 'collect_payment' | 'send_payment_link' | 'use_credit' | 'issue_credit_memo' | 'process_refund';
+type AdjustmentAction = 'none' | 'collect_payment' | 'send_payment_link' | 'use_credit' | 'issue_credit_memo' | 'process_refund';
 
 export function PaymentAdjustmentModal({
   open,
@@ -122,6 +122,22 @@ export function PaymentAdjustmentModal({
         description: "Please select how you want to handle this payment adjustment",
         variant: "destructive",
       });
+      return;
+    }
+
+    // If "none" is selected, just save the order without any payment processing
+    if (selectedAction === 'none') {
+      toast({
+        title: "Order Saved",
+        description: "Order items updated. Payment adjustment pending.",
+      });
+
+      onPaymentComplete({
+        success: true,
+        adjustmentType: 'none',
+      });
+
+      onOpenChange(false);
       return;
     }
 
@@ -511,6 +527,18 @@ export function PaymentAdjustmentModal({
                 onValueChange={(value) => setSelectedAction(value as AdjustmentAction)}
                 className="space-y-2"
               >
+                {/* None - Save Only Option */}
+                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer border-gray-300">
+                  <RadioGroupItem value="none" id="none_increase" />
+                  <Label htmlFor="none_increase" className="flex items-center gap-2 cursor-pointer flex-1">
+                    <CheckCircle className="h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="font-medium">None - Save Order Only</p>
+                      <p className="text-xs text-gray-500">Save order items without processing payment now</p>
+                    </div>
+                  </Label>
+                </div>
+
                 <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                   <RadioGroupItem value="collect_payment" id="collect_payment" />
                   <Label htmlFor="collect_payment" className="flex items-center gap-2 cursor-pointer flex-1">
@@ -565,6 +593,18 @@ export function PaymentAdjustmentModal({
                 onValueChange={(value) => setSelectedAction(value as AdjustmentAction)}
                 className="space-y-2"
               >
+                {/* None - Save Only Option */}
+                <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer border-gray-300">
+                  <RadioGroupItem value="none" id="none_decrease" />
+                  <Label htmlFor="none_decrease" className="flex items-center gap-2 cursor-pointer flex-1">
+                    <CheckCircle className="h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="font-medium">None - Save Order Only</p>
+                      <p className="text-xs text-gray-500">Save order items without processing refund/credit now</p>
+                    </div>
+                  </Label>
+                </div>
+
                 <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                   <RadioGroupItem value="issue_credit_memo" id="issue_credit_memo" />
                   <Label htmlFor="issue_credit_memo" className="flex items-center gap-2 cursor-pointer flex-1">
@@ -661,16 +701,20 @@ export function PaymentAdjustmentModal({
               </>
             ) : (
               <>
-                {selectedAction === 'send_payment_link' ? (
+                {selectedAction === 'none' ? (
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                ) : selectedAction === 'send_payment_link' ? (
                   <Mail className="mr-2 h-4 w-4" />
                 ) : (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 )}
-                {selectedAction === 'send_payment_link' 
-                  ? 'Send Payment Link' 
-                  : isIncrease 
-                    ? 'Process Payment' 
-                    : 'Process Adjustment'}
+                {selectedAction === 'none'
+                  ? 'Save Order'
+                  : selectedAction === 'send_payment_link' 
+                    ? 'Send Payment Link' 
+                    : isIncrease 
+                      ? 'Process Payment' 
+                      : 'Process Adjustment'}
               </>
             )}
           </Button>
