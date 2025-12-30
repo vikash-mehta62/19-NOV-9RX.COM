@@ -1373,7 +1373,7 @@ export function ViewProfileModal({
             <Tabs defaultValue="basic" className="w-full">
               {/* Scrollable tabs for mobile */}
               <div className="overflow-x-auto -mx-2 px-2">
-                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-7 gap-1">
+                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 gap-1">
                   <TabsTrigger value="basic" className="flex-shrink-0">
                     <User className="h-4 w-4 sm:mr-2" />
                     <span className="hidden sm:inline">Basic</span>

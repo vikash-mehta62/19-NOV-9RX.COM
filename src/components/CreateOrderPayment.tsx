@@ -1589,7 +1589,15 @@ const CreateOrderPaymentForm = ({
       <Dialog open={showSuccessPopup} onOpenChange={(open) => {
         if (!open) {
           setShowSuccessPopup(false);
-          navigate("/pharmacy/orders");
+          // Redirect based on user type
+          const userType = sessionStorage.getItem("userType");
+          if (userType === "admin") {
+            navigate("/admin/orders");
+          } else if (userType === "group") {
+            navigate("/group/orders");
+          } else {
+            navigate("/pharmacy/orders");
+          }
         }
       }}>
         <DialogContent className="sm:max-w-md">
@@ -1642,7 +1650,15 @@ const CreateOrderPaymentForm = ({
             <Button 
               onClick={() => {
                 setShowSuccessPopup(false);
-                navigate("/pharmacy/orders");
+                // Redirect based on user type
+                const userType = sessionStorage.getItem("userType");
+                if (userType === "admin") {
+                  navigate("/admin/orders");
+                } else if (userType === "group") {
+                  navigate("/group/orders");
+                } else {
+                  navigate("/pharmacy/orders");
+                }
               }}
               className="w-full bg-emerald-600 hover:bg-emerald-700"
             >
@@ -1652,7 +1668,15 @@ const CreateOrderPaymentForm = ({
               variant="outline"
               onClick={() => {
                 setShowSuccessPopup(false);
-                navigate("/pharmacy/rewards");
+                // Redirect based on user type
+                const userType = sessionStorage.getItem("userType");
+                if (userType === "admin") {
+                  navigate("/admin/rewards");
+                } else if (userType === "group") {
+                  navigate("/group/rewards");
+                } else {
+                  navigate("/pharmacy/rewards");
+                }
               }}
               className="w-full"
             >

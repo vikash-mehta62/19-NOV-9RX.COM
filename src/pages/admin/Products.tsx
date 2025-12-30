@@ -280,7 +280,7 @@ const Products = () => {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/admin/products/${product.id}`)}>
+                        <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)}>
                           <Eye className="w-4 h-4 mr-2" />
                           View Details
                         </DropdownMenuItem>
@@ -428,7 +428,7 @@ const Products = () => {
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/admin/products/${product.id}`)}>
+                          <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)}>
                             <Eye className="w-4 h-4 mr-2" />
                             View Details
                           </DropdownMenuItem>

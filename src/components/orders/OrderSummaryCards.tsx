@@ -72,15 +72,7 @@ export function OrderSummaryCards({
       textColor: "text-cyan-600",
       filter: "shipped"
     },
-    {
-      title: "Delivered",
-      value: stats.delivered,
-      icon: CheckCircle,
-      color: "from-emerald-500 to-green-500",
-      bgColor: "bg-emerald-50",
-      textColor: "text-emerald-600",
-      filter: "delivered"
-    },
+   
     {
       title: "Cancelled",
       value: stats.cancelled,
@@ -108,7 +100,7 @@ export function OrderSummaryCards({
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
       {cards.map((card) => {
         const isActive = activeFilter === card.filter;
         return (

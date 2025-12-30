@@ -145,6 +145,7 @@ export default function GroupOrder() {
   const [showOrderWizard, setShowOrderWizard] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
+  const [wizardInitialData, setWizardInitialData] = useState<any>(null);
   const { toast } = useToast();
   const userProfile = useSelector(selectUserProfile);
   const navigate = useNavigate();
@@ -195,7 +196,7 @@ export default function GroupOrder() {
               phone: location.phone || "N/A",
               faxNumber: location.faxNumber || "N/A",
               contact_email: location.email || "N/A",
-              contact_phone: location.mobile_phone || location.phone || "N/A",
+              contact_phone: location.mobile_phone || location.work_phone || location.phone || "N/A",
               created_at: location.created_at ? new Date(location.created_at).toISOString() : "N/A",
               updated_at: location.updated_at ? new Date(location.updated_at).toISOString() : "N/A",
               profile_id: location.profile_id || location.id || "N/A",
@@ -256,12 +257,58 @@ export default function GroupOrder() {
         return;
       }
 
+      // Set tax and shipping in sessionStorage
+      sessionStorage.setItem("taxper", (data.taxPercantage || 0).toString());
+      sessionStorage.setItem("shipping", (data.freeShipping || false).toString());
+
       // Store selected pharmacy data in session storage for order wizard
       sessionStorage.setItem("selectedPharmacyId", pharmacyId);
       sessionStorage.setItem("selectedPharmacyData", JSON.stringify({
         ...selectedPharmacyData,
         profileData: data
       }));
+
+      // Create initial data for OrderCreationWizard with pharmacy's address
+      const billingAddr = (data.billing_address as any) || {};
+      const shippingAddr = (data.shipping_address as any) || (data.billing_address as any) || {};
+      
+      const initialData = {
+        customer: {
+          id: data.id,
+          name: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.display_name || data.company_name || "",
+          email: data.email || "",
+          phone: data.mobile_phone || data.work_phone || "",
+          type: data.type || "Pharmacy",
+          company_name: data.company_name || "",
+          tax_percentage: data.taxPercantage || 0,
+          freeShipping: data.freeShipping || false,
+        },
+        customerId: data.id,
+        billingAddress: {
+          company_name: data.company_name || billingAddr.company_name || "",
+          attention: billingAddr.attention || "",
+          street: billingAddr.street1 || billingAddr.street || "",
+          city: billingAddr.city || "",
+          state: billingAddr.state || "",
+          zip_code: billingAddr.zip_code || "",
+        },
+        shippingAddress: {
+          fullName: `${data.first_name || ""} ${data.last_name || ""}`.trim() || data.display_name || "",
+          email: data.email || "",
+          phone: data.mobile_phone || data.work_phone || "",
+          street: shippingAddr.street1 || shippingAddr.street || billingAddr.street1 || billingAddr.street || "",
+          city: shippingAddr.city || billingAddr.city || "",
+          state: shippingAddr.state || billingAddr.state || "",
+          zip_code: shippingAddr.zip_code || billingAddr.zip_code || "",
+        },
+        cartItems: [],
+        paymentMethod: "card",
+        specialInstructions: "",
+        poNumber: "",
+      };
+
+      console.log("Initial data for wizard:", initialData);
+      setWizardInitialData(initialData);
 
       // Show the order wizard
       setShowOrderWizard(true);
@@ -755,10 +802,13 @@ export default function GroupOrder() {
           <OrderCreationWizard 
             userType="group"
             selectedPharmacyId={selectedPharmacy}
+            initialData={wizardInitialData}
+            isPharmacyMode={true}
             onComplete={handleOrderComplete}
             onCancel={() => {
               setShowOrderWizard(false);
               setSelectedPharmacy("");
+              setWizardInitialData(null);
               sessionStorage.removeItem("selectedPharmacyId");
               sessionStorage.removeItem("selectedPharmacyData");
             }}
@@ -807,20 +857,30 @@ export default function GroupOrder() {
                   </Label>
                   
                   <Select value={selectedPharmacy} onValueChange={setSelectedPharmacy}>
-                    <SelectTrigger className="w-full h-12">
+                    <SelectTrigger className="w-full min-h-[80px]">
                       <SelectValue placeholder="Choose a pharmacy location..." />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-w-[500px]">
                       {pharmacies.map((pharmacy) => (
                         <SelectItem key={pharmacy.id} value={pharmacy.id} className="py-3">
-                          <div className="flex flex-col">
+                          <div className="flex flex-col gap-1">
                             <span className="font-medium text-base">{pharmacy.name}</span>
-                            <span className="text-sm text-gray-500 mt-1">
+                            <span className="text-sm text-gray-500">
                               {pharmacy.address}
                             </span>
-                            <div className="flex gap-4 text-xs text-gray-400 mt-1">
-                              <span>📧 {pharmacy.contact_email}</span>
-                              <span>📞 {pharmacy.contact_phone}</span>
+                            <div className="flex flex-wrap gap-3 text-xs text-gray-400">
+                              {pharmacy.contact_email && pharmacy.contact_email !== "N/A" && (
+                                <span className="flex items-center gap-1">
+                                  <span>📧</span>
+                                  <span className="truncate max-w-[180px]">{pharmacy.contact_email}</span>
+                                </span>
+                              )}
+                              {pharmacy.contact_phone && pharmacy.contact_phone !== "N/A" && (
+                                <span className="flex items-center gap-1">
+                                  <span>📞</span>
+                                  <span>{pharmacy.contact_phone}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
                         </SelectItem>

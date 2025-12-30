@@ -76,14 +76,22 @@ const CreditManagement = () => {
       if (termsError) console.error("Terms Error:", termsError);
       setSentTerms(terms || []);
 
-      // Fetch active credit lines
+      // Fetch active credit lines with profile's credit_used
       const { data: lines, error: linesError } = await supabase
         .from("user_credit_lines")
-        .select("*, profiles:user_id(company_name, email)")
+        .select("*, profiles:user_id(company_name, email, credit_used)")
         .order("created_at", { ascending: false });
 
       if (linesError) console.error("Lines Error:", linesError);
-      setCreditLines(lines || []);
+      
+      // Map lines to use profile's credit_used instead of user_credit_lines.used_credit
+      const linesWithCorrectUsed = (lines || []).map((line: any) => ({
+        ...line,
+        used_credit: line.profiles?.credit_used || line.used_credit || 0,
+        available_credit: (line.credit_limit || 0) - (line.profiles?.credit_used || line.used_credit || 0),
+      }));
+      
+      setCreditLines(linesWithCorrectUsed);
 
       // Fetch overdue invoices
       const { data: overdue, error: overdueError } = await supabase
