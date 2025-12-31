@@ -49,7 +49,7 @@ export default function Locations() {
  
   
   const fetchLocations = async () => {
-    if (!userProfile?.id) return; // Agar ID nahi hai to return kar do
+    if (!userProfile?.id) return; // Return if ID is not available
     try {
       const res = await fetchCustomerLocation(userProfile.id);
       if (!res) return;
@@ -57,7 +57,7 @@ export default function Locations() {
       const formatLocations = (data) => {
         return data.map((location, index) => ({
           id: location.id || index + 1,
-          name: location.name?.trim() ? location.name : `Location ${index + 1}`, // Agar name undefined ya empty ho to default set karega
+          name: location.name?.trim() ? location.name : `Location ${index + 1}`, // Set default if name is undefined or empty
           address: `${
             location.address?.street1?.trim() ? location.address.street1 : "N/A"
           }, ${

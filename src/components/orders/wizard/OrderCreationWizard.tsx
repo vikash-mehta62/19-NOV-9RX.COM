@@ -68,7 +68,7 @@ const OrderCreationWizardComponent = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [poNumber, setPONumber] = useState("");
-  // Admin ke liye terms aur accuracy by default true
+  // For Admin, terms and accuracy are true by default
   const [termsAccepted, setTermsAccepted] = useState(userType === "admin" ? true : false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(userType === "admin" ? true : false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);

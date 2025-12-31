@@ -395,7 +395,7 @@ export const updateProductService = async (
       }
     }
 
-    // 🔹 STEP 1: Group Pricing fetch karna
+    // 🔹 STEP 1: Fetch Group Pricing
     const { data: groupPricingData, error: fetchError } = await supabase
       .from("group_pricing")
       .select("*");
@@ -426,7 +426,7 @@ export const updateProductService = async (
       };
     });
 
-    // 🔹 STEP 3: Updated JSON ko wapas database mein save karna
+    // 🔹 STEP 3: Save updated JSON back to database
     for (const group of updatedGroupPricingData) {
       const { error: updateError } = await supabase
         .from("group_pricing")

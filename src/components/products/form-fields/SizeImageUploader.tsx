@@ -25,7 +25,7 @@ export const SizeImageUploader = ({ form, validateImage, indexValue, onUpdateSiz
 
     useEffect(() => {
         const loadImage = async () => {
-            if (!form.image) return; // Agar koi image nahi hai to return
+            if (!form.image) return; // Return if no image exists
 
             const { data } = supabase.storage.from('product-images').getPublicUrl(form.image);
             setPreviews(data?.publicUrl || "");

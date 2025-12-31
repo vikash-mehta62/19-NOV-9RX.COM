@@ -181,7 +181,7 @@ export const generateWorkOrderPDF = async (
 
     const addBillToLine = (text) => {
       if (text && text.trim()) {
-        billToY += 5; // sirf jab print hota hai tab hi Y increment
+        billToY += 5; // Only increment Y when printing
         doc.text(text, billToX, billToY);
       }
     };

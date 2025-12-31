@@ -18,7 +18,7 @@ export function OrderItemsList({ items }: OrderItemsListProps) {
                     </p>
             {/* <p className="font-medium"> Order ID: {item.id}</p> */}
 
-            {/* Agar item ke andar sizes available hai toh */}
+            {/* If item has sizes available */}
             {item?.sizes && item?.sizes.length > 0 ? (
               <div className="mt-2 space-y-2">
                 {item.sizes.map((size, sizeIndex) => (

@@ -189,7 +189,7 @@ export function AddPharmacyModal({
   console.log("hello")
   useEffect(() => {
     console.log(form.getValues());
-  }, [form.watch()]); // ✅ Yeh jab bhi form values change hongi tab trigger hoga
+  }, [form.watch()]); // ✅ This will trigger whenever form values change
 
 
   useEffect(() => {

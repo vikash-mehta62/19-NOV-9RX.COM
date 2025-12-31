@@ -23,7 +23,7 @@ const WizardNavigationComponent = ({
   const userType = sessionStorage.getItem("userType")?.toLowerCase();
   const isAdmin = userType === "admin";
   
-  // Admin ke liye Review step (step 4) pe bhi "Place Order Without Payment" dikhana hai
+  // For Admin, show "Place Order Without Payment" on Review step (step 4) as well
   const isReviewStep = isAdmin && totalSteps === 5 && currentStep === 4;
   const showPlaceOrderWithoutPayment = (isLastStep || isReviewStep) && isAdmin && onPlaceOrderWithoutPayment;
   

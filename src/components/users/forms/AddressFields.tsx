@@ -27,7 +27,7 @@ export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
     }
   }, []);
 
-  // Google Places API se Address details extract karna
+  // Extract address details from Google Places API
   const onPlaceSelected = (place: any) => {
     if (!place || !place.address_components) return;
   

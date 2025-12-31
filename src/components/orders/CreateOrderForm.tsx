@@ -1025,7 +1025,7 @@ export function CreateOrderForm({
               <div className="flex justify-end w-full gap-5">
                 <p
                   onClick={(e) => {
-                    e.preventDefault(); // Form submit hone se rokne ke liye
+                    e.preventDefault(); // Prevent form submission
                     setIsPriceChange(!isPriceChange);
                   }}
                   className="cursor-pointer px-4 py-2 bg-green-600 text-white font-medium rounded-lg shadow-md hover:bg-green-700 active:scale-95 transition-all inline-block text-center"

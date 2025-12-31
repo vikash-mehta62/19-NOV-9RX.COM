@@ -179,8 +179,8 @@ const CreditMemosList = () => {
           {creditMemos.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               <Wallet className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-              <p>Aapke paas abhi koi credit memo nahi hai</p>
-              <p className="text-sm mt-1">Jab admin aapko credit memo issue karega, yahan dikhega</p>
+              <p>You don't have any credit memos yet</p>
+              <p className="text-sm mt-1">When admin issues a credit memo, it will appear here</p>
             </div>
           ) : (
             <Table>

@@ -19,7 +19,7 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-      "fixed inset-0 z-50  pointer-events-none", // <-- Ye line add karein
+      "fixed inset-0 z-50  pointer-events-none", // Added this line
       className
     )}
     {...props}

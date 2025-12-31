@@ -53,10 +53,10 @@ export const SizeList = ({
   form
 }: SizeListProps) => {
 
-  // ⚠️ IMPORTANT: Sabhi hooks TOP pe declare karo, kisi bhi condition se pehle!
+  // ⚠️ IMPORTANT: Declare all hooks at TOP, before any conditions!
   const categoryConfig = CATEGORY_CONFIGS[category as keyof typeof CATEGORY_CONFIGS] || CATEGORY_CONFIGS.OTHER;
 
-  // State hooks - ALWAYS top pe rakho
+  // State hooks - ALWAYS keep at top
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
@@ -73,7 +73,7 @@ export const SizeList = ({
 
   // ⚠️ useEffect MUST be before any return statement
   useEffect(() => {
-    // Function ko useEffect ke andar define karo to avoid re-creation
+    // Define function inside useEffect to avoid re-creation
     const fetchGroupPricings = async () => {
       setLoading(true);
       try {
