@@ -297,3 +297,11 @@ CREATE INDEX IF NOT EXISTS idx_products_category_subcategory ON products(categor
 -- FROM information_schema.columns 
 -- WHERE table_name = 'products' 
 -- AND column_name = 'subcategory';
+
+
+-- Add terms_and_conditions JSON column to profiles table
+-- This stores: { accepted: true, accepted_at: "2025-01-01T12:00:00Z", ip_address: null, version: "1.0" }
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS terms_and_conditions JSONB DEFAULT NULL;
+
+-- Create index for querying terms acceptance
+CREATE INDEX IF NOT EXISTS idx_profiles_terms_accepted ON profiles ((terms_and_conditions->>'accepted'));

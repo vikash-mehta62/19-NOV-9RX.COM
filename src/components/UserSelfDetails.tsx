@@ -12,74 +12,24 @@ function UserSelfDetails() {
   const [userData, setUserData] = useState(null);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const navigate = useNavigate(); 
 
-  // Check authentication first
+  // Directly fetch profile without authentication check
   useEffect(() => {
-    const checkAuthentication = async () => {
-      try {
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error("Authentication error:", error);
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          return;
-        }
-
-        if (!session) {
-          console.log("No active session found, redirecting to login");
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          
-          // Show toast message
-          toast({
-            title: "Authentication Required",
-            description: "Please log in to update your profile",
-            variant: "destructive",
-          });
-          
-          // Redirect to login with return URL
-          const returnUrl = encodeURIComponent(`/update-profile?email=${userEmail}`);
-          navigate(`/login?returnUrl=${returnUrl}`);
-          return;
-        }
-
-        // User is authenticated, proceed to fetch profile
-        setIsAuthenticated(true);
-        await fetchUserProfile();
-      } catch (err) {
-        console.error("Unexpected authentication error:", err);
-        setIsAuthenticated(false);
-        setIsLoading(false);
-        
-        toast({
-          title: "Error",
-          description: "An error occurred while checking authentication",
-          variant: "destructive",
-        });
-        
-        navigate("/login");
-      }
-    };
-
-    checkAuthentication();
-  }, [userEmail, navigate, toast]);
+    if (userEmail) {
+      fetchUserProfile();
+    } else {
+      setIsLoading(false);
+      toast({
+        title: "Error",
+        description: "Email parameter is missing",
+        variant: "destructive",
+      });
+    }
+  }, [userEmail]);
 
   const fetchUserProfile = async () => {
     try {
-      if (!userEmail) {
-        console.error("❌ Validation Failed: userEmail is missing!");
-        toast({
-          title: "Error",
-          description: "Email parameter is missing",
-          variant: "destructive",
-        });
-        navigate("/login");
-        return;
-      }
-
       console.log("🔍 Fetching profile for:", userEmail);
 
       const { data, error } = await supabase
@@ -137,14 +87,14 @@ function UserSelfDetails() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Checking authentication...</p>
+          <p className="mt-4 text-gray-600">Loading profile...</p>
         </div>
       </div>
     );
   }
 
-  // Show authentication required message
-  if (!isAuthenticated) {
+  // Show error if no user data
+  if (!userData) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-6">
@@ -153,13 +103,10 @@ function UserSelfDetails() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.314 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Authentication Required</h2>
-          <p className="text-gray-600 mb-6">Please log in to update your profile</p>
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Profile Not Found</h2>
+          <p className="text-gray-600 mb-6">Unable to load profile. Please check the link and try again.</p>
           <button
-            onClick={() => {
-              const returnUrl = encodeURIComponent(`/update-profile?email=${userEmail}`);
-              navigate(`/login?returnUrl=${returnUrl}`);
-            }}
+            onClick={() => navigate("/login")}
             className="bg-emerald-600 text-white px-6 py-2 rounded-lg hover:bg-emerald-700 transition-colors"
           >
             Go to Login

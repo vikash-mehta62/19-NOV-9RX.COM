@@ -1,13 +1,13 @@
 
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { TabbedUserForm } from "./forms/TabbedUserForm";
+import { SteppedUserForm } from "./forms/SteppedUserForm";
 import { useEditUserForm } from "./hooks/useEditUserForm";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Swal from "sweetalert2";
-import axios from '../../../axiosconfig'
 import { supabase } from "@/supabaseClient";
 
 
@@ -57,6 +57,7 @@ export function EditUserModal({
     initialEmail: user.email,
     initialType: user.type,
     initialStatus: user.status,
+    self: self,
     onSuccess: () => {
       console.log('EditUserModal: onSuccess callback triggered');
       onUserUpdated();
@@ -83,24 +84,8 @@ export function EditUserModal({
 
       await onSubmit(values);
 
-      
       if(self){
-
-        try {
-          const response = await axios.post("/update-profile", {
-            name: values.displayName,
-            email: values.email,
-            admin: true
-          });
-        
-          console.log("Verification Successful:", response.data);
-      
-        
-        } catch (error) {
-          console.error("Error in user verification:", error.response?.data || error.message);
-        }
-        console.log(values.email)
-        console.log(values.displayName)
+        // Email is now sent from server in /update-user-profile endpoint
         Swal.fire({
           title: "Profile Updated",
           text: "Thank you for submitting your information. Your account will be active once we review and approve your information. Thank you once again for choosing 9RX.",
@@ -117,11 +102,14 @@ export function EditUserModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto"
+        className={self 
+          ? "w-[95vw] sm:max-w-[550px] h-[90vh] sm:h-[85vh] p-0 flex flex-col rounded-xl" 
+          : "sm:max-w-[900px] max-h-[90vh] overflow-y-auto"
+        }
         aria-describedby="edit-user-description"
       >
-        <DialogHeader>
-          <DialogTitle>{ self ? "Update Profile" : "Edit Customer Profile"}</DialogTitle>
+        <DialogHeader className="px-4 sm:px-6 pt-4 sm:pt-6 pb-2 shrink-0">
+          <DialogTitle className="text-sm sm:text-base">{ self ? "Update Profile" : "Edit Customer Profile"}</DialogTitle>
         </DialogHeader>
 
         <div id="edit-user-description" className="sr-only">
@@ -129,30 +117,40 @@ export function EditUserModal({
         </div>
 
         {formState.isLoading && (
-          <div className="flex items-center justify-center p-4">
-            <Loader2 className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading user data...</span>
+          <div className="flex items-center justify-center p-4 flex-1">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="ml-2 text-xs sm:text-sm">Loading...</span>
           </div>
         )}
 
         {formState.error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              {formState.error}
-            </AlertDescription>
+          <Alert variant="destructive" className="mx-4 sm:mx-6 mb-2">
+            <AlertCircle className="h-3 w-3" />
+            <AlertDescription className="text-[10px] sm:text-xs">{formState.error}</AlertDescription>
           </Alert>
         )}
 
         {!formState.isLoading && (
-          <TabbedUserForm
-            form={form}
-            onSubmit={handleSubmit}
-            submitLabel={formState.isSaving ? "Saving..." : "Save changes"}
-            isSubmitting={formState.isSaving}
-            self={self}
-            isAdmin={isAdmin}
-          />
+          <div className="flex-1 overflow-hidden px-4 sm:px-6 pb-4 sm:pb-6">
+            {self ? (
+              <SteppedUserForm
+                form={form}
+                onSubmit={handleSubmit}
+                submitLabel={formState.isSaving ? "Saving..." : "Update Profile"}
+                isSubmitting={formState.isSaving}
+                hideSteps={true}
+              />
+            ) : (
+              <TabbedUserForm
+                form={form}
+                onSubmit={handleSubmit}
+                submitLabel={formState.isSaving ? "Saving..." : "Save changes"}
+                isSubmitting={formState.isSaving}
+                self={self}
+                isAdmin={isAdmin}
+              />
+            )}
+          </div>
         )}
       </DialogContent>
     </Dialog>

@@ -78,6 +78,7 @@ export const PharmacySizeCard = ({
         name: item.sizeValue 
           ? `${item.productName} - ${item.sizeValue}${item.sizeUnit}`
           : item.productName,
+        sku: item.productSku || item.sizeSku || "",
         price: totalPrice,
         image: getImageUrl(),
         shipping_cost: item.shippingCost,

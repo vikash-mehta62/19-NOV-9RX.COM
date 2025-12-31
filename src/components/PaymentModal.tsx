@@ -231,13 +231,26 @@ function getCardIcon(cardType: { type: string }) {
 
 // Helper function to create invoice after payment
 async function createInvoice(order: any, totalAmount: number, newTax: number) {
-  const { data: customerProfile, error: profileError } = await supabase
-    .from("profiles")
-    .select("payment_terms")
-    .eq("id", order.profile_id)
-    .single()
-
-  if (profileError) throw new Error(profileError.message)
+  // Ensure profile_id is valid before querying
+  const profileId = order.profile_id || order.customer
+  
+  if (!profileId) {
+    console.warn("No profile_id found for order, skipping payment_terms lookup")
+  }
+  
+  let customerProfile = null
+  if (profileId) {
+    const { data, error: profileError } = await supabase
+      .from("profiles")
+      .select("payment_terms")
+      .eq("id", profileId)
+      .maybeSingle()
+    
+    if (profileError) {
+      console.error("Error fetching profile:", profileError.message)
+    }
+    customerProfile = data
+  }
 
   const year = new Date().getFullYear()
   const { data: inData, error: fetchError } = await supabase
@@ -261,13 +274,17 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
   const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`
   const dueDate = new Date(new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
+  // Calculate subtotal (total - tax - shipping)
+  const shippingCost = order.shipping_cost || 0
+  const subtotal = totalAmount - newTax - shippingCost
+
   const invoiceData = {
     invoice_number: invoiceNumber,
     order_id: order.id,
     due_date: dueDate,
-    profile_id: order.profile_id,
-    status: "pending",
-    amount: totalAmount,
+    profile_id: profileId || null,
+    status: "pending" as const,
+    amount: subtotal,
     tax_amount: newTax,
     total_amount: totalAmount,
     payment_status: order.payment_status || "paid",
@@ -277,8 +294,8 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
     items: order.items,
     customer_info: order.customerInfo,
     shipping_info: order.shippingAddress,
-    shippin_cost: order.shipping_cost,
-    subtotal: totalAmount
+    shippin_cost: shippingCost,
+    subtotal: subtotal
   }
 
   const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
@@ -590,26 +607,33 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
       // Log transaction to payment_transactions table (for both success and failure)
       const cardLastFour = paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined
-      const cardTypeDetected = paymentType === "credit_card" ? detectCardType(formData.cardNumber) : undefined
+      const cardTypeDetected = paymentType === "credit_card" ? detectCardType(formData.cardNumber).type : undefined
       
-      await logPaymentTransaction(
-        orders.customer || orders.profile_id,
-        orderId,
-        null, // invoice_id - will be set after invoice creation
-        "auth_capture",
-        formData.amount,
-        {
-          success: response.success,
-          transactionId: response.transactionId,
-          authCode: response.authCode,
-          message: response.message || response.error || "",
-          errorCode: response.errorCode,
-          errorMessage: response.error,
+      // Get profile_id - try multiple sources
+      const profileIdForLog = orders.profile_id || orders.customer || null
+      
+      if (profileIdForLog) {
+        await logPaymentTransaction(
+          profileIdForLog,
+          orderId,
+          null, // invoice_id - will be set after invoice creation
+          "auth_capture",
+          formData.amount,
+          {
+            success: response.success,
+            transactionId: response.transactionId,
+            authCode: response.authCode,
+            message: response.message || response.error || "",
+            errorCode: response.errorCode,
+            errorMessage: response.error,
         },
         paymentType === "credit_card" ? "card" : "ach",
         cardLastFour,
         cardTypeDetected
       )
+      } else {
+        console.warn("No profile_id found for order, skipping payment transaction log")
+      }
 
       if (response.success) {
         setPaymentSuccess(true)
@@ -625,9 +649,17 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           updated_at: new Date().toISOString() 
         }).eq("id", orderId)
 
-        const { data: invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).single()
+        // Use maybeSingle() instead of single() to avoid error when invoice doesn't exist
+        const { data: invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).maybeSingle()
         if (!invoiceData) {
-          await createInvoice(orders, formData.amount, 0)
+          // Ensure profile_id is set - use orders.customer if profile_id is not available
+          const orderWithProfileId = { 
+            ...orders, 
+            profile_id: orders.profile_id || orders.customer,
+            id: orderId 
+          }
+          // Pass the actual tax_amount from the order
+          await createInvoice(orderWithProfileId, formData.amount, orders.tax_amount || 0)
         }
 
         await supabase.from("invoices").update({

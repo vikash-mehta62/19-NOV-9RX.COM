@@ -29,6 +29,11 @@ export function OrderItemsList({ items }: OrderItemsListProps) {
                     <p>
                       <strong>Size:</strong> {size.size_value} {size.size_unit}
                     </p>
+                    {(size as any).sku && (
+                      <p className="text-xs text-gray-500">
+                        <strong>SKU:</strong> {(size as any).sku}
+                      </p>
+                    )}
                     <p>
                       <strong>Quantity:</strong> {size.quantity} {size.type === "unit" ? "unit" : ""}
                     </p>

@@ -127,6 +127,7 @@ export const ProductCard = ({
       const cartItem = {
         productId: product.id.toString(),
         name: product.name,
+        sku: product.sku || "",
         price: totalPrice,
         image: imageUrl,
         shipping_cost: Number(highestShippingCost) || 0,

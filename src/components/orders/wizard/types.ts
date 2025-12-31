@@ -87,6 +87,21 @@ export interface Customer {
   };
   freeShipping?: boolean;
   tax_percentage?: number;
+  locations?: Array<{
+    id?: string;
+    name?: string;
+    type?: string;
+    address?: {
+      street1?: string;
+      street2?: string;
+      city?: string;
+      state?: string;
+      zip_code?: string;
+      countryRegion?: string;
+      phone?: string;
+      attention?: string;
+    };
+  }>;
 }
 
 export interface CustomerSelectionStepProps {

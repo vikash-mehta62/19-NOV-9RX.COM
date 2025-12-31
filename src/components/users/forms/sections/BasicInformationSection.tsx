@@ -32,44 +32,37 @@ export function BasicInformationSection({
   isAdmin = false,
 }: BasicInformationSectionProps) {
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Basic Information</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <Card className={self ? "border-0 shadow-none p-0" : ""}>
+      {!self && (
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs sm:text-sm">Basic Information</CardTitle>
+        </CardHeader>
+      )}
+      <CardContent className={`space-y-2 sm:space-y-3 ${self ? "p-0" : "pt-0"}`}>
+        <div className="grid grid-cols-2 gap-2">
           <FormField
             control={form.control}
             name="firstName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor="firstName">First Name *</FormLabel>
+                <FormLabel htmlFor="firstName" className="text-[10px] sm:text-[11px]">First Name *</FormLabel>
                 <FormControl>
-                  <Input
-                    id="firstName"
-                    placeholder="Enter first name"
-                    {...field}
-                  />
+                  <Input id="firstName" placeholder="First name" {...field} className="h-7 sm:h-8 text-[11px] sm:text-xs" />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[9px] sm:text-[10px]" />
               </FormItem>
             )}
           />
-
           <FormField
             control={form.control}
             name="lastName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel htmlFor="lastName">Last Name *</FormLabel>
+                <FormLabel htmlFor="lastName" className="text-[10px] sm:text-[11px]">Last Name *</FormLabel>
                 <FormControl>
-                  <Input
-                    id="lastName"
-                    placeholder="Enter last name"
-                    {...field}
-                  />
+                  <Input id="lastName" placeholder="Last name" {...field} className="h-7 sm:h-8 text-[11px] sm:text-xs" />
                 </FormControl>
-                <FormMessage />
+                <FormMessage className="text-[9px] sm:text-[10px]" />
               </FormItem>
             )}
           />
@@ -80,73 +73,62 @@ export function BasicInformationSection({
           name="email"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="email">Email *</FormLabel>
+              <FormLabel htmlFor="email" className="text-[10px] sm:text-[11px]">Email *</FormLabel>
               <FormControl>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="Enter email address"
-                  {...field}
-                />
+                <Input id="email" type="email" placeholder="Email address" {...field} className="h-7 sm:h-8 text-[11px] sm:text-xs" />
               </FormControl>
-              <FormMessage />
+              <FormMessage className="text-[9px] sm:text-[10px]" />
             </FormItem>
           )}
         />
 
         {!self && (
-          <FormField
-            control={form.control}
-            name="type"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor="type">Customer Type</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger id="type">
-                      <SelectValue placeholder="Select customer type" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                    <SelectItem value="hospital">Hospital</SelectItem>
-                    <SelectItem value="group">Group</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-        )}
-        {!self && (
-          <FormField
-            control={form.control}
-            name="status"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel htmlFor="status">Status</FormLabel>
-                <Select
-                  onValueChange={field.onChange}
-                  defaultValue={field.value}
-                >
-                  <FormControl>
-                    <SelectTrigger id="status">
-                      <SelectValue placeholder="Select status" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="inactive">Inactive</SelectItem>
-                    <SelectItem value="pending">Pending</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="grid grid-cols-2 gap-2">
+            <FormField
+              control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="type" className="text-[10px] sm:text-[11px]">Customer Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger id="type" className="h-7 sm:h-8 text-[11px] sm:text-xs">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                      <SelectItem value="hospital">Hospital</SelectItem>
+                      <SelectItem value="group">Group</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage className="text-[9px] sm:text-[10px]" />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="status"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel htmlFor="status" className="text-[10px] sm:text-[11px]">Status</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger id="status" className="h-7 sm:h-8 text-[11px] sm:text-xs">
+                        <SelectValue placeholder="Select status" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="inactive">Inactive</SelectItem>
+                      <SelectItem value="pending">Pending</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage className="text-[9px] sm:text-[10px]" />
+                </FormItem>
+              )}
+            />
+          </div>
         )}
 
         <FormField
@@ -154,49 +136,38 @@ export function BasicInformationSection({
           name="companyName"
           render={({ field }) => (
             <FormItem>
-              <FormLabel htmlFor="companyName">Company Name *</FormLabel>
+              <FormLabel htmlFor="companyName" className="text-[10px] sm:text-[11px]">Company Name *</FormLabel>
               <FormControl>
-                <Input
-                  id="companyName"
-                  placeholder="Enter company name"
-                  {...field}
-                />
+                <Input id="companyName" placeholder="Company name" {...field} className="h-7 sm:h-8 text-[11px] sm:text-xs" />
               </FormControl>
-              <FormMessage />
+              <FormMessage className="text-[9px] sm:text-[10px]" />
             </FormItem>
           )}
         />
       </CardContent>
 
-      {/* Admin-Only: Referral Information */}
       {isAdmin && !self && (
         <CardContent className="pt-0">
           <Card className="border-amber-200 bg-amber-50/50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <UserPlus className="h-4 w-4" />
-                <Badge variant="outline" className="text-amber-600 border-amber-600 text-xs">Admin Only</Badge>
-                Referral Information
+            <CardHeader className="pb-1 pt-2">
+              <CardTitle className="text-[10px] sm:text-xs flex items-center gap-1">
+                <UserPlus className="h-3 w-3" />
+                <Badge variant="outline" className="text-amber-600 border-amber-600 text-[8px] sm:text-[9px]">Admin</Badge>
+                Referral
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pb-2">
               <FormField
                 control={form.control}
                 name="referralName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel htmlFor="referralName">Referral Name</FormLabel>
+                    <FormLabel htmlFor="referralName" className="text-[10px] sm:text-[11px]">Referral Name</FormLabel>
                     <FormControl>
-                      <Input
-                        id="referralName"
-                        placeholder="Who referred this customer?"
-                        {...field}
-                      />
+                      <Input id="referralName" placeholder="Who referred?" {...field} className="h-7 sm:h-8 text-[11px] sm:text-xs" />
                     </FormControl>
-                    <FormDescription>
-                      This field is only visible to administrators
-                    </FormDescription>
-                    <FormMessage />
+                    <FormDescription className="text-[8px] sm:text-[9px]">Admin only field</FormDescription>
+                    <FormMessage className="text-[9px] sm:text-[10px]" />
                   </FormItem>
                 )}
               />

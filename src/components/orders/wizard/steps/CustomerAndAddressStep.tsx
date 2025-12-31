@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { MapPin, Edit2, Check, User, Lock } from "lucide-react";
+import { MapPin, Edit2, Check, User, Lock, Building2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,13 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface BillingAddress {
   company_name?: string;
@@ -38,6 +45,27 @@ export interface Customer {
   type?: string;
 }
 
+export interface SavedLocation {
+  id?: string;
+  name?: string;
+  type?: string;
+  status?: string;
+  manager?: string;
+  contact_phone?: string;
+  contact_email?: string;
+  address?: {
+    street1?: string;
+    street2?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    countryRegion?: string;
+    phone?: string;
+    attention?: string;
+  };
+}
+
 export interface CustomerAndAddressStepProps {
   customer?: Customer | null;
   billingAddress?: BillingAddress;
@@ -46,6 +74,24 @@ export interface CustomerAndAddressStepProps {
   onShippingAddressChange: (address: ShippingAddress) => void;
   isGroupMode?: boolean;
   selectedPharmacyName?: string;
+  savedLocations?: SavedLocation[];
+  profileBillingAddress?: {
+    street1?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    attention?: string;
+  };
+  profileShippingAddress?: {
+    street1?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+    phone?: string;
+    attention?: string;
+  };
 }
 
 export const CustomerAndAddressStep = ({
@@ -56,11 +102,34 @@ export const CustomerAndAddressStep = ({
   onShippingAddressChange,
   isGroupMode = false,
   selectedPharmacyName,
+  savedLocations = [],
+  profileBillingAddress,
+  profileShippingAddress,
 }: CustomerAndAddressStepProps) => {
   const [isEditingBilling, setIsEditingBilling] = useState(!billingAddress?.street);
   const [isEditingShipping, setIsEditingShipping] = useState(!shippingAddress?.street);
   const [sameAsBilling, setSameAsBilling] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [selectedBillingLocation, setSelectedBillingLocation] = useState<string>("");
+  const [selectedShippingLocation, setSelectedShippingLocation] = useState<string>("");
+
+  // Filter valid locations with addresses (only active ones)
+  const validLocations = savedLocations.filter((loc) => {
+    if (!loc.address || typeof loc.address !== 'object') return false;
+    const addr = loc.address as any;
+    const hasAddress = addr.street1 || addr.street || addr.city;
+    const isActive = loc.status !== "inactive";
+    return hasAddress && isActive;
+  });
+
+  // Helper to get street from location address
+  const getStreet = (addr: any) => addr?.street1 || addr?.street || "";
+
+  // Check if profile has billing address
+  const hasProfileBilling = profileBillingAddress && (profileBillingAddress.street1 || profileBillingAddress.street || profileBillingAddress.city);
+  
+  // Check if profile has shipping address
+  const hasProfileShipping = profileShippingAddress && (profileShippingAddress.street1 || profileShippingAddress.street || profileShippingAddress.city);
 
   const [billingForm, setBillingForm] = useState<BillingAddress>({
     company_name: billingAddress?.company_name || "",
@@ -80,6 +149,83 @@ export const CustomerAndAddressStep = ({
     state: shippingAddress?.state || "",
     zip_code: shippingAddress?.zip_code || "",
   });
+
+  // Handle saved location selection for billing
+  const handleBillingLocationSelect = (locationId: string) => {
+    setSelectedBillingLocation(locationId);
+    
+    // Check if profile billing address is selected
+    if (locationId === "profile-billing" && profileBillingAddress) {
+      const newBilling: BillingAddress = {
+        company_name: customer?.company_name || billingForm.company_name || "",
+        attention: profileBillingAddress.attention || "",
+        street: profileBillingAddress.street1 || profileBillingAddress.street || "",
+        city: profileBillingAddress.city || "",
+        state: profileBillingAddress.state || "",
+        zip_code: profileBillingAddress.zip_code || "",
+      };
+      setBillingForm(newBilling);
+      onBillingAddressChange(newBilling);
+      setIsEditingBilling(false);
+      return;
+    }
+    
+    const location = validLocations.find((loc) => loc.id === locationId || loc.name === locationId);
+    if (location?.address) {
+      const addr = location.address as any;
+      const newBilling: BillingAddress = {
+        company_name: customer?.company_name || billingForm.company_name || "",
+        attention: addr.attention || "",
+        street: addr.street1 || addr.street || "",
+        city: addr.city || "",
+        state: addr.state || "",
+        zip_code: addr.zip_code || "",
+      };
+      setBillingForm(newBilling);
+      onBillingAddressChange(newBilling);
+      setIsEditingBilling(false);
+    }
+  };
+
+  // Handle saved location selection for shipping
+  const handleShippingLocationSelect = (locationId: string) => {
+    setSelectedShippingLocation(locationId);
+    setSameAsBilling(false);
+    
+    // Check if profile shipping address is selected
+    if (locationId === "profile-shipping" && profileShippingAddress) {
+      const newShipping: ShippingAddress = {
+        fullName: shippingForm.fullName || customer?.name || "",
+        email: shippingForm.email || customer?.email || "",
+        phone: profileShippingAddress.phone || shippingForm.phone || customer?.phone || "",
+        street: profileShippingAddress.street1 || profileShippingAddress.street || "",
+        city: profileShippingAddress.city || "",
+        state: profileShippingAddress.state || "",
+        zip_code: profileShippingAddress.zip_code || "",
+      };
+      setShippingForm(newShipping);
+      onShippingAddressChange(newShipping);
+      setIsEditingShipping(false);
+      return;
+    }
+    
+    const location = validLocations.find((loc) => loc.id === locationId || loc.name === locationId);
+    if (location?.address) {
+      const addr = location.address as any;
+      const newShipping: ShippingAddress = {
+        fullName: shippingForm.fullName || customer?.name || "",
+        email: shippingForm.email || customer?.email || "",
+        phone: addr.phone || shippingForm.phone || customer?.phone || "",
+        street: addr.street1 || addr.street || "",
+        city: addr.city || "",
+        state: addr.state || "",
+        zip_code: addr.zip_code || "",
+      };
+      setShippingForm(newShipping);
+      onShippingAddressChange(newShipping);
+      setIsEditingShipping(false);
+    }
+  };
 
   // Update shipping form when customer info changes
   useEffect(() => {
@@ -281,6 +427,43 @@ export const CustomerAndAddressStep = ({
             </div>
           </CardHeader>
           <CardContent>
+            {/* Saved Locations Dropdown */}
+            {(validLocations.length > 0 || hasProfileBilling) && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Select Saved Location
+                </Label>
+                <Select value={selectedBillingLocation} onValueChange={handleBillingLocationSelect}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Choose a saved location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Profile Billing Address Option */}
+                    {hasProfileBilling && (
+                      <SelectItem value="profile-billing">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-blue-600">📍 Profile Billing Address</span>
+                          <span className="text-xs text-gray-500">
+                            {getStreet(profileBillingAddress)}, {profileBillingAddress?.city}, {profileBillingAddress?.state}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    )}
+                    {validLocations.map((location, index) => (
+                      <SelectItem key={location.id || index} value={location.id || location.name || `loc-${index}`}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{location.name || `Location ${index + 1}`}</span>
+                          <span className="text-xs text-gray-500">
+                            {getStreet(location.address)}, {location.address?.city}, {location.address?.state}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {isEditingBilling ? (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -348,10 +531,47 @@ export const CustomerAndAddressStep = ({
             </div>
           </CardHeader>
           <CardContent>
+            {/* Saved Locations Dropdown */}
+            {(validLocations.length > 0 || hasProfileShipping) && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <Label className="text-xs text-green-700 font-medium flex items-center gap-1.5 mb-2">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Select Saved Location
+                </Label>
+                <Select value={selectedShippingLocation} onValueChange={handleShippingLocationSelect}>
+                  <SelectTrigger className="bg-white">
+                    <SelectValue placeholder="Choose a saved location..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {/* Profile Shipping Address Option */}
+                    {hasProfileShipping && (
+                      <SelectItem value="profile-shipping">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-green-600">📍 Profile Shipping Address</span>
+                          <span className="text-xs text-gray-500">
+                            {getStreet(profileShippingAddress)}, {profileShippingAddress?.city}, {profileShippingAddress?.state}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    )}
+                    {validLocations.map((location, index) => (
+                      <SelectItem key={location.id || index} value={location.id || location.name || `loc-${index}`}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{location.name || `Location ${index + 1}`}</span>
+                          <span className="text-xs text-gray-500">
+                            {getStreet(location.address)}, {location.address?.city}, {location.address?.state}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-4">
               {/* Same as Billing Checkbox */}
               <div className="flex items-center space-x-2">
-                <Checkbox id="same-billing" checked={sameAsBilling} onCheckedChange={(c) => { setSameAsBilling(c as boolean); if (!c) setIsEditingShipping(true); }} disabled={!billingForm.street} />
+                <Checkbox id="same-billing" checked={sameAsBilling} onCheckedChange={(c) => { setSameAsBilling(c as boolean); setSelectedShippingLocation(""); if (!c) setIsEditingShipping(true); }} disabled={!billingForm.street} />
                 <Label htmlFor="same-billing" className="text-sm">Same as billing address</Label>
               </div>
 

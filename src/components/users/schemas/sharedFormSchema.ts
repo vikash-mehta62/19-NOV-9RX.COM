@@ -22,6 +22,14 @@ const locationSchema = z.object({
   contactPhone: z.string().optional(),
 });
 
+// Terms and Conditions schema
+const termsAndConditionsSchema = z.object({
+  accepted: z.boolean(),
+  accepted_at: z.string(),
+  ip_address: z.string().nullable().optional(),
+  version: z.string().optional(),
+});
+
 export const baseUserSchema = z.object({
   firstName: z.string().min(2, "First name is required"),
   lastName: z.string().min(2, "Last name is required"),
@@ -64,8 +72,10 @@ export const baseUserSchema = z.object({
   locations: z.array(locationSchema).default([]).optional(),
   referralName: z.string().optional(), // Admin-only field
   stateId: z.string().optional(), // State ID field
+  terms_and_conditions: termsAndConditionsSchema.optional(), // Terms acceptance with timestamp
 });
 
 export type BaseUserFormData = z.infer<typeof baseUserSchema>;
 export type LocationData = z.infer<typeof locationSchema>;
 export type AddressData = z.infer<typeof addressSchema>;
+export type TermsAndConditionsData = z.infer<typeof termsAndConditionsSchema>;

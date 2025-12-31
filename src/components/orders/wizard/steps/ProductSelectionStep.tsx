@@ -29,6 +29,7 @@ interface ProductSize {
   originalPrice: number;
   price_per_case: number;
   stock: number;
+  sku?: string;
   groupIds?: string[];
   disAllogroupIds?: string[];
 }
@@ -66,7 +67,7 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
     .select(`
       id, name, sku, category, subcategory, image_url,
       product_sizes!inner (
-        id, size_value, size_unit, price, price_per_case, stock, 
+        id, size_value, size_unit, price, price_per_case, stock, sku,
         groupIds, disAllogroupIds
       )
     `)
@@ -283,6 +284,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
       const cartItem = {
         productId: product.id,
         name: product.name,
+        sku: product.sku || "",
         image: product.image_url || "",
         price: price,
         quantity: 1,
@@ -293,6 +295,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           price: price,
           quantity: 1,
           type: type,
+          sku: size.sku || "",
         }],
         customizations: {},
         notes: "",
@@ -554,6 +557,11 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               <p className="text-sm font-semibold text-gray-900">
                                 {size.size_value} {size.size_unit}
                               </p>
+                              {size.sku && (
+                                <p className="text-xs text-gray-400">
+                                  SKU: {size.sku}
+                                </p>
+                              )}
                               <p className="text-base text-emerald-600 font-bold mt-1">
                                 ${size.price?.toFixed(2)}
                               </p>
@@ -601,8 +609,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                   {cartItems.map((item) => (
                     <div key={item.productId} className="bg-white border rounded-lg p-3">
                       {/* Product Name & Delete */}
-                      <div className="flex items-start justify-between gap-2 mb-3">
-                        <p className="text-sm font-bold text-gray-900">{item.name}</p>
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900">{item.name}</p>
+                          {item.sku && (
+                            <p className="text-xs text-gray-400">SKU: {item.sku}</p>
+                          )}
+                        </div>
                         <Button 
                           variant="ghost" 
                           size="sm" 
@@ -617,8 +630,12 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       {item.sizes?.map((size: any, idx: number) => (
                         <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
                           {/* Size Name */}
-                          <p className="text-sm font-medium text-gray-800 mb-2">
+                          <p className="text-sm font-medium text-gray-800 mb-0.5">
                             {size.size_value} {size.size_unit}
+                          </p>
+                          {/* Size SKU - always show if available */}
+                          <p className="text-xs text-gray-400 mb-2">
+                            {size.sku ? `SKU: ${size.sku}` : ""}
                           </p>
                           {/* Quantity Counter */}
                           <div className="flex items-center justify-center">

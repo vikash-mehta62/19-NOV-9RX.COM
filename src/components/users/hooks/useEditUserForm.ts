@@ -8,7 +8,9 @@ import {
 } from "./types/editUserForm.types";
 import {
   fetchUserProfile,
+  fetchUserProfilePublic,
   updateUserProfile,
+  updateUserProfilePublic,
 } from "./services/userProfileService";
 import { useState, useCallback } from "react";
 
@@ -20,7 +22,8 @@ export const useEditUserForm = ({
   initialStatus,
   onSuccess,
   onClose,
-}: UseEditUserFormProps) => {
+  self = false,
+}: UseEditUserFormProps & { self?: boolean }) => {
   const { toast } = useToast();
   const [formState, setFormState] = useState<EditUserFormState>({
     isLoading: true,
@@ -42,6 +45,9 @@ export const useEditUserForm = ({
       displayName: "",
       workPhone: "",
       mobilePhone: "",
+      faxNumber: "",
+      alternativeEmail: "",
+      department: "",
       billingAddress: {
         street1: "",
         city: "",
@@ -57,15 +63,16 @@ export const useEditUserForm = ({
         countryRegion: "",
       },
       sameAsShipping: false,
-      contactPerson:'',
+      contactPerson: '',
       freeShipping: false,
-      taxPercantage:"",
+      taxPercantage: "",
+      taxId: "",
       taxPreference: "Taxable",
       currency: "USD",
       paymentTerms: "prepay",
       enablePortal: false,
       portalLanguage: "English",
-      email_notifaction:false,
+      email_notifaction: false,
       referralName: "",
       stateId: "",
     },
@@ -73,10 +80,13 @@ export const useEditUserForm = ({
 
   const fetchUserData = useCallback(async () => {
     try {
-      console.log("Fetching user data for ID:", userId);
+      console.log("Fetching user data for ID:", userId, "self:", self);
       setFormState((prev) => ({ ...prev, isLoading: true, error: null }));
 
-      const data = await fetchUserProfile(userId);
+      // Use public fetch for self-update (no auth required)
+      const data = self 
+        ? await fetchUserProfilePublic(userId)
+        : await fetchUserProfile(userId);
 
       if (data) {
         console.log("Successfully fetched user data:", data);
@@ -94,7 +104,10 @@ export const useEditUserForm = ({
           displayName: data.display_name || "",
           workPhone: data.work_phone || "",
           mobilePhone: data.mobile_phone || "",
-          contactPerson:data.contact_person || "",
+          contactPerson: data.contact_person || "",
+          faxNumber: data.fax_number || "",
+          alternativeEmail: data.alternative_email || "",
+          department: data.department || "",
           billingAddress: data.billing_address || {
             street1: "",
             city: "",
@@ -109,7 +122,8 @@ export const useEditUserForm = ({
             zip_code: "",
             countryRegion: "",
           },
-          taxPercantage:data.taxPercantage,
+          taxPercantage: data.taxPercantage,
+          taxId: data.tax_id || "",
           sameAsShipping: data.same_as_shipping || false,
           freeShipping: data.freeShipping || false,
           order_pay: data.order_pay || false,
@@ -119,7 +133,7 @@ export const useEditUserForm = ({
           creditLimit: data.credit_limit || 0,
           enablePortal: data.enable_portal || false,
           portalLanguage: data.portal_language || "English",
-          email_notifaction:data.email_notifaction,
+          email_notifaction: data.email_notifaction,
           referralName: data.referral_name || "",
           stateId: data.state_id || "",
         });
@@ -146,6 +160,7 @@ export const useEditUserForm = ({
     initialStatus,
     form,
     toast,
+    self,
   ]);
 
   const onSubmit = async (values: BaseUserFormData) => {
@@ -174,7 +189,12 @@ export const useEditUserForm = ({
 
       console.log("Submitting formatted values:", formattedValues);
 
-      await updateUserProfile(userId, formattedValues);
+      // Use public update for self-update (no auth required)
+      if (self) {
+        await updateUserProfilePublic(userId, formattedValues);
+      } else {
+        await updateUserProfile(userId, formattedValues);
+      }
 
       toast({
         title: "Success",

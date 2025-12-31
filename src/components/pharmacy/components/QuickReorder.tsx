@@ -30,6 +30,7 @@ interface ReorderItem {
   lastOrdered: string
   price: number
   sizes: OrderSize[]
+  sku?: string
 }
 
 export const QuickReorder = () => {
@@ -115,6 +116,7 @@ export const QuickReorder = () => {
       const cartItem = {
         productId: item.productId,
         name: item.name,
+        sku: item.sku || item.sizes?.[0]?.sku || "",
         image: item.image,
         price: item.price,
         quantity: item.sizes.reduce((sum, s) => sum + s.quantity, 0),

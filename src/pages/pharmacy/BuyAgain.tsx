@@ -112,7 +112,8 @@ export default function BuyAgain() {
         })),
         shipping_cost: Math.max(...item.sizes.map(s => s.shipping_cost || 0), 0),
         customizations: {},
-        notes: ""
+        notes: "",
+        sku: item.sku || item.sizes?.[0]?.sku || ""
       }
 
       await addToCart(cartItem)
@@ -157,7 +158,8 @@ export default function BuyAgain() {
             })),
             shipping_cost: Math.max(...item.sizes.map(s => s.shipping_cost || 0), 0),
             customizations: {},
-            notes: ""
+            notes: "",
+            sku: item.sku || item.sizes?.[0]?.sku || ""
           }
           await addToCart(cartItem)
         }
@@ -279,13 +281,18 @@ export default function BuyAgain() {
                                 key={`${size.id}-${sizeIdx}`}
                                 className="flex items-center justify-between bg-white p-2 rounded border text-sm"
                               >
-                                <div className="flex items-center gap-3">
-                                  <Badge variant="secondary" className="font-mono">
-                                    {size.size_value} {size.size_unit}
-                                  </Badge>
-                                  <span className="text-gray-500">
-                                    Qty: {size.quantity || 1}
-                                  </span>
+                                <div className="flex flex-col gap-0.5">
+                                  <div className="flex items-center gap-3">
+                                    <Badge variant="secondary" className="font-mono">
+                                      {size.size_value} {size.size_unit}
+                                    </Badge>
+                                    <span className="text-gray-500">
+                                      Qty: {size.quantity || 1}
+                                    </span>
+                                  </div>
+                                  {size.sku && (
+                                    <span className="text-xs text-gray-400 ml-1">SKU: {size.sku}</span>
+                                  )}
                                 </div>
                                 <span className="font-semibold text-emerald-600">
                                   ${(size.price * (size.quantity || 1)).toFixed(2)}

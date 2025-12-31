@@ -3,6 +3,7 @@ import { createAction } from "@reduxjs/toolkit";
 export interface CartItem {
   productId: string;
   name: string;
+  sku?: string;
   price: number;
   image: string;
   description?: string;

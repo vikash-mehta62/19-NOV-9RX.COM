@@ -112,7 +112,10 @@ function PayNowOrder() {
               <p className="text-gray-600"><strong>Price:</strong> ${item.price?.toFixed(2) || '0.00'}</p>
               <p className="text-gray-600"><strong>Quantity:</strong> {item.quantity}</p>
               {item.sizes?.map((size: any, i: number) => (
-                <p key={i} className="text-gray-500">Size: {size.size_value} {size.size_unit}</p>
+                <div key={i} className="text-gray-500 mt-1">
+                  <p>Size: {size.size_value} {size.size_unit}</p>
+                  {size.sku && <p className="text-xs text-gray-400">SKU: {size.sku}</p>}
+                </div>
               ))}
             </div>
           ))}

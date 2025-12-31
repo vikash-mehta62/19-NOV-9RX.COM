@@ -189,9 +189,22 @@ const OrderSummaryCardComponent = ({
                       <p className="font-medium text-gray-900 truncate text-xs sm:text-sm" title={item.name}>
                         {item.name}
                       </p>
-                      <p className="text-gray-500 text-xs">
-                        Quantity: {item.quantity}
-                      </p>
+                      {item.sku && (
+                        <p className="text-gray-400 text-xs">
+                          SKU: {item.sku}
+                        </p>
+                      )}
+                      {/* Show sizes with SKU */}
+                      {item.sizes && item.sizes.length > 0 && (
+                        <div className="mt-1 space-y-0.5">
+                          {item.sizes.map((size: any, sizeIdx: number) => (
+                            <div key={sizeIdx} className="text-xs text-gray-500">
+                              <span>{size.size_value} {size.size_unit} × {size.quantity}</span>
+                              {size.sku && <span className="text-gray-400 ml-1">(SKU: {size.sku})</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className="font-medium text-gray-900 text-xs sm:text-sm">

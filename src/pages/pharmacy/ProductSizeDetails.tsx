@@ -157,6 +157,7 @@ const ProductSizeDetails = () => {
       const cartItem = {
         productId: productId!,
         name: `${product.name} - ${size.size_value}${size.size_unit || ''}${customization.enabled ? ' (Customized)' : ''}`,
+        sku: product.sku || size.sku || "",
         price: totalPrice,
         image: imageUrl,
         shipping_cost: Number(size.shipping_cost) || 0,

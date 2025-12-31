@@ -19,6 +19,7 @@ import { AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { calculateFinalTotal, calculateSubtotal, calculateShipping, calculateTax } from "@/utils/orderCalculations";
+import { supabase } from "@/supabaseClient";
 import {
   User,
   MapPin,
@@ -68,6 +69,7 @@ const OrderCreationWizardComponent = ({
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("card");
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [poNumber, setPONumber] = useState("");
+  const [customerLocations, setCustomerLocations] = useState<any[]>([]);
   // For Admin, terms and accuracy are true by default
   const [termsAccepted, setTermsAccepted] = useState(userType === "admin" ? true : false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(userType === "admin" ? true : false);
@@ -132,6 +134,19 @@ const OrderCreationWizardComponent = ({
               zip_code: groupCustomer.billing_address?.zip_code || "",
             });
             setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
+            
+            // Fetch locations for group customer
+            if (profile.id) {
+              const { data: locationsData } = await supabase
+                .from("locations")
+                .select("*")
+                .eq("profile_id", profile.id)
+                .order("created_at", { ascending: false });
+              if (locationsData) {
+                console.log("Group customer locations fetched:", locationsData);
+                setCustomerLocations(locationsData);
+              }
+            }
           }
         } catch (error) {
           console.error("Error loading group customer data:", error);
@@ -149,6 +164,19 @@ const OrderCreationWizardComponent = ({
       // Set customer
       if (initialData.customer) {
         setSelectedCustomer(initialData.customer);
+        
+        // Fetch locations for pre-loaded customer
+        if (initialData.customer.id) {
+          const { data: locationsData } = await supabase
+            .from("locations")
+            .select("*")
+            .eq("profile_id", initialData.customer.id)
+            .order("created_at", { ascending: false });
+          if (locationsData) {
+            console.log("Pre-loaded customer locations fetched:", locationsData);
+            setCustomerLocations(locationsData);
+          }
+        }
       }
 
       // Set addresses
@@ -392,11 +420,31 @@ const OrderCreationWizardComponent = ({
   };
 
   // Handle customer selection - memoized to prevent recreation
-  const handleCustomerSelect = useCallback((customer: Customer) => {
+  const handleCustomerSelect = useCallback(async (customer: Customer) => {
     console.log("Customer selected:", customer);
     console.log("Customer ID:", customer.id);
     
     setSelectedCustomer(customer);
+    
+    // Fetch locations for this customer from locations table
+    try {
+      const { data: locationsData, error: locationsError } = await supabase
+        .from("locations")
+        .select("*")
+        .eq("profile_id", customer.id)
+        .order("created_at", { ascending: false });
+
+      if (!locationsError && locationsData) {
+        console.log("Customer locations fetched:", locationsData);
+        setCustomerLocations(locationsData);
+      } else {
+        console.log("No locations found or error:", locationsError);
+        setCustomerLocations([]);
+      }
+    } catch (err) {
+      console.error("Error fetching locations:", err);
+      setCustomerLocations([]);
+    }
     
     // Set tax percentage in sessionStorage (purane code ke according)
     const taxPercentage = customer.tax_percentage || 0;
@@ -862,6 +910,9 @@ const OrderCreationWizardComponent = ({
               selectedPharmacyName={userType === "group" ? 
                 JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}")?.name : undefined
               }
+              savedLocations={customerLocations}
+              profileBillingAddress={selectedCustomer?.billing_address}
+              profileShippingAddress={selectedCustomer?.shipping_address}
             />
           );
         case 2:
@@ -943,6 +994,10 @@ const OrderCreationWizardComponent = ({
             customerName={selectedCustomer?.name}
             customerEmail={selectedCustomer?.email}
             customerPhone={selectedCustomer?.phone}
+            savedLocations={customerLocations}
+            profileBillingAddress={selectedCustomer?.billing_address}
+            profileShippingAddress={selectedCustomer?.shipping_address}
+            companyName={selectedCustomer?.company_name}
           />
         );
       case 3:

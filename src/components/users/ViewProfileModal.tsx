@@ -1937,6 +1937,83 @@ export function ViewProfileModal({
                 </CardContent>
               </Card>
 
+              {/* Terms and Conditions Acceptance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Terms & Conditions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {profile.terms_and_conditions?.accepted ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                          <Check className="h-4 w-4 text-green-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-green-700">Terms Accepted</p>
+                          <p className="text-sm text-muted-foreground">
+                            User has agreed to Terms & Conditions
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4 mt-4 p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Accepted On</p>
+                          <p className="font-medium text-sm">
+                            {profile.terms_and_conditions.accepted_at 
+                              ? new Date(profile.terms_and_conditions.accepted_at).toLocaleDateString('en-US', {
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                })
+                              : "-"}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
+                          <p className="font-medium text-sm">
+                            {profile.terms_and_conditions.accepted_at 
+                              ? new Date(profile.terms_and_conditions.accepted_at).toLocaleTimeString('en-US', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })
+                              : "-"}
+                          </p>
+                        </div>
+                        {profile.terms_and_conditions.version && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Version</p>
+                            <p className="font-medium text-sm">v{profile.terms_and_conditions.version}</p>
+                          </div>
+                        )}
+                        {profile.terms_and_conditions.ip_address && (
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">IP Address</p>
+                            <p className="font-medium text-sm">{profile.terms_and_conditions.ip_address}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-amber-700">Not Accepted</p>
+                        <p className="text-sm text-muted-foreground">
+                          User has not yet accepted Terms & Conditions
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <Card>
                   <CardHeader>

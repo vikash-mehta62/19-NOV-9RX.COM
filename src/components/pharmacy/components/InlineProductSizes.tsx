@@ -268,6 +268,7 @@ export const InlineProductSizes = ({
       const cartItem = {
         productId: displayProduct.id.toString(),
         name: `${displayProduct.name} - ${size.size_value}${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
+        sku: displayProduct.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(size.image),
         shipping_cost: size.shipping_cost || 0,

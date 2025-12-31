@@ -89,6 +89,7 @@ const CustomerSelectionStepComponent = ({
           shipping_address: profile.shipping_address || undefined,
           freeShipping: profile.freeShipping || false,
           tax_percentage: profile.taxPercantage || 0,
+          locations: profile.locations || [],
         }));
 
         setCustomers(formattedCustomers);

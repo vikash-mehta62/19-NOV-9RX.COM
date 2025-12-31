@@ -686,6 +686,9 @@ export const ItemsTab = ({
                         <span className="font-medium text-gray-900">
                           {size.size_value} {size.size_unit}
                         </span>
+                        {(size as any).sku && (
+                          <p className="text-xs text-gray-400">SKU: {(size as any).sku}</p>
+                        )}
                       </div>
                       <div>
                         {isEditMode ? (
@@ -959,6 +962,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
       await addToCart({
         productId: selectedProduct.id,
         name: selectedProduct.name,
+        sku: selectedProduct.sku || "",
         description: selectedProduct.description || "",
         price: size.price,
         image: getProductImage(),

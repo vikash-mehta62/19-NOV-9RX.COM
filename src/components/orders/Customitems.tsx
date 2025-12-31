@@ -56,6 +56,7 @@ const CustomProductForm = ({ isOpen, onClose, isEditing, form }) => {
       const cartItem = {
         productId: uuidv4(),
         name: data.name,
+        sku: "CUSTOM-" + Date.now(),
         price: Number(totalPrice),
         image: "https://via.placeholder.com/150",
         shipping_cost: 0,
@@ -65,6 +66,7 @@ const CustomProductForm = ({ isOpen, onClose, isEditing, form }) => {
           quantity: Number(size.quantity),
           size_value: size.size,
           size_unit: " ",
+          sku: "",
         })),
         quantity: data.sizes.reduce((total, size) => total + Number(size.quantity), 0),
         customizations: {},

@@ -254,6 +254,11 @@ export const ReviewOrderStep = ({
                               <h4 className="font-semibold text-gray-900">
                                 {item.name}
                               </h4>
+                              {item.sku && (
+                                <p className="text-xs text-gray-400 mt-0.5">
+                                  SKU: {item.sku}
+                                </p>
+                              )}
                               <p className="text-sm text-gray-500 mt-1">
                                 {item.sizes?.length || 0} size
                                 {item.sizes?.length !== 1 ? "s" : ""} • Qty:{" "}
@@ -290,13 +295,20 @@ export const ReviewOrderStep = ({
                                       key={`${size.id}-${index}`}
                                       className="flex items-center justify-between bg-white p-2 rounded text-sm"
                                     >
-                                      <div className="flex items-center gap-2">
-                                        <span className="font-medium text-gray-700">
-                                          {size.size_value} {size.size_unit}
-                                        </span>
-                                        <Badge variant="outline" className="text-xs">
-                                          {size.type === "unit" ? "Unit" : "Case"}
-                                        </Badge>
+                                      <div className="flex flex-col gap-0.5">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-medium text-gray-700">
+                                            {size.size_value} {size.size_unit}
+                                          </span>
+                                          <Badge variant="outline" className="text-xs">
+                                            {size.type === "unit" ? "Unit" : "Case"}
+                                          </Badge>
+                                        </div>
+                                        {size.sku && (
+                                          <span className="text-xs text-gray-400">
+                                            SKU: {size.sku}
+                                          </span>
+                                        )}
                                       </div>
                                       <div className="flex items-center gap-3">
                                         <span className="text-gray-600">

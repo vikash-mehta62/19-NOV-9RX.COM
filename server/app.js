@@ -6,9 +6,21 @@ const ApiControllers = require("authorizenet").APIControllers;
 const SDKConstants = require("authorizenet").Constants;
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
+const { createClient } = require("@supabase/supabase-js");
 
 dotenv.config();
 connectDB();
+
+// Initialize Supabase Admin Client (bypasses RLS)
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+let supabaseAdmin = null;
+
+if (supabaseUrl && supabaseServiceKey) {
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+}
 
 // Response compression for reduced bandwidth
 const compression = require("compression");
@@ -597,6 +609,75 @@ app.post("/customization", emailLimiter, customization)
 app.post("/paynow-user", emailLimiter, paymentLinkCtrl)
 app.post("/group-invitation", emailLimiter, groupInvitationCtrl)
 app.post("/invoice-quickbook", invoicesCtrl)
+
+// Update user profile (bypasses RLS for self-update flow)
+app.post("/update-user-profile", async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        success: false,
+        message: "Server configuration error - Supabase admin not initialized"
+      });
+    }
+
+    const profileData = req.body;
+    
+    if (!profileData.id) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required"
+      });
+    }
+
+    const userId = profileData.id;
+    const userName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
+    const userEmail = profileData.email;
+    
+    delete profileData.id; // Remove id from update data
+
+    // Update profile using admin client (bypasses RLS)
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .update(profileData)
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Profile update error:", error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to update profile"
+      });
+    }
+
+    // Send profile update notification email
+    if (userEmail && userName) {
+      try {
+        const { profileUpdateTemplate } = require("./templates/profiles");
+        const mailSender = require("./utils/mailSender");
+        const emailContent = profileUpdateTemplate(userName, userEmail);
+        await mailSender(userEmail, "Profile Updated Successfully - 9RX", emailContent);
+        console.log("Profile update email sent to:", userEmail);
+      } catch (emailError) {
+        console.error("Failed to send profile update email:", emailError);
+        // Don't fail the request if email fails
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: data
+    });
+  } catch (error) {
+    console.error("Update profile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+})
 
 
 
