@@ -296,6 +296,9 @@ export function OrdersList({
 
       const formattedDueDate = dueDate.toISOString();
 
+      // Calculate discount amount
+      const discountAmount = Number(newOrder.discount_amount || 0);
+
       const invoiceData = {
         invoice_number: invoiceNumber,
         order_id: newOrder.id,
@@ -308,6 +311,7 @@ export function OrdersList({
         payment_status: newOrder.payment_status,
         payment_method: newOrder.paymentMethod as PaymentMethod,
         payment_notes: newOrder.notes || null,
+        purchase_number_external: newOrder.purchase_number_external,
         items: newOrder.items || [],
         customer_info: newOrder.customerInfo || {
           name: newOrder.customerInfo?.name,
@@ -316,7 +320,10 @@ export function OrdersList({
         },
         shipping_info: newOrder.shippingAddress || {},
         shippin_cost: newOrder.shipping_cost,
-        subtotal: newOrder.total_amount,
+        subtotal: newOrder.total_amount + discountAmount,
+        // Add discount information
+        discount_amount: discountAmount,
+        discount_details: newOrder.discount_details || [],
       };
 
       console.log("Creating invoice with data:", invoiceData);
@@ -553,13 +560,18 @@ export function OrdersList({
         estimatedDeliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000
       ).toISOString();
 
+      // Calculate discount amount
+      const discountAmount = Number(order.discount_amount || 0);
+      // Subtotal should be original amount before discount
+      const subtotalAmount = totalAmount + discountAmount;
+
       const invoiceData = {
         invoice_number: invoiceNumber,
         order_id: order.id,
         profile_id: order.customer,
         due_date: dueDate,
         status: "pending",
-        amount: totalAmount,
+        amount: subtotalAmount,
         tax_amount: newTax,
         total_amount: totalAmount,
         payment_status: "paid",
@@ -570,7 +582,10 @@ export function OrdersList({
         customer_info: order.customerInfo,
         shipping_info: order.shippingAddress,
         shippin_cost: order.shipping_cost,
-        subtotal: totalAmount,
+        subtotal: subtotalAmount,
+        // Add discount information
+        discount_amount: discountAmount,
+        discount_details: order.discount_details || [],
       };
 
       // Insert invoice

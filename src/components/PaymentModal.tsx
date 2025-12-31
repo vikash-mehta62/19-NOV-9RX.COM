@@ -276,7 +276,9 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
 
   // Calculate subtotal (total - tax - shipping)
   const shippingCost = order.shipping_cost || 0
-  const subtotal = totalAmount - newTax - shippingCost
+  const discountAmount = Number(order.discount_amount || 0)
+  // Subtotal should be original amount before discount
+  const subtotal = totalAmount + discountAmount - newTax - shippingCost
 
   const invoiceData = {
     invoice_number: invoiceNumber,
@@ -288,14 +290,17 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
     tax_amount: newTax,
     total_amount: totalAmount,
     payment_status: order.payment_status || "paid",
-    payment_method: order.paymentMethod || "card",
+    payment_method: order.paymentMethod || order.payment_method || "card",
     notes: order.notes || null,
     purchase_number_external: order.purchase_number_external,
     items: order.items,
     customer_info: order.customerInfo,
     shipping_info: order.shippingAddress,
     shippin_cost: shippingCost,
-    subtotal: subtotal
+    subtotal: subtotal,
+    // Add discount information
+    discount_amount: discountAmount,
+    discount_details: order.discount_details || [],
   }
 
   const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
