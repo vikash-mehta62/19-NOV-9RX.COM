@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback, memo } from "react"
 import { BannerSlider } from "./components/BannerSlider"
-import { CategoryCards } from "./components/CategoryCards"
+import { Button } from "@/components/ui/button"
 import { QuickReorder } from "./components/QuickReorder"
 import { WelcomeDashboard } from "./components/WelcomeDashboard"
 import { DealsSection } from "./components/DealsSection"
@@ -22,14 +22,11 @@ import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
 import {
-  Loader2, Search, Filter, SlidersHorizontal, X,
-  ShoppingCart, User, Menu, FileText, Settings,
-  Package, LogOut, Receipt, ChevronDown, Gift, CreditCard,
-  HelpCircle, Heart, History, Star, Wallet, FileBarChart
+  Loader2, Filter, X,
+  ShoppingCart, Settings,
+  Package, LogOut, Receipt, ChevronDown, Gift,
+  HelpCircle, Heart, History, Wallet, FileBarChart
 } from "lucide-react"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -56,7 +53,7 @@ import image6 from "../../assests/home/image6.jpg";
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
-  const { cartItems, cartTotal } = useCart()
+  const { cartItems } = useCart()
   const [products, setProducts] = useState<ProductDetails[]>([])
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
@@ -241,91 +238,81 @@ export const PharmacyProductsFullPage = () => {
     fetchProducts()
   }, [userProfile])
 
-  // Filter products
+  // Optimized filtering with single pass and memoized results
   const filteredProducts = useMemo(() => {
     console.log('=== PHARMACY PRODUCTS FILTERING ===');
     console.log('Search query:', searchQuery);
     console.log('Total products:', products.length);
 
-    let filtered = products
+    if (products.length === 0) return [];
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      console.log('Filtering with query:', query);
+    const query = searchQuery.toLowerCase().trim();
+    
+    // Single-pass filtering with early returns
+    const filtered = products.filter((product) => {
+      // Category filter (early return for performance)
+      if (selectedCategory !== "all" && product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
+        return false;
+      }
 
-      filtered = filtered.filter(
-        (product) => {
-          // Basic product search
-          const basicMatch = product.name.toLowerCase().includes(query) ||
-            product.description.toLowerCase().includes(query) ||
-            product.sku?.toLowerCase().includes(query)
+      // Subcategory filter
+      if (selectedSubcategory !== "all" && product.subcategory?.toLowerCase() !== selectedSubcategory.toLowerCase()) {
+        return false;
+      }
 
-          if (basicMatch) {
-            console.log('Basic match found:', product.name);
-            return true;
-          }
-
-          // Size-based search
-          const sizeMatch = product.sizes?.some(size => {
-            const sizeValueMatch = size.size_value?.toString().toLowerCase().includes(query);
-            const sizeUnitMatch = size.size_unit?.toLowerCase().includes(query);
-            const sizeSkuMatch = size.sku?.toLowerCase().includes(query);
-            const combinedMatch = `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''));
-
-            if (sizeValueMatch || sizeUnitMatch || sizeSkuMatch || combinedMatch) {
-              console.log('Size match found:', {
-                product: product.name,
-                size: `${size.size_value}${size.size_unit}`,
-                sizeValueMatch,
-                sizeUnitMatch,
-                sizeSkuMatch,
-                combinedMatch
-              });
-              return true;
-            }
-            return false;
-          });
-
-          return sizeMatch;
+      // Price range filter
+      if (priceRange !== "all") {
+        const [min, max] = priceRange.split("-").map((v) => (v === "+" ? Infinity : parseInt(v)));
+        const price = product.base_price || 0;
+        if (price < min || (max !== Infinity && price > max)) {
+          return false;
         }
-      )
+      }
 
-      console.log('Filtered products count:', filtered.length);
+      // Search query filter (if no query, include all products that passed other filters)
+      if (!query) return true;
+
+      // Basic product search
+      const basicMatch = product.name.toLowerCase().includes(query) ||
+        product.description.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query);
+
+      if (basicMatch) return true;
+
+      // Size-based search (optimized)
+      return product.sizes?.some(size => {
+        const sizeValue = size.size_value?.toString().toLowerCase();
+        const sizeUnit = size.size_unit?.toLowerCase();
+        const sizeSku = size.sku?.toLowerCase();
+        const combined = `${size.size_value}${size.size_unit}`.toLowerCase();
+        
+        return sizeValue?.includes(query) || 
+               sizeUnit?.includes(query) || 
+               sizeSku?.includes(query) || 
+               combined.includes(query.replace(/\s+/g, ''));
+      }) || false;
+    });
+
+    // Sort products (optimized with single sort)
+    let sortedProducts = [...filtered];
+    switch (sortBy) {
+      case "price-low":
+        sortedProducts.sort((a, b) => (a.base_price || 0) - (b.base_price || 0));
+        break;
+      case "price-high":
+        sortedProducts.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
+        break;
+      case "newest":
+        sortedProducts.sort((a, b) => (b.squanence || 0) - (a.squanence || 0));
+        break;
+      default:
+        // Keep original order for "featured"
+        break;
     }
 
-    if (selectedCategory !== "all") {
-      filtered = filtered.filter(
-        (product) => product.category?.toLowerCase() === selectedCategory.toLowerCase()
-      )
-    }
-
-    if (selectedSubcategory !== "all") {
-      filtered = filtered.filter(
-        (product) => product.subcategory?.toLowerCase() === selectedSubcategory.toLowerCase()
-      )
-    }
-
-    if (priceRange !== "all") {
-      const [min, max] = priceRange.split("-").map((v) => (v === "+" ? Infinity : parseInt(v)))
-      filtered = filtered.filter((product) => {
-        const price = product.base_price || 0
-        return price >= min && (max === Infinity || price <= max)
-      })
-    }
-
-    // Sort products
-    if (sortBy === "price-low") {
-      filtered = [...filtered].sort((a, b) => Number(a.base_price || 0) - Number(b.base_price || 0))
-    } else if (sortBy === "price-high") {
-      filtered = [...filtered].sort((a, b) => Number(b.base_price || 0) - Number(a.base_price || 0))
-    } else if (sortBy === "newest") {
-      filtered = [...filtered].sort((a, b) => Number(b.squanence || 0) - Number(a.squanence || 0))
-    }
-
-    // Add matching size info for highlighting
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      filtered = filtered.map(product => ({
+    // Add matching size info only if search query exists
+    if (query) {
+      sortedProducts = sortedProducts.map(product => ({
         ...product,
         matchingSizes: product.sizes?.filter(size =>
           size.size_value?.toString().toLowerCase().includes(query) ||
@@ -333,36 +320,33 @@ export const PharmacyProductsFullPage = () => {
           size.sku?.toLowerCase().includes(query) ||
           `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''))
         ) || []
-      }))
-
-      console.log('Products with matching sizes:', filtered.filter(p => p.matchingSizes && p.matchingSizes.length > 0));
+      }));
     }
 
-    console.log('Final filtered products:', filtered.length);
-    return filtered
+    console.log('Final filtered products:', sortedProducts.length);
+    return sortedProducts;
   }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange, sortBy])
 
-  const handleCategorySelect = (category: string) => {
+  // Memoized handlers to prevent child re-renders
+  const handleCategorySelect = useCallback((category: string) => {
     setSelectedCategory(category)
     setSelectedSubcategory("all")
-    // Clear selected product when changing category
     setSelectedProduct(null)
-  }
+  }, [])
 
-  const handleProductClick = (product: ProductDetails) => {
-    // Toggle product selection - if same product clicked, deselect it
+  const handleProductClick = useCallback((product: ProductDetails) => {
     if (selectedProduct?.id === product.id) {
       setSelectedProduct(null)
     } else {
       setSelectedProduct(product)
     }
-  }
+  }, [selectedProduct?.id])
 
-  const handleImageClick = (imageUrl: string) => {
+  const handleImageClick = useCallback((imageUrl: string) => {
     setFullscreenImage(imageUrl)
     setImageZoom(1)
     setImagePosition({ x: 0, y: 0 })
-  }
+  }, [])
 
   const handleCloseFullscreen = () => {
     setFullscreenImage(null)

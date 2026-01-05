@@ -11,8 +11,23 @@ import {
 } from '../types/cartTypes';
 
 /* -------------------------------------------------
-   Safe localStorage helpers
+   Safe localStorage helpers with debouncing
 ------------------------------------------------- */
+let saveTimeout: NodeJS.Timeout | null = null;
+
+const debouncedSaveToLocalStorage = (items: any[]) => {
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
+  
+  saveTimeout = setTimeout(() => {
+    try {
+      localStorage.setItem('cartItems', JSON.stringify(items));
+    } catch (error) {
+      console.error('Failed to save cart to localStorage:', error);
+    }
+  }, 300); // 300ms debounce
+};
 const getInitialCartItems = (): any[] => {
   if (typeof window === 'undefined') return [];
   try {

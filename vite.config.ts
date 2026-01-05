@@ -35,11 +35,13 @@ export default defineConfig(({ mode }) => ({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           // Redux state management
           'vendor-redux': ['@reduxjs/toolkit', 'react-redux', 'redux'],
-          // UI components library
-          'vendor-radix': [
+          // UI components library - split by usage
+          'vendor-radix-core': [
             '@radix-ui/react-dialog',
             '@radix-ui/react-dropdown-menu',
             '@radix-ui/react-select',
+          ],
+          'vendor-radix-extended': [
             '@radix-ui/react-tabs',
             '@radix-ui/react-toast',
             '@radix-ui/react-tooltip',
@@ -47,16 +49,16 @@ export default defineConfig(({ mode }) => ({
           ],
           // Form handling
           'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod', 'yup'],
-          // Charts and visualization
+          // Charts and visualization (lazy loaded)
           'vendor-charts': ['recharts'],
-          // PDF generation (loaded on demand)
-          'vendor-pdf': ['jspdf', 'jspdf-autotable', 'pdf-lib'],
           // Date utilities
           'vendor-date': ['date-fns'],
           // Supabase client
           'vendor-supabase': ['@supabase/supabase-js'],
           // Animation
           'vendor-animation': ['framer-motion'],
+          // React Query
+          'vendor-query': ['@tanstack/react-query'],
         },
       },
     },
