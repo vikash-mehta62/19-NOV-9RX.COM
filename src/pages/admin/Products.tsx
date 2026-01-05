@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { 
-  Search, Grid3X3, List, Package, X, Loader2, 
+import {
+  Search, Grid3X3, List, Package, X,
   Edit, Trash2, Eye, MoreHorizontal, Filter
 } from "lucide-react";
 import {
@@ -32,6 +32,14 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
+import image1 from "../../assests/home/image1.jpg";
+import image2 from "../../assests/home/image2.jpg";
+import image3 from "../../assests/home/image3.jpg";
+import image4 from "../../assests/home/image4.jpg";
+import image5 from "../../assests/home/image5.jpg";
+import image6 from "../../assests/home/image6.jpg";
+
+const imageArray = [image6, image2, image3, image4, image5, image1];
 
 const Products = () => {
   const navigate = useNavigate();
@@ -69,12 +77,12 @@ const Products = () => {
           .from('category_configs')
           .select('category_name')
           .order('category_name');
-        
+
         if (error) {
           console.error('Error fetching categories:', error);
           return;
         }
-        
+
         const categoryNames = data?.map(item => item.category_name) || [];
         setCategories(categoryNames);
       } catch (error) {
@@ -105,390 +113,609 @@ const Products = () => {
     setSelectedCategory("all");
   };
 
+  const handleCategoryClick = (category: string) => {
+    setSelectedCategory(category);
+  }
+
   const hasActiveFilters = searchQuery || selectedCategory !== "all";
 
   return (
     <DashboardLayout role="admin">
-      <div className="space-y-6 p-6">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <ProductHeader
-            onUploadComplete={handleBulkAddProducts}
-            onAddProduct={() => setIsAddDialogOpen(true)}
-          />
-        </div>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+        <div className="space-y-8 p-6 max-w-7xl mx-auto">
+          {/* Enhanced Header with Stats */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-8">            
+            <ProductHeader
+              onUploadComplete={handleBulkAddProducts}
+              onAddProduct={() => setIsAddDialogOpen(true)}
+            />
+          </div>
 
-        {/* Filters & Search */}
-        <Card className="border-0 shadow-sm">
-          <CardContent className="p-4">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
-              <div className="flex flex-1 gap-3 w-full sm:w-auto">
-                {/* Search */}
-                <div className="relative flex-1 max-w-md">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    placeholder="Search products, sizes, SKU, NDC codes..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10 h-10 bg-gray-50 border-gray-200 focus:bg-white"
-                    title="Search in: Product name, description, category, SKU, size values, NDC/UPC codes"
-                  />
-                  {searchQuery && (
-                    <button
-                      onClick={() => setSearchQuery("")}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+          {/* Enhanced Filters & Search */}
+          <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
+                <div className="flex flex-1 gap-4 w-full lg:w-auto">
+                  {/* Enhanced Search */}
+                  <div className="relative flex-1 max-w-md">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <Input
+                      placeholder="Search products, sizes, SKU, NDC codes..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="pl-12 h-11 bg-white border-gray-200 focus:border-emerald-300 focus:ring-emerald-200 rounded-xl shadow-sm"
+                      title="Search in: Product name, description, category, SKU, size values, NDC/UPC codes"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Enhanced Category Filter */}
+                  <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                    <SelectTrigger className="w-[200px] h-11 bg-white border-gray-200 rounded-xl shadow-sm">
+                      <Filter className="w-4 h-4 mr-2 text-gray-400" />
+                      <SelectValue placeholder="All Categories" />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl">
+                      <SelectItem value="all">All Categories</SelectItem>
+                      {categories.map((category) => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  {/* Clear Filters */}
+                  {hasActiveFilters && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={clearFilters} 
+                      className="h-11 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl px-4"
                     >
-                      <X className="w-4 h-4" />
-                    </button>
+                      <X className="w-4 h-4 mr-2" />
+                      Clear
+                    </Button>
                   )}
                 </div>
 
-                {/* Category Filter */}
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-[180px] h-10 bg-gray-50 border-gray-200">
-                    <Filter className="w-4 h-4 mr-2 text-gray-400" />
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {category}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex items-center gap-4">
+                  {/* Results Count */}
+                  <div className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+                    <span className="font-semibold text-gray-900">{totalProducts}</span> products
+                  </div>
 
-                {/* Clear Filters */}
-                {hasActiveFilters && (
-                  <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 text-gray-500">
-                    <X className="w-4 h-4 mr-1" />
-                    Clear
-                  </Button>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3">
-                {/* Results Count */}
-                <p className="text-sm text-gray-600">
-                  <span className="font-semibold text-gray-900">{totalProducts}</span> products
-                </p>
-
-                {/* View Toggle */}
-                <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewMode("grid")}
-                    className={`h-8 px-3 rounded-md ${
-                      viewMode === "grid" 
-                        ? "bg-white shadow-sm text-emerald-600" 
+                  {/* Enhanced View Toggle */}
+                  <div className="flex items-center bg-gray-100 rounded-xl p-1 shadow-inner">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode("grid")}
+                      className={`h-9 px-4 rounded-lg transition-all ${viewMode === "grid"
+                        ? "bg-white shadow-md text-emerald-600 font-medium"
                         : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <Grid3X3 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setViewMode("table")}
-                    className={`h-8 px-3 rounded-md ${
-                      viewMode === "table" 
-                        ? "bg-white shadow-sm text-emerald-600" 
+                        }`}
+                    >
+                      <Grid3X3 className="w-4 h-4 mr-2" />
+                      Grid
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setViewMode("table")}
+                      className={`h-9 px-4 rounded-lg transition-all ${viewMode === "table"
+                        ? "bg-white shadow-md text-emerald-600 font-medium"
                         : "text-gray-500 hover:text-gray-700"
-                    }`}
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
+                        }`}
+                    >
+                      <List className="w-4 h-4 mr-2" />
+                      Table
+                    </Button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Active Filters */}
-            {hasActiveFilters && (
-              <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t">
-                {searchQuery && (
-                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                    Search: "{searchQuery}"
-                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => setSearchQuery("")} />
-                  </Badge>
-                )}
-                {selectedCategory !== "all" && (
-                  <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200">
-                    {selectedCategory}
-                    <X className="w-3 h-3 ml-1 cursor-pointer" onClick={() => setSelectedCategory("all")} />
-                  </Badge>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Products */}
-        {loading ? (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <Loader2 className="w-10 h-10 animate-spin text-emerald-600 mb-4" />
-              <p className="text-gray-500">Loading products...</p>
-            </CardContent>
-          </Card>
-        ) : products.length === 0 ? (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="flex flex-col items-center justify-center py-16">
-              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
-                <Package className="w-10 h-10 text-gray-400" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
-              <p className="text-gray-500 mb-6 text-center max-w-md">
-                {hasActiveFilters 
-                  ? "Try adjusting your search or filters to find what you're looking for."
-                  : "Get started by adding your first product."}
-              </p>
-              {hasActiveFilters ? (
-                <Button variant="outline" onClick={clearFilters} className="gap-2">
-                  <X className="w-4 h-4" />
-                  Clear filters
-                </Button>
-              ) : (
-                <Button onClick={() => setIsAddDialogOpen(true)} className="bg-emerald-600 hover:bg-emerald-700">
-                  Add Product
-                </Button>
+              {/* Enhanced Active Filters */}
+              {hasActiveFilters && (
+                <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-gray-100">
+                  {searchQuery && (
+                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 px-3 py-1 rounded-full">
+                      Search: "{searchQuery}"
+                      <X className="w-3 h-3 ml-2 cursor-pointer hover:text-emerald-900" onClick={() => setSearchQuery("")} />
+                    </Badge>
+                  )}
+                  {selectedCategory !== "all" && (
+                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 rounded-full">
+                      {selectedCategory}
+                      <X className="w-3 h-3 ml-2 cursor-pointer hover:text-blue-900" onClick={() => setSelectedCategory("all")} />
+                    </Badge>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
-        ) : viewMode === "grid" ? (
-          /* Grid View */
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {products.map((product) => (
-              <Card 
-                key={product.id} 
-                className="group border-0 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden"
-              >
-                {/* Product Image */}
-                <div className="relative aspect-square bg-gray-50 overflow-hidden">
-                  <img
-                    src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
-                    alt={product.name}
-                    className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
-                  />
-                  {/* Quick Actions */}
-                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="secondary" size="icon" className="h-8 w-8 bg-white shadow-sm">
-                          <MoreHorizontal className="w-4 h-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)}>
-                          <Eye className="w-4 h-4 mr-2" />
-                          View Details
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => {
-                          setEditingProduct(product);
-                          setIsEditDialogOpen(true);
-                        }}>
-                          <Edit className="w-4 h-4 mr-2" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuItem 
-                          className="text-red-600"
-                          onClick={() => handleDeleteProduct(product.id)}
-                        >
-                          <Trash2 className="w-4 h-4 mr-2" />
-                          Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                  {/* Category Badge */}
-                  {product.category && (
-                    <Badge 
-                      variant="secondary" 
-                      className="absolute bottom-2 left-2 bg-white/90 text-gray-700 text-xs"
-                    >
-                      {product.category}
-                    </Badge>
-                  )}
-                </div>
 
-                {/* Product Info */}
-                <CardContent className="p-4">
-                  <h3 className="font-semibold text-gray-900 line-clamp-2 mb-1 group-hover:text-emerald-600 transition-colors">
-                    {product.name}
-                  </h3>
+          {/* Enhanced Loading State */}
+          {loading ? (
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="flex flex-col items-center justify-center py-16">
+                <div className="relative mb-6">
+                  <div className="w-12 h-12 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                  <div className="absolute inset-0 w-12 h-12 border-3 border-transparent border-r-blue-400 rounded-full animate-spin" style={{ animationDelay: '150ms' }}></div>
+                </div>
+                <p className="text-gray-600 text-lg font-medium">Loading your products...</p>
+                <p className="text-gray-400 text-sm mt-1">This won't take long</p>
+              </CardContent>
+            </Card>
+          ) : products.length === 0 ? (
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="flex flex-col items-center justify-center py-20">
+                <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+                  <Package className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">No products found</h3>
+                <p className="text-gray-500 mb-8 text-center max-w-md leading-relaxed">
+                  {hasActiveFilters
+                    ? "We couldn't find any products matching your criteria. Try adjusting your search or filters."
+                    : "Your product catalog is empty. Start building your inventory by adding your first product."}
+                </p>
+                {hasActiveFilters ? (
+                  <Button 
+                    variant="outline" 
+                    onClick={clearFilters} 
+                    className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear all filters
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => setIsAddDialogOpen(true)} 
+                    className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
+                  >
+                    <Package className="w-5 h-5 mr-2" />
+                    Add Your First Product
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+        ) : viewMode === "grid" ? (
+          <>
+            {/* Enhanced Category Grid - Only show when no specific category is selected */}
+            {selectedCategory === "all" && (
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
+                <CardContent className="p-8">
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
+                      Product Categories
+                    </h2>
+                    <p className="text-gray-600">Browse products by category</p>
+                  </div>
                   
-                  {/* Search Match Indicator */}
-                  {searchQuery && (
-                    <SearchMatchIndicator 
-                      matches={getSearchMatches(product, searchQuery)} 
-                      searchQuery={searchQuery}
-                      className="mb-2"
-                    />
-                  )}
-                  
-                  <p className="text-xs text-gray-500 mb-2">SKU: {product.sku || "N/A"}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-emerald-600">
-                      ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
-                    </span>
-                    <Badge 
-                      variant="outline" 
-                      className={`text-xs ${
-                        (product.current_stock || 0) > 0 
-                          ? "border-emerald-200 text-emerald-700 bg-emerald-50" 
-                          : "border-red-200 text-red-700 bg-red-50"
-                      }`}
-                    >
-                      {(product.current_stock || 0) > 0 ? "In Stock" : "Out of Stock"}
-                    </Badge>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
+                    {imageArray.map((image, index) => (
+                      <div
+                        key={index}
+                        className="group relative flex flex-col items-center justify-center"
+                      >
+                        {categories[index] ? (
+                          <div
+                            onClick={() => handleCategoryClick(categories[index])}
+                            className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
+                          >
+                            {/* Enhanced Image Container */}
+                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
+                              <img
+                                src={image}
+                                alt={`Category ${categories[index]}`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
+                              
+                              {/* Overlay on hover */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              
+                              {/* Category count badge */}
+                              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                {products.filter(p => p.category === categories[index]).length} items
+                              </div>
+                            </div>
+
+                            {/* Enhanced Category Label */}
+                            <div className="mt-4 text-center w-full">
+                              <span className="text-sm font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 block leading-tight">
+                                {categories[index]}
+                              </span>
+                              <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center opacity-30 hover:opacity-50 transition-opacity w-full">
+                            <div className="w-full aspect-square max-w-[160px] rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100">
+                              <Package className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <span className="text-sm text-gray-400 mt-4 font-medium">No Category</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        ) : (
-          /* Table View */
-          <Card className="border-0 shadow-sm overflow-hidden">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-gray-50">
-                  <TableHead className="w-[80px]">Image</TableHead>
-                  <TableHead>Product</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Price</TableHead>
-                  <TableHead className="text-center">Stock</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((product, index) => (
-                  <TableRow 
-                    key={product.id}
-                    className={`hover:bg-gray-50 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
-                  >
-                    <TableCell>
-                      <div className="w-12 h-12 bg-gray-100 rounded-lg overflow-hidden">
+            )}
+
+            {/* Selected Category Header - Show when a specific category is selected */}
+            {selectedCategory !== "all" && (
+              <>
+                {/* Enhanced Selected Category Header */}
+                <div className="mb-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                        {selectedCategory}
+                      </h2>
+                      <Badge variant="secondary" className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200 px-4 py-2 rounded-full text-sm font-medium">
+                        {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
+                      </Badge>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedCategory("all")}
+                      className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50 transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                      Show All Categories
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Enhanced Product Grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {products.map((product) => (
+                    <Card
+                      key={product.id}
+                      className="group border-0 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden bg-white hover:-translate-y-1 cursor-pointer"
+                    >
+                      {/* Enhanced Product Image */}
+                      <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
                         <img
-                          src={product.image_url || product.image || "/placeholder.svg"}
+                          src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
                           alt={product.name}
-                          className="w-full h-full object-contain p-1"
+                          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
                         />
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <div>
-                        <p className="font-medium text-gray-900">{product.name}</p>
                         
+                        {/* Enhanced Quick Actions */}
+                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="secondary" size="icon" className="h-9 w-9 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-full border-0">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+                              <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)} className="rounded-lg">
+                                <Eye className="w-4 h-4 mr-3" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => {
+                                setEditingProduct(product);
+                                setIsEditDialogOpen(true);
+                              }} className="rounded-lg">
+                                <Edit className="w-4 h-4 mr-3" />
+                                Edit Product
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-red-600 rounded-lg"
+                                onClick={() => handleDeleteProduct(product.id)}
+                              >
+                                <Trash2 className="w-4 h-4 mr-3" />
+                                Delete
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        {/* Enhanced Category Badge */}
+                        {product.category && (
+                          <Badge
+                            variant="secondary"
+                            className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-lg shadow-sm"
+                          >
+                            {product.category}
+                          </Badge>
+                        )}
+
+                        {/* Stock Status Indicator */}
+                        <div className="absolute top-3 left-3">
+                          <div className={`w-3 h-3 rounded-full ${(product.current_stock || 0) > 0 ? 'bg-green-500' : 'bg-red-500'} shadow-sm`}></div>
+                        </div>
+                      </div>
+
+                      {/* Enhanced Product Info */}
+                      <CardContent className="p-5">
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-emerald-600 transition-colors text-base leading-tight">
+                          {product.name}
+                        </h3>
+
                         {/* Search Match Indicator */}
                         {searchQuery && (
-                          <SearchMatchIndicator 
-                            matches={getSearchMatches(product, searchQuery)} 
+                          <SearchMatchIndicator
+                            matches={getSearchMatches(product, searchQuery)}
                             searchQuery={searchQuery}
-                            className="mt-1"
+                            className="mb-3"
                           />
                         )}
+
+                        <p className="text-xs text-gray-500 mb-3 font-mono bg-gray-50 px-2 py-1 rounded-md inline-block">
+                          SKU: {product.sku || "N/A"}
+                        </p>
                         
-                        {product.description && (
-                          <p className="text-xs text-gray-500 line-clamp-1">{product.description}</p>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
+                            ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
+                          </span>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs px-2 py-1 rounded-lg font-medium ${(product.current_stock || 0) > 0
+                              ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                              : "border-red-300 text-red-700 bg-red-50"
+                              }`}
+                          >
+                            {(product.current_stock || 0) > 0 ? `${product.current_stock} In Stock` : "Out of Stock"}
+                          </Badge>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        ) : (
+          <>
+            {/* Enhanced Category Grid - Only show when no specific category is selected */}
+            {selectedCategory === "all" && (
+              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
+                <CardContent className="p-8">
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
+                      Product Categories
+                    </h2>
+                    <p className="text-gray-600">Browse products by category</p>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
+                    {imageArray.map((image, index) => (
+                      <div
+                        key={index}
+                        className="group relative flex flex-col items-center justify-center"
+                      >
+                        {categories[index] ? (
+                          <div
+                            onClick={() => handleCategoryClick(categories[index])}
+                            className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
+                          >
+                            {/* Enhanced Image Container */}
+                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
+                              <img
+                                src={image}
+                                alt={`Category ${categories[index]}`}
+                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                              />
+                              
+                              {/* Overlay on hover */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                              
+                              {/* Category count badge */}
+                              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                                {products.filter(p => p.category === categories[index]).length} items
+                              </div>
+                            </div>
+
+                            {/* Enhanced Category Label */}
+                            <div className="mt-4 text-center w-full">
+                              <span className="text-sm font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 block leading-tight">
+                                {categories[index]}
+                              </span>
+                              <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center opacity-30 hover:opacity-50 transition-opacity w-full">
+                            <div className="w-full aspect-square max-w-[160px] rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100">
+                              <Package className="w-8 h-8 text-gray-400" />
+                            </div>
+                            <span className="text-sm text-gray-400 mt-4 font-medium">No Category</span>
+                          </div>
                         )}
                       </div>
-                    </TableCell>
-                    <TableCell className="font-mono text-sm text-gray-600">
-                      {product.sku || "N/A"}
-                    </TableCell>
-                    <TableCell>
-                      {product.category && (
-                        <Badge variant="secondary" className="bg-gray-100 text-gray-700">
-                          {product.category}
-                        </Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-semibold text-emerald-600">
-                      ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge 
-                        variant="outline" 
-                        className={`${
-                          (product.current_stock || 0) > 0 
-                            ? "border-emerald-200 text-emerald-700 bg-emerald-50" 
-                            : "border-red-200 text-red-700 bg-red-50"
-                        }`}
-                      >
-                        {product.current_stock || 0}
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Selected Category Header - Show when a specific category is selected */}
+            {selectedCategory !== "all" && (
+              <>
+                <div className="mb-8">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                        {selectedCategory}
+                      </h2>
+                      <Badge variant="secondary" className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200 px-4 py-2 rounded-full text-sm font-medium">
+                        {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
                       </Badge>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)}>
-                            <Eye className="w-4 h-4 mr-2" />
-                            View Details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => {
-                            setEditingProduct(product);
-                            setIsEditDialogOpen(true);
-                          }}>
-                            <Edit className="w-4 h-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            className="text-red-600"
-                            onClick={() => handleDeleteProduct(product.id)}
-                          >
-                            <Trash2 className="w-4 h-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => setSelectedCategory("all")}
+                      className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50 transition-all"
+                    >
+                      <X className="w-4 h-4" />
+                      Show All Categories
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Enhanced Table View */}
+                <Card className="border-0 shadow-lg overflow-hidden bg-white/80 backdrop-blur-sm">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+                        <TableHead className="w-[80px] font-semibold text-gray-700 py-4">Image</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Product Details</TableHead>
+                        <TableHead className="font-semibold text-gray-700">SKU</TableHead>
+                        <TableHead className="font-semibold text-gray-700">Category</TableHead>
+                        <TableHead className="text-right font-semibold text-gray-700">Price</TableHead>
+                        <TableHead className="text-center font-semibold text-gray-700">Stock Status</TableHead>
+                        <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {products.map((product, index) => (
+                        <TableRow
+                          key={product.id}
+                          className={`hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 transition-all duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                        >
+                          <TableCell className="py-4">
+                            <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl overflow-hidden shadow-sm">
+                              <img
+                                src={product.images && product.images[0]
+                                  ? `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`
+                                  : "/placeholder.svg"
+                                }
+                                alt={product.name}
+                                className="w-full h-full object-contain p-2 hover:scale-110 transition-transform duration-300"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="py-4">
+                            <div>
+                              <p className="font-semibold text-gray-900 text-base mb-1">{product.name}</p>
+
+                              {/* Search Match Indicator */}
+                              {searchQuery && (
+                                <SearchMatchIndicator
+                                  matches={getSearchMatches(product, searchQuery)}
+                                  searchQuery={searchQuery}
+                                  className="mb-2"
+                                />
+                              )}
+
+                              {product.description && (
+                                <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <span className="font-mono text-sm text-gray-600 bg-gray-100 rounded-lg px-3 py-1 inline-block">
+                              {product.sku || "N/A"}
+                            </span>
+                          </TableCell>
+                          <TableCell>
+                            {product.category && (
+                              <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-3 py-1 rounded-lg">
+                                {product.category}
+                              </Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
+                              ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Badge
+                              variant="outline"
+                              className={`px-3 py-1 rounded-lg font-medium ${(product.current_stock || 0) > 0
+                                ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                                : "border-red-300 text-red-700 bg-red-50"
+                                }`}
+                            >
+                              {(product.current_stock || 0) > 0 ? `${product.current_stock} units` : "Out of Stock"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right py-4">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-gray-100">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+                                <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)} className="rounded-lg">
+                                  <Eye className="w-4 h-4 mr-3" />
+                                  View Details
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  setEditingProduct(product);
+                                  setIsEditDialogOpen(true);
+                                }} className="rounded-lg">
+                                  <Edit className="w-4 h-4 mr-3" />
+                                  Edit Product
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-red-600 rounded-lg"
+                                  onClick={() => handleDeleteProduct(product.id)}
+                                >
+                                  <Trash2 className="w-4 h-4 mr-3" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </>
+            )}
+          </>
         )}
 
-        {/* Pagination */}
-        {products.length > 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardContent className="p-4 flex justify-center">
-              <PaginationControls
-                currentPage={currentPage}
-                totalItems={totalProducts}
-                pageSize={PAGE_SIZE}
-                onPageChange={setCurrentPage}
-              />
-            </CardContent>
-          </Card>
-        )}
+          {/* Enhanced Pagination */}
+          {selectedCategory !== "all" && products.length > 0 && (
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-6 flex justify-center">
+                <PaginationControls
+                  currentPage={currentPage}
+                  totalItems={totalProducts}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={setCurrentPage}
+                />
+              </CardContent>
+            </Card>
+          )}
 
-        {/* Add Product Dialog */}
-        <AddProductDialog
-          open={isAddDialogOpen}
-          onOpenChange={setIsAddDialogOpen}
-          onSubmit={handleSubmit}
-          isSubmitting={isSubmitting}
-          onProductAdded={() => {}}
-        />
-
-        {/* Edit Product Dialog */}
-        {editingProduct && (
+          {/* Enhanced Add Product Dialog */}
           <AddProductDialog
-            open={isEditDialogOpen}
-            onOpenChange={setIsEditDialogOpen}
-            onSubmit={async (data) => { await handleUpdateProduct(data); }}
-            onProductAdded={() => {}}
-            initialData={editingProduct}
+            open={isAddDialogOpen}
+            onOpenChange={setIsAddDialogOpen}
+            onSubmit={handleSubmit}
+            isSubmitting={isSubmitting}
+            onProductAdded={() => { }}
           />
-        )}
+
+          {/* Enhanced Edit Product Dialog */}
+          {editingProduct && (
+            <AddProductDialog
+              open={isEditDialogOpen}
+              onOpenChange={setIsEditDialogOpen}
+              onSubmit={async (data) => { await handleUpdateProduct(data); }}
+              onProductAdded={() => { }}
+              initialData={editingProduct}
+            />
+          )}
+        </div>
       </div>
     </DashboardLayout>
   );

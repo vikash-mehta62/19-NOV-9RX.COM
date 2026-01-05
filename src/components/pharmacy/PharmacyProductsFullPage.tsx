@@ -21,9 +21,9 @@ import { ProductDetails } from "./types/product.types"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
-import { 
-  Loader2, Search, Filter, SlidersHorizontal, X, 
-  ShoppingCart, User, Menu, FileText, Settings, 
+import {
+  Loader2, Search, Filter, SlidersHorizontal, X,
+  ShoppingCart, User, Menu, FileText, Settings,
   Package, LogOut, Receipt, ChevronDown, Gift, CreditCard,
   HelpCircle, Heart, History, Star, Wallet, FileBarChart
 } from "lucide-react"
@@ -46,6 +46,13 @@ import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 
+import image1 from "../../assests/home/image1.jpg";
+import image2 from "../../assests/home/image2.jpg";
+import image3 from "../../assests/home/image3.jpg";
+import image4 from "../../assests/home/image4.jpg";
+import image5 from "../../assests/home/image5.jpg";
+import image6 from "../../assests/home/image6.jpg";
+
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -67,14 +74,43 @@ export const PharmacyProductsFullPage = () => {
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const userProfile = useSelector(selectUserProfile)
   const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
+  const [categories, setCategories] = useState<string[]>([]); // Fetched categories from database
 
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
+
+  //All Category images array.
+  const imageArray = [image6, image2, image3, image4, image5, image1];
+
+  // Fetch categories from database
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('category_configs')
+          .select('category_name')
+          .order('category_name');
+
+        if (error) {
+          console.error('Error fetching categories:', error);
+          return;
+        }
+
+        const categoryNames = data?.map(item => item.category_name) || [];
+        setCategories(categoryNames);
+        console.log('PHARMACY -> Fetched categories:', categoryNames);
+      } catch (error) {
+        console.error('Error fetching categories:', error);
+      }
+    };
+
+    fetchCategories();
+  }, []);
 
   // Fetch products from Supabase
   useEffect(() => {
     const fetchProducts = async () => {
       setLoading(true)
-      
+
       // Fetch Group Pricing Data
       const { data: groupData, error: fetchError } = await supabase
         .from("group_pricing")
@@ -181,10 +217,10 @@ export const PharmacyProductsFullPage = () => {
               .sort((a: any, b: any) => a.sizeSquanence - b.sizeSquanence) || [],
             tierPricing: item.enable_tier_pricing
               ? {
-                  tier1: { quantity: item.tier1_name || "", price: item.tier1_price || 0 },
-                  tier2: { quantity: item.tier2_name || "", price: item.tier2_price || 0 },
-                  tier3: { quantity: item.tier3_name || "", price: item.tier3_price || 0 },
-                }
+                tier1: { quantity: item.tier1_name || "", price: item.tier1_price || 0 },
+                tier2: { quantity: item.tier2_name || "", price: item.tier2_price || 0 },
+                tier3: { quantity: item.tier3_name || "", price: item.tier3_price || 0 },
+              }
               : undefined,
           }
         })
@@ -210,32 +246,32 @@ export const PharmacyProductsFullPage = () => {
     console.log('=== PHARMACY PRODUCTS FILTERING ===');
     console.log('Search query:', searchQuery);
     console.log('Total products:', products.length);
-    
+
     let filtered = products
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase()
       console.log('Filtering with query:', query);
-      
+
       filtered = filtered.filter(
         (product) => {
           // Basic product search
           const basicMatch = product.name.toLowerCase().includes(query) ||
-                            product.description.toLowerCase().includes(query) ||
-                            product.sku?.toLowerCase().includes(query)
-          
+            product.description.toLowerCase().includes(query) ||
+            product.sku?.toLowerCase().includes(query)
+
           if (basicMatch) {
             console.log('Basic match found:', product.name);
             return true;
           }
-          
+
           // Size-based search
           const sizeMatch = product.sizes?.some(size => {
             const sizeValueMatch = size.size_value?.toString().toLowerCase().includes(query);
             const sizeUnitMatch = size.size_unit?.toLowerCase().includes(query);
             const sizeSkuMatch = size.sku?.toLowerCase().includes(query);
             const combinedMatch = `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''));
-            
+
             if (sizeValueMatch || sizeUnitMatch || sizeSkuMatch || combinedMatch) {
               console.log('Size match found:', {
                 product: product.name,
@@ -249,11 +285,11 @@ export const PharmacyProductsFullPage = () => {
             }
             return false;
           });
-          
+
           return sizeMatch;
         }
       )
-      
+
       console.log('Filtered products count:', filtered.length);
     }
 
@@ -291,14 +327,14 @@ export const PharmacyProductsFullPage = () => {
       const query = searchQuery.toLowerCase()
       filtered = filtered.map(product => ({
         ...product,
-        matchingSizes: product.sizes?.filter(size => 
+        matchingSizes: product.sizes?.filter(size =>
           size.size_value?.toString().toLowerCase().includes(query) ||
           size.size_unit?.toLowerCase().includes(query) ||
           size.sku?.toLowerCase().includes(query) ||
           `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''))
         ) || []
       }))
-      
+
       console.log('Products with matching sizes:', filtered.filter(p => p.matchingSizes && p.matchingSizes.length > 0));
     }
 
@@ -480,7 +516,7 @@ export const PharmacyProductsFullPage = () => {
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  
+
                   {/* Shopping */}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/order/create")}>
                     <ShoppingCart className="w-4 h-4 mr-2 text-emerald-600" />
@@ -494,9 +530,9 @@ export const PharmacyProductsFullPage = () => {
                     <History className="w-4 h-4 mr-2 text-purple-600" />
                     Order History
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuSeparator />
-                  
+
                   {/* Billing & Payments */}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/invoices")}>
                     <Receipt className="w-4 h-4 mr-2 text-orange-600" />
@@ -510,9 +546,9 @@ export const PharmacyProductsFullPage = () => {
                     <Wallet className="w-4 h-4 mr-2 text-green-600" />
                     Credit Balance
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuSeparator />
-                  
+
                   {/* Rewards & Favorites */}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/rewards")}>
                     <Gift className="w-4 h-4 mr-2 text-pink-600" />
@@ -522,9 +558,9 @@ export const PharmacyProductsFullPage = () => {
                     <Heart className="w-4 h-4 mr-2 text-red-500" />
                     Wishlist
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuSeparator />
-                  
+
                   {/* Account */}
                   <DropdownMenuItem onClick={() => navigate("/pharmacy/settings")}>
                     <Settings className="w-4 h-4 mr-2 text-gray-600" />
@@ -534,9 +570,9 @@ export const PharmacyProductsFullPage = () => {
                     <HelpCircle className="w-4 h-4 mr-2 text-cyan-600" />
                     Help & Support
                   </DropdownMenuItem>
-                  
+
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem 
+                  <DropdownMenuItem
                     className="text-red-600 cursor-pointer"
                     onClick={async () => {
                       await supabase.auth.signOut()
@@ -561,9 +597,9 @@ export const PharmacyProductsFullPage = () => {
         <WelcomeDashboard />
 
         {/* Dynamic Banner Slider */}
-        <BannerSlider 
-          bannerType="hero" 
-          autoPlay={true} 
+        <BannerSlider
+          bannerType="hero"
+          autoPlay={true}
           autoPlayInterval={5000}
         />
 
@@ -653,7 +689,7 @@ export const PharmacyProductsFullPage = () => {
                     className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
+                      <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z" />
                     </svg>
                   </button>
                   <button
@@ -661,7 +697,7 @@ export const PharmacyProductsFullPage = () => {
                     className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
-                      <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
+                      <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
                     </svg>
                   </button>
                 </div>
@@ -691,25 +727,77 @@ export const PharmacyProductsFullPage = () => {
               <div className="space-y-6">
                 {/* Size Match Banner */}
                 {!selectedProduct && searchQuery && filteredProducts.length > 0 && (
-                  <SizeMatchBanner 
+                  <SizeMatchBanner
                     searchQuery={searchQuery}
                     matchingCount={filteredProducts.filter(p => p.matchingSizes && p.matchingSizes.length > 0).length}
                   />
                 )}
 
+                {/* Enhanced Category Grid - Only show when no specific category is selected */}
+                {selectedCategory === "all" && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 sm:mb-12">
+                    {imageArray.map((image, index) => (
+                      <div
+                        key={index}
+                        className="group relative flex flex-col items-center"
+                      >
+                        {categories[index] ? (
+                          <div
+                            onClick={() => handleCategorySelect(categories[index])}
+                            className="relative cursor-pointer transform transition-all duration-500 ease-out hover:scale-105 hover:-translate-y-2 active:scale-95 w-full"
+                          >
+                            {/* Enhanced Image Container with Card Effect */}
+                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-500 bg-white p-6">
+                              <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-white aspect-square">
+                                <img
+                                  src={image}
+                                  alt={`Category ${categories[index]}`}
+                                  className="w-full h-full object-contain p-1 transition-transform duration-700 ease-out group-hover:scale-110"
+                                />
+                                
+                                {/* Gradient Overlay on Hover */}
+                                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                
+                                {/* Hover Ring Effect */}
+                                <div className="absolute inset-0 ring-2 ring-emerald-400/0 group-hover:ring-emerald-500/50 rounded-xl transition-all duration-500" />
+                              </div>
+                            </div>
+
+                            {/* Enhanced Category Label */}
+                            <div className="mt-4 text-center px-2">
+                              <span className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-all duration-300 block leading-tight line-clamp-2">
+                                {categories[index]}
+                              </span>
+                              {/* Animated Underline */}
+                              <div className="h-0.5 w-0 group-hover:w-full bg-gradient-to-r from-emerald-400 to-emerald-600 mx-auto mt-1.5 transition-all duration-500 rounded-full" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center opacity-40 hover:opacity-60 transition-opacity duration-300 w-full">
+                            <div className="w-full aspect-square rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50/50">
+                              <Package className="w-12 h-12 text-gray-400" />
+                            </div>
+                            <span className="text-base text-gray-400 mt-4 font-medium">No Category</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Show all products when no product is selected */}
-                {!selectedProduct && (
-                  <PharmacyProductGrid 
-                    products={filteredProducts} 
+                {selectedCategory !== "all" && !selectedProduct && (
+                  <PharmacyProductGrid
+                    products={filteredProducts}
                     viewMode={viewMode}
                     onViewModeChange={setViewMode}
                     onProductClick={handleProductClick}
                     searchQuery={searchQuery}
                   />
                 )}
-                
+
                 {/* Show only selected product with its sizes */}
-                {selectedProduct && (
+                {selectedCategory !== "all" && selectedProduct && (
                   <InlineProductSizes
                     product={selectedProduct}
                     wishlistItems={wishlistItems}
@@ -728,7 +816,7 @@ export const PharmacyProductsFullPage = () => {
 
       {/* Simple Gallery Image Viewer */}
       {fullscreenImage && (
-        <div 
+        <div
           className="fixed inset-0 bg-black z-[100] flex items-center justify-center"
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -747,7 +835,7 @@ export const PharmacyProductsFullPage = () => {
           </Button>
 
           {/* Image Container */}
-          <div 
+          <div
             className="relative w-full h-full flex items-center justify-center p-4 overflow-hidden"
             onWheel={(e) => {
               e.preventDefault()
