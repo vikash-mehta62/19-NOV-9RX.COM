@@ -79,7 +79,7 @@ export const PharmacyFilterSidebar = ({
   // Auto-expand category when selected
   useEffect(() => {
     if (selectedCategory !== "all") {
-      setExpandedCategory(selectedCategory.toLowerCase())
+      setExpandedCategory(selectedCategory)
     }
   }, [selectedCategory])
 
@@ -106,24 +106,15 @@ export const PharmacyFilterSidebar = ({
   }
 
   const handleCategoryClick = (categoryName: string) => {
-    const lowerCat = categoryName.toLowerCase()
-    
-    if (expandedCategory === lowerCat) {
-      // If clicking same category, collapse it and show all
-      setExpandedCategory(null)
-      setSelectedCategory("all")
-      setSelectedSubcategory("all")
-    } else {
-      // Expand and select this category
-      setExpandedCategory(lowerCat)
-      setSelectedCategory(lowerCat)
-      setSelectedSubcategory("all")
-    }
+    // Always select the category, don't toggle off
+    setExpandedCategory(categoryName)
+    setSelectedCategory(categoryName)
+    setSelectedSubcategory("all")
   }
 
   const handleSubcategoryClick = (subcategoryName: string, e: React.MouseEvent) => {
     e.stopPropagation()
-    setSelectedSubcategory(subcategoryName.toLowerCase())
+    setSelectedSubcategory(subcategoryName)
   }
 
   const handleAllProductsClick = () => {
@@ -178,7 +169,7 @@ export const PharmacyFilterSidebar = ({
               onClick={handleAllProductsClick}
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all",
-                selectedCategory === "all" && !selectedSubcategory
+                selectedCategory === "all" && selectedSubcategory === "all"
                   ? "bg-emerald-100 text-emerald-700 font-medium shadow-sm"
                   : "text-gray-700 hover:bg-gray-100"
               )}
@@ -194,9 +185,8 @@ export const PharmacyFilterSidebar = ({
 
             {/* Categories with Subcategories */}
             {categories.map((cat) => {
-              const catLower = cat.category_name.toLowerCase()
-              const isExpanded = expandedCategory === catLower
-              const isSelected = selectedCategory === catLower && selectedSubcategory === "all"
+              const isExpanded = expandedCategory === cat.category_name
+              const isSelected = selectedCategory === cat.category_name && selectedSubcategory === "all"
               const catSubcategories = getSubcategoriesForCategory(cat.category_name)
               const count = getCategoryCount(cat.category_name)
 
@@ -245,8 +235,7 @@ export const PharmacyFilterSidebar = ({
                   {isExpanded && catSubcategories.length > 0 && (
                     <div className="ml-3 pl-3 border-l-2 border-emerald-200 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
                       {catSubcategories.map((sub) => {
-                        const subLower = sub.subcategory_name.toLowerCase()
-                        const isSubSelected = selectedSubcategory === subLower
+                        const isSubSelected = selectedSubcategory === sub.subcategory_name
                         const subCount = getSubcategoryCount(sub.subcategory_name)
 
                         return (

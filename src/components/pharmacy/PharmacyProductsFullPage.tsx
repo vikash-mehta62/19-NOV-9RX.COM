@@ -303,7 +303,7 @@ export const PharmacyProductsFullPage = () => {
         sortedProducts.sort((a, b) => (b.base_price || 0) - (a.base_price || 0));
         break;
       case "newest":
-        sortedProducts.sort((a, b) => (b.squanence || 0) - (a.squanence || 0));
+        sortedProducts.sort((a, b) => (Number(b.squanence) || 0) - (Number(a.squanence) || 0));
         break;
       default:
         // Keep original order for "featured"
@@ -333,6 +333,11 @@ export const PharmacyProductsFullPage = () => {
     setSelectedSubcategory("all")
     setSelectedProduct(null)
   }, [])
+  
+  // If user changes filters/search while a product is open, close it so results update visibly.
+  useEffect(() => {
+    setSelectedProduct(null);
+  }, [selectedCategory, selectedSubcategory, searchQuery])
 
   const handleProductClick = useCallback((product: ProductDetails) => {
     if (selectedProduct?.id === product.id) {
