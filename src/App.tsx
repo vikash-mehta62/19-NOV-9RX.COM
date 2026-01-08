@@ -48,6 +48,7 @@ const AdminProducts = lazy(() => import("./pages/admin/Products"));
 const AdminInventory = lazy(() => import("./pages/admin/Inventory"));
 const AdminOrders = lazy(() => import("./pages/admin/Orders"));
 const AdminCreateOrder = lazy(() => import("./pages/admin/CreateOrder"));
+const AdminQuickOrder = lazy(() => import("./pages/admin/QuickOrder"));
 const AdminInvoices = lazy(() => import("./pages/admin/Invoices"));
 const AdminGroupPricing = lazy(() => import("./pages/admin/GroupPricing"));
 const AdminGroups = lazy(() => import("./pages/admin/Groups"));
@@ -253,6 +254,11 @@ function App() {
           <Route path="/admin/orders/create" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminCreateOrder />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/orders/quick" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminQuickOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/access-requests" element={

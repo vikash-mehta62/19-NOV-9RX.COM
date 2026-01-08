@@ -6,7 +6,7 @@ import { useOrderFilters } from "./hooks/useOrderFilters";
 import { useOrderManagement } from "./hooks/useOrderManagement";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Download, Package, PlusCircle } from "lucide-react";
+import { Download, Package, PlusCircle, Zap } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/supabaseClient";
 import { OrderSummaryCards } from "./OrderSummaryCards";
@@ -339,6 +339,10 @@ export const OrdersContainer = ({
     navigate("/admin/orders/create");
   };
 
+  const handleQuickOrderClick = () => {
+    navigate("/admin/orders/quick");
+  };
+
   const handleCardClick = (filter: string) => {
     if (filter === "all") {
       setStatusFilter2("all");
@@ -392,14 +396,24 @@ export const OrdersContainer = ({
           {userRole === "admin" && (
             <>
               {!poIs && (
-                <Button 
-                  size="sm"
-                  className="gap-2 bg-blue-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
-                  onClick={handleCreateOrderClick}
-                >
-                  <PlusCircle className="h-4 w-4" />
-                  Create Order
-                </Button>
+                <>
+                  <Button 
+                    size="sm"
+                    className="gap-2 bg-green-600 hover:bg-green-700 shadow-md"
+                    onClick={handleQuickOrderClick}
+                  >
+                    <Zap className="h-4 w-4" />
+                    Quick Order
+                  </Button>
+                  <Button 
+                    size="sm"
+                    className="gap-2 bg-blue-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
+                    onClick={handleCreateOrderClick}
+                  >
+                    <PlusCircle className="h-4 w-4" />
+                    Create Order
+                  </Button>
+                </>
               )}
 
               <Button
