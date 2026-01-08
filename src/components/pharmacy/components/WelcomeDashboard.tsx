@@ -141,9 +141,9 @@ export const WelcomeDashboard = () => {
         <CardContent className="p-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10 border-2 border-emerald-100">
+              <Avatar className="h-10 w-10 border-2 border-blue-100">
                 <AvatarImage src={userProfile?.avatar} />
-                <AvatarFallback className="bg-emerald-100 text-emerald-700 text-sm font-bold">
+                <AvatarFallback className="bg-blue-100 text-blue-700 text-sm font-bold">
                   {firstName[0]?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>

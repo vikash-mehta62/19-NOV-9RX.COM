@@ -65,14 +65,14 @@ export const BannerInitializer = ({ onComplete }: BannerInitializerProps) => {
 
   if (completed) {
     return (
-      <Card className="border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+      <Card className="border-green-200 bg-gradient-to-br from-blue-50 to-indigo-50">
         <CardContent className="pt-6">
           <div className="text-center py-8">
-            <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-              <CheckCircle2 className="h-10 w-10 text-green-600" />
+            <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+              <CheckCircle2 className="h-10 w-10 text-blue-600" />
             </div>
-            <h3 className="text-2xl font-bold text-green-900 mb-2">Banners Created Successfully!</h3>
-            <p className="text-green-700 max-w-md mx-auto">
+            <h3 className="text-2xl font-bold text-blue-900 mb-2">Banners Created Successfully!</h3>
+            <p className="text-blue-700 max-w-md mx-auto">
               Your pharmacy now has 3 professional banners ready to engage customers. 
               They're live on your homepage and pharmacy dashboard.
             </p>

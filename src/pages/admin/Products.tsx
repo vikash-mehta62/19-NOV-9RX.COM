@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Search, Grid3X3, List, Package, X,
+  Search, Grid3X3, List, Package, X, ArrowLeft,
   Edit, Trash2, Eye, MoreHorizontal, Filter
 } from "lucide-react";
 import {
@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { PaginationControls } from "@/components/ui/PaginationControls";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
@@ -43,6 +43,7 @@ const imageArray = [image6, image2, image3, image4, image5, image1];
 
 const Products = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     products,
     currentPage,
@@ -68,6 +69,16 @@ const Products = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [categories, setCategories] = useState<string[]>([]);
+
+  // Set category from navigation state (when coming back from product details)
+  useEffect(() => {
+    const state = location.state as { selectedCategory?: string } | null;
+    if (state?.selectedCategory) {
+      setSelectedCategory(state.selectedCategory);
+      // Clear the state to prevent re-setting on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   // Fetch categories from database
   useEffect(() => {
@@ -143,7 +154,7 @@ const Products = () => {
                       placeholder="Search products, sizes, SKU, NDC codes..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-12 h-11 bg-white border-gray-200 focus:border-emerald-300 focus:ring-emerald-200 rounded-xl shadow-sm"
+                      className="pl-12 h-11 bg-white border-gray-200 focus:border-blue-300 focus:ring-blue-200 rounded-xl shadow-sm"
                       title="Search in: Product name, description, category, SKU, size values, NDC/UPC codes"
                     />
                     {searchQuery && (
@@ -188,9 +199,9 @@ const Products = () => {
 
                 <div className="flex items-center gap-4">
                   {/* Results Count */}
-                  <div className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
+                  {/* <div className="text-sm text-gray-600 bg-gray-100 px-4 py-2 rounded-full">
                     <span className="font-semibold text-gray-900">{totalProducts}</span> products
-                  </div>
+                  </div> */}
 
                   {/* Enhanced View Toggle */}
                   <div className="flex items-center bg-gray-100 rounded-xl p-1 shadow-inner">
@@ -199,7 +210,7 @@ const Products = () => {
                       size="sm"
                       onClick={() => setViewMode("grid")}
                       className={`h-9 px-4 rounded-lg transition-all ${viewMode === "grid"
-                        ? "bg-white shadow-md text-emerald-600 font-medium"
+                        ? "bg-white shadow-md text-blue-600 font-medium"
                         : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
@@ -211,7 +222,7 @@ const Products = () => {
                       size="sm"
                       onClick={() => setViewMode("table")}
                       className={`h-9 px-4 rounded-lg transition-all ${viewMode === "table"
-                        ? "bg-white shadow-md text-emerald-600 font-medium"
+                        ? "bg-white shadow-md text-blue-600 font-medium"
                         : "text-gray-500 hover:text-gray-700"
                         }`}
                     >
@@ -226,9 +237,9 @@ const Products = () => {
               {hasActiveFilters && (
                 <div className="flex flex-wrap gap-3 mt-6 pt-6 border-t border-gray-100">
                   {searchQuery && (
-                    <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 px-3 py-1 rounded-full">
+                    <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-200 px-3 py-1 rounded-full">
                       Search: "{searchQuery}"
-                      <X className="w-3 h-3 ml-2 cursor-pointer hover:text-emerald-900" onClick={() => setSearchQuery("")} />
+                      <X className="w-3 h-3 ml-2 cursor-pointer hover:text-blue-900" onClick={() => setSearchQuery("")} />
                     </Badge>
                   )}
                   {selectedCategory !== "all" && (
@@ -242,184 +253,203 @@ const Products = () => {
             </CardContent>
           </Card>
 
-          {/* Enhanced Loading State */}
-          {loading ? (
-            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardContent className="flex flex-col items-center justify-center py-16">
-                <div className="relative mb-6">
-                  <div className="w-12 h-12 border-3 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
-                  <div className="absolute inset-0 w-12 h-12 border-3 border-transparent border-r-blue-400 rounded-full animate-spin" style={{ animationDelay: '150ms' }}></div>
+          {/* Category Grid - Show immediately when "all" is selected, no loading state */}
+          {selectedCategory === "all" && (
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
+              <CardContent className="p-8">
+                <div className="text-center mb-8">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
+                    Product Categories
+                  </h2>
+                  <p className="text-gray-600">Browse products by category</p>
                 </div>
-                <p className="text-gray-600 text-lg font-medium">Loading your products...</p>
-                <p className="text-gray-400 text-sm mt-1">This won't take long</p>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
+                  {categories.length > 0 ? categories.map((category, index) => (
+                    <div
+                      key={category}
+                      className="group relative flex flex-col items-center justify-center"
+                    >
+                      <div
+                        onClick={() => handleCategoryClick(category)}
+                        className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
+                      >
+                        {/* Enhanced Image Container */}
+                        <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
+                          <img
+                            src={imageArray[index] || imageArray[0]}
+                            alt={`Category ${category}`}
+                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                          />
+                          
+                          {/* Overlay on hover */}
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        </div>
+
+                        {/* Enhanced Category Label */}
+                        <div className="mt-4 text-center w-full">
+                          <span className="text-sm font-semibold text-gray-800 group-hover:text-blue-600 transition-colors duration-300 block leading-tight">
+                            {category}
+                          </span>
+                          <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
+                        </div>
+                      </div>
+                    </div>
+                  )) : (
+                    // Loading skeleton for categories
+                    Array.from({ length: 6 }).map((_, index) => (
+                      <div key={index} className="flex flex-col items-center">
+                        <div className="w-full aspect-square max-w-[160px] rounded-2xl bg-gray-200 animate-pulse"></div>
+                        <div className="mt-4 h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </CardContent>
             </Card>
-          ) : products.length === 0 ? (
+          )}
+
+          {/* Loading State - Only show when a specific category is selected and loading */}
+          {selectedCategory !== "all" && loading ? (
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
-              <CardContent className="flex flex-col items-center justify-center py-20">
-                <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
-                  <Package className="w-10 h-10 text-gray-400" />
+              <CardContent className="p-6">
+                {/* Back button always visible */}
+                <div className="mb-6">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSelectedCategory("all")}
+                    className="text-gray-600 hover:text-blue-600 -ml-2 mb-2"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Categories
+                  </Button>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    {selectedCategory}
+                  </h2>
                 </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">No products found</h3>
-                <p className="text-gray-500 mb-8 text-center max-w-md leading-relaxed">
-                  {hasActiveFilters
-                    ? "We couldn't find any products matching your criteria. Try adjusting your search or filters."
-                    : "Your product catalog is empty. Start building your inventory by adding your first product."}
-                </p>
-                {hasActiveFilters ? (
+                {/* Loading skeleton grid */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {Array.from({ length: 8 }).map((_, index) => (
+                    <div key={index} className="bg-white rounded-xl shadow-md overflow-hidden">
+                      <div className="aspect-square bg-gray-200 animate-pulse"></div>
+                      <div className="p-5 space-y-3">
+                        <div className="h-5 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                        <div className="flex justify-between">
+                          <div className="h-6 w-16 bg-gray-200 rounded animate-pulse"></div>
+                          <div className="h-6 w-20 bg-gray-200 rounded animate-pulse"></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          ) : selectedCategory !== "all" && products.length === 0 ? (
+            <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+              <CardContent className="p-6">
+                {/* Back button */}
+                <div className="mb-6">
+                  <Button
+                    variant="ghost"
+                    onClick={() => setSelectedCategory("all")}
+                    className="text-gray-600 hover:text-blue-600 -ml-2 mb-2"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-2" />
+                    Back to Categories
+                  </Button>
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                    {selectedCategory}
+                  </h2>
+                </div>
+                <div className="flex flex-col items-center justify-center py-12">
+                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mb-6 shadow-inner">
+                    <Package className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-gray-900 mb-3">No products found</h3>
+                  <p className="text-gray-500 mb-8 text-center max-w-md leading-relaxed">
+                    No products found in this category.
+                  </p>
                   <Button 
                     variant="outline" 
-                    onClick={clearFilters} 
+                    onClick={() => setSelectedCategory("all")} 
                     className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50"
                   >
-                    <X className="w-4 h-4" />
-                    Clear all filters
+                    <ArrowLeft className="w-4 h-4" />
+                    Back to Categories
                   </Button>
-                ) : (
-                  <Button 
-                    onClick={() => setIsAddDialogOpen(true)} 
-                    className="bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 px-8 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all"
-                  >
-                    <Package className="w-5 h-5 mr-2" />
-                    Add Your First Product
-                  </Button>
-                )}
+                </div>
               </CardContent>
             </Card>
-        ) : viewMode === "grid" ? (
-          <>
-            {/* Enhanced Category Grid - Only show when no specific category is selected */}
-            {selectedCategory === "all" && (
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
-                <CardContent className="p-8">
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
-                      Product Categories
+          ) : selectedCategory !== "all" && viewMode === "grid" ? (
+            <>
+              {/* Enhanced Selected Category Header */}
+              <div className="mb-8">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedCategory("all")}
+                  className="text-gray-600 hover:text-blue-600 -ml-2 mb-2"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Categories
+                </Button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      {selectedCategory}
                     </h2>
-                    <p className="text-gray-600">Browse products by category</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
-                    {imageArray.map((image, index) => (
-                      <div
-                        key={index}
-                        className="group relative flex flex-col items-center justify-center"
-                      >
-                        {categories[index] ? (
-                          <div
-                            onClick={() => handleCategoryClick(categories[index])}
-                            className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
-                          >
-                            {/* Enhanced Image Container */}
-                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
-                              <img
-                                src={image}
-                                alt={`Category ${categories[index]}`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                              />
-                              
-                              {/* Overlay on hover */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                              
-                              {/* Category count badge */}
-                              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                {products.filter(p => p.category === categories[index]).length} items
-                              </div>
-                            </div>
-
-                            {/* Enhanced Category Label */}
-                            <div className="mt-4 text-center w-full">
-                              <span className="text-sm font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 block leading-tight">
-                                {categories[index]}
-                              </span>
-                              <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center opacity-30 hover:opacity-50 transition-opacity w-full">
-                            <div className="w-full aspect-square max-w-[160px] rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100">
-                              <Package className="w-8 h-8 text-gray-400" />
-                            </div>
-                            <span className="text-sm text-gray-400 mt-4 font-medium">No Category</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Selected Category Header - Show when a specific category is selected */}
-            {selectedCategory !== "all" && (
-              <>
-                {/* Enhanced Selected Category Header */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                        {selectedCategory}
-                      </h2>
-                      <Badge variant="secondary" className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200 px-4 py-2 rounded-full text-sm font-medium">
-                        {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => setSelectedCategory("all")}
-                      className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50 transition-all"
-                    >
-                      <X className="w-4 h-4" />
-                      Show All Categories
-                    </Button>
+                    <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-4 py-2 rounded-full text-sm font-medium">
+                      {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
+                    </Badge>
                   </div>
                 </div>
+              </div>
 
-                {/* Enhanced Product Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                  {products.map((product) => (
-                    <Card
-                      key={product.id}
-                      className="group border-0 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden bg-white hover:-translate-y-1 cursor-pointer"
-                    >
-                      {/* Enhanced Product Image */}
-                      <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
-                        <img
-                          src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
-                          alt={product.name}
-                          className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
-                        />
-                        
-                        {/* Enhanced Quick Actions */}
-                        <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="secondary" size="icon" className="h-9 w-9 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-full border-0">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-0 bg-white/95 backdrop-blur-sm">
-                              <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)} className="rounded-lg">
-                                <Eye className="w-4 h-4 mr-3" />
-                                View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                setEditingProduct(product);
-                                setIsEditDialogOpen(true);
-                              }} className="rounded-lg">
-                                <Edit className="w-4 h-4 mr-3" />
-                                Edit Product
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-red-600 rounded-lg"
-                                onClick={() => handleDeleteProduct(product.id)}
-                              >
-                                <Trash2 className="w-4 h-4 mr-3" />
-                                Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
+              {/* Enhanced Product Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                {products.map((product) => (
+                  <Card
+                    key={product.id}
+                    className="group border-0 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden bg-white hover:-translate-y-1 cursor-pointer"
+                  >
+                    {/* Enhanced Product Image */}
+                    <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
+                      <img
+                        src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
+                        alt={product.name}
+                        className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
+                      />
+                      
+                      {/* Enhanced Quick Actions */}
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="secondary" size="icon" className="h-9 w-9 bg-white/95 backdrop-blur-sm shadow-lg hover:shadow-xl rounded-full border-0">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="rounded-xl shadow-xl border-0 bg-white/95 backdrop-blur-sm">
+                            <DropdownMenuItem onClick={() => navigate(`/admin/product/${product.id}`)} className="rounded-lg">
+                              <Eye className="w-4 h-4 mr-3" />
+                              View Details
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => {
+                              setEditingProduct(product);
+                              setIsEditDialogOpen(true);
+                            }} className="rounded-lg">
+                              <Edit className="w-4 h-4 mr-3" />
+                              Edit Product
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-red-600 rounded-lg"
+                              onClick={() => handleDeleteProduct(product.id)}
+                            >
+                              <Trash2 className="w-4 h-4 mr-3" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
 
                         {/* Enhanced Category Badge */}
                         {product.category && (
@@ -432,14 +462,14 @@ const Products = () => {
                         )}
 
                         {/* Stock Status Indicator */}
-                        <div className="absolute top-3 left-3">
+                        {/* <div className="absolute top-3 left-3">
                           <div className={`w-3 h-3 rounded-full ${(product.current_stock || 0) > 0 ? 'bg-green-500' : 'bg-red-500'} shadow-sm`}></div>
-                        </div>
+                        </div> */}
                       </div>
 
                       {/* Enhanced Product Info */}
                       <CardContent className="p-5">
-                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-emerald-600 transition-colors text-base leading-tight">
+                        <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors text-base leading-tight">
                           {product.name}
                         </h3>
 
@@ -457,13 +487,13 @@ const Products = () => {
                         </p>
                         
                         <div className="flex items-center justify-between">
-                          <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
+                          <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                             ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
                           </span>
                           <Badge
                             variant="outline"
                             className={`text-xs px-2 py-1 rounded-lg font-medium ${(product.current_stock || 0) > 0
-                              ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                              ? "border-blue-300 text-blue-700 bg-blue-50"
                               : "border-red-300 text-red-700 bg-red-50"
                               }`}
                           >
@@ -475,98 +505,32 @@ const Products = () => {
                   ))}
                 </div>
               </>
-            )}
-          </>
-        ) : (
-          <>
-            {/* Enhanced Category Grid - Only show when no specific category is selected */}
-            {selectedCategory === "all" && (
-              <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm overflow-hidden">
-                <CardContent className="p-8">
-                  <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent mb-2">
-                      Product Categories
+          ) : selectedCategory !== "all" && viewMode === "table" ? (
+            <>
+              {/* Table View - Selected Category Header */}
+              <div className="mb-8">
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedCategory("all")}
+                  className="text-gray-600 hover:text-blue-600 -ml-2 mb-2"
+                >
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Back to Categories
+                </Button>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                      {selectedCategory}
                     </h2>
-                    <p className="text-gray-600">Browse products by category</p>
-                  </div>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
-                    {imageArray.map((image, index) => (
-                      <div
-                        key={index}
-                        className="group relative flex flex-col items-center justify-center"
-                      >
-                        {categories[index] ? (
-                          <div
-                            onClick={() => handleCategoryClick(categories[index])}
-                            className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
-                          >
-                            {/* Enhanced Image Container */}
-                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
-                              <img
-                                src={image}
-                                alt={`Category ${categories[index]}`}
-                                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                              />
-                              
-                              {/* Overlay on hover */}
-                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                              
-                              {/* Category count badge */}
-                              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                                {products.filter(p => p.category === categories[index]).length} items
-                              </div>
-                            </div>
-
-                            {/* Enhanced Category Label */}
-                            <div className="mt-4 text-center w-full">
-                              <span className="text-sm font-semibold text-gray-800 group-hover:text-emerald-600 transition-colors duration-300 block leading-tight">
-                                {categories[index]}
-                              </span>
-                              <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-emerald-400 to-emerald-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center opacity-30 hover:opacity-50 transition-opacity w-full">
-                            <div className="w-full aspect-square max-w-[160px] rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100">
-                              <Package className="w-8 h-8 text-gray-400" />
-                            </div>
-                            <span className="text-sm text-gray-400 mt-4 font-medium">No Category</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Selected Category Header - Show when a specific category is selected */}
-            {selectedCategory !== "all" && (
-              <>
-                <div className="mb-8">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
-                        {selectedCategory}
-                      </h2>
-                      <Badge variant="secondary" className="bg-gradient-to-r from-emerald-50 to-emerald-100 text-emerald-700 border-emerald-200 px-4 py-2 rounded-full text-sm font-medium">
-                        {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
-                      </Badge>
-                    </div>
-                    <Button
-                      variant="outline"
-                      onClick={() => setSelectedCategory("all")}
-                      className="gap-2 px-6 py-3 rounded-xl border-2 hover:bg-gray-50 transition-all"
-                    >
-                      <X className="w-4 h-4" />
-                      Show All Categories
-                    </Button>
+                    <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-4 py-2 rounded-full text-sm font-medium">
+                      {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
+                    </Badge>
                   </div>
                 </div>
+              </div>
 
-                {/* Enhanced Table View */}
-                <Card className="border-0 shadow-lg overflow-hidden bg-white/80 backdrop-blur-sm">
+              {/* Enhanced Table View */}
+              <Card className="border-0 shadow-lg overflow-hidden bg-white/80 backdrop-blur-sm">
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
@@ -583,7 +547,7 @@ const Products = () => {
                       {products.map((product, index) => (
                         <TableRow
                           key={product.id}
-                          className={`hover:bg-gradient-to-r hover:from-emerald-50 hover:to-blue-50 transition-all duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                          className={`hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 transition-all duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
                         >
                           <TableCell className="py-4">
                             <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl overflow-hidden shadow-sm">
@@ -628,7 +592,7 @@ const Products = () => {
                             )}
                           </TableCell>
                           <TableCell className="text-right">
-                            <span className="text-lg font-bold bg-gradient-to-r from-emerald-600 to-emerald-700 bg-clip-text text-transparent">
+                            <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                               ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
                             </span>
                           </TableCell>
@@ -636,7 +600,7 @@ const Products = () => {
                             <Badge
                               variant="outline"
                               className={`px-3 py-1 rounded-lg font-medium ${(product.current_stock || 0) > 0
-                                ? "border-emerald-300 text-emerald-700 bg-emerald-50"
+                                ? "border-blue-300 text-blue-700 bg-blue-50"
                                 : "border-red-300 text-red-700 bg-red-50"
                                 }`}
                             >
@@ -678,9 +642,7 @@ const Products = () => {
                   </Table>
                 </Card>
               </>
-            )}
-          </>
-        )}
+          ) : null}
 
           {/* Enhanced Pagination */}
           {selectedCategory !== "all" && products.length > 0 && (

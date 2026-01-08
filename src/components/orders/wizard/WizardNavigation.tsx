@@ -103,8 +103,8 @@ const WizardNavigationComponent = ({
               className={cn(
                 "flex items-center justify-center gap-2 w-full sm:w-auto min-w-[140px] min-h-[44px] transition-all duration-200 group",
                 "hover:scale-105 active:scale-95",
-                isLastStep && "bg-green-600 hover:bg-green-700 hover:shadow-lg",
-                !isLastStep && "hover:shadow-md"
+                isLastStep && "bg-blue-600 hover:bg-blue-700 hover:shadow-lg",
+                !isLastStep && "hover:shadow-md bg-blue-600 hover:bg-blue-700"
               )}
               aria-label={isLastStep ? "Place order and complete checkout" : `Continue to step ${currentStep + 1}`}
               aria-disabled={!canContinue || isSubmitting}

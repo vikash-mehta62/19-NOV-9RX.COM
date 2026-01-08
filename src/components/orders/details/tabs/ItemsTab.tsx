@@ -597,7 +597,7 @@ export const ItemsTab = ({
                     size="sm" 
                     onClick={handleSaveChanges} 
                     disabled={isSaving}
-                    className="gap-1.5 bg-emerald-600 hover:bg-emerald-700"
+                    className="gap-1.5 bg-blue-600 hover:bg-blue-700"
                   >
                     {isSaving ? (
                       <>Saving...</>
@@ -824,15 +824,15 @@ export const ItemsTab = ({
           </div>
           
           {/* Grand Total */}
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 p-4">
+          <div className="bg-gradient-to-r from-blue-500 to-teal-500 p-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/20 rounded-lg">
                   <DollarSign className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-emerald-100 text-sm font-medium">Order Total</p>
-                  <p className="text-xs text-emerald-200">{totalItems} items</p>
+                  <p className="text-blue-100 text-sm font-medium">Order Total</p>
+                  <p className="text-xs text-blue-200">{totalItems} items</p>
                 </div>
               </div>
               <span className="text-2xl font-bold text-white">
@@ -1151,10 +1151,10 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
 
               {/* Selection Summary */}
               {totalSelectedItems > 0 && (
-                <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                   <div className="flex justify-between items-center">
                     <div>
-                      <span className="font-medium text-emerald-800">
+                      <span className="font-medium text-blue-800">
                         {totalSelectedItems} case{totalSelectedItems !== 1 ? 's' : ''} selected
                       </span>
                     </div>
@@ -1178,14 +1178,14 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
             <div className="text-sm text-gray-600">
               {selectedProduct ? (
                 totalSelectedItems > 0 ? (
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                  <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                     {totalSelectedItems} case{totalSelectedItems !== 1 ? 's' : ''} • ${totalSelectedAmount.toFixed(2)}
                   </Badge>
                 ) : (
                   <span>Select sizes and quantities</span>
                 )
               ) : cartItemsCount > 0 ? (
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                   {cartItemsCount} product{cartItemsCount !== 1 ? 's' : ''} in cart
                 </Badge>
               ) : (
@@ -1200,7 +1200,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
                 <Button 
                   onClick={handleAddSelectedSizes}
                   disabled={totalSelectedItems === 0}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Plus className="w-4 h-4 mr-2" />
                   Add to Cart
@@ -1209,7 +1209,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
                 <Button 
                   onClick={onAddProducts}
                   disabled={cartItemsCount === 0}
-                  className="bg-emerald-600 hover:bg-emerald-700"
+                  className="bg-blue-600 hover:bg-blue-700"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   Add {cartItemsCount > 0 ? `${cartItemsCount} Product${cartItemsCount !== 1 ? 's' : ''}` : 'Products'}

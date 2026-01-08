@@ -356,7 +356,7 @@ export const ProductSizesPanel = ({
 
       const cartItem = {
         productId: displayProduct.id,
-        name: `${displayProduct.name} - ${size.size_value}${size.size_unit}`,
+        name: `${displayProduct.name} - ${size.size_value} ${size.size_unit}`,
         sku: displayProduct.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(size.image),
@@ -382,7 +382,7 @@ export const ProductSizesPanel = ({
       if (success) {
         toast({
           title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value}${size.size_unit} added!`,
+          description: `${displayProduct.name} ${size.size_value} ${size.size_unit} added!`,
         })
         // Reset quantity after adding
         setSelectedSizes(prev => ({
@@ -431,14 +431,14 @@ export const ProductSizesPanel = ({
           <div className="fixed right-0 top-0 h-full w-full max-w-md bg-white shadow-2xl z-50 transform transition-transform">
         <div className="flex flex-col h-full">
           {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
+          <div className="flex items-center justify-between p-4 border-b bg-gradient-to-r from-blue-600 to-teal-600">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
                 <Package className="w-5 h-5 text-white" />
               </div>
               <div>
                 <h2 className="text-lg font-bold text-white">Product Sizes</h2>
-                <p className="text-emerald-100 text-sm">Choose your preferred size</p>
+                <p className="text-blue-100 text-sm">Choose your preferred size</p>
               </div>
             </div>
             <Button
@@ -534,7 +534,7 @@ export const ProductSizesPanel = ({
                           >
                             <img
                               src={getSizeImageUrl(size)}
-                              alt={`${size.size_value}${size.size_unit}`}
+                              alt={`${size.size_value} ${size.size_unit}`}
                               className="w-full h-full object-contain p-1 group-hover:scale-110 transition-transform"
                               onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                             />
@@ -547,7 +547,7 @@ export const ProductSizesPanel = ({
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-gray-900">
-                                {size.size_value}{size.size_unit}
+                                {size.size_value} {size.size_unit}
                               </h4>
                               {hasDiscount && discountPercent > 5 && (
                                 <Badge className="bg-red-500 text-white text-xs">
@@ -628,8 +628,8 @@ export const ProductSizesPanel = ({
                                     onClick={() => handleTypeChange(sizeId, "case")}
                                     className={`flex-1 h-8 text-xs ${
                                       selection.type === "case" 
-                                        ? "bg-emerald-600 hover:bg-emerald-700" 
-                                        : "hover:bg-emerald-50"
+                                        ? "bg-blue-600 hover:bg-blue-700" 
+                                        : "hover:bg-blue-50"
                                     }`}
                                   >
                                     Case
@@ -642,8 +642,8 @@ export const ProductSizesPanel = ({
                                     onClick={() => handleTypeChange(sizeId, "unit")}
                                     className={`flex-1 h-8 text-xs ${
                                       selection.type === "unit" 
-                                        ? "bg-emerald-600 hover:bg-emerald-700" 
-                                        : "hover:bg-emerald-50"
+                                        ? "bg-blue-600 hover:bg-blue-700" 
+                                        : "hover:bg-blue-50"
                                     }`}
                                   >
                                     Unit
@@ -688,7 +688,7 @@ export const ProductSizesPanel = ({
 
                             {/* Add to Cart Button */}
                             <Button
-                              className="w-full h-9 text-sm bg-emerald-600 hover:bg-emerald-700"
+                              className="w-full h-9 text-sm bg-blue-600 hover:bg-blue-700"
                               onClick={() => handleAddToCart(size)}
                               disabled={isAdding[sizeId] || sizeInCart}
                             >

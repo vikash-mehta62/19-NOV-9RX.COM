@@ -77,22 +77,22 @@ export const ProductCatalog = ({
               variant="ghost" 
               size="sm" 
               onClick={clearAllFilters} 
-              className="text-emerald-600 hover:text-emerald-700 h-auto p-0 text-xs"
+              className="text-blue-600 hover:text-blue-700 h-auto p-0 text-xs"
             >
               Clear all
             </Button>
           </div>
           <div className="flex flex-wrap gap-2">
             {searchQuery && (
-              <Badge variant="secondary" className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+              <Badge variant="secondary" className="flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-200">
                 "{searchQuery}"
-                <X className="w-3 h-3 cursor-pointer hover:text-emerald-900" onClick={() => onSearchChange("")} />
+                <X className="w-3 h-3 cursor-pointer hover:text-blue-900" onClick={() => onSearchChange("")} />
               </Badge>
             )}
             {selectedCategory !== "all" && (
-              <Badge variant="secondary" className="flex items-center gap-1 bg-emerald-50 text-emerald-700 border-emerald-200">
+              <Badge variant="secondary" className="flex items-center gap-1 bg-blue-50 text-blue-700 border-blue-200">
                 {selectedCategory}
-                <X className="w-3 h-3 cursor-pointer hover:text-emerald-900" onClick={() => onCategoryChange("all")} />
+                <X className="w-3 h-3 cursor-pointer hover:text-blue-900" onClick={() => onCategoryChange("all")} />
               </Badge>
             )}
           </div>
@@ -113,7 +113,7 @@ export const ProductCatalog = ({
             <div
               className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-colors ${
                 selectedCategory === "all" 
-                  ? "font-medium text-emerald-700 bg-emerald-50" 
+                  ? "font-medium text-blue-700 bg-blue-50" 
                   : "text-gray-600 hover:bg-gray-50"
               }`}
               onClick={() => onCategoryChange("all")}
@@ -125,7 +125,7 @@ export const ProductCatalog = ({
                 key={category}
                 className={`cursor-pointer text-sm py-2 px-3 rounded-lg transition-colors ${
                   selectedCategory === category 
-                    ? "font-medium text-emerald-700 bg-emerald-50" 
+                    ? "font-medium text-blue-700 bg-blue-50" 
                     : "text-gray-600 hover:bg-gray-50"
                 }`}
                 onClick={() => onCategoryChange(category)}
@@ -152,7 +152,7 @@ export const ProductCatalog = ({
                 placeholder="Search products..."
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
-                className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-emerald-500 focus:ring-emerald-500"
+                className="pl-10 h-11 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500 focus:ring-blue-500"
               />
               {searchQuery && (
                 <button
@@ -186,7 +186,7 @@ export const ProductCatalog = ({
                   <SlidersHorizontal className="w-4 h-4" />
                   Filters
                   {hasActiveFilters && (
-                    <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 ml-1">
+                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 ml-1">
                       {(searchQuery ? 1 : 0) + (selectedCategory !== "all" ? 1 : 0)}
                     </Badge>
                   )}
@@ -212,7 +212,7 @@ export const ProductCatalog = ({
             <p className="text-sm text-gray-600">
               Showing <span className="font-semibold text-gray-900">{totalProducts.toLocaleString()}</span> products
               {selectedCategory !== "all" && (
-                <span> in <span className="font-medium text-emerald-600">{selectedCategory}</span></span>
+                <span> in <span className="font-medium text-blue-600">{selectedCategory}</span></span>
               )}
             </p>
           </div>
@@ -241,7 +241,7 @@ export const ProductCatalog = ({
                 onClick={() => setViewMode("grid")}
                 className={`rounded-none h-9 px-3 ${
                   viewMode === "grid" 
-                    ? "bg-emerald-50 text-emerald-600" 
+                    ? "bg-blue-50 text-blue-600" 
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
@@ -253,7 +253,7 @@ export const ProductCatalog = ({
                 onClick={() => setViewMode("list")}
                 className={`rounded-none h-9 px-3 ${
                   viewMode === "list" 
-                    ? "bg-emerald-50 text-emerald-600" 
+                    ? "bg-blue-50 text-blue-600" 
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >

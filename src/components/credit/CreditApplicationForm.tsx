@@ -243,7 +243,7 @@ const CreditApplicationForm = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -260,10 +260,10 @@ const CreditApplicationForm = () => {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-              existingApplication.status === 'approved' ? 'bg-emerald-100' : 'bg-amber-100'
+              existingApplication.status === 'approved' ? 'bg-blue-100' : 'bg-amber-100'
             }`}>
               {existingApplication.status === 'approved' ? (
-                <CheckCircle className="w-6 h-6 text-emerald-600" />
+                <CheckCircle className="w-6 h-6 text-blue-600" />
               ) : (
                 <Loader2 className="w-6 h-6 text-amber-600 animate-spin" />
               )}
@@ -291,9 +291,9 @@ const CreditApplicationForm = () => {
           </div>
 
           {existingApplication.status === 'approved' && (
-            <div className="bg-emerald-50 rounded-lg p-4">
-              <p className="text-sm text-emerald-600">Approved Amount</p>
-              <p className="text-2xl font-bold text-emerald-700">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm text-blue-600">Approved Amount</p>
+              <p className="text-2xl font-bold text-blue-700">
                 ${existingApplication.approved_amount?.toLocaleString()}
               </p>
             </div>
@@ -320,8 +320,8 @@ const CreditApplicationForm = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="text-center mb-8">
-        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-2xl mb-4">
-          <CreditCard className="w-8 h-8 text-emerald-600" />
+        <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-2xl mb-4">
+          <CreditCard className="w-8 h-8 text-blue-600" />
         </div>
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Apply for Credit Line</h1>
         <p className="text-gray-600 max-w-xl mx-auto">
@@ -335,9 +335,9 @@ const CreditApplicationForm = () => {
           <div key={step.number} className="flex items-center">
             <div className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${
               currentStep === step.number 
-                ? 'bg-emerald-600 text-white' 
+                ? 'bg-blue-600 text-white' 
                 : currentStep > step.number 
-                  ? 'bg-emerald-100 text-emerald-700'
+                  ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-500'
             }`}>
               {currentStep > step.number ? (
@@ -350,7 +350,7 @@ const CreditApplicationForm = () => {
             </div>
             {index < steps.length - 1 && (
               <div className={`w-8 sm:w-16 h-1 mx-2 rounded ${
-                currentStep > step.number ? 'bg-emerald-400' : 'bg-gray-200'
+                currentStep > step.number ? 'bg-blue-400' : 'bg-gray-200'
               }`} />
             )}
           </div>
@@ -360,11 +360,11 @@ const CreditApplicationForm = () => {
       {/* Benefits (only on step 1) */}
       {currentStep === 1 && (
         <div className="grid md:grid-cols-3 gap-4 mb-8">
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4 text-center">
-              <DollarSign className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-              <h3 className="font-semibold text-emerald-800">Up to $50,000</h3>
-              <p className="text-sm text-emerald-600">Credit limit available</p>
+              <DollarSign className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+              <h3 className="font-semibold text-blue-800">Up to $50,000</h3>
+              <p className="text-sm text-blue-600">Credit limit available</p>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
@@ -391,7 +391,7 @@ const CreditApplicationForm = () => {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-emerald-600" />
+                <DollarSign className="w-5 h-5 text-blue-600" />
                 Credit Request
               </CardTitle>
             </CardHeader>
@@ -594,7 +594,7 @@ const CreditApplicationForm = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Shield className="w-5 h-5 text-emerald-600" />
+              <Shield className="w-5 h-5 text-blue-600" />
               Credit Line Terms and Conditions
             </CardTitle>
             <CardDescription>
@@ -608,7 +608,7 @@ const CreditApplicationForm = () => {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div>
                   <p className="text-xs text-gray-500">Requested Amount</p>
-                  <p className="font-semibold text-emerald-600">${parseFloat(formData.requested_amount || "0").toLocaleString()}</p>
+                  <p className="font-semibold text-blue-600">${parseFloat(formData.requested_amount || "0").toLocaleString()}</p>
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Net Terms</p>
@@ -627,8 +627,8 @@ const CreditApplicationForm = () => {
 
             {/* Terms Content */}
             <div className="border rounded-xl">
-              <div className="bg-emerald-50 px-4 py-3 border-b rounded-t-xl">
-                <h3 className="font-semibold text-emerald-800">{creditTerms?.title || "Terms and Conditions"}</h3>
+              <div className="bg-blue-50 px-4 py-3 border-b rounded-t-xl">
+                <h3 className="font-semibold text-blue-800">{creditTerms?.title || "Terms and Conditions"}</h3>
               </div>
               <ScrollArea className="h-[400px] p-4">
                 <div className="prose prose-sm max-w-none text-gray-700">
@@ -710,7 +710,7 @@ const CreditApplicationForm = () => {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <PenTool className="w-5 h-5 text-emerald-600" />
+              <PenTool className="w-5 h-5 text-blue-600" />
               Sign Your Application
             </CardTitle>
             <CardDescription>
@@ -719,23 +719,23 @@ const CreditApplicationForm = () => {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Final Summary */}
-            <div className="bg-emerald-50 rounded-xl p-4 space-y-3">
-              <h3 className="font-semibold text-emerald-800">Application Summary</h3>
+            <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+              <h3 className="font-semibold text-blue-800">Application Summary</h3>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <p className="text-emerald-600">Requested Credit Limit</p>
+                  <p className="text-blue-600">Requested Credit Limit</p>
                   <p className="font-bold text-lg">${parseFloat(formData.requested_amount || "0").toLocaleString()}</p>
                 </div>
                 <div>
-                  <p className="text-emerald-600">Payment Terms</p>
+                  <p className="text-blue-600">Payment Terms</p>
                   <p className="font-bold text-lg">Net {formData.net_terms}</p>
                 </div>
                 <div>
-                  <p className="text-emerald-600">Business Name</p>
+                  <p className="text-blue-600">Business Name</p>
                   <p className="font-semibold">{formData.business_name}</p>
                 </div>
                 <div>
-                  <p className="text-emerald-600">Late Payment Penalty</p>
+                  <p className="text-blue-600">Late Payment Penalty</p>
                   <p className="font-semibold text-amber-600">3% per month</p>
                 </div>
               </div>
@@ -770,7 +770,7 @@ const CreditApplicationForm = () => {
               <div className="flex items-center justify-between text-sm text-gray-500 bg-gray-50 rounded-lg p-3">
                 <span>Date: {signedDate}</span>
                 {signature && (
-                  <span className="flex items-center gap-1 text-emerald-600">
+                  <span className="flex items-center gap-1 text-blue-600">
                     <Check className="w-4 h-4" />
                     Signature captured
                   </span>
@@ -807,14 +807,14 @@ const CreditApplicationForm = () => {
         )}
 
         {currentStep < 3 ? (
-          <Button onClick={handleNext} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={handleNext} className="gap-2 bg-blue-600 hover:bg-blue-700">
             Continue
             <ArrowRight className="w-4 h-4" />
           </Button>
         ) : (
           <Button
             onClick={handleSubmit}
-            className="gap-2 bg-emerald-600 hover:bg-emerald-700 min-w-[200px]"
+            className="gap-2 bg-blue-600 hover:bg-blue-700 min-w-[200px]"
             disabled={submitting || !signature || !signedName.trim()}
           >
             {submitting ? (

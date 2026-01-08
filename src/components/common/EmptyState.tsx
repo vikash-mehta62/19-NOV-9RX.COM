@@ -23,8 +23,8 @@ const variantConfig = {
   },
   orders: {
     icon: ShoppingCart,
-    gradient: "from-emerald-50 to-teal-100",
-    iconColor: "text-emerald-500",
+    gradient: "from-blue-50 to-teal-100",
+    iconColor: "text-teal-500",
   },
   products: {
     icon: Package,
@@ -65,7 +65,7 @@ export function EmptyState({
         {/* Decorative dots */}
         <div className="absolute -top-2 -right-2 w-4 h-4 bg-blue-400 rounded-full opacity-60 animate-bounce" style={{ animationDelay: "0s" }} />
         <div className="absolute -bottom-1 -left-3 w-3 h-3 bg-purple-400 rounded-full opacity-60 animate-bounce" style={{ animationDelay: "0.2s" }} />
-        <div className="absolute top-1/2 -right-4 w-2 h-2 bg-emerald-400 rounded-full opacity-60 animate-bounce" style={{ animationDelay: "0.4s" }} />
+        <div className="absolute top-1/2 -right-4 w-2 h-2 bg-teal-400 rounded-full opacity-60 animate-bounce" style={{ animationDelay: "0.4s" }} />
       </div>
 
       {/* Text content */}

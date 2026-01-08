@@ -32,6 +32,7 @@ export interface ProductSize {
   price_per_case: number;
   pricePerCase: any;
   stock: number;
+  image?: string;
 
    ndcCode?: string;
   upcCode?: string;

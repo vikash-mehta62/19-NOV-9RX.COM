@@ -211,7 +211,7 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
       <Card className="overflow-hidden border-0 shadow-sm">
         <CardHeader className={`border-b pb-4 ${
           order.status === "delivered" 
-            ? "bg-gradient-to-r from-green-50 to-emerald-50"
+            ? "bg-gradient-to-r from-green-50 to-blue-50"
             : order.status === "shipped"
             ? "bg-gradient-to-r from-blue-50 to-indigo-50"
             : "bg-gradient-to-r from-gray-50 to-slate-50"
@@ -309,11 +309,11 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
 
       {/* Delivery Address */}
       <Card className="overflow-hidden border-0 shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b pb-4">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white rounded-lg shadow-sm">
-                <MapPin className="w-5 h-5 text-emerald-600" />
+                <MapPin className="w-5 h-5 text-blue-600" />
               </div>
               <div>
                 <CardTitle className="text-lg">Delivery Address</CardTitle>
@@ -332,7 +332,7 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
                   <X className="w-4 h-4" />
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleSaveAddress} disabled={isSaving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                <Button size="sm" onClick={handleSaveAddress} disabled={isSaving} className="gap-1.5 bg-blue-600 hover:bg-blue-700">
                   {isSaving ? "Saving..." : <><Save className="w-4 h-4" /> Save</>}
                 </Button>
               </div>
@@ -458,7 +458,7 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
               <div className="p-4 rounded-lg bg-gray-50 border border-gray-100">
                 <div className="flex items-start justify-between">
                   <div className="flex items-start gap-3">
-                    <MapPin className="w-5 h-5 text-emerald-600 mt-0.5" />
+                    <MapPin className="w-5 h-5 text-blue-600 mt-0.5" />
                     <div>
                       {shippingStreet ? (
                         <>
@@ -478,7 +478,7 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
                       variant="ghost"
                       size="sm"
                       onClick={handleCopyAddress}
-                      className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     >
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>

@@ -200,8 +200,8 @@ export default function BuyAgain() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-            <RefreshCw className="w-6 h-6 text-emerald-600" />
+          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+            <RefreshCw className="w-6 h-6 text-blue-600" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Buy Again</h1>
@@ -212,7 +212,7 @@ export default function BuyAgain() {
         {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center h-64">
-            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+            <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
           </div>
         ) : orders.length === 0 ? (
           <Card className="p-12 text-center">
@@ -242,7 +242,7 @@ export default function BuyAgain() {
                       size="sm"
                       onClick={() => handleReorderAll(order)}
                       disabled={addingToCart === order.id}
-                      className="bg-emerald-600 hover:bg-emerald-700"
+                      className="bg-blue-600 hover:bg-blue-700"
                     >
                       {addingToCart === order.id ? (
                         <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -294,7 +294,7 @@ export default function BuyAgain() {
                                     <span className="text-xs text-gray-400 ml-1">SKU: {size.sku}</span>
                                   )}
                                 </div>
-                                <span className="font-semibold text-emerald-600">
+                                <span className="font-semibold text-blue-600">
                                   ${(size.price * (size.quantity || 1)).toFixed(2)}
                                 </span>
                               </div>
@@ -308,7 +308,7 @@ export default function BuyAgain() {
                           variant="outline"
                           onClick={() => handleReorderItem(item)}
                           disabled={addingToCart === item.productId}
-                          className="flex-shrink-0 border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                          className="flex-shrink-0 border-blue-200 text-blue-700 hover:bg-blue-50"
                         >
                           {addingToCart === item.productId ? (
                             <Loader2 className="w-4 h-4 animate-spin" />

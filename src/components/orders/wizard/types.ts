@@ -110,6 +110,7 @@ export interface CustomerSelectionStepProps {
   onAddNewCustomer?: () => void;
   isEditMode?: boolean;
   lockedCustomer?: Customer;
+  refreshKey?: number;
 }
 
 export interface Address {

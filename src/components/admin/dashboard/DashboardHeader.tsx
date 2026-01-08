@@ -39,13 +39,13 @@ export function DashboardHeader({
             size="sm" 
             onClick={onRefresh}
             disabled={isLoading}
-            className="gap-2 min-h-[44px] rounded-xl focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="gap-2 min-h-[44px] rounded-xl focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
           <Select value={timeRange} onValueChange={onTimeRangeChange} disabled={isLoading}>
-            <SelectTrigger className="w-36 min-h-[44px] rounded-xl focus:ring-2 focus:ring-emerald-500">
+            <SelectTrigger className="w-36 min-h-[44px] rounded-xl focus:ring-2 focus:ring-blue-500">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>

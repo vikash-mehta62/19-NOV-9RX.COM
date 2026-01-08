@@ -177,7 +177,7 @@ export const ReviewOrderStep = ({
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-green-600" />
+                <MapPin className="h-5 w-5 text-blue-600" />
                 <CardTitle>Shipping Address</CardTitle>
               </div>
               <Button variant="ghost" size="sm" onClick={onEditAddress}>
@@ -430,7 +430,7 @@ export const ReviewOrderStep = ({
             <Separator />
             <div className="flex justify-between text-lg font-bold">
               <span className="text-gray-900">Total:</span>
-              <span className="text-green-600">${total.toFixed(2)}</span>
+              <span className="text-blue-600">${total.toFixed(2)}</span>
             </div>
           </div>
         </CardContent>

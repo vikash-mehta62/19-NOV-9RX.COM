@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/supabaseClient'
 import { selectUserProfile } from '@/store/selectors/userSelectors'
 import { useSelector } from 'react-redux'
-import { X, Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, ExternalLink } from 'lucide-react'
+import { X, Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, ExternalLink, ArrowLeft } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -267,7 +267,7 @@ export const InlineProductSizes = ({
 
       const cartItem = {
         productId: displayProduct.id.toString(),
-        name: `${displayProduct.name} - ${size.size_value}${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
+        name: `${displayProduct.name} - ${size.size_value} ${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
         sku: displayProduct.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(size.image),
@@ -297,7 +297,7 @@ export const InlineProductSizes = ({
       if (success) {
         toast({
           title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value}${size.size_unit}${customization.enabled ? ' with customization' : ''} added!`,
+          description: `${displayProduct.name} ${size.size_value} ${size.size_unit}${customization.enabled ? ' with customization' : ''} added!`,
         })
         // Reset quantity and customization after adding
         setSelectedSizes(prev => ({
@@ -338,12 +338,23 @@ export const InlineProductSizes = ({
   }
 
   return (
-    <div className="w-full bg-gradient-to-r from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-2xl p-6 mb-6 shadow-lg">
+    <div className="w-full bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-200 rounded-2xl p-6 mb-6 shadow-lg">
+      {/* Back to Category Button */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onClose}
+        className="text-blue-700 hover:text-blue-800 hover:bg-blue-100 -ml-2 mb-4 gap-1.5"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        Back to {displayProduct.category || "Products"}
+      </Button>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <div 
-            className="relative w-20 h-20 bg-white rounded-xl overflow-hidden border-2 border-emerald-200 cursor-pointer hover:shadow-md hover:border-emerald-400 transition-all group"
+            className="relative w-20 h-20 bg-white rounded-xl overflow-hidden border-2 border-blue-200 cursor-pointer hover:shadow-md hover:border-blue-400 transition-all group"
             onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
             title="Click to view full product page"
           >
@@ -353,20 +364,20 @@ export const InlineProductSizes = ({
               className="w-full h-full object-contain p-2 group-hover:scale-110 transition-transform"
               onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
             />
-            <div className="absolute inset-0 bg-emerald-600/0 group-hover:bg-emerald-600/10 transition-colors flex items-center justify-center">
-              <ExternalLink className="w-5 h-5 text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/10 transition-colors flex items-center justify-center">
+              <ExternalLink className="w-5 h-5 text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
           </div>
           <div>
             <h2 
-              className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-emerald-600 transition-colors"
+              className="text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors"
               onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
               title="Click to view full product page"
             >
               {displayProduct.name}
             </h2>
             <div className="flex items-center gap-3 mt-2">
-              <Badge variant="outline" className="text-sm border-emerald-300 text-emerald-700">
+              <Badge variant="outline" className="text-sm border-blue-300 text-blue-700">
                 {displayProduct.category}
               </Badge>
               <Button
@@ -393,7 +404,7 @@ export const InlineProductSizes = ({
             variant="outline"
             size="sm"
             onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
-            className="border-emerald-300 text-emerald-700 hover:bg-emerald-50 hover:border-emerald-400"
+            className="border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400"
           >
             <ExternalLink className="w-4 h-4 mr-1.5" />
             View Full Page
@@ -413,7 +424,7 @@ export const InlineProductSizes = ({
       {/* Sizes Grid */}
       <div className="space-y-4">
         <h3 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
-          <Package className="w-5 h-5 text-emerald-600" />
+          <Package className="w-5 h-5 text-blue-600" />
           Available Sizes
         </h3>
         
@@ -450,7 +461,7 @@ export const InlineProductSizes = ({
               const discountPercent = hasDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0
 
               return (
-                <Card key={sizeId} className={`${sizeInCart ? 'border-emerald-400 ring-1 ring-emerald-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-xl transition-all hover:shadow-md overflow-hidden`}>
+                <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-xl transition-all hover:shadow-md overflow-hidden`}>
                   <CardContent className="p-4 min-w-0">
                     {/* Product Image */}
                     <div 
@@ -460,14 +471,14 @@ export const InlineProductSizes = ({
                     >
                       <img
                         src={getSizeImageUrl(size)}
-                        alt={`${size.size_value}${size.size_unit}`}
+                        alt={`${size.size_value} ${size.size_unit}`}
                         className="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform"
                         onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                       />
                       
                       {/* Hover overlay with icon */}
-                      <div className="absolute inset-0 bg-emerald-600/0 group-hover:bg-emerald-600/5 transition-colors flex items-center justify-center">
-                        <ExternalLink className="w-6 h-6 text-emerald-600 opacity-0 group-hover:opacity-70 transition-opacity" />
+                      <div className="absolute inset-0 bg-blue-600/0 group-hover:bg-blue-600/5 transition-colors flex items-center justify-center">
+                        <ExternalLink className="w-6 h-6 text-blue-600 opacity-0 group-hover:opacity-70 transition-opacity" />
                       </div>
                       
                       {/* Discount Badge */}
@@ -479,7 +490,7 @@ export const InlineProductSizes = ({
                       
                       {/* In Cart Badge */}
                       {sizeInCart && (
-                        <Badge className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px]">
+                        <Badge className="absolute top-2 right-2 bg-blue-500 text-white text-[10px]">
                           <Check className="w-3 h-3 mr-1" /> In Cart
                         </Badge>
                       )}
@@ -506,12 +517,12 @@ export const InlineProductSizes = ({
 
                     {/* Product Name + Size */}
                     <div 
-                      className="mb-2 cursor-pointer hover:text-emerald-600 min-w-0 overflow-hidden"
+                      className="mb-2 cursor-pointer hover:text-blue-600 min-w-0 overflow-hidden"
                       onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
-                      title={`${displayProduct.name} – ${size.size_value}${size.size_unit}`}
+                      title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                     >
-                      <p className="font-semibold text-emerald-600 text-sm sm:text-base truncate">
-                        {size.size_value}{size.size_unit}
+                      <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
+                        {size.size_value} {size.size_unit}
                       </p>
                       <p className="text-xs text-gray-500 line-clamp-1 break-words uppercase">
                         {displayProduct.name}
@@ -610,7 +621,7 @@ export const InlineProductSizes = ({
 
                           {/* Add to Cart */}
                           <Button
-                            className="flex-1 h-9 sm:h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg text-sm min-w-0"
+                            className="flex-1 h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-sm min-w-0"
                             onClick={() => handleAddToCart(size)}
                             disabled={isAdding[sizeId] || sizeInCart}
                           >

@@ -164,7 +164,7 @@ export const SignupForm = () => {
       />
       <Button 
         type="submit" 
-        className="w-full h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/40 transition-all duration-300 min-h-[48px] focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2" 
+        className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all duration-300 min-h-[48px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" 
         disabled={isLoading}
       >
         {isLoading ? (

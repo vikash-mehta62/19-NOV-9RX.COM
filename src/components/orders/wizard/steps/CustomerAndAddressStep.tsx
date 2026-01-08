@@ -363,7 +363,7 @@ export const CustomerAndAddressStep = ({
         </p>
         {isGroupMode && selectedPharmacyName && (
           <div className="mt-2 flex items-center gap-2">
-            <Badge className="bg-emerald-100 text-emerald-700 border-emerald-300">
+            <Badge className="bg-blue-100 text-blue-700 border-blue-300">
               <MapPin className="w-3 h-3 mr-1" />
               {selectedPharmacyName}
             </Badge>
@@ -498,7 +498,7 @@ export const CustomerAndAddressStep = ({
                     {errors["billing.zip_code"] && <p className="text-xs text-red-500">{errors["billing.zip_code"]}</p>}
                   </div>
                 </div>
-                <Button onClick={handleSaveBilling} className="w-full">
+                <Button onClick={handleSaveBilling} className="w-full bg-blue-600 hover:bg-blue-700">
                   <Check className="w-4 h-4 mr-2" /> Save Billing Address
                 </Button>
               </div>
@@ -516,11 +516,11 @@ export const CustomerAndAddressStep = ({
         </Card>
 
         {/* Shipping Address */}
-        <Card className={`transition-all duration-300 ${isEditingShipping ? "border-green-500 shadow-lg" : ""}`}>
+        <Card className={`transition-all duration-300 ${isEditingShipping ? "border-blue-500 shadow-lg" : ""}`}>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-green-600" />
+                <MapPin className="w-4 h-4 text-blue-600" />
                 Shipping Address
               </CardTitle>
               {!isEditingShipping && shippingForm.street && (
@@ -533,8 +533,8 @@ export const CustomerAndAddressStep = ({
           <CardContent>
             {/* Saved Locations Dropdown */}
             {(validLocations.length > 0 || hasProfileShipping) && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                <Label className="text-xs text-green-700 font-medium flex items-center gap-1.5 mb-2">
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Select Saved Location
                 </Label>
@@ -547,7 +547,7 @@ export const CustomerAndAddressStep = ({
                     {hasProfileShipping && (
                       <SelectItem value="profile-shipping">
                         <div className="flex flex-col">
-                          <span className="font-medium text-green-600">📍 Profile Shipping Address</span>
+                          <span className="font-medium text-blue-600">📍 Profile Shipping Address</span>
                           <span className="text-xs text-gray-500">
                             {getStreet(profileShippingAddress)}, {profileShippingAddress?.city}, {profileShippingAddress?.state}
                           </span>
@@ -618,7 +618,7 @@ export const CustomerAndAddressStep = ({
                       {errors["shipping.zip_code"] && <p className="text-xs text-red-500">{errors["shipping.zip_code"]}</p>}
                     </div>
                   </div>
-                  <Button onClick={handleSaveShipping} className="w-full bg-green-600 hover:bg-green-700">
+                  <Button onClick={handleSaveShipping} className="w-full bg-blue-600 hover:bg-blue-700">
                     <Check className="w-4 h-4 mr-2" /> Save Shipping Address
                   </Button>
                 </div>
@@ -629,7 +629,7 @@ export const CustomerAndAddressStep = ({
                   <p className="text-gray-600">{shippingForm.phone}</p>
                   <p>{shippingForm.street}</p>
                   <p>{shippingForm.city}, {shippingForm.state} {shippingForm.zip_code}</p>
-                  {sameAsBilling && <p className="text-xs text-green-600 mt-2">✓ Same as billing address</p>}
+                  {sameAsBilling && <p className="text-xs text-blue-600 mt-2">✓ Same as billing address</p>}
                 </div>
               ) : (
                 <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Please enter shipping address</AlertDescription></Alert>

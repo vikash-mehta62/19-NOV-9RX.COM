@@ -156,7 +156,7 @@ const ProductSizeDetails = () => {
     try {
       const cartItem = {
         productId: productId!,
-        name: `${product.name} - ${size.size_value}${size.size_unit || ''}${customization.enabled ? ' (Customized)' : ''}`,
+        name: `${product.name} - ${size.size_value} ${size.size_unit || ''}${customization.enabled ? ' (Customized)' : ''}`,
         sku: product.sku || size.sku || "",
         price: totalPrice,
         image: imageUrl,
@@ -220,7 +220,7 @@ const ProductSizeDetails = () => {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Product Not Found</h2>
-          <Button onClick={() => navigate("/pharmacy")} className="bg-emerald-600 hover:bg-emerald-700">
+          <Button onClick={() => navigate("/pharmacy")} className="bg-blue-600 hover:bg-blue-700">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Products
           </Button>
         </div>
@@ -252,7 +252,7 @@ const ProductSizeDetails = () => {
                 {hasDiscount && (
                   <Badge className="absolute top-4 left-4 bg-red-500 text-white">{discountPercent}% OFF</Badge>
                 )}
-                <Badge className="absolute top-4 right-4 bg-emerald-100 text-emerald-700">{product.category}</Badge>
+                <Badge className="absolute top-4 right-4 bg-blue-100 text-blue-700">{product.category}</Badge>
 
                 <img
                   src={imageUrl}
@@ -275,7 +275,7 @@ const ProductSizeDetails = () => {
             {/* Product Title */}
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{product.name}</h1>
-              <p className="text-xl font-semibold text-emerald-600 mt-1">{size.size_value}{size.size_unit || ''}</p>
+              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {size.size_unit || ''}</p>
             </div>
 
             {/* SKU & Stock */}
@@ -292,7 +292,7 @@ const ProductSizeDetails = () => {
             </div>
 
             {/* Price Card */}
-            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
               <CardContent className="p-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>

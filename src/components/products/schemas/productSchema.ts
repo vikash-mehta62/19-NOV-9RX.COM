@@ -183,6 +183,11 @@ export const productFormSchema = z.object({
     .number()
     .min(0, "Shipping cost must be positive")
     .default(15),
+  similar_products: z.array(z.object({
+    id: z.number(),
+    category_name: z.string(),  
+    subcategory_name: z.string(),
+  })).max(2, "Maximum 2 similar products allowed").default([]),
 });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;

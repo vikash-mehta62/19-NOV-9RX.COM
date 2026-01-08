@@ -1349,10 +1349,8 @@ export const OrderDetailsSheet = ({
 
   return (
     <>
-
-
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full max-w-full md:max-w-4xl overflow-y-auto z-50 p-4 md:p-6">
+        <SheetContent className="w-full max-w-full md:max-w-4xl lg:max-w-3xl overflow-y-auto z-50 p-4 md:p-6">
           <SheetHeader className="mb-4">
             <SheetTitle className="text-lg md:text-xl">Order Details</SheetTitle>
             <SheetDescription className="text-sm md:text-base">
@@ -1527,7 +1525,7 @@ export const OrderDetailsSheet = ({
                       Reject Purchase
                     </Button>
                   ) : (
-                    <Button onClick={handleApprove} className="gap-2 bg-green-600 hover:bg-green-700">
+                    <Button onClick={handleApprove} className="gap-2 bg-blue-600 hover:bg-blue-700">
                       <CheckCircle size={18} />
                       Approve Purchase
                     </Button>

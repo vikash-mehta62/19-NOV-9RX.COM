@@ -88,7 +88,7 @@ export const FloatingCartButton = () => {
                   className="absolute bottom-16 right-0 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden mb-2"
                 >
                   {/* Header */}
-                  <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3 flex items-center justify-between">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-700 px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-2 text-white">
                       <ShoppingCart className="h-5 w-5" />
                       <span className="font-semibold">Your Cart ({totalItems})</span>
@@ -121,7 +121,7 @@ export const FloatingCartButton = () => {
                           <div className="flex items-center gap-2 mt-1">
                             <button
                               onClick={() => handleViewDetails(item.productId)}
-                              className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                              className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
                             >
                               <Eye className="w-3 h-3" />
                               View
@@ -157,7 +157,7 @@ export const FloatingCartButton = () => {
                       </span>
                     </div>
                     <Button
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2 min-h-[44px] rounded-xl"
+                      className="w-full bg-blue-600 hover:bg-blue-700 gap-2 min-h-[44px] rounded-xl"
                       onClick={() => {
                         setIsExpanded(false);
                         navigate("/pharmacy/order/create");
@@ -174,7 +174,7 @@ export const FloatingCartButton = () => {
             {/* Main Button */}
             <Button
               onClick={() => setIsExpanded(!isExpanded)}
-              className="h-14 w-14 rounded-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 shadow-lg shadow-emerald-500/30 relative"
+              className="h-14 w-14 rounded-full bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-700 shadow-lg shadow-blue-500/30 relative"
             >
               <ShoppingCart className="h-6 w-6 text-white" />
               <Badge className="absolute -top-1 -right-1 h-6 w-6 p-0 flex items-center justify-center bg-red-500 text-white border-2 border-white text-xs">

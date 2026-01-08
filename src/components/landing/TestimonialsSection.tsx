@@ -23,10 +23,10 @@ const TestimonialsSection = () => {
       <div className="container mx-auto px-4 sm:px-6 mb-8 md:mb-16">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 md:mb-12 gap-8">
           <div className="max-w-2xl">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-emerald-900 mb-3 md:mb-4">
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-blue-900 mb-3 md:mb-4">
               Trusted by Leading Pharmacy Groups
             </h2>
-            <p className="text-sm md:text-base text-emerald-700">
+            <p className="text-sm md:text-base text-blue-700">
               Join hundreds of satisfied pharmacies who have enhanced their
               operations with our premium pharmacy supplies and packaging
               solutions.
@@ -35,14 +35,14 @@ const TestimonialsSection = () => {
           <div className="grid grid-cols-2 gap-4 md:gap-8 mt-6 lg:mt-0">
             <StatsCard
               icon={
-                <Users className="w-6 h-6 md:w-8 md:h-8 text-emerald-600" />
+                <Users className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
               }
               value="150+"
               label="Happy Clients"
             />
             <StatsCard
               icon={
-                <HeartHandshake className="w-6 h-6 md:w-8 md:h-8 text-emerald-600" />
+                <HeartHandshake className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
               }
               value="98%"
               label="Satisfaction"
@@ -104,11 +104,11 @@ const StatsCard = ({
   label: string;
 }) => (
   <div className="text-center transform transition-transform hover:scale-105 duration-300">
-    <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-emerald-100 rounded-full mb-2 mx-auto">
+    <div className="flex items-center justify-center w-12 h-12 md:w-16 md:h-16 bg-blue-100 rounded-full mb-2 mx-auto">
       {icon}
     </div>
-    <p className="text-xl md:text-2xl font-bold text-emerald-900">{value}</p>
-    <p className="text-xs md:text-sm text-emerald-600">{label}</p>
+    <p className="text-xl md:text-2xl font-bold text-blue-900">{value}</p>
+    <p className="text-xs md:text-sm text-blue-600">{label}</p>
   </div>
 );
 
@@ -137,27 +137,27 @@ const TestimonialCard = ({
         <img
           src={image || "/placeholder.svg"}
           alt={name}
-          className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-emerald-200"
+          className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border-2 border-blue-200"
           loading="lazy"
         />
         <div>
-          <h4 className="text-emerald-900 font-semibold text-base md:text-lg">
+          <h4 className="text-blue-900 font-semibold text-base md:text-lg">
             {name || "Anonymous"}
           </h4>
-          <p className="text-emerald-600 text-xs md:text-sm">
+          <p className="text-blue-600 text-xs md:text-sm">
             {title || "Pharmacy Professional"}
           </p>
         </div>
       </div>
 
-      <div className="text-emerald-800 text-sm md:text-base lg:text-lg mb-3 flex-grow">
+      <div className="text-blue-800 text-sm md:text-base lg:text-lg mb-3 flex-grow">
         {isExpanded ? quote : truncatedQuote}
       </div>
 
       {isLongQuote && (
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-1 text-emerald-600 hover:text-emerald-800 text-sm font-medium transition-colors mt-auto"
+          className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors mt-auto"
         >
           {isExpanded ? (
             <>

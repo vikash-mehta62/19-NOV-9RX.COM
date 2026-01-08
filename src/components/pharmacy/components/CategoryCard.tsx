@@ -67,10 +67,10 @@ export const CategoryCard = ({
         {/* Content Section */}
         <div className="p-4 bg-white">
           <div className="flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-emerald-600 transition-colors">
+            <h3 className="font-semibold text-gray-900 text-sm line-clamp-2 group-hover:text-blue-600 transition-colors">
               {categoryName}
             </h3>
-            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-emerald-600 group-hover:translate-x-1 transition-all" />
+            <ChevronRight className="w-5 h-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
           </div>
         </div>
       </CardContent>

@@ -283,7 +283,7 @@ const CreditManagement = () => {
     return (
       <DashboardLayout role="admin">
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
       </DashboardLayout>
     );
@@ -333,11 +333,11 @@ const CreditManagement = () => {
               </div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-emerald-600" />
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <DollarSign className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-sm text-emerald-600">Total Extended</p>
@@ -395,59 +395,62 @@ const CreditManagement = () => {
           <TabsContent value="applications">
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Requested</TableHead>
-                      <TableHead>Net Terms</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {applications.map((app) => (
-                      <TableRow key={app.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{app.business_name || app.profiles?.company_name}</p>
-                            <p className="text-sm text-gray-500">{app.profiles?.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          ${app.requested_amount?.toLocaleString()}
-                        </TableCell>
-                        <TableCell>Net {app.net_terms}</TableCell>
-                        <TableCell>{getStatusBadge(app.status)}</TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(app.created_at).toLocaleDateString()}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedApplication(app);
-                              setReviewData({
-                                status: app.status,
-                                approved_amount: app.requested_amount?.toString() || "",
-                                net_terms: app.net_terms?.toString() || "30",
-                                interest_rate: "3.00",
-                                rejection_reason: app.rejection_reason || "",
-                                notes: app.notes || "",
-                              });
-                              setShowReviewDialog(true);
-                            }}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            Review
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Business</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Requested</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Net Terms</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Status</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Date</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {applications.map((app) => (
+                        <TableRow key={app.id}>
+                          <TableCell className="px-2 lg:px-4">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate max-w-[150px] lg:max-w-none">{app.business_name || app.profiles?.company_name}</p>
+                              <p className="text-xs text-gray-500 truncate max-w-[150px] lg:max-w-none">{app.profiles?.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${app.requested_amount?.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-sm px-2 lg:px-4 whitespace-nowrap">Net {app.net_terms}</TableCell>
+                          <TableCell className="px-2 lg:px-4">{getStatusBadge(app.status)}</TableCell>
+                          <TableCell className="text-xs lg:text-sm text-gray-500 px-2 lg:px-4 whitespace-nowrap">
+                            {new Date(app.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="px-2 lg:px-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs lg:text-sm h-8 px-2 lg:px-3"
+                              onClick={() => {
+                                setSelectedApplication(app);
+                                setReviewData({
+                                  status: app.status,
+                                  approved_amount: app.requested_amount?.toString() || "",
+                                  net_terms: app.net_terms?.toString() || "30",
+                                  interest_rate: "3.00",
+                                  rejection_reason: app.rejection_reason || "",
+                                  notes: app.notes || "",
+                                });
+                                setShowReviewDialog(true);
+                              }}
+                            >
+                              <Eye className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
+                              <span className="hidden lg:inline">Review</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -456,37 +459,39 @@ const CreditManagement = () => {
           <TabsContent value="sent-terms">
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Offered Amount</TableHead>
-                      <TableHead>Net Terms</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Sent Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {sentTerms.map((term) => (
-                      <TableRow key={term.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{term.profiles?.company_name || "Unknown"}</p>
-                            <p className="text-sm text-gray-500">{term.profiles?.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          ${term.credit_limit?.toLocaleString()}
-                        </TableCell>
-                        <TableCell>Net {term.net_terms}</TableCell>
-                        <TableCell>{getStatusBadge(term.status)}</TableCell>
-                        <TableCell className="text-sm text-gray-500">
-                          {new Date(term.created_at).toLocaleDateString()}
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Business</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Offered Amount</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Net Terms</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Status</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Sent Date</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {sentTerms.map((term) => (
+                        <TableRow key={term.id}>
+                          <TableCell className="px-2 lg:px-4">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate max-w-[150px] lg:max-w-none">{term.profiles?.company_name || "Unknown"}</p>
+                              <p className="text-xs text-gray-500 truncate max-w-[150px] lg:max-w-none">{term.profiles?.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${term.credit_limit?.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-sm px-2 lg:px-4 whitespace-nowrap">Net {term.net_terms}</TableCell>
+                          <TableCell className="px-2 lg:px-4">{getStatusBadge(term.status)}</TableCell>
+                          <TableCell className="text-xs lg:text-sm text-gray-500 px-2 lg:px-4 whitespace-nowrap">
+                            {new Date(term.created_at).toLocaleDateString()}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -495,71 +500,74 @@ const CreditManagement = () => {
           <TabsContent value="credit-lines">
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Credit Limit</TableHead>
-                      <TableHead>Available</TableHead>
-                      <TableHead>Used</TableHead>
-                      <TableHead>Net Terms</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {creditLines.map((line) => (
-                      <TableRow key={line.id}>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{line.profiles?.company_name}</p>
-                            <p className="text-sm text-gray-500">{line.profiles?.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell className="font-medium">
-                          ${line.credit_limit?.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-emerald-600">
-                          ${line.available_credit?.toLocaleString()}
-                        </TableCell>
-                        <TableCell className="text-amber-600">
-                          ${line.used_credit?.toLocaleString()}
-                        </TableCell>
-                        <TableCell>Net {line.net_terms}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <div className="w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
-                              <div 
-                                className={`h-full ${line.payment_score >= 80 ? 'bg-emerald-500' : line.payment_score >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
-                                style={{ width: `${line.payment_score}%` }}
-                              />
-                            </div>
-                            <span className="text-sm">{line.payment_score}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={line.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}>
-                            {line.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSelectedUserId(line.user_id);
-                              setShowDetailsDialog(true);
-                            }}
-                          >
-                            <FileText className="w-4 h-4 mr-1" />
-                            Details
-                          </Button>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Business</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Credit Limit</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Available</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Used</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap hidden xl:table-cell">Net Terms</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 hidden xl:table-cell">Score</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Status</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Actions</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {creditLines.map((line) => (
+                        <TableRow key={line.id}>
+                          <TableCell className="px-2 lg:px-4">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate max-w-[120px] lg:max-w-none">{line.profiles?.company_name}</p>
+                              <p className="text-xs text-gray-500 truncate max-w-[120px] lg:max-w-none">{line.profiles?.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="font-medium text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${line.credit_limit?.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-emerald-600 text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${line.available_credit?.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-amber-600 text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${line.used_credit?.toLocaleString()}
+                          </TableCell>
+                          <TableCell className="text-sm px-2 lg:px-4 whitespace-nowrap hidden xl:table-cell">Net {line.net_terms}</TableCell>
+                          <TableCell className="px-2 lg:px-4 hidden xl:table-cell">
+                            <div className="flex items-center gap-1">
+                              <div className="w-12 lg:w-16 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div 
+                                  className={`h-full ${line.payment_score >= 80 ? 'bg-emerald-500' : line.payment_score >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                  style={{ width: `${line.payment_score}%` }}
+                                />
+                              </div>
+                              <span className="text-xs">{line.payment_score}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-2 lg:px-4">
+                            <Badge className={`text-xs ${line.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>
+                              {line.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-2 lg:px-4">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="text-xs lg:text-sm h-8 px-2 lg:px-3"
+                              onClick={() => {
+                                setSelectedUserId(line.user_id);
+                                setShowDetailsDialog(true);
+                              }}
+                            >
+                              <FileText className="w-3 h-3 lg:w-4 lg:h-4 lg:mr-1" />
+                              <span className="hidden lg:inline">Details</span>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -568,43 +576,45 @@ const CreditManagement = () => {
           <TabsContent value="overdue">
             <Card>
               <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Invoice</TableHead>
-                      <TableHead>Business</TableHead>
-                      <TableHead>Original</TableHead>
-                      <TableHead>Penalty</TableHead>
-                      <TableHead>Balance Due</TableHead>
-                      <TableHead>Days Overdue</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {overdueInvoices.map((invoice) => (
-                      <TableRow key={invoice.id} className="bg-red-50/50">
-                        <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                        <TableCell>
-                          <div>
-                            <p className="font-medium">{invoice.profiles?.company_name}</p>
-                            <p className="text-sm text-gray-500">{invoice.profiles?.email}</p>
-                          </div>
-                        </TableCell>
-                        <TableCell>${invoice.original_amount?.toFixed(2)}</TableCell>
-                        <TableCell className="text-red-600">
-                          +${invoice.penalty_amount?.toFixed(2)}
-                        </TableCell>
-                        <TableCell className="font-bold text-red-700">
-                          ${invoice.balance_due?.toFixed(2)}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className="bg-red-100 text-red-700">
-                            {invoice.days_overdue} days
-                          </Badge>
-                        </TableCell>
+                <div className="overflow-x-auto">
+                  <Table className="min-w-full">
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Invoice</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Business</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Original</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4">Penalty</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Balance Due</TableHead>
+                        <TableHead className="text-xs lg:text-sm px-2 lg:px-4 whitespace-nowrap">Days Overdue</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {overdueInvoices.map((invoice) => (
+                        <TableRow key={invoice.id} className="bg-red-50/50">
+                          <TableCell className="font-medium text-sm px-2 lg:px-4">{invoice.invoice_number}</TableCell>
+                          <TableCell className="px-2 lg:px-4">
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate max-w-[120px] lg:max-w-none">{invoice.profiles?.company_name}</p>
+                              <p className="text-xs text-gray-500 truncate max-w-[120px] lg:max-w-none">{invoice.profiles?.email}</p>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm px-2 lg:px-4 whitespace-nowrap">${invoice.original_amount?.toFixed(2)}</TableCell>
+                          <TableCell className="text-red-600 text-sm px-2 lg:px-4 whitespace-nowrap">
+                            +${invoice.penalty_amount?.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="font-bold text-red-700 text-sm px-2 lg:px-4 whitespace-nowrap">
+                            ${invoice.balance_due?.toFixed(2)}
+                          </TableCell>
+                          <TableCell className="px-2 lg:px-4">
+                            <Badge className="bg-red-100 text-red-700 text-xs">
+                              {invoice.days_overdue} days
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
@@ -704,21 +714,21 @@ const CreditManagement = () => {
                 )}
 
                 {/* Signature */}
-                <div className="p-4 bg-emerald-50 rounded-lg">
-                  <h3 className="font-semibold text-emerald-900 mb-3 flex items-center gap-2">
+                <div className="p-4 bg-blue-50 rounded-lg">
+                  <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
                     <CheckCircle className="w-4 h-4" /> Signature & Agreement
                   </h3>
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
-                      <p className="text-sm text-emerald-700">Signed Name</p>
+                      <p className="text-sm text-blue-700">Signed Name</p>
                       <p className="font-medium">{selectedApplication.signed_name || "N/A"}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-emerald-700">Title</p>
+                      <p className="text-sm text-blue-700">Title</p>
                       <p className="font-medium">{selectedApplication.signed_title || "N/A"}</p>
                     </div>
                     <div>
-                      <p className="text-sm text-emerald-700">Date Signed</p>
+                      <p className="text-sm text-blue-700">Date Signed</p>
                       <p className="font-medium">
                         {selectedApplication.signed_date 
                           ? new Date(selectedApplication.signed_date).toLocaleDateString() 
@@ -726,14 +736,14 @@ const CreditManagement = () => {
                       </p>
                     </div>
                     <div>
-                       <p className="text-sm text-emerald-700">IP Address</p>
+                       <p className="text-sm text-blue-700">IP Address</p>
                        <p className="font-medium">{selectedApplication.ip_address || "N/A"}</p>
                     </div>
                   </div>
                   {selectedApplication.signature && (
-                    <div className="mt-4 border-t border-emerald-200 pt-4">
-                      <p className="text-sm text-emerald-700 mb-2">Digital Signature</p>
-                      <div className="bg-white p-2 rounded border border-emerald-200 inline-block">
+                    <div className="mt-4 border-t border-blue-200 pt-4">
+                      <p className="text-sm text-blue-700 mb-2">Digital Signature</p>
+                      <div className="bg-white p-2 rounded border border-blue-200 inline-block">
                         <img 
                           src={selectedApplication.signature} 
                           alt="User Signature" 
@@ -837,7 +847,7 @@ const CreditManagement = () => {
               <Button
                 onClick={handleReviewApplication}
                 disabled={processing || !reviewData.status}
-                className={reviewData.status === "approved" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-red-600 hover:bg-red-700"}
+                className={reviewData.status === "approved" ? "bg-blue-600 hover:bg-blue-700" : "bg-red-600 hover:bg-red-700"}
               >
                 {processing ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />

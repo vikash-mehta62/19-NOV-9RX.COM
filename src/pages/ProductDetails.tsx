@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useParams, useNavigate } from "react-router-dom"
+import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import type { Product } from "@/types/product"
 import { Button } from "@/components/ui/button"
@@ -92,7 +92,7 @@ const ImageWithLoader = ({
       {isLoading && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-100 rounded-lg">
           <div className="flex flex-col items-center space-y-2">
-            <Loader2 className="w-6 h-6 animate-spin text-emerald-600" />
+            <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
             <span className="text-xs text-gray-500">Loading...</span>
           </div>
         </div>
@@ -131,13 +131,13 @@ const ThumbnailImage = ({
   return (
     <div
       className={`aspect-square bg-white rounded-lg p-2 cursor-pointer border-2 transition-all duration-200 hover:shadow-md relative ${
-        isSelected ? "border-emerald-500 ring-2 ring-emerald-200" : "border-gray-200 hover:border-emerald-300"
+        isSelected ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-blue-300"
       }`}
       onClick={onClick}
     >
       {isLoading && (
         <div className="absolute inset-2 flex items-center justify-center bg-gray-100 rounded">
-          <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
         </div>
       )}
 
@@ -504,13 +504,18 @@ const ProductDetails = () => {
     setSelectedImage(imageUrl)
   }
 
+  // Hide public navbar on dashboard routes (admin/pharmacy/group/hospital)
+  const location = useLocation()
+  const isDashboardRoute = /^(\/admin|\/pharmacy|\/group|\/hospital)\//.test(location.pathname)
+  const topOffsetClass = isDashboardRoute ? "pt-0" : "pt-16"
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
-        <Navbar />
+        {!isDashboardRoute && <Navbar />}
         
         {/* Enhanced Loading Header */}
-        <div className="bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 pt-16">
+        <div className={`bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 ${topOffsetClass}`}>
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center gap-2 mb-3">
               <Skeleton className="h-6 w-6 rounded" />
@@ -625,7 +630,7 @@ const ProductDetails = () => {
             } else {
               navigate("/");
             }
-          }} className="bg-emerald-600 hover:bg-emerald-700">
+          }} className="bg-blue-600 hover:bg-blue-700">
             <ArrowLeft className="w-4 h-4 mr-2" />
             Go Back
           </Button>
@@ -647,7 +652,7 @@ const ProductDetails = () => {
       .map((size) => ({
         url: imageUrls[size.image] || size.image,
         originalPath: size.image,
-        label: `${size.size_value}${size.size_unit}`,
+        label: `${size.size_value} ${size.size_unit}`,
         type: "size",
         sizeId: size.id,
       })) || []),
@@ -655,9 +660,9 @@ const ProductDetails = () => {
 
 return (
   <>
-    <Navbar />
+    {!isDashboardRoute && <Navbar />}
 
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 pt-16">
+    <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 ${topOffsetClass}`}>
       {/* Enhanced Header with Modern Design & Micro-interactions */}
       <div className="bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 overflow-hidden">
         {/* Decorative Background Elements */}
@@ -671,20 +676,22 @@ return (
             variant="ghost"
             onClick={() => {
               const userType = sessionStorage.getItem('userType')?.toLowerCase();
+              const category = product?.category;
+              
               if (userType === 'group') {
-                navigate("/group/products");
+                navigate("/group/products", { state: { selectedCategory: category } });
               } else if (userType === 'admin') {
-                navigate("/admin/products");
+                navigate("/admin/products", { state: { selectedCategory: category } });
               } else if (userType === 'pharmacy') {
-                navigate("/pharmacy/products");
+                navigate("/pharmacy/products", { state: { selectedCategory: category } });
               } else {
-                navigate("/");
+                navigate("/products", { state: { selectedCategory: category } });
               }
             }}
             className="mb-2 hover:bg-gray-100/80 transition-all duration-300 rounded-xl group text-sm h-9 px-3 backdrop-blur-sm"
           >
             <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 group-hover:scale-110 transition-all duration-300" />
-            <span className="font-medium group-hover:text-emerald-600 transition-colors duration-300">Back to Products</span>
+            <span className="font-medium group-hover:text-blue-600 transition-colors duration-300">Back to {product?.category || "Products"}</span>
           </Button>
 
           {/* Product Info Section with enhanced layout */}
@@ -694,7 +701,7 @@ return (
               {/* Category & Subcategory Badges with animations */}
               <div className="flex flex-wrap items-center gap-2">
                 {product.category && (
-                  <Badge className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
+                  <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
                     {product.category}
                   </Badge>
                 )}
@@ -791,7 +798,7 @@ return (
           
           {/* LEFT: ENHANCED MAIN PRODUCT IMAGE */}
           <div>
-            <div className="bg-white rounded-2xl lg:rounded-3xl p-6 lg:p-10 shadow-xl border border-gray-200 lg:sticky lg:top-24 relative overflow-hidden group">
+            <div className="bg-white rounded-2xl lg:rounded-3xl p-6 lg:p-8 shadow-xl border border-gray-200 lg:sticky lg:top-24 relative overflow-hidden group">
               {/* Subtle background pattern */}
               <div className="absolute inset-0 opacity-5 bg-[radial-gradient(circle_at_1px_1px,_rgba(0,0,0,0.15)_1px,_transparent_0)] bg-[length:30px_30px]"></div>
               
@@ -802,7 +809,7 @@ return (
                 <ImageWithLoader
                   src={selectedImage}
                   alt={product.name}
-                  className="w-full h-auto object-contain max-h-[300px] lg:max-h-[500px] transition-transform duration-500 group-hover:scale-105"
+                  className="w-full h-auto object-contain max-h-[300px] lg:max-h-[420px] transition-transform duration-500 group-hover:scale-105"
                 />
               </div>
               
@@ -893,16 +900,16 @@ return (
                       key={size.id}
                       className={`relative bg-white rounded-xl overflow-hidden transition-all duration-200 ${
                         inCart
-                          ? "border-emerald-400 ring-1 ring-emerald-100"
+                          ? "border-blue-400 ring-1 ring-blue-100"
                           : isOutOfStock
                           ? "border-gray-200 opacity-60"
-                          : "border-gray-200 hover:border-emerald-300 hover:shadow-md"
+                          : "border-gray-200 hover:border-blue-300 hover:shadow-md"
                       }`}
                     >
                       {/* In Cart Badge */}
                       {inCart && (
                         <div className="absolute top-2 left-2 z-10">
-                          <Badge className="bg-emerald-500 text-white text-[10px] px-2 py-0.5">
+                          <Badge className="bg-blue-500 text-white text-[10px] px-2 py-0.5">
                             <Check className="w-3 h-3 mr-1" /> In Cart
                           </Badge>
                         </div>
@@ -924,7 +931,7 @@ return (
                       >
                         <img
                           src={sizeImage}
-                          alt={`${size.size_value}${size.size_unit}`}
+                          alt={`${size.size_value} ${size.size_unit}`}
                           className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = "/placeholder.svg"
@@ -945,12 +952,12 @@ return (
                       <div className="p-3 space-y-2 min-w-0 overflow-hidden">
                         {/* Product Name + Size - Clickable */}
                         <div 
-                          className="cursor-pointer hover:text-emerald-600 transition-colors min-w-0"
+                          className="cursor-pointer hover:text-blue-600 transition-colors min-w-0"
                           onClick={() => navigate(`/pharmacy/product/${product.id}/${size.id}`)}
-                          title={`${product.name} – ${size.size_value}${size.size_unit}`}
+                          title={`${product.name} – ${size.size_value} ${size.size_unit}`}
                         >
-                          <p className="font-semibold text-emerald-600 text-sm sm:text-base truncate">
-                            {size.size_value}{size.size_unit}
+                          <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
+                            {size.size_value} {size.size_unit}
                           </p>
                           <p className="text-xs text-gray-500 line-clamp-1 uppercase">
                             {product.name}
@@ -974,8 +981,8 @@ return (
                             )}
                             {/* Reward Points */}
                             <div className="flex items-center gap-1 mt-1">
-                              <Gift className="w-3 h-3 text-emerald-600" />
-                              <span className="text-xs text-emerald-600">Earn {Math.round(price)} pts</span>
+                              <Gift className="w-3 h-3 text-blue-600" />
+                              <span className="text-xs text-blue-600">Earn {Math.round(price)} pts</span>
                             </div>
                           </div>
                         ) : (
@@ -1045,7 +1052,7 @@ return (
 
                             {/* Add to Cart Button */}
                             <Button
-                              className="flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg"
+                              className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
                               onClick={(e) => {
                                 e.stopPropagation()
                                 if (!selectedSizes.has(size.id)) {
@@ -1091,9 +1098,9 @@ return (
 
         {/* ------------- ADD TO CART BOX (Bottom Fixed/Sticky) - Enhanced ------------- */}
         {isLoggedIn && selectedSizes.size > 0 && (
-          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-2 border-emerald-200 shadow-2xl z-50 safe-area-inset-bottom">
+          <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t-2 border-blue-200 shadow-2xl z-50 safe-area-inset-bottom">
             {/* Decorative gradient line */}
-            <div className="h-1 bg-gradient-to-r from-emerald-500 via-blue-500 to-purple-500"></div>
+            <div className="h-1 bg-gradient-to-r from-blue-500 via-blue-600 to-blue-700"></div>
             
             <div className="p-3 sm:p-4 lg:p-5">
               <div className="container mx-auto max-w-7xl">
@@ -1102,12 +1109,12 @@ return (
                   <div className="flex-1 min-w-0 w-full sm:w-auto">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>
+                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
                         <p className="text-xs font-medium text-gray-700">
                           {selectedSizes.size} size{selectedSizes.size > 1 ? 's' : ''} selected
                         </p>
                       </div>
-                      <Badge className="bg-emerald-100 text-emerald-700 text-[10px] px-2 py-0.5">
+                      <Badge className="bg-blue-100 text-blue-700 text-[10px] px-2 py-0.5">
                         {Array.from(selectedSizes.values()).reduce((sum, qty) => sum + qty, 0)} items
                       </Badge>
                     </div>
@@ -1125,7 +1132,7 @@ return (
                         </p>
                       </div>
                       
-                      <div className="flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">
+                      <div className="flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
                         <Gift className="w-3 h-3" />
                         <span className="text-xs font-medium">
                           +{Math.round(Array.from(selectedSizes.entries()).reduce((total, [sizeId, quantity]) => {
@@ -1141,7 +1148,7 @@ return (
                   
                   {/* Right: Add to Cart Button */}
                   <Button
-                    className="h-12 sm:h-14 px-6 sm:px-8 lg:px-10 text-sm sm:text-base bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl w-full sm:w-auto min-w-[140px] sm:min-w-[160px] group"
+                    className="h-12 sm:h-14 px-6 sm:px-8 lg:px-10 text-sm sm:text-base bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold shadow-lg hover:shadow-xl transition-all duration-300 rounded-xl w-full sm:w-auto min-w-[140px] sm:min-w-[160px] group"
                     onClick={handleAddToCart}
                     disabled={addingToCart}
                   >
@@ -1175,7 +1182,7 @@ return (
               
               <div className="relative z-10">
                 {/* Enhanced icon with gradient */}
-                <div className="mx-auto mb-4 w-16 h-16 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <div className="mx-auto mb-4 w-16 h-16 bg-blue-600 rounded-2xl flex items-center justify-center shadow-lg">
                   <UserPlus className="w-8 h-8 text-white" />
                 </div>
                 
@@ -1189,7 +1196,7 @@ return (
                 {/* Enhanced features list */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8 text-sm">
                   <div className="flex items-center justify-center gap-2 text-gray-700">
-                    <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                     <span>View Pricing</span>
                   </div>
                   <div className="flex items-center justify-center gap-2 text-gray-700">
@@ -1203,7 +1210,7 @@ return (
                 </div>
                 
                 <Button
-                  className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-700 hover:via-purple-700 hover:to-indigo-800 text-white h-14 px-10 font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-lg"
+                  className="bg-blue-600 hover:bg-blue-700 text-white h-14 px-10 font-bold rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 text-lg"
                   onClick={() => navigate("/login")}
                 >
                   <UserPlus className="w-6 h-6 mr-3" />

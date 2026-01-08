@@ -88,10 +88,10 @@ export const ProductSizeOptions = ({
             key={index}
             className={`relative bg-white rounded-xl overflow-hidden transition-all duration-300 cursor-pointer border-2 ${
               isSelected
-                ? "border-emerald-500 ring-2 ring-emerald-200 shadow-lg"
+                ? "border-blue-500 ring-2 ring-blue-200 shadow-lg"
                 : isOutOfStock
                 ? "border-gray-200 opacity-50 cursor-not-allowed"
-                : "border-gray-200 hover:border-emerald-300 hover:shadow-md"
+                : "border-gray-200 hover:border-blue-300 hover:shadow-md"
             }`}
             onClick={() => {
               if (!isOutOfStock) {
@@ -103,7 +103,7 @@ export const ProductSizeOptions = ({
             {/* Selection Check */}
             {isSelected && (
               <div className="absolute top-2 left-2 z-10">
-                <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center shadow-md">
+                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
                   <Check className="w-4 h-4 text-white" />
                 </div>
               </div>
@@ -195,7 +195,7 @@ export const ProductSizeOptions = ({
                     <Button
                       variant="default"
                       size="sm"
-                      className="flex-1 h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+                      className="flex-1 h-7 text-xs bg-blue-600 hover:bg-blue-700"
                     >
                       Case
                     </Button>
@@ -211,12 +211,12 @@ export const ProductSizeOptions = ({
 
               {/* Quantity Controls - Show when selected */}
               {isSelected && (
-                <div className="pt-2 border-t border-dashed border-emerald-200" onClick={(e) => e.stopPropagation()}>
+                <div className="pt-2 border-t border-dashed border-blue-200" onClick={(e) => e.stopPropagation()}>
                   <div className="flex items-center justify-center gap-2">
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                      className="h-7 w-7 rounded-full border-blue-300 hover:bg-blue-50"
                       onClick={(e) => {
                         e.stopPropagation();
                         onDecreaseQuantity(size.id);
@@ -231,7 +231,7 @@ export const ProductSizeOptions = ({
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-7 w-7 rounded-full border-emerald-300 hover:bg-emerald-50"
+                      className="h-7 w-7 rounded-full border-blue-300 hover:bg-blue-50"
                       onClick={(e) => {
                         e.stopPropagation();
                         onIncreaseQuantity(size.id);
@@ -243,8 +243,8 @@ export const ProductSizeOptions = ({
                   </div>
                   
                   {/* Subtotal */}
-                  <div className="mt-2 bg-emerald-50 rounded-lg px-2 py-1.5 text-center">
-                    <span className="text-[10px] text-emerald-600">Subtotal: </span>
+                  <div className="mt-2 bg-blue-50 rounded-lg px-2 py-1.5 text-center">
+                    <span className="text-[10px] text-blue-600">Subtotal: </span>
                     <span className="text-sm font-bold text-emerald-700">
                       ${formatPrice(totalPrice)}
                     </span>
@@ -255,7 +255,7 @@ export const ProductSizeOptions = ({
               {/* Add Button - Show when not selected */}
               {!isSelected && !isOutOfStock && (
                 <Button
-                  className="w-full h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg mt-2"
+                  className="w-full h-8 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded-lg mt-2"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleSizeToggle(sizeId, size.stock);

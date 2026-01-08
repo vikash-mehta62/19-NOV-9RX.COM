@@ -29,7 +29,9 @@ import {
   Palette,
   Gift,
   HelpCircle,
-  MessageSquare
+  MessageSquare,
+  ChevronUp,
+  ChevronDown
 } from "lucide-react"
 import {
   Tooltip,
@@ -39,7 +41,9 @@ import {
 } from "@/components/ui/tooltip"
 import { ProductReviews } from "@/components/reviews/ProductReviews"
 import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
+import { PharmacyProductCard } from "@/components/pharmacy/components/product-showcase/PharmacyProductCard"
 import { canUserReview } from "@/services/reviewService"
+import logo from "../../assests/home/9rx_logo.png"
 
 export default function SizeDetail() {
   const { productId, sizeId } = useParams()
@@ -58,22 +62,25 @@ export default function SizeDetail() {
   const [showZoom, setShowZoom] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
   const [customization, setCustomization] = useState<{ enabled: boolean; text: string }>({ enabled: false, text: '' })
+  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+  const [similarProducts, setSimilarProducts] = useState<any[]>([])
+  const [similarLoading, setSimilarLoading] = useState(false)
 
-  const totalCartItems = useMemo(() => 
-    cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0), 
+  const totalCartItems = useMemo(() =>
+    cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
     [cartItems]
   )
 
   // Single optimized fetch
   useEffect(() => {
     if (!productId || !sizeId) return
-    
+
     let isMounted = true
     setLoading(true)
 
     supabase
       .from("products")
-      .select("id, name, category, description, image_url, images, key_features, customization, product_sizes(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost)")
+      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, product_sizes(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost)")
       .eq("id", productId)
       .single()
       .then(({ data: productData, error }) => {
@@ -92,6 +99,13 @@ export default function SizeDetail() {
           otherSizes
         })
 
+        // Fetch similar products if configured
+        if (productData?.similar_products && Array.isArray(productData.similar_products) && productData.similar_products.length > 0) {
+          fetchSimilarProducts(productData.similar_products.map((s: any) => s.subcategory_name))
+        } else {
+          setSimilarProducts([])
+        }
+
         // Check if user can review this product
         if (userProfile?.id && productId) {
           canUserReview(userProfile.id, productId).then(result => {
@@ -105,6 +119,50 @@ export default function SizeDetail() {
     return () => { isMounted = false }
   }, [productId, sizeId])
 
+  const normalizeName = (s: string) =>
+    s
+      .replace(/[\u2013\u2014\u2212]/g, "-") // normalize dashes
+      .replace(/\s+/g, " ")
+      .trim()
+
+  const fetchSimilarProducts = async (subcategories: string[]) => {
+    if (!subcategories || subcategories.length === 0) return
+    setSimilarLoading(true)
+    try {
+      const candidates = Array.from(new Set(
+        subcategories.flatMap((s) => {
+          const n = normalizeName(s)
+          return [s, n]
+        })
+      ))
+
+      // Fetch products that belong to any of the selected similar subcategories
+      const { data: products, error } = await supabase
+        .from("products")
+        .select("id, name, category, description, image_url, images, customization, sizes:product_sizes(id, size_value, size_unit, price, stock, quantity_per_case)")
+        .in("subcategory", candidates)
+        .neq("id", productId)
+        .limit(8)
+
+      if (!error && products) {
+        // Map to card-friendly shape
+        const enhanced = products.map((p: any) => {
+          const displayPrice = p.sizes && p.sizes.length > 0
+            ? Math.min(...p.sizes.map((s: any) => Number(s.price) || 0))
+            : Number(p.base_price || 0)
+          const totalStock = (p.sizes || []).reduce((sum: number, s: any) => sum + (Number(s.stock) || 0), 0)
+          const displayImage = (p.images && p.images[0]) || p.image_url || "/placeholder.svg"
+          return { ...p, displayPrice, totalStock, displayImage }
+        })
+        setSimilarProducts(enhanced)
+      } else {
+        setSimilarProducts([])
+      }
+    } finally {
+      setSimilarLoading(false)
+    }
+  }
+
   const getImageUrl = (image?: string) => {
     if (!image) return "/placeholder.svg"
     if (image.startsWith("http")) return image
@@ -114,7 +172,7 @@ export default function SizeDetail() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     )
   }
@@ -133,19 +191,19 @@ export default function SizeDetail() {
 
   const { product, size, otherSizes } = data
   const displayImage = size.image || product.image_url || product.images?.[0]
-  
+
   // Pricing calculations
   const casePrice = size.price || 0
   const unitsPerCase = size.quantity_per_case || 0
   const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
-  const customizationPrice = customization.enabled && product.customization?.allowed 
+  const customizationPrice = customization.enabled && product.customization?.allowed
     ? (product.customization.price || 0) * quantity
     : 0
   const totalPrice = (casePrice * quantity) + customizationPrice
-  
+
   // Reward points calculation (1 point = $1)
   const rewardPoints = Math.round(totalPrice)
-  
+
   const isOutOfStock = size.stock <= 0
   const isInCart = cartItems.some(item => item.productId === productId && item.sizes?.some((s: any) => s.id === sizeId))
 
@@ -160,7 +218,7 @@ export default function SizeDetail() {
     try {
       await addToCart({
         productId: product.id,
-        name: `${product.name} - ${size.size_value}${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
+        name: `${product.name} - ${size.size_value} ${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
         sku: product.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(displayImage),
@@ -184,7 +242,7 @@ export default function SizeDetail() {
         } : {},
         notes: customization.enabled ? `Customization: ${customization.text}` : "",
       })
-      toast({ 
+      toast({
         title: "✓ Added to Cart",
         description: `${quantity} case${quantity > 1 ? 's' : ''} added successfully`
       })
@@ -203,10 +261,19 @@ export default function SizeDetail() {
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)} className="gap-1">
+            <Button variant="ghost" size="sm" onClick={() => {
+              // For RX PAPER BAGS, just go to category (sizes shown directly)
+              // For other categories, expand the product to show its sizes
+              const isRxPaperBags = product?.category?.toUpperCase() === "RX PAPER BAGS";
+              if (isRxPaperBags) {
+                navigate("/pharmacy/products", { state: { selectedCategory: product?.category } });
+              } else {
+                navigate("/pharmacy/products", { state: { selectedCategory: product?.category, selectedProductId: productId } });
+              }
+            }} className="gap-1">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
-            <img src="/logo.png" alt="Logo" className="h-8 w-auto hidden sm:block cursor-pointer" onClick={() => navigate("/pharmacy/products")} />
+            <img src={logo} alt="Logo" className="h-16 w-auto hidden sm:block cursor-pointer" onClick={() => navigate("/pharmacy/products")} />
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => setIsWishlisted(!isWishlisted)}>
@@ -215,7 +282,7 @@ export default function SizeDetail() {
             <Button variant="ghost" size="icon" onClick={() => navigate("/pharmacy/order/create")} className="relative">
               <ShoppingCart className="w-5 h-5" />
               {totalCartItems > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 bg-emerald-600 text-white text-[10px] rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 h-5 w-5 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
                   {totalCartItems}
                 </span>
               )}
@@ -230,9 +297,15 @@ export default function SizeDetail() {
       {/* Breadcrumb */}
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-2 text-sm text-gray-500">
-          <span className="hover:text-emerald-600 cursor-pointer" onClick={() => navigate("/pharmacy/products")}>Products</span>
+          <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate("/pharmacy/products", { state: { selectedCategory: product?.category } })}>{product?.category || "Products"}</span>
           {" / "}
-          <span className="text-gray-900">{size.size_value}{size.size_unit}</span>
+          {product?.category?.toUpperCase() !== "RX PAPER BAGS" && (
+            <>
+              <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate("/pharmacy/products", { state: { selectedCategory: product?.category, selectedProductId: productId } })}>{product?.name}</span>
+              {" / "}
+            </>
+          )}
+          <span className="text-gray-900">{size.size_value} {size.size_unit}</span>
         </div>
       </div>
 
@@ -241,12 +314,12 @@ export default function SizeDetail() {
           {/* Left - Image */}
           <div className="space-y-4">
             <div className="relative bg-white rounded-xl border aspect-square cursor-zoom-in" onClick={() => setShowZoom(true)}>
-              <Badge className="absolute top-4 left-4 bg-emerald-600 text-white z-10">{product.category}</Badge>
-              <img 
-                src={getImageUrl(displayImage)} 
-                alt={product.name} 
-                className="w-full h-full object-contain p-8" 
-                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }} 
+              <Badge className="absolute top-4 left-4 bg-blue-600 text-white z-10">{product.category}</Badge>
+              <img
+                src={getImageUrl(displayImage)}
+                alt={product.name}
+                className="w-full h-full object-contain p-8"
+                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
               />
               {isOutOfStock && (
                 <div className="absolute inset-0 bg-white/70 flex items-center justify-center">
@@ -255,61 +328,114 @@ export default function SizeDetail() {
               )}
             </div>
 
+            {/* Items List (Collapsible) */}
+            <div className="px-4">
+              <Button
+                variant="ghost"
+                className="w-full justify-between p-0 h-auto hover:bg-transparent min-h-[44px]"
+                onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+                aria-expanded={isItemsExpanded}
+                aria-controls="order-items-list"
+                aria-label={isItemsExpanded ? "Collapse items list" : "Expand items list"}
+              >
+                <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  Other Sizes ({otherSizes.length})
+                </h3>
+                {isItemsExpanded ? (
+                  <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
+                )}
+              </Button>
+            </div>
+
             {/* Other Sizes */}
-            {otherSizes.length > 0 && (
-              <Card>
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
-                    <Package className="w-4 h-4 text-emerald-600" /> 
-                    Other Sizes ({otherSizes.length})
-                  </h3>
-                  <div className="space-y-2 max-h-[240px] overflow-y-auto">
-                    {otherSizes.map((s) => {
-                      const sUnitsPerCase = s.quantity_per_case || 0
-                      const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
-                      const sRewardPoints = Math.round(s.price)
-                      return (
-                        <button 
-                          key={s.id} 
-                          onClick={() => navigate(`/pharmacy/product/${productId}/${s.id}`)} 
-                          className="w-full flex items-center gap-3 p-3 rounded-lg border hover:border-emerald-400 hover:bg-emerald-50 transition-all text-left"
-                        >
-                          <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 truncate">{s.size_value}{s.size_unit}</p>
-                            {sUnitsPerCase > 0 && (
-                              <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
-                            )}
-                            <p className="text-xs text-emerald-600 flex items-center gap-1 mt-0.5">
-                              <Gift className="w-3 h-3" />
-                              Earn {sRewardPoints} points
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-gray-900">${s.price?.toFixed(2)}</p>
-                            <p className="text-xs text-gray-500">/ case</p>
-                          </div>
-                        </button>
-                      )
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+            {isItemsExpanded && (
+              <>
+                {otherSizes.length > 0 && (
+                  <Card>
+                    <CardContent className="p-4">
+
+                      <div className="space-y-2 max-h-[240px] overflow-y-auto">
+                        {otherSizes.map((s) => {
+                          const sUnitsPerCase = s.quantity_per_case || 0
+                          const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
+                          const sRewardPoints = Math.round(s.price)
+                          return (
+                            <button
+                              key={s.id}
+                              onClick={() => navigate(`/pharmacy/product/${productId}/${s.id}`)}
+                              className="w-full flex items-center gap-3 p-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50 transition-all text-left"
+                            >
+                              <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-semibold text-gray-900 truncate">{s.size_value} {s.size_unit}</p>
+                                {sUnitsPerCase > 0 && (
+                                  <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
+                                )}
+                                <p className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
+                                  <Gift className="w-3 h-3" />
+                                  Earn {sRewardPoints} points
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className="font-bold text-gray-900">${s.price?.toFixed(2)}</p>
+                                <p className="text-xs text-gray-500">/ case</p>
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </>
+            )}
+          {/* Similar Products */}
+          <div className="p-4">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+              <Package className="w-4 h-4 text-blue-600" />
+              Similar Products
+              {similarProducts.length > 0 && (
+                <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700">
+                  {similarProducts.length}
+                </Badge>
+              )}
+            </h3>
+
+            {similarLoading && (
+              <div className="text-sm text-gray-500">Loading suggestions...</div>
+            )}
+
+            {!similarLoading && similarProducts.length === 0 && (
+              <div className="text-sm text-gray-500">No similar products linked.</div>
+            )}
+
+            {!similarLoading && similarProducts.length > 0 && (
+              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4">
+                {similarProducts.map((sp: any) => (
+                  <PharmacyProductCard key={sp.id} product={sp} />
+                ))}
+              </div>
             )}
           </div>
+          </div>
+
+
 
           {/* Right - Details */}
           <div className="space-y-4">
             {/* Product Title */}
             <div>
               <h1 className="text-2xl font-bold text-gray-900 uppercase">{product.name}</h1>
-              <p className="text-xl font-semibold text-emerald-600 mt-1">{size.size_value}{size.size_unit}</p>
+              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {size.size_unit}</p>
             </div>
 
             {/* SKU & Stock */}
             <div className="flex flex-wrap items-center gap-2">
               {size.sku && <Badge variant="outline" className="text-xs">SKU: {size.sku}</Badge>}
-              <Badge className={isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}>
+              <Badge className={isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}>
                 {isOutOfStock ? 'Out of Stock' : `In Stock (${size.stock})`}
               </Badge>
               {unitsPerCase > 0 && (
@@ -320,7 +446,7 @@ export default function SizeDetail() {
             </div>
 
             {/* Price Card */}
-            <Card className="border-emerald-200 bg-gradient-to-r from-emerald-50 to-teal-50">
+            <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-50">
               <CardContent className="p-4">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
@@ -335,8 +461,8 @@ export default function SizeDetail() {
                 {/* Reward Points - Primary Placement */}
                 <TooltipProvider>
                   <div className="flex items-center gap-1.5 mt-2">
-                    <Gift className="w-4 h-4 text-emerald-600" />
-                    <span className="text-sm text-emerald-700 font-medium">
+                    <Gift className="w-4 h-4 text-blue-600" />
+                    <span className="text-sm text-blue-700 font-medium">
                       Earn {Math.round(casePrice)} Reward Points
                     </span>
                     <Tooltip>
@@ -360,20 +486,20 @@ export default function SizeDetail() {
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-700">Quantity</span>
                     <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100" 
-                        onClick={() => setQuantity(q => Math.max(1, q - 1))} 
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100"
+                        onClick={() => setQuantity(q => Math.max(1, q - 1))}
                         disabled={quantity <= 1}
                       >
                         <Minus className="w-4 h-4" />
                       </Button>
                       <span className="w-12 text-center font-semibold">{quantity}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100" 
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100"
                         onClick={() => setQuantity(q => q + 1)}
                       >
                         <Plus className="w-4 h-4" />
@@ -413,19 +539,19 @@ export default function SizeDetail() {
                   <div className="py-3 border-t space-y-1">
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-gray-700">Total</span>
-                      <span className="text-2xl font-bold text-emerald-600">${totalPrice.toFixed(2)}</span>
+                      <span className="text-2xl font-bold text-blue-600">${totalPrice.toFixed(2)}</span>
                     </div>
                     {/* Quantity-Aware Reward Points */}
-                    <div className="flex items-center justify-end gap-1 text-emerald-600">
+                    <div className="flex items-center justify-end gap-1 text-blue-600">
                       <Gift className="w-3.5 h-3.5" />
                       <span className="text-sm font-medium">Earn: {rewardPoints} reward points</span>
                     </div>
                   </div>
 
                   {/* Add to Cart */}
-                  <Button 
-                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg text-base" 
-                    onClick={handleAddToCart} 
+                  <Button
+                    className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-base"
+                    onClick={handleAddToCart}
                     disabled={isAdding || isInCart}
                   >
                     {isAdding ? (
@@ -436,10 +562,10 @@ export default function SizeDetail() {
                       <><ShoppingCart className="w-5 h-5 mr-2" />Add to Cart</>
                     )}
                   </Button>
-                  
+
                   {/* Reward Reinforcement Under Add to Cart */}
                   {!isInCart && (
-                    <p className="text-center text-xs text-emerald-600 flex items-center justify-center gap-1">
+                    <p className="text-center text-xs text-blue-600 flex items-center justify-center gap-1">
                       <Gift className="w-3 h-3" />
                       You'll earn {rewardPoints} reward points with this purchase
                     </p>
@@ -483,17 +609,17 @@ export default function SizeDetail() {
               <div className="space-y-4">
                 {/* Write Review Button */}
                 {userProfile?.id && canReview && !showReviewForm && (
-                  <Card className="border-emerald-200 bg-emerald-50">
+                  <Card className="border-blue-200 bg-blue-50">
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <MessageSquare className="w-5 h-5 text-emerald-600" />
+                          <MessageSquare className="w-5 h-5 text-blue-600" />
                           <span className="font-medium text-gray-900">Share your experience</span>
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">+50 points</Badge>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">+50 points</Badge>
                         </div>
-                        <Button 
+                        <Button
                           onClick={() => setShowReviewForm(true)}
-                          className="bg-emerald-600 hover:bg-emerald-700"
+                          className="bg-blue-600 hover:bg-blue-700"
                         >
                           Write a Review
                         </Button>
@@ -520,10 +646,10 @@ export default function SizeDetail() {
                 )}
 
                 {/* Reviews List */}
-                <ProductReviews 
+                <ProductReviews
                   key={reviewKey}
-                  productId={productId} 
-                  userId={userProfile?.id} 
+                  productId={productId}
+                  userId={userProfile?.id}
                 />
               </div>
             )}

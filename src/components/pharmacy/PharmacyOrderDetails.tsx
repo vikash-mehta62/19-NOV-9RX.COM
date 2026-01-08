@@ -11,7 +11,7 @@ import {
   Package, DollarSign, MapPin, Truck, Calendar, 
   FileText, CreditCard, Phone, Mail, Download,
   Clock, CheckCircle, XCircle, AlertCircle, Copy, ExternalLink,
-  Printer, Hash
+  Printer, Hash, X
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/supabaseClient"
@@ -776,7 +776,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full max-w-2xl p-0 overflow-hidden">
+      <SheetContent className="w-full max-w-2xl lg:max-w-xl xl:max-w-3xl p-0 overflow-hidden [&>button]:hidden">
         <ScrollArea className="h-full">
           <div className="p-6 space-y-6">
             {/* Header */}
@@ -794,7 +794,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                     {new Date(order.date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
                   </p>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                   <Button variant="outline" size="sm" onClick={handlePrint} disabled={isGeneratingPDF}>
                     <Printer className="w-4 h-4 mr-1" />
                     Print
@@ -802,6 +802,16 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                   <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isGeneratingPDF}>
                     <Download className="w-4 h-4 mr-1" />
                     PDF
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={() => onOpenChange(false)}
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

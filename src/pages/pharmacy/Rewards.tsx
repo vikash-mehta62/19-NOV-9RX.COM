@@ -488,26 +488,26 @@ const Rewards = () => {
                     key={reward.id}
                     className={`p-4 rounded-xl border-2 transition-all ${
                       canRedeem 
-                        ? "border-emerald-200 bg-emerald-50 hover:border-emerald-400" 
+                        ? "border-blue-200 bg-blue-50 hover:border-blue-400" 
                         : "border-gray-200 bg-gray-50 opacity-75"
                     }`}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className={`p-2 rounded-lg ${canRedeem ? "bg-emerald-100" : "bg-gray-200"}`}>
+                      <div className={`p-2 rounded-lg ${canRedeem ? "bg-blue-100" : "bg-gray-200"}`}>
                         {canRedeem ? (
-                          <Gift className="w-5 h-5 text-emerald-600" />
+                          <Gift className="w-5 h-5 text-blue-600" />
                         ) : (
                           <Lock className="w-5 h-5 text-gray-400" />
                         )}
                       </div>
-                      <Badge variant={canRedeem ? "default" : "secondary"} className={canRedeem ? "bg-emerald-600" : ""}>
+                      <Badge variant={canRedeem ? "default" : "secondary"} className={canRedeem ? "bg-blue-600 text-white" : ""}>
                         {reward.points_required.toLocaleString()} pts
                       </Badge>
                     </div>
                     <h4 className="font-semibold text-gray-900">{reward.name}</h4>
                     <p className="text-sm text-gray-500 mt-1">{reward.description}</p>
                     <Button 
-                      className={`w-full mt-4 ${canRedeem ? "bg-emerald-600 hover:bg-emerald-700" : ""}`}
+                      className={`w-full mt-4 ${canRedeem ? "bg-blue-600 hover:bg-blue-700" : ""}`}
                       disabled={!canRedeem || isRedeeming}
                       variant={canRedeem ? "default" : "secondary"}
                       onClick={() => handleRedeem(reward)}
@@ -553,7 +553,7 @@ const Rewards = () => {
                       <p className="text-sm text-gray-500">{formatDate(activity.created_at)}</p>
                     </div>
                   </div>
-                  <span className={`font-semibold ${activity.points > 0 ? "text-green-600" : "text-orange-600"}`}>
+                  <span className={`font-semibold ${activity.points > 0 ? "text-white" : "text-orange-600"}`}>
                     {activity.points > 0 ? "+" : ""}{activity.points} pts
                   </span>
                 </div>

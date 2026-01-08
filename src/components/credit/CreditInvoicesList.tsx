@@ -139,7 +139,7 @@ const CreditInvoicesList = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
       </div>
     );
   }
@@ -153,10 +153,10 @@ const CreditInvoicesList = () => {
       {/* Credit Summary */}
       {creditLine && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-teal-50 border-blue-200">
             <CardContent className="p-4">
-              <p className="text-sm text-emerald-600 mb-1">Credit Limit</p>
-              <p className="text-2xl font-bold text-emerald-700">
+              <p className="text-sm text-blue-600 mb-1">Credit Limit</p>
+              <p className="text-2xl font-bold text-blue-700">
                 ${creditLine.credit_limit?.toLocaleString()}
               </p>
             </CardContent>
@@ -211,7 +211,7 @@ const CreditInvoicesList = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Receipt className="w-5 h-5 text-emerald-600" />
+            <Receipt className="w-5 h-5 text-blue-600" />
             Credit Invoices
           </CardTitle>
         </CardHeader>
@@ -228,7 +228,7 @@ const CreditInvoicesList = () => {
                   key={invoice.id}
                   className={`border rounded-xl p-4 transition-all hover:shadow-md ${
                     invoice.status === "overdue" ? "border-red-200 bg-red-50/50" : 
-                    invoice.status === "paid" ? "border-emerald-200 bg-emerald-50/50" : 
+                    invoice.status === "paid" ? "border-blue-200 bg-blue-50/50" : 
                     "border-gray-200"
                   }`}
                 >
@@ -276,7 +276,7 @@ const CreditInvoicesList = () => {
                             setPaymentAmount(invoice.balance_due.toFixed(2));
                             setShowPaymentDialog(true);
                           }}
-                          className="bg-emerald-600 hover:bg-emerald-700"
+                          className="bg-blue-600 hover:bg-blue-700"
                         >
                           <CreditCard className="w-4 h-4 mr-2" />
                           Pay Now
@@ -317,7 +317,7 @@ const CreditInvoicesList = () => {
                 )}
                 <div className="flex justify-between pt-2 border-t font-semibold">
                   <span>Balance Due</span>
-                  <span className="text-emerald-600">${selectedInvoice.balance_due.toFixed(2)}</span>
+                  <span className="text-blue-600">${selectedInvoice.balance_due.toFixed(2)}</span>
                 </div>
               </div>
 
@@ -371,7 +371,7 @@ const CreditInvoicesList = () => {
             <Button
               onClick={handlePayment}
               disabled={processing || !paymentAmount}
-              className="bg-emerald-600 hover:bg-emerald-700"
+              className="bg-blue-600 hover:bg-blue-700"
             >
               {processing ? (
                 <>

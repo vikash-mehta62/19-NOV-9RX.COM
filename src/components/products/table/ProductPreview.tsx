@@ -80,7 +80,7 @@ export const ProductPreview = ({ product }: ProductPreviewProps) => {
               <Badge
                 key={badge}
                 variant="secondary"
-                className="bg-emerald-50 text-emerald-700 border border-emerald-200"
+                className="bg-blue-50 text-blue-700 border border-blue-200"
               >
                 {badge}
               </Badge>

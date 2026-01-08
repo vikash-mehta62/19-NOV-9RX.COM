@@ -94,7 +94,7 @@ const Wishlist = () => {
                 <Share2 className="w-4 h-4" />
                 Share List
               </Button>
-              <Button className="bg-emerald-600 hover:bg-emerald-700 gap-2" onClick={addAllToCart}>
+              <Button className="bg-blue-600 hover:bg-blue-700 gap-2" onClick={addAllToCart}>
                 <ShoppingCart className="w-4 h-4" />
                 Add All to Cart
               </Button>
@@ -125,7 +125,7 @@ const Wishlist = () => {
                 Save sizes you love by clicking the heart icon on any product size. They'll appear here for easy access later.
               </p>
               <Button 
-                className="mt-6 bg-emerald-600 hover:bg-emerald-700"
+                className="mt-6 bg-blue-600 hover:bg-blue-700"
                 onClick={() => navigate("/pharmacy/products")}
               >
                 Browse Products
@@ -156,7 +156,7 @@ const Wishlist = () => {
                 >
                   <div className="relative">
                     {/* Product Image */}
-                    <div className="aspect-square bg-gray-100 p-4">
+                    <div className="aspect-square bg-gray-100 p-4 lg:p-6">
                       <img
                         src={getImageUrl(displayImage)}
                         alt={productName}
@@ -194,69 +194,70 @@ const Wishlist = () => {
                     )}
                   </div>
 
-                  <CardContent className="p-4">
-                    <Badge variant="outline" className="mb-2 text-xs">
+                  <CardContent className="p-4 lg:p-2 flex flex-col">
+                    <Badge variant="outline" className="mb-2 text-xs w-fit">
                       {productCategory}
                     </Badge>
-                    <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[48px]">
+                    <h3 className="font-semibold text-gray-900 line-clamp-2 min-h-[40px] text-sm lg:text-base">
                       {productName}
                     </h3>
                     
                     {/* Size Info */}
                     {sizeDetails && (
-                      <div className="text-sm text-gray-600 mt-1">
+                      <div className="text-xs lg:text-sm text-gray-600 mt-1">
                         Size: <span className="font-medium text-blue-600">{sizeValue} {sizeUnit}</span>
                       </div>
                     )}
                     
                     <div className="flex items-center gap-2 mt-2">
-                      <span className="text-lg font-bold text-emerald-600">
+                      <span className="text-base lg:text-lg font-bold text-blue-600">
                         ${displayPrice.toFixed(2)}
                       </span>
                       {sizeDetails && product?.base_price && sizeDetails.price !== product.base_price && (
-                        <span className="text-sm text-gray-400 line-through">
+                        <span className="text-xs lg:text-sm text-gray-400 line-through">
                           ${product.base_price.toFixed(2)}
                         </span>
                       )}
                     </div>
 
                     {/* Stock Status with quantity */}
-                    <div className={`flex items-center gap-1 mt-2 text-sm ${isInStock ? "text-green-600" : "text-red-500"}`}>
+                    <div className={`flex items-center gap-1 mt-2 text-xs lg:text-sm ${isInStock ? "text-green-600" : "text-red-500"}`}>
                       {isInStock ? (
                         <>
-                          <Check className="w-4 h-4" />
-                          In Stock ({displayStock} available)
+                          <Check className="w-3 h-3 lg:w-3 lg:h-3 flex-shrink-0" />
+                          <span className="truncate">In Stock ({displayStock} available)</span>
                         </>
                       ) : (
                         <>
-                          <AlertCircle className="w-4 h-4" />
+                          <AlertCircle className="w-3 h-3 lg:w-4 lg:h-4 flex-shrink-0" />
                           Out of Stock
                         </>
                       )}
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 mt-4">
+                    <div className="flex gap-1 mt-3 lg:mt-4">
                       <Button
-                        className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-xs lg:text-sm h-9 lg:h-10"
                         disabled={!isInStock}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleViewProduct(item);
                         }}
                       >
-                        <ShoppingCart className="w-4 h-4 mr-1" />
-                        View Product
+                        <ShoppingCart className="w-3 h-3 lg:w-4 lg:h-4 mr-1 flex-shrink-0" />
+                        <span className="truncate">View Product</span>
                       </Button>
                       <Button
                         variant="outline"
                         size="icon"
+                        className="h-9 w-9 lg:h-1 lg:w-1 flex-shrink-0"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRemoveFromWishlist(item.product_id, item.size_id);
                         }}
                       >
-                        <Trash2 className="w-4 h-4 text-red-500" />
+                        <Trash2 className="w-4 h-4 text-red-500 lg:h-1 lg:w-1" />
                       </Button>
                     </div>
                   </CardContent>

@@ -4,7 +4,29 @@ import { useEffect, useState, useMemo } from "react"
 import { Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PharmacyProductCard } from "./PharmacyProductCard"
+import { PharmacySizeCard } from "./PharmacySizeCard"
 import { ProductDetails } from "../../types/product.types"
+
+// Export FlattenedSizeItem type for use in PharmacySizeCard
+export interface FlattenedSizeItem {
+  productId: string
+  productName: string
+  productDescription?: string
+  productCategory: string
+  productSubcategory?: string
+  productSku?: string
+  productImages?: string[]
+  sizeId: string
+  sizeValue: string
+  sizeUnit: string
+  sizeSku?: string
+  price: number
+  originalPrice?: number
+  stock: number
+  quantityPerCase?: number
+  image?: string
+  shippingCost?: number
+}
 
 interface PharmacyProductGridProps {
   products: ProductDetails[]
@@ -12,6 +34,10 @@ interface PharmacyProductGridProps {
   onViewModeChange?: (mode: "grid" | "compact") => void
   onProductClick?: (product: ProductDetails) => void
   searchQuery?: string
+  selectedCategory?: string
+  onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
+  onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
+  isInWishlist?: (productId: string, sizeId?: string) => boolean
 }
 
 export const PharmacyProductGrid = ({ 
@@ -19,7 +45,11 @@ export const PharmacyProductGrid = ({
   viewMode = "grid",
   onViewModeChange,
   onProductClick,
-  searchQuery = ""
+  searchQuery = "",
+  selectedCategory = "",
+  onAddToWishlist,
+  onRemoveFromWishlist,
+  isInWishlist
 }: PharmacyProductGridProps) => {
   const [isLoading, setIsLoading] = useState(true)
   const currentViewMode = onViewModeChange ? viewMode : "grid"
@@ -59,7 +89,7 @@ export const PharmacyProductGrid = ({
   if (isLoading) {
     return (
       <div className={currentViewMode === "grid" 
-        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 sm:gap-4"
+        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-3 sm:gap-4"
         : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
       }>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -81,8 +111,8 @@ export const PharmacyProductGrid = ({
   if (productItems.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 sm:py-16 px-4 bg-white rounded-xl sm:rounded-2xl border border-gray-200">
-        <div className="bg-emerald-50 p-6 sm:p-8 rounded-full mb-4 sm:mb-6">
-          <Search className="h-12 w-12 sm:h-16 sm:w-16 text-emerald-400" />
+        <div className="bg-blue-50 p-6 sm:p-8 rounded-full mb-4 sm:mb-6">
+          <Search className="h-12 w-12 sm:h-16 sm:w-16 text-blue-400" />
         </div>
         <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-2">No Products Found</h3>
         <p className="text-gray-500 text-center text-sm sm:text-base max-w-md mb-4 sm:mb-6">
@@ -90,7 +120,7 @@ export const PharmacyProductGrid = ({
         </p>
         <Button 
           onClick={() => window.location.reload()} 
-          className="bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg sm:rounded-xl px-4 sm:px-6 h-9 sm:h-10 text-sm"
+          className="bg-blue-500 hover:bg-blue-600 text-white rounded-lg sm:rounded-xl px-4 sm:px-6 h-9 sm:h-10 text-sm"
         >
           <RefreshCw className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-1.5 sm:mr-2" />
           Reset Filters
@@ -101,20 +131,54 @@ export const PharmacyProductGrid = ({
 
   return (
     <div className={currentViewMode === "grid" 
-      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3 sm:gap-4"
+      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-3 sm:gap-4"
       : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
-      {productItems.map((product) => (
-        <div 
-          key={product.id} 
-        >
-          <PharmacyProductCard 
-            product={product} 
-            onProductClick={onProductClick}
-            searchQuery={searchQuery}
+      {/* Check if this is RX PAPER BAGS category - show sizes directly */}
+      {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? (
+        productItems.flatMap(product => 
+          (product.sizes || []).map(size => ({
+            productId: product.id.toString(),
+            productName: product.name,
+            productDescription: product.description,
+            productCategory: product.category,
+            productSubcategory: product.subcategory,
+            productSku: product.sku,
+            productImages: product.images,
+            sizeId: size.id,
+            sizeValue: size.size_value,
+            sizeUnit: size.size_unit,
+            sizeSku: size.sku,
+            price: size.price,
+            originalPrice: size.originalPrice,
+            stock: size.stock,
+            quantityPerCase: size.quantity_per_case,
+            image: size.image,
+            shippingCost: size.shipping_cost
+          } as FlattenedSizeItem))
+        ).map((item, index) => (
+          <PharmacySizeCard
+            key={`${item.productId}-${item.sizeId}-${index}`}
+            item={item}
+            onAddToWishlist={onAddToWishlist}
+            onRemoveFromWishlist={onRemoveFromWishlist}
+            isInWishlist={isInWishlist}
           />
-        </div>
-      ))}
+        ))
+      ) : (
+        // Regular products for other categories
+        productItems.map((product) => (
+          <div 
+            key={product.id} 
+          >
+            <PharmacyProductCard 
+              product={product} 
+              onProductClick={onProductClick}
+              searchQuery={searchQuery}
+            />
+          </div>
+        ))
+      )}
     </div>
   )
 }

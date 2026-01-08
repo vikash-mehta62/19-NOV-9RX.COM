@@ -50,7 +50,7 @@ export default function PasswordReset() {
 
   const passwordStrength = getPasswordStrength(password);
   const strengthLabels = ["Very Weak", "Weak", "Fair", "Good", "Strong"];
-  const strengthColors = ["bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-emerald-400", "bg-emerald-600"];
+  const strengthColors = ["bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-blue-400", "bg-blue-600"];
 
   const onSubmit = async (data: PasswordResetFormValues) => {
     setIsLoading(true);
@@ -96,7 +96,7 @@ export default function PasswordReset() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
       {/* Navbar */}
       <Navbar />
 
@@ -106,7 +106,7 @@ export default function PasswordReset() {
           {/* Card */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
             {/* Header */}
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-8 py-10 text-center">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-8 py-10 text-center">
               <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 {isSuccess ? (
                   <CheckCircle className="w-8 h-8 text-white" />
@@ -117,7 +117,7 @@ export default function PasswordReset() {
               <h1 className="text-2xl font-bold text-white">
                 {isSuccess ? "Password Changed!" : "Create New Password"}
               </h1>
-              <p className="text-emerald-100 mt-2 text-sm">
+              <p className="text-blue-100 mt-2 text-sm">
                 {isSuccess
                   ? "Your password has been updated successfully"
                   : "Your new password must be different from previous passwords"}
@@ -128,15 +128,15 @@ export default function PasswordReset() {
             <div className="px-8 py-8">
               {isSuccess ? (
                 <div className="text-center py-4">
-                  <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <ShieldCheck className="w-10 h-10 text-emerald-600" />
+                  <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <ShieldCheck className="w-10 h-10 text-blue-600" />
                   </div>
                   <p className="text-gray-600 mb-6">
                     Redirecting you to login page...
                   </p>
                   <Link
                     to="/login"
-                    className="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-700 font-medium"
+                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Go to Login
@@ -160,7 +160,7 @@ export default function PasswordReset() {
                             message: "Password must be at least 8 characters",
                           },
                         })}
-                        className="h-12 rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 pr-12"
+                        className="h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 pr-12"
                       />
                       <button
                         type="button"
@@ -199,7 +199,7 @@ export default function PasswordReset() {
                                 ? "text-red-500"
                                 : passwordStrength <= 3
                                 ? "text-yellow-500"
-                                : "text-emerald-500"
+                                : "text-blue-500"
                             }`}
                           >
                             {strengthLabels[passwordStrength - 1] || "Too weak"}
@@ -223,7 +223,7 @@ export default function PasswordReset() {
                           validate: (value) =>
                             value === password || "Passwords do not match",
                         })}
-                        className="h-12 rounded-xl border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 pr-12"
+                        className="h-12 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-blue-500 pr-12"
                       />
                       <button
                         type="button"
@@ -247,7 +247,7 @@ export default function PasswordReset() {
                   {/* Submit Button */}
                   <Button
                     type="submit"
-                    className="w-full h-12 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-xl font-semibold text-base transition-all duration-200 shadow-lg shadow-emerald-500/25"
+                    className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold text-base transition-all duration-200 shadow-lg shadow-blue-500/25"
                     disabled={isLoading}
                   >
                     {isLoading ? (
@@ -270,7 +270,7 @@ export default function PasswordReset() {
                 <div className="mt-8 text-center">
                   <Link
                     to="/login"
-                    className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-emerald-600 transition-colors"
+                    className="inline-flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600 transition-colors"
                   >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Login
@@ -282,7 +282,7 @@ export default function PasswordReset() {
 
           {/* Security Note */}
           <div className="mt-6 flex items-start gap-3 bg-white/60 backdrop-blur-sm rounded-xl p-4 border border-gray-100">
-            <ShieldCheck className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <ShieldCheck className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-600">
               For your security, choose a strong password that you haven't used before. 
               A good password includes uppercase, lowercase, numbers, and special characters.

@@ -976,8 +976,8 @@ export function OrdersList({
                               setSelectCustomerInfo(order);
                               setModalIsOpen(true);
                             }}
-                            className="text-xs bg-emerald-600 text-white px-3 py-1 rounded-full font-medium
-                              hover:bg-emerald-700 active:scale-95 transition-all shadow-sm"
+                            className="text-xs bg-blue-600 text-white px-3 py-1 rounded-full font-medium
+                              hover:bg-blue-700 active:scale-95 transition-all shadow-sm"
                           >
                             Pay Now
                           </button>

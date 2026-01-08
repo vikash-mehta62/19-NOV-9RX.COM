@@ -753,7 +753,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               </Button>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-600" />
+                <Lock className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-medium text-gray-700">Secure Payment</span>
               </div>
             </div>
@@ -771,12 +771,12 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           <div className="lg:col-span-3 space-y-6">
             {/* Payment Method Selection */}
             <Card className="shadow-lg border-0 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <CreditCard className="w-6 h-6" />
                   Payment Method
                 </CardTitle>
-                <CardDescription className="text-emerald-100">Select how you'd like to pay</CardDescription>
+                <CardDescription className="text-blue-100">Select how you'd like to pay</CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -785,24 +785,24 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     onClick={() => setPaymentType("credit_card")}
                     className={cn(
                       "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                      paymentType === "credit_card" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      paymentType === "credit_card" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     )}
                   >
-                    <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-emerald-600" : "text-gray-400")} />
-                    <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-emerald-700" : "text-gray-600")}>Credit Card</span>
-                    {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                    <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
+                    <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
+                    {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                   </button>
                   <button
                     type="button"
                     onClick={() => setPaymentType("ach")}
                     className={cn(
                       "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                      paymentType === "ach" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                      paymentType === "ach" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     )}
                   >
-                    <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-emerald-600" : "text-gray-400")} />
-                    <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-emerald-700" : "text-gray-600")}>Bank (ACH)</span>
-                    {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                    <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
+                    <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
+                    {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                   </button>
                   {sessionStorage.getItem("userType")?.toLowerCase() === "admin" && (
                     <button
@@ -810,12 +810,12 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       onClick={() => setPaymentType("manaul_payemnt")}
                       className={cn(
                         "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                        paymentType === "manaul_payemnt" ? "border-emerald-500 bg-emerald-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        paymentType === "manaul_payemnt" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                       )}
                     >
-                      <FileText className={cn("w-7 h-7", paymentType === "manaul_payemnt" ? "text-emerald-600" : "text-gray-400")} />
-                      <span className={cn("font-medium text-sm", paymentType === "manaul_payemnt" ? "text-emerald-700" : "text-gray-600")}>Manual</span>
-                      {paymentType === "manaul_payemnt" && <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute top-2 right-2" />}
+                      <FileText className={cn("w-7 h-7", paymentType === "manaul_payemnt" ? "text-blue-600" : "text-gray-400")} />
+                      <span className={cn("font-medium text-sm", paymentType === "manaul_payemnt" ? "text-blue-700" : "text-gray-600")}>Manual</span>
+                      {paymentType === "manaul_payemnt" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                     </button>
                   )}
                 </div>
@@ -827,9 +827,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <Card className="shadow-lg border-0">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-emerald-600" /> Card Details</>}
-                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-emerald-600" /> Bank Account Details</>}
-                    {paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-emerald-600" /> Manual Payment</>}
+                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-blue-600" /> Card Details</>}
+                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-blue-600" /> Bank Account Details</>}
+                    {paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-blue-600" /> Manual Payment</>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
@@ -838,7 +838,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       {/* Card Number */}
                       <div className="space-y-2">
                         <Label htmlFor="cardNumber" className={cn(errors.cardNumber && "text-red-500")}>
-                          Card Number {cardType.type !== "unknown" && <span className="text-emerald-600 font-normal">({cardType.name})</span>}
+                          Card Number {cardType.type !== "unknown" && <span className="text-blue-600 font-normal">({cardType.name})</span>}
                         </Label>
                         <div className="relative">
                           <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">{getCardIcon(cardType)}</div>
@@ -1064,7 +1064,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 <Card className="shadow-lg border-0 mt-6">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-emerald-600" />
+                      <MapPin className="w-5 h-5 text-blue-600" />
                       Billing Address
                     </CardTitle>
                   </CardHeader>
@@ -1115,7 +1115,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 <Button 
                   type="submit" 
                   disabled={loading || formData.amount <= 0} 
-                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing...</>
@@ -1162,13 +1162,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   <Separator />
 
                   {/* Amount */}
-                  <div className="bg-emerald-50 rounded-xl p-4">
+                  <div className="bg-blue-50 rounded-xl p-4">
                     <div className="flex items-center justify-between">
-                      <span className="text-emerald-700 font-medium flex items-center gap-2">
+                      <span className="text-blue-700 font-medium flex items-center gap-2">
                         <DollarSign className="w-5 h-5" />
                         Amount Due
                       </span>
-                      <span className="text-2xl font-bold text-emerald-700">${formatAmount(formData.amount)}</span>
+                      <span className="text-2xl font-bold text-blue-700">${formatAmount(formData.amount)}</span>
                     </div>
                   </div>
 
@@ -1190,7 +1190,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   type="button" 
                   disabled={loading || formData.amount <= 0} 
                   onClick={(e) => handleSubmit(e as unknown as React.FormEvent)} 
-                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing Payment...</>
@@ -1205,11 +1205,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 <CardContent className="p-4">
                   <div className="flex items-center justify-center gap-6 mb-3">
                     <div className="flex items-center gap-2 text-gray-600">
-                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      <ShieldCheck className="w-5 h-5 text-blue-600" />
                       <span className="text-xs">SSL Secured</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
-                      <Lock className="w-5 h-5 text-emerald-600" />
+                      <Lock className="w-5 h-5 text-blue-600" />
                       <span className="text-xs">256-bit Encryption</span>
                     </div>
                   </div>

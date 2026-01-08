@@ -131,7 +131,7 @@ export default function SavedPaymentMethods() {
                 Manage your saved cards and bank accounts for faster checkout
               </CardDescription>
             </div>
-            <Button onClick={() => setShowAddDialog(true)} className="gap-2">
+            <Button onClick={() => setShowAddDialog(true)} className="gap-2 bg-blue-600">
               <Plus className="h-4 w-4" />
               Add New
             </Button>

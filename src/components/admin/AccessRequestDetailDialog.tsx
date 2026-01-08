@@ -473,7 +473,7 @@ export function AccessRequestDetailDialog({
             <Button
               onClick={handleApprove}
               disabled={isSubmitting}
-              className="min-w-[100px] bg-green-600 hover:bg-green-700"
+              className="min-w-[100px] bg-blue-600 hover:bg-blue-700"
             >
               {isSubmitting && actionType === "approve" ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

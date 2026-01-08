@@ -784,8 +784,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             </CardContent>
           </Card>
           <Card className="overflow-hidden border-0 shadow-sm">
-            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-2 border-b">
-              <div className="flex items-center gap-2"><Truck className="w-4 h-4 text-emerald-600" /><span className="font-semibold text-gray-900">Ship To</span></div>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 border-b">
+              <div className="flex items-center gap-2"><Truck className="w-4 h-4 text-blue-600" /><span className="font-semibold text-gray-900">Ship To</span></div>
             </div>
             <CardContent className="p-4 space-y-1 text-sm">
               {companyName && <p className="font-semibold text-gray-900">{companyName}</p>}

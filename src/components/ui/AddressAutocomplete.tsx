@@ -230,7 +230,7 @@ export function AddressAutocomplete({
                 aria-selected={index === selectedIndex}
                 className={cn(
                   "w-full px-4 py-3 text-left text-sm hover:bg-gray-50 focus:bg-gray-50 focus:outline-none transition-colors",
-                  index === selectedIndex && "bg-emerald-50 text-emerald-700",
+                  index === selectedIndex && "bg-blue-50 text-blue-700",
                   index === 0 && "rounded-t-xl",
                   index === suggestions.length - 1 && "rounded-b-xl"
                 )}
@@ -293,7 +293,7 @@ export function StateSelect({
         disabled={disabled}
         className={cn(
           "flex h-11 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm ring-offset-background",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
           "disabled:cursor-not-allowed disabled:opacity-50",
           error && "border-red-500"
         )}

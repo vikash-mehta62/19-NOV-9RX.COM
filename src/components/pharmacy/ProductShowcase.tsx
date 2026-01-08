@@ -244,10 +244,10 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
           
           {/* Quick Stats Bar */}
           <div className="flex flex-wrap gap-3 justify-center md:justify-start">
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
+            <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
               <Package className="w-5 h-5 text-white mx-auto mb-1" />
               <div className="text-white font-bold">{filteredProducts.length}</div>
-              <div className="text-emerald-100 text-xs">Products</div>
+              <div className="text-blue-100 text-xs">Products</div>
             </div>
             <div className="bg-gradient-to-r from-blue-500 to-cyan-500 rounded-xl px-4 py-3 text-center min-w-[100px] shadow-md">
               <Truck className="w-5 h-5 text-white mx-auto mb-1" />
@@ -291,13 +291,13 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
               {/* Mobile Filter Button */}
               <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                 <SheetTrigger asChild>
-                  <Button variant="outline" size="sm" className="lg:hidden border-emerald-200 text-emerald-700 hover:bg-emerald-50">
+                  <Button variant="outline" size="sm" className="lg:hidden border-blue-200 text-blue-700 hover:bg-blue-50">
                     <Filter className="w-4 h-4 mr-2" />
                     Filters
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[300px] p-0">
-                  <SheetHeader className="p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
+                  <SheetHeader className="p-4 border-b bg-gradient-to-r from-blue-600 to-cyan-600">
                     <SheetTitle className="text-white">Filters</SheetTitle>
                   </SheetHeader>
                   <ScrollArea className="h-[calc(100vh-60px)]">
@@ -320,9 +320,9 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
               </Sheet>
 
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                 <span className="text-sm text-gray-700">
-                  <span className="font-semibold text-emerald-600">{filteredProducts.length}</span> products
+                  <span className="font-semibold text-blue-600">{filteredProducts.length}</span> products
                   {selectedCategory !== "all" && (
                     <span className="hidden sm:inline text-gray-500"> in "{selectedCategory}"</span>
                   )}
@@ -335,7 +335,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
               <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
                 <button
                   onClick={() => setViewMode("grid")}
-                  className={`p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-2 transition-colors ${viewMode === "grid" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
                     <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z"/>
@@ -343,7 +343,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
                 </button>
                 <button
                   onClick={() => setViewMode("compact")}
-                  className={`p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                  className={`p-2 transition-colors ${viewMode === "compact" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 16 16">
                     <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/>
@@ -369,7 +369,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
           {/* Products Grid */}
           {products.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 bg-white rounded-2xl shadow-sm border border-gray-100">
-              <Loader2 className="animate-spin text-emerald-500 mb-4" size={40} />
+              <Loader2 className="animate-spin text-blue-500 mb-4" size={40} />
               <p className="text-gray-600">Loading products...</p>
             </div>
           ) : (
@@ -378,6 +378,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               onProductClick={onProductClick}
+              selectedCategory={selectedCategory}
             />
           )}
         </main>

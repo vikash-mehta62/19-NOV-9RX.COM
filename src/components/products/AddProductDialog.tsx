@@ -13,8 +13,8 @@ import { ImageUploadField } from "./form-fields/ImageUploadField"
 import { SizeOptionsField } from "./form-fields/SizeOptionsField"
 import { CustomizationSection } from "./form-fields/Customizations"
 import { CategorySubcategoryManager } from "./form-sections/CategorySubcategoryManager"
-import { 
-  Loader2, Package, Save, X, ChevronDown, ChevronUp, 
+import {
+  Loader2, Package, Save, X, ChevronDown, ChevronUp,
   Image, Ruler, Settings, Sparkles, Info, CheckCircle2, Plus
 } from "lucide-react"
 import { useEffect, useState } from "react"
@@ -42,16 +42,16 @@ interface Subcategory {
 }
 
 // Section Component
-const FormSection = ({ 
-  title, 
-  description, 
-  icon: Icon, 
+const FormSection = ({
+  title,
+  description,
+  icon: Icon,
   iconColor,
-  children, 
+  children,
   defaultOpen = true,
   badge,
   required = false
-}: { 
+}: {
   title: string
   description: string
   icon: React.ElementType
@@ -80,7 +80,7 @@ const FormSection = ({
                   <h3 className="font-semibold text-gray-900">{title}</h3>
                   {required && <span className="text-red-500 text-sm">*</span>}
                   {badge && (
-                    <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                    <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                       {badge}
                     </Badge>
                   )}
@@ -118,6 +118,7 @@ export function AddProductDialog({
   const [completedSections, setCompletedSections] = useState<string[]>([])
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [categories, setCategories] = useState<string[]>([])
+  const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([])
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -150,6 +151,7 @@ export function AddProductDialog({
       },
       trackInventory: initialData?.trackInventory ?? true,
       image_url: initialData?.image_url || "",
+      similar_products: initialData?.similar_products || [],
     },
   })
 
@@ -191,7 +193,7 @@ export function AddProductDialog({
   useEffect(() => {
     const fetchSubcategories = async () => {
       if (!selectedCategory) return
-      
+
       const { data, error } = await supabase
         .from('subcategory_configs')
         .select('*')
@@ -202,24 +204,77 @@ export function AddProductDialog({
         setSubcategories(data)
       }
     }
-
     fetchSubcategories()
-    
+
     // Auto-fill name with category if empty
     if (selectedCategory && !productName) {
       form.setValue("name", selectedCategory)
     }
-    
+
     // Auto-generate SKU
     if (selectedCategory && !form.getValues("sku")) {
       form.setValue("sku", generateSKU(selectedCategory))
     }
   }, [selectedCategory])
 
+  // Fetch All subcategories on mount
+  useEffect(() => {
+    const fetchAllSubcategories = async () => {
+      const { data, error } = await supabase
+        .from('subcategory_configs')
+        .select('*')
+        .order('subcategory_name')
+      if (!error && data) {
+        console.log("Fetched all subcategories:", data)
+        setAllSubcategories(data)
+      }
+    }
+    fetchAllSubcategories()
+  }, [])
+
+  console.log("All Subcategories:", allSubcategories)
+  
+  // Reset form when dialog opens or initialData changes
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        name: initialData?.name || "",
+        sku: initialData?.sku || "",
+        key_features: initialData?.key_features || "",
+        squanence: initialData?.squanence || "",
+        ndcCode: initialData?.ndcCode || "",
+        upcCode: initialData?.upcCode || "",
+        lotNumber: initialData?.lotNumber || "",
+        exipry: initialData?.exipry || "",
+        unitToggle: initialData?.unitToggle,
+        description: initialData?.description || "",
+        category: initialData?.category || "",
+        subcategory: initialData?.subcategory || "",
+        images: initialData?.images || [],
+        sizes: initialData?.sizes
+          ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))
+          : [],
+        base_price: initialData?.base_price || 0,
+        current_stock: initialData?.current_stock || 0,
+        min_stock: initialData?.min_stock || 0,
+        reorder_point: initialData?.reorder_point || 0,
+        quantityPerCase: initialData?.quantityPerCase || 1,
+        customization: initialData?.customization || {
+          allowed: false,
+          options: [],
+          price: 0,
+        },
+        trackInventory: initialData?.trackInventory ?? true,
+        image_url: initialData?.image_url || "",
+        similar_products: initialData?.similar_products || [],
+      })
+    }
+  }, [open, initialData, form])
+
   // Track completed sections
   useEffect(() => {
     const completed: string[] = []
-    
+
     if (selectedCategory && productName && description) {
       completed.push("basic")
     }
@@ -229,7 +284,7 @@ export function AddProductDialog({
     if (sizes && sizes.length > 0) {
       completed.push("sizes")
     }
-    
+
     setCompletedSections(completed)
   }, [selectedCategory, productName, description, images, sizes])
 
@@ -261,7 +316,7 @@ export function AddProductDialog({
           <DialogHeader className="px-6 py-4 border-b bg-white sticky top-0 z-10 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-xl shadow-sm">
+                <div className="p-2 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-sm">
                   <Package className="h-5 w-5 text-white" />
                 </div>
                 <div>
@@ -273,16 +328,16 @@ export function AddProductDialog({
                   </p>
                 </div>
               </div>
-              
+
               {/* Progress Indicator */}
               <div className="hidden sm:flex items-center gap-3">
                 <div className="text-right">
                   <p className="text-xs text-gray-500">Progress</p>
-                  <p className="text-sm font-semibold text-emerald-600">{progress}%</p>
+                  <p className="text-sm font-semibold text-blue-600">{progress}%</p>
                 </div>
                 <div className="w-16 h-2 bg-gray-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 transition-all duration-300"
+                  <div
+                    className="h-full bg-gradient-to-r from-blue-500 to-blue-700 transition-all duration-300"
                     style={{ width: `${progress}%` }}
                   />
                 </div>
@@ -293,7 +348,7 @@ export function AddProductDialog({
           <ScrollArea className="flex-1 overflow-auto">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 space-y-4 bg-gray-50">
-                
+
                 {/* Essential Info - Always Visible */}
                 <FormSection
                   title="Essential Information"
@@ -320,7 +375,7 @@ export function AddProductDialog({
                                 type="button"
                                 variant="ghost"
                                 size="sm"
-                                className="h-6 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 px-2"
+                                className="h-6 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-2"
                                 onClick={() => setCategoryManagerOpen(true)}
                               >
                                 <Plus className="w-3 h-3 mr-1" />
@@ -352,8 +407,8 @@ export function AddProductDialog({
                         render={({ field }) => (
                           <FormItem>
                             <FormLabel className="text-sm font-medium">Subcategory</FormLabel>
-                            <Select 
-                              onValueChange={field.onChange} 
+                            <Select
+                              onValueChange={field.onChange}
                               value={field.value}
                               disabled={!selectedCategory}
                             >
@@ -393,10 +448,10 @@ export function AddProductDialog({
                               Product Name <span className="text-red-500">*</span>
                             </FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="e.g., Premium RX Vial 30ml" 
+                              <Input
+                                placeholder="e.g., Premium RX Vial 30ml"
                                 className="h-11"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -413,10 +468,10 @@ export function AddProductDialog({
                               SKU <span className="text-red-500">*</span>
                             </FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="Auto-generated" 
+                              <Input
+                                placeholder="Auto-generated"
                                 className="h-11 font-mono"
-                                {...field} 
+                                {...field}
                               />
                             </FormControl>
                             <FormMessage />
@@ -520,7 +575,7 @@ export function AddProductDialog({
                         <FormItem>
                           <FormLabel className="text-sm font-medium">Display Order</FormLabel>
                           <FormControl>
-                            <Input 
+                            <Input
                               type="number"
                               placeholder="e.g., 1, 2, 3..."
                               className="h-11 w-32"
@@ -538,6 +593,130 @@ export function AddProductDialog({
                       <h4 className="text-sm font-medium text-gray-900 mb-3">Customization Options</h4>
                       <CustomizationSection form={form} />
                     </div>
+                  </div>
+                </FormSection>
+
+                {/* Add Similar Products */}
+                <FormSection
+                  title="Similar Products"
+                  description="Link similar or related products (max 2)"
+                  icon={Package}
+                  iconColor="bg-blue-500"
+                  defaultOpen={false}
+                  badge={form.watch("similar_products")?.length ? `${form.watch("similar_products").length}/2` : undefined}
+                >
+                  <div className="space-y-4">
+                    <FormField
+                      control={form.control}
+                      name="similar_products"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">Select Similar Product Categories</FormLabel>
+                          <div className="space-y-3">
+                            {/* First Similar Product */}
+                            <Select
+                              onValueChange={(value) => {
+                                const selectedSub = allSubcategories.find(s => s.id === Number(value))
+                                if (selectedSub) {
+                                  const current = field.value || []
+                                  const newItem = {
+                                    id: selectedSub.id,
+                                    category_name: selectedSub.category_name,
+                                    subcategory_name: selectedSub.subcategory_name
+                                  }
+                                  field.onChange([newItem, ...current.slice(1)])
+                                }
+                              }}
+                              value={field.value?.[0]?.id?.toString() || ""}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-11">
+                                  <SelectValue placeholder="Select first similar product" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[300px]">
+                                {allSubcategories.length > 0 ? (
+                                  allSubcategories
+                                    .filter(sub => !field.value?.some(v => v.id === sub.id) || field.value?.[0]?.id === sub.id)
+                                    .map((sub) => (
+                                      <SelectItem key={sub.id} value={sub.id.toString()}>
+                                        <div className="flex flex-col">
+                                          <span className="font-medium">{sub.subcategory_name}</span>
+                                          <span className="text-xs text-gray-500">{sub.category_name}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))
+                                ) : (
+                                  <div className="p-2 text-sm text-gray-500 text-center">
+                                    No subcategories available
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+
+                            {/* Second Similar Product */}
+                            <Select
+                              onValueChange={(value) => {
+                                const selectedSub = allSubcategories.find(s => s.id === Number(value))
+                                if (selectedSub) {
+                                  const current = field.value || []
+                                  const newItem = {
+                                    id: selectedSub.id,
+                                    category_name: selectedSub.category_name,
+                                    subcategory_name: selectedSub.subcategory_name
+                                  }
+                                  field.onChange([...current.slice(0, 1), newItem])
+                                }
+                              }}
+                              value={field.value?.[1]?.id?.toString() || ""}
+                              disabled={!field.value?.[0]}
+                            >
+                              <FormControl>
+                                <SelectTrigger className="h-11">
+                                  <SelectValue placeholder={field.value?.[0] ? "Select second similar product (optional)" : "Select first product first"} />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent className="max-h-[300px]">
+                                {allSubcategories.length > 0 ? (
+                                  allSubcategories
+                                    .filter(sub => !field.value?.some(v => v.id === sub.id) || field.value?.[1]?.id === sub.id)
+                                    .map((sub) => (
+                                      <SelectItem key={sub.id} value={sub.id.toString()}>
+                                        <div className="flex flex-col">
+                                          <span className="font-medium">{sub.subcategory_name}</span>
+                                          <span className="text-xs text-gray-500">{sub.category_name}</span>
+                                        </div>
+                                      </SelectItem>
+                                    ))
+                                ) : (
+                                  <div className="p-2 text-sm text-gray-500 text-center">
+                                    No subcategories available
+                                  </div>
+                                )}
+                              </SelectContent>
+                            </Select>
+
+                            {/* Clear buttons */}
+                            {field.value && field.value.length > 0 && (
+                              <div className="flex gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => field.onChange([])}
+                                  className="text-xs"
+                                >
+                                  <X className="w-3 h-3 mr-1" />
+                                  Clear All
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-xs text-gray-500">Choose up to 2 subcategories for similar products</p>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   </div>
                 </FormSection>
 
@@ -570,18 +749,18 @@ export function AddProductDialog({
               <div className="flex items-center gap-2 text-sm text-gray-500">
                 {completedSections.length === 3 ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    <span className="text-emerald-600 font-medium">Ready to save</span>
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                    <span className="text-blue-600 font-medium">Ready to save</span>
                   </>
                 ) : (
                   <span>Complete required sections to save</span>
                 )}
               </div>
               <div className="flex gap-3">
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => onOpenChange(false)} 
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
                   className="h-10"
                 >
                   Cancel
@@ -590,7 +769,7 @@ export function AddProductDialog({
                   type="submit"
                   disabled={loading || !isBasicInfoComplete}
                   onClick={form.handleSubmit(handleSubmit)}
-                  className="h-10 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white px-6"
+                  className="h-10 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6"
                 >
                   {loading ? (
                     <>

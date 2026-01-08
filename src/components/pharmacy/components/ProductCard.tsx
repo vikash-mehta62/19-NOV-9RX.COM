@@ -167,8 +167,8 @@ export const ProductCard = ({
           toast({
             title: "Added to Cart",
             description: (
-              <Alert className="border-emerald-500 bg-emerald-50">
-                <Check className="h-4 w-4 text-emerald-500" />
+              <Alert className="border-blue-500 bg-blue-50">
+                <Check className="h-4 w-4 text-blue-500" />
                 <AlertDescription className="ml-2">
                   {product.name} has been added to your cart successfully!
                 </AlertDescription>
@@ -205,10 +205,10 @@ export const ProductCard = ({
             className="
           group cursor-pointer 
           rounded-2xl border border-gray-200 bg-white 
-          shadow-sm hover:shadow-md hover:border-emerald-300
+          shadow-sm hover:shadow-md hover:border-blue-300
           transition-all duration-300
           p-4 flex items-center gap-4
-          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
+          focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
         "
             tabIndex={0}
             role="button"

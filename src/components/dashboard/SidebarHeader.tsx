@@ -4,6 +4,7 @@ import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Sparkles } from "lucide-react";
+import logo from "../../assests/home/9rx_logo.png";
 
 export const SidebarHeader = () => {
   const userProfile = useSelector(selectUserProfile);
@@ -21,11 +22,11 @@ export const SidebarHeader = () => {
         // Collapsed state: compact logo with animation
         <div className="relative flex items-center justify-center group">
           <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl blur-lg opacity-0 group-hover:opacity-30 transition-opacity duration-300"></div>
-          <div className="relative bg-white dark:bg-gray-800 p-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
+          <div className="relative dark:bg-gray-800 p-2 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105">
             <img
-              src="/logolook.png"
+              src={logo}
               alt="Compact Logo"
-              className="h-10 w-10 object-contain"
+              className="h-14 w-14 object-contain"
             />
           </div>
         </div>
@@ -34,9 +35,9 @@ export const SidebarHeader = () => {
         <div className="relative flex items-center gap-3 w-full">
           <div className="relative group">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl blur-md opacity-0 group-hover:opacity-40 transition-opacity duration-300"></div>
-            <div className="relative bg-white dark:bg-gray-800 p-2 rounded-xl shadow-md hover:shadow-lg transition-all duration-300">
+            <div className="relative ">
               <img
-                src="/final.png"
+                src={logo}
                 alt="Full Logo"
                 className="h-12 w-12 object-cover rounded-lg"
               />

@@ -18,7 +18,7 @@ const getMatchIcon = (field: string) => {
 
 const getMatchColor = (matchType: 'exact' | 'partial') => {
   return matchType === 'exact' 
-    ? 'bg-emerald-100 text-emerald-800 border-emerald-200' 
+    ? 'bg-blue-100 text-blue-800 border-blue-200' 
     : 'bg-blue-100 text-blue-800 border-blue-200';
 };
 

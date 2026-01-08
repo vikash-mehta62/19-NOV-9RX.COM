@@ -115,8 +115,8 @@ export const CategoryPills = ({ selectedCategory, onCategorySelect }: CategoryPi
           variant={selectedCategory === "all" ? "default" : "outline"}
           className={`flex-shrink-0 rounded-full px-4 h-10 gap-2 ${
             selectedCategory === "all"
-              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-              : "hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+              ? "bg-blue-600 hover:bg-blue-700 text-white"
+              : "hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
           }`}
           onClick={() => onCategorySelect("all")}
         >
@@ -131,8 +131,8 @@ export const CategoryPills = ({ selectedCategory, onCategorySelect }: CategoryPi
             variant={selectedCategory === category.name ? "default" : "outline"}
             className={`flex-shrink-0 rounded-full px-4 h-10 gap-2 ${
               selectedCategory === category.name
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                : "hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300"
+                ? "bg-blue-600 hover:bg-blue-700 text-white"
+                : "hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
             }`}
             onClick={() => onCategorySelect(category.name)}
           >

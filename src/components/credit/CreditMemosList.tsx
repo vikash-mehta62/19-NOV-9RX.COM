@@ -133,11 +133,11 @@ const CreditMemosList = () => {
   return (
     <div className="space-y-6">
       {/* Summary Card */}
-      <Card className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white">
+      <Card className="bg-gradient-to-r from-blue-500 to-blue-700 text-white">
         <CardContent className="p-6">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-emerald-100 text-sm">Available Credit Memo Balance</p>
+              <p className="text-blue-100 text-sm">Available Credit Memo Balance</p>
               <p className="text-3xl font-bold mt-1">${totalBalance.toFixed(2)}</p>
               <p className="text-emerald-100 text-xs mt-2">
                 Use this balance during checkout to reduce your order total

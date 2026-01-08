@@ -131,7 +131,7 @@ export default function PharmacyDashboard() {
         {(creditMemoBalance > 0 || rewardPoints > 0) && (
           <div className="grid gap-4 md:grid-cols-2">
             {creditMemoBalance > 0 && (
-              <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+              <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-blue-50">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -218,17 +218,17 @@ export default function PharmacyDashboard() {
           />
         </div>
 
-        <Card className="border-2 border-emerald-100">
+        <Card className="border-2 border-blue-100">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ShoppingCart className="h-5 w-5 text-emerald-600" />
+              <ShoppingCart className="h-5 w-5 text-blue-600" />
               Quick Order
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
               <div className="space-y-2 text-center md:text-left">
-                <h3 className="text-lg font-semibold text-emerald-700">Need to restock?</h3>
+                <h3 className="text-lg font-semibold text-blue-700">Need to restock?</h3>
                 <p className="text-gray-600">Place your order quickly with our streamlined ordering process</p>
                 {creditMemoBalance > 0 && (
                   <p className="text-sm text-green-600">
@@ -239,7 +239,7 @@ export default function PharmacyDashboard() {
               <Button
                 onClick={() => (window.location.href = "/pharmacy/products")}
                 size="lg"
-                className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700"
+                className="w-full md:w-auto bg-blue-600 hover:bg-blue-700"
               >
                 <ShoppingCart className="mr-2 h-4 w-4" />
                 Order Now

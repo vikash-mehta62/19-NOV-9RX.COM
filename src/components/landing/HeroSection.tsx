@@ -24,6 +24,7 @@ import { BannerSlider } from "@/components/pharmacy/components/BannerSlider";
 import image1 from "../../assests/home/1.png";
 import image2 from "../../assests/home/2.png";
 import image3 from "../../assests/home/3.png";
+import logo from "../../assests/home/9rx_logo.png";
 
 const useCounter = (end: number, duration: number = 2000) => {
   const [count, setCount] = useState(0);
@@ -81,9 +82,9 @@ export const Navbar = () => {
         <div className="flex justify-between items-center">
           <a href="/" aria-label="9RX Home" className="flex-shrink-0">
             <img
-              src="/final.png"
+              src={logo}
               alt="9RX Logo"
-              className={`h-8 sm:h-10 md:h-12 transition-all duration-500 ${scrolled || mobileMenuOpen ? "" : "brightness-0 invert"}`}
+              className={`h-18 w-auto transition-all duration-500 ${scrolled || mobileMenuOpen ? "" : "brightness-0 invert"}`}
             />
           </a>
 

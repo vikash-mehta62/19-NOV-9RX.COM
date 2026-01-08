@@ -472,7 +472,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
       </div>
     );
   }
@@ -481,14 +481,14 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
     <div className="space-y-6">
       {/* Pending Offer Alert */}
       {readOnly && hasPendingTerms && (
-        <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200 shadow-sm animate-pulse">
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm animate-pulse">
           <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-emerald-600" />
+            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <CheckCircle className="w-6 h-6 text-blue-600" />
             </div>
             <div className="flex-1">
-              <h3 className="text-emerald-900 font-semibold">New Credit Offer Approved!</h3>
-              <p className="text-emerald-700 text-sm">
+              <h3 className="text-blue-900 font-semibold">New Credit Offer Approved!</h3>
+              <p className="text-blue-700 text-sm">
                 Congratulations! Your credit increase request has been approved. 
                 Please check the "Pending Credit Terms" banner at the top of the page to review and sign your new agreement.
               </p>

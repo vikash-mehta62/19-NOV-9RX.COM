@@ -75,7 +75,7 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
         {categories.length > 6 && (
           <button
             onClick={() => setShowAll(!showAll)}
-            className="text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium"
           >
             {showAll ? "Show Less" : `+${categories.length - 6} More`}
           </button>
@@ -88,11 +88,11 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
           onClick={() => onCategorySelect("all")}
           className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all ${
             selectedCategory === "all"
-              ? "bg-emerald-100 border-2 border-emerald-500 shadow-md"
-              : "bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-md"
+              ? "bg-blue-100 border-2 border-blue-500 shadow-md"
+              : "bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md"
           }`}
         >
-          <div className={`p-2 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-500 text-white`}>
+          <div className={`p-2 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 text-white`}>
             <Package className="w-5 h-5" />
           </div>
           <span className="text-[10px] font-medium text-gray-700 text-center leading-tight">All</span>
@@ -104,8 +104,8 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
             onClick={() => onCategorySelect(cat.category_name.toLowerCase())}
             className={`flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all transform hover:scale-105 ${
               selectedCategory.toLowerCase() === cat.category_name.toLowerCase()
-                ? "bg-emerald-100 border-2 border-emerald-500 shadow-lg scale-105"
-                : "bg-white border border-gray-200 hover:border-emerald-300 hover:shadow-md"
+                ? "bg-blue-100 border-2 border-blue-500 shadow-lg scale-105"
+                : "bg-white border border-gray-200 hover:border-blue-300 hover:shadow-md"
             }`}
           >
             <div className={`p-2 rounded-lg bg-gradient-to-br ${getColor(cat.category_name)} text-white shadow-sm`}>
@@ -113,7 +113,7 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
             </div>
             <span className={`text-[10px] font-medium text-center leading-tight line-clamp-2 ${
               selectedCategory.toLowerCase() === cat.category_name.toLowerCase()
-                ? "text-emerald-700 font-bold"
+                ? "text-blue-700 font-bold"
                 : "text-gray-700"
             }`}>
               {cat.category_name.split(' ').slice(0, 2).join(' ')}

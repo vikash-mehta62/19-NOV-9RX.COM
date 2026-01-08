@@ -215,7 +215,7 @@ export const BannerSlider = ({
   if (banners.length === 0) {
     return (
       <div className={`relative rounded-2xl overflow-hidden shadow-2xl ${className}`}>
-        <div className="relative h-[280px] md:h-[400px] lg:h-[450px] bg-gradient-to-br from-teal-600 via-teal-500 to-cyan-500">
+        <div className="relative h-[280px] md:h-[400px] lg:h-[450px] bg-gradient-to-br bg-blue-500">
           <div className="absolute inset-0 opacity-30" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
           }}></div>
@@ -232,7 +232,7 @@ export const BannerSlider = ({
             </p>
             <Button 
               size="lg"
-              className="bg-white text-teal-600 hover:bg-white/90 shadow-xl font-semibold px-8"
+              className="bg-white text-blue-600 hover:bg-white/90 shadow-xl font-semibold px-8"
               onClick={() => navigate('/pharmacy/products')}
             >
               Shop Now

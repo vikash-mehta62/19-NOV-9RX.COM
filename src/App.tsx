@@ -73,6 +73,7 @@ const PharmacyDashboard = lazy(() => import("./pages/pharmacy/Dashboard"));
 const PharmacyOrder = lazy(() => import("./pages/pharmacy/Order"));
 const PharmacyCreateOrder = lazy(() => import("./pages/pharmacy/CreateOrder"));
 const PharmacyOrders = lazy(() => import("./pages/pharmacy/Orders"));
+const PharmacyOrderDetail = lazy(() => import("./pages/pharmacy/OrderDetail"));
 const PharmacySettings = lazy(() => import("./pages/pharmacy/Settings"));
 const PharmacyProducts = lazy(() => import("./pages/pharmacy/Products"));
 const CategoryBrowse = lazy(() => import("./pages/pharmacy/CategoryBrowse"));
@@ -406,6 +407,11 @@ function App() {
           <Route path="/pharmacy/orders" element={
             <ProtectedRoute allowedRoles={['pharmacy']}>
               <PharmacyOrders />
+            </ProtectedRoute>
+          } />
+          <Route path="/pharmacy/orders/:orderId" element={
+            <ProtectedRoute allowedRoles={['pharmacy']}>
+              <PharmacyOrderDetail />
             </ProtectedRoute>
           } />
           <Route path="/pharmacy/settings" element={

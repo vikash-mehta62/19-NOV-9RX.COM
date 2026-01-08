@@ -66,7 +66,7 @@ export const RecentlyViewed = () => {
           <Button
             variant="ghost"
             size="sm"
-            className="text-emerald-600 hover:text-emerald-700"
+            className="text-blue-600 hover:text-blue-700"
             onClick={() => navigate("/pharmacy/history")}
           >
             View All
@@ -98,7 +98,7 @@ export const RecentlyViewed = () => {
 
               {/* Content */}
               <div className="p-2">
-                <h4 className="font-medium text-xs text-gray-900 line-clamp-2 mb-1 group-hover:text-emerald-600 transition-colors">
+                <h4 className="font-medium text-xs text-gray-900 line-clamp-2 mb-1 group-hover:text-blue-600 transition-colors">
                   {product.name}
                 </h4>
                 <p className="text-sm font-bold text-emerald-600">

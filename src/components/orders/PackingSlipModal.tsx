@@ -153,9 +153,9 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
             <>
               {/* Items Table */}
               <div className="border rounded-xl overflow-hidden">
-                <div className="bg-emerald-50 px-4 py-3 border-b">
+                <div className="bg-blue-50 px-4 py-3 border-b">
                   <h3 className="font-semibold flex items-center gap-2">
-                    <Box className="w-4 h-4 text-emerald-600" /> Items to Pack
+                    <Box className="w-4 h-4 text-blue-600" /> Items to Pack
                   </h3>
                 </div>
                 <table className="w-full text-sm">
@@ -165,7 +165,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                       <th className="text-left px-4 py-2">Description</th>
                       <th className="text-center px-4 py-2">Size</th>
                       <th className="text-center px-4 py-2">QTY/Case</th>
-                      <th className="text-center px-4 py-2 bg-emerald-100">Cases</th>
+                      <th className="text-center px-4 py-2 bg-blue-100">Cases</th>
                       <th className="text-right px-4 py-2">Weight</th>
                     </tr>
                   </thead>
@@ -176,8 +176,8 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                         <td className="px-4 py-2 font-medium">{item.name}</td>
                         <td className="px-4 py-2 text-center">{item.size}</td>
                         <td className="px-4 py-2 text-center text-gray-600">{item.qtyPerCase}</td>
-                        <td className="px-4 py-2 text-center bg-emerald-50">
-                          <Badge className="bg-emerald-600">{item.casesOrdered}</Badge>
+                        <td className="px-4 py-2 text-center bg-blue-50">
+                          <Badge className="bg-blue-600">{item.casesOrdered}</Badge>
                         </td>
                         <td className="px-4 py-2 text-right">{item.totalWeight.toFixed(1)} lbs</td>
                       </tr>
@@ -186,8 +186,8 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                   <tfoot className="bg-gray-100 font-semibold">
                     <tr>
                       <td colSpan={4} className="px-4 py-2 text-right">Total:</td>
-                      <td className="px-4 py-2 text-center bg-emerald-100">
-                        <Badge className="bg-emerald-700">{totals.totalCases}</Badge>
+                      <td className="px-4 py-2 text-center bg-blue-100">
+                        <Badge className="bg-blue-700">{totals.totalCases}</Badge>
                       </td>
                       <td className="px-4 py-2 text-right">{totals.totalWeight.toFixed(1)} lbs</td>
                     </tr>
@@ -337,7 +337,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
               {currentStep > 1 ? "Back" : "Cancel"}
             </Button>
             {currentStep === 1 ? (
-              <Button onClick={handleNextStep} className="bg-emerald-600 hover:bg-emerald-700">Next</Button>
+              <Button onClick={handleNextStep} className="bg-blue-600 hover:bg-blue-700">Next</Button>
             ) : (
               <Button onClick={handleDownload} disabled={isGenerating} className="bg-green-600 hover:bg-green-700">
                 <Download className="w-4 h-4 mr-2" />

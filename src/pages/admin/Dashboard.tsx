@@ -461,7 +461,7 @@ const AdminDashboard = () => {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             {/* Recent Orders */}
             {recentOrders.length > 0 && (
               <Card>
@@ -502,8 +502,8 @@ const AdminDashboard = () => {
             <Card className="border-orange-200">
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Bell className="h-5 w-5 text-orange-600" />
+                  <CardTitle className="flex items-center gap-2 text-base lg:text-xs lg:font-bold">
+                    <Bell className="h-5 w-5 text-orange-600 lg:text-xs lg:font-bold" />
                     Access Requests
                     {recentAccessRequests.length > 0 && (
                       <Badge variant="destructive" className="ml-1">{recentAccessRequests.length} pending</Badge>
@@ -513,7 +513,7 @@ const AdminDashboard = () => {
                     variant="ghost"
                     size="sm"
                     onClick={() => window.location.href = '/admin/access-requests'}
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 lg:text-xs lg:font-bold lg:text-wrap"
                   >
                     View All
                   </Button>
@@ -562,7 +562,7 @@ const AdminDashboard = () => {
                 <div className="space-y-2">
                   {bestPerformingProducts.slice(0, 5).map((product, index) => (
                     <div key={product.id} className="space-y-1">
-                      <div className="flex justify-between text-sm">
+                      <div className="flex flex-col gap-2 justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="w-6 h-6 flex items-center justify-center p-0">
                             {index + 1}
@@ -659,8 +659,8 @@ const AdminDashboard = () => {
 
         {/* Charts Row */}
         {!isLoading && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <ModernCard className="lg:col-span-2">
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <ModernCard className="lg:col-span-2 xl:col-span-2">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Sales Report</h3>
               </div>

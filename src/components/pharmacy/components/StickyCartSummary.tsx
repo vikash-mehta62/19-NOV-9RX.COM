@@ -45,7 +45,7 @@ export const StickyCartSummary = () => {
       {/* Expanded View */}
       {isExpanded && (
         <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 mb-2 w-80 overflow-hidden animate-in slide-in-from-bottom-2">
-          <div className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white p-3 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4" />
               <span className="font-semibold text-sm">Your Cart ({totalItems})</span>
@@ -71,7 +71,7 @@ export const StickyCartSummary = () => {
                   <div className="flex items-center gap-2 mt-1">
                     <button
                       onClick={() => handleViewDetails(item.productId)}
-                      className="text-xs text-emerald-600 hover:text-emerald-700 flex items-center gap-1"
+                      className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1"
                     >
                       <Eye className="w-3 h-3" />
                       View
@@ -86,7 +86,7 @@ export const StickyCartSummary = () => {
                     </button>
                   </div>
                 </div>
-                <span className="text-sm font-semibold text-emerald-600">
+                <span className="text-sm font-semibold text-blue-600">
                   ${item.price?.toFixed(2)}
                 </span>
               </div>
@@ -101,10 +101,10 @@ export const StickyCartSummary = () => {
           <div className="p-3 bg-gray-50 border-t">
             <div className="flex items-center justify-between mb-3">
               <span className="text-sm text-gray-600">Subtotal:</span>
-              <span className="text-lg font-bold text-emerald-600">${cartTotal?.toFixed(2)}</span>
+              <span className="text-lg font-bold text-blue-600">${cartTotal?.toFixed(2)}</span>
             </div>
             <Button 
-              className="w-full bg-emerald-600 hover:bg-emerald-700 gap-2 min-h-[44px] rounded-xl"
+              className="w-full bg-blue-600 hover:bg-blue-700 gap-2 min-h-[44px] rounded-xl"
               onClick={() => navigate("/pharmacy/order/create")}
             >
               Proceed to Checkout
@@ -117,11 +117,11 @@ export const StickyCartSummary = () => {
       {/* Collapsed Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center gap-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white px-4 py-3 rounded-full shadow-lg transition-all hover:shadow-xl"
+        className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-3 rounded-full shadow-lg transition-all hover:shadow-xl"
       >
         <div className="relative">
           <ShoppingCart className="w-5 h-5" />
-          <span className="absolute -top-2 -right-2 bg-white text-emerald-600 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+          <span className="absolute -top-2 -right-2 bg-white text-blue-600 text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
             {totalItems}
           </span>
         </div>

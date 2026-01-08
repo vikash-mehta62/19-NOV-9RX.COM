@@ -66,7 +66,7 @@ export const StockAdjustmentDialog = () => {
       toast({
         title: "Success",
         description: (
-          <Alert className="border-emerald-500 bg-emerald-50">
+          <Alert className="border-blue-500 bg-blue-50">
             <AlertDescription>
               Stock has been adjusted successfully. New quantity recorded.
             </AlertDescription>

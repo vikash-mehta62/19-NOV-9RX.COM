@@ -867,7 +867,7 @@ const CreateOrderPaymentForm = ({
               </Button>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-600" />
+                <Lock className="w-4 h-4 text-blue-600" />
                 <span className="text-sm font-medium text-gray-700">Secure Checkout</span>
               </div>
             </div>
@@ -890,12 +890,12 @@ const CreateOrderPaymentForm = ({
           <div className="lg:col-span-2 space-y-6">
             {/* Payment Method Selection */}
             <Card className="shadow-lg border-0">
-              <CardHeader className="bg-gradient-to-r from-emerald-600 to-emerald-700 text-white rounded-t-lg">
+              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
                   <CreditCard className="w-6 h-6" />
                   Payment Method
                 </CardTitle>
-                <CardDescription className="text-emerald-100">
+                <CardDescription className="text-blue-100">
                   Choose your preferred payment method
                 </CardDescription>
               </CardHeader>
@@ -906,16 +906,16 @@ const CreateOrderPaymentForm = ({
                     onClick={() => setPaymentType("credit_card")}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                       paymentType === "credit_card"
-                        ? "border-emerald-500 bg-emerald-50 shadow-md"
+                        ? "border-blue-500 bg-blue-50 shadow-md"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <CreditCard className={`w-8 h-8 ${paymentType === "credit_card" ? "text-emerald-600" : "text-gray-400"}`} />
-                    <span className={`font-medium ${paymentType === "credit_card" ? "text-emerald-700" : "text-gray-600"}`}>
+                    <CreditCard className={`w-8 h-8 ${paymentType === "credit_card" ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className={`font-medium ${paymentType === "credit_card" ? "text-blue-700" : "text-gray-600"}`}>
                       Credit Card
                     </span>
                     {paymentType === "credit_card" && (
-                      <CheckCircle2 className="w-5 h-5 text-emerald-500 absolute top-2 right-2" />
+                      <CheckCircle2 className="w-5 h-5 text-blue-500 absolute top-2 right-2" />
                     )}
                   </button>
                   <button
@@ -923,12 +923,12 @@ const CreateOrderPaymentForm = ({
                     onClick={() => setPaymentType("ach")}
                     className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
                       paymentType === "ach"
-                        ? "border-emerald-500 bg-emerald-50 shadow-md"
+                        ? "border-blue-500 bg-blue-50 shadow-md"
                         : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                     }`}
                   >
-                    <Landmark className={`w-8 h-8 ${paymentType === "ach" ? "text-emerald-600" : "text-gray-400"}`} />
-                    <span className={`font-medium ${paymentType === "ach" ? "text-emerald-700" : "text-gray-600"}`}>
+                    <Landmark className={`w-8 h-8 ${paymentType === "ach" ? "text-blue-600" : "text-gray-400"}`} />
+                    <span className={`font-medium ${paymentType === "ach" ? "text-blue-700" : "text-gray-600"}`}>
                       Bank Transfer (ACH)
                     </span>
                   </button>
@@ -951,7 +951,7 @@ const CreateOrderPaymentForm = ({
                       {savedCards.length > 0 && (
                         <div className="space-y-3">
                           <Label className="text-sm font-medium flex items-center gap-2">
-                            <Wallet className="w-4 h-4 text-emerald-600" />
+                            <Wallet className="w-4 h-4 text-blue-600" />
                             Use Saved Card
                           </Label>
                           <p className="text-xs text-gray-500">
@@ -1014,12 +1014,12 @@ const CreateOrderPaymentForm = ({
                                   }}
                                   className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
                                     isSelected 
-                                      ? "border-emerald-500 bg-emerald-50 shadow-md" 
-                                      : "border-gray-200 hover:border-emerald-300 hover:bg-emerald-50"
+                                      ? "border-blue-500 bg-blue-50 shadow-md" 
+                                      : "border-gray-200 hover:border-blue-300 hover:bg-blue-50"
                                   }`}
                                 >
-                                  <div className={`p-2 rounded-lg ${isSelected ? "bg-emerald-100" : "bg-gray-100"}`}>
-                                    <CreditCard className={`w-5 h-5 ${isSelected ? "text-emerald-600" : "text-gray-500"}`} />
+                                  <div className={`p-2 rounded-lg ${isSelected ? "bg-blue-100" : "bg-gray-100"}`}>
+                                    <CreditCard className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-gray-500"}`} />
                                   </div>
                                   <div className="flex-1 text-left">
                                     <p className="font-medium text-gray-900">
@@ -1031,7 +1031,7 @@ const CreateOrderPaymentForm = ({
                                   </div>
                                   <div className="flex items-center gap-2">
                                     {canCharge && (
-                                      <Badge variant="secondary" className="text-xs bg-emerald-100 text-emerald-700">
+                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                                         1-Click Pay
                                       </Badge>
                                     )}
@@ -1039,7 +1039,7 @@ const CreateOrderPaymentForm = ({
                                       <Badge variant="secondary" className="text-xs">Default</Badge>
                                     )}
                                     {isSelected && (
-                                      <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
                                     )}
                                   </div>
                                 </button>
@@ -1090,11 +1090,11 @@ const CreateOrderPaymentForm = ({
 
                       {/* Selected Saved Card Display */}
                       {selectedSavedCard && (
-                        <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200">
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-3">
-                              <div className="p-2 bg-emerald-100 rounded-lg">
-                                <CreditCard className="w-6 h-6 text-emerald-600" />
+                              <div className="p-2 bg-blue-100 rounded-lg">
+                                <CreditCard className="w-6 h-6 text-blue-600" />
                               </div>
                               <div>
                                 <p className="font-semibold text-gray-900">
@@ -1190,7 +1190,7 @@ const CreateOrderPaymentForm = ({
                           id="saveCard"
                           checked={saveCard}
                           onChange={(e) => setSaveCard(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         <Label htmlFor="saveCard" className="text-sm font-medium cursor-pointer">
                           Save this card for future purchases
@@ -1289,7 +1289,7 @@ const CreateOrderPaymentForm = ({
               <Card className="shadow-lg border-0 mt-6">
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-emerald-600" />
+                    <MapPin className="w-5 h-5 text-blue-600" />
                     Billing Address
                   </CardTitle>
                 </CardHeader>
@@ -1397,7 +1397,7 @@ const CreateOrderPaymentForm = ({
                 <Button
                   type="submit"
                   disabled={loading}
-                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg"
+                  className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg"
                 >
                   {loading ? (
                     <>
@@ -1422,7 +1422,7 @@ const CreateOrderPaymentForm = ({
               <Card className="shadow-lg border-0">
                 <CardHeader className="bg-gray-50 rounded-t-lg">
                   <CardTitle className="flex items-center gap-2 text-lg">
-                    <Receipt className="w-5 h-5 text-emerald-600" />
+                    <Receipt className="w-5 h-5 text-blue-600" />
                     Order Summary
                   </CardTitle>
                 </CardHeader>
@@ -1466,7 +1466,7 @@ const CreateOrderPaymentForm = ({
                       <span className="text-gray-600">Shipping</span>
                       <span className="font-medium">
                         {totalShippingCost === 0 ? (
-                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700">
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                             FREE
                           </Badge>
                         ) : (
@@ -1504,10 +1504,10 @@ const CreateOrderPaymentForm = ({
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
                       <span>Total</span>
-                      <span className="text-emerald-600">${formData.amount.toFixed(2)}</span>
+                      <span className="text-blue-600">${formData.amount.toFixed(2)}</span>
                     </div>
                     {discountAmount > 0 && (
-                      <div className="text-right text-sm text-green-600">
+                      <div className="text-right text-sm text-blue-600">
                         You save: ${discountAmount.toFixed(2)}
                       </div>
                     )}
@@ -1538,7 +1538,7 @@ const CreateOrderPaymentForm = ({
                   form="payment-form"
                   disabled={loading}
                   onClick={handleSubmit}
-                  className="w-full h-14 text-lg bg-emerald-600 hover:bg-emerald-700 shadow-lg"
+                  className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg"
                 >
                   {loading ? (
                     <>
@@ -1559,11 +1559,11 @@ const CreateOrderPaymentForm = ({
                 <CardContent className="p-4">
                   <div className="flex items-center justify-center gap-6">
                     <div className="flex items-center gap-2 text-gray-600">
-                      <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                      <ShieldCheck className="w-5 h-5 text-blue-600" />
                       <span className="text-xs">SSL Secured</span>
                     </div>
                     <div className="flex items-center gap-2 text-gray-600">
-                      <Lock className="w-5 h-5 text-emerald-600" />
+                      <Lock className="w-5 h-5 text-blue-600" />
                       <span className="text-xs">256-bit Encryption</span>
                     </div>
                   </div>
@@ -1604,8 +1604,8 @@ const CreateOrderPaymentForm = ({
           <DialogHeader>
             <DialogTitle className="text-center">
               <div className="flex flex-col items-center gap-4">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-600" />
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-10 h-10 text-blue-600" />
                 </div>
                 <span className="text-2xl font-bold text-gray-900">Payment Successful!</span>
               </div>
@@ -1660,7 +1660,7 @@ const CreateOrderPaymentForm = ({
                   navigate("/pharmacy/orders");
                 }
               }}
-              className="w-full bg-emerald-600 hover:bg-emerald-700"
+              className="w-full bg-blue-600 hover:bg-blue-700"
             >
               View My Orders
             </Button>

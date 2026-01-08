@@ -103,7 +103,7 @@ export function DraftRecoveryDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-emerald-600" />
+            <FileText className="w-5 h-5 text-blue-600" />
             Restore Saved Draft?
           </DialogTitle>
           <DialogDescription>
@@ -118,7 +118,7 @@ export function DraftRecoveryDialog({
                 key={draft.id}
                 className={`cursor-pointer transition-all ${
                   selectedDraftId === draft.id
-                    ? "border-emerald-500 ring-2 ring-emerald-100 bg-emerald-50/50"
+                    ? "border-blue-500 ring-2 ring-blue-100 bg-blue-50/50"
                     : "hover:border-gray-300"
                 } ${isDeleting === draft.id ? "opacity-50" : ""}`}
                 onClick={() => setSelectedDraftId(draft.id)}
@@ -131,7 +131,7 @@ export function DraftRecoveryDialog({
                           {draft.name}
                         </span>
                         {selectedDraftId === draft.id && (
-                          <Badge className="bg-emerald-100 text-emerald-700 text-xs">
+                          <Badge className="bg-blue-100 text-blue-700 text-xs">
                             Selected
                           </Badge>
                         )}
@@ -196,7 +196,7 @@ export function DraftRecoveryDialog({
           <Button
             onClick={handleRestore}
             disabled={!selectedDraftId}
-            className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700"
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700"
           >
             <RefreshCw className="w-4 h-4 mr-2" />
             Restore Draft

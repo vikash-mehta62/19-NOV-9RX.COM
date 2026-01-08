@@ -436,9 +436,9 @@ const JoinGroup = () => {
 
           <p className="text-xs text-center text-muted-foreground">
             By creating an account, you agree to our{" "}
-            <a href="/terms-of-service" target="_blank" className="text-emerald-600 hover:underline">Terms of Service</a>
+            <a href="/terms-of-service" target="_blank" className="text-blue-600 hover:underline">Terms of Service</a>
             {" "}and{" "}
-            <a href="/privacy-policy" target="_blank" className="text-emerald-600 hover:underline">Privacy Policy</a>
+            <a href="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">Privacy Policy</a>
           </p>
         </CardFooter>
       </Card>

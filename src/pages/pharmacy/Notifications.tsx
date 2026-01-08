@@ -166,7 +166,7 @@ const PharmacyNotifications = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-              <Bell className="h-6 w-6 text-emerald-600" />
+              <Bell className="h-6 w-6 text-blue-600" />
               Notifications
               {unreadCount > 0 && (
                 <Badge className="bg-red-500 text-white">{unreadCount} new</Badge>
@@ -206,7 +206,7 @@ const PharmacyNotifications = () => {
           <TabsContent value={activeTab} className="mt-4">
             {loading ? (
               <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
               </div>
             ) : filteredNotifications.length === 0 ? (
               <Card>
@@ -222,7 +222,7 @@ const PharmacyNotifications = () => {
                   <Card
                     key={notification.id}
                     className={`transition-all hover:shadow-md ${
-                      !notification.read ? "border-l-4 border-l-emerald-500 bg-emerald-50/50" : ""
+                      !notification.read ? "border-l-4 border-l-blue-500 bg-blue-50/50" : ""
                     }`}
                   >
                     <CardContent className="p-4">
@@ -234,7 +234,7 @@ const PharmacyNotifications = () => {
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-semibold text-gray-900">{notification.title}</h4>
                             {!notification.read && (
-                              <Badge className="bg-emerald-100 text-emerald-700 text-xs">New</Badge>
+                              <Badge className="bg-blue-100 text-blue-700 text-xs">New</Badge>
                             )}
                             {notification.metadata?.priority === "high" && (
                               <Badge className="bg-red-100 text-red-700 text-xs">Important</Badge>

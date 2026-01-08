@@ -87,9 +87,17 @@ export const PharmacyFilterSidebar = ({
 
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === "all") return sourceProducts.length
-    return sourceProducts.filter(p => 
+    
+    const categoryProducts = sourceProducts.filter(p => 
       p.category?.toLowerCase() === categoryName.toLowerCase()
-    ).length
+    )
+    
+    // For RX PAPER BAGS, return total sizes count instead of products count
+    if (categoryName.toUpperCase() === "RX PAPER BAGS") {
+      return categoryProducts.reduce((total, p) => total + (p.sizes?.length || 0), 0)
+    }
+    
+    return categoryProducts.length
   }
 
   const getSubcategoryCount = (subcategoryName: string) => {
@@ -129,7 +137,7 @@ export const PharmacyFilterSidebar = ({
   return (
     <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
       {/* Header */}
-      <div className="bg-emerald-600 px-4 py-3 flex items-center justify-between">
+      <div className="bg-blue-600 px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Layers className="w-5 h-5 text-white" />
           <span className="font-semibold text-white">Categories</span>
@@ -137,7 +145,7 @@ export const PharmacyFilterSidebar = ({
         {hasActiveFilters && (
           <button 
             onClick={handleAllProductsClick}
-            className="text-xs text-emerald-100 hover:text-white transition-colors"
+            className="text-xs text-blue-100 hover:text-white transition-colors"
           >
             Clear
           </button>
@@ -170,7 +178,7 @@ export const PharmacyFilterSidebar = ({
               className={cn(
                 "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all",
                 selectedCategory === "all" && selectedSubcategory === "all"
-                  ? "bg-emerald-100 text-emerald-700 font-medium shadow-sm"
+                  ? "bg-blue-100 text-blue-700 font-medium shadow-sm"
                   : "text-gray-700 hover:bg-gray-100"
               )}
             >
@@ -198,7 +206,7 @@ export const PharmacyFilterSidebar = ({
                     className={cn(
                       "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all",
                       isSelected
-                        ? "bg-emerald-100 text-emerald-700 font-medium shadow-sm"
+                        ? "bg-blue-100 text-blue-700 font-medium shadow-sm"
                         : isExpanded
                         ? "bg-gray-100 text-gray-900"
                         : "text-gray-700 hover:bg-gray-100"
@@ -206,7 +214,7 @@ export const PharmacyFilterSidebar = ({
                   >
                     <span className="flex items-center gap-2 truncate">
                       {isExpanded ? (
-                        <FolderOpen className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
                       ) : (
                         <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       )}
@@ -217,12 +225,12 @@ export const PharmacyFilterSidebar = ({
                         variant="secondary" 
                         className={cn(
                           "text-xs",
-                          isSelected ? "bg-emerald-200 text-emerald-700" : "bg-gray-100 text-gray-600"
+                          isSelected ? "bg-blue-200 text-blue-700" : "bg-gray-100 text-gray-600"
                         )}
                       >
                         {count}
                       </Badge>
-                      {catSubcategories.length > 0 && (
+                      {catSubcategories.length > 0 && cat.category_name.toUpperCase() !== "RX PAPER BAGS" && (
                         <ChevronRight className={cn(
                           "w-4 h-4 text-gray-400 transition-transform duration-200",
                           isExpanded && "rotate-90"
@@ -231,9 +239,9 @@ export const PharmacyFilterSidebar = ({
                     </div>
                   </button>
 
-                  {/* Subcategories (Expanded) */}
-                  {isExpanded && catSubcategories.length > 0 && (
-                    <div className="ml-3 pl-3 border-l-2 border-emerald-200 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
+                  {/* Subcategories (Expanded) - Hide for RX PAPER BAGS */}
+                  {isExpanded && catSubcategories.length > 0 && cat.category_name.toUpperCase() !== "RX PAPER BAGS" && (
+                    <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
                       {catSubcategories.map((sub) => {
                         const isSubSelected = selectedSubcategory === sub.subcategory_name
                         const subCount = getSubcategoryCount(sub.subcategory_name)
@@ -245,7 +253,7 @@ export const PharmacyFilterSidebar = ({
                             className={cn(
                               "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
                               isSubSelected
-                                ? "bg-emerald-100 text-emerald-700 font-medium"
+                                ? "bg-blue-100 text-blue-700 font-medium"
                                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                             )}
                           >
@@ -254,7 +262,7 @@ export const PharmacyFilterSidebar = ({
                               variant="outline" 
                               className={cn(
                                 "text-xs",
-                                isSubSelected && "border-emerald-300 bg-emerald-50"
+                                isSubSelected && "border-blue-300 bg-blue-50"
                               )}
                             >
                               {subCount}

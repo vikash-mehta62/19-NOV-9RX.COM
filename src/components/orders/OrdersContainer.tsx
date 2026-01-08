@@ -359,9 +359,9 @@ export const OrdersContainer = ({
         />
       )}
 
-      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
         {/* Left side - Search and Filters */}
-        <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full xl:w-auto">
           <OrderFilters
             onSearch={setSearchQuery}
             onDateChange={setDateRange}
@@ -379,7 +379,7 @@ export const OrdersContainer = ({
         </div>
 
         {/* Right side - Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
           {!poIs && (
             <CSVLink {...exportToCSV(filteredOrders)}>
               <Button variant="outline" size="sm" className="gap-2 text-gray-600 hover:text-gray-900">
@@ -394,7 +394,7 @@ export const OrdersContainer = ({
               {!poIs && (
                 <Button 
                   size="sm"
-                  className="gap-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
+                  className="gap-2 bg-blue-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
                   onClick={handleCreateOrderClick}
                 >
                   <PlusCircle className="h-4 w-4" />
@@ -420,7 +420,7 @@ export const OrdersContainer = ({
 
       {isOpen && (
         <div className="fixed -inset-4 flex items-center justify-center bg-black bg-opacity-50 h-screen z-[50]">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] md:w-[50%] relative h-[80vh] overflow-y-scroll">
+          <div className="bg-white p-6 rounded-lg shadow-lg w-[90%] md:w-[50%] lg:w-[80%] xl:w-[60%] relative h-[80vh] overflow-y-scroll">
             <button
               onClick={() => setIsOpen(false)}
               className="absolute top-3 right-3 text-gray-600 hover:text-black text-lg"

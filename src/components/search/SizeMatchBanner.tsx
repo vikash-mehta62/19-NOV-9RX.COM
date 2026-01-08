@@ -16,22 +16,22 @@ export const SizeMatchBanner: React.FC<SizeMatchBannerProps> = ({
   if (!searchQuery.trim() || matchingCount === 0) return null;
 
   return (
-    <div className={`bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-4 ${className}`}>
+    <div className={`bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 ${className}`}>
       <div className="flex items-center gap-2">
         <div className="flex items-center gap-1">
-          <Search className="w-4 h-4 text-emerald-600" />
-          <Package className="w-4 h-4 text-emerald-600" />
+          <Search className="w-4 h-4 text-blue-600" />
+          <Package className="w-4 h-4 text-blue-600" />
         </div>
         <div className="flex-1">
-          <p className="text-sm text-emerald-800">
+          <p className="text-sm text-blue-800">
             <span className="font-medium">Size Match Found!</span> 
             {' '}Found <span className="font-semibold">{matchingCount}</span> product{matchingCount > 1 ? 's' : ''} with size "{searchQuery}"
           </p>
-          <p className="text-xs text-emerald-600 mt-1">
+          <p className="text-xs text-blue-600 mt-1">
             💡 Matching sizes are highlighted and expanded automatically
           </p>
         </div>
-        <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 border-emerald-300">
+        <Badge variant="secondary" className="bg-blue-100 text-blue-800 border-blue-300">
           Size Search
         </Badge>
       </div>

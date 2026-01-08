@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { calculateFinalTotal, calculateSubtotal, calculateShipping, calculateTax } from "@/utils/orderCalculations";
 import { supabase } from "@/supabaseClient";
+import { AddUserModal } from "@/components/users/AddUserModal";
 import {
   User,
   MapPin,
@@ -74,6 +75,8 @@ const OrderCreationWizardComponent = ({
   const [termsAccepted, setTermsAccepted] = useState(userType === "admin" ? true : false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(userType === "admin" ? true : false);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
+  const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
+  const [customerRefreshKey, setCustomerRefreshKey] = useState(0);
   
   // Discount state
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
@@ -512,9 +515,14 @@ const OrderCreationWizardComponent = ({
 
   // Handle add new customer - memoized
   const handleAddNewCustomer = useCallback(() => {
-    // TODO: Implement add new customer modal
-    console.log("Add new customer");
+    setAddCustomerModalOpen(true);
   }, []);
+
+  const handleCustomerAdded = useCallback(() => {
+    setAddCustomerModalOpen(false);
+    setCustomerRefreshKey((prev) => prev + 1);
+    toast({ title: "Customer added", description: "Refresh complete. Select the new customer." });
+  }, [toast]);
 
   // Handle billing address change - memoized
   const handleBillingAddressChange = useCallback((address: BillingAddress) => {
@@ -980,6 +988,7 @@ const OrderCreationWizardComponent = ({
             selectedCustomerId={selectedCustomer?.id}
             onCustomerSelect={handleCustomerSelect}
             onAddNewCustomer={handleAddNewCustomer}
+            refreshKey={customerRefreshKey}
             isEditMode={isEditMode}
             lockedCustomer={isEditMode ? selectedCustomer : undefined}
           />
@@ -1149,6 +1158,11 @@ const OrderCreationWizardComponent = ({
           </aside>
         </div>
       </div>
+      <AddUserModal
+        open={addCustomerModalOpen}
+        onOpenChange={setAddCustomerModalOpen}
+        onUserAdded={handleCustomerAdded}
+      />
     </div>
     </ErrorBoundary>
   );

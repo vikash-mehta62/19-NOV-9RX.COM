@@ -26,7 +26,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
           "disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-gray-100 dark:disabled:bg-gray-700",
           error
             ? "border-red-300 dark:border-red-600 focus-visible:ring-red-500 focus-visible:border-red-500"
-            : "border-gray-300 dark:border-gray-600 focus-visible:ring-emerald-500 focus-visible:border-emerald-500",
+            : "border-gray-300 dark:border-gray-600 focus-visible:ring-blue-500 focus-visible:border-blue-500",
           sizeClasses[inputSize],
           className
         )}

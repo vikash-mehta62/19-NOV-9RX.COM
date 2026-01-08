@@ -11,12 +11,12 @@ const Card = React.forwardRef<
   const variantClasses = {
     default: "shadow-sm",
     elevated: "shadow-lg",
-    interactive: "shadow-sm hover:shadow-md hover:border-emerald-300 dark:hover:border-emerald-600 transition-all duration-200 cursor-pointer",
-    selected: "shadow-md border-2 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20",
+    interactive: "shadow-sm hover:shadow-md hover:border-b-blue-300 dark:hover:border-blue-600 transition-all duration-200 cursor-pointer",
+    selected: "shadow-md border-2 border-blue-500 bg-blue-50 dark:bg-blue-900/20",
   }
 
   return (
-    <div
+      <div
       ref={ref}
       className={cn(
         "rounded-xl border border-gray-200 dark:border-gray-700 bg-card text-card-foreground",

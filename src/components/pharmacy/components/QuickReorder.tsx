@@ -163,12 +163,12 @@ export const QuickReorder = () => {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <RefreshCw className="w-4 h-4 text-emerald-600" />
+          <RefreshCw className="w-4 h-4 text-blue-600" />
           <h3 className="text-sm font-semibold text-gray-700">Buy Again</h3>
         </div>
         <button 
           onClick={handleViewAll}
-          className="text-xs text-emerald-600 hover:text-emerald-700 font-medium flex items-center gap-1"
+          className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
         >
           View All <ChevronRight className="w-3 h-3" />
         </button>
@@ -187,10 +187,10 @@ export const QuickReorder = () => {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <h4 className="text-xs font-medium text-gray-900 line-clamp-2 group-hover:text-emerald-600">
+                <h4 className="text-xs font-medium text-gray-900 line-clamp-2 group-hover:text-blue-600">
                   {item.name}
                 </h4>
-                <p className="text-sm font-bold text-emerald-600 mt-1">
+                <p className="text-sm font-bold text-blue-600 mt-1">
                   ${item.price?.toFixed(2)}
                 </p>
                 {item.sizes.length > 0 && (
@@ -202,7 +202,7 @@ export const QuickReorder = () => {
             </div>
             <Button
               size="sm"
-              className="w-full mt-2 h-7 text-xs bg-emerald-600 hover:bg-emerald-700"
+              className="w-full mt-2 h-7 text-xs bg-blue-600"
               onClick={() => handleReorder(item)}
               disabled={addingToCart === item.id}
             >

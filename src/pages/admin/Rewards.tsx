@@ -338,7 +338,7 @@ export default function AdminRewards() {
     return (
       <DashboardLayout role="admin">
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+          <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
         </div>
       </DashboardLayout>
     )
@@ -392,8 +392,8 @@ export default function AdminRewards() {
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-emerald-100 rounded-lg">
-                  <Star className="w-5 h-5 text-emerald-600" />
+                <div className="p-2 bg-blue-100 rounded-lg">
+                  <Star className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{stats.totalPointsIssued.toLocaleString()}</p>
@@ -446,14 +446,14 @@ export default function AdminRewards() {
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg flex items-center gap-2">
-                    <TrendingUp className="w-5 h-5 text-emerald-600" />
+                    <TrendingUp className="w-5 h-5 text-blue-600" />
                     How Members Earn Points
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span>Every $1 spent</span>
-                    <Badge className="bg-emerald-100 text-emerald-700">+{config.points_per_dollar} point</Badge>
+                    <Badge className="bg-blue-100 text-blue-700">+{config.points_per_dollar} point</Badge>
                   </div>
                   <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <span>Refer a friend</span>
@@ -501,7 +501,7 @@ export default function AdminRewards() {
               <h3 className="font-semibold">Available Rewards ({rewards.length})</h3>
               <Dialog open={showAddReward} onOpenChange={setShowAddReward}>
                 <DialogTrigger asChild>
-                  <Button className="bg-emerald-600 hover:bg-emerald-700">
+                  <Button className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" /> Add Reward
                   </Button>
                 </DialogTrigger>
@@ -540,7 +540,7 @@ export default function AdminRewards() {
                       <Label>Value ({newReward.type === "credit" ? "$" : newReward.type === "discount" ? "%" : "days"})</Label>
                       <Input type="number" value={newReward.value} onChange={e => setNewReward({...newReward, value: parseInt(e.target.value) || 0})} />
                     </div>
-                    <Button onClick={handleAddReward} className="w-full bg-emerald-600" disabled={!newReward.name}>
+                    <Button onClick={handleAddReward} className="w-full bg-blue-600" disabled={!newReward.name}>
                       Add Reward
                     </Button>
                   </div>
@@ -559,7 +559,7 @@ export default function AdminRewards() {
                          reward.type === "credit" ? <DollarSign className="w-5 h-5 text-purple-600" /> :
                          <Star className="w-5 h-5 text-orange-600" />}
                       </div>
-                      <Badge className="bg-emerald-100 text-emerald-700">{reward.points_required} pts</Badge>
+                      <Badge className="bg-blue-100 text-blue-700">{reward.points_required} pts</Badge>
                     </div>
                     <h4 className="font-semibold mb-1">{reward.name}</h4>
                     <p className="text-sm text-gray-500 mb-3">{reward.description}</p>
@@ -641,7 +641,7 @@ export default function AdminRewards() {
                         </TableCell>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>
-                          <span className="font-bold text-emerald-600">{(user.reward_points || 0).toLocaleString()}</span>
+                          <span className="font-bold text-blue-600">{(user.reward_points || 0).toLocaleString()}</span>
                         </TableCell>
                         <TableCell>
                           <Badge className={`${tier.color} text-white`}>{tier.name}</Badge>
@@ -704,7 +704,7 @@ export default function AdminRewards() {
                     </p>
                   </div>
                 </div>
-                <Button onClick={handleSaveSettings} disabled={saving} className="bg-emerald-600">
+                <Button onClick={handleSaveSettings} disabled={saving} className="bg-blue-600">
                   {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                   Save Settings
                 </Button>

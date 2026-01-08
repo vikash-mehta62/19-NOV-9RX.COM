@@ -68,6 +68,9 @@ const routeLabels: Record<string, string> = {
   order: "Order",
 };
 
+// Segments that should not be clickable (role prefixes)
+const nonClickableSegments = ["admin", "pharmacy", "group", "hospital"];
+
 export function Breadcrumb({
   items,
   showHome = true,
@@ -96,9 +99,12 @@ export function Breadcrumb({
 
       const label = routeLabels[segment] || segment.charAt(0).toUpperCase() + segment.slice(1).replace(/-/g, " ");
       
+      // Don't add href for non-clickable segments (role prefixes like admin, pharmacy, etc.)
+      const isNonClickable = nonClickableSegments.includes(segment.toLowerCase());
+      
       generatedItems.push({
         label,
-        href: index < pathSegments.length - 1 ? currentPath : undefined,
+        href: !isNonClickable && index < pathSegments.length - 1 ? currentPath : undefined,
       });
     });
 
@@ -135,7 +141,7 @@ export function Breadcrumb({
             <li>
               <Link
                 to={homeHref}
-                className="flex items-center gap-1 text-gray-500 hover:text-emerald-600 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                className="flex items-center gap-1 text-gray-500 hover:text-blue-600 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 aria-label="Home"
               >
                 <Home className="w-4 h-4" aria-hidden="true" />
@@ -169,7 +175,7 @@ export function Breadcrumb({
               ) : (
                 <Link
                   to={item.href}
-                  className="text-gray-500 hover:text-emerald-600 transition-colors truncate max-w-[150px] p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                  className="text-gray-500 hover:text-blue-600 transition-colors truncate max-w-[150px] p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                 >
                   {item.icon && <span className="mr-1">{item.icon}</span>}
                   {item.label}
@@ -207,7 +213,7 @@ export function CompactBreadcrumb({
     <nav aria-label="Breadcrumb" className={cn("flex items-center gap-2", className)}>
       <Link
         to={backHref}
-        className="flex items-center gap-1 text-sm text-gray-500 hover:text-emerald-600 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-600 transition-colors p-1 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <ChevronRight className="w-4 h-4 rotate-180" aria-hidden="true" />
         <span>{backLabel}</span>

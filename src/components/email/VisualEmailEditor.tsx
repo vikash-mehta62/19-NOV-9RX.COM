@@ -106,7 +106,7 @@ const blockDefaults: Record<string, any> = {
 };
 
 const emailTemplates = [
-  { id: "welcome", name: "Welcome", description: "Greet new users", gradient: "from-emerald-400 to-cyan-500",
+  { id: "welcome", name: "Welcome", description: "Greet new users", gradient: "from-blue-400 to-purple-500",
     blocks: [
       { type: "header", content: { text: "Welcome to 9RX! 🎉", bgColor: "#10b981", textColor: "#ffffff" } },
       { type: "text", content: { text: "Hi {{first_name}},\n\nThank you for joining 9RX!", align: "left" } },
@@ -121,7 +121,7 @@ const emailTemplates = [
       { type: "button", content: { text: "Complete Order", url: "https://9rx.com/cart", bgColor: "#f97316" } },
       { type: "footer", content: { ...blockDefaults.footer } },
     ]},
-  { id: "order", name: "Order Confirmed", description: "Confirmation email", gradient: "from-green-400 to-emerald-500",
+  { id: "order", name: "Order Confirmed", description: "Confirmation email", gradient: "from-green-400 to-blue-500",
     blocks: [
       { type: "header", content: { text: "Order Confirmed! ✅", bgColor: "#22c55e", textColor: "#ffffff" } },
       { type: "text", content: { text: "Hi {{first_name}},\n\nYour order #{{order_number}} is confirmed!" } },
@@ -1355,7 +1355,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
     return (
       <div className="rounded-2xl border-2 border-dashed border-gray-200 bg-gradient-to-br from-gray-50 to-white p-8">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-400 to-cyan-500 text-white mb-4"><Wand2 className="w-8 h-8" /></div>
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-400 to-purple-500 text-white mb-4"><Wand2 className="w-8 h-8" /></div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Email</h2>
           <p className="text-gray-500">Choose a template to get started or build from scratch</p>
         </div>
@@ -1369,7 +1369,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
               </h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 {emailTemplates.map(template => (
-                  <button type="button" key={template.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); loadTemplate(template.id); }} className="group relative overflow-hidden rounded-xl border-2 border-gray-200 hover:border-emerald-400 transition-all hover:shadow-lg">
+                  <button type="button" key={template.id} onClick={(e) => { e.preventDefault(); e.stopPropagation(); loadTemplate(template.id); }} className="group relative overflow-hidden rounded-xl border-2 border-gray-200 hover:border-blue-400 transition-all hover:shadow-lg">
                     <div className={`h-24 bg-gradient-to-br ${template.gradient} flex items-center justify-center`}>
                       <Mail className="w-10 h-10 text-white/80" />
                     </div>
@@ -1594,7 +1594,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                  size="sm"
                  className={`h-6 px-2 text-[10px] font-medium rounded transition-all ${
                    selectedColumnData.width === w 
-                     ? 'bg-emerald-500 text-white hover:bg-emerald-600' 
+                     ? 'bg-blue-500 text-white hover:bg-blue-600' 
                      : 'hover:bg-gray-100 text-gray-600'
                  }`}
                  onClick={() => setColumnWidth(selectedRowIndex, selectedColIndex, w)}
@@ -1700,7 +1700,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           <div className="w-56 border-r bg-gray-50/80 flex flex-col">
             <div className="p-2.5 border-b bg-white/80 backdrop-blur-sm flex-shrink-0">
               <h3 className="font-semibold text-xs text-gray-600 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-emerald-500" />Content Blocks
+                <Layers className="w-3.5 h-3.5 text-blue-500" />Content Blocks
               </h3>
             </div>
             <ScrollArea className="flex-1 p-2">
@@ -1720,7 +1720,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                       setDragOverIndex(null);
                     }}
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); addBlock(block.type); }} 
-                    className="group p-2 rounded-lg border border-gray-200 bg-white hover:border-emerald-400 hover:shadow-md transition-all text-center cursor-grab active:cursor-grabbing"
+                    className="group p-2 rounded-lg border border-gray-200 bg-white hover:border-blue-400 hover:shadow-md transition-all text-center cursor-grab active:cursor-grabbing"
                   >
                     <div className={`w-8 h-8 mx-auto rounded-md ${block.color} text-white flex items-center justify-center mb-1 group-hover:scale-110 transition-transform shadow-sm`}><block.icon className="w-4 h-4" /></div>
                     <span className="text-[10px] font-medium text-gray-600">{block.name}</span>
@@ -1759,7 +1759,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                     {savedBlockTemplates.map(template => (
                       <div 
                         key={template.id} 
-                        className="flex items-center justify-between p-1.5 rounded-md bg-gray-50 hover:bg-emerald-50 transition-colors group"
+                        className="flex items-center justify-between p-1.5 rounded-md bg-gray-50 hover:bg-blue-50 transition-colors group"
                       >
                         <button
                           type="button"
@@ -1877,7 +1877,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                       </div>
                       <div className="mt-4 pt-4 border-t">
                         <p className="text-gray-400 text-xs mb-2">Or start over with a new design:</p>
-                        <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingExistingHtml(false); setShowTemplates(true); }} className="text-emerald-600 text-sm"><LayoutTemplate className="w-4 h-4 mr-1" />Choose Different Template</Button>
+                        <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingExistingHtml(false); setShowTemplates(true); }} className="text-blue-600 text-sm"><LayoutTemplate className="w-4 h-4 mr-1" />Choose Different Template</Button>
                       </div>
                     </div>
                   ) : (
@@ -1885,7 +1885,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                       <div className="w-16 h-16 mx-auto rounded-2xl bg-gray-100 flex items-center justify-center mb-4"><Plus className="w-8 h-8 text-gray-400" /></div>
                       <p className="text-gray-500 font-medium">Click a block to add content</p>
                       <p className="text-gray-400 text-sm mt-1">Or choose a template to get started</p>
-                      <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTemplates(true); }} className="mt-2 text-emerald-600"><LayoutTemplate className="w-4 h-4 mr-1" />Browse Templates</Button>
+                      <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTemplates(true); }} className="mt-2 text-blue-600"><LayoutTemplate className="w-4 h-4 mr-1" />Browse Templates</Button>
                     </div>
                   )
                 ) : (
@@ -1921,7 +1921,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                                   {/* Block Content */}
                                   <div 
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBlock(col.block.id); }} 
-                                    className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-emerald-500 ring-offset-2 rounded" : ""}`}
+                                    className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-blue-500 ring-offset-2 rounded" : ""}`}
                                   >
                                       <BlockPreview block={col.block} onReplace={(type) => replaceBlock(col.block.id, type)} />
                                   </div>
@@ -1960,7 +1960,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                             type="button" 
                             variant="ghost" 
                             size="icon" 
-                            className="h-6 w-6 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50" 
+                            className="h-6 w-6 text-blue-500 hover:text-blue-600 hover:bg-blue-50" 
                             onClick={() => setShowSaveBlockDialog(true)}
                           >
                             <Save className="w-3.5 h-3.5" />
@@ -1977,7 +1977,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                 
                 {/* Save Block Template Dialog */}
                 {showSaveBlockDialog && (
-                  <div className="p-2.5 border-b bg-emerald-50/50">
+                  <div className="p-2.5 border-b bg-blue-50/50">
                     <Label className="text-[10px] text-gray-500 mb-1.5 block">Save as reusable template</Label>
                     <Input
                       value={blockTemplateNameInput}
@@ -1989,7 +1989,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                       <Button 
                         type="button" 
                         size="sm" 
-                        className="flex-1 h-6 text-[10px] bg-emerald-500 hover:bg-emerald-600"
+                        className="flex-1 h-6 text-[10px] bg-blue-500 hover:bg-blue-600"
                         onClick={() => saveBlockAsTemplate(selectedBlockData)}
                       >
                         Save
@@ -2163,7 +2163,7 @@ const ColorPicker = ({ label, value, onChange }: { label: string; value: string;
             e.stopPropagation();
             onChange((e.target as HTMLInputElement).value);
           }}
-          className="w-9 h-8 rounded-md cursor-pointer border-2 border-gray-200 hover:border-emerald-400 transition-colors" 
+          className="w-9 h-8 rounded-md cursor-pointer border-2 border-gray-200 hover:border-blue-400 transition-colors" 
           style={{ backgroundColor: value }}
         />
         <div className="absolute inset-0 rounded-md ring-2 ring-white pointer-events-none" />
@@ -2195,7 +2195,7 @@ const AlignPicker = ({ value, onChange }: { value: string; onChange: (v: string)
           size="sm" 
           className={`flex-1 h-7 rounded-md transition-all ${
             value === v 
-              ? 'bg-white shadow-sm text-emerald-600' 
+              ? 'bg-white shadow-sm text-blue-600' 
               : 'text-gray-500 hover:text-gray-700'
           }`}
           onClick={(e) => { 
@@ -2425,7 +2425,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
           <p className="text-[10px] text-gray-400 mt-1">
             Select text → use buttons above for formatting
           </p>
-          {variables.length > 0 && <div className="flex flex-wrap gap-1 mt-2">{variables.map(v => (<Badge key={v} variant="secondary" className="cursor-pointer text-[10px] h-5 hover:bg-emerald-100 hover:text-emerald-700 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpdate({ text: content.text + `{{${v}}}` }); }}>{`{{${v}}}`}</Badge>))}</div>}
+          {variables.length > 0 && <div className="flex flex-wrap gap-1 mt-2">{variables.map(v => (<Badge key={v} variant="secondary" className="cursor-pointer text-[10px] h-5 hover:bg-blue-100 hover:text-blue-700 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpdate({ text: content.text + `{{${v}}}` }); }}>{`{{${v}}}`}</Badge>))}</div>}
         </div>
         <ColorPicker label="Text Color" value={content.color || "#374151"} onChange={(v) => onUpdate({ color: v })} />
         <AlignPicker value={content.align || "left"} onChange={(v) => onUpdate({ align: v })} />
@@ -2499,12 +2499,12 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
               >
                 {uploadingImage ? (
                   <>
-                    <div className="w-3 h-3 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                    <div className="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
                     Uploading...
                   </>
                 ) : (
                   <>
-                    <Upload className="w-3 h-3" />
+                    <Upload className="w-3 h-3 text-blue-500" />
                     Upload Image
                   </>
                 )}
@@ -2580,7 +2580,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
                   if (sibling) sibling.textContent = '✅ Loaded';
                 }}
               />
-              <p className="text-[10px] text-emerald-500 mt-1 text-center">✅ Loaded</p>
+              <p className="text-[10px] text-blue-500 mt-1 text-center">✅ Loaded</p>
             </div>
           )}
         </div>
@@ -2736,11 +2736,11 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
         <div className="pt-2 border-t border-gray-100 space-y-2" onClick={(e) => e.stopPropagation()}>
           <Label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Options</Label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={content.showUnsubscribe !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showUnsubscribe: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-emerald-500" />
+            <input type="checkbox" checked={content.showUnsubscribe !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showUnsubscribe: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-blue-500" />
             <span className="text-[11px] text-gray-600">Show Unsubscribe Link</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={content.showSocial !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showSocial: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-emerald-500" />
+            <input type="checkbox" checked={content.showSocial !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showSocial: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-blue-500" />
             <span className="text-[11px] text-gray-600">Show Social Links</span>
           </label>
         </div>

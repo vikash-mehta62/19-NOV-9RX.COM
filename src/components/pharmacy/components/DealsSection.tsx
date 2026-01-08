@@ -244,7 +244,7 @@ export const DealsSection = () => {
 
                 {/* Content */}
                 <div className="p-3">
-                  <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2 group-hover:text-emerald-600 transition-colors">
+                  <h4 className="font-medium text-sm text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors">
                     {product.name}
                   </h4>
                   <div className="flex items-center gap-2">
@@ -259,7 +259,7 @@ export const DealsSection = () => {
                   </div>
                   <Button
                     size="sm"
-                    className="w-full mt-2 bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs"
+                    className="w-full mt-2 bg-blue-600 hover:bg-blue-700 text-white h-8 text-xs"
                     onClick={(e) => {
                       e.stopPropagation();
                       navigate(`/pharmacy/product/${product.id}`);

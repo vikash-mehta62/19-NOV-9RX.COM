@@ -284,7 +284,7 @@ export function CategoryManagement() {
 
         {/* Subcategories Section */}
         <Card className="border-gray-200 shadow-sm">
-          <CardHeader className="bg-gradient-to-r from-green-50 to-emerald-50 border-b">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
             <div className="flex justify-between items-center">
               <div>
                 <CardTitle className="text-lg font-bold text-gray-900">Subcategories</CardTitle>
@@ -305,7 +305,7 @@ export function CategoryManagement() {
                 }} 
                 size="sm"
                 disabled={!selectedCategory}
-                className="bg-green-600 hover:bg-green-700 text-white shadow-sm disabled:bg-gray-300"
+                className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm disabled:bg-gray-300"
               >
                 <Plus className="h-4 w-4 mr-2" />
                 Add

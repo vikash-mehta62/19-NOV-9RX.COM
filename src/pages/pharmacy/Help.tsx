@@ -120,15 +120,19 @@ const Help = () => {
           <CardHeader>
             <CardTitle className="text-lg">Quick Links</CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <CardContent className="lg:pb-4 xl:pb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-4">
               {quickLinks.map((link, index) => (
-                <Button key={index} variant="outline" className="justify-between h-auto py-3">
-                  <span className="flex items-center gap-2">
+                <Button
+                  key={index}
+                  variant="outline"
+                  className="w-full min-w-0 h-auto py-3 flex items-start justify-between gap-3"
+                >
+                  <span className="flex flex-1 items-start gap-2 min-w-0 text-left">
                     <link.icon className="w-4 h-4" />
-                    {link.title}
+                    <span className="whitespace-normal break-words">{link.title}</span>
                   </span>
-                  <ExternalLink className="w-4 h-4" />
+                  <ExternalLink className="w-4 h-4 shrink-0" />
                 </Button>
               ))}
             </div>

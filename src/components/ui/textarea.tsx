@@ -18,7 +18,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           "resize-y",
           error
             ? "border-red-300 dark:border-red-600 focus-visible:ring-red-500 focus-visible:border-red-500"
-            : "border-gray-300 dark:border-gray-600 focus-visible:ring-emerald-500 focus-visible:border-emerald-500",
+            : "border-gray-300 dark:border-gray-600 focus-visible:ring-blue-500 focus-visible:border-blue-500",
           className
         )}
         ref={ref}

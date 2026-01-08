@@ -34,6 +34,7 @@ import {
   Zap,
   HeartHandshake,
 } from "lucide-react";
+import logo from "../assests/home/9rx_logo.png";
 
 // Testimonials data
 const testimonials = [
@@ -157,11 +158,11 @@ const Login = () => {
       {/* Left Side - Visual Section with Animated Background */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         {/* Animated Gradient Background - Standardized to Emerald */}
-        <div className="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-600 to-emerald-700">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950">
           {/* Animated floating shapes */}
           <div className="absolute top-20 left-20 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse" />
           <div className="absolute bottom-20 right-20 w-96 h-96 bg-teal-400/20 rounded-full blur-3xl animate-pulse delay-1000" />
-          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-emerald-400/10 rounded-full blur-2xl animate-bounce" style={{ animationDuration: '3s' }} />
+          <div className="absolute top-1/2 left-1/3 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl animate-bounce" style={{ animationDuration: '3s' }} />
           
           {/* Grid pattern overlay */}
           <div className="absolute inset-0 opacity-10" style={{
@@ -173,7 +174,7 @@ const Login = () => {
         <div className="relative z-10 p-8 lg:p-12 flex flex-col justify-between h-full w-full text-white">
           {/* Logo */}
           <div className="flex items-center">
-            <img src="/final.png" alt="9RX Logo" className="h-16 w-auto brightness-0 invert" />
+            <img src={logo} alt="9RX Logo" className="h-18 w-auto brightness-0 invert" />
           </div>
 
           {/* Main Content */}
@@ -200,7 +201,7 @@ const Login = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-sm">{feature.title}</p>
-                    <p className="text-xs text-emerald-100">{feature.description}</p>
+                    <p className="text-xs text-blue-100">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -233,7 +234,7 @@ const Login = () => {
               </div>
               
               <div className={`transition-opacity duration-300 ${isAnimating ? 'opacity-0' : 'opacity-100'}`}>
-                <p className="text-emerald-50 italic mb-4">
+                <p className="text-blue-50 italic mb-4">
                   "{testimonials[currentTestimonial].text}"
                 </p>
                 <div className="flex items-center gap-3">
@@ -245,7 +246,7 @@ const Login = () => {
                   />
                   <div>
                     <p className="font-semibold text-sm">{testimonials[currentTestimonial].name}</p>
-                    <p className="text-xs text-emerald-200">{testimonials[currentTestimonial].role}</p>
+                    <p className="text-xs text-blue-200">{testimonials[currentTestimonial].role}</p>
                   </div>
                 </div>
               </div>
@@ -275,7 +276,7 @@ const Login = () => {
               {stats.map((stat, index) => (
                 <div key={index} className="text-center" role="listitem">
                   <p className="text-2xl font-bold text-amber-300">{stat.value}</p>
-                  <p className="text-xs text-emerald-200">{stat.label}</p>
+                  <p className="text-xs text-blue-200">{stat.label}</p>
                 </div>
               ))}
             </div>
@@ -303,9 +304,9 @@ const Login = () => {
       {/* Right Side - Form Section */}
       <div className="w-full lg:w-1/2 min-h-screen overflow-y-auto bg-gray-50">
         {/* Mobile Header */}
-        <div className="lg:hidden bg-gradient-to-r from-emerald-600 to-teal-600 p-6 text-white text-center">
+        <div className="lg:hidden bg-blue-600 p-6 text-white text-center">
           <img src="/final.png" alt="9RX Logo" className="h-12 mx-auto brightness-0 invert mb-3" />
-          <p className="text-sm text-emerald-100">Your Trusted Pharmacy Supplier</p>
+          <p className="text-sm text-blue-100">Your Trusted Pharmacy Supplier</p>
         </div>
 
         <div className="flex items-center justify-center min-h-[calc(100vh-120px)] lg:min-h-screen p-4 sm:p-6 lg:p-8">
@@ -339,13 +340,13 @@ const Login = () => {
                   <TabsList className="grid w-full grid-cols-2 bg-gray-100 p-1 rounded-xl h-12">
                     <TabsTrigger
                       value="login"
-                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-emerald-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
                       Sign In
                     </TabsTrigger>
                     <TabsTrigger
                       value="signup"
-                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-emerald-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-emerald-500"
+                      className="rounded-lg data-[state=active]:bg-white data-[state=active]:shadow-md data-[state=active]:text-blue-600 font-semibold transition-all min-h-[44px] focus-visible:ring-2 focus-visible:ring-blue-500"
                     >
                       Sign Up
                     </TabsTrigger>
@@ -372,16 +373,16 @@ const Login = () => {
 
                 {/* Benefits */}
                 <div className="grid grid-cols-3 gap-3 text-center" role="list" aria-label="Benefits">
-                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
-                    <Truck className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
+                  <div className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors" role="listitem">
+                    <Truck className="h-5 w-5 mx-auto text-blue-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">Free Shipping</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
-                    <HeartHandshake className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
+                  <div className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors" role="listitem">
+                    <HeartHandshake className="h-5 w-5 mx-auto text-blue-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">Best Prices</p>
                   </div>
-                  <div className="p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors" role="listitem">
-                    <Clock className="h-5 w-5 mx-auto text-emerald-600 mb-1" aria-hidden="true" />
+                  <div className="p-3 rounded-xl bg-blue-50 hover:bg-blue-100 transition-colors" role="listitem">
+                    <Clock className="h-5 w-5 mx-auto text-blue-600 mb-1" aria-hidden="true" />
                     <p className="text-xs font-medium text-gray-700">24/7 Support</p>
                   </div>
                 </div>
@@ -391,9 +392,9 @@ const Login = () => {
             {/* Bottom text */}
             <p className="text-center text-gray-500 text-sm mt-6">
               By signing in, you agree to our{" "}
-              <a href="/terms-of-service" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Terms of Service</a>
+              <a href="/terms-of-service" className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Terms of Service</a>
               {" "}and{" "}
-              <a href="/privacy-policy" className="text-emerald-600 hover:underline focus:outline-none focus:ring-2 focus:ring-emerald-500 rounded">Privacy Policy</a>
+              <a href="/privacy-policy" className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Privacy Policy</a>
             </p>
           </div>
         </div>

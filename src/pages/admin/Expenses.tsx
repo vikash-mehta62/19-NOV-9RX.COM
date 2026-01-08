@@ -346,7 +346,7 @@ const Expenses = () => {
             <div className="mt-4 md:mt-0 flex space-x-3">
               <Button
                 onClick={() => setShowAddExpense(true)}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Add Expense
@@ -395,7 +395,7 @@ const Expenses = () => {
               </CardHeader>
               <CardContent>
                 <div
-                  className={`text-2xl font-bold ${monthOverMonthChange >= 0 ? "text-emerald-600" : "text-red-600"}`}
+                  className={`text-2xl font-bold ${monthOverMonthChange >= 0 ? "text-blue-600" : "text-red-600"}`}
                 >
                   {monthOverMonthChange.toFixed(2)}%
                 </div>
@@ -429,7 +429,7 @@ const Expenses = () => {
                             <Filter className="h-4 w-4" />
                             Filter
                             {(searchTerm || startDate || endDate) && (
-                              <Badge className="ml-1 px-2 py-0.5 rounded-full bg-emerald-500 text-white">Active</Badge>
+                              <Badge className="ml-1 px-2 py-0.5 rounded-full bg-blue-500 text-white">Active</Badge>
                             )}
                           </Button>
                         </DialogTrigger>
@@ -466,7 +466,7 @@ const Expenses = () => {
                             </Button>
                             <Button
                               onClick={handleApplyFilters}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
                             >
                               Apply Filters
                             </Button>
@@ -493,7 +493,7 @@ const Expenses = () => {
                               onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
                             >
                               <ArrowDownUp
-                                className={`h-4 w-4 ${sortOrder === "desc" ? "text-emerald-500" : "text-gray-500"}`}
+                                className={`h-4 w-4 ${sortOrder === "desc" ? "text-blue-500" : "text-gray-500"}`}
                               />
                             </Button>
                           </TooltipTrigger>
@@ -508,7 +508,7 @@ const Expenses = () => {
                 <CardContent className="p-0">
                   {loading ? (
                     <div className="p-8 text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
                       <p className="mt-4 text-gray-600 dark:text-gray-400">Loading expenses...</p>
                     </div>
                   ) : (
@@ -540,7 +540,7 @@ const Expenses = () => {
                                       <Button
                                         variant="link"
                                         onClick={handleClearFilters} // Use the new clear filters handler
-                                        className="mt-2 text-emerald-500"
+                                        className="mt-2 text-blue-500"
                                       >
                                         Clear filters
                                       </Button>
@@ -557,7 +557,7 @@ const Expenses = () => {
                                       <div className="flex items-center gap-2">
                                         <Badge
                                           variant="outline"
-                                          className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
+                                          className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
                                         >
                                           {expense.name.charAt(0).toUpperCase()}
                                         </Badge>
@@ -610,7 +610,7 @@ const Expenses = () => {
                                 <Button
                                   variant="link"
                                   onClick={handleClearFilters} // Use the new clear filters handler
-                                  className="mt-2 text-emerald-500"
+                                  className="mt-2 text-blue-500"
                                 >
                                   Clear filters
                                 </Button>
@@ -627,7 +627,7 @@ const Expenses = () => {
                                     <Calendar className="h-4 w-4 text-gray-500" />
                                     {month}
                                   </h3>
-                                  <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg">
+                                  <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
                                     <Banknote className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                     <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                                       ${data.total.toLocaleString()}
@@ -655,7 +655,7 @@ const Expenses = () => {
                                             <div className="flex items-center gap-2">
                                               <Badge
                                                 variant="outline"
-                                                className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
+                                                className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
                                               >
                                                 {expense.name.charAt(0).toUpperCase()}
                                               </Badge>
@@ -717,13 +717,13 @@ const Expenses = () => {
                       data={filteredExpenses}
                       headers={headers}
                       filename="expenses.csv"
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-medium text-sm px-4 py-2 rounded-md shadow transition duration-200"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium text-sm px-4 py-2 rounded-md shadow transition duration-200"
                     >
                       <Download className="h-4 w-4" />
                       Export CSV
                     </CSVLink>
                     {/* Total Display */}
-                    <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-lg">
+                    <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Total:</span>
                       <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
                         ${totalFilteredExpenses.toLocaleString()}
@@ -785,7 +785,7 @@ const Expenses = () => {
                   value={newExpense.name}
                   onChange={(e) => setNewExpense({ ...newExpense, name: e.target.value })}
                   placeholder="Rent, Utilities, Materials, etc."
-                  className="focus:border-emerald-500 focus:ring-emerald-500"
+                  className="focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-2">
@@ -798,7 +798,7 @@ const Expenses = () => {
                   value={newExpense.amount}
                   onChange={(e) => setNewExpense({ ...newExpense, amount: Number.parseFloat(e.target.value) })}
                   placeholder="Enter amount"
-                  className="focus:border-emerald-500 focus:ring-emerald-500"
+                  className="focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-2">
@@ -818,7 +818,7 @@ const Expenses = () => {
                   onChange={(e) => setNewExpense({ ...newExpense, description: e.target.value })}
                   placeholder="Add additional details"
                   rows={3}
-                  className="focus:border-emerald-500 focus:ring-emerald-500"
+                  className="focus:border-blue-500 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -826,7 +826,7 @@ const Expenses = () => {
               <Button variant="outline" onClick={() => setShowAddExpense(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleAddExpense} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+              <Button onClick={handleAddExpense} className="bg-blue-600 hover:bg-blue-700 text-white">
                 Add Expense
               </Button>
             </DialogFooter>

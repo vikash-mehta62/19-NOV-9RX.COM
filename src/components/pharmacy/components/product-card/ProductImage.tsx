@@ -58,7 +58,7 @@ export const ProductImage = ({ image, name, offer, stockStatus }: ProductImagePr
         />
       </div>
       {offer && (
-        <Badge className="absolute top-2 right-2 bg-emerald-500">
+        <Badge className="absolute top-2 right-2 bg-blue-500">
           {offer}
         </Badge>
       )}

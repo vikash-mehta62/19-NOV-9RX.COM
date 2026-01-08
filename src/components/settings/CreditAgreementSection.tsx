@@ -169,18 +169,18 @@ const CreditAgreementSection = () => {
 
         {/* Terms Accepted Info */}
         {application.terms_accepted && (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex items-start gap-3">
-              <CheckCircle className="w-5 h-5 text-emerald-600 mt-0.5" />
+              <CheckCircle className="w-5 h-5 text-blue-600 mt-0.5" />
               <div className="flex-1">
-                <p className="font-medium text-emerald-800">Terms & Conditions Accepted</p>
-                <p className="text-sm text-emerald-700 mt-1">
+                <p className="font-medium text-blue-800">Terms & Conditions Accepted</p>
+                <p className="text-sm text-blue-700 mt-1">
                   You agreed to the Credit Line Terms and Conditions (Version {application.terms_version}) 
                   on {new Date(application.terms_accepted_at).toLocaleDateString()} at {new Date(application.terms_accepted_at).toLocaleTimeString()}
                 </p>
                 <Dialog open={showTerms} onOpenChange={setShowTerms}>
                   <DialogTrigger asChild>
-                    <Button variant="link" className="text-emerald-700 p-0 h-auto mt-2">
+                    <Button variant="link" className="text-blue-700 p-0 h-auto mt-2">
                       <Eye className="w-4 h-4 mr-1" />
                       View Full Terms
                     </Button>

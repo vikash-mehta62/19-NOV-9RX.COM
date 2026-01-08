@@ -72,9 +72,9 @@ const OrderSummaryCardComponent = ({
       <div className="text-center">
         {/* Animated Icon */}
         <div className="relative mx-auto w-20 h-20 mb-4">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-100 to-teal-100 rounded-full animate-pulse"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-100 to-blue-200 rounded-full animate-pulse"></div>
           <div className="absolute inset-2 bg-white rounded-full flex items-center justify-center shadow-inner">
-            <Package className="w-8 h-8 text-emerald-500" />
+            <Package className="w-8 h-8 text-blue-500" />
           </div>
           <Sparkles className="absolute -top-1 -right-1 w-5 h-5 text-amber-400 animate-bounce" />
         </div>
@@ -88,22 +88,22 @@ const OrderSummaryCardComponent = ({
         </p>
         
         {/* Quick Tips */}
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 rounded-lg p-3 text-left space-y-2">
-          <p className="text-xs font-medium text-emerald-700 flex items-center gap-1">
+        <div className="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-3 text-left space-y-2">
+          <p className="text-xs font-medium text-blue-700 flex items-center gap-1">
             <Sparkles className="w-3 h-3" />
             Quick Tips
           </p>
           <ul className="text-xs text-gray-600 space-y-1.5">
             <li className="flex items-start gap-2">
-              <ArrowRight className="w-3 h-3 mt-0.5 text-emerald-500 flex-shrink-0" />
+              <ArrowRight className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
               <span>Search products by name or SKU</span>
             </li>
             <li className="flex items-start gap-2">
-              <ArrowRight className="w-3 h-3 mt-0.5 text-emerald-500 flex-shrink-0" />
+              <ArrowRight className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
               <span>Click on a product to see available sizes</span>
             </li>
             <li className="flex items-start gap-2">
-              <ArrowRight className="w-3 h-3 mt-0.5 text-emerald-500 flex-shrink-0" />
+              <ArrowRight className="w-3 h-3 mt-0.5 text-blue-500 flex-shrink-0" />
               <span>Add custom items if needed</span>
             </li>
           </ul>
@@ -124,7 +124,7 @@ const OrderSummaryCardComponent = ({
       aria-label="Order summary"
     >
       {/* Header with Gradient */}
-      <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-4 sm:p-5">
+      <div className="bg-gradient-to-r from-blue-600 to-blue-700 p-4 sm:p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-white/90" aria-hidden="true" />
@@ -275,13 +275,13 @@ const OrderSummaryCardComponent = ({
                 <Separator className="my-2" />
                 {appliedDiscounts.map((discount, index) => (
                   <div key={index} className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-green-600 flex items-center gap-1">
+                    <span className="text-blue-600 flex items-center gap-1">
                       {discount.type === "promo" && <Tag className="h-3 w-3" />}
                       {discount.type === "rewards" && <Gift className="h-3 w-3" />}
                       {discount.type === "offer" && <Tag className="h-3 w-3" />}
                       {discount.name}
                     </span>
-                    <span className="font-medium text-green-600">
+                    <span className="font-medium text-blue-600">
                       -${discount.amount.toFixed(2)}
                     </span>
                   </div>
@@ -300,7 +300,7 @@ const OrderSummaryCardComponent = ({
                     ${total.toFixed(2)}
                   </span>
                 )}
-                <span className="text-xl sm:text-2xl font-bold text-green-600">
+                <span className="text-xl sm:text-2xl font-bold text-blue-600">
                   ${finalTotal.toFixed(2)}
                 </span>
               </div>

@@ -133,7 +133,7 @@ export const SearchAutocomplete = ({
             }
           }}
           placeholder={placeholder}
-          className="pl-10 pr-10 h-10 bg-gray-50 border-gray-200 focus:bg-white focus:border-emerald-500"
+          className="pl-10 pr-10 h-10 bg-gray-50 border-gray-200 focus:bg-white focus:border-blue-500"
         />
         {value && (
           <button
@@ -245,7 +245,7 @@ export const SearchAutocomplete = ({
                     <Badge
                       key={index}
                       variant="outline"
-                      className="cursor-pointer hover:bg-emerald-50 hover:border-emerald-300"
+                      className="cursor-pointer hover:bg-blue-50 hover:border-blue-300"
                       onClick={() => {
                         onChange(term);
                         handleSearchSubmit(term);

@@ -27,7 +27,7 @@ export function LoadingSpinner({
   };
 
   const colorClasses = {
-    primary: "text-emerald-600 dark:text-emerald-400",
+    primary: "text-blue-600 dark:text-blue-400",
     white: "text-white",
     gray: "text-gray-400 dark:text-gray-500",
   };
@@ -58,8 +58,8 @@ export function LoadingOverlay({ message = "Loading...", fullScreen = true }: Lo
     >
       <div className="flex flex-col items-center gap-4 p-6 sm:p-8 bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-200 dark:border-gray-700 animate-scale-in">
         <div className="relative">
-          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full border-4 border-emerald-100 dark:border-emerald-900/50" />
-          <div className="absolute inset-0 h-12 w-12 sm:h-14 sm:w-14 rounded-full border-4 border-emerald-600 dark:border-emerald-400 border-t-transparent animate-spin" />
+          <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full border-4 border-blue-100 dark:border-blue-900/50" />
+          <div className="absolute inset-0 h-12 w-12 sm:h-14 sm:w-14 rounded-full border-4 border-blue-600 dark:border-blue-400 border-t-transparent animate-spin" />
         </div>
         <p className="text-gray-700 dark:text-gray-300 font-medium text-sm sm:text-base">{message}</p>
       </div>
@@ -200,8 +200,8 @@ export function PageLoadingState({ title = "Loading content..." }: { title?: str
       aria-label={title}
     >
       <div className="relative">
-        <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full border-4 border-emerald-100 dark:border-emerald-900/50" />
-        <div className="absolute inset-0 h-14 w-14 sm:h-16 sm:w-16 rounded-full border-4 border-emerald-600 dark:border-emerald-400 border-t-transparent animate-spin" />
+        <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-full border-4 border-blue-100 dark:border-blue-900/50" />
+        <div className="absolute inset-0 h-14 w-14 sm:h-16 sm:w-16 rounded-full border-4 border-blue-600 dark:border-blue-400 border-t-transparent animate-spin" />
       </div>
       <p className="text-gray-600 dark:text-gray-400 font-medium text-sm sm:text-base">{title}</p>
     </div>

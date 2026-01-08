@@ -139,7 +139,7 @@ const SignaturePad = ({ onSignatureChange, width = 400, height = 150 }: Signatur
         </Button>
       </div>
 
-      <div className="relative border-2 border-dashed border-gray-300 rounded-xl bg-white overflow-hidden hover:border-emerald-400 transition-colors">
+      <div className="relative border-2 border-dashed border-gray-300 rounded-xl bg-white overflow-hidden hover:border-blue-400 transition-colors">
         <canvas
           ref={canvasRef}
           width={width}
@@ -162,7 +162,7 @@ const SignaturePad = ({ onSignatureChange, width = 400, height = 150 }: Signatur
       </div>
 
       {hasSignature && (
-        <div className="flex items-center gap-2 text-sm text-emerald-600">
+        <div className="flex items-center gap-2 text-sm text-blue-600">
           <Check className="w-4 h-4" />
           <span>Signature captured</span>
         </div>

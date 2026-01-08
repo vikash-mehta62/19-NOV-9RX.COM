@@ -949,12 +949,12 @@ export function PromoAndRewardsSection({
 
       {/* Credit Memo Section */}
       {(creditMemos.length > 0 || totalCreditBalance > 0) && (
-        <Card className={appliedCreditMemo ? "border-emerald-200 bg-emerald-50/50" : ""}>
+        <Card className={appliedCreditMemo ? "border-blue-200 bg-blue-50/50" : ""}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">
               <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <Wallet className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <Wallet className="h-4 w-4 text-blue-600 shrink-0" />
                   <span>Credit Memo Balance</span>
                 </div>
                 <Badge className="bg-emerald-100 text-emerald-800 w-fit text-xs">
@@ -965,13 +965,13 @@ export function PromoAndRewardsSection({
           </CardHeader>
           <CardContent className="space-y-3">
             {appliedCreditMemo ? (
-              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="flex items-center justify-between p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
                     <Wallet className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-medium text-emerald-800">{appliedCreditMemo.memo.memo_number}</p>
+                    <p className="font-medium text-blue-800">{appliedCreditMemo.memo.memo_number}</p>
                     <p className="text-sm text-emerald-600">
                       Saving ${appliedCreditMemo.amountUsed.toFixed(2)}
                     </p>
@@ -999,10 +999,10 @@ export function PromoAndRewardsSection({
                 creditMemos.map((memo) => (
                   <div
                     key={memo.id}
-                    className="p-3 border border-emerald-100 rounded-lg hover:bg-emerald-50 transition-colors space-y-2"
+                    className="p-3 border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors space-y-2"
                   >
                     <div className="flex items-start gap-2">
-                      <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                      <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0">
                         <Wallet className="h-4 w-4" />
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1026,7 +1026,7 @@ export function PromoAndRewardsSection({
                     <Button
                       size="sm"
                       onClick={() => handleApplyCreditMemo(memo, memo.balance)}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white w-full"
+                      className="bg-blue-600 hover:bg-blue-700 text-white w-full"
                     >
                       Apply
                     </Button>

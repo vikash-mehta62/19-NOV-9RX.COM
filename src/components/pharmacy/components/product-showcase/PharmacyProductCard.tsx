@@ -82,7 +82,7 @@ export const PharmacyProductCard = ({
     }
     const userType = sessionStorage.getItem('userType')
     if (userType === 'admin') {
-      navigate(`/product/${product.id}`)
+      navigate(`/admin/product/${product.id}`)
     } else {
       navigate(`/pharmacy/product/${product.id}`)
     }
@@ -91,10 +91,10 @@ export const PharmacyProductCard = ({
   return (
     <ScaleOnTap>
       <Card 
-        className={`relative bg-white border rounded-xl overflow-hidden transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 ${
+        className={`relative bg-white border rounded-xl overflow-hidden transition-all duration-200 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 ${
           isOutOfStock 
             ? "border-gray-200 opacity-60" 
-            : "border-gray-200 hover:border-emerald-300 hover:shadow-md hover:-translate-y-1"
+            : "border-gray-200 hover:border-blue-300 hover:shadow-md hover:-translate-y-1"
         }`}
         onClick={handleCardClick}
         tabIndex={0}
@@ -105,7 +105,7 @@ export const PharmacyProductCard = ({
       {/* Top Left Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
         {sizesCount > 1 && (
-          <Badge className="bg-emerald-500 text-white text-[10px] px-2 py-0.5">
+          <Badge className="bg-blue-500 text-white text-[10px] px-2 py-0.5">
             {sizesCount} Sizes
           </Badge>
         )}
@@ -146,7 +146,7 @@ export const PharmacyProductCard = ({
       {/* Product Info */}
       <div className="p-2.5 sm:p-3 space-y-1.5 sm:space-y-2">
         {/* Product Name */}
-        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-emerald-600 transition-colors min-h-[32px] sm:min-h-[40px]" title={product.name}>
+        <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-blue-600 transition-colors min-h-[32px] sm:min-h-[40px]" title={product.name}>
           {product.name}
         </h3>
 
@@ -193,7 +193,7 @@ export const PharmacyProductCard = ({
           <Button
             variant="ghost"
             size="sm"
-            className="w-full h-8 text-xs text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 p-1 mt-1"
+            className="w-full h-8 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 p-1 mt-1"
             onClick={(e) => {
               e.stopPropagation()
               setShowSizes(!showSizes)
@@ -225,16 +225,16 @@ export const PharmacyProductCard = ({
                     key={index} 
                     className={`flex items-center justify-between p-2 rounded text-xs ${
                       isMatching 
-                        ? 'bg-emerald-100 border border-emerald-200' 
+                        ? 'bg-blue-100 border border-blue-200' 
                         : 'bg-white border border-gray-200'
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`font-medium ${isMatching ? 'text-emerald-800' : 'text-gray-900'}`}>
+                      <span className={`font-medium ${isMatching ? 'text-blue-800' : 'text-gray-900'}`}>
                         {size.size_value} {size.size_unit}
                       </span>
                       {isMatching && (
-                        <Badge variant="secondary" className="bg-emerald-200 text-emerald-800 text-xs px-1 py-0">
+                        <Badge variant="secondary" className="bg-blue-200 text-blue-800 text-xs px-1 py-0">
                           Match
                         </Badge>
                       )}
@@ -243,7 +243,7 @@ export const PharmacyProductCard = ({
                       )}
                     </div>
                     <div className="text-right">
-                      <div className={`font-semibold ${isMatching ? 'text-emerald-800' : 'text-gray-900'}`}>
+                      <div className={`font-semibold ${isMatching ? 'text-blue-800' : 'text-gray-900'}`}>
                         ${(size.price || 0).toFixed(2)}
                       </div>
                       {size.stock !== undefined && (
@@ -262,7 +262,7 @@ export const PharmacyProductCard = ({
         {/* View Sizes Button */}
         {!isOutOfStock && (
           <Button
-            className="w-full h-9 sm:h-11 min-h-[36px] sm:min-h-[44px] text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg sm:rounded-xl mt-1.5 sm:mt-2 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 active:scale-95 transition-transform"
+            className="w-full h-9 sm:h-11 min-h-[36px] sm:min-h-[44px] text-xs sm:text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg sm:rounded-xl mt-1.5 sm:mt-2 focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 active:scale-95 transition-transform"
             onClick={(e) => {
               e.stopPropagation()
               handleCardClick()

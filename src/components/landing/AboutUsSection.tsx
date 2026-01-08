@@ -62,10 +62,10 @@ const AboutUsSection = () => {
   };
 
   return (
-    <section className="py-24 bg-gradient-to-b from-white to-emerald-50" id="about">
+    <section className="py-24 bg-gradient-to-b from-white to-blue-50" id="about">
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
-          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-emerald-700 to-emerald-500 bg-clip-text text-transparent animate-fade-in">
+          <h2 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-700 to-blue-500 bg-clip-text text-transparent animate-fade-in">
             Leading Pharmacy Distribution
           </h2>
           <p className="text-gray-600 text-lg max-w-3xl mx-auto animate-fade-in">
@@ -73,10 +73,10 @@ const AboutUsSection = () => {
           </p>
         </div>
 
-        <div className="max-w-3xl mx-auto mb-16 bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-2xl p-8 shadow-lg transform transition-all duration-500 hover:shadow-xl hover:scale-[1.02]">
+        <div className="max-w-3xl mx-auto mb-16 bg-gradient-to-br from-blue-50 to-blue-100 rounded-2xl p-8 shadow-lg transform transition-all duration-500 hover:shadow-xl hover:scale-[1.02]">
           <div className="flex items-center gap-3 mb-6">
-            <Calculator className="w-8 h-8 text-emerald-600 animate-bounce" />
-            <h3 className="text-2xl text-emerald-800 font-semibold">Calculate Your Potential Savings</h3>
+            <Calculator className="w-8 h-8 text-blue-600 animate-bounce" />
+            <h3 className="text-2xl text-blue-800 font-semibold">Calculate Your Potential Savings</h3>
           </div>
           
           <div className="space-y-6">
@@ -87,8 +87,8 @@ const AboutUsSection = () => {
                   onClick={() => handleProductToggle(product.id)}
                   className={`p-4 rounded-xl cursor-pointer transition-all duration-300 transform hover:scale-105 
                     ${selectedProducts.includes(product.id) 
-                      ? 'bg-emerald-100 border-2 border-emerald-500 shadow-lg' 
-                      : 'bg-white border-2 border-transparent hover:border-emerald-200'}`}
+                      ? 'bg-blue-100 border-2 border-blue-500 shadow-lg' 
+                      : 'bg-white border-2 border-transparent hover:border-blue-200'}`}
                 >
                   <div className="flex items-center gap-3">
                     <Checkbox
@@ -96,7 +96,7 @@ const AboutUsSection = () => {
                       onCheckedChange={() => handleProductToggle(product.id)}
                     />
                     <div className="flex items-center gap-2">
-                      <ShoppingBag className="w-5 h-5 text-emerald-500" />
+                      <ShoppingBag className="w-5 h-5 text-blue-500" />
                       <span className="font-medium">{product.name}</span>
                     </div>
                   </div>
@@ -127,7 +127,7 @@ const AboutUsSection = () => {
             {!showForm ? (
               <Button 
                 onClick={() => setShowForm(true)}
-                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white group transition-all duration-300"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white group transition-all duration-300"
               >
                 <Percent className="w-5 h-5 mr-2 group-hover:rotate-12 transition-transform" />
                 Calculate My Savings
@@ -156,7 +156,7 @@ const AboutUsSection = () => {
                 />
                 <Button 
                   type="submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white group"
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white group"
                 >
                   <ChartBar className="w-5 h-5 mr-2 group-hover:scale-110 transition-transform" />
                   Show My Savings
@@ -170,7 +170,7 @@ const AboutUsSection = () => {
         <div className="bg-white rounded-2xl shadow-lg p-8 md:p-12 hover:shadow-xl transition-all duration-300">
           <div className="grid md:grid-cols-2 gap-12">
             <div>
-              <h3 className="text-2xl font-bold text-emerald-600 mb-6 flex items-center gap-2">
+              <h3 className="text-2xl font-bold text-blue-600 mb-6 flex items-center gap-2">
                 <Smile className="w-6 h-6" />
                 Our Vision
               </h3>
@@ -179,17 +179,17 @@ const AboutUsSection = () => {
               </p>
               <ul className="space-y-3 text-gray-600">
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                   <span>Quality-Assured Products</span>
                 </li>
                 <li className="flex items-center gap-2">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                  <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                   <span>Pharmacy-Focused Service</span>
                 </li>
               </ul>
             </div>
             <div>
-              <h3 className="text-2xl font-bold text-emerald-600 mb-6">Our Commitment</h3>
+              <h3 className="text-2xl font-bold text-blue-600 mb-6">Our Commitment</h3>
               <div className="space-y-4">
                 <ValueItem
                   title="Pharmacy Support Excellence"
@@ -217,7 +217,7 @@ const AboutUsSection = () => {
 };
 
 const ValueItem = ({ title, description }: { title: string; description: string }) => (
-  <div className="border-l-2 border-emerald-500 pl-4">
+  <div className="border-l-2 border-blue-500 pl-4">
     <h4 className="font-semibold text-gray-800 mb-1">{title}</h4>
     <p className="text-gray-600 text-sm">{description}</p>
   </div>

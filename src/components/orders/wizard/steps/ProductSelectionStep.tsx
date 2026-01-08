@@ -350,11 +350,11 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   return (
     <div className="space-y-4">
       {/* Header with Search and Stats */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+      <div className="bg-gradient-to-r from-blue-50 to-teal-50 border border-blue-200 rounded-xl p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-              <Package className="w-5 h-5 text-emerald-600" />
+              <Package className="w-5 h-5 text-blue-600" />
               Add Products to Order
             </h2>
             <p className="text-sm text-gray-600 mt-0.5">
@@ -366,13 +366,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
               onClick={() => setShowCustomProductDialog(true)} 
               variant="outline" 
               size="sm"
-              className="h-8 text-xs gap-1.5 border-emerald-300 hover:bg-emerald-50"
+              className="h-8 text-xs gap-1.5 border-blue-300 hover:bg-blue-50"
             >
-              <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+              <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               Custom Item
             </Button>
             {orderTotals.itemCount > 0 && (
-              <Badge className="bg-emerald-600 text-white text-xs px-2.5 py-1">
+              <Badge className="bg-blue-600 text-white text-xs px-2.5 py-1">
                 {orderTotals.itemCount} items • ${orderTotals.subtotal.toFixed(2)}
               </Badge>
             )}
@@ -386,7 +386,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             placeholder="Quick search by product name or SKU..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9 h-10 bg-white border-gray-200 focus:border-emerald-400 focus:ring-emerald-400"
+            className="pl-9 h-10 bg-white border-gray-200 focus:border-blue-400 focus:ring-blue-400"
           />
           {searchQuery && (
             <Button 
@@ -405,9 +405,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         {/* Left: Category Navigation */}
         <div className="col-span-3">
           <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3 py-2.5 border-b bg-emerald-50">
+            <div className="px-3 py-2.5 border-b bg-blue-50">
               <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-emerald-600" />
+                <Layers className="w-4 h-4 text-blue-600" />
                 Categories
               </span>
             </div>
@@ -419,7 +419,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                   className={cn(
                     "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
                     !selectedCategory 
-                      ? "bg-emerald-600 text-white" 
+                      ? "bg-blue-600 text-white" 
                       : "hover:bg-gray-100 text-gray-700"
                   )}
                 >
@@ -429,7 +429,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                   </span>
                   <span className={cn(
                     "text-xs font-medium px-2 py-0.5 rounded-full",
-                    !selectedCategory ? "bg-white/20" : "bg-emerald-100 text-emerald-700"
+                    !selectedCategory ? "bg-white/20" : "bg-blue-100 text-blue-700"
                   )}>
                     {products.length}
                   </span>
@@ -443,7 +443,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                     className={cn(
                       "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
                       selectedCategory === category.name
-                        ? "bg-emerald-600 text-white"
+                        ? "bg-blue-600 text-white"
                         : "hover:bg-gray-100 text-gray-700"
                     )}
                   >
@@ -488,7 +488,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
               <div className="p-2 space-y-2">
                 {loading ? (
                   <div className="flex items-center justify-center h-24">
-                    <div className="w-5 h-5 border-2 border-emerald-200 border-t-emerald-600 rounded-full animate-spin"></div>
+                    <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="text-center py-6">
@@ -500,14 +500,14 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                     <div key={product.id} className={cn(
                       "border rounded-lg overflow-hidden transition-all",
                       expandedProduct === product.id 
-                        ? "border-emerald-400 ring-1 ring-emerald-100" 
+                        ? "border-blue-400 ring-1 ring-blue-100" 
                         : "hover:border-gray-300"
                     )}>
                       {/* Product Header */}
                       <div
                         className={cn(
                           "flex items-center gap-3 p-2.5 cursor-pointer",
-                          expandedProduct === product.id ? "bg-emerald-50" : "hover:bg-gray-50"
+                          expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50"
                         )}
                         onClick={() => handleProductClick(product)}
                       >
@@ -527,7 +527,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 hover:bg-emerald-100 rounded-full"
+                            className="h-7 w-7 p-0 hover:bg-blue-100 rounded-full"
                             onClick={(e) => {
                               e.stopPropagation();
                               const userType = sessionStorage.getItem('userType')?.toLowerCase();
@@ -540,11 +540,11 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               }
                             }}
                           >
-                            <Eye className="w-3.5 h-3.5 text-emerald-600" />
+                            <Eye className="w-3.5 h-3.5 text-blue-600" />
                           </Button>
                           <ChevronDown className={cn(
                             "w-4 h-4 transition-transform",
-                            expandedProduct === product.id ? "rotate-180 text-emerald-600" : "text-gray-400"
+                            expandedProduct === product.id ? "rotate-180 text-blue-600" : "text-gray-400"
                           )} />
                         </div>
                       </div>
@@ -567,7 +567,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               </p>
                               <Button 
                                 size="sm" 
-                                className="mt-2 h-9 w-full bg-emerald-600 hover:bg-emerald-700"
+                                className="mt-2 h-9 w-full bg-blue-600 hover:bg-blue-700"
                                 onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); }}
                               >
                                 <Plus className="w-4 h-4 mr-1.5" />
@@ -588,13 +588,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         {/* Right: Order Cart */}
         <div className="col-span-4">
           <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3 py-2.5 border-b bg-emerald-50 flex items-center justify-between">
+            <div className="px-3 py-2.5 border-b bg-blue-50 flex items-center justify-between">
               <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-emerald-600" />
+                <ShoppingBag className="w-4 h-4 text-blue-600" />
                 Order ({cartItems.length})
               </span>
               {cartItems.length > 0 && (
-                <span className="text-base font-bold text-emerald-600">${orderTotals.subtotal.toFixed(2)}</span>
+                <span className="text-base font-bold text-blue-600">${orderTotals.subtotal.toFixed(2)}</span>
               )}
             </div>
 
@@ -668,17 +668,17 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-7 text-xs text-gray-500 hover:text-emerald-600 px-2"
+                          className="h-7 text-xs text-gray-500 hover:text-blue-600 px-2"
                           onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}
                         >
                           <FileText className="w-3.5 h-3.5 mr-1" />
                           {item.description ? "Edit Note" : "Add Note"}
                         </Button>
-                        <span className="text-base font-bold text-emerald-600">${item.price?.toFixed(2)}</span>
+                        <span className="text-base font-bold text-blue-600">${item.price?.toFixed(2)}</span>
                       </div>
                       
                       {item.description && (
-                        <p className="text-xs text-amber-700 bg-amber-50 p-2 rounded mt-2">📝 {item.description}</p>
+                        <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded mt-2">📝 {item.description}</p>
                       )}
                     </div>
                   ))}
@@ -692,7 +692,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         <DialogContent className="sm:max-w-sm rounded-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-1 text-sm">
-              <FileText className="w-4 h-4 text-emerald-600" />
+              <FileText className="w-4 h-4 text-blue-600" />
               Product Notes
             </DialogTitle>
           </DialogHeader>
@@ -720,7 +720,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             <Button variant="outline" size="sm" onClick={() => setShowNotesDialog(false)} className="h-7 text-xs">
               Cancel
             </Button>
-            <Button size="sm" onClick={handleSaveNotes} className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700">
+            <Button size="sm" onClick={handleSaveNotes} className="h-7 text-xs bg-blue-600 hover:bg-blue-700">
               Save
             </Button>
           </DialogFooter>

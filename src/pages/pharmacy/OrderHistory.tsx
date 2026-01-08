@@ -116,10 +116,10 @@ console.log(data)
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4">
-              <div className="text-2xl font-bold text-emerald-700">{filteredOrders.length}</div>
-              <div className="text-sm text-emerald-600">Total Orders</div>
+              <div className="text-2xl font-bold text-blue-700">{filteredOrders.length}</div>
+              <div className="text-sm text-blue-600">Total Orders</div>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
@@ -146,7 +146,7 @@ console.log(data)
               <div className="text-sm text-purple-600">Total Order Value</div>
             </CardContent>
           </Card>
-          <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
             <CardContent className="p-4">
               <div className="text-2xl font-bold text-green-700">
                 ${filteredOrders.reduce((sum, o) => sum + (o.payment_status?.toLowerCase() === 'paid' ? (o.total_amount || 0) : 0), 0).toFixed(2)}
@@ -198,7 +198,7 @@ console.log(data)
           {loading ? (
             <Card>
               <CardContent className="p-8 text-center">
-                <RefreshCw className="w-8 h-8 animate-spin text-emerald-500 mx-auto mb-4" />
+                <RefreshCw className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-4" />
                 <p className="text-gray-500">Loading order history...</p>
               </CardContent>
             </Card>
@@ -208,7 +208,7 @@ console.log(data)
                 <Package className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <h3 className="text-lg font-medium text-gray-900">No orders found</h3>
                 <p className="text-gray-500 mt-1">Start shopping to see your order history here</p>
-                <Button className="mt-4 bg-emerald-600 hover:bg-emerald-700" onClick={() => navigate("/pharmacy/products")}>
+                <Button className="mt-4 bg-blue-600 hover:bg-blue-700" onClick={() => navigate("/pharmacy/products")}>
                   Browse Products
                 </Button>
               </CardContent>
@@ -219,8 +219,8 @@ console.log(data)
                 <CardContent className="p-4">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      <div className="p-3 bg-emerald-100 rounded-lg">
-                        <Package className="w-6 h-6 text-emerald-600" />
+                      <div className="p-3 bg-blue-100 rounded-lg">
+                        <Package className="w-6 h-6 text-blue-600" />
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -235,7 +235,7 @@ console.log(data)
                           {order.created_at ? format(new Date(order.created_at), "MMM dd, yyyy 'at' h:mm a") : "N/A"}
                         </p>
                         <p className="text-sm text-gray-600 mt-1">
-                          {order.items?.length || 0} items • Total: <span className="font-semibold text-emerald-600">${order.total_amount?.toFixed(2) || "0.00"}</span>
+                          {order.items?.length || 0} items • Total: <span className="font-semibold text-blue-600">${order.total_amount?.toFixed(2) || "0.00"}</span>
                         </p>
                       </div>
                     </div>
@@ -244,7 +244,7 @@ console.log(data)
                         <Eye className="w-4 h-4 mr-1" />
                         View Details
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-emerald-600">
+                      <Button variant="ghost" size="sm" className="text-blue-600">
                         <RefreshCw className="w-4 h-4 mr-1" />
                         Reorder
                       </Button>

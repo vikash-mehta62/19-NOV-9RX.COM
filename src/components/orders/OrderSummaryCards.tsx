@@ -162,11 +162,11 @@ export function RevenueSummaryCards({
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-      <Card className="overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+      <Card className="overflow-hidden bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium text-emerald-100 uppercase tracking-wide">
+              <p className="text-xs font-medium text-blue-100 uppercase tracking-wide">
                 Total Revenue
               </p>
               <p className="text-2xl font-bold mt-1">

@@ -410,8 +410,8 @@ const PendingCreditTerms = () => {
             {/* Step 2: Sign */}
             {currentStep === 2 && (
               <div className="space-y-6 p-4">
-                <div className="bg-emerald-50 rounded-xl p-4">
-                  <h3 className="font-semibold text-emerald-800 mb-2">Agreement Summary</h3>
+                <div className="bg-blue-50 rounded-xl p-4">
+                  <h3 className="font-semibold text-blue-800 mb-2">Agreement Summary</h3>
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <p className="text-emerald-600">Credit Limit</p>
@@ -488,7 +488,7 @@ const PendingCreditTerms = () => {
                   <Button
                     onClick={handleAcceptTerms}
                     disabled={submitting || !signature || !signedName.trim()}
-                    className="bg-emerald-600 hover:bg-emerald-700"
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
                     {submitting ? (
                       <>

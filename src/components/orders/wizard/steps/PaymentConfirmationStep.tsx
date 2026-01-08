@@ -374,9 +374,9 @@ export const PaymentConfirmationStep = ({
               </label>
               <p className="text-xs text-gray-600 mt-1">
                 By checking this box, you agree to our{" "}
-                <a href="/terms-of-service" target="_blank" className="text-emerald-600 hover:underline">terms of service</a>
+                <a href="/terms-of-service" target="_blank" className="text-blue-600 hover:underline">terms of service</a>
                 {" "}and{" "}
-                <a href="/privacy-policy" target="_blank" className="text-emerald-600 hover:underline">privacy policy</a>
+                <a href="/privacy-policy" target="_blank" className="text-blue-600 hover:underline">privacy policy</a>
               </p>
             </div>
           </div>
@@ -405,9 +405,9 @@ export const PaymentConfirmationStep = ({
       </Card>
 
       {/* Final Order Summary */}
-      <Card className="border-2 border-green-500 bg-green-50">
+      <Card className="border-2 border-blue-500 bg-blue-50">
         <CardHeader>
-          <CardTitle className="text-green-900">Final Order Summary</CardTitle>
+          <CardTitle className="text-blue-900">Final Order Summary</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -431,18 +431,18 @@ export const PaymentConfirmationStep = ({
             {/* Show applied discounts */}
             {appliedDiscounts.length > 0 && (
               <>
-                <Separator className="bg-green-300" />
+                <Separator className="bg-blue-300" />
                 {appliedDiscounts.map((discount, index) => (
                   <div key={index} className="flex justify-between text-sm">
-                    <span className="text-green-700 flex items-center gap-1">
-                      <Badge variant="outline" className="text-xs bg-green-100 text-green-700 border-green-300">
+                    <span className="text-blue-700 flex items-center gap-1">
+                      <Badge variant="outline" className="text-xs bg-blue-100 text-blue-700 border-blue-300">
                         {discount.type === "redeemed_reward" ? "Reward" : 
                          discount.type === "promo" ? "Promo" : 
                          discount.type === "offer" ? "Offer" : "Points"}
                       </Badge>
                       {discount.name}
                     </span>
-                    <span className="font-medium text-green-600">
+                    <span className="font-medium text-blue-600">
                       {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
                     </span>
                   </div>
@@ -450,19 +450,19 @@ export const PaymentConfirmationStep = ({
               </>
             )}
             
-            <Separator className="bg-green-300" />
+            <Separator className="bg-blue-300" />
             <div className="flex justify-between text-xl font-bold">
               <span className="text-gray-900">Total:</span>
-              <span className="text-green-700">${Math.max(0, total - totalDiscount).toFixed(2)}</span>
+              <span className="text-blue-700">${Math.max(0, total - totalDiscount).toFixed(2)}</span>
             </div>
             {totalDiscount > 0 && (
-              <div className="text-right text-sm text-green-600">
+              <div className="text-right text-sm text-blue-600">
                 You save: ${totalDiscount.toFixed(2)}
               </div>
             )}
           </div>
 
-          <div className="mt-4 pt-4 border-t border-green-300">
+          <div className="mt-4 pt-4 border-t border-blue-300">
             <div className="flex items-center gap-2 text-sm text-gray-700">
               <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
                 {selectedPaymentMethod === "card" && "Credit Card"}

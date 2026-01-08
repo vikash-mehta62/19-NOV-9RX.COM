@@ -20,7 +20,7 @@ export const ProductActions = ({
 }: ProductActionsProps) => {
   return (
     <Button 
-      className={`w-full ${isInCart ? 'bg-gray-500' : 'bg-emerald-600 hover:bg-emerald-700'} transition-all duration-300`}
+      className={`w-full ${isInCart ? 'bg-gray-500' : 'bg-blue-600 hover:bg-blue-700'} transition-all duration-300`}
       onClick={onAddToCart}
       disabled={isInCart || isAddingToCart || disabled}
     >

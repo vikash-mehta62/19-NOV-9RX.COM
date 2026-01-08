@@ -41,12 +41,12 @@ const ReturnPolicy = () => {
 
             {/* Quick Reference */}
             <div className="grid md:grid-cols-2 gap-4 mb-8">
-              <div className="bg-emerald-50 rounded-xl p-5 border border-emerald-200">
+              <div className="bg-blue-50 rounded-xl p-5 border border-blue-200">
                 <div className="flex items-center gap-3 mb-3">
-                  <CheckCircle className="w-6 h-6 text-emerald-600" />
-                  <h3 className="font-semibold text-emerald-800">Eligible for Return</h3>
+                  <CheckCircle className="w-6 h-6 text-blue-600" />
+                  <h3 className="font-semibold text-blue-800">Eligible for Return</h3>
                 </div>
-                <ul className="text-emerald-700 text-sm space-y-2">
+                <ul className="text-blue-700 text-sm space-y-2">
                   <li>• Unused products in original packaging</li>
                   <li>• Items returned within 30 days</li>
                   <li>• Products with manufacturing defects</li>
@@ -72,28 +72,28 @@ const ReturnPolicy = () => {
               
               <div className="space-y-4 mb-8">
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 text-emerald-700 font-bold">1</div>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">1</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Contact Customer Service</h4>
                     <p className="text-gray-600 text-sm">Email returns@9rx.com or call +1 (800) 969-6295 to initiate a return</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 text-emerald-700 font-bold">2</div>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">2</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Receive RMA Number</h4>
                     <p className="text-gray-600 text-sm">We'll provide a Return Merchandise Authorization number and shipping label</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 text-emerald-700 font-bold">3</div>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">3</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Ship the Item</h4>
                     <p className="text-gray-600 text-sm">Pack the item securely in original packaging and ship using the provided label</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
-                  <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0 text-emerald-700 font-bold">4</div>
+                  <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">4</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Receive Refund</h4>
                     <p className="text-gray-600 text-sm">Refunds are processed within 5-10 business days after we receive the return</p>

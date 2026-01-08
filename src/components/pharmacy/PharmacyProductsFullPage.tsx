@@ -12,7 +12,8 @@ import { PromoBanner } from "./components/PromoBanner"
 import { SearchAutocomplete } from "./components/SearchAutocomplete"
 import { StickyCartSummary } from "./components/StickyCartSummary"
 import { PharmacyFilterSidebar } from "./components/product-showcase/PharmacyFilterSidebar"
-import { PharmacyProductGrid } from "./components/product-showcase/PharmacyProductGrid"
+import { PharmacyProductGrid, FlattenedSizeItem } from "./components/product-showcase/PharmacyProductGrid"
+import { PharmacySizeCard } from "./components/product-showcase/PharmacySizeCard"
 import { InlineProductSizes } from "./components/InlineProductSizes"
 import { supabase } from "@/supabaseClient"
 import { SizeMatchBanner } from "@/components/search/SizeMatchBanner"
@@ -22,7 +23,7 @@ import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
 import {
-  Loader2, Filter, X,
+  Loader2, Filter, X, ArrowLeft,
   ShoppingCart, Settings,
   Package, LogOut, Receipt, ChevronDown, Gift,
   HelpCircle, Heart, History, Wallet, FileBarChart
@@ -38,7 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
@@ -49,10 +50,12 @@ import image3 from "../../assests/home/image3.jpg";
 import image4 from "../../assests/home/image4.jpg";
 import image5 from "../../assests/home/image5.jpg";
 import image6 from "../../assests/home/image6.jpg";
+import logo from "../../assests/home/9rx_logo.png";
 
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
+  const location = useLocation()
   const { cartItems } = useCart()
   const [products, setProducts] = useState<ProductDetails[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -102,6 +105,25 @@ export const PharmacyProductsFullPage = () => {
 
     fetchCategories();
   }, []);
+
+  // Set category and product from navigation state (when coming back from product/size details)
+  useEffect(() => {
+    const state = location.state as { selectedCategory?: string; selectedProductId?: string } | null;
+    if (state?.selectedCategory) {
+      setSelectedCategory(state.selectedCategory);
+    }
+    if (state?.selectedProductId) {
+      // Find and expand the product after products are loaded
+      const productToExpand = products.find(p => p.id === state.selectedProductId);
+      if (productToExpand) {
+        setSelectedProduct(productToExpand);
+      }
+    }
+    // Clear the state to prevent re-setting on refresh
+    if (state?.selectedCategory || state?.selectedProductId) {
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state, products]);
 
   // Fetch products from Supabase
   useEffect(() => {
@@ -466,7 +488,7 @@ export const PharmacyProductsFullPage = () => {
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Logo */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <img src="/logo.png" alt="Logo" className="h-8 sm:h-10 w-auto" />
+              <img src={logo} alt="Logo" className="h-8 sm:h-16 w-auto" />
             </div>
 
             {/* Search Bar with Autocomplete */}
@@ -490,7 +512,7 @@ export const PharmacyProductsFullPage = () => {
                   <Button variant="ghost" size="sm" className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2">
                     <Avatar className="h-7 w-7 sm:h-8 sm:w-8">
                       <AvatarImage src={userProfile?.avatar} />
-                      <AvatarFallback className="bg-emerald-100 text-emerald-700 text-[10px] sm:text-xs">
+                      <AvatarFallback className="bg-blue-100 text-blue-700 text-[10px] sm:text-xs">
                         {userProfile?.first_name?.[0] || userProfile?.company_name?.[0] || "U"}
                       </AvatarFallback>
                     </Avatar>
@@ -630,13 +652,13 @@ export const PharmacyProductsFullPage = () => {
                 {/* Mobile Filter Button */}
                 <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
                   <SheetTrigger asChild>
-                    <Button variant="outline" size="sm" className="lg:hidden border-emerald-200 text-emerald-700 hover:bg-emerald-50 h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3">
+                    <Button variant="outline" size="sm" className="lg:hidden border-blue-200 text-blue-700 hover:bg-blue-50 h-8 sm:h-9 text-xs sm:text-sm px-2 sm:px-3">
                       <Filter className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" />
                       Filters
                     </Button>
                   </SheetTrigger>
                   <SheetContent side="left" className="w-[280px] sm:w-[300px] p-0">
-                    <SheetHeader className="p-3 sm:p-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600">
+                    <SheetHeader className="p-3 sm:p-4 border-b bg-gradient-to-r from-blue-600 to-teal-600">
                       <SheetTitle className="text-white text-sm sm:text-base">Filters</SheetTitle>
                     </SheetHeader>
                     <ScrollArea className="h-[calc(100vh-60px)]">
@@ -660,9 +682,13 @@ export const PharmacyProductsFullPage = () => {
                 </Sheet>
 
                 <div className="flex items-center gap-1.5 sm:gap-2">
-                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-emerald-500 rounded-full"></div>
+                  <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></div>
                   <span className="text-xs sm:text-sm text-gray-700">
-                    <span className="font-semibold text-emerald-600">{filteredProducts.length}</span> products
+                    <span className="font-semibold text-blue-600">
+                      {selectedCategory.toUpperCase() === "RX PAPER BAGS" 
+                        ? filteredProducts.reduce((total, p) => total + (p.sizes?.length || 0), 0)
+                        : filteredProducts.length}
+                    </span> {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? "sizes" : "products"}
                     {selectedCategory !== "all" && (
                       <span className="hidden sm:inline text-gray-500"> in "{selectedCategory}"</span>
                     )}
@@ -675,7 +701,7 @@ export const PharmacyProductsFullPage = () => {
                 <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
                   <button
                     onClick={() => setViewMode("grid")}
-                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
                       <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z" />
@@ -683,7 +709,7 @@ export const PharmacyProductsFullPage = () => {
                   </button>
                   <button
                     onClick={() => setViewMode("compact")}
-                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-emerald-100 text-emerald-700" : "text-gray-400 hover:text-gray-600"}`}
+                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
                   >
                     <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
                       <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
@@ -709,7 +735,7 @@ export const PharmacyProductsFullPage = () => {
             {/* Products */}
             {loading ? (
               <div className="flex flex-col items-center justify-center h-48 sm:h-64 bg-white rounded-xl sm:rounded-2xl shadow-sm border border-gray-100">
-                <Loader2 className="animate-spin text-emerald-500 mb-3 sm:mb-4" size={32} />
+                <Loader2 className="animate-spin text-blue-500 mb-3 sm:mb-4" size={32} />
                 <p className="text-gray-600 text-sm sm:text-base">Loading products...</p>
               </div>
             ) : (
@@ -745,20 +771,20 @@ export const PharmacyProductsFullPage = () => {
                                 />
                                 
                                 {/* Gradient Overlay on Hover */}
-                                <div className="absolute inset-0 bg-gradient-to-t from-emerald-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-blue-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                                 
                                 {/* Hover Ring Effect */}
-                                <div className="absolute inset-0 ring-2 ring-emerald-400/0 group-hover:ring-emerald-500/50 rounded-xl transition-all duration-500" />
+                                <div className="absolute inset-0 ring-2 ring-blue-400/0 group-hover:ring-blue-500/50 rounded-xl transition-all duration-500" />
                               </div>
                             </div>
 
                             {/* Enhanced Category Label */}
                             <div className="mt-4 text-center px-2">
-                              <span className="text-base font-bold text-gray-800 group-hover:text-emerald-600 transition-all duration-300 block leading-tight line-clamp-2">
+                              <span className="text-base font-bold text-gray-800 group-hover:text-blue-600 transition-all duration-300 block leading-tight line-clamp-2">
                                 {categories[index]}
                               </span>
                               {/* Animated Underline */}
-                              <div className="h-0.5 w-0 group-hover:w-full bg-gradient-to-r from-emerald-400 to-emerald-600 mx-auto mt-1.5 transition-all duration-500 rounded-full" />
+                              <div className="h-0.5 w-0 group-hover:w-full bg-gradient-to-r from-blue-400 to-blue-600 mx-auto mt-1.5 transition-all duration-500 rounded-full" />
                             </div>
                           </div>
                         ) : (
@@ -776,13 +802,31 @@ export const PharmacyProductsFullPage = () => {
 
                 {/* Show all products when no product is selected */}
                 {selectedCategory !== "all" && !selectedProduct && (
-                  <PharmacyProductGrid
-                    products={filteredProducts}
-                    viewMode={viewMode}
-                    onViewModeChange={setViewMode}
-                    onProductClick={handleProductClick}
-                    searchQuery={searchQuery}
-                  />
+                  <>
+                    {/* Back to Categories Button */}
+                    <div className="mb-4">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setSelectedCategory("all")}
+                        className="text-gray-600 hover:text-blue-600 -ml-2"
+                      >
+                        <ArrowLeft className="w-4 h-4 mr-2" />
+                        Back to Categories
+                      </Button>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">{selectedCategory}</h2>
+                    </div>
+                    <PharmacyProductGrid
+                      products={filteredProducts}
+                      viewMode={viewMode}
+                      onViewModeChange={setViewMode}
+                      onProductClick={handleProductClick}
+                      searchQuery={searchQuery}
+                      selectedCategory={selectedCategory}
+                      onAddToWishlist={addToWishlist}
+                      onRemoveFromWishlist={removeFromWishlist}
+                      isInWishlist={isInWishlist}
+                    />
+                  </>
                 )}
 
                 {/* Show only selected product with its sizes */}

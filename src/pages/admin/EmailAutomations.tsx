@@ -688,7 +688,7 @@ export default function EmailAutomations() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Need a new template? <a href="/admin/email-templates" className="text-emerald-600 hover:underline">Create one with the Visual Editor →</a>
+                        Need a new template? <a href="/admin/email-templates" className="text-blue-600 hover:underline">Create one with the Visual Editor →</a>
                       </p>
                     </div>
 
@@ -1021,7 +1021,7 @@ export default function EmailAutomations() {
                               onClick={() => handlePreviewTemplate(automation)}
                               title="Preview & Edit Template"
                               disabled={!automation.template_id}
-                              className="bg-emerald-50 border-emerald-200 hover:bg-emerald-100 text-emerald-700"
+                              className="bg-blue-50 border-blue-200 hover:bg-blue-100 text-blue-700"
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
@@ -1176,11 +1176,11 @@ export default function EmailAutomations() {
         {/* Preview & Edit Template Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
           <DialogContent className="max-w-[95vw] max-h-[95vh] w-full h-full p-0 overflow-hidden">
-            <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-emerald-50 to-teal-50">
+            <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
               <div className="flex items-center justify-between">
                 <div>
                   <DialogTitle className="flex items-center gap-2 text-lg">
-                    <Eye className="h-5 w-5 text-emerald-600" />
+                    <Eye className="h-5 w-5 text-blue-600" />
                     Edit Email Template
                   </DialogTitle>
                   <DialogDescription className="mt-1">

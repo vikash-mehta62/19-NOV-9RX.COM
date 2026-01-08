@@ -91,7 +91,7 @@ export const ProductReviewForm = ({
       </CardHeader>
       <CardContent className="space-y-4">
         {/* Bonus Points Banner */}
-        <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-lg text-emerald-700">
+        <div className="flex items-center gap-2 p-3 bg-blue-50 rounded-lg text-blue-700">
           <Gift className="w-5 h-5" />
           <span className="text-sm font-medium">
             Earn {reviewBonus} bonus points for your review!
@@ -172,7 +172,7 @@ export const ProductReviewForm = ({
           <Button
             onClick={handleSubmit}
             disabled={submitting || rating === 0}
-            className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+            className="flex-1 bg-blue-600 hover:bg-blue-700"
           >
             {submitting ? (
               <Loader2 className="w-4 h-4 animate-spin mr-2" />

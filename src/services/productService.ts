@@ -220,6 +220,7 @@ export const addProductService = async (data: ProductFormValues) => {
     },
     image_url: data.image_url || "",
     images: data.images || [],
+    similar_products: data.similar_products || [],
   };
 
   console.log(data);
@@ -309,6 +310,7 @@ export const updateProductService = async (
         upcCode: data.upcCode || null,
         lotNumber: data.lotNumber || null,
         exipry: data.exipry || null,
+        similar_products: data.similar_products || [],
       })
       .eq("id", productId);
 

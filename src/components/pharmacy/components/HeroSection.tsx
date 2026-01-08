@@ -35,7 +35,7 @@ export const HeroSection = () => {
               <br />
               <span className="text-yellow-300">Supplies & Equipment</span>
             </h1>
-            <p className="text-emerald-50 text-lg leading-relaxed">
+            <p className="text-blue-50 text-lg leading-relaxed">
               Discover exclusive deals on high-quality pharmacy supplies. 
               Professional-grade products at competitive prices.
             </p>
@@ -44,7 +44,7 @@ export const HeroSection = () => {
           <div className="flex flex-wrap gap-4">
             <Button
               size="lg"
-              className="bg-white text-emerald-600 hover:bg-emerald-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
+              className="bg-white text-blue-600 hover:bg-blue-50 shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105"
             >
               <ShoppingBag className="mr-2 h-5 w-5" />
               Browse Products
@@ -52,7 +52,7 @@ export const HeroSection = () => {
             <Button
               size="lg"
               variant="outline"
-              className="border-2 border-white text-white hover:bg-white hover:text-emerald-600 shadow-lg transition-all duration-300"
+              className="border-2 border-white text-white hover:bg-white hover:text-blue-600 shadow-lg transition-all duration-300"
             >
               <Award className="mr-2 h-5 w-5" />
               View Offers
@@ -63,15 +63,15 @@ export const HeroSection = () => {
           <div className="grid grid-cols-3 gap-4 pt-4 border-t border-white/20">
             <div>
               <p className="text-3xl font-bold">500+</p>
-              <p className="text-emerald-100 text-sm">Products</p>
+              <p className="text-blue-100 text-sm">Products</p>
             </div>
             <div>
               <p className="text-3xl font-bold">50+</p>
-              <p className="text-emerald-100 text-sm">Categories</p>
+              <p className="text-blue-100 text-sm">Categories</p>
             </div>
             <div>
               <p className="text-3xl font-bold">24/7</p>
-              <p className="text-emerald-100 text-sm">Support</p>
+              <p className="text-blue-100 text-sm">Support</p>
             </div>
           </div>
         </div>
@@ -98,7 +98,7 @@ export const HeroSection = () => {
 
             {/* Floating badges */}
             <div className="absolute top-10 right-10 bg-white rounded-2xl p-4 shadow-xl animate-bounce">
-              <p className="text-emerald-600 font-bold text-2xl">30%</p>
+              <p className="text-blue-600 font-bold text-2xl">30%</p>
               <p className="text-gray-600 text-xs">OFF</p>
             </div>
             

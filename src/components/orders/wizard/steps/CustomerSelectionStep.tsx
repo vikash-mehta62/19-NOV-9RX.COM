@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
-import { LoadingSpinner } from "../LoadingSpinner";
 
 interface Customer {
   id: string;
@@ -36,6 +35,7 @@ interface Customer {
   };
   freeShipping?: boolean;
   tax_percentage?: number;
+  locations?: any[];
 }
 
 interface CustomerSelectionStepProps {
@@ -44,6 +44,7 @@ interface CustomerSelectionStepProps {
   onAddNewCustomer?: () => void;
   isEditMode?: boolean;
   lockedCustomer?: Customer;
+  refreshKey?: number;
 }
 
 const CustomerSelectionStepComponent = ({
@@ -52,6 +53,7 @@ const CustomerSelectionStepComponent = ({
   onAddNewCustomer,
   isEditMode = false,
   lockedCustomer,
+  refreshKey = 0,
 }: CustomerSelectionStepProps) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -61,6 +63,21 @@ const CustomerSelectionStepComponent = ({
   const { toast } = useToast();
   const location = useLocation();
   const isPharmacyRoute = location.pathname?.startsWith("/pharmacy");
+
+  const formatCityState = useCallback((address?: { city?: string; state?: string }) => {
+    const city = address?.city?.trim();
+    const state = address?.state?.trim();
+    return [city, state].filter(Boolean).join(", ");
+  }, []);
+
+  const formatCityStateZip = useCallback(
+    (address?: { city?: string; state?: string; zip_code?: string }) => {
+      const cityState = formatCityState(address);
+      const zip = address?.zip_code?.trim();
+      return [cityState, zip].filter(Boolean).join(" ");
+    },
+    [formatCityState]
+  );
 
   // Fetch customers from Supabase
   useEffect(() => {
@@ -107,7 +124,7 @@ const CustomerSelectionStepComponent = ({
     };
 
     fetchCustomers();
-  }, [toast]);
+  }, [toast, refreshKey]);
 
   // Filter customers based on search and type
   const filteredCustomers = useMemo(() => {
@@ -304,7 +321,7 @@ const CustomerSelectionStepComponent = ({
 
       {/* Customer Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4">
           {[1, 2, 3, 4, 5, 6].map((i) => (
             <Skeleton key={i} className="h-32 sm:h-40" />
           ))}
@@ -327,12 +344,12 @@ const CustomerSelectionStepComponent = ({
           </CardContent>
         </Card>
       ) : (
-        <ScrollArea className="h-[300px] sm:h-[400px] pr-2 sm:pr-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4" role="list" aria-label="Available customers">
+        <ScrollArea className="h-[350px] sm:h-[450px] lg:h-[500px] pr-2 sm:pr-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-2 gap-3 sm:gap-4" role="list" aria-label="Available customers">
             {filteredCustomers.map((customer) => (
               <Card
                 key={customer.id}
-                className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-105 active:scale-95 ${
+                className={`cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] active:scale-95 ${
                   selectedCustomerId === customer.id
                     ? "border-2 border-blue-500 bg-blue-50"
                     : "border border-gray-200"
@@ -349,35 +366,39 @@ const CustomerSelectionStepComponent = ({
                   }
                 }}
               >
-                <CardContent className="p-3 sm:p-4">
-                  <div className="flex items-start justify-between mb-2 sm:mb-3">
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
-                      <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
-                        {getTypeIcon(customer.type)}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate text-sm sm:text-base">
+                <CardContent className="p-3 lg:p-4">
+                  {/* Header: Icon + Name + Badge */}
+                  <div className="flex items-start gap-2 lg:gap-3">
+                    <div className="h-9 w-9 lg:h-10 lg:w-10 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+                      {getTypeIcon(customer.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      {/* Name + Badge row */}
+                      <div className="flex items-start justify-between gap-1">
+                        <h3 className="font-semibold text-gray-900 text-sm lg:text-base leading-snug">
                           {customer.name}
                         </h3>
-                        {customer.company_name && (
-                          <p className="text-xs text-gray-500 truncate">
-                            {customer.company_name}
+                        <Badge className={`${getTypeBadgeColor(customer.type)} text-[10px] px-1.5 py-0 flex-shrink-0`}>
+                          {customer.type}
+                        </Badge>
+                      </div>
+                      {/* Company */}
+                      {customer.company_name && (
+                        <p className="text-xs text-gray-500 truncate mt-0.5">
+                          {customer.company_name}
+                        </p>
+                      )}
+                      {/* Contact details - inline with icon */}
+                      <div className="mt-2 space-y-0.5 text-xs lg:text-sm text-gray-600">
+                        <p className="truncate">{customer.email}</p>
+                        {customer.phone && <p>{customer.phone}</p>}
+                        {customer.billing_address && (
+                          <p className="text-xs text-gray-400">
+                            {formatCityState(customer.billing_address) || ""}
                           </p>
                         )}
                       </div>
                     </div>
-                    <Badge className={`${getTypeBadgeColor(customer.type)} text-xs flex-shrink-0 ml-2`}>
-                      {customer.type}
-                    </Badge>
-                  </div>
-                  <div className="space-y-1 text-xs sm:text-sm text-gray-600">
-                    <p className="truncate">{customer.email}</p>
-                    {customer.phone && <p className="truncate">{customer.phone}</p>}
-                    {customer.billing_address && (
-                      <p className="text-xs text-gray-500 truncate">
-                        {customer.billing_address.city}, {customer.billing_address.state}
-                      </p>
-                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -428,10 +449,13 @@ const CustomerSelectionStepComponent = ({
                 <div>
                   <p className="text-xs sm:text-sm font-medium text-gray-700">Billing Address</p>
                   <p className="text-xs sm:text-sm text-gray-900">
-                    {selectedCustomer.billing_address.street1}
-                    <br />
-                    {selectedCustomer.billing_address.city}, {selectedCustomer.billing_address.state}{" "}
-                    {selectedCustomer.billing_address.zip_code}
+                    {selectedCustomer.billing_address.street1?.trim() && (
+                      <>
+                        {selectedCustomer.billing_address.street1}
+                        <br />
+                      </>
+                    )}
+                    {formatCityStateZip(selectedCustomer.billing_address) || "N/A"}
                   </p>
                 </div>
               )}

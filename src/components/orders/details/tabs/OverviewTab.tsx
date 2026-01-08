@@ -159,7 +159,7 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
           </div>
         </Card>
         
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-emerald-50 to-teal-50">
+        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-white rounded-lg shadow-sm">
               <DollarSign className="w-4 h-4 text-emerald-600" />

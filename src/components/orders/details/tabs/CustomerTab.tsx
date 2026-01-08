@@ -400,7 +400,7 @@ export const CustomerTab = ({
                   <X className="w-4 h-4" />
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleSaveBilling} disabled={isSaving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                <Button size="sm" onClick={handleSaveBilling} disabled={isSaving} className="gap-1.5 bg-blue-600 hover:bg-blue-700">
                   {isSaving ? "Saving..." : <><Save className="w-4 h-4" /> Save</>}
                 </Button>
               </div>
@@ -548,18 +548,18 @@ export const CustomerTab = ({
 
       {/* Shipping Information */}
       <Card className="overflow-hidden border-0 shadow-sm">
-        <CardHeader className="bg-gradient-to-r from-emerald-50 to-teal-50 border-b pb-4">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-teal-50 border-b pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white rounded-lg shadow-sm">
-                <Truck className="w-5 h-5 text-emerald-600" />
+                <Truck className="w-5 h-5 text-blue-600" />
               </div>
               <div>
                 <CardTitle className="text-lg">Shipping Information</CardTitle>
                 <p className="text-sm text-gray-500 mt-0.5">Delivery address and contact</p>
               </div>
               {addressesMatch && billingStreet1 && !isEditingShipping && (
-                <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 ml-2">
+                <Badge variant="secondary" className="bg-blue-100 text-blue-700 ml-2">
                   Same as Billing
                 </Badge>
               )}
@@ -576,7 +576,7 @@ export const CustomerTab = ({
                   <X className="w-4 h-4" />
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleSaveShipping} disabled={isSaving} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700">
+                <Button size="sm" onClick={handleSaveShipping} disabled={isSaving} className="gap-1.5 bg-blue-600 hover:bg-blue-700">
                   {isSaving ? "Saving..." : <><Save className="w-4 h-4" /> Save</>}
                 </Button>
               </div>
@@ -703,7 +703,7 @@ export const CustomerTab = ({
                 
                 <div className="flex items-start gap-3 p-3 rounded-lg bg-gray-50">
                   <div className="p-2 rounded-lg bg-white shadow-sm">
-                    <MapPin className="w-4 h-4 text-emerald-600" />
+                    <MapPin className="w-4 h-4 text-blue-600" />
                   </div>
                   <div className="flex-1">
                     {shippingAddressDisplay || (
@@ -717,7 +717,7 @@ export const CustomerTab = ({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="mt-3 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                    className="mt-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     onClick={() => {
                       const fullAddress = formatFullAddress(shippingAddress, "shipping");
                       if (fullAddress) {
