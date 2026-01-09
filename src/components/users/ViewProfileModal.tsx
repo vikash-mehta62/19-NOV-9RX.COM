@@ -108,6 +108,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { format, formatDistanceToNow, isAfter, subDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useScreenSize } from "@/hooks/use-mobile";
 
 // Helper: Relative time display
 const getRelativeTime = (date: string | Date) => {
@@ -181,6 +182,10 @@ export function ViewProfileModal({
 }: ViewProfileModalProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const screenSize = useScreenSize();
+  const isMobile = screenSize === 'mobile';
+  const isTablet = screenSize === 'tablet';
+  const isCompact = isMobile || isTablet;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -1137,8 +1142,11 @@ export function ViewProfileModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[1200px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader className="pb-0">
+      <DialogContent className={cn(
+        "max-h-[90vh] overflow-y-auto",
+        isCompact ? "w-[95vw] max-w-[95vw] h-[90vh] p-3" : "sm:max-w-[1200px]"
+      )}>
+        <DialogHeader className={cn("pb-0", isCompact && "pb-2")}>
           <DialogTitle className="sr-only">Customer Profile</DialogTitle>
         </DialogHeader>
 
@@ -1160,41 +1168,54 @@ export function ViewProfileModal({
           <TooltipProvider>
           <>
             {/* Enhanced Header with Avatar, Quick Stats, Copy Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 p-4 bg-muted/50 rounded-lg mb-4">
+            <div className={cn(
+              "flex gap-4 bg-muted/50 rounded-lg mb-4",
+              isCompact ? "flex-col p-3" : "flex-row p-4"
+            )}>
               {/* Type-Specific Avatar */}
-              <div className="flex-shrink-0">
+              <div className={cn("flex-shrink-0", isCompact && "self-center")}>
                 {(() => {
                   const typeConfig = getTypeConfig(profile.type);
                   const TypeIcon = typeConfig.icon;
                   return (
-                    <div className={cn("h-14 w-14 rounded-full flex items-center justify-center text-xl font-bold", typeConfig.bgColor, typeConfig.color)}>
-                      <TypeIcon className="h-7 w-7" />
+                    <div className={cn(
+                      "rounded-full flex items-center justify-center text-xl font-bold", 
+                      typeConfig.bgColor, 
+                      typeConfig.color,
+                      isCompact ? "h-12 w-12" : "h-14 w-14"
+                    )}>
+                      <TypeIcon className={cn(isCompact ? "h-6 w-6" : "h-7 w-7")} />
                     </div>
                   );
                 })()}
               </div>
               
               {/* Profile Info */}
-              <div className="flex-1 min-w-0 max-w-md">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-xl font-semibold truncate">
+              <div className={cn("flex-1 min-w-0", isCompact ? "text-center" : "max-w-md")}>
+                <div className={cn("flex items-center gap-2", isCompact ? "flex-col" : "flex-wrap")}>
+                  <h2 className={cn("font-semibold truncate", isCompact ? "text-lg" : "text-xl")}>
                     {profile.display_name || `${profile.first_name} ${profile.last_name}`}
                   </h2>
-                  <Badge className={getStatusColor(profile.status)}>
-                    {profile.status}
-                  </Badge>
-                  {(() => {
-                    const typeConfig = getTypeConfig(profile.type);
-                    return (
-                      <Badge variant="outline" className={cn("border-current", typeConfig.color)}>
-                        {profile.type}
-                      </Badge>
-                    );
-                  })()}
+                  <div className="flex items-center gap-2 flex-wrap justify-center">
+                    <Badge className={getStatusColor(profile.status)}>
+                      {profile.status}
+                    </Badge>
+                    {(() => {
+                      const typeConfig = getTypeConfig(profile.type);
+                      return (
+                        <Badge variant="outline" className={cn("border-current", typeConfig.color)}>
+                          {profile.type}
+                        </Badge>
+                      );
+                    })()}
+                  </div>
                 </div>
                 
                 {/* Contact with Copy Buttons & Tooltips */}
-                <div className="flex flex-wrap gap-4 mt-2 text-sm text-muted-foreground">
+                <div className={cn(
+                  "flex gap-4 mt-2 text-sm text-muted-foreground",
+                  isCompact ? "flex-col items-center gap-2" : "flex-wrap"
+                )}>
                   {profile.email && (
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -1203,7 +1224,7 @@ export function ViewProfileModal({
                           className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           <Mail className="h-3.5 w-3.5" />
-                          <span className="truncate max-w-[180px]">{profile.email}</span>
+                          <span className={cn("truncate", isCompact ? "max-w-[200px]" : "max-w-[180px]")}>{profile.email}</span>
                           {copiedField === "Email" ? <Check className="h-3 w-3 text-green-500" /> : <Copy className="h-3 w-3" />}
                         </button>
                       </TooltipTrigger>
@@ -1229,14 +1250,17 @@ export function ViewProfileModal({
 
                 {/* Last Updated with Relative Time */}
                 {profile.updated_at && (
-                  <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                  <div className={cn(
+                    "flex items-center gap-1 mt-1 text-xs text-muted-foreground",
+                    isCompact && "justify-center"
+                  )}>
                     <Clock className="h-3 w-3" />
                     Last updated: {getRelativeTime(profile.updated_at)}
                   </div>
                 )}
 
                 {/* Profile Completion Indicator */}
-                <div className="mt-2 max-w-xs">
+                <div className={cn("mt-2", isCompact ? "max-w-[200px] mx-auto" : "max-w-xs")}>
                   <div className="flex items-center justify-between text-xs mb-1">
                     <span className="text-muted-foreground">Profile Completion</span>
                     <span className="font-medium">{calculateProfileCompletion(profile)}%</span>
@@ -1246,17 +1270,20 @@ export function ViewProfileModal({
               </div>
 
               {/* Quick Stats */}
-              <div className="flex gap-2 flex-wrap sm:flex-nowrap ml-auto items-start">
-                <div className="text-center px-4 py-2 bg-background rounded-md border">
-                  <div className="text-xl font-bold">{analytics?.totalOrders || 0}</div>
+              <div className={cn(
+                "flex gap-2 items-start",
+                isCompact ? "flex-row justify-center w-full" : "flex-wrap sm:flex-nowrap ml-auto"
+              )}>
+                <div className={cn("text-center bg-background rounded-md border", isCompact ? "px-3 py-2" : "px-4 py-2")}>
+                  <div className={cn("font-bold", isCompact ? "text-lg" : "text-xl")}>{analytics?.totalOrders || 0}</div>
                   <div className="text-xs text-muted-foreground">Orders</div>
                 </div>
-                <div className="text-center px-4 py-2 bg-background rounded-md border">
-                  <div className="text-xl font-bold text-green-600">${(analytics?.paidAmount || 0).toFixed(2)}</div>
+                <div className={cn("text-center bg-background rounded-md border", isCompact ? "px-3 py-2" : "px-4 py-2")}>
+                  <div className={cn("font-bold text-green-600", isCompact ? "text-lg" : "text-xl")}>${(analytics?.paidAmount || 0).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Paid</div>
                 </div>
-                <div className="text-center px-4 py-2 bg-background rounded-md border">
-                  <div className="text-xl font-bold text-orange-600">${(analytics?.pendingAmount || 0).toFixed(2)}</div>
+                <div className={cn("text-center bg-background rounded-md border", isCompact ? "px-3 py-2" : "px-4 py-2")}>
+                  <div className={cn("font-bold text-orange-600", isCompact ? "text-lg" : "text-xl")}>${(analytics?.pendingAmount || 0).toFixed(2)}</div>
                   <div className="text-xs text-muted-foreground">Pending</div>
                 </div>
               </div>
@@ -1264,10 +1291,13 @@ export function ViewProfileModal({
 
             {/* Quick Actions Panel - Admin Only */}
             {isAdmin && (
-              <div className="flex flex-wrap gap-2 mb-4 p-3 bg-muted/30 rounded-lg border">
+              <div className={cn(
+                "flex gap-2 mb-4 bg-muted/30 rounded-lg border",
+                isCompact ? "flex-col p-2" : "flex-wrap p-3"
+              )}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" onClick={handleEditProfile}>
+                    <Button size={isCompact ? "default" : "sm"} variant="outline" onClick={handleEditProfile} className={isCompact ? "w-full" : ""}>
                       <Pencil className="h-4 w-4 mr-1" />
                       Edit Profile
                     </Button>
@@ -1277,7 +1307,7 @@ export function ViewProfileModal({
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" onClick={handleCreateOrder}>
+                    <Button size={isCompact ? "default" : "sm"} variant="outline" onClick={handleCreateOrder} className={isCompact ? "w-full" : ""}>
                       <ShoppingCart className="h-4 w-4 mr-1" />
                       New Order
                     </Button>
@@ -1287,7 +1317,7 @@ export function ViewProfileModal({
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size="sm" variant="outline" onClick={handleSendEmail}>
+                    <Button size={isCompact ? "default" : "sm"} variant="outline" onClick={handleSendEmail} className={isCompact ? "w-full" : ""}>
                       <Send className="h-4 w-4 mr-1" />
                       Email
                     </Button>
@@ -1297,7 +1327,7 @@ export function ViewProfileModal({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="outline">
+                    <Button size={isCompact ? "default" : "sm"} variant="outline" className={isCompact ? "w-full" : ""}>
                       <Shield className="h-4 w-4 mr-1" />
                       Credit Status
                     </Button>
@@ -1325,9 +1355,10 @@ export function ViewProfileModal({
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button 
-                      size="sm" 
+                      size={isCompact ? "default" : "sm"}
                       variant={profile.status === "active" ? "destructive" : "default"}
                       onClick={handleToggleAccountStatus}
+                      className={isCompact ? "w-full" : ""}
                     >
                       {profile.status === "active" ? (
                         <>
@@ -1347,79 +1378,133 @@ export function ViewProfileModal({
                   </TooltipContent>
                 </Tooltip>
 
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="sm" variant="ghost">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => window.print()}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      Print Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem 
-                      onClick={() => copyToClipboard(userId, "Customer ID")}
-                    >
-                      <Copy className="h-4 w-4 mr-2" />
-                      Copy Customer ID
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                {!isCompact && (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="sm" variant="ghost">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => window.print()}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        Print Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        onClick={() => copyToClipboard(userId, "Customer ID")}
+                      >
+                        <Copy className="h-4 w-4 mr-2" />
+                        Copy Customer ID
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                )}
               </div>
             )}
 
             <Tabs defaultValue="basic" className="w-full">
-              {/* Scrollable tabs for mobile */}
-              <div className="overflow-x-auto -mx-2 px-2">
-                <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 gap-1">
-                  <TabsTrigger value="basic" className="flex-shrink-0">
-                    <User className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Basic</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="contact" className="flex-shrink-0">
-                    <Building2 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Contact</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="analytics" className="flex-shrink-0">
-                    <BarChart3 className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Analytics</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="payments" className="flex-shrink-0">
-                    <CreditCard className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Payments</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="orders" className="flex-shrink-0">
-                    <ShoppingCart className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Orders</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="notes" className="flex-shrink-0">
-                    <StickyNote className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Notes</span>
-                    {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{notes.length}</Badge>}
-                  </TabsTrigger>
-                  <TabsTrigger value="tasks" className="flex-shrink-0">
-                    <CheckSquare className="h-4 w-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Tasks</span>
-                    {tasks.filter(t => t.status !== "completed").length > 0 && (
-                      <Badge variant="secondary" className="ml-1 h-5 px-1.5">{tasks.filter(t => t.status !== "completed").length}</Badge>
+              {/* Mobile-optimized tabs */}
+              {isCompact ? (
+                <div className="overflow-x-auto -mx-2 px-2 mb-4">
+                  <TabsList className="inline-flex w-auto min-w-full gap-1 h-auto p-1">
+                    <TabsTrigger value="basic" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <User className="h-3 w-3 mr-1" />
+                      Basic
+                    </TabsTrigger>
+                    <TabsTrigger value="contact" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      Contact
+                    </TabsTrigger>
+                    <TabsTrigger value="analytics" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <BarChart3 className="h-3 w-3 mr-1" />
+                      Analytics
+                    </TabsTrigger>
+                    <TabsTrigger value="payments" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <CreditCard className="h-3 w-3 mr-1" />
+                      Payments
+                    </TabsTrigger>
+                    <TabsTrigger value="orders" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <ShoppingCart className="h-3 w-3 mr-1" />
+                      Orders
+                    </TabsTrigger>
+                    <TabsTrigger value="notes" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <StickyNote className="h-3 w-3 mr-1" />
+                      Notes
+                      {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{notes.length}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="tasks" className="flex-shrink-0 px-3 py-2 text-xs">
+                      <CheckSquare className="h-3 w-3 mr-1" />
+                      Tasks
+                      {tasks.filter(t => t.status !== "completed").length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px]">{tasks.filter(t => t.status !== "completed").length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    {profile.type === "group" && (
+                      <TabsTrigger value="group-management" className="flex-shrink-0 px-3 py-2 text-xs">
+                        <Users className="h-3 w-3 mr-1" />
+                        Group
+                      </TabsTrigger>
                     )}
-                  </TabsTrigger>
-                  {profile.type === "group" && (
-                    <TabsTrigger value="group-management" className="flex-shrink-0">
-                      <Users className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Group</span>
+                    {isAdmin && (
+                      <TabsTrigger value="settings" className="flex-shrink-0 px-3 py-2 text-xs">
+                        <Settings className="h-3 w-3 mr-1" />
+                        Settings
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                </div>
+              ) : (
+                /* Desktop tabs */
+                <div className="overflow-x-auto -mx-2 px-2">
+                  <TabsList className="inline-flex w-auto min-w-full sm:grid sm:grid-cols-8 gap-1">
+                    <TabsTrigger value="basic" className="flex-shrink-0">
+                      <User className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Basic</span>
                     </TabsTrigger>
-                  )}
-                  {isAdmin && (
-                    <TabsTrigger value="settings" className="flex-shrink-0">
-                      <Settings className="h-4 w-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Settings</span>
+                    <TabsTrigger value="contact" className="flex-shrink-0">
+                      <Building2 className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Contact</span>
                     </TabsTrigger>
-                  )}
-                </TabsList>
-              </div>
+                    <TabsTrigger value="analytics" className="flex-shrink-0">
+                      <BarChart3 className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Analytics</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="payments" className="flex-shrink-0">
+                      <CreditCard className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Payments</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="orders" className="flex-shrink-0">
+                      <ShoppingCart className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Orders</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="notes" className="flex-shrink-0">
+                      <StickyNote className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Notes</span>
+                      {notes.length > 0 && <Badge variant="secondary" className="ml-1 h-5 px-1.5">{notes.length}</Badge>}
+                    </TabsTrigger>
+                    <TabsTrigger value="tasks" className="flex-shrink-0">
+                      <CheckSquare className="h-4 w-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Tasks</span>
+                      {tasks.filter(t => t.status !== "completed").length > 0 && (
+                        <Badge variant="secondary" className="ml-1 h-5 px-1.5">{tasks.filter(t => t.status !== "completed").length}</Badge>
+                      )}
+                    </TabsTrigger>
+                    {profile.type === "group" && (
+                      <TabsTrigger value="group-management" className="flex-shrink-0">
+                        <Users className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Group</span>
+                      </TabsTrigger>
+                    )}
+                    {isAdmin && (
+                      <TabsTrigger value="settings" className="flex-shrink-0">
+                        <Settings className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Settings</span>
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                </div>
+              )}
 
             {/* Analytics Tab */}
             <TabsContent value="analytics" className="space-y-4 mt-4">
@@ -1523,7 +1608,7 @@ export function ViewProfileModal({
                 <CardHeader>
                   <CardTitle>Basic Information</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
+                <CardContent className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-2")}>
                   <div>
                     <p className="text-sm text-muted-foreground">First Name</p>
                     <p className="font-medium">{profile.first_name || "-"}</p>
@@ -1594,7 +1679,7 @@ export function ViewProfileModal({
                 <CardHeader>
                   <CardTitle>Tax & Billing Information</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
+                <CardContent className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-2")}>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Tax Preference
@@ -1700,7 +1785,7 @@ export function ViewProfileModal({
                 <CardHeader>
                   <CardTitle>Additional Information</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
+                <CardContent className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-2")}>
                   <div>
                     <p className="text-sm text-muted-foreground">
                       Pharmacy License
@@ -1893,7 +1978,7 @@ export function ViewProfileModal({
                 <CardHeader>
                   <CardTitle>Contact Information</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
+                <CardContent className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-2")}>
                   <div>
                     <p className="text-sm text-muted-foreground">Work Phone</p>
                     <p className="font-medium flex items-center gap-2">
@@ -2014,7 +2099,7 @@ export function ViewProfileModal({
                 </CardContent>
               </Card>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
                 <Card>
                   <CardHeader>
                     <CardTitle>Billing Address</CardTitle>
@@ -2097,7 +2182,7 @@ export function ViewProfileModal({
                       <p className="text-sm text-muted-foreground">Add locations if this {profile.type} has multiple branches</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className={cn("grid gap-4", isCompact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2")}>
                       {locations.map((location) => (
                         <Card key={location.id} className={cn(
                           "relative overflow-hidden",
@@ -2184,9 +2269,9 @@ export function ViewProfileModal({
             <TabsContent value="orders" className="space-y-4 mt-4">
               <Card>
                 <CardHeader>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className={cn("flex gap-2", isCompact ? "flex-col" : "items-center justify-between flex-wrap")}>
                     <CardTitle>Order History</CardTitle>
-                    <div className="flex gap-2 flex-wrap">
+                    <div className={cn("flex gap-2", isCompact ? "flex-col" : "flex-wrap")}>
                       <Button
                         variant="outline"
                         size="sm"
@@ -2591,7 +2676,7 @@ export function ViewProfileModal({
 
         {/* Add/Edit Note Dialog */}
         <Dialog open={isNoteDialogOpen} onOpenChange={(open) => { setIsNoteDialogOpen(open); if (!open) setEditingNote(null); }}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className={cn(isCompact ? "w-[95vw] max-w-[95vw]" : "sm:max-w-[500px]")}>
             <DialogHeader>
               <DialogTitle>{editingNote ? "Edit Note" : "Add New Note"}</DialogTitle>
             </DialogHeader>
@@ -2680,7 +2765,7 @@ export function ViewProfileModal({
 
         {/* Add/Edit Task Dialog */}
         <Dialog open={isTaskDialogOpen} onOpenChange={(open) => { setIsTaskDialogOpen(open); if (!open) setEditingTask(null); }}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className={cn(isCompact ? "w-[95vw] max-w-[95vw]" : "sm:max-w-[500px]")}>
             <DialogHeader>
               <DialogTitle>{editingTask ? "Edit Task" : "Add New Task"}</DialogTitle>
             </DialogHeader>
@@ -2914,7 +2999,7 @@ export function ViewProfileModal({
 
         {/* Add/Edit Location Dialog */}
         <Dialog open={isLocationDialogOpen} onOpenChange={(open) => { setIsLocationDialogOpen(open); if (!open) setEditingLocation(null); }}>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className={cn(isCompact ? "w-[95vw] max-w-[95vw]" : "sm:max-w-[600px]")}>
             <DialogHeader>
               <DialogTitle>{editingLocation ? "Edit Location" : "Add New Location"}</DialogTitle>
             </DialogHeader>
@@ -3058,7 +3143,7 @@ export function ViewProfileModal({
 
         {/* Download Order Statement Dialog */}
         <Dialog open={isDownloadDialogOpen} onOpenChange={setIsDownloadDialogOpen}>
-          <DialogContent className="sm:max-w-[500px]">
+          <DialogContent className={cn(isCompact ? "w-[95vw] max-w-[95vw]" : "sm:max-w-[500px]")}>
             <DialogHeader>
               <DialogTitle>Download Order Statement</DialogTitle>
             </DialogHeader>

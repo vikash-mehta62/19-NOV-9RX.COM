@@ -234,51 +234,53 @@ export default function Settings() {
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
-              <TabsList className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-2 h-auto p-2">
-                <TabsTrigger value="business" className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Business</span>
-                </TabsTrigger>
-                <TabsTrigger value="orders" className="flex items-center gap-2">
-                  <Settings2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Orders</span>
-                </TabsTrigger>
-                <TabsTrigger value="shipping" className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  <span className="hidden sm:inline">Shipping</span>
-                </TabsTrigger>
-                <TabsTrigger value="payments" className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4" />
-                  <span className="hidden sm:inline">Payments</span>
-                </TabsTrigger>
-                <TabsTrigger value="invoices" className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="hidden sm:inline">Invoices</span>
-                </TabsTrigger>
-                <TabsTrigger value="email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  <span className="hidden sm:inline">Email</span>
-                </TabsTrigger>
-              </TabsList>
+              <div className="space-y-2">
+                <TabsList className="grid grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1 w-full">
+                  <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Building2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Business</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="orders" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Settings2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Orders</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="shipping" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Truck className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Shipping</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="payments" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <CreditCard className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Payments</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="invoices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Invoices</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="email" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Mail className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Email</span>
+                  </TabsTrigger>
+                </TabsList>
 
-              <TabsList className="grid grid-cols-2 md:grid-cols-4 gap-2 h-auto p-2">
-                <TabsTrigger value="hours" className="flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  <span className="hidden sm:inline">Hours</span>
-                </TabsTrigger>
-                <TabsTrigger value="social" className="flex items-center gap-2">
-                  <Share2 className="h-4 w-4" />
-                  <span className="hidden sm:inline">Social</span>
-                </TabsTrigger>
-                <TabsTrigger value="security" className="flex items-center gap-2">
-                  <Shield className="h-4 w-4" />
-                  <span className="hidden sm:inline">Security</span>
-                </TabsTrigger>
-                <TabsTrigger value="categories" className="flex items-center gap-2">
-                  <FolderTree className="h-4 w-4" />
-                  <span className="hidden sm:inline">Categories</span>
-                </TabsTrigger>
-              </TabsList>
+                <TabsList className="grid grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1 w-full">
+                  <TabsTrigger value="hours" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Clock className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Hours</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="social" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Share2 className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Social</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="security" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Security</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="categories" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <FolderTree className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Categories</span>
+                  </TabsTrigger>
+                </TabsList>
+              </div>
 
               {/* Business Tab */}
               <TabsContent value="business" className="space-y-6">

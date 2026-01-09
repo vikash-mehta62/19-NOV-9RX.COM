@@ -146,41 +146,41 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
 
 
       {/* Quick Stats Row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Package className="w-4 h-4 text-blue-600" />
+      <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <Card className="p-3 sm:p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-white rounded-lg shadow-sm">
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Items</p>
-              <p className="text-lg font-bold text-gray-900">{order.items.length}</p>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Total</p>
-              <p className="text-lg font-bold text-gray-900">${total.toFixed(2)}</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Items</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900">{order.items.length}</p>
             </div>
           </div>
         </Card>
         
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-amber-50 to-orange-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <CreditCard className="w-4 h-4 text-amber-600" />
+        <Card className="p-3 sm:p-4 border-0 shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-white rounded-lg shadow-sm">
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Payment</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Total</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900 truncate">${total.toFixed(2)}</p>
+            </div>
+          </div>
+        </Card>
+        
+        <Card className="p-3 sm:p-4 border-0 shadow-sm bg-gradient-to-br from-amber-50 to-orange-50">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-white rounded-lg shadow-sm">
+              <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Payment</p>
               <Badge 
                 variant="secondary" 
-                className={`mt-0.5 text-xs ${
+                className={`mt-0.5 text-[10px] sm:text-xs ${
                   order.payment_status === "paid" 
                     ? "bg-green-100 text-green-700" 
                     : isPartiallyPaid
@@ -194,16 +194,16 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
           </div>
         </Card>
         
-        <Card className="p-4 border-0 shadow-sm bg-gradient-to-br from-rose-50 to-pink-50">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-white rounded-lg shadow-sm">
-              <Truck className="w-4 h-4 text-rose-600" />
+        <Card className="p-3 sm:p-4 border-0 shadow-sm bg-gradient-to-br from-rose-50 to-pink-50">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <div className="p-1.5 sm:p-2 bg-white rounded-lg shadow-sm">
+              <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 font-medium">Status</p>
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Status</p>
               <Badge 
                 variant="secondary" 
-                className={`mt-0.5 text-xs capitalize ${
+                className={`mt-0.5 text-[10px] sm:text-xs capitalize ${
                   order.status === "delivered" 
                     ? "bg-green-100 text-green-700" 
                     : order.status === "shipped"

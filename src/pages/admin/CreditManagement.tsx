@@ -293,20 +293,20 @@ const CreditManagement = () => {
     <DashboardLayout role="admin">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Credit Management</h1>
-            <p className="text-gray-500">Manage credit applications, lines, and penalties</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Credit Management</h1>
+            <p className="text-sm sm:text-base text-gray-500">Manage credit applications, lines, and penalties</p>
           </div>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={fetchData}>
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <Button variant="outline" onClick={fetchData} className="w-full sm:w-auto">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
             <Button 
               onClick={calculatePenalties}
               disabled={calculatingPenalties}
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-amber-600 hover:bg-amber-700 w-full sm:w-auto"
             >
               {calculatingPenalties ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -319,55 +319,55 @@ const CreditManagement = () => {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Card className="bg-gradient-to-br from-amber-50 to-orange-50 border-amber-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
-                  <Clock className="w-5 h-5 text-amber-600" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-amber-600">Pending</p>
-                  <p className="text-2xl font-bold text-amber-700">{pendingCount}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <DollarSign className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-sm text-emerald-600">Total Extended</p>
-                  <p className="text-2xl font-bold text-emerald-700">${totalCreditExtended.toLocaleString()}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-amber-600">Pending</p>
+                  <p className="text-lg sm:text-2xl font-bold text-amber-700">{pendingCount}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <CreditCard className="w-5 h-5 text-blue-600" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-blue-600">Credit Used</p>
-                  <p className="text-2xl font-bold text-blue-700">${totalUsedCredit.toLocaleString()}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-emerald-600">Total Extended</p>
+                  <p className="text-lg sm:text-2xl font-bold text-emerald-700">${totalCreditExtended.toLocaleString()}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <CreditCard className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-blue-600">Credit Used</p>
+                  <p className="text-lg sm:text-2xl font-bold text-blue-700">${totalUsedCredit.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           <Card className="bg-gradient-to-br from-red-50 to-pink-50 border-red-200">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center">
-                  <AlertTriangle className="w-5 h-5 text-red-600" />
+            <CardContent className="p-3 sm:p-4">
+              <div className="flex items-center gap-2 sm:gap-3">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600" />
                 </div>
-                <div>
-                  <p className="text-sm text-red-600">Overdue</p>
-                  <p className="text-2xl font-bold text-red-700">${totalOverdue.toLocaleString()}</p>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm text-red-600">Overdue</p>
+                  <p className="text-lg sm:text-2xl font-bold text-red-700">${totalOverdue.toLocaleString()}</p>
                 </div>
               </div>
             </CardContent>
@@ -376,18 +376,26 @@ const CreditManagement = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="applications">
-          <TabsList>
-            <TabsTrigger value="applications">
-              Applications ({applications.length})
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+            <TabsTrigger value="applications" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
+              <span className="hidden sm:inline">Applications</span>
+              <span className="sm:hidden">Apps</span>
+              <span className="ml-1">({applications.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="sent-terms">
-              Sent Offers ({sentTerms.length})
+            <TabsTrigger value="sent-terms" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
+              <span className="hidden sm:inline">Sent Offers</span>
+              <span className="sm:hidden">Offers</span>
+              <span className="ml-1">({sentTerms.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="credit-lines">
-              Credit Lines ({creditLines.length})
+            <TabsTrigger value="credit-lines" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
+              <span className="hidden sm:inline">Credit Lines</span>
+              <span className="sm:hidden">Lines</span>
+              <span className="ml-1">({creditLines.length})</span>
             </TabsTrigger>
-            <TabsTrigger value="overdue">
-              Overdue ({overdueInvoices.length})
+            <TabsTrigger value="overdue" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
+              <span className="hidden sm:inline">Overdue</span>
+              <span className="sm:hidden">Due</span>
+              <span className="ml-1">({overdueInvoices.length})</span>
             </TabsTrigger>
           </TabsList>
 
@@ -863,13 +871,15 @@ const CreditManagement = () => {
         </Dialog>
         {/* Details Dialog */}
         <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Credit Account Details</DialogTitle>
+              <DialogTitle className="text-lg sm:text-xl">Credit Account Details</DialogTitle>
             </DialogHeader>
-            {selectedUserId && <EnhancedPaymentTab userId={selectedUserId} />}
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
+            <div className="max-h-[calc(90vh-120px)] overflow-y-auto">
+              {selectedUserId && <EnhancedPaymentTab userId={selectedUserId} />}
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setShowDetailsDialog(false)} className="w-full sm:w-auto">
                 Close
               </Button>
             </DialogFooter>

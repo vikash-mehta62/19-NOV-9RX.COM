@@ -501,7 +501,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   const renderProductsStep = () => (
     <div className="space-y-4">
       {/* Header with Store Info */}
-      <div className="flex items-center justify-between pb-3 border-b">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between pb-3 border-b">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
             {getTypeIcon(selectedCustomer?.type || "Pharmacy")}
@@ -517,9 +517,9 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
       </div>
 
       {/* Main Content Grid */}
-      <div className="grid grid-cols-12 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Products Section */}
-        <div className="col-span-7">
+        <div className="col-span-1 lg:col-span-7 order-1 lg:order-1">
           <Card>
             <CardContent className="p-3">
               {/* Search */}
@@ -534,7 +534,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
               </div>
 
               {/* Product List */}
-              <ScrollArea className="h-[380px]">
+              <ScrollArea className="h-[55vh] lg:h-[380px]">
                 <div className="space-y-2">
                   {loadingProducts ? (
                     <div className="flex items-center justify-center h-24">
@@ -579,7 +579,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
 
                         {/* Expanded Sizes */}
                         {expandedProduct === product.id && product.product_sizes && (
-                          <div className="border-t bg-gray-50 p-2 grid grid-cols-2 gap-2">
+                          <div className="border-t bg-gray-50 p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {product.product_sizes.map((size: ProductSize) => (
                               <div key={size.id} className="bg-white rounded-lg p-2 border text-center">
                                 <p className="text-sm font-semibold text-gray-900">
@@ -619,9 +619,9 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         </div>
 
         {/* Order Summary */}
-        <div className="col-span-5">
-          <Card className="sticky top-4">
-            <CardContent className="p-3">
+        <div className="col-span-1 lg:col-span-5 order-2 lg:order-2">
+          <Card className="lg:sticky lg:top-4">
+            <CardContent className="p-3 space-y-3 lg:max-h-[70vh] lg:overflow-y-auto">
               {/* Header */}
               <div className="flex items-center justify-between mb-3 pb-2 border-b">
                 <h4 className="font-semibold text-gray-900 flex items-center gap-2">
@@ -632,7 +632,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
               </div>
 
               {/* Cart Items */}
-              <ScrollArea className="h-[220px] mb-3">
+              <div className="max-h-[50vh] lg:h-[220px] overflow-y-auto pr-1 mb-3">
                 {cartItems.length === 0 ? (
                   <div className="text-center py-8">
                     <ShoppingCart className="w-8 h-8 mx-auto text-gray-300 mb-2" />
@@ -685,7 +685,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                     ))}
                   </div>
                 )}
-              </ScrollArea>
+              </div>
 
               {/* Totals */}
               <div className="space-y-1 py-2 border-t text-sm">
@@ -727,11 +727,32 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           </Card>
         </div>
       </div>
+
+      {/* Mobile quick action bar */}
+      <div className="lg:hidden fixed inset-x-0 bottom-0 z-40 bg-white/95 border-t shadow-2xl backdrop-blur px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-gray-500">Total ({orderTotals.itemCount} items)</p>
+            <p className="text-lg font-semibold text-blue-600">${orderTotals.total.toFixed(2)}</p>
+          </div>
+          <Button 
+            className="h-11 px-4 bg-green-600 hover:bg-green-700"
+            onClick={handleCreateOrder}
+            disabled={isSubmitting || cartItems.length === 0}
+          >
+            {isSubmitting ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>Create Order</>
+            )}
+          </Button>
+        </div>
+      </div>
     </div>
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gray-50 p-3 sm:p-4 md:p-6 pb-28">
       <div className="max-w-5xl mx-auto">
         {/* Cancel Button */}
         {onCancel && (

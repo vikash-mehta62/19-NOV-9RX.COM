@@ -17,7 +17,7 @@ export const ProductHeader = ({ onUploadComplete, onAddProduct }: ProductHeaderP
           Manage your product inventory and catalog
         </p>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col 2xl:flex 2xl:flex-row xl:flex xl:flex-row lg:flex lg:flex-row  items-center gap-4">
         <BulkProductUpload onUploadComplete={onUploadComplete} />
         <AddProductButton onClick={onAddProduct} />
       </div>

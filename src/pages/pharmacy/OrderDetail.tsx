@@ -325,9 +325,28 @@ export default function OrderDetail() {
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
       doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
 
-      // Footer
-      doc.setFillColor(...brandColor);
-      doc.rect(0, pageHeight - 5, pageWidth, 5, "F");
+      // Footer band and page numbers
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
+      
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        
+        // Green footer band at bottom
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
+        
+        // White background for page number
+        doc.setFillColor(255, 255, 255);
+        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
+        
+        // Page number text
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" });
+      }
 
       doc.save(`${order.order_number || 'order'}.pdf`);
       toast({ title: "Success", description: "Invoice downloaded successfully" });

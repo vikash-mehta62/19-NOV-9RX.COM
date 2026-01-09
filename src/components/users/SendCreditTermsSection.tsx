@@ -212,7 +212,7 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
               <CardDescription>Send and manage credit terms for this user</CardDescription>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex sm:flex-row gap-2">
             <Button variant="outline" size="sm" onClick={fetchData}>
               <RefreshCw className="w-4 h-4 mr-1" />
               Refresh

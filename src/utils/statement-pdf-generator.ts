@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { StatementData, StatementTransaction } from "@/services/statementService";
 import { DownloadManager, DownloadOptions, DownloadResult } from "./download-manager";
+import Logo from "../../../19-NOV-9RX.COM/src/assests/home/9rx_logo.png"
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -83,6 +84,30 @@ export class StatementPDFGenerator {
       // Add footer
       this.addFooter(doc, pageWidth, pageHeight);
 
+      // Add page numbers to all pages
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        const pdfHeight = doc.internal.pageSize.getHeight();
+
+        // Thank you message
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+        doc.text("Thank you for your business!", pdfWidth / 2, pdfHeight - 12, { align: "center" });
+
+        // Page number text (at the end)
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 6, { align: "center" });
+
+        // Green footer band
+        doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
+      }
+
       // Convert to blob and return
       const pdfBlob = doc.output('blob');
       return pdfBlob;
@@ -113,7 +138,7 @@ export class StatementPDFGenerator {
     // Try to add logo
     try {
       const logo = new Image();
-      logo.src = "/logoFul.png";
+      logo.src = Logo;
       await new Promise((resolve, reject) => {
         logo.onload = resolve;
         logo.onerror = reject;
@@ -375,10 +400,6 @@ export class StatementPDFGenerator {
           doc.setFontSize(10);
           doc.setTextColor(255, 255, 255);
           doc.text("ACCOUNT STATEMENT (Continued)", this.margin, 10);
-          
-          doc.setFont("helvetica", "normal");
-          doc.setFontSize(8);
-          doc.text(`Page ${data.pageNumber}`, pageWidth - this.margin, 10, { align: "right" });
         }
       }
     });
@@ -455,7 +476,7 @@ export class StatementPDFGenerator {
     pageWidth: number,
     pageHeight: number
   ): void {
-    const footerY = pageHeight - 20;
+    const footerY = pageHeight - 30;
 
     // Footer line
     doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
@@ -466,21 +487,16 @@ export class StatementPDFGenerator {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 5, { align: "center" });
 
     // Generated timestamp
     doc.setFontSize(7);
     doc.text(
       `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
       pageWidth / 2,
-      footerY + 11,
+      footerY + 10,
       { align: "center" }
     );
-
-    // Thank you message
-    doc.setFont("helvetica", "italic");
-    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-    doc.text("Thank you for your business!", pageWidth / 2, footerY + 16, { align: "center" });
   }
 
   /**

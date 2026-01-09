@@ -31,6 +31,7 @@ import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
 import { PharmacyOrderDetails } from "@/components/pharmacy/PharmacyOrderDetails";
+import Logo from "../../../assests/home/9rx_logo.png";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -376,7 +377,7 @@ export const OrderDetailsSheet = ({
       let logoLoaded = false;
       try {
         const logo = new Image();
-        logo.src = "/final.png";
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve(); };
           logo.onerror = () => resolve();
@@ -386,7 +387,7 @@ export const OrderDetailsSheet = ({
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20;
           const logoWidth = (logo.width / logo.height) * logoHeight;
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight);
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight);
         }
       } catch {
         // Continue without logo
@@ -561,66 +562,94 @@ export const OrderDetailsSheet = ({
       }
 
       // ===== ITEMS TABLE =====
-      const tableStartY = infoStartY + 42;
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
-      const tableBody: any[] = [];
+      // ===== ITEMS TABLE =====
+const tableStartY = infoStartY + 42;
+const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+const tableBody: any[] = [];
 
-      let itemIndex = 1;
-      currentOrder.items.forEach((item: any) => {
-        item.sizes.forEach((size, sizeIndex) => {
-          const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
-          const quantity = size.quantity.toString();
-          const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
-          const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
+let itemIndex = 1;
 
-          tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
-          itemIndex++;
+currentOrder.items.forEach((item: any) => {
+  item.sizes.forEach((size: any, sizeIndex: number) => {
+    const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
+    const quantity = size.quantity.toString();
+    const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
+    const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
 
-          if (sizeIndex === 0 && item.description && item.description.trim()) {
-            tableBody.push([
-              "",
-              {
-                content: `? ${item.description.trim()}`,
-                styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
-              },
-              "",
-              "",
-              "",
-              "",
-            ]);
-          }
-        });
-      });
+    // Main product row
+    tableBody.push([
+      itemIndex.toString(),
+      item.name,
+      sizeValueUnit,
+      quantity,
+      pricePerUnit,
+      totalPerSize,
+    ]);
 
-      (doc as any).autoTable({
-        head: tableHead,
-        body: tableBody,
-        startY: tableStartY,
-        styles: { 
-          fontSize: 9,
-          cellPadding: 3,
+    itemIndex++;
+    
+    if (
+      sizeIndex === 0 &&
+      item.description &&
+      item.description.trim() &&
+      !item.description.toLowerCase().includes("test")
+    ) {
+      tableBody.push([
+        "",
+        {
+          content: `↳ ${item.description.trim()}`,
+          styles: {
+            fontStyle: "italic",
+            textColor: [120, 120, 120],
+            fontSize: 8,
+          },
         },
-        theme: "striped",
-        headStyles: { 
-          fillColor: brandColor, 
-          textColor: 255, 
-          fontStyle: "bold",
-          halign: "center"
-        },
-        alternateRowStyles: {
-          fillColor: [250, 250, 250]
-        },
-        columnStyles: {
-          0: { halign: "center", cellWidth: 10 },
-          1: { cellWidth: "auto" },
-          2: { halign: "center", cellWidth: 25 },
-          3: { halign: "center", cellWidth: 15 },
-          4: { halign: "right", cellWidth: 25 },
-          5: { halign: "right", cellWidth: 25 },
-        },
-        margin: { left: margin, right: margin },
-        tableWidth: "auto",
-      });
+        "",
+        "",
+        "",
+        "",
+      ]);
+    }
+  });
+});
+
+// Draw table
+(doc as any).autoTable({
+  head: tableHead,
+  body: tableBody,
+  startY: tableStartY,
+  styles: {
+    fontSize: 9,
+    cellPadding: 3,
+  },
+  theme: "striped",
+  headStyles: {
+    fillColor: brandColor,
+    textColor: 255,
+    fontStyle: "bold",
+    halign: "center",
+  },
+  alternateRowStyles: {
+    fillColor: [250, 250, 250],
+  },
+  columnStyles: {
+    0: { halign: "center", cellWidth: 10 },
+    1: { cellWidth: "auto" },
+    2: { halign: "center", cellWidth: 25 },
+    3: { halign: "center", cellWidth: 15 },
+    4: { halign: "right", cellWidth: 25 },
+    5: { halign: "right", cellWidth: 25 },
+  },
+  margin: { left: margin, right: margin, bottom: 30 },
+  tableWidth: "auto",
+  showHead: "everyPage",
+  didDrawPage: () => {
+    doc.setFillColor(...brandColor);
+    doc.rect(0, 0, pageWidth, 5, "F");
+    doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+  },
+});
+
 
       const finalY = (doc as any).lastAutoTable.finalY + 8;
 
@@ -705,42 +734,73 @@ export const OrderDetailsSheet = ({
         doc.setFontSize(9);
         doc.setTextColor(255, 255, 255);
         doc.text("FULLY PAID", pageWidth - margin - 50, pdfPaidAmountY + 5.5, { align: "center" });
+        pdfPaidAmountY += 10;
       }
 
       // ===== FOOTER =====
-      const footerY = pageHeight - 30;
+      // Calculate footer position dynamically based on where summary ends
+      // Use the higher of: 15mm after summary OR fixed position from bottom (for short orders)
+      const summaryEndY = pdfPaidAmountY + 5; // Add some padding after last element
+      const minFooterY = pageHeight - 25; // Minimum position from bottom
+      const footerY = Math.max(summaryEndY + 10, minFooterY);
       
-      // Footer line
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.3);
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-      
-      // Thank you message
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(...brandColor);
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
-      
-      // Payment info - different for paid vs unpaid
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(120, 120, 120);
-      
-      if (currentOrder.payment_status === "paid") {
-        // Show transaction ID for paid invoices
-        const transactionId = (currentOrder as any).payment_transication || "";
-        if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" });
-        } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
-        }
+      // Check if footer would go off page, if so add new page
+      if (footerY > pageHeight - 15) {
+        // Don't draw footer on this page if it would overlap with page number area
+        // The footer will only appear cleanly at the bottom
       } else {
-        // Show payment terms for unpaid invoices
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+        // Footer line
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+        
+        // Thank you message
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...brandColor);
+        doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
+        
+        // Payment info - different for paid vs unpaid
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        
+        if (currentOrder.payment_status === "paid") {
+          // Show transaction ID for paid invoices
+          const transactionId = (currentOrder as any).payment_transication || "";
+          if (transactionId) {
+            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 8, { align: "center" });
+          } else {
+            doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+          }
+        } else {
+          // Show payment terms for unpaid invoices
+          doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+        }
       }
-      // Footer brand bar
-      doc.setFillColor(...brandColor);
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F");
+
+      // Add page numbers to all pages (Page X of Y format)
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
+      
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        
+        // Ensure footer band is on this page
+        doc.setFillColor(0, 150, 136);
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
+        
+        // Draw white background for page number visibility
+        doc.setFillColor(255, 255, 255);
+        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
+        
+        // Draw page number text
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" });
+      }
 
       doc.save(`${currentOrder.order_number}.pdf`);
 
@@ -788,7 +848,7 @@ export const OrderDetailsSheet = ({
       let logoLoaded = false;
       try {
         const logo = new Image();
-        logo.src = "/final.png";
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve(); };
           logo.onerror = () => resolve();
@@ -798,7 +858,7 @@ export const OrderDetailsSheet = ({
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20;
           const logoWidth = (logo.width / logo.height) * logoHeight;
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight);
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight);
         }
       } catch {
         // Continue without logo
@@ -984,7 +1044,7 @@ export const OrderDetailsSheet = ({
             tableBody.push([
               "",
               {
-                content: `? ${item.description.trim()}`,
+                content: `↳ ${item.description.trim()}`,
                 styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
               },
               "",
@@ -1022,13 +1082,22 @@ export const OrderDetailsSheet = ({
           4: { halign: "right", cellWidth: 25 },
           5: { halign: "right", cellWidth: 25 },
         },
-        margin: { left: margin, right: margin },
+        margin: { left: margin, right: margin, bottom: 30 },
         tableWidth: "auto",
+        showHead: 'everyPage',
+        didDrawPage: (data: any) => {
+          // Add header band on every page
+          doc.setFillColor(...brandColor);
+          doc.rect(0, 0, pageWidth, 5, "F");
+          // Add footer band on every page (at very bottom - thin 2mm bar)
+          doc.setFillColor(...brandColor);
+          doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        }
       });
 
       const finalY = (doc as any).lastAutoTable.finalY + 8;
 
-      // ===== SUMMARY SECTION =====
+      // ===== SUMMARY SECTION =======
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
         return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
       }, 0);
@@ -1109,37 +1178,66 @@ export const OrderDetailsSheet = ({
         doc.setFontSize(9);
         doc.setTextColor(255, 255, 255);
         doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" });
+        printPaidAmountY += 10;
       }
 
       // ===== FOOTER =====
-      const footerY = pageHeight - 30;
+      // Calculate footer position dynamically based on where summary ends
+      const summaryEndY = printPaidAmountY + 5;
+      const minFooterY = pageHeight - 25;
+      const footerY = Math.max(summaryEndY + 10, minFooterY);
       
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.3);
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
-      
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(...brandColor);
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
-      
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.setTextColor(120, 120, 120);
-      
-      if (currentOrder.payment_status === "paid") {
-        const transactionId = (currentOrder as any).payment_transication || "";
-        if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" });
-        } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
-        }
+      // Check if footer would go off page
+      if (footerY > pageHeight - 15) {
+        // Don't draw footer text if it would overlap with page number area
       } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" });
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
+        
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10);
+        doc.setTextColor(...brandColor);
+        doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
+        
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(120, 120, 120);
+        
+        if (currentOrder.payment_status === "paid") {
+          const transactionId = (currentOrder as any).payment_transication || "";
+          if (transactionId) {
+            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 8, { align: "center" });
+          } else {
+            doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+          }
+        } else {
+          doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+        }
       }
+
+      // Add page numbers to all pages (Page X of Y format)
+      const totalPages = (doc as any).internal.getNumberOfPages();
+      const pdfWidth = doc.internal.pageSize.getWidth();
+      const pdfHeight = doc.internal.pageSize.getHeight();
       
-      doc.setFillColor(...brandColor);
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F");
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        
+        // Ensure footer band is on this page
+        doc.setFillColor(0, 150, 136);
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
+        
+        // Draw white background for page number visibility
+        doc.setFillColor(255, 255, 255);
+        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
+        
+        // Draw page number text
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" });
+      }
 
       // Open PDF in iframe for printing with proper margins
       const pdfBlob = doc.output('blob');
@@ -1350,190 +1448,192 @@ export const OrderDetailsSheet = ({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full max-w-full md:max-w-4xl lg:max-w-3xl overflow-y-auto z-50 p-4 md:p-6">
-          <SheetHeader className="mb-4">
-            <SheetTitle className="text-lg md:text-xl">Order Details</SheetTitle>
-            <SheetDescription className="text-sm md:text-base">
+        <SheetContent className="w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[95vh] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
+          <SheetHeader className="mb-1 sm:mb-2">
+            <SheetTitle className="text-base sm:text-lg md:text-xl">Order Details</SheetTitle>
+            <SheetDescription className="text-xs sm:text-sm md:text-base">
               {isEditing ? "Edit order details" : "View and manage order information"}
             </SheetDescription>
           </SheetHeader>
 
-          {isEditing ? (
-            <div className="mt-6">
-              <CreateOrderForm 
-                initialData={currentOrder} 
-                isEditing={isEditing}
-                poIs={poIs}
-              />
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsEditing(false);
-                  setCurrentOrder(order); // Reset to original order data
-                }}
-                className="mt-4 w-full md:w-auto"
-              >
-                Cancel Edit
-              </Button>
-            </div>
-          ) : (
-            <>
-              {/* Order Header */}
-              <OrderHeader
-                order={currentOrder}
-                onEdit={() => {
-                  // Navigate to new flow for editing
-                  const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
-                  window.location.href = editUrl;
-                }}
-                onDownload={handleDownloadPDF}
-                onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
-                onSendEmail={sendMail}
-                onShipOrder={onShipOrder ? () => handleStatusUpdate("ship") : undefined}
-                onPrint={handlePrint}
-                isGeneratingPDF={isGeneratingPDF}
-                isSendingEmail={loading}
-                userRole={userRole}
-                poIs={poIs}
-              />
-
-              {/* Tabs */}
-              <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="grid w-full grid-cols-3 md:grid-cols-6 mb-4">
-                  <TabsTrigger value="overview" className="text-xs md:text-sm">
-                    Overview
-                  </TabsTrigger>
-                  <TabsTrigger value="items" className="text-xs md:text-sm">
-                    Items
-                  </TabsTrigger>
-                  <TabsTrigger value="customer" className="text-xs md:text-sm">
-                    {poIs ? "Vendor" : "Customer"}
-                  </TabsTrigger>
-                  <TabsTrigger value="payment" className="text-xs md:text-sm">
-                    Payment
-                  </TabsTrigger>
-                  <TabsTrigger value="shipping" className="text-xs md:text-sm">
-                    Shipping
-                  </TabsTrigger>
-                  <TabsTrigger value="activity" className="text-xs md:text-sm">
-                    Activity
-                  </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="overview" className="mt-0">
-                  <OverviewTab order={currentOrder} companyName={companyName} poIs={poIs} />
-                </TabsContent>
-
-                <TabsContent value="items" className="mt-0">
-                  <ItemsTab
-                    items={currentOrder.items}
-                    orderId={currentOrder.id}
-                    customerId={currentOrder.customer || (currentOrder as any).location_id || (currentOrder as any).profile_id}
-                    orderNumber={currentOrder.order_number}
-                    customerEmail={currentOrder.customerInfo?.email}
-                    paymentStatus={currentOrder.payment_status}
-                    shippingCost={parseFloat(currentOrder.shipping_cost || "0")}
-                    taxAmount={currentOrder.tax_amount || 0}
-                    discountAmount={Number((currentOrder as any).discount_amount || 0)}
-                    onItemsUpdate={(updatedItems) => {
-                      // Calculate new subtotal from items
-                      const newSubtotal = updatedItems.reduce((acc, item) => {
-                        return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
-                      }, 0);
-                      const taxAmount = currentOrder.tax_amount || 0;
-                      const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
-                      const discountAmount = Number((currentOrder as any).discount_amount || 0);
-                      const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
-                      
-                      setCurrentOrder(prev => ({ 
-                        ...prev, 
-                        items: updatedItems,
-                        total: newTotal.toFixed(2)
-                      }));
-                    }}
-                    onOrderUpdate={() => loadOrders?.(poIs)}
-                    userRole={userRole}
-                    orderStatus={currentOrder.status}
-                    isVoid={currentOrder.void}
-                  />
-                </TabsContent>
-
-                <TabsContent value="customer" className="mt-0">
-                  <CustomerTab
-                    customerInfo={currentOrder.customerInfo}
-                    shippingAddress={currentOrder.shippingAddress}
-                    companyName={companyName}
-                    poIs={poIs}
-                    orderId={currentOrder.id}
-                    onOrderUpdate={() => loadOrders?.(poIs)}
-                    userRole={userRole}
-                    orderStatus={currentOrder.status}
-                    isVoid={currentOrder.void}
-                  />
-                </TabsContent>
-
-                <TabsContent value="payment" className="mt-0">
-                  <PaymentTab
-                    order={currentOrder}
-                    onSendPaymentLink={sendMail}
-                    isSendingLink={loading}
-                    poIs={poIs}
-                  />
-                </TabsContent>
-
-                <TabsContent value="shipping" className="mt-0">
-                  <ShippingTab
-                    order={currentOrder}
-                    orderId={currentOrder.id}
-                    onOrderUpdate={() => loadOrders?.(poIs)}
-                    userRole={userRole}
-                  />
-                </TabsContent>
-
-                <TabsContent value="activity" className="mt-0">
-                  <ActivityTab order={currentOrder} />
-                </TabsContent>
-              </Tabs>
-
-              {/* Admin Actions */}
-              {userRole === "admin" && !poIs && (
-                <div className="flex justify-end mt-6 pt-4 border-t">
-
-                  <button
-                  onClick={handleDownloadPackingSlip}
-                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300"
+          <div className="flex-1 overflow-y-auto pr-1 sm:pr-2">
+            {isEditing ? (
+              <div className="mt-4 sm:mt-6">
+                <CreateOrderForm 
+                  initialData={currentOrder} 
+                  isEditing={isEditing}
+                  poIs={poIs}
+                />
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setCurrentOrder(order); // Reset to original order data
+                  }}
+                  className="mt-4 w-full md:w-auto"
                 >
-                  <Package size={18} />
-                  Packing Slip
-                </button>
-                  <OrderActions
-                    order={currentOrder}
-                    onProcessOrder={() => handleStatusUpdate("process")}
-                    onShipOrder={() => handleStatusUpdate("ship")}
-                    onConfirmOrder={() => handleStatusUpdate("confirm")}
-                    onDeleteOrder={onDeleteOrder}
-                  />
-                </div>
-              )}
+                  Cancel Edit
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {/* Order Header */}
+                <OrderHeader
+                  order={currentOrder}
+                  onEdit={() => {
+                    // Navigate to new flow for editing
+                    const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
+                    window.location.href = editUrl;
+                  }}
+                  onDownload={handleDownloadPDF}
+                  onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
+                  onSendEmail={sendMail}
+                  onShipOrder={onShipOrder ? () => handleStatusUpdate("ship") : undefined}
+                  onPrint={handlePrint}
+                  isGeneratingPDF={isGeneratingPDF}
+                  isSendingEmail={loading}
+                  userRole={userRole}
+                  poIs={poIs}
+                />
 
-              {/* PO Actions */}
-              {poIs && (
-                <div className="flex w-full justify-end mt-6 gap-3 pt-4 border-t">
-                  {order?.poApproved ? (
-                    <Button onClick={handleReject} variant="destructive" className="gap-2">
-                      <XCircle size={18} />
-                      Reject Purchase
-                    </Button>
-                  ) : (
-                    <Button onClick={handleApprove} className="gap-2 bg-blue-600 hover:bg-blue-700">
-                      <CheckCircle size={18} />
-                      Approve Purchase
-                    </Button>
-                  )}
-                </div>
-              )}
-            </>
-          )}
+                {/* Tabs */}
+                <Tabs defaultValue="overview" className="w-full">
+                  <TabsList className="w-full h-auto flex sm:grid sm:grid-cols-6 gap-1 mb-4 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30">
+                    <TabsTrigger value="overview" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      Overview
+                    </TabsTrigger>
+                    <TabsTrigger value="items" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      Items
+                    </TabsTrigger>
+                    <TabsTrigger value="customer" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      {poIs ? "Vendor" : "Customer"}
+                    </TabsTrigger>
+                    <TabsTrigger value="payment" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      Payment
+                    </TabsTrigger>
+                    <TabsTrigger value="shipping" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      Shipping
+                    </TabsTrigger>
+                    <TabsTrigger value="activity" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                      Activity
+                    </TabsTrigger>
+                  </TabsList>
+
+                  <TabsContent value="overview" className="mt-0">
+                    <OverviewTab order={currentOrder} companyName={companyName} poIs={poIs} />
+                  </TabsContent>
+
+                  <TabsContent value="items" className="mt-0">
+                    <ItemsTab
+                      items={currentOrder.items}
+                      orderId={currentOrder.id}
+                      customerId={currentOrder.customer || (currentOrder as any).location_id || (currentOrder as any).profile_id}
+                      orderNumber={currentOrder.order_number}
+                      customerEmail={currentOrder.customerInfo?.email}
+                      paymentStatus={currentOrder.payment_status}
+                      shippingCost={parseFloat(currentOrder.shipping_cost || "0")}
+                      taxAmount={currentOrder.tax_amount || 0}
+                      discountAmount={Number((currentOrder as any).discount_amount || 0)}
+                      onItemsUpdate={(updatedItems) => {
+                        // Calculate new subtotal from items
+                        const newSubtotal = updatedItems.reduce((acc, item) => {
+                          return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
+                        }, 0);
+                        const taxAmount = currentOrder.tax_amount || 0;
+                        const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
+                        const discountAmount = Number((currentOrder as any).discount_amount || 0);
+                        const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
+                        
+                        setCurrentOrder(prev => ({ 
+                          ...prev, 
+                          items: updatedItems,
+                          total: newTotal.toFixed(2)
+                        }));
+                      }}
+                      onOrderUpdate={() => loadOrders?.(poIs)}
+                      userRole={userRole}
+                      orderStatus={currentOrder.status}
+                      isVoid={currentOrder.void}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="customer" className="mt-0">
+                    <CustomerTab
+                      customerInfo={currentOrder.customerInfo}
+                      shippingAddress={currentOrder.shippingAddress}
+                      companyName={companyName}
+                      poIs={poIs}
+                      orderId={currentOrder.id}
+                      onOrderUpdate={() => loadOrders?.(poIs)}
+                      userRole={userRole}
+                      orderStatus={currentOrder.status}
+                      isVoid={currentOrder.void}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="payment" className="mt-0">
+                    <PaymentTab
+                      order={currentOrder}
+                      onSendPaymentLink={sendMail}
+                      isSendingLink={loading}
+                      poIs={poIs}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="shipping" className="mt-0">
+                    <ShippingTab
+                      order={currentOrder}
+                      orderId={currentOrder.id}
+                      onOrderUpdate={() => loadOrders?.(poIs)}
+                      userRole={userRole}
+                    />
+                  </TabsContent>
+
+                  <TabsContent value="activity" className="mt-0">
+                    <ActivityTab order={currentOrder} />
+                  </TabsContent>
+                </Tabs>
+
+                {/* Admin Actions */}
+                {userRole === "admin" && !poIs && (
+                  <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-2 sm:gap-3 mt-4 pt-4 border-t">
+
+                    <button
+                    onClick={handleDownloadPackingSlip}
+                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
+                  >
+                    <Package size={18} />
+                    Packing Slip
+                  </button>
+                    <OrderActions
+                      order={currentOrder}
+                      onProcessOrder={() => handleStatusUpdate("process")}
+                      onShipOrder={() => handleStatusUpdate("ship")}
+                      onConfirmOrder={() => handleStatusUpdate("confirm")}
+                      onDeleteOrder={onDeleteOrder}
+                    />
+                  </div>
+                )}
+
+                {/* PO Actions */}
+                {poIs && (
+                  <div className="flex flex-col sm:flex-row w-full justify-end mt-6 gap-3 pt-4 border-t">
+                    {order?.poApproved ? (
+                      <Button onClick={handleReject} variant="destructive" className="gap-2 w-full sm:w-auto">
+                        <XCircle size={18} />
+                        Reject Purchase
+                      </Button>
+                    ) : (
+                      <Button onClick={handleApprove} className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
+                        <CheckCircle size={18} />
+                        Approve Purchase
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <ChargesDialog open={chargesOpen} onOpenChange={setChargesOpen} onSubmit={submitCharges} />
         </SheetContent>

@@ -419,13 +419,13 @@ const Expenses = () => {
             <TabsContent value="list">
               <Card className="shadow-lg border-gray-200 dark:border-gray-700">
                 <CardHeader className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
-                  <div className="flex justify-between items-center">
+                  <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
                     <h2 className="text-xl font-semibold text-gray-900 dark:text-white">All Expenses</h2>
-                    <div className="flex space-x-2">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                       {/* Filter Dialog Trigger */}
                       <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
                         <DialogTrigger asChild>
-                          <Button variant="outline" className="flex items-center gap-2 bg-transparent">
+                          <Button variant="outline" className="flex items-center gap-2 bg-transparent w-full sm:w-auto">
                             <Filter className="h-4 w-4" />
                             Filter
                             {(searchTerm || startDate || endDate) && (
@@ -475,8 +475,8 @@ const Expenses = () => {
                       </Dialog>
 
                       {/* View Mode and Sort Controls (remain outside filter dialog) */}
-                      <Select value={viewMode} onValueChange={(value) => setViewMode(value as "daily" | "monthly")}>
-                        <SelectTrigger className="w-[140px]">
+                      <Select value={viewMode} onValueChange={(value) => setViewMode(value as "daily" | "monthly")}> 
+                        <SelectTrigger className="w-full sm:w-[140px]">
                           <SelectValue placeholder="View Mode" />
                         </SelectTrigger>
                         <SelectContent>
@@ -491,6 +491,7 @@ const Expenses = () => {
                               variant="outline"
                               size="icon"
                               onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                              className="w-full sm:w-auto"
                             >
                               <ArrowDownUp
                                 className={`h-4 w-4 ${sortOrder === "desc" ? "text-blue-500" : "text-gray-500"}`}
@@ -514,20 +515,20 @@ const Expenses = () => {
                   ) : (
                     <>
                       {viewMode === "daily" ? (
-                        <div className="overflow-x-auto">
+                        <div className="overflow-x-auto w-full px-1 sm:px-0">
                           <Table>
                             <TableHeader>
                               <TableRow className="bg-gray-50 dark:bg-gray-800">
-                                <TableHead className="font-semibold">Name</TableHead>
-                                <TableHead className="font-semibold">Amount</TableHead>
-                                <TableHead className="font-semibold">
+                                <TableHead className="font-semibold whitespace-nowrap">Name</TableHead>
+                                <TableHead className="font-semibold whitespace-nowrap">Amount</TableHead>
+                                <TableHead className="font-semibold whitespace-nowrap">
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-4 w-4" />
                                     Date
                                   </div>
                                 </TableHead>
-                                <TableHead className="font-semibold">Description</TableHead>
-                                <TableHead className="w-20 text-right">Actions</TableHead>
+                                <TableHead className="font-semibold whitespace-nowrap hidden md:table-cell">Description</TableHead>
+                                <TableHead className="w-20 text-right whitespace-nowrap">Actions</TableHead>
                               </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -572,7 +573,7 @@ const Expenses = () => {
                                         ? format(parseISO(expense.date), "dd MMM yyyy")
                                         : "Invalid date"}
                                     </TableCell>
-                                    <TableCell className="text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                                    <TableCell className="text-gray-600 dark:text-gray-400 max-w-xs truncate hidden md:table-cell">
                                       {expense.description || "-"}
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -705,19 +706,19 @@ const Expenses = () => {
                     </>
                   )}
                 </CardContent>
-                <CardFooter className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <CardFooter className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
                   {/* Expense Count */}
                   <span className="text-sm text-gray-600 dark:text-gray-400">
                     {filteredExpenses.length} {filteredExpenses.length === 1 ? "expense" : "expenses"} found
                   </span>
                   {/* Right Side Controls */}
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 w-full sm:w-auto">
+                  <div className="flex flex-col xs:flex-row items-start xs:items-center gap-3 xs:gap-6 w-full xs:w-auto">
                     {/* CSV Download Button */}
                     <CSVLink
                       data={filteredExpenses}
                       headers={headers}
                       filename="expenses.csv"
-                      className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium text-sm px-4 py-2 rounded-md shadow transition duration-200"
+                      className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium text-sm px-4 py-2 rounded-md shadow transition duration-200 w-full xs:w-auto justify-center"
                     >
                       <Download className="h-4 w-4" />
                       Export CSV

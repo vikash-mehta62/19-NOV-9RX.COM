@@ -2,7 +2,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   User,
   MapPin,
@@ -221,7 +220,7 @@ export const ReviewOrderStep = ({
         </CardHeader>
         <CardContent>
           {cartItems.length > 0 ? (
-            <ScrollArea className="max-h-[400px]">
+            <div className="max-h-[400px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
               <div className="space-y-4">
                 {cartItems.map((item) => {
                   const isExpanded = expandedItems.has(item.productId);
@@ -383,7 +382,7 @@ export const ReviewOrderStep = ({
                   );
                 })}
               </div>
-            </ScrollArea>
+            </div>
           ) : (
             <div className="text-center py-8">
               <Package className="h-12 w-12 text-gray-400 mx-auto mb-4" />

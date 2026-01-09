@@ -208,7 +208,7 @@ export default function EmailSettings() {
             <h1 className="text-3xl font-bold">Email Settings</h1>
             <p className="text-muted-foreground">Configure your email service provider and settings</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex sm:flex-col md:flex md:flex-row lg:flex lg:flex-row xl:flex xl:flex-row 2xl:flex 2xl:flex-row  gap-2">
             <Button variant="outline" onClick={() => setTestDialogOpen(true)}>
               <TestTube className="mr-2 h-4 w-4" /> Send Test Email
             </Button>

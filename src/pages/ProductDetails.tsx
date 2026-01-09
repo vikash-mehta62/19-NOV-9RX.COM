@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check, Gift, HelpCircle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { Navbar } from "@/components/landing/HeroSection"
+import logo from "../assests/home/9rx_logo.png"
 import { useCart } from "@/hooks/use-cart"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
@@ -509,10 +509,37 @@ const ProductDetails = () => {
   const isDashboardRoute = /^(\/admin|\/pharmacy|\/group|\/hospital)\//.test(location.pathname)
   const topOffsetClass = isDashboardRoute ? "pt-0" : "pt-16"
 
+  // Simple navbar for light backgrounds
+  const LightNavbar = () => (
+    <nav 
+      className="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-xl shadow-sm"
+      role="navigation"
+      aria-label="Main navigation"
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+        <div className="flex justify-between items-center">
+          <a href="/" aria-label="9RX Home" className="flex-shrink-0">
+            <img
+              src={logo}
+              alt="9RX Logo"
+              className="h-12 sm:h-12 w-auto"
+            />
+          </a>
+          <Button
+            className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base"
+            onClick={() => navigate('/login')}
+          >
+            Login
+          </Button>
+        </div>
+      </div>
+    </nav>
+  )
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30">
-        {!isDashboardRoute && <Navbar />}
+        {!isDashboardRoute && <LightNavbar />}
         
         {/* Enhanced Loading Header */}
         <div className={`bg-white/95 backdrop-blur-2xl border-b-2 border-gray-100 shadow-xl sticky top-0 z-40 ${topOffsetClass}`}>
@@ -660,7 +687,7 @@ const ProductDetails = () => {
 
 return (
   <>
-    {!isDashboardRoute && <Navbar />}
+    {!isDashboardRoute && <LightNavbar />}
 
     <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 ${topOffsetClass}`}>
       {/* Enhanced Header with Modern Design & Micro-interactions */}

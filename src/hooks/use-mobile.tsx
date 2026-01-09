@@ -2,6 +2,7 @@ import * as React from "react"
 
 const MOBILE_BREAKPOINT = 768
 const TABLET_BREAKPOINT = 1024
+const LAPTOP_BREAKPOINT = 1280
 
 export function useIsMobile() {
   const [isMobile, setIsMobile] = React.useState<boolean | undefined>(undefined)
@@ -36,7 +37,7 @@ export function useIsTablet() {
 }
 
 export function useScreenSize() {
-  const [screenSize, setScreenSize] = React.useState<'mobile' | 'tablet' | 'desktop'>('desktop')
+  const [screenSize, setScreenSize] = React.useState<'mobile' | 'tablet' | 'laptop' | 'desktop'>('desktop')
 
   React.useEffect(() => {
     const onChange = () => {
@@ -45,6 +46,8 @@ export function useScreenSize() {
         setScreenSize('mobile')
       } else if (width < TABLET_BREAKPOINT) {
         setScreenSize('tablet')
+      } else if (width < LAPTOP_BREAKPOINT) {
+        setScreenSize('laptop')
       } else {
         setScreenSize('desktop')
       }

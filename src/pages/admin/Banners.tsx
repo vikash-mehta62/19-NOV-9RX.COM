@@ -47,6 +47,8 @@ import { UserTargetingEditor } from "@/components/admin/banners/UserTargetingEdi
 import { BannerDesignStudio } from "@/components/admin/banners/BannerDesignStudio";
 import { BannerInitializer } from "@/components/admin/banners/BannerInitializer";
 import { FestivalThemeManager } from "@/components/admin/banners/FestivalThemeManager";
+import { useScreenSize } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 interface Banner {
   id: string;
@@ -219,6 +221,10 @@ export default function Banners() {
   const [customWidth, setCustomWidth] = useState(1920);
   const [customHeight, setCustomHeight] = useState(600);
   const { toast } = useToast();
+  const screenSize = useScreenSize();
+  const isMobile = screenSize === 'mobile';
+  const isTablet = screenSize === 'tablet';
+  const isCompact = isMobile || isTablet;
 
   useEffect(() => {
     fetchBanners();
@@ -522,32 +528,82 @@ export default function Banners() {
 
         {/* Main Tabs */}
         <Tabs value={mainTab} onValueChange={setMainTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="banners" className="flex items-center gap-2">
-              <Image className="h-4 w-4" />
-              Banners
-            </TabsTrigger>
-            <TabsTrigger value="festivals" className="flex items-center gap-2">
-              <PartyPopper className="h-4 w-4" />
-              Festivals
-            </TabsTrigger>
-            <TabsTrigger value="design" className="flex items-center gap-2">
-              <Sparkles className="h-4 w-4" />
-              Design Studio
-            </TabsTrigger>
-            <TabsTrigger value="analytics" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Analytics
-            </TabsTrigger>
-            <TabsTrigger value="abtests" className="flex items-center gap-2">
-              <TestTube className="h-4 w-4" />
-              A/B Tests
-            </TabsTrigger>
-            <TabsTrigger value="targeting" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Targeting
-            </TabsTrigger>
-          </TabsList>
+          <div className={cn(
+            "relative",
+            isCompact && "overflow-hidden"
+          )}>
+            <TabsList className={cn(
+              "grid w-full",
+              isCompact 
+                ? "grid-cols-none flex overflow-x-auto scrollbar-hide gap-1 p-1 bg-muted rounded-lg" 
+                : "grid-cols-6"
+            )}>
+              <TabsTrigger 
+                value="banners" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <Image className="h-4 w-4" />
+                {isCompact ? "Banners" : "Banners"}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="festivals" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <PartyPopper className="h-4 w-4" />
+                {isCompact ? "Festivals" : "Festivals"}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="design" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <Sparkles className="h-4 w-4" />
+                {isCompact ? "Design" : "Design Studio"}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="analytics" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <BarChart3 className="h-4 w-4" />
+                {isCompact ? "Analytics" : "Analytics"}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="abtests" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <TestTube className="h-4 w-4" />
+                {isCompact ? "A/B Tests" : "A/B Tests"}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="targeting" 
+                className={cn(
+                  "flex items-center gap-2",
+                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
+                )}
+              >
+                <Target className="h-4 w-4" />
+                {isCompact ? "Targeting" : "Targeting"}
+              </TabsTrigger>
+            </TabsList>
+            {/* Scroll indicator for mobile */}
+            {isCompact && (
+              <div className="absolute right-0 top-0 bottom-0 w-8 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+            )}
+          </div>
 
           <TabsContent value="banners" className="space-y-6">
             {/* Show initializer if no banners exist */}
@@ -988,35 +1044,90 @@ export default function Banners() {
             </Card>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className={cn(
+              "grid gap-4",
+              isCompact 
+                ? "grid-cols-2 sm:grid-cols-3" 
+                : "grid-cols-2 md:grid-cols-5"
+            )}>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold">{stats.total}</div>
-                  <p className="text-xs text-muted-foreground">Total Banners</p>
+                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
+                  <div className={cn(
+                    "font-bold text-gray-900",
+                    isCompact ? "text-xl" : "text-2xl"
+                  )}>
+                    {stats.total}
+                  </div>
+                  <p className={cn(
+                    "text-muted-foreground",
+                    isCompact ? "text-xs" : "text-xs"
+                  )}>
+                    Total Banners
+                  </p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-green-600">{stats.active}</div>
-                  <p className="text-xs text-muted-foreground">Active Now</p>
+                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
+                  <div className={cn(
+                    "font-bold text-green-600",
+                    isCompact ? "text-xl" : "text-2xl"
+                  )}>
+                    {stats.active}
+                  </div>
+                  <p className={cn(
+                    "text-muted-foreground",
+                    isCompact ? "text-xs" : "text-xs"
+                  )}>
+                    Active Now
+                  </p>
                 </CardContent>
               </Card>
               <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-blue-600">{stats.scheduled}</div>
-                  <p className="text-xs text-muted-foreground">Scheduled</p>
+                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
+                  <div className={cn(
+                    "font-bold text-blue-600",
+                    isCompact ? "text-xl" : "text-2xl"
+                  )}>
+                    {stats.scheduled}
+                  </div>
+                  <p className={cn(
+                    "text-muted-foreground",
+                    isCompact ? "text-xs" : "text-xs"
+                  )}>
+                    Scheduled
+                  </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-purple-600">{stats.totalViews.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">Total Views</p>
+              <Card className={cn(isCompact && "col-span-1")}>
+                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
+                  <div className={cn(
+                    "font-bold text-purple-600",
+                    isCompact ? "text-xl" : "text-2xl"
+                  )}>
+                    {stats.totalViews.toLocaleString()}
+                  </div>
+                  <p className={cn(
+                    "text-muted-foreground",
+                    isCompact ? "text-xs" : "text-xs"
+                  )}>
+                    Total Views
+                  </p>
                 </CardContent>
               </Card>
-              <Card>
-                <CardContent className="pt-6">
-                  <div className="text-2xl font-bold text-amber-600">{stats.totalClicks.toLocaleString()}</div>
-                  <p className="text-xs text-muted-foreground">Total Clicks</p>
+              <Card className={cn(isCompact && "col-span-1")}>
+                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
+                  <div className={cn(
+                    "font-bold text-amber-600",
+                    isCompact ? "text-xl" : "text-2xl"
+                  )}>
+                    {stats.totalClicks.toLocaleString()}
+                  </div>
+                  <p className={cn(
+                    "text-muted-foreground",
+                    isCompact ? "text-xs" : "text-xs"
+                  )}>
+                    Total Clicks
+                  </p>
                 </CardContent>
               </Card>
             </div>
@@ -1024,19 +1135,70 @@ export default function Banners() {
             {/* Banners Table */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className={cn(
+                  "flex items-center justify-between",
+                  isCompact && "flex-col gap-4 items-start"
+                )}>
                   <CardTitle className="flex items-center gap-2">
                     <Image className="h-5 w-5" /> All Banners
                   </CardTitle>
-                  <Tabs value={activeTab} onValueChange={setActiveTab}>
-                    <TabsList>
-                      <TabsTrigger value="all">All</TabsTrigger>
-                      <TabsTrigger value="active">Active</TabsTrigger>
-                      <TabsTrigger value="scheduled">Scheduled</TabsTrigger>
-                      <TabsTrigger value="hero">Hero</TabsTrigger>
-                      <TabsTrigger value="strip">Strip</TabsTrigger>
-                    </TabsList>
-                  </Tabs>
+                  <div className={cn(
+                    "relative",
+                    isCompact && "w-full overflow-hidden"
+                  )}>
+                    <Tabs value={activeTab} onValueChange={setActiveTab}>
+                      <TabsList className={cn(
+                        isCompact 
+                          ? "flex overflow-x-auto scrollbar-hide gap-1 p-1 bg-muted rounded-lg w-full" 
+                          : ""
+                      )}>
+                        <TabsTrigger 
+                          value="all"
+                          className={cn(
+                            isCompact && "flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap"
+                          )}
+                        >
+                          All
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="active"
+                          className={cn(
+                            isCompact && "flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap"
+                          )}
+                        >
+                          Active
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="scheduled"
+                          className={cn(
+                            isCompact && "flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap"
+                          )}
+                        >
+                          Scheduled
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="hero"
+                          className={cn(
+                            isCompact && "flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap"
+                          )}
+                        >
+                          Hero
+                        </TabsTrigger>
+                        <TabsTrigger 
+                          value="strip"
+                          className={cn(
+                            isCompact && "flex-shrink-0 px-3 py-2 text-sm whitespace-nowrap"
+                          )}
+                        >
+                          Strip
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                    {/* Scroll indicator for mobile */}
+                    {isCompact && (
+                      <div className="absolute right-0 top-0 bottom-0 w-6 bg-gradient-to-l from-background to-transparent pointer-events-none" />
+                    )}
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>

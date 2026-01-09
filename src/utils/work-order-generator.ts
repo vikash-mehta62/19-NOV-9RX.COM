@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import JsBarcode from "jsbarcode"; // Keeping JsBarcode import as it was present in your previous full code
+import Logo from "../assests/home/9rx_logo.png"
 
 interface WorkOrderData {
   id: string;
@@ -100,7 +101,7 @@ export const generateWorkOrderPDF = async (
 
     // Add Logo (Left side)
     const logo = new Image();
-    logo.src = "/final.png";
+    logo.src = Logo
     await new Promise((resolve) => (logo.onload = resolve));
     const logoHeight = 23;
     const logoWidth = (logo.width / logo.height) * logoHeight;

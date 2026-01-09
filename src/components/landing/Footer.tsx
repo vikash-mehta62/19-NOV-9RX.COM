@@ -1,5 +1,6 @@
 import { Phone, Mail, MapPin, Clock, Facebook, Twitter, Linkedin, Instagram, ArrowRight, Heart, ExternalLink } from "lucide-react";
 import { Link } from "react-router-dom";
+import logo from "../../assests/home/9rx_logo.png";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
@@ -58,7 +59,7 @@ const Footer = () => {
             {/* Company Info - Takes more space */}
             <div className="col-span-2 sm:col-span-2 lg:col-span-4 space-y-4 sm:space-y-6">
               <div>
-                <img src="/final.png" alt="9RX Logo" className="h-10 sm:h-12 lg:h-14 mb-4 sm:mb-6 brightness-0 invert" />
+                <img src={logo} alt="9RX Logo" className="h-16 sm:h-12 lg:h-14 mb-4 sm:mb-6 brightness-0 invert" />
                 <p className="text-slate-400 leading-relaxed max-w-sm text-sm sm:text-base">
                   Your trusted partner for premium pharmacy supplies. Serving independent pharmacies nationwide with quality products and exceptional service since 2010.
                 </p>

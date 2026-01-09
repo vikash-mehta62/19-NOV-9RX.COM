@@ -176,77 +176,75 @@ const UsersTable = ({ users, selectedUsers, onSelectionChange, searchTerm = "" }
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 px-2">
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between px-2 w-full">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground justify-center md:justify-start">
               <span>
                 Showing {startIndex + 1}-{Math.min(endIndex, sortedUsers.length)} of {sortedUsers.length} customers
               </span>
             </div>
-            
-            <div className="flex items-center gap-4">
-              {/* Page Size Selector */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">Rows per page:</span>
-                <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                  <SelectTrigger className="w-[70px] h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                    <SelectItem value="100">100</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Page Navigation */}
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(1)}
-                  disabled={currentPage === 1}
-                  aria-label="First page"
-                >
-                  <ChevronsLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                
-                <span className="text-sm px-2 min-w-[100px] text-center">
-                  Page {currentPage} of {totalPages}
-                </span>
-                
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => setCurrentPage(totalPages)}
-                  disabled={currentPage === totalPages}
-                  aria-label="Last page"
-                >
-                  <ChevronsRight className="h-4 w-4" />
-                </Button>
+            <div className="flex flex-col w-full md:w-auto gap-3 items-center md:items-end">
+              {/* Page Size Selector and Navigation: stacked on mobile, row on tablet+ */}
+              <div className="flex flex-col w-full items-center gap-2 md:flex-row md:items-center md:gap-4 md:w-auto">
+                <div className="flex flex-col items-center gap-1 w-full md:flex-row md:items-center md:gap-2 md:w-auto">
+                  <span className="text-sm text-muted-foreground text-center md:text-left">Rows per page:</span>
+                  <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
+                    <SelectTrigger className="w-full md:w-[70px] h-10 md:h-8 text-sm">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="10">10</SelectItem>
+                      <SelectItem value="25">25</SelectItem>
+                      <SelectItem value="50">50</SelectItem>
+                      <SelectItem value="100">100</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {/* Page Navigation */}
+                <div className="flex items-center gap-1 justify-center w-full md:justify-end md:w-auto mt-2 md:mt-0">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 md:h-8 md:w-8"
+                    onClick={() => setCurrentPage(1)}
+                    disabled={currentPage === 1}
+                    aria-label="First page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 md:h-8 md:w-8"
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    aria-label="Previous page"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <span className="text-sm flex items-center justify-center text-center md:px-2">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 md:h-8 md:w-8"
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    aria-label="Next page"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-10 w-10 md:h-8 md:w-8"
+                    onClick={() => setCurrentPage(totalPages)}
+                    disabled={currentPage === totalPages}
+                    aria-label="Last page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             </div>
           </div>

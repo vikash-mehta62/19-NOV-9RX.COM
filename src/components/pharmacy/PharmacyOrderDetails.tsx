@@ -20,6 +20,7 @@ import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline
 import jsPDF from "jspdf"
 import "jspdf-autotable"
 import JsBarcode from "jsbarcode"
+import Logo from "../../assests/home/9rx_logo.png"
 
 interface PharmacyOrderDetailsProps {
   order: OrderFormValues
@@ -191,7 +192,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       let logoLoaded = false
       try {
         const logo = new Image()
-        logo.src = "/final.png"
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve() }
           logo.onerror = () => resolve()
@@ -200,7 +201,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20
           const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight)
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
         }
       } catch {
         // Continue without logo
@@ -374,8 +375,6 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         didDrawPage: (data: any) => {
           doc.setFillColor(...brandColor)
           doc.rect(0, 0, pageWidth, 5, "F")
-          doc.setFillColor(...brandColor)
-          doc.rect(0, pageHeight - 5, pageWidth, 5, "F")
         }
       })
 
@@ -481,8 +480,29 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       } else {
         doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
       }
-      doc.setFillColor(...brandColor)
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F")
+
+      // Add page numbers to all pages
+      const totalPages = (doc as any).internal.getNumberOfPages()
+      const pdfWidth = doc.internal.pageSize.getWidth()
+      const pdfHeight = doc.internal.pageSize.getHeight()
+      
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        
+        // Green footer band at bottom
+        doc.setFillColor(0, 150, 136)
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
+        
+        // White background for page number
+        doc.setFillColor(255, 255, 255)
+        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
+        
+        // Page number text
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(9)
+        doc.setTextColor(60, 60, 60)
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" })
+      }
 
       doc.save(`${order.order_number}.pdf`)
       toast({ title: "Success", description: "Invoice downloaded successfully" })
@@ -512,7 +532,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       let logoLoaded = false
       try {
         const logo = new Image()
-        logo.src = "/final.png"
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve() }
           logo.onerror = () => resolve()
@@ -521,7 +541,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20
           const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight)
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
         }
       } catch { /* Continue without logo */ }
 
@@ -650,8 +670,6 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         didDrawPage: (data: any) => {
           doc.setFillColor(...brandColor)
           doc.rect(0, 0, pageWidth, 5, "F")
-          doc.setFillColor(...brandColor)
-          doc.rect(0, pageHeight - 5, pageWidth, 5, "F")
         }
       })
 
@@ -737,8 +755,29 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       } else {
         doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
       }
-      doc.setFillColor(...brandColor)
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F")
+
+      // Add page numbers to all pages
+      const totalPages = (doc as any).internal.getNumberOfPages()
+      const pdfWidth = doc.internal.pageSize.getWidth()
+      const pdfHeight = doc.internal.pageSize.getHeight()
+      
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        
+        // Green footer band at bottom
+        doc.setFillColor(0, 150, 136)
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
+        
+        // White background for page number
+        doc.setFillColor(255, 255, 255)
+        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
+        
+        // Page number text
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(9)
+        doc.setTextColor(60, 60, 60)
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" })
+      }
 
       // Open PDF in iframe for printing
       const pdfBlob = doc.output('blob')
@@ -776,54 +815,59 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full max-w-2xl lg:max-w-xl xl:max-w-3xl p-0 overflow-hidden [&>button]:hidden">
+      <SheetContent className="w-full max-w-[calc(100vw-16px)] sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl p-0 overflow-hidden [&>button]:hidden">
         <ScrollArea className="h-full">
-          <div className="p-6 space-y-6">
+          <div className="p-4 sm:p-6 space-y-4 sm:space-y-6">
             {/* Header */}
-            <div className="space-y-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <h2 className="text-xl font-bold text-gray-900">SO #{order.order_number}</h2>
-                    <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={copyOrderNumber}>
-                      <Copy className="w-3.5 h-3.5 text-gray-400" />
-                    </Button>
+            <div className="space-y-3 sm:space-y-4">
+              {/* Title Row - Stacks on mobile/tablet */}
+              <div className="flex flex-col gap-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
+                      <h2 className="text-base sm:text-lg md:text-xl font-bold text-gray-900">SO #{order.order_number}</h2>
+                      <Button variant="ghost" size="sm" className="h-6 w-6 p-0 flex-shrink-0" onClick={copyOrderNumber}>
+                        <Copy className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-400" />
+                      </Button>
+                    </div>
+                    <p className="text-xs sm:text-sm text-gray-500 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                      {new Date(order.date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+                    </p>
                   </div>
-                  <p className="text-sm text-gray-500 flex items-center gap-1">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {new Date(order.date).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
-                  </p>
-                </div>
-                <div className="flex gap-2 items-center">
-                  <Button variant="outline" size="sm" onClick={handlePrint} disabled={isGeneratingPDF}>
-                    <Printer className="w-4 h-4 mr-1" />
-                    Print
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isGeneratingPDF}>
-                    <Download className="w-4 h-4 mr-1" />
-                    PDF
-                  </Button>
+                  {/* Close Button - Always visible at top right */}
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    className="h-9 w-9"
+                    className="h-8 w-8 sm:h-9 sm:w-9 flex-shrink-0"
                     onClick={() => onOpenChange(false)}
                     aria-label="Close"
                   >
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
+                {/* Action Buttons - Below title on all screens */}
+                <div className="flex gap-1.5 sm:gap-2 items-center">
+                  <Button variant="outline" size="sm" onClick={handlePrint} disabled={isGeneratingPDF} className="h-8 sm:h-9 px-2.5 sm:px-3 text-xs sm:text-sm">
+                    <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
+                    Print
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={handleDownloadPDF} disabled={isGeneratingPDF} className="h-8 sm:h-9 px-2.5 sm:px-3 text-xs sm:text-sm">
+                    <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
+                    PDF
+                  </Button>
+                </div>
               </div>
 
               {/* Status Badges */}
-              <div className="flex flex-wrap gap-2">
-                <Badge className={`${statusInfo.color} border gap-1.5 px-3 py-1`}>
-                  <StatusIcon className="w-3.5 h-3.5" />
+              <div className="flex flex-wrap gap-1.5 sm:gap-2">
+                <Badge className={`${statusInfo.color} border gap-1 sm:gap-1.5 px-2 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm`}>
+                  <StatusIcon className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   {statusInfo.label}
                 </Badge>
-                <Badge className={`border px-3 py-1 ${order.payment_status === "paid" ? "bg-green-100 text-green-700 border-green-200" : "bg-red-100 text-red-700 border-red-200"}`}>
-                  <CreditCard className="w-3.5 h-3.5 mr-1" />
+                <Badge className={`border px-2 sm:px-3 py-0.5 sm:py-1 text-xs sm:text-sm ${order.payment_status === "paid" ? "bg-green-100 text-green-700 border-green-200" : "bg-red-100 text-red-700 border-red-200"}`}>
+                  <CreditCard className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-0.5 sm:mr-1" />
                   {order.payment_status === "paid" ? "Paid" : "Unpaid"}
                 </Badge>
               </div>
@@ -832,31 +876,31 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
             <Separator />
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-3 gap-3">
-              <Card className="p-3 bg-blue-50 border-0">
-                <div className="flex items-center gap-2">
-                  <Package className="w-4 h-4 text-blue-600" />
-                  <div>
-                    <p className="text-xs text-blue-600 font-medium">Line Items</p>
-                    <p className="text-lg font-bold text-blue-700">{totalLineItems}</p>
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <Card className="p-2 sm:p-3 bg-blue-50 border-0">
+                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-2">
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
+                  <div className="text-center sm:text-left">
+                    <p className="text-[10px] sm:text-xs text-blue-600 font-medium">Items</p>
+                    <p className="text-sm sm:text-lg font-bold text-blue-700">{totalLineItems}</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-3 bg-emerald-50 border-0">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
-                  <div>
-                    <p className="text-xs text-emerald-600 font-medium">Total</p>
-                    <p className="text-lg font-bold text-emerald-700">${total.toFixed(2)}</p>
+              <Card className="p-2 sm:p-3 bg-emerald-50 border-0">
+                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-2">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+                  <div className="text-center sm:text-left">
+                    <p className="text-[10px] sm:text-xs text-emerald-600 font-medium">Total</p>
+                    <p className="text-sm sm:text-lg font-bold text-emerald-700">${total.toFixed(2)}</p>
                   </div>
                 </div>
               </Card>
-              <Card className="p-3 bg-purple-50 border-0">
-                <div className="flex items-center gap-2">
-                  <Hash className="w-4 h-4 text-purple-600" />
-                  <div>
-                    <p className="text-xs text-purple-600 font-medium">Units</p>
-                    <p className="text-lg font-bold text-purple-700">{totalUnits}</p>
+              <Card className="p-2 sm:p-3 bg-purple-50 border-0">
+                <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-2">
+                  <Hash className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-600" />
+                  <div className="text-center sm:text-left">
+                    <p className="text-[10px] sm:text-xs text-purple-600 font-medium">Units</p>
+                    <p className="text-sm sm:text-lg font-bold text-purple-700">{totalUnits}</p>
                   </div>
                 </div>
               </Card>
@@ -913,13 +957,13 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
             {/* Order Items */}
             <Card className="overflow-hidden border-0 shadow-sm">
-              <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-4 py-3">
+              <div className="bg-gradient-to-r from-violet-500 to-purple-500 px-3 sm:px-4 py-2.5 sm:py-3">
                 <div className="flex items-center justify-between text-white">
-                  <div className="flex items-center gap-2">
-                    <Package className="w-4 h-4" />
-                    <span className="font-semibold">SO Items</span>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="font-semibold text-sm sm:text-base">SO Items</span>
                   </div>
-                  <Badge className="bg-white/20 text-white border-0">
+                  <Badge className="bg-white/20 text-white border-0 text-xs sm:text-sm">
                     {order.items.length} {order.items.length === 1 ? "product" : "products"}
                   </Badge>
                 </div>
@@ -927,39 +971,42 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
               <CardContent className="p-0">
                 <div className="divide-y divide-gray-100">
                   {order.items.map((item, index) => (
-                    <div key={index} className="p-4">
-                      <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Package className="w-6 h-6 text-gray-400" />
+                    <div key={index} className="p-3 sm:p-4">
+                      <div className="flex items-start gap-2.5 sm:gap-3">
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Package className="w-5 h-5 sm:w-6 sm:h-6 text-gray-400" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h4 className="font-semibold text-gray-900 truncate">{item.name}</h4>
-                          <div className="mt-2 space-y-1.5">
+                          <h4 className="font-semibold text-gray-900 text-sm sm:text-base line-clamp-2">{item.name}</h4>
+                          <div className="mt-1.5 sm:mt-2 space-y-1.5">
                             {item.sizes.map((size, sizeIdx) => (
-                              <div key={sizeIdx} className="flex items-center justify-between text-sm bg-gray-50 rounded-lg px-3 py-2">
-                                <div className="flex flex-col gap-0.5">
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-gray-700">{size.size_value} {size.size_unit}</span>
-                                    {(size as any).type && (
-                                      <Badge variant="outline" className="text-xs h-5 capitalize">{(size as any).type}</Badge>
+                              <div key={sizeIdx} className="bg-gray-50 rounded-lg px-2.5 sm:px-3 py-2">
+                                {/* Mobile: Stack layout, Desktop: Row layout */}
+                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
+                                  <div className="flex flex-col gap-0.5">
+                                    <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                                      <span className="text-xs sm:text-sm text-gray-700">{size.size_value} {size.size_unit}</span>
+                                      {(size as any).type && (
+                                        <Badge variant="outline" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1.5 capitalize">{(size as any).type}</Badge>
+                                      )}
+                                    </div>
+                                    {(size as any).sku && (
+                                      <span className="text-[10px] sm:text-xs text-gray-400">SKU: {(size as any).sku}</span>
                                     )}
                                   </div>
-                                  {(size as any).sku && (
-                                    <span className="text-xs text-gray-400">SKU: {(size as any).sku}</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-4">
-                                  <span className="text-gray-500">{size.quantity} × ${size.price.toFixed(2)}</span>
-                                  <span className="font-semibold text-gray-900">${(size.quantity * size.price).toFixed(2)}</span>
+                                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4 mt-1 sm:mt-0">
+                                    <span className="text-[11px] sm:text-sm text-gray-500">{size.quantity} × ${size.price.toFixed(2)}</span>
+                                    <span className="font-semibold text-sm sm:text-base text-gray-900">${(size.quantity * size.price).toFixed(2)}</span>
+                                  </div>
                                 </div>
                               </div>
                             ))}
                           </div>
                           {item.notes && (
-                            <div className="mt-2 p-2 bg-blue-50 rounded-lg">
-                              <p className="text-xs text-blue-600 flex items-center gap-1">
-                                <FileText className="w-3 h-3" />
-                                {item.notes}
+                            <div className="mt-1.5 sm:mt-2 p-2 bg-blue-50 rounded-lg">
+                              <p className="text-[10px] sm:text-xs text-blue-600 flex items-start gap-1">
+                                <FileText className="w-3 h-3 flex-shrink-0 mt-0.5" />
+                                <span className="line-clamp-2">{item.notes}</span>
                               </p>
                             </div>
                           )}
@@ -973,22 +1020,22 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
             {/* SO Summary */}
             <Card className="overflow-hidden border-0 shadow-sm">
-              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3">
-                <div className="flex items-center gap-2 text-white">
-                  <DollarSign className="w-4 h-4" />
-                  <span className="font-semibold">SO Summary</span>
+              <div className="bg-gradient-to-r from-amber-500 to-orange-500 px-3 sm:px-4 py-2.5 sm:py-3">
+                <div className="flex items-center gap-1.5 sm:gap-2 text-white">
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <span className="font-semibold text-sm sm:text-base">SO Summary</span>
                 </div>
               </div>
-              <CardContent className="p-4 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <span className="text-gray-600">Subtotal ({totalLineItems} line items)</span>
+              <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Subtotal ({totalLineItems} items)</span>
                   <span className="font-medium">${subtotal.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-gray-600">Shipping</span>
                   <span className="font-medium">{shipping === 0 ? "FREE" : `$${shipping.toFixed(2)}`}</span>
                 </div>
-                <div className="flex justify-between text-sm">
+                <div className="flex justify-between text-xs sm:text-sm">
                   <span className="text-gray-600">Tax</span>
                   <span className="font-medium">${tax.toFixed(2)}</span>
                 </div>
@@ -1016,8 +1063,8 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 
                 <Separator />
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-lg font-bold text-gray-900">Total</span>
-                  <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
+                  <span className="text-base sm:text-lg font-bold text-gray-900">Total</span>
+                  <span className="text-xl sm:text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="text-right text-sm text-green-600">

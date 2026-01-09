@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Mail, ArrowLeft, CheckCircle, AlertCircle } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Navbar } from "./landing/HeroSection";
+import logo from "../assests/home/9rx_logo.png";
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -38,11 +38,33 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
-      {/* Navbar */}
-      <Navbar />
+      {/* Navbar - with scrolled state forced for light background */}
+      <nav 
+        className="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-xl shadow-lg"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex justify-between items-center">
+            <a href="/" aria-label="9RX Home" className="flex-shrink-0">
+              <img
+                src={logo}
+                alt="9RX Logo"
+                className="h-16 sm:h-16 w-auto"
+              />
+            </a>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base"
+              onClick={() => window.location.href = '/login'}
+            >
+              Login
+            </Button>
+          </div>
+        </div>
+      </nav>
 
       {/* Main Content */}
-      <div className="flex items-center justify-center min-h-[calc(100vh-64px)] px-4 py-12">
+      <div className="flex items-center justify-center min-h-screen px-4 py-12 pt-24 sm:pt-28">
         <div className="w-full max-w-md">
           {/* Card */}
           <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">

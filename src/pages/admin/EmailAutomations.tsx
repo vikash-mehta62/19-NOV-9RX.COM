@@ -590,7 +590,7 @@ export default function EmailAutomations() {
             <h1 className="text-3xl font-bold">Email Automations</h1>
             <p className="text-muted-foreground">Set up automated email triggers that run 24/7</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex sm:flex-col md:flex md:flex-col lg:flex lg:flex-row xl:flex xl:flex-row 2xl:flex 2xl:flex-row gap-2">
             <Button 
               variant="outline" 
               onClick={handleRunCron}

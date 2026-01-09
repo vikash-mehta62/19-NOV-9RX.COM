@@ -2,14 +2,37 @@ import { ArrowLeft, RotateCcw, CheckCircle, XCircle, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import Footer from "@/components/landing/Footer";
-import { Navbar } from "@/components/landing/HeroSection";
+import logo from "../assests/home/9rx_logo.png";
 
 const ReturnPolicy = () => {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar />
+      {/* Navbar for light background */}
+      <nav 
+        className="fixed w-full top-0 z-50 bg-white/95 backdrop-blur-xl shadow-sm"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 sm:py-4">
+          <div className="flex justify-between items-center">
+            <a href="/" aria-label="9RX Home" className="flex-shrink-0">
+              <img
+                src={logo}
+                alt="9RX Logo"
+                className="h-10 sm:h-12 w-auto"
+              />
+            </a>
+            <Button
+              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base"
+              onClick={() => navigate('/login')}
+            >
+              Login
+            </Button>
+          </div>
+        </div>
+      </nav>
       
       <div className="pt-24 pb-16">
         <div className="max-w-4xl mx-auto px-4">

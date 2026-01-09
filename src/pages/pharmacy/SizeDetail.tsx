@@ -218,7 +218,7 @@ export default function SizeDetail() {
     try {
       await addToCart({
         productId: product.id,
-        name: `${product.name} - ${size.size_value} ${size.size_unit}${customization.enabled ? ' (Customized)' : ''}`,
+        name: `${product.name}${customization.enabled ? ' (Customized)' : ''}`,
         sku: product.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(displayImage),

@@ -488,7 +488,7 @@ export const PharmacyProductsFullPage = () => {
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Logo */}
             <div className="flex items-center gap-2 sm:gap-3">
-              <img src={logo} alt="Logo" className="h-8 sm:h-16 w-auto" />
+              <img src={logo} alt="Logo" className="h-12 sm:h-16 w-auto" />
             </div>
 
             {/* Search Bar with Autocomplete */}

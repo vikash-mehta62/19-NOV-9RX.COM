@@ -20,6 +20,8 @@ import CustomProductForm from "@/components/orders/Customitems";
 import { cn } from "@/lib/utils";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useScreenSize } from "@/hooks/use-mobile";
 
 interface ProductSize {
   id: string;
@@ -133,6 +135,11 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
   const userProfile = useSelector(selectUserProfile);
   const queryClient = useQueryClient();
+  const screenSize = useScreenSize();
+  const isMobile = screenSize === 'mobile';
+  const isTablet = screenSize === 'tablet';
+  const isLaptop = screenSize === 'laptop';
+  const isCompact = isMobile || isTablet; // Use tabs for mobile and tablet
   
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -140,6 +147,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   const [showNotesDialog, setShowNotesDialog] = useState(false);
   const [selectedItemForNotes, setSelectedItemForNotes] = useState<any>(null);
   const [tempNotes, setTempNotes] = useState("");
+  
+  // Mobile/Tablet tab state
+  const [mobileActiveTab, setMobileActiveTab] = useState<"categories" | "products" | "cart">("products");
   
   // Category navigation state
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
@@ -249,13 +259,21 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
       setExpandedCategory(categoryName);
       setSelectedCategory(categoryName);
       setSelectedSubcategory(null);
+      // On mobile/tablet, switch to products tab after selecting category
+      if (isCompact) {
+        setMobileActiveTab("products");
+      }
     }
-  }, [expandedCategory]);
+  }, [expandedCategory, isCompact]);
 
   // Handle subcategory click
   const handleSubcategoryClick = useCallback((subcategoryName: string) => {
     setSelectedSubcategory(subcategoryName);
-  }, []);
+    // On mobile/tablet, switch to products tab after selecting subcategory
+    if (isCompact) {
+      setMobileActiveTab("products");
+    }
+  }, [isCompact]);
 
   // Clear all filters
   const handleClearFilters = useCallback(() => {
@@ -379,8 +397,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
           </div>
         </div>
         
-        {/* Quick Search Bar */}
-        <div className="mt-3 relative">
+        {/* Quick Search Bar - Hidden on mobile/tablet since tabs have their own context */}
+        <div className={cn("mt-3 relative", isCompact && "hidden")}>
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="Quick search by product name or SKU..."
@@ -401,99 +419,406 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-3">
-        {/* Left: Category Navigation */}
-        <div className="col-span-3">
-          <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3 py-2.5 border-b bg-blue-50">
-              <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-blue-600" />
-                Categories
-              </span>
-            </div>
-            <ScrollArea className="h-[420px]">
-              <div className="p-2 space-y-1">
-                {/* All Products Option */}
-                <button
-                  onClick={handleClearFilters}
-                  className={cn(
-                    "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
-                    !selectedCategory 
-                      ? "bg-blue-600 text-white" 
-                      : "hover:bg-gray-100 text-gray-700"
-                  )}
-                >
-                  <span className="flex items-center gap-2">
-                    <Package className="w-4 h-4 flex-shrink-0" />
-                    <span>All Products</span>
-                  </span>
-                  <span className={cn(
-                    "text-xs font-medium px-2 py-0.5 rounded-full",
-                    !selectedCategory ? "bg-white/20" : "bg-blue-100 text-blue-700"
-                  )}>
-                    {products.length}
-                  </span>
-                </button>
-                
-                {/* Category List */}
-                {categories.map((category) => (
+      {/* Mobile & Tablet Tab Layout */}
+      {isCompact ? (
+        <Tabs value={mobileActiveTab} onValueChange={(v) => setMobileActiveTab(v as "categories" | "products" | "cart")} className="w-full">
+          <TabsList className={cn("w-full grid grid-cols-3 mb-3", isTablet && "h-12")}>
+            <TabsTrigger value="categories" className={cn("text-xs gap-1.5", isTablet && "text-sm gap-2")}>
+              <Layers className={cn("w-3.5 h-3.5", isTablet && "w-4 h-4")} />
+              Categories
+            </TabsTrigger>
+            <TabsTrigger value="products" className={cn("text-xs gap-1.5", isTablet && "text-sm gap-2")}>
+              <Package className={cn("w-3.5 h-3.5", isTablet && "w-4 h-4")} />
+              Products
+            </TabsTrigger>
+            <TabsTrigger value="cart" className={cn("text-xs gap-1.5 relative", isTablet && "text-sm gap-2")}>
+              <ShoppingBag className={cn("w-3.5 h-3.5", isTablet && "w-4 h-4")} />
+              Cart
+              {cartItems.length > 0 && (
+                <span className={cn(
+                  "absolute -top-1 -right-1 bg-blue-600 text-white rounded-full flex items-center justify-center",
+                  isMobile ? "text-[10px] w-4 h-4" : "text-xs w-5 h-5"
+                )}>
+                  {cartItems.length}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Mobile/Tablet Categories Tab */}
+          <TabsContent value="categories" className="mt-0">
+            <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <ScrollArea className={cn("h-[400px]", isTablet && "h-[500px]")}>
+                <div className="p-2 space-y-1">
                   <button
-                    key={category.name}
-                    onClick={() => handleCategoryClick(category.name)}
+                    onClick={() => { handleClearFilters(); setMobileActiveTab("products"); }}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
-                      selectedCategory === category.name
-                        ? "bg-blue-600 text-white"
+                      "w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition-all",
+                      !selectedCategory ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-700"
+                    )}
+                  >
+                    <span className="flex items-center gap-2">
+                      <Package className="w-4 h-4" />
+                      <span>All Products</span>
+                    </span>
+                    <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full", !selectedCategory ? "bg-white/20" : "bg-blue-100 text-blue-700")}>
+                      {products.length}
+                    </span>
+                  </button>
+                  {categories.map((category) => (
+                    <button
+                      key={category.name}
+                      onClick={() => handleCategoryClick(category.name)}
+                      className={cn(
+                        "w-full flex items-center justify-between px-4 py-3 rounded-lg text-sm transition-all",
+                        selectedCategory === category.name ? "bg-blue-600 text-white" : "hover:bg-gray-100 text-gray-700"
+                      )}
+                    >
+                      <span className="flex items-center gap-2 min-w-0">
+                        <Folder className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{category.name}</span>
+                      </span>
+                      <span className={cn("text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-2", selectedCategory === category.name ? "bg-white/20" : "bg-gray-200 text-gray-600")}>
+                        {category.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Card>
+          </TabsContent>
+
+          {/* Mobile/Tablet Products Tab */}
+          <TabsContent value="products" className="mt-0">
+            <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              {/* Search Bar */}
+              <div className="px-3 py-2.5 border-b bg-gray-50">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={cn("pl-10 text-sm bg-white", isTablet ? "h-11" : "h-10")}
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0" onClick={() => setSearchQuery("")}>
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {selectedCategory && (
+                <div className="px-3 py-2 bg-blue-50 border-b flex items-center justify-between">
+                  <span className={cn("text-blue-700 font-medium", isTablet ? "text-sm" : "text-xs")}>{selectedCategory}</span>
+                  <Button variant="ghost" size="sm" className={cn(isTablet ? "h-8 text-sm" : "h-6 text-xs")} onClick={handleClearFilters}>Clear</Button>
+                </div>
+              )}
+              <ScrollArea className={cn(isTablet ? "h-[500px]" : "h-[400px]")}>
+                {/* Tablet: Grid layout for products */}
+                {isTablet ? (
+                  <div className="p-3 grid grid-cols-2 gap-3">
+                    {loading ? (
+                      <div className="col-span-2 flex items-center justify-center h-24">
+                        <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                      </div>
+                    ) : filteredProducts.length === 0 ? (
+                      <div className="col-span-2 text-center py-6">
+                        <Package className="w-8 h-8 mx-auto mb-1 text-gray-300" />
+                        <p className="text-sm text-gray-500">No products found</p>
+                      </div>
+                    ) : (
+                      filteredProducts.slice(0, 50).map((product) => (
+                        <div key={product.id} className={cn("border rounded-lg overflow-hidden transition-all", expandedProduct === product.id ? "border-blue-400 ring-1 ring-blue-100 col-span-2" : "hover:border-gray-300")}>
+                          <div className={cn("flex items-center gap-3 p-3 cursor-pointer", expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50")} onClick={() => handleProductClick(product)}>
+                            <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
+                              <img src={product.image_url || "/placeholder.svg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                              <p className="text-xs text-gray-500">{product.product_sizes?.length || 0} sizes</p>
+                            </div>
+                            <ChevronDown className={cn("w-5 h-5 transition-transform", expandedProduct === product.id ? "rotate-180 text-blue-600" : "text-gray-400")} />
+                          </div>
+                          {expandedProduct === product.id && product.product_sizes && (
+                            <div className="border-t bg-gray-50 p-3 grid grid-cols-2 gap-2">
+                              {product.product_sizes.map((size) => (
+                                <div key={size.id} className="bg-white rounded-lg p-3 border">
+                                  <div className="flex items-center justify-between mb-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-gray-900">{size.size_value} {size.size_unit}</p>
+                                      {size.sku && <p className="text-xs text-gray-400">SKU: {size.sku}</p>}
+                                    </div>
+                                    <p className="text-lg text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
+                                  </div>
+                                  <Button size="sm" className="h-10 w-full bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }}>
+                                    <Plus className="w-4 h-4 mr-1.5" />Add to Cart
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  /* Mobile: List layout */
+                  <div className="p-2 space-y-2">
+                    {loading ? (
+                      <div className="flex items-center justify-center h-24">
+                        <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
+                      </div>
+                    ) : filteredProducts.length === 0 ? (
+                      <div className="text-center py-6">
+                        <Package className="w-8 h-8 mx-auto mb-1 text-gray-300" />
+                        <p className="text-sm text-gray-500">No products found</p>
+                      </div>
+                    ) : (
+                      filteredProducts.slice(0, 50).map((product) => (
+                        <div key={product.id} className={cn("border rounded-lg overflow-hidden transition-all", expandedProduct === product.id ? "border-blue-400 ring-1 ring-blue-100" : "hover:border-gray-300")}>
+                          <div className={cn("flex items-center gap-3 p-3 cursor-pointer", expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50")} onClick={() => handleProductClick(product)}>
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
+                              <img src={product.image_url || "/placeholder.svg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
+                              <p className="text-xs text-gray-500">{product.product_sizes?.length || 0} sizes</p>
+                            </div>
+                            <ChevronDown className={cn("w-5 h-5 transition-transform", expandedProduct === product.id ? "rotate-180 text-blue-600" : "text-gray-400")} />
+                          </div>
+                          {expandedProduct === product.id && product.product_sizes && (
+                            <div className="border-t bg-gray-50 p-2 space-y-2">
+                              {product.product_sizes.map((size) => (
+                                <div key={size.id} className="bg-white rounded-lg p-3 border">
+                                  <div className="flex items-center justify-between">
+                                    <div>
+                                      <p className="text-sm font-semibold text-gray-900">{size.size_value} {size.size_unit}</p>
+                                      {size.sku && <p className="text-xs text-gray-400">SKU: {size.sku}</p>}
+                                    </div>
+                                    <p className="text-base text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
+                                  </div>
+                                  <Button size="sm" className="mt-2 h-10 w-full bg-blue-600 hover:bg-blue-700" onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); setMobileActiveTab("cart"); }}>
+                                    <Plus className="w-4 h-4 mr-1.5" />Add to Cart
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+              </ScrollArea>
+            </Card>
+          </TabsContent>
+
+          {/* Mobile/Tablet Cart Tab */}
+          <TabsContent value="cart" className="mt-0">
+            <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <div className={cn("px-3 py-2.5 border-b bg-blue-50 flex items-center justify-between", isTablet && "px-4 py-3")}>
+                <span className={cn("font-semibold text-gray-800 flex items-center gap-2", isTablet ? "text-base" : "text-sm")}>
+                  <ShoppingBag className={cn("text-blue-600", isTablet ? "w-5 h-5" : "w-4 h-4")} />
+                  Order ({cartItems.length})
+                </span>
+                {cartItems.length > 0 && <span className={cn("font-bold text-blue-600", isTablet ? "text-lg" : "text-base")}>${orderTotals.subtotal.toFixed(2)}</span>}
+              </div>
+              <ScrollArea className={cn(isTablet ? "h-[500px]" : "h-[400px]")}>
+                {cartItems.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 px-4">
+                    <ShoppingCart className={cn("text-gray-300 mb-2", isTablet ? "w-12 h-12" : "w-10 h-10")} />
+                    <p className={cn("text-gray-500", isTablet ? "text-base" : "text-sm")}>No items added</p>
+                    <Button variant="outline" size={isTablet ? "default" : "sm"} className="mt-3" onClick={() => setMobileActiveTab("products")}>Browse Products</Button>
+                  </div>
+                ) : (
+                  /* Tablet: Grid layout for cart items */
+                  isTablet ? (
+                    <div className="p-3 grid grid-cols-2 gap-3">
+                      {cartItems.map((item) => (
+                        <div key={item.productId} className="bg-white border rounded-lg p-4">
+                          <div className="flex items-start justify-between gap-2 mb-2">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-base font-bold text-gray-900">{item.name}</p>
+                              {item.sku && <p className="text-sm text-gray-400">SKU: {item.sku}</p>}
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full flex-shrink-0" onClick={() => handleRemoveItem(item.productId)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          {item.sizes?.map((size: any, idx: number) => (
+                            <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
+                              <p className="text-sm font-medium text-gray-800 mb-0.5">{size.size_value} {size.size_unit}</p>
+                              {size.sku && <p className="text-xs text-gray-400 mb-2">SKU: {size.sku}</p>}
+                              <div className="flex items-center justify-center">
+                                <div className="flex items-center bg-white border rounded-lg overflow-hidden">
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)} disabled={size.quantity <= 1}>
+                                    <Minus className="w-4 h-4" />
+                                  </Button>
+                                  <span className="w-14 text-center text-base font-semibold">{size.quantity}</span>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <Button variant="ghost" size="sm" className="h-8 text-sm text-gray-500 hover:text-blue-600 px-2" onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}>
+                              <FileText className="w-4 h-4 mr-1" />{item.description ? "Edit Note" : "Add Note"}
+                            </Button>
+                            <span className="text-lg font-bold text-blue-600">${item.price?.toFixed(2)}</span>
+                          </div>
+                          {item.description && <p className="text-sm text-blue-700 bg-blue-50 p-2 rounded mt-2">📝 {item.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    /* Mobile: List layout */
+                    <div className="p-2 space-y-2">
+                      {cartItems.map((item) => (
+                        <div key={item.productId} className="bg-white border rounded-lg p-3">
+                          <div className="flex items-start justify-between gap-2 mb-1">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-bold text-gray-900">{item.name}</p>
+                              {item.sku && <p className="text-xs text-gray-400">SKU: {item.sku}</p>}
+                            </div>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full flex-shrink-0" onClick={() => handleRemoveItem(item.productId)}>
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          {item.sizes?.map((size: any, idx: number) => (
+                            <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
+                              <p className="text-sm font-medium text-gray-800 mb-0.5">{size.size_value} {size.size_unit}</p>
+                              {size.sku && <p className="text-xs text-gray-400 mb-2">SKU: {size.sku}</p>}
+                              <div className="flex items-center justify-center">
+                                <div className="flex items-center bg-white border rounded-lg overflow-hidden">
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)} disabled={size.quantity <= 1}>
+                                    <Minus className="w-4 h-4" />
+                                  </Button>
+                                  <span className="w-14 text-center text-base font-semibold">{size.quantity}</span>
+                                  <Button variant="ghost" size="sm" className="h-10 w-12 p-0 rounded-none hover:bg-gray-100" onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}>
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          <div className="flex items-center justify-between pt-2 border-t">
+                            <Button variant="ghost" size="sm" className="h-8 text-xs text-gray-500 hover:text-blue-600 px-2" onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}>
+                              <FileText className="w-3.5 h-3.5 mr-1" />{item.description ? "Edit Note" : "Add Note"}
+                            </Button>
+                            <span className="text-base font-bold text-blue-600">${item.price?.toFixed(2)}</span>
+                          </div>
+                          {item.description && <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded mt-2">📝 {item.description}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </ScrollArea>
+            </Card>
+          </TabsContent>
+        </Tabs>
+      ) : (
+        /* Laptop & Desktop Grid Layout */
+        <div className={cn("grid", isLaptop ? "grid-cols-12 gap-2" : "grid-cols-12 gap-3")}>
+          {/* Left: Category Navigation */}
+          <div className={cn(isLaptop ? "col-span-3" : "col-span-3")}>
+            <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <div className={cn("border-b bg-blue-50", isLaptop ? "px-2 py-1.5" : "px-3 py-2.5")}>
+                <span className={cn("font-semibold text-gray-800 flex items-center", isLaptop ? "text-[11px] gap-1" : "text-sm gap-1.5")}>
+                  <Layers className={cn("text-blue-600", isLaptop ? "w-3 h-3" : "w-4 h-4")} />
+                  Categories
+                </span>
+              </div>
+              <ScrollArea className={cn(isLaptop ? "h-[380px]" : "h-[420px]")}>
+                <div className={cn(isLaptop ? "p-1 space-y-0.5" : "p-2 space-y-1")}>
+                  {/* All Products Option */}
+                  <button
+                    onClick={handleClearFilters}
+                    className={cn(
+                      "w-full flex items-center justify-between rounded-lg transition-all",
+                      isLaptop ? "px-1.5 py-1.5 text-[11px]" : "px-3 py-2 text-sm",
+                      !selectedCategory 
+                        ? "bg-blue-600 text-white" 
                         : "hover:bg-gray-100 text-gray-700"
                     )}
                   >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <Folder className="w-4 h-4 flex-shrink-0" />
-                      <span className="truncate">{category.name}</span>
+                    <span className={cn("flex items-center min-w-0", isLaptop ? "gap-1" : "gap-1.5")}>
+                      <Package className={cn("flex-shrink-0", isLaptop ? "w-3 h-3" : "w-4 h-4")} />
+                      <span className="truncate">All Products</span>
                     </span>
                     <span className={cn(
-                      "text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ml-2",
-                      selectedCategory === category.name ? "bg-white/20" : "bg-gray-200 text-gray-600"
+                      "font-medium rounded-full flex-shrink-0 ml-1",
+                      isLaptop ? "text-[9px] px-1 py-0.5" : "text-xs px-2 py-0.5",
+                      !selectedCategory ? "bg-white/20" : "bg-blue-100 text-blue-700"
                     )}>
-                      {category.count}
+                      {products.length}
                     </span>
                   </button>
-                ))}
-              </div>
-            </ScrollArea>
-          </Card>
-        </div>
+                  
+                  {/* Category List */}
+                  {categories.map((category) => (
+                    <button
+                      key={category.name}
+                      onClick={() => handleCategoryClick(category.name)}
+                      className={cn(
+                        "w-full flex items-center justify-between rounded-lg transition-all",
+                        isLaptop ? "px-1.5 py-1.5 text-[11px]" : "px-3 py-2 text-sm",
+                        selectedCategory === category.name
+                          ? "bg-blue-600 text-white"
+                          : "hover:bg-gray-100 text-gray-700"
+                      )}
+                    >
+                      <span className={cn("flex items-center min-w-0 flex-1", isLaptop ? "gap-1" : "gap-1.5")}>
+                        <Folder className={cn("flex-shrink-0", isLaptop ? "w-3 h-3" : "w-4 h-4")} />
+                        <span className="truncate">{category.name}</span>
+                      </span>
+                      <span className={cn(
+                        "font-medium rounded-full flex-shrink-0 ml-1",
+                        isLaptop ? "text-[9px] px-1 py-0.5" : "text-xs px-2 py-0.5",
+                        selectedCategory === category.name ? "bg-white/20" : "bg-gray-200 text-gray-600"
+                      )}>
+                        {category.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </ScrollArea>
+            </Card>
+          </div>
 
-        {/* Middle: Product List */}
-        <div className="col-span-5">
-          <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3 py-2.5 border-b bg-gray-50">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-9 text-sm bg-white"
-                />
-                {searchQuery && (
-                  <Button variant="ghost" size="sm" className="absolute right-1 top-1/2 -translate-y-1/2 h-7 w-7 p-0" onClick={() => setSearchQuery("")}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                )}
+          {/* Middle: Product List */}
+          <div className={cn(isLaptop ? "col-span-5" : "col-span-5")}>
+            <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+              <div className={cn("border-b bg-gray-50", isLaptop ? "px-2 py-1.5" : "px-3 py-2.5")}>
+                <div className="relative">
+                  <Search className={cn("absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400", isLaptop ? "w-3 h-3" : "w-4 h-4")} />
+                  <Input
+                    placeholder="Search products..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className={cn("bg-white", isLaptop ? "pl-7 h-7 text-[11px]" : "pl-10 h-9 text-sm")}
+                  />
+                  {searchQuery && (
+                    <Button variant="ghost" size="sm" className={cn("absolute right-1 top-1/2 -translate-y-1/2 p-0", isLaptop ? "h-5 w-5" : "h-7 w-7")} onClick={() => setSearchQuery("")}>
+                      <X className={cn(isLaptop ? "w-3 h-3" : "w-4 h-4")} />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
 
-            <ScrollArea className="h-[420px]">
-              <div className="p-2 space-y-2">
+              <ScrollArea className={cn(isLaptop ? "h-[380px]" : "h-[420px]")}>
+              <div className={cn(isLaptop ? "p-1 space-y-0.5" : "p-2 space-y-2")}>
                 {loading ? (
                   <div className="flex items-center justify-center h-24">
                     <div className="w-5 h-5 border-2 border-blue-200 border-t-blue-600 rounded-full animate-spin"></div>
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="text-center py-6">
-                    <Package className="w-8 h-8 mx-auto mb-1 text-gray-300" />
-                    <p className="text-sm text-gray-500">No products found</p>
+                    <Package className={cn("mx-auto mb-1 text-gray-300", isLaptop ? "w-6 h-6" : "w-8 h-8")} />
+                    <p className={cn("text-gray-500", isLaptop ? "text-[11px]" : "text-sm")}>No products found</p>
                   </div>
                 ) : (
                   filteredProducts.slice(0, 50).map((product) => (
@@ -506,12 +831,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       {/* Product Header */}
                       <div
                         className={cn(
-                          "flex items-center gap-3 p-2.5 cursor-pointer",
+                          "flex items-center cursor-pointer",
+                          isLaptop ? "gap-1.5 p-1.5" : "gap-3 p-2.5",
                           expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50"
                         )}
                         onClick={() => handleProductClick(product)}
                       >
-                        <div className="w-10 h-10 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
+                        <div className={cn("rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border", isLaptop ? "w-7 h-7" : "w-10 h-10")}>
                           <img 
                             src={product.image_url || "/placeholder.svg"} 
                             alt="" 
@@ -520,14 +846,14 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.product_sizes?.length || 0} sizes</p>
+                          <p className={cn("font-medium text-gray-900 truncate", isLaptop ? "text-[11px]" : "text-sm")}>{product.name}</p>
+                          <p className={cn("text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>{product.product_sizes?.length || 0} sizes</p>
                         </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
+                        <div className="flex items-center gap-0.5 flex-shrink-0">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-7 w-7 p-0 hover:bg-blue-100 rounded-full"
+                            className={cn("p-0 hover:bg-blue-100 rounded-full", isLaptop ? "h-5 w-5" : "h-7 w-7")}
                             onClick={(e) => {
                               e.stopPropagation();
                               const userType = sessionStorage.getItem('userType')?.toLowerCase();
@@ -540,10 +866,11 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               }
                             }}
                           >
-                            <Eye className="w-3.5 h-3.5 text-blue-600" />
+                            <Eye className={cn("text-blue-600", isLaptop ? "w-2.5 h-2.5" : "w-3.5 h-3.5")} />
                           </Button>
                           <ChevronDown className={cn(
-                            "w-4 h-4 transition-transform",
+                            "transition-transform",
+                            isLaptop ? "w-3 h-3" : "w-4 h-4",
                             expandedProduct === product.id ? "rotate-180 text-blue-600" : "text-gray-400"
                           )} />
                         </div>
@@ -551,27 +878,27 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
 
                       {/* Expanded Sizes */}
                       {expandedProduct === product.id && product.product_sizes && (
-                        <div className="border-t bg-gray-50 p-2 space-y-2">
+                        <div className={cn("border-t bg-gray-50", isLaptop ? "p-1 space-y-1" : "p-2 space-y-2")}>
                           {product.product_sizes.map((size) => (
-                            <div key={size.id} className="bg-white rounded-lg p-3 border text-center">
-                              <p className="text-sm font-semibold text-gray-900">
+                            <div key={size.id} className={cn("bg-white rounded-lg border text-center", isLaptop ? "p-1.5" : "p-3")}>
+                              <p className={cn("font-semibold text-gray-900", isLaptop ? "text-[11px]" : "text-sm")}>
                                 {size.size_value} {size.size_unit}
                               </p>
                               {size.sku && (
-                                <p className="text-xs text-gray-400">
+                                <p className={cn("text-gray-400", isLaptop ? "text-[9px]" : "text-xs")}>
                                   SKU: {size.sku}
                                 </p>
                               )}
-                              <p className="text-base text-emerald-600 font-bold mt-1">
+                              <p className={cn("text-emerald-600 font-bold mt-0.5", isLaptop ? "text-xs" : "text-base")}>
                                 ${size.price?.toFixed(2)}
                               </p>
                               <Button 
                                 size="sm" 
-                                className="mt-2 h-9 w-full bg-blue-600 hover:bg-blue-700"
+                                className={cn("w-full bg-blue-600 hover:bg-blue-700", isLaptop ? "mt-1 h-6 text-[10px]" : "mt-2 h-9")}
                                 onClick={(e) => { e.stopPropagation(); handleAddSize(product, size, "case"); }}
                               >
-                                <Plus className="w-4 h-4 mr-1.5" />
-                                Add to Cart
+                                <Plus className={cn(isLaptop ? "w-2.5 h-2.5 mr-0.5" : "w-4 h-4 mr-1.5")} />
+                                Add
                               </Button>
                             </div>
                           ))}
@@ -586,55 +913,55 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         </div>
 
         {/* Right: Order Cart */}
-        <div className="col-span-4">
+        <div className={cn(isLaptop ? "col-span-4" : "col-span-4")}>
           <Card className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
-            <div className="px-3 py-2.5 border-b bg-blue-50 flex items-center justify-between">
-              <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                <ShoppingBag className="w-4 h-4 text-blue-600" />
+            <div className={cn("border-b bg-blue-50 flex items-center justify-between", isLaptop ? "px-2 py-1.5" : "px-3 py-2.5")}>
+              <span className={cn("font-semibold text-gray-800 flex items-center", isLaptop ? "text-[11px] gap-1" : "text-sm gap-1.5")}>
+                <ShoppingBag className={cn("text-blue-600", isLaptop ? "w-3 h-3" : "w-4 h-4")} />
                 Order ({cartItems.length})
               </span>
               {cartItems.length > 0 && (
-                <span className="text-base font-bold text-blue-600">${orderTotals.subtotal.toFixed(2)}</span>
+                <span className={cn("font-bold text-blue-600", isLaptop ? "text-xs" : "text-base")}>${orderTotals.subtotal.toFixed(2)}</span>
               )}
             </div>
 
-            <ScrollArea className="h-[420px]">
+            <ScrollArea className={cn(isLaptop ? "h-[380px]" : "h-[420px]")}>
               {cartItems.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 px-4">
-                  <ShoppingCart className="w-10 h-10 text-gray-300 mb-2" />
-                  <p className="text-sm text-gray-500">No items added</p>
+                <div className="flex flex-col items-center justify-center py-12 px-4">
+                  <ShoppingCart className={cn("text-gray-300 mb-2", isLaptop ? "w-6 h-6" : "w-10 h-10")} />
+                  <p className={cn("text-gray-500", isLaptop ? "text-[11px]" : "text-sm")}>No items added</p>
                 </div>
               ) : (
-                <div className="p-2 space-y-2">
+                <div className={cn(isLaptop ? "p-1 space-y-1" : "p-2 space-y-2")}>
                   {cartItems.map((item) => (
-                    <div key={item.productId} className="bg-white border rounded-lg p-3">
+                    <div key={item.productId} className={cn("bg-white border rounded-lg", isLaptop ? "p-1.5" : "p-3")}>
                       {/* Product Name & Delete */}
-                      <div className="flex items-start justify-between gap-2 mb-1">
+                      <div className="flex items-start justify-between gap-1 mb-1">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-bold text-gray-900">{item.name}</p>
+                          <p className={cn("font-bold text-gray-900 truncate", isLaptop ? "text-[11px]" : "text-sm")}>{item.name}</p>
                           {item.sku && (
-                            <p className="text-xs text-gray-400">SKU: {item.sku}</p>
+                            <p className={cn("text-gray-400", isLaptop ? "text-[9px]" : "text-xs")}>SKU: {item.sku}</p>
                           )}
                         </div>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-6 w-6 p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full flex-shrink-0"
+                          className={cn("p-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full flex-shrink-0", isLaptop ? "h-4 w-4" : "h-6 w-6")}
                           onClick={() => handleRemoveItem(item.productId)}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <Trash2 className={cn(isLaptop ? "w-2.5 h-2.5" : "w-3.5 h-3.5")} />
                         </Button>
                       </div>
 
                       {/* Size Items - Name on top, Quantity below */}
                       {item.sizes?.map((size: any, idx: number) => (
-                        <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
+                        <div key={`${size.id}-${idx}`} className={cn("bg-gray-50 rounded-lg mb-1", isLaptop ? "p-1.5" : "p-3")}>
                           {/* Size Name */}
-                          <p className="text-sm font-medium text-gray-800 mb-0.5">
+                          <p className={cn("font-medium text-gray-800 mb-0.5", isLaptop ? "text-[11px]" : "text-sm")}>
                             {size.size_value} {size.size_unit}
                           </p>
                           {/* Size SKU - always show if available */}
-                          <p className="text-xs text-gray-400 mb-2">
+                          <p className={cn("text-gray-400", isLaptop ? "text-[9px] mb-0.5" : "text-xs mb-2")}>
                             {size.sku ? `SKU: ${size.sku}` : ""}
                           </p>
                           {/* Quantity Counter */}
@@ -643,20 +970,20 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-8 w-10 p-0 rounded-none hover:bg-gray-100"
+                                className={cn("p-0 rounded-none hover:bg-gray-100", isLaptop ? "h-5 w-6" : "h-8 w-10")}
                                 onClick={() => handleQuantityChange(item.productId, size.id, size.quantity - 1)}
                                 disabled={size.quantity <= 1}
                               >
-                                <Minus className="w-4 h-4" />
+                                <Minus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
-                              <span className="w-12 text-center text-base font-semibold">{size.quantity}</span>
+                              <span className={cn("text-center font-semibold", isLaptop ? "w-6 text-[11px]" : "w-12 text-base")}>{size.quantity}</span>
                               <Button 
                                 variant="ghost" 
                                 size="sm" 
-                                className="h-8 w-10 p-0 rounded-none hover:bg-gray-100"
+                                className={cn("p-0 rounded-none hover:bg-gray-100", isLaptop ? "h-5 w-6" : "h-8 w-10")}
                                 onClick={() => handleQuantityChange(item.productId, size.id, size.quantity + 1)}
                               >
-                                <Plus className="w-4 h-4" />
+                                <Plus className={cn(isLaptop ? "w-2.5 h-2.5" : "w-4 h-4")} />
                               </Button>
                             </div>
                           </div>
@@ -664,21 +991,21 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       ))}
 
                       {/* Note & Price */}
-                      <div className="flex items-center justify-between pt-2 border-t">
+                      <div className={cn("flex items-center justify-between border-t", isLaptop ? "pt-1" : "pt-2")}>
                         <Button 
                           variant="ghost" 
                           size="sm" 
-                          className="h-7 text-xs text-gray-500 hover:text-blue-600 px-2"
+                          className={cn("text-gray-500 hover:text-blue-600 px-1", isLaptop ? "h-5 text-[9px]" : "h-7 text-xs")}
                           onClick={() => { setSelectedItemForNotes(item); setTempNotes(item.description || ""); setShowNotesDialog(true); }}
                         >
-                          <FileText className="w-3.5 h-3.5 mr-1" />
-                          {item.description ? "Edit Note" : "Add Note"}
+                          <FileText className={cn("mr-0.5", isLaptop ? "w-2.5 h-2.5" : "w-3.5 h-3.5")} />
+                          {item.description ? "Edit" : "Note"}
                         </Button>
-                        <span className="text-base font-bold text-blue-600">${item.price?.toFixed(2)}</span>
+                        <span className={cn("font-bold text-blue-600", isLaptop ? "text-xs" : "text-base")}>${item.price?.toFixed(2)}</span>
                       </div>
                       
                       {item.description && (
-                        <p className="text-xs text-blue-700 bg-blue-50 p-2 rounded mt-2">📝 {item.description}</p>
+                        <p className={cn("text-blue-700 bg-blue-50 rounded mt-1", isLaptop ? "text-[9px] p-1" : "text-xs p-2")}>📝 {item.description}</p>
                       )}
                     </div>
                   ))}
@@ -687,7 +1014,10 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             </ScrollArea>
           </Card>
         </div>
-      </div>      {/* Notes Dialog - Simple */}
+        </div>
+      )}
+
+      {/* Notes Dialog - Simple */}
       <Dialog open={showNotesDialog} onOpenChange={setShowNotesDialog}>
         <DialogContent className="sm:max-w-sm rounded-lg">
           <DialogHeader>

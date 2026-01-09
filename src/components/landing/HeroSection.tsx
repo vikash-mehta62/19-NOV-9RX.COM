@@ -201,7 +201,7 @@ const HeroSection = () => {
   return (
     <div className="relative min-h-screen">
       <Navbar />
-      <section className="relative min-h-screen flex items-center overflow-hidden">
+      <section className="relative min-h-[auto] lg:min-h-screen flex items-center overflow-hidden">
         {/* Animated Background - Blue Theme */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950" />
@@ -234,39 +234,38 @@ const HeroSection = () => {
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
         </div>
 
-        <div className="max-w-[90vw] mx-auto px-4 relative z-10 pt-16 sm:pt-20 lg:pt-24 pb-12 sm:pb-16 lg:pb-20">
-          <div className="grid lg:grid-cols-12 gap-8 lg:gap-8 xl:gap-10 items-start min-h-[calc(100vh-8rem)]">
-            {/* Left Content - Text first on mobile, left on desktop */}
-            <div className="lg:col-span-8 space-y-4 sm:space-y-6 lg:space-y-7 text-center lg:text-left max-w-4xl order-first lg:order-first">
-              {/* Badge - Laptop optimized */}
-              <div className="inline-flex items-center gap-2 sm:gap-3 flex-wrap justify-center lg:justify-start">
-                <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-xl border border-blue-500/30 rounded-full pl-1.5 pr-3 sm:pr-4 py-1.5">
-                  <div className="w-6 sm:w-7 h-6 sm:h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-                    <Sparkles className="w-3 sm:w-4 h-3 sm:h-4 text-white" />
+        <div className="max-w-[90vw] mx-auto px-4 relative z-10 pt-20 sm:pt-24 lg:pt-28 pb-6 sm:pb-12 lg:pb-16">
+          <div className="grid lg:grid-cols-12 gap-6 lg:gap-8 xl:gap-10 items-center">
+            {/* Left Content - Full width on mobile, 8 cols on desktop */}
+            <div className="lg:col-span-8 space-y-3 sm:space-y-5 lg:space-y-7 text-center lg:text-left max-w-2xl mx-auto lg:mx-0 lg:max-w-4xl order-first lg:order-first">
+              {/* Badge - Mobile optimized with stacked layout */}
+              <div className="flex flex-col sm:flex-row items-center gap-1.5 sm:gap-3">
+                <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-xl border border-blue-500/30 rounded-full pl-1.5 pr-3 sm:pr-4 py-1">
+                  <div className="w-5 sm:w-7 h-5 sm:h-7 rounded-full bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+                    <Sparkles className="w-2.5 sm:w-4 h-2.5 sm:h-4 text-white" />
                   </div>
-                  <span className="text-blue-300 text-xs sm:text-sm font-medium">#1 Pharmacy Supplier</span>
+                  <span className="text-blue-300 text-[11px] sm:text-sm font-medium">#1 Pharmacy Supplier</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-400 text-sm">
+                <div className="flex items-center gap-1.5 text-slate-400 text-[11px] sm:text-sm">
                   <div className="flex -space-x-1.5">
                     {[image1, image2, image3].map((img, i) => (
-                      <img key={i} src={img} alt="" className="w-5 sm:w-6 h-5 sm:h-6 rounded-full border-2 border-slate-900 object-cover" />
+                      <img key={i} src={img} alt="" className="w-4 sm:w-6 h-4 sm:h-6 rounded-full border-2 border-slate-900 object-cover" />
                     ))}
                   </div>
-                  <span className="hidden sm:inline">{pharmacyCount}+ pharmacies trust us</span>
-                  <span className="sm:hidden">{pharmacyCount}+ trust us</span>
+                  <span>{pharmacyCount}+ trust us</span>
                 </div>
               </div>
 
-              {/* Main Heading - Better laptop sizing */}
-              <div className="space-y-2 sm:space-y-3">
-                <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold leading-[1.1] sm:leading-[1.05] tracking-tight">
+              {/* Main Heading - Mobile optimized sizing */}
+              <div className="space-y-1 sm:space-y-2 md:space-y-3">
+                <h1 className="text-[2rem] sm:text-4xl md:text-5xl lg:text-5xl xl:text-6xl 2xl:text-7xl font-bold leading-[1.15] sm:leading-[1.1] tracking-tight">
                   <span className="text-white">Premium</span>
                   <br />
                   <span className="text-white">Pharmacy</span>
                   <br />
                   <span className="relative inline-block">
                     <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-sky-400 bg-clip-text text-transparent">Supplies</span>
-                    <svg className="absolute -bottom-1 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
+                    <svg className="absolute -bottom-0.5 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
                       <path d="M2 10C50 2 150 2 198 10" stroke="url(#underline-blue)" strokeWidth="2" strokeLinecap="round"/>
                       <defs><linearGradient id="underline-blue" x1="0" y1="0" x2="200" y2="0">
                         <stop stopColor="#60a5fa" /><stop offset="0.5" stopColor="#818cf8" /><stop offset="1" stopColor="#38bdf8" />
@@ -276,42 +275,42 @@ const HeroSection = () => {
                 </h1>
               </div>
 
-              {/* Description - Better laptop sizing */}
-              <p className="text-sm sm:text-base md:text-lg lg:text-lg xl:text-xl text-slate-400 max-w-2xl mx-auto lg:mx-0 leading-relaxed px-2 sm:px-0">
+              {/* Description - Mobile optimized */}
+              <p className="text-sm sm:text-base md:text-lg lg:text-lg xl:text-xl text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
                 Quality pharmacy packaging and supplies at competitive prices. 
                 Join <span className="text-blue-400 font-semibold">{pharmacyCount}+</span> independent pharmacies 
                 that trust us for their daily operations.
               </p>
 
-              {/* CTA Buttons - Laptop optimized */}
-              <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 pt-2 justify-center lg:justify-start px-2 sm:px-0">
+              {/* CTA Buttons - Mobile optimized */}
+              <div className="flex flex-col sm:flex-row gap-2.5 sm:gap-3 pt-1 justify-center lg:justify-start">
                 <Button onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
-                  className="group relative bg-blue-600 hover:bg-blue-700 text-white px-5 sm:px-6 lg:px-7 py-3 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl shadow-2xl shadow-blue-500/30 overflow-hidden min-h-[44px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 w-full sm:w-auto">
+                  className="group relative bg-blue-600 hover:bg-blue-700 text-white px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-xl shadow-2xl shadow-blue-500/30 overflow-hidden min-h-[42px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 w-full sm:w-auto">
                   <span className="relative z-10 flex items-center justify-center gap-2">
                     Get Started Free
                     <ArrowRight className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5 group-hover:translate-x-1 transition-transform" aria-hidden="true" />
                   </span>
                 </Button>
                 <Button onClick={() => navigate("/products")}
-                  className="group bg-white/5 border border-white/10 text-white hover:bg-white/10 px-5 sm:px-6 lg:px-7 py-3 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-lg sm:rounded-xl backdrop-blur-sm min-h-[44px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-white w-full sm:w-auto">
+                  className="group bg-white/5 border border-white/10 text-white hover:bg-white/10 px-5 sm:px-6 lg:px-7 py-2.5 sm:py-3.5 lg:py-4 text-sm sm:text-base font-semibold rounded-xl backdrop-blur-sm min-h-[42px] sm:min-h-[48px] lg:min-h-[52px] focus-visible:ring-2 focus-visible:ring-white w-full sm:w-auto">
                   <ShoppingBag className="w-4 sm:w-4 lg:w-5 h-4 sm:h-4 lg:h-5 mr-2 text-blue-400" aria-hidden="true" />
                   Browse Products
                 </Button>
               </div>
 
-              {/* Feature Pills */}
-              <div className="flex flex-wrap gap-2 sm:gap-3 pt-2 sm:pt-4 justify-center lg:justify-start px-2 sm:px-0" role="list" aria-label="Key features">
+              {/* Feature Pills - Mobile optimized with 2-column grid */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-1.5 sm:gap-3 pt-1 sm:pt-4 justify-center lg:justify-start" role="list" aria-label="Key features">
                 {["No Minimum Order", "Free Shipping $500+", "Custom Branding", "Fast Delivery"].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-1.5 sm:gap-2 bg-white/5 border border-white/10 rounded-full px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-white/10 transition-colors" role="listitem">
-                    <CheckCircle2 className="w-3 sm:w-4 h-3 sm:h-4 text-blue-400" aria-hidden="true" />
-                    <span className="text-xs sm:text-sm text-slate-300">{feature}</span>
+                  <div key={i} className="flex items-center justify-center sm:justify-start gap-1 sm:gap-2 bg-white/5 border border-white/10 rounded-full px-2 sm:px-4 py-1 sm:py-2 hover:bg-white/10 transition-colors" role="listitem">
+                    <CheckCircle2 className="w-2.5 sm:w-4 h-2.5 sm:h-4 text-blue-400 flex-shrink-0" aria-hidden="true" />
+                    <span className="text-[10px] sm:text-sm text-slate-300 whitespace-nowrap">{feature}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* Right Content - Product Card second on mobile, right on desktop */}
-            <div className="lg:col-span-4 relative order-last lg:order-last mt-8 lg:mt-12 xl:mt-16">
+            {/* Right Content - Product Card - Hidden on mobile, visible from md up */}
+            <div className="lg:col-span-4 relative order-last lg:order-last hidden md:block mt-8 lg:mt-12 xl:mt-16">
               <div className="relative max-w-sm mx-auto lg:max-w-none" style={{ transform: `translate(${mousePosition.x * 0.3}px, ${mousePosition.y * 0.3}px)`, transition: 'transform 0.3s ease-out' }}>
                 {/* Compact glow effect */}
                 <div className={`absolute -inset-2 bg-gradient-to-br ${slides[activeSlide].color} opacity-15 rounded-[20px] blur-lg`} />
@@ -394,7 +393,7 @@ const HeroSection = () => {
           </div>
 
           {/* Bottom Features Bar - Laptop optimized */}
-          <div className="mt-8 sm:mt-10 lg:mt-12 xl:mt-16 pt-6 sm:pt-8 lg:pt-10 border-t border-white/10">
+          <div className="mt-6 sm:mt-10 lg:mt-12 xl:mt-16 pt-4 sm:pt-8 lg:pt-10 border-t border-white/10">
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5" role="list" aria-label="Service features">
               {features.map((feature, i) => (
                 <div key={i} className="group flex flex-col sm:flex-row items-center gap-2 sm:gap-3 p-3 sm:p-3 lg:p-4 rounded-lg sm:rounded-xl hover:bg-white/5 transition-all cursor-pointer text-center sm:text-left" role="listitem">

@@ -49,6 +49,7 @@ import { GroupActionsDropdown } from "@/components/admin/groups/GroupActionsDrop
 import { QuickEditGroupDialog } from "@/components/admin/groups/QuickEditGroupDialog";
 import { ManagePharmaciesDialog } from "@/components/admin/groups/ManagePharmaciesDialog";
 import { ViewProfileModal } from "@/components/users/ViewProfileModal";
+import { useScreenSize } from "@/hooks/use-mobile";
 
 interface GroupData {
   group_id: string;
@@ -70,6 +71,11 @@ interface GroupData {
 
 const AdminGroups = () => {
   const { toast } = useToast();
+  const screenSize = useScreenSize();
+  const isMobile = screenSize === 'mobile';
+  const isTablet = screenSize === 'tablet';
+  const isCompact = isMobile || isTablet;
+  
   const [loading, setLoading] = useState(true);
   const [groups, setGroups] = useState<GroupData[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -329,20 +335,46 @@ const AdminGroups = () => {
       <TooltipProvider>
         <div className="space-y-6 p-6">
           {/* Header */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight">Group Management</h1>
-              <p className="text-muted-foreground">
+          <div className={cn(
+            "flex justify-between items-start gap-4",
+            isTablet 
+              ? "flex-col space-y-4" 
+              : "flex-col md:flex-row md:items-center"
+          )}>
+            <div className={cn(isTablet && "text-center")}>
+              <h1 className={cn(
+                "font-bold tracking-tight text-gray-900",
+                isTablet ? "text-2xl" : "text-3xl"
+              )}>
+                Group Management
+              </h1>
+              <p className={cn(
+                "text-gray-600 mt-1",
+                isTablet ? "text-base" : "text-muted-foreground"
+              )}>
                 Manage groups, their pharmacies, and commission settings
               </p>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={fetchGroups}>
-                <RefreshCw className="h-4 w-4 mr-2" />
+            <div className={cn(
+              "flex gap-2",
+              isTablet ? "w-full justify-center" : ""
+            )}>
+              <Button 
+                variant="outline" 
+                size={isTablet ? "default" : "sm"} 
+                onClick={fetchGroups}
+                className={cn(isTablet && "flex-1 max-w-[140px]")}
+              >
+                <RefreshCw className={cn("mr-2", isTablet ? "h-4 w-4" : "h-4 w-4")} />
                 Refresh
               </Button>
-              <Button variant="outline" size="sm" onClick={exportToCSV}>
-                <Download className="h-4 w-4 mr-2" />
+              <Button 
+                variant="outline" 
+                size={isTablet ? "default" : "sm"} 
+                onClick={exportToCSV}
+                className={cn(isTablet && "flex-1 max-w-[140px]")}
+              >
+                <Download className={cn("mr-2", isTablet ? "h-4 w-4" : "h-4 w-4")} />
                 Export {selectedGroups.length > 0 && `(${selectedGroups.length})`}
               </Button>
               <CreateGroupDialog onGroupCreated={fetchGroups} />
@@ -350,53 +382,82 @@ const AdminGroups = () => {
           </div>
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-purple-600" />
-                  <span className="text-sm text-muted-foreground">Total Groups</span>
+          <div className={cn(
+            "grid gap-4",
+            isTablet 
+              ? "grid-cols-2 gap-6" 
+              : "grid-cols-2 md:grid-cols-5"
+          )}>
+            <Card className={cn(isTablet && "shadow-md hover:shadow-lg transition-shadow")}>
+              <CardContent className={cn("pt-4", isTablet && "pt-6 pb-6")}>
+                <div className={cn("flex items-center gap-2", isTablet && "gap-3")}>
+                  <Users className={cn("text-purple-600", isTablet ? "h-5 w-5" : "h-4 w-4")} />
+                  <span className={cn("text-muted-foreground", isTablet ? "text-base font-medium" : "text-sm")}>
+                    Total Groups
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mt-1">{summary.totalGroups}</div>
+                <div className={cn("font-bold mt-1", isTablet ? "text-3xl mt-2" : "text-2xl")}>
+                  {summary.totalGroups}
+                </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-muted-foreground">Active Groups</span>
+            
+            <Card className={cn(isTablet && "shadow-md hover:shadow-lg transition-shadow")}>
+              <CardContent className={cn("pt-4", isTablet && "pt-6 pb-6")}>
+                <div className={cn("flex items-center gap-2", isTablet && "gap-3")}>
+                  <CheckCircle2 className={cn("text-green-600", isTablet ? "h-5 w-5" : "h-4 w-4")} />
+                  <span className={cn("text-muted-foreground", isTablet ? "text-base font-medium" : "text-sm")}>
+                    Active Groups
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mt-1">{summary.activeGroups}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className={cn("font-bold mt-1", isTablet ? "text-3xl mt-2" : "text-2xl")}>
+                  {summary.activeGroups}
+                </div>
+                <div className={cn("text-muted-foreground", isTablet ? "text-sm mt-1" : "text-xs")}>
                   {summary.totalGroups - summary.activeGroups} inactive
                 </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4 text-blue-600" />
-                  <span className="text-sm text-muted-foreground">Total Pharmacies</span>
+            
+            <Card className={cn(isTablet && "shadow-md hover:shadow-lg transition-shadow")}>
+              <CardContent className={cn("pt-4", isTablet && "pt-6 pb-6")}>
+                <div className={cn("flex items-center gap-2", isTablet && "gap-3")}>
+                  <Building2 className={cn("text-blue-600", isTablet ? "h-5 w-5" : "h-4 w-4")} />
+                  <span className={cn("text-muted-foreground", isTablet ? "text-base font-medium" : "text-sm")}>
+                    Total Pharmacies
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mt-1">{summary.totalPharmacies}</div>
+                <div className={cn("font-bold mt-1", isTablet ? "text-3xl mt-2" : "text-2xl")}>
+                  {summary.totalPharmacies}
+                </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <DollarSign className="h-4 w-4 text-green-600" />
-                  <span className="text-sm text-muted-foreground">Total Revenue</span>
+            
+            <Card className={cn(isTablet && "shadow-md hover:shadow-lg transition-shadow")}>
+              <CardContent className={cn("pt-4", isTablet && "pt-6 pb-6")}>
+                <div className={cn("flex items-center gap-2", isTablet && "gap-3")}>
+                  <DollarSign className={cn("text-green-600", isTablet ? "h-5 w-5" : "h-4 w-4")} />
+                  <span className={cn("text-muted-foreground", isTablet ? "text-base font-medium" : "text-sm")}>
+                    Total Revenue
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mt-1">{formatCurrency(summary.totalRevenue)}</div>
+                <div className={cn("font-bold mt-1 text-green-600", isTablet ? "text-2xl mt-2" : "text-2xl")}>
+                  {formatCurrency(summary.totalRevenue)}
+                </div>
               </CardContent>
             </Card>
-            <Card>
-              <CardContent className="pt-4">
-                <div className="flex items-center gap-2">
-                  <Percent className="h-4 w-4 text-amber-600" />
-                  <span className="text-sm text-muted-foreground">Total Commission</span>
+            
+            <Card className={cn(isTablet && "shadow-md hover:shadow-lg transition-shadow")}>
+              <CardContent className={cn("pt-4", isTablet && "pt-6 pb-6")}>
+                <div className={cn("flex items-center gap-2", isTablet && "gap-3")}>
+                  <Percent className={cn("text-amber-600", isTablet ? "h-5 w-5" : "h-4 w-4")} />
+                  <span className={cn("text-muted-foreground", isTablet ? "text-base font-medium" : "text-sm")}>
+                    Total Commission
+                  </span>
                 </div>
-                <div className="text-2xl font-bold mt-1">{formatCurrency(summary.totalCommission)}</div>
+                <div className={cn("font-bold mt-1 text-amber-600", isTablet ? "text-2xl mt-2" : "text-2xl")}>
+                  {formatCurrency(summary.totalCommission)}
+                </div>
               </CardContent>
             </Card>
           </div>

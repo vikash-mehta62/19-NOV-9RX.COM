@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import jsPDF from "jspdf"
 import "jspdf-autotable"
-import { SheetContent, SheetTitle } from "@/components/ui/sheet"
+import { SheetContent, SheetTitle, SheetClose } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -13,9 +13,10 @@ import { supabase } from "@/integrations/supabase/client"
 import { 
   Building, MapPin, Phone, Mail, Globe, Download, 
   FileText, CheckCircle, XCircle, CreditCard, Hash,
-  User, Truck, Package, Loader2, Printer
+  User, Truck, Package, Loader2, Printer, X
 } from "lucide-react"
 import JsBarcode from "jsbarcode"
+import Logo from "../../assests/home/9rx_logo.png"
 
 interface Address {
   street: string
@@ -75,6 +76,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [companyName, setCompanyName] = useState("")
   const [paidAmount, setPaidAmount] = useState(0)
+
+  console.log("Rendering InvoicePreview with invoice:", invoice)
 
   if (!invoice) {
     return (
@@ -195,7 +198,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       let logoLoaded = false
       try {
         const logo = new Image()
-        logo.src = "/final.png"
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve() }
           logo.onerror = () => resolve()
@@ -204,7 +207,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20
           const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight)
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
         }
       } catch { /* Continue without logo */ }
 
@@ -238,7 +241,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.text(`Date: ${formattedDate}`, pageWidth - margin, 29, { align: "right" })
 
       // Payment status badge
-      const badgeY = 34
+      const badgeY = 38
       if (isPaid) {
         doc.setFillColor(34, 197, 94)
         doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F")
@@ -258,16 +261,16 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       // ===== BARCODE =====
       try {
         const barcodeDataUrl = generateBarcode(invoice.invoice_number)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12)
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 12, 50, 12)
       } catch { /* Skip barcode */ }
 
       // ===== DIVIDER LINE =====
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.5)
-      doc.line(margin, 58, pageWidth - margin, 58)
+      doc.line(margin, 66, pageWidth - margin, 66)
 
       // ===== BILL TO / SHIP TO SECTION =====
-      const infoStartY = 63
+      const infoStartY = 71
       const boxWidth = (pageWidth - margin * 3) / 2
       const drawInfoBox = (title: string, x: number, lines: string[]) => {
         doc.setFillColor(...lightGray)
@@ -342,9 +345,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
           // Add header band on every page
           doc.setFillColor(...brandColor)
           doc.rect(0, 0, pageWidth, 5, "F")
-          // Add footer band on every page
+          // Add footer band on every page (thin 2mm bar at very bottom)
           doc.setFillColor(...brandColor)
-          doc.rect(0, pageHeight - 5, pageWidth, 5, "F")
+          doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         }
       })
 
@@ -444,8 +447,16 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
       }
 
-      doc.setFillColor(...brandColor)
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F")
+      // Add page numbers to all pages (Page X of Y format)
+      const totalPages = (doc as any).internal.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        // Draw page number text above the green footer band
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: "center" })
+      }
 
       doc.save(`Invoice_${invoice.invoice_number}.pdf`)
       toast({ title: "Success", description: "Invoice downloaded successfully" })
@@ -475,7 +486,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       let logoLoaded = false
       try {
         const logo = new Image()
-        logo.src = "/final.png"
+        logo.src = Logo
         await new Promise<void>((resolve) => {
           logo.onload = () => { logoLoaded = true; resolve() }
           logo.onerror = () => resolve()
@@ -484,7 +495,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20
           const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight)
+          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
         }
       } catch { /* Continue */ }
 
@@ -515,7 +526,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setTextColor(100, 100, 100)
       doc.text(`Date: ${formattedDate}`, pageWidth - margin, 29, { align: "right" })
 
-      const badgeY = 34
+      const badgeY = 38
       if (isPaid) {
         doc.setFillColor(34, 197, 94)
         doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F")
@@ -534,14 +545,14 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       try {
         const barcodeDataUrl = generateBarcode(invoice.invoice_number)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12)
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 12, 50, 12)
       } catch { /* Skip */ }
 
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.5)
-      doc.line(margin, 58, pageWidth - margin, 58)
+      doc.line(margin, 66, pageWidth - margin, 66)
 
-      const infoStartY = 63
+      const infoStartY = 71
       const boxWidth = (pageWidth - margin * 3) / 2
       const drawInfoBox = (title: string, x: number, lines: string[]) => {
         doc.setFillColor(...lightGray)
@@ -594,8 +605,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         didDrawPage: (data: any) => {
           doc.setFillColor(...brandColor)
           doc.rect(0, 0, pageWidth, 5, "F")
+          // Add footer band on every page (thin 2mm bar at very bottom)
           doc.setFillColor(...brandColor)
-          doc.rect(0, pageHeight - 5, pageWidth, 5, "F")
+          doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         }
       })
 
@@ -689,8 +701,17 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       } else {
         doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
       }
-      doc.setFillColor(...brandColor)
-      doc.rect(0, pageHeight - 12, pageWidth, 3, "F")
+
+      // Add page numbers to all pages (Page X of Y format)
+      const totalPages = (doc as any).internal.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        // Draw page number text above the green footer band
+        doc.setFont("helvetica", "normal")
+        doc.setFontSize(8)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: "center" })
+      }
 
       const pdfBlob = doc.output('blob')
       const pdfUrl = URL.createObjectURL(pdfBlob)
@@ -720,62 +741,81 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
   return (
     <SheetContent className="w-full sm:max-w-[600px] md:max-w-[700px] overflow-y-auto p-0">
-      <div className="sticky top-0 z-10 bg-white border-b px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg">
-              <FileText className="w-5 h-5 text-blue-600" />
+      <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-6 py-3 sm:py-4 relative">
+        {/* Mobile: Close button positioned absolutely at top right */}
+        <div className="sm:hidden absolute top-2 right-2 z-20">
+          <SheetClose asChild>
+            <Button variant="ghost" size="sm" className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full">
+              <X className="w-4 h-4 text-gray-500" />
+            </Button>
+          </SheetClose>
+        </div>
+        
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 pr-10 sm:pr-0">
+            <div className="p-1.5 sm:p-2 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
             </div>
             <div>
-              <SheetTitle className="text-lg">Invoice Preview</SheetTitle>
-              <p className="text-sm text-gray-500">{invoice.invoice_number}</p>
+              <SheetTitle className="text-base sm:text-lg">Invoice Preview</SheetTitle>
+              <p className="text-xs sm:text-sm text-gray-500">{invoice.invoice_number}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={handlePrint} disabled={isGeneratingPDF} variant="outline" className="gap-2">
-              <Printer className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <Button onClick={handlePrint} disabled={isGeneratingPDF} variant="outline" size="sm" className="gap-1.5 sm:gap-2 h-8 sm:h-9 text-xs sm:text-sm px-2.5 sm:px-3">
+              <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               Print
             </Button>
-            <Button onClick={handleDownloadPDF} disabled={isGeneratingPDF} className="bg-blue-600 hover:bg-blue-700 gap-2">
-              {isGeneratingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isGeneratingPDF ? "Generating..." : "Download"}
+            <Button onClick={handleDownloadPDF} disabled={isGeneratingPDF} size="sm" className="bg-blue-600 hover:bg-blue-700 gap-1.5 sm:gap-2 h-8 sm:h-9 text-xs sm:text-sm px-2.5 sm:px-3">
+              {isGeneratingPDF ? <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin" /> : <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
+              {isGeneratingPDF ? "..." : "Download"}
             </Button>
+            {/* Desktop: Close button with other buttons */}
+            <div className="hidden sm:block">
+              <SheetClose asChild>
+                <Button variant="ghost" size="sm" className="h-9 w-9 p-0 hover:bg-gray-100 rounded-full">
+                  <X className="w-5 h-5 text-gray-500" />
+                </Button>
+              </SheetClose>
+            </div>
           </div>
         </div>
       </div>
 
-      <div ref={invoiceRef} className="p-6 space-y-6">
+      <div ref={invoiceRef} className="p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
         <Card className="overflow-hidden border-0 shadow-sm">
-          <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-4 border-b">
-            <div className="flex items-start justify-between">
-              <div className="space-y-1 text-sm text-gray-600">
-                <div className="flex items-center gap-2"><Building className="w-4 h-4 text-gray-400" /><span>Tax ID: 99-0540972</span></div>
-                <div className="flex items-center gap-2"><MapPin className="w-4 h-4 text-gray-400" /><span>936 Broad River Ln, Charlotte, NC 28211</span></div>
-                <div className="flex items-center gap-2"><Phone className="w-4 h-4 text-gray-400" /><span>+1 (800) 969-6295</span></div>
-                <div className="flex items-center gap-2"><Mail className="w-4 h-4 text-gray-400" /><span>info@9rx.com</span></div>
-                <div className="flex items-center gap-2"><Globe className="w-4 h-4 text-gray-400" /><span>www.9rx.com</span></div>
-              </div>
-              <div className="flex-shrink-0"><img src="/final.png" alt="Company Logo" className="h-16 object-contain" /></div>
+          <div className="bg-gradient-to-r from-slate-50 to-gray-50 p-3 sm:p-4 border-b">
+            {/* Mobile: Logo and Invoice info on same row at top */}
+            <div className="flex items-start justify-between gap-3 mb-3 sm:mb-0">
+              <div className="flex-shrink-0"><img src={Logo} alt="Company Logo" className="h-10 sm:h-16 object-contain" /></div>
               <div className="text-right">
-                <h2 className="text-2xl font-bold text-gray-900">Invoice</h2>
-                <div className="mt-2 space-y-1 text-sm">
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-900">Invoice</h2>
+                <div className="mt-1 space-y-0.5 text-[11px] sm:text-sm">
                   <p className="font-medium text-gray-700"><span className="text-gray-500">Invoice:</span> {invoice.invoice_number}</p>
                   <p className="font-medium text-gray-700"><span className="text-gray-500">Order:</span> {invoice.order_number}</p>
                   <p className="font-medium text-gray-700"><span className="text-gray-500">Date:</span> {formattedDate}</p>
                 </div>
               </div>
             </div>
+            {/* Company Info - Below on mobile, hidden on desktop (shown in different position) */}
+            <div className="space-y-1 text-[11px] sm:text-sm text-gray-600 pt-3 border-t sm:border-t-0 sm:pt-0">
+              <div className="flex items-center gap-1.5"><Building className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>Tax ID: 99-0540972</span></div>
+              <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>936 Broad River Ln, Charlotte, NC 28211</span></div>
+              <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>+1 (800) 969-6295</span></div>
+              <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>info@9rx.com</span></div>
+              <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>www.9rx.com</span></div>
+            </div>
           </div>
         </Card>
 
         {/* Bill To / Ship To */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <Card className="overflow-hidden border-0 shadow-sm">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 border-b">
-              <div className="flex items-center gap-2"><User className="w-4 h-4 text-blue-600" /><span className="font-semibold text-gray-900">Bill To</span></div>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 sm:px-4 py-1.5 sm:py-2 border-b">
+              <div className="flex items-center gap-1.5 sm:gap-2"><User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" /><span className="font-semibold text-gray-900 text-sm sm:text-base">Bill To</span></div>
             </div>
-            <CardContent className="p-4 space-y-1 text-sm">
+            <CardContent className="p-3 sm:p-4 space-y-0.5 sm:space-y-1 text-xs sm:text-sm">
               {companyName && <p className="font-semibold text-gray-900">{companyName}</p>}
               <p className="text-gray-700">{invoice.customerInfo?.name || "N/A"}</p>
               <p className="text-gray-600">{invoice.customerInfo?.phone || "N/A"}</p>
@@ -784,10 +824,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             </CardContent>
           </Card>
           <Card className="overflow-hidden border-0 shadow-sm">
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2 border-b">
-              <div className="flex items-center gap-2"><Truck className="w-4 h-4 text-blue-600" /><span className="font-semibold text-gray-900">Ship To</span></div>
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 sm:px-4 py-1.5 sm:py-2 border-b">
+              <div className="flex items-center gap-1.5 sm:gap-2"><Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" /><span className="font-semibold text-gray-900 text-sm sm:text-base">Ship To</span></div>
             </div>
-            <CardContent className="p-4 space-y-1 text-sm">
+            <CardContent className="p-3 sm:p-4 space-y-0.5 sm:space-y-1 text-xs sm:text-sm">
               {companyName && <p className="font-semibold text-gray-900">{companyName}</p>}
               <p className="text-gray-700">{invoice.shippingInfo?.fullName || "N/A"}</p>
               <p className="text-gray-600">{invoice.shippingInfo?.phone || "N/A"}</p>
@@ -799,55 +839,52 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
         {/* Items Table */}
         <Card className="overflow-hidden border-0 shadow-sm">
-          <div className="bg-gradient-to-r from-violet-50 to-purple-50 px-4 py-2 border-b">
-            <div className="flex items-center gap-2"><Package className="w-4 h-4 text-violet-600" /><span className="font-semibold text-gray-900">Items</span></div>
+          <div className="bg-gradient-to-r from-violet-50 to-purple-50 px-3 sm:px-4 py-1.5 sm:py-2 border-b">
+            <div className="flex items-center gap-1.5 sm:gap-2"><Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-600" /><span className="font-semibold text-gray-900 text-sm sm:text-base">Items</span></div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-gray-50 text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <thead className="bg-blue-500 text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                 <tr>
-                  <th className="px-4 py-3 text-left">Items</th>
-                  <th className="px-4 py-3 text-left">Description</th>
-                  <th className="px-4 py-3 text-right">Qty</th>
-                  <th className="px-4 py-3 text-right">Unit Price</th>
-                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center w-10">#</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-left">Description</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center">Size</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center">Qty</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center whitespace-nowrap">Unit Price</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {invoice?.items?.map((item, itemIndex) => (
-                  <>
-                    <tr key={`header-${itemIndex}`} className="bg-gray-50">
-                      <td colSpan={5} className="px-4 py-2 font-semibold text-gray-800">{item.name}</td>
+                {invoice?.items?.flatMap((item, itemIndex) => 
+                  item.sizes?.map((size: any, sizeIndex: number) => (
+                    <tr key={`item-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{itemIndex + 1}</td>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{item.name}</td>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.size_value} {size.size_unit}</td>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.quantity}</td>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">${Number(size.price).toFixed(2)}</td>
+                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center font-medium text-gray-900">${Number(size.quantity * size.price).toFixed(2)}</td>
                     </tr>
-                    {item.sizes?.map((size: any, sizeIndex: number) => (
-                      <tr key={`size-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 text-sm font-mono text-gray-600">{size.sku || "N/A"}</td>
-                        <td className="px-4 py-3 text-sm text-gray-700">{size.size_value} {size.size_unit}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700">{size.quantity}</td>
-                        <td className="px-4 py-3 text-sm text-right text-gray-700">${Number(size.price).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-sm text-right font-medium text-gray-900">${Number(size.quantity * size.price).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </>
-                ))}
+                  )) || []
+                )}
               </tbody>
             </table>
           </div>
         </Card>
 
         {/* Payment Status & Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-3 sm:gap-4">
           <Card className="overflow-hidden border-0 shadow-sm">
-            <CardContent className="p-4">
-              <Badge className={`mb-4 px-4 py-1.5 text-sm font-semibold ${isPaid ? "bg-emerald-100 text-emerald-700 border-emerald-200" : invoice?.payment_status === 'partial_paid' ? "bg-yellow-100 text-yellow-700 border-yellow-200" : "bg-red-100 text-red-700 border-red-200"}`}>
-                {isPaid ? <><CheckCircle className="w-4 h-4 mr-1.5" /> Paid</> : invoice?.payment_status === 'partial_paid' ? <><CheckCircle className="w-4 h-4 mr-1.5" /> Partial Paid</> : <><XCircle className="w-4 h-4 mr-1.5" /> Unpaid</>}
+            <CardContent className="p-3 sm:p-4">
+              <Badge className={`mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold ${isPaid ? "bg-emerald-100 text-emerald-700 border-emerald-200" : invoice?.payment_status === 'partial_paid' ? "bg-yellow-100 text-yellow-700 border-yellow-200" : "bg-red-100 text-red-700 border-red-200"}`}>
+                {isPaid ? <><CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Paid</> : invoice?.payment_status === 'partial_paid' ? <><CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Partial Paid</> : <><XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Unpaid</>}
               </Badge>
               {isPaid && (
-                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-                  <div className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
-                    {invoice.payment_method === "card" ? <><CreditCard className="w-4 h-4" /> Transaction ID:</> : <><Hash className="w-4 h-4" /> Payment Notes:</>}
+                <div className="p-2 sm:p-3 bg-gray-50 rounded-lg border border-gray-100">
+                  <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                    {invoice.payment_method === "card" ? <><CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Transaction ID:</> : <><Hash className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Payment Notes:</>}
                   </div>
-                  <p className="text-sm text-gray-600 font-mono bg-white px-3 py-2 rounded border">
+                  <p className="text-xs sm:text-sm text-gray-600 font-mono bg-white px-2 sm:px-3 py-1.5 sm:py-2 rounded border break-all">
                     {invoice.payment_method === "card" ? invoice?.payment_transication : invoice?.payment_notes}
                   </p>
                 </div>
@@ -855,10 +892,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             </CardContent>
           </Card>
           <Card className="overflow-hidden border-0 shadow-sm">
-            <CardContent className="p-4 space-y-3">
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Sub Total</span><span className="font-medium text-gray-900">${subtotalAmount.toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Tax</span><span className="font-medium text-gray-900">${(invoice?.tax || 0).toFixed(2)}</span></div>
-              <div className="flex justify-between text-sm"><span className="text-gray-600">Shipping Cost</span><span className="font-medium text-gray-900">${Number(invoice?.shippin_cost || 0).toFixed(2)}</span></div>
+            <CardContent className="p-3 sm:p-4 space-y-2 sm:space-y-3">
+              <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Sub Total</span><span className="font-medium text-gray-900">${subtotalAmount.toFixed(2)}</span></div>
+              <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Tax</span><span className="font-medium text-gray-900">${(invoice?.tax || 0).toFixed(2)}</span></div>
+              <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Shipping Cost</span><span className="font-medium text-gray-900">${Number(invoice?.shippin_cost || 0).toFixed(2)}</span></div>
               {/* Show discount if applied */}
               {Number((invoice as any)?.discount_amount || 0) > 0 && (
                 <>
@@ -880,7 +917,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 </>
               )}
               <Separator />
-              <div className="flex justify-between"><span className="font-semibold text-gray-900">Total</span><span className="font-bold text-lg text-gray-900">${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-gray-900">Total</span><span className="font-bold text-base sm:text-lg text-gray-900">${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}</span></div>
               {Number((invoice as any)?.discount_amount || 0) > 0 && (
                 <div className="text-right text-sm text-green-600">
                   You saved: ${Number((invoice as any)?.discount_amount || 0).toFixed(2)}
@@ -888,13 +925,13 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               )}
               {/* Paid Amount Display */}
               {paidAmount > 0 && (
-                <div className="flex justify-between p-2 bg-green-50 rounded border border-green-200">
-                  <span className="font-semibold text-green-600">✓ Paid Amount</span>
-                  <span className="font-bold text-lg text-green-600">${paidAmount.toFixed(2)}</span>
+                <div className="flex justify-between p-1.5 sm:p-2 bg-green-50 rounded border border-green-200">
+                  <span className="font-semibold text-xs sm:text-sm text-green-600">✓ Paid Amount</span>
+                  <span className="font-bold text-sm sm:text-lg text-green-600">${paidAmount.toFixed(2)}</span>
                 </div>
               )}
               {/* Balance Due */}
-              <div className="flex justify-between"><span className="font-semibold text-red-600">Balance Due</span><span className="font-bold text-lg text-red-600">${Math.max(0, (subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)) - paidAmount).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-red-600">Balance Due</span><span className="font-bold text-base sm:text-lg text-red-600">${Math.max(0, (subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)) - paidAmount).toFixed(2)}</span></div>
             </CardContent>
           </Card>
         </div>

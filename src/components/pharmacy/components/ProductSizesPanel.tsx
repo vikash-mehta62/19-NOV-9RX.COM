@@ -356,7 +356,7 @@ export const ProductSizesPanel = ({
 
       const cartItem = {
         productId: displayProduct.id,
-        name: `${displayProduct.name} - ${size.size_value} ${size.size_unit}`,
+        name: displayProduct.name,
         sku: displayProduct.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(size.image),

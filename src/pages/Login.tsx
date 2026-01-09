@@ -286,12 +286,12 @@ const Login = () => {
               <Badge className="bg-white/20 text-white border-0 gap-1">
                 <Shield className="h-3 w-3" /> SSL Secured
               </Badge>
-              <Badge className="bg-white/20 text-white border-0 gap-1">
+              {/* <Badge className="bg-white/20 text-white border-0 gap-1">
                 <Lock className="h-3 w-3" /> HIPAA Compliant
               </Badge>
               <Badge className="bg-white/20 text-white border-0 gap-1">
                 <CheckCircle2 className="h-3 w-3" /> FDA Approved
-              </Badge>
+              </Badge> */}
             </div>
 
             <p className="text-center text-blue-200 text-sm">
@@ -305,7 +305,7 @@ const Login = () => {
       <div className="w-full lg:w-1/2 min-h-screen overflow-y-auto bg-gray-50">
         {/* Mobile Header */}
         <div className="lg:hidden bg-blue-600 p-6 text-white text-center">
-          <img src="/final.png" alt="9RX Logo" className="h-12 mx-auto brightness-0 invert mb-3" />
+          <img src={logo} alt="9RX Logo" className="h-16 mx-auto brightness-0 invert mb-3" />
           <p className="text-sm text-blue-100">Your Trusted Pharmacy Supplier</p>
         </div>
 

@@ -37,6 +37,8 @@ import { SendCreditTermsSection } from "./SendCreditTermsSection";
 import { statementService } from "@/services/statementService";
 import { downloadService } from "@/services/downloadService";
 import { statementPDFGenerator } from "@/utils/statement-pdf-generator";
+import { cn } from "@/lib/utils";
+import { useScreenSize } from "@/hooks/use-mobile";
 
 interface CreditSettings {
   credit_limit: number;
@@ -78,6 +80,12 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   const [isGeneratingStatement, setIsGeneratingStatement] = useState(false);
   const [hasPendingTerms, setHasPendingTerms] = useState(false);
   const { toast } = useToast();
+  
+  // Screen size detection for responsive design
+  const screenSize = useScreenSize();
+  const isMobile = screenSize === 'mobile';
+  const isTablet = screenSize === 'tablet';
+  const isCompact = isMobile || isTablet;
 
   // Form state
   const [creditLimit, setCreditLimit] = useState("");
@@ -478,17 +486,17 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   }
 
   return (
-    <div className="space-y-6">
+    <div className={cn("space-y-4", isCompact && "space-y-3")}>
       {/* Pending Offer Alert */}
       {readOnly && hasPendingTerms && (
         <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200 shadow-sm animate-pulse">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-              <CheckCircle className="w-6 h-6 text-blue-600" />
+          <CardContent className={cn("flex items-center gap-3", isCompact ? "p-3" : "p-4")}>
+            <div className={cn("bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0", isCompact ? "w-8 h-8" : "w-10 h-10")}>
+              <CheckCircle className={cn("text-blue-600", isCompact ? "w-4 h-4" : "w-6 h-6")} />
             </div>
-            <div className="flex-1">
-              <h3 className="text-blue-900 font-semibold">New Credit Offer Approved!</h3>
-              <p className="text-blue-700 text-sm">
+            <div className="flex-1 min-w-0">
+              <h3 className={cn("text-blue-900 font-semibold", isCompact ? "text-sm" : "text-base")}>New Credit Offer Approved!</h3>
+              <p className={cn("text-blue-700", isCompact ? "text-xs" : "text-sm")}>
                 Congratulations! Your credit increase request has been approved. 
                 Please check the "Pending Credit Terms" banner at the top of the page to review and sign your new agreement.
               </p>
@@ -500,15 +508,15 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       {/* Credit Overview */}
       {creditSettings && (
         <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-2">
-                <DollarSign className="w-5 h-5" />
+          <CardHeader className={cn(isCompact && "pb-3")}>
+            <div className={cn("flex items-center justify-between", isCompact && "flex-col gap-3 items-start")}>
+              <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-base" : "text-lg")}>
+                <DollarSign className={cn(isCompact ? "w-4 h-4" : "w-5 h-5")} />
                 Credit Account
               </CardTitle>
-              <div className="flex items-center gap-2">
+              <div className={cn("flex items-center gap-2", isCompact && "w-full justify-between")}>
                 <Badge
-                  className={getCreditStatusColor(creditSettings.credit_status)}
+                  className={cn(getCreditStatusColor(creditSettings.credit_status), isCompact ? "text-xs px-2 py-1" : "")}
                 >
                   {getCreditStatusIcon(creditSettings.credit_status)}
                   <span className="ml-1 capitalize">
@@ -521,33 +529,34 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                     onOpenChange={setIsEditDialogOpen}
                   >
                     <DialogTrigger asChild>
-                      <Button variant="outline" size="sm">
-                        <Edit className="w-4 h-4 mr-2" />
-                        Edit Settings
+                      <Button variant="outline" size={isCompact ? "sm" : "default"} className={cn(isCompact && "text-xs h-8")}>
+                        <Edit className={cn("mr-1", isCompact ? "w-3 h-3" : "w-4 h-4")} />
+                        {isCompact ? "Edit" : "Edit Settings"}
                       </Button>
                     </DialogTrigger>
-                    <DialogContent className="sm:max-w-[600px]">
+                    <DialogContent className={cn(isCompact ? "w-[95vw] max-w-sm rounded-lg" : "sm:max-w-[600px]")}>
                       <DialogHeader>
-                        <DialogTitle>Edit Credit Settings</DialogTitle>
+                        <DialogTitle className={cn(isCompact ? "text-base" : "text-lg")}>Edit Credit Settings</DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4 mt-4">
+                      <div className={cn("space-y-3 mt-3", !isCompact && "space-y-4 mt-4")}>
                         <div>
-                          <Label>Credit Limit (USD)</Label>
+                          <Label className={cn(isCompact && "text-sm")}>Credit Limit (USD)</Label>
                           <Input
                             type="number"
                             value={creditLimit}
                             onChange={(e) => setCreditLimit(e.target.value)}
                             placeholder="0.00"
+                            className={cn(isCompact && "h-9 text-sm")}
                           />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className={cn("grid gap-3", isCompact ? "grid-cols-1" : "grid-cols-2 gap-4")}>
                           <div>
-                            <Label>Payment Terms</Label>
+                            <Label className={cn(isCompact && "text-sm")}>Payment Terms</Label>
                             <Select
                               value={paymentTerms}
                               onValueChange={setPaymentTerms}
                             >
-                              <SelectTrigger>
+                              <SelectTrigger className={cn(isCompact && "h-9 text-sm")}>
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -560,35 +569,37 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                             </Select>
                           </div>
                           <div>
-                            <Label>Credit Days</Label>
+                            <Label className={cn(isCompact && "text-sm")}>Credit Days</Label>
                             <Input
                               type="number"
                               value={creditDays}
                               onChange={(e) => setCreditDays(e.target.value)}
                               placeholder="30"
+                              className={cn(isCompact && "h-9 text-sm")}
                             />
                           </div>
                         </div>
                         <div>
-                          <Label>Late Payment Fee (%)</Label>
+                          <Label className={cn(isCompact && "text-sm")}>Late Payment Fee (%)</Label>
                           <Input
                             type="number"
                             step="0.1"
                             value={lateFeePercentage}
                             onChange={(e) => setLateFeePercentage(e.target.value)}
                             placeholder="2.0"
+                            className={cn(isCompact && "h-9 text-sm")}
                           />
-                          <p className="text-xs text-muted-foreground mt-1">
+                          <p className={cn("text-muted-foreground mt-1", isCompact ? "text-xs" : "text-xs")}>
                             Percentage charged on overdue balances
                           </p>
                         </div>
                         <div>
-                          <Label>Statement Frequency</Label>
+                          <Label className={cn(isCompact && "text-sm")}>Statement Frequency</Label>
                           <Select
                             value={statementFrequency}
                             onValueChange={setStatementFrequency}
                           >
-                            <SelectTrigger>
+                            <SelectTrigger className={cn(isCompact && "h-9 text-sm")}>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -600,14 +611,20 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                           </Select>
                         </div>
 
-                        <div className="flex justify-end gap-2 pt-4">
+                        <div className={cn("flex gap-2 pt-3", isCompact ? "justify-end" : "justify-end pt-4")}>
                           <Button
                             variant="outline"
+                            size={isCompact ? "sm" : "default"}
                             onClick={() => setIsEditDialogOpen(false)}
+                            className={cn(isCompact && "text-xs h-8")}
                           >
                             Cancel
                           </Button>
-                          <Button onClick={handleSaveCreditSettings}>
+                          <Button 
+                            onClick={handleSaveCreditSettings}
+                            size={isCompact ? "sm" : "default"}
+                            className={cn(isCompact && "text-xs h-8")}
+                          >
                             Save Settings
                           </Button>
                         </div>
@@ -618,35 +635,40 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
               </div>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
+          <CardContent className={cn(isCompact && "pt-0")}>
+            {/* Credit amounts - Stack on mobile, grid on tablet+ */}
+            <div className={cn("gap-4 mb-4", 
+              isMobile ? "space-y-4" : 
+              isTablet ? "grid grid-cols-2 gap-3" : 
+              "grid grid-cols-3 gap-6 mb-6"
+            )}>
+              <div className={cn(isCompact && "text-center p-3 bg-gray-50 rounded-lg")}>
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
                   Credit Limit
                 </p>
-                <p className="text-2xl font-bold">
+                <p className={cn("font-bold", isCompact ? "text-lg" : "text-2xl")}>
                   {formatCurrency(creditSettings.credit_limit)}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
+              <div className={cn(isCompact && "text-center p-3 bg-green-50 rounded-lg")}>
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
                   Available Credit
                 </p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className={cn("font-bold text-green-600", isCompact ? "text-lg" : "text-2xl")}>
                   {formatCurrency(
                     creditSettings.credit_limit - creditSettings.credit_used
                   )}
                 </p>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
+              <div className={cn(isCompact && "text-center p-3 bg-orange-50 rounded-lg")}>
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
                   Credit Used
                 </p>
-                <p className="text-2xl font-bold text-orange-600">
+                <p className={cn("font-bold text-orange-600", isCompact ? "text-lg" : "text-2xl")}>
                   {formatCurrency(creditSettings.credit_used)}
                 </p>
-                {/* Pay Button inline with Credit Used */}
-                <div className="mt-2">
+                {/* Pay Button - Full width on mobile */}
+                <div className={cn("mt-2", isCompact && "w-full")}>
                   <PayCreditModal
                     creditUsed={creditSettings.credit_used}
                     onPaymentSuccess={loadCreditSettings} 
@@ -658,8 +680,8 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             </div>
 
             {/* Credit Utilization Bar */}
-            <div className="mb-6">
-              <div className="flex justify-between text-sm mb-2">
+            <div className={cn("mb-4", !isCompact && "mb-6")}>
+              <div className={cn("flex justify-between mb-2", isCompact ? "text-xs" : "text-sm")}>
                 <span className="text-muted-foreground">
                   Credit Utilization
                 </span>
@@ -667,7 +689,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                   {creditUtilization.toFixed(1)}%
                 </span>
               </div>
-              <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+              <div className={cn("bg-gray-200 rounded-full overflow-hidden", isCompact ? "h-2" : "h-3")}>
                 <div
                   className={`h-full transition-all ${
                     creditUtilization > 90
@@ -683,31 +705,35 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
               </div>
             </div>
 
-            {/* Credit Terms */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+            {/* Credit Terms - Stack on mobile, grid on tablet+ */}
+            <div className={cn("p-3 bg-gray-50 rounded-lg", 
+              isMobile ? "space-y-3" : 
+              isTablet ? "grid grid-cols-2 gap-3 p-4" : 
+              "grid grid-cols-4 gap-4 p-4"
+            )}>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-xs")}>
                   Payment Terms
                 </p>
-                <p className="font-semibold">{creditSettings.payment_terms}</p>
+                <p className={cn("font-semibold", isCompact ? "text-sm" : "text-base")}>{creditSettings.payment_terms}</p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-xs")}>
                   Credit Days
                 </p>
-                <p className="font-semibold">
+                <p className={cn("font-semibold", isCompact ? "text-sm" : "text-base")}>
                   {creditSettings.credit_days} days
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Late Fee</p>
-                <p className="font-semibold">
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-xs")}>Late Fee</p>
+                <p className={cn("font-semibold", isCompact ? "text-sm" : "text-base")}>
                   {creditSettings.late_payment_fee_percentage}%
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted-foreground mb-1">Currency</p>
-                <p className="font-semibold">USD</p>
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-xs")}>Currency</p>
+                <p className={cn("font-semibold", isCompact ? "text-sm" : "text-base")}>USD</p>
               </div>
             </div>
           </CardContent>
@@ -717,19 +743,17 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       {/* Statement Management - Only for Admin, not for Pharmacy */}
       {!readOnly && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5" />
+          <CardHeader className={cn(isCompact && "pb-3")}>
+            <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-base" : "text-lg")}>
+              <FileText className={cn(isCompact ? "w-4 h-4" : "w-5 h-5")} />
               Account Statements
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="space-y-6">
-
-
+          <CardContent className={cn(isCompact && "pt-0")}>
+            <div className={cn("space-y-4", isCompact && "space-y-3")}>
               {/* Custom Date Range Statement Generation */}
-              <div className="border-t pt-4">
-                <h4 className="font-medium mb-4">Generate Custom Statement</h4>
+              <div className={cn("border-t pt-3", !isCompact && "pt-4")}>
+                <h4 className={cn("font-medium mb-3", isCompact ? "text-sm mb-2" : "mb-4")}>Generate Custom Statement</h4>
                 <StatementDateRangeSelector
                   onDateRangeChange={handleDateRangeChange}
                   onDownload={handleStatementDownload}
@@ -748,17 +772,17 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       {/* Payment Methods - Only for Admin, not for Pharmacy */}
       {!readOnly && (
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CreditCard className="w-5 h-5" />
+          <CardHeader className={cn(isCompact && "pb-3")}>
+            <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-base" : "text-lg")}>
+              <CreditCard className={cn(isCompact ? "w-4 h-4" : "w-5 h-5")} />
               Payment Methods
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <CreditCard className="w-12 h-12 mx-auto mb-3 opacity-50" />
-              <p>No saved payment methods</p>
-              <p className="text-sm mt-1">
+          <CardContent className={cn(isCompact && "pt-0")}>
+            <div className={cn("text-center py-6 text-muted-foreground", isCompact && "py-4")}>
+              <CreditCard className={cn("mx-auto mb-2 opacity-50", isCompact ? "w-8 h-8 mb-1" : "w-12 h-12 mb-3")} />
+              <p className={cn(isCompact ? "text-sm" : "text-base")}>No saved payment methods</p>
+              <p className={cn("mt-1", isCompact ? "text-xs" : "text-sm")}>
                 Payment methods can be added during checkout
               </p>
             </div>
@@ -768,70 +792,73 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
 
       {/* Credit History */}
       <Card>
-  <CardHeader>
-    <CardTitle className="flex items-center gap-2">
-      <TrendingUp className="w-5 h-5" />
-      Credit History
-    </CardTitle>
-  </CardHeader>
-  <CardContent>
-    {loading ? (
-      <div className="text-center py-8 text-muted-foreground">
-        <p>Loading credit history...</p>
-      </div>
-    ) : transactions.length === 0 ? (
-      <div className="text-center py-8 text-muted-foreground">
-        <TrendingUp className="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p>No credit history yet</p>
-        <p className="text-sm mt-1">
-          View payment history and credit usage over time
-        </p>
-      </div>
-    ) : (
-      <div className="space-y-2">
-        {transactions.map((tx) => (
-          <div
-            key={tx.id}
-            className="flex justify-between items-center p-2 border rounded-md hover:bg-gray-50"
-          >
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">{tx.description}</span>
-              <span className="text-xs text-muted-foreground">
-                {new Date(tx.transaction_date).toLocaleString()}
-              </span>
-              {/* Display transactionId or admin notes */}
-              {tx.transectionId ? (
-                <span className="text-xs text-blue-600">
-                  Transaction ID: {tx.transectionId}
-                </span>
-              ) : tx.admin_pay_notes ? (
-                <span className="text-xs text-purple-600">
-                  Notes: {tx.admin_pay_notes}
-                </span>
-              ) : null}
+        <CardHeader className={cn(isCompact && "pb-3")}>
+          <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-base" : "text-lg")}>
+            <TrendingUp className={cn(isCompact ? "w-4 h-4" : "w-5 h-5")} />
+            Credit History
+          </CardTitle>
+        </CardHeader>
+        <CardContent className={cn(isCompact && "pt-0")}>
+          {loading ? (
+            <div className={cn("text-center py-6 text-muted-foreground", isCompact && "py-4")}>
+              <p className={cn(isCompact ? "text-sm" : "text-base")}>Loading credit history...</p>
             </div>
-            <div className="flex flex-col text-right">
-              {tx.debit_amount > 0 && (
-                <span className="text-sm text-red-600">
-                  -${tx.debit_amount.toFixed(2)}
-                </span>
-              )}
-              {tx.credit_amount > 0 && (
-                <span className="text-sm text-green-600">
-                  +${tx.credit_amount.toFixed(2)}
-                </span>
-              )}
-              <span className="text-xs text-muted-foreground">
-                Balance: ${tx.balance?.toFixed(2) || '0.00'}
-              </span>
+          ) : transactions.length === 0 ? (
+            <div className={cn("text-center py-6 text-muted-foreground", isCompact && "py-4")}>
+              <TrendingUp className={cn("mx-auto mb-2 opacity-50", isCompact ? "w-8 h-8 mb-1" : "w-12 h-12 mb-3")} />
+              <p className={cn(isCompact ? "text-sm" : "text-base")}>No credit history yet</p>
+              <p className={cn("mt-1", isCompact ? "text-xs" : "text-sm")}>
+                View payment history and credit usage over time
+              </p>
             </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </CardContent>
-</Card>
-
+          ) : (
+            <div className={cn("space-y-2", isCompact && "space-y-1")}>
+              {transactions.map((tx) => (
+                <div
+                  key={tx.id}
+                  className={cn("flex justify-between items-center border rounded-md hover:bg-gray-50", 
+                    isCompact ? "p-2 flex-col items-start gap-2" : "p-2"
+                  )}
+                >
+                  <div className={cn("flex flex-col", isCompact && "w-full")}>
+                    <span className={cn("font-medium", isCompact ? "text-sm" : "text-sm")}>{tx.description}</span>
+                    <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
+                      {new Date(tx.transaction_date).toLocaleString()}
+                    </span>
+                    {/* Display transactionId or admin notes */}
+                    {tx.transectionId ? (
+                      <span className={cn("text-blue-600", isCompact ? "text-xs" : "text-xs")}>
+                        Transaction ID: {tx.transectionId}
+                      </span>
+                    ) : tx.admin_pay_notes ? (
+                      <span className={cn("text-purple-600", isCompact ? "text-xs" : "text-xs")}>
+                        Notes: {tx.admin_pay_notes}
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className={cn("flex flex-col text-right", isCompact && "w-full flex-row justify-between items-center")}>
+                    <div className={cn(isCompact && "flex flex-col")}>
+                      {tx.debit_amount > 0 && (
+                        <span className={cn("text-red-600", isCompact ? "text-sm" : "text-sm")}>
+                          -${tx.debit_amount.toFixed(2)}
+                        </span>
+                      )}
+                      {tx.credit_amount > 0 && (
+                        <span className={cn("text-green-600", isCompact ? "text-sm" : "text-sm")}>
+                          +${tx.credit_amount.toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
+                      Balance: ${tx.balance?.toFixed(2) || '0.00'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
