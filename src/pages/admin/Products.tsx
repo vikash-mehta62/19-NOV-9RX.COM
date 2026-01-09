@@ -490,7 +490,7 @@ const Products = () => {
                           <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
                             ${Number(product.displayPrice || product.base_price || 0).toFixed(2)}
                           </span>
-                          <Badge
+                          {/* <Badge
                             variant="outline"
                             className={`text-xs px-2 py-1 rounded-lg font-medium ${(product.current_stock || 0) > 0
                               ? "border-blue-300 text-blue-700 bg-blue-50"
@@ -498,7 +498,7 @@ const Products = () => {
                               }`}
                           >
                             {(product.current_stock || 0) > 0 ? `${product.current_stock} In Stock` : "Out of Stock"}
-                          </Badge>
+                          </Badge> */}
                         </div>
                       </CardContent>
                     </Card>
