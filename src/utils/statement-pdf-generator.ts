@@ -2,7 +2,7 @@ import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { StatementData, StatementTransaction } from "@/services/statementService";
 import { DownloadManager, DownloadOptions, DownloadResult } from "./download-manager";
-import Logo from "../../../19-NOV-9RX.COM/src/assests/home/9rx_logo.png"
+import Logo from "../assests/home/9rx_logo.png"
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
