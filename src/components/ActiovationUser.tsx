@@ -74,12 +74,12 @@ function ActivationUser() {
     <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md text-center">
       {loading ? (
         <div className="flex flex-col items-center gap-4">
-          <Loader className="animate-spin text-green-500" size={40} />
+          <Loader className="animate-spin text-blue-500" size={40} />
           <p className="text-gray-600">Verifying your email...</p>
         </div>
       ) : userData ? (
         <>
-          <h2 className="text-2xl font-bold text-green-700 mb-4">Your Email is Confirmed ✅</h2>
+          <h2 className="text-2xl font-bold text-blue-700 mb-4">Your Email is Confirmed ✅</h2>
           <p className="text-gray-600 mb-2">
             Welcome, <strong className="text-green-700">{userData.first_name} {userData.last_name}</strong>
           </p>

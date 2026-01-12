@@ -186,7 +186,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
 
-      const brandColor: [number, number, number] = [0, 150, 136]
+      const brandColor: [number, number, number] = [59, 130, 246]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
 
@@ -476,7 +476,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
-      const brandColor: [number, number, number] = [0, 150, 136]
+      const brandColor: [number, number, number] = [59, 130, 246]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
 

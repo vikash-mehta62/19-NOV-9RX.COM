@@ -17,6 +17,7 @@ import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import JsBarcode from "jsbarcode";
+import Logo from '../../assests/home/9rx_logo.png';
 
 interface OrderItem {
   name: string;
@@ -183,24 +184,43 @@ export default function OrderDetail() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 12;
-      const brandColor: [number, number, number] = [0, 150, 136];
+      const brandColor: [number, number, number] = [59, 130, 246];
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
-      // Header band
+      // Small blue line at top
       doc.setFillColor(...brandColor);
-      doc.rect(0, 0, pageWidth, 5, "F");
+      doc.rect(0, 0, pageWidth, 3, "F");
 
-      // Company info
+      // Try to add logo first
+      let logoLoaded = false;
+      let logoHeight = 0;
+      try {
+        const logo = new Image();
+        logo.src = Logo;
+        await new Promise<void>((resolve) => {
+          logo.onload = () => { logoLoaded = true; resolve(); };
+          logo.onerror = () => resolve();
+          setTimeout(() => resolve(), 3000);
+        });
+        if (logoLoaded && logo.width > 0) {
+          logoHeight = 18;
+          const logoWidth = (logo.width / logo.height) * logoHeight;
+          doc.addImage(logo, "PNG", margin, 8, logoWidth, logoHeight);
+        }
+      } catch { /* Continue without logo */ }
+
+      // Company info - positioned below the logo in a column layout
+      const companyTextY = logoLoaded ? 8 + logoHeight + 5 : 16; // Start below logo with 5mm gap
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(...darkGray);
-      doc.text("9RX LLC", margin, 16);
+      doc.text("9RX LLC", margin, companyTextY);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, 22);
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, 27);
+      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, companyTextY + 6);
+      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, companyTextY + 11);
 
       // Document title
       const invoiceNumber = order.invoice_number;
@@ -251,10 +271,10 @@ export default function OrderDetail() {
       // Divider
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.5);
-      doc.line(margin, 58, pageWidth - margin, 58);
+      doc.line(margin, 65, pageWidth - margin, 65);
 
       // Items table
-      const tableStartY = 65;
+      const tableStartY = 72;
       const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
       const tableBody: any[] = [];
       let itemIndex = 1;
@@ -362,7 +382,7 @@ export default function OrderDetail() {
     return (
       <DashboardLayout role="pharmacy">
         <div className="flex items-center justify-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
         </div>
       </DashboardLayout>
     );
@@ -456,7 +476,7 @@ export default function OrderDetail() {
             <Card>
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Package className="w-5 h-5 text-emerald-600" />
+                  <Package className="w-5 h-5 text-blue-600" />
                   Order Items ({totalLineItems} items, {totalUnits} units)
                 </h3>
                 <div className="space-y-4">
@@ -488,7 +508,7 @@ export default function OrderDetail() {
             <Card>
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-emerald-600" />
+                  <Clock className="w-5 h-5 text-blue-600" />
                   Order Activity
                 </h3>
                 <OrderActivityTimeline orderId={order.id} />
@@ -501,7 +521,7 @@ export default function OrderDetail() {
             <Card>
               <CardContent className="p-6">
                 <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                  <DollarSign className="w-5 h-5 text-emerald-600" />
+                  <DollarSign className="w-5 h-5 text-blue-600" />
                   Order Summary
                 </h3>
                 <div className="space-y-3">
@@ -526,7 +546,7 @@ export default function OrderDetail() {
                   <Separator />
                   <div className="flex justify-between text-lg font-bold">
                     <span>Total</span>
-                    <span className="text-emerald-600">${total.toFixed(2)}</span>
+                    <span className="text-blue-600">${total.toFixed(2)}</span>
                   </div>
                   {paidAmount > 0 && (
                     <>
@@ -551,7 +571,7 @@ export default function OrderDetail() {
               <Card>
                 <CardContent className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-emerald-600" />
+                    <MapPin className="w-5 h-5 text-blue-600" />
                     Shipping Address
                   </h3>
                   <div className="text-sm text-gray-600 space-y-1">
@@ -572,7 +592,7 @@ export default function OrderDetail() {
               <Card>
                 <CardContent className="p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Phone className="w-5 h-5 text-emerald-600" />
+                    <Phone className="w-5 h-5 text-blue-600" />
                     Contact Information
                   </h3>
                   <div className="space-y-2 text-sm">

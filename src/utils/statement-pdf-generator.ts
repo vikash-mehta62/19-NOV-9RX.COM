@@ -24,11 +24,11 @@ interface UserProfile {
   shipping_address?: any;
 }
 
-// Professional color scheme - Emerald/Teal theme
+// Professional color scheme - Blue theme
 const COLORS = {
-  primary: [16, 185, 129] as [number, number, number],      // Emerald-500
-  primaryDark: [5, 150, 105] as [number, number, number],   // Emerald-600
-  secondary: [20, 184, 166] as [number, number, number],    // Teal-500
+  primary: [59, 130, 246] as [number, number, number],      // Blue-500
+  primaryDark: [37, 99, 235] as [number, number, number],   // Blue-600
+  secondary: [96, 165, 250] as [number, number, number],    // Blue-400
   accent: [245, 158, 11] as [number, number, number],       // Amber-500
   danger: [239, 68, 68] as [number, number, number],        // Red-500
   success: [34, 197, 94] as [number, number, number],       // Green-500
@@ -68,6 +68,9 @@ export class StatementPDFGenerator {
 
       // Add statement title and info
       this.addStatementInfo(doc, statementData, userProfile, pageWidth);
+
+      // Add separator line after heading
+      this.addHeaderSeparator(doc, pageWidth);
 
       // Add customer info section
       this.addCustomerSection(doc, userProfile, pageWidth);
@@ -119,16 +122,12 @@ export class StatementPDFGenerator {
   }
 
   /**
-   * Add gradient header bar
+   * Add small blue line at top instead of full header background
    */
   private addHeaderGradient(doc: jsPDFWithAutoTable, pageWidth: number): void {
-    // Main header bar
+    // Small blue line at the very top (3mm height)
     doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-    doc.rect(0, 0, pageWidth, 35, 'F');
-    
-    // Accent stripe
-    doc.setFillColor(COLORS.primaryDark[0], COLORS.primaryDark[1], COLORS.primaryDark[2]);
-    doc.rect(0, 35, pageWidth, 3, 'F');
+    doc.rect(0, 0, pageWidth, 3, 'F');
   }
 
   /**
@@ -152,14 +151,14 @@ export class StatementPDFGenerator {
       // Fallback: Add company name as text
       doc.setFont("helvetica", "bold");
       doc.setFontSize(24);
-      doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
       doc.text("9RX", this.margin, 22);
     }
 
     // Company tagline
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text("Your Trusted Pharmacy Partner", this.margin, 30);
   }
 
@@ -175,19 +174,30 @@ export class StatementPDFGenerator {
     // Statement title on right side of header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(20);
-    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
     doc.text("ACCOUNT STATEMENT", pageWidth - this.margin, 18, { align: "right" });
 
     // Statement reference
     const statementRef = `STMT-${userProfile?.id?.substring(0, 6).toUpperCase() || 'XXX'}-${Date.now().toString().slice(-6)}`;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text(`Ref: ${statementRef}`, pageWidth - this.margin, 25, { align: "right" });
 
     // Date range
     const startDateStr = statementData.startDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     const endDateStr = statementData.endDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     doc.text(`${startDateStr} - ${endDateStr}`, pageWidth - this.margin, 31, { align: "right" });
+  }
+
+  /**
+   * Add separator line after header section
+   */
+  private addHeaderSeparator(doc: jsPDFWithAutoTable, pageWidth: number): void {
+    const separatorY = 38;
+    doc.setDrawColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.setLineWidth(0.5);
+    doc.line(this.margin, separatorY, pageWidth - this.margin, separatorY);
   }
 
   /**
@@ -392,14 +402,14 @@ export class StatementPDFGenerator {
       showHead: 'everyPage',
       didDrawPage: (data: any) => {
         if (data.pageNumber > 1) {
-          // Add header on subsequent pages
+          // Add small blue line at top of continuation pages
           doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-          doc.rect(0, 0, pageWidth, 15, 'F');
+          doc.rect(0, 0, pageWidth, 3, 'F');
           
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
-          doc.setTextColor(255, 255, 255);
-          doc.text("ACCOUNT STATEMENT (Continued)", this.margin, 10);
+          doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+          doc.text("ACCOUNT STATEMENT (Continued)", this.margin, 12);
         }
       }
     });

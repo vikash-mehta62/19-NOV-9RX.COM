@@ -799,7 +799,7 @@ return (
 
             {/* Right: Enhanced Stock Status / Availability */}
             <div className="lg:text-right">
-              <div className="inline-flex items-center gap-2 bg-gradient-to-r from-green-50 to-emerald-50 px-4 py-2 rounded-xl border border-green-200 shadow-sm hover:shadow-md transition-all duration-200">
+              <div className="inline-flex items-center gap-2 bg-blue-50 px-4 py-2 rounded-xl border border-blue-200 shadow-sm hover:shadow-md transition-all duration-200">
                 <div className="relative">
                   <div className="h-2.5 w-2.5 bg-green-500 rounded-full"></div>
                   <div className="absolute inset-0 h-2.5 w-2.5 bg-green-500 rounded-full animate-ping opacity-75"></div>

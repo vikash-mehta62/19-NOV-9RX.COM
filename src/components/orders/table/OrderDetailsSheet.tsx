@@ -365,7 +365,7 @@ export const OrderDetailsSheet = ({
       const margin = 12;
       
       // Brand color
-      const brandColor: [number, number, number] = [0, 150, 136]; // Teal color
+      const brandColor: [number, number, number] = [59, 130, 246]; // Blue color
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -788,7 +788,7 @@ currentOrder.items.forEach((item: any) => {
         doc.setPage(i);
         
         // Ensure footer band is on this page
-        doc.setFillColor(0, 150, 136);
+        doc.setFillColor(59, 130, 246);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
         
         // Draw white background for page number visibility
@@ -836,7 +836,7 @@ currentOrder.items.forEach((item: any) => {
       const margin = 12;
       
       // Brand color
-      const brandColor: [number, number, number] = [0, 150, 136];
+      const brandColor: [number, number, number] = [59, 130, 246];
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -1225,7 +1225,7 @@ currentOrder.items.forEach((item: any) => {
         doc.setPage(i);
         
         // Ensure footer band is on this page
-        doc.setFillColor(0, 150, 136);
+        doc.setFillColor(59, 130, 246);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
         
         // Draw white background for page number visibility
@@ -1600,7 +1600,7 @@ currentOrder.items.forEach((item: any) => {
 
                     <button
                     onClick={handleDownloadPackingSlip}
-                    className="flex items-center justify-center gap-2 bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
+                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
                   >
                     <Package size={18} />
                     Packing Slip

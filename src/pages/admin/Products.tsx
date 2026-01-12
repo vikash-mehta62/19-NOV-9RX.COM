@@ -604,7 +604,8 @@ const Products = () => {
                                 : "border-red-300 text-red-700 bg-red-50"
                                 }`}
                             >
-                              {(product.current_stock || 0) > 0 ? `${product.current_stock} units` : "Out of Stock"}
+                              {/* {(product.current_stock || 0) > 0 ? `${product.current_stock} units` : "Out of Stock"} */}
+                              {(product.current_stock || 0) > 0 ? `In Stock` : "Out of Stock"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right py-4">

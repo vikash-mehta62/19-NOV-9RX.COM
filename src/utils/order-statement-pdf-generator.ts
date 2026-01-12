@@ -10,11 +10,11 @@ interface jsPDFWithAutoTable extends jsPDF {
   };
 }
 
-// Professional color scheme - Emerald/Teal theme (matching statement-pdf-generator)
+// Professional color scheme - Blue theme (matching statement-pdf-generator)
 const COLORS = {
-  primary: [16, 185, 129] as [number, number, number],      // Emerald-500
-  primaryDark: [5, 150, 105] as [number, number, number],   // Emerald-600
-  secondary: [20, 184, 166] as [number, number, number],    // Teal-500
+  primary: [59, 130, 246] as [number, number, number],      // Blue-500
+  primaryDark: [37, 99, 235] as [number, number, number],   // Blue-600
+  secondary: [96, 165, 250] as [number, number, number],    // Blue-400
   accent: [245, 158, 11] as [number, number, number],       // Amber-500
   danger: [239, 68, 68] as [number, number, number],        // Red-500
   success: [34, 197, 94] as [number, number, number],       // Green-500
@@ -67,6 +67,9 @@ export class OrderPDFGenerator {
       // Add statement info
       this.addStatementInfo(doc, statementData, pageWidth);
 
+      // Add separator line after heading
+      this.addHeaderSeparator(doc, pageWidth);
+
       // Add customer info section
       this.addCustomerSection(doc, statementData, pageWidth);
 
@@ -93,16 +96,12 @@ export class OrderPDFGenerator {
   }
 
   /**
-   * Add gradient header bar
+   * Add small blue line at top instead of full header background
    */
   private addHeaderGradient(doc: jsPDFWithAutoTable, pageWidth: number): void {
-    // Main header bar
+    // Small blue line at the very top (3mm height)
     doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-    doc.rect(0, 0, pageWidth, 28, 'F');
-    
-    // Accent stripe
-    doc.setFillColor(COLORS.primaryDark[0], COLORS.primaryDark[1], COLORS.primaryDark[2]);
-    doc.rect(0, 28, pageWidth, 2, 'F');
+    doc.rect(0, 0, pageWidth, 3, 'F');
   }
 
   /**
@@ -126,14 +125,14 @@ export class OrderPDFGenerator {
       // Fallback: Add company name as text
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
-      doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+      doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
       doc.text("9RX", this.margin, 16);
     }
 
     // Company tagline
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text("Your Trusted Pharmacy Partner", this.margin, 24);
   }
 
@@ -148,18 +147,29 @@ export class OrderPDFGenerator {
     // Statement title on right side of header
     doc.setFont("helvetica", "bold");
     doc.setFontSize(18);
-    doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
+    doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
     doc.text("CUSTOMER STATEMENT", pageWidth - this.margin, 12, { align: "right" });
 
     // Statement reference
     const statementRef = `CS-${Date.now().toString().slice(-8)}`;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
+    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text(`Ref: ${statementRef}`, pageWidth - this.margin, 18, { align: "right" });
 
     // Aging date
     const agingDate = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
     doc.text(`Aging Date: ${agingDate}`, pageWidth - this.margin, 24, { align: "right" });
+  }
+
+  /**
+   * Add separator line after header section
+   */
+  private addHeaderSeparator(doc: jsPDFWithAutoTable, pageWidth: number): void {
+    const separatorY = 30;
+    doc.setDrawColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
+    doc.setLineWidth(0.5);
+    doc.line(this.margin, separatorY, pageWidth - this.margin, separatorY);
   }
 
   /**
@@ -170,7 +180,7 @@ export class OrderPDFGenerator {
     statementData: OrderStatementData,
     pageWidth: number
   ): void {
-    const sectionY = 34;
+    const sectionY = 36;
     const boxWidth = 80;
 
     // Customer Info Box
@@ -413,17 +423,19 @@ export class OrderPDFGenerator {
       showHead: "everyPage",
       didDrawPage: (data: any) => {
         if (data.pageNumber > 1) {
+          // Add small blue line at top of continuation pages
           doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-          doc.rect(0, 0, pageWidth, 12, 'F');
+          doc.rect(0, 0, pageWidth, 3, 'F');
           
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
-          doc.setTextColor(255, 255, 255);
-          doc.text("CUSTOMER STATEMENT (Continued)", this.margin, 8);
+          doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+          doc.text("CUSTOMER STATEMENT (Continued)", this.margin, 10);
           
           doc.setFont("helvetica", "normal");
           doc.setFontSize(7);
-          doc.text(`Page ${data.pageNumber}`, pageWidth - this.margin, 8, { align: "right" });
+          doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+          doc.text(`Page ${data.pageNumber}`, pageWidth - this.margin, 10, { align: "right" });
         }
       }
     });

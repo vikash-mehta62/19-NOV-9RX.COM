@@ -352,7 +352,7 @@ export const CartDrawer = () => {
                 <span>${total.toFixed(2)}</span>
               </div>
               <Button
-                className="w-full bg-green-600 hover:bg-green-700 text-white mt-2"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-2"
                 onClick={handleCheckout}
                 disabled={isProcessing}
               >

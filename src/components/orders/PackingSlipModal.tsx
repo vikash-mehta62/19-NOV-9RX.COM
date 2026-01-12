@@ -117,8 +117,8 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <Package className="w-6 h-6 text-green-600" />
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Package className="w-6 h-6 text-blue-600" />
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold">Packing Slip - {orderData?.order_number}</DialogTitle>
@@ -129,11 +129,11 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 1 ? 'bg-green-600 text-white' : 'bg-gray-200'}`}>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 1 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
                 {currentStep > 1 ? <CheckCircle2 className="w-5 h-5" /> : "1"}
               </div>
               <div className={`w-8 h-0.5 ${currentStep > 1 ? 'bg-green-600' : 'bg-gray-200'}`} />
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 2 ? 'bg-green-600 text-white' : 'bg-gray-200'}`}>2</div>
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${currentStep >= 2 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>2</div>
             </div>
           </div>
         </DialogHeader>
@@ -339,7 +339,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
             {currentStep === 1 ? (
               <Button onClick={handleNextStep} className="bg-blue-600 hover:bg-blue-700">Next</Button>
             ) : (
-              <Button onClick={handleDownload} disabled={isGenerating} className="bg-green-600 hover:bg-green-700">
+              <Button onClick={handleDownload} disabled={isGenerating} className="bg-blue-600 hover:bg-blue-700">
                 <Download className="w-4 h-4 mr-2" />
                 {isGenerating ? "Generating..." : "Download Packing Slip"}
               </Button>

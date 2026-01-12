@@ -180,7 +180,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       const margin = 12
 
       // Brand color
-      const brandColor: [number, number, number] = [0, 150, 136]
+      const brandColor: [number, number, number] = [59, 130, 246]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
 
@@ -489,8 +489,8 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
         
-        // Green footer band at bottom
-        doc.setFillColor(0, 150, 136)
+        // Blue footer band at bottom
+        doc.setFillColor(59, 130, 246)
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
         
         // White background for page number
@@ -522,7 +522,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
-      const brandColor: [number, number, number] = [0, 150, 136]
+      const brandColor: [number, number, number] = [59, 130, 246]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
 
@@ -764,8 +764,8 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
         
-        // Green footer band at bottom
-        doc.setFillColor(0, 150, 136)
+        // Blue footer band at bottom
+        doc.setFillColor(59, 130, 246)
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
         
         // White background for page number
@@ -886,12 +886,12 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                   </div>
                 </div>
               </Card>
-              <Card className="p-2 sm:p-3 bg-emerald-50 border-0">
+              <Card className="p-2 sm:p-3 bg-blue-50 border-0">
                 <div className="flex flex-col sm:flex-row items-center sm:items-center gap-1 sm:gap-2">
-                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
                   <div className="text-center sm:text-left">
-                    <p className="text-[10px] sm:text-xs text-emerald-600 font-medium">Total</p>
-                    <p className="text-sm sm:text-lg font-bold text-emerald-700">${total.toFixed(2)}</p>
+                    <p className="text-[10px] sm:text-xs text-blue-600 font-medium">Total</p>
+                    <p className="text-sm sm:text-lg font-bold text-blue-700">${total.toFixed(2)}</p>
                   </div>
                 </div>
               </Card>
@@ -908,7 +908,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
             {/* Shipping Address */}
             <Card className="overflow-hidden border-0 shadow-sm">
-              <div className="bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-3">
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-500 px-4 py-3">
                 <div className="flex items-center gap-2 text-white">
                   <MapPin className="w-4 h-4" />
                   <span className="font-semibold">Shipping Address</span>
@@ -1064,7 +1064,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 <Separator />
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-base sm:text-lg font-bold text-gray-900">Total</span>
-                  <span className="text-xl sm:text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
+                  <span className="text-xl sm:text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="text-right text-sm text-green-600">

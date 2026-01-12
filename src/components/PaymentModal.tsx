@@ -771,8 +771,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           <div className="lg:col-span-3 space-y-6">
             {/* Payment Method Selection */}
             <Card className="shadow-lg border-0 overflow-hidden">
-              <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white">
-                <CardTitle className="flex items-center gap-3 text-xl">
+              <CardHeader className="bg-blue-600 text-white">
+                <CardTitle className="flex items-center gap-3 text-xl text-white">
                   <CreditCard className="w-6 h-6" />
                   Payment Method
                 </CardTitle>
@@ -1132,8 +1132,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             <div className="sticky top-24 space-y-6">
               {/* Order Summary Card */}
               <Card className="shadow-lg border-0 overflow-hidden">
-                <CardHeader className="bg-gradient-to-r from-slate-700 to-slate-800 text-white">
-                  <CardTitle className="flex items-center gap-2 text-lg">
+                <CardHeader className="bg-blue-600 text-white">
+                  <CardTitle className="flex items-center gap-2 text-lg text-white">
                     <Receipt className="w-5 h-5" />
                     Payment Summary
                   </CardTitle>
