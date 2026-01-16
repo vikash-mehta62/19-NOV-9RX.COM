@@ -10,13 +10,22 @@ import { SecuritySection } from "@/components/settings/SecuritySection";
 import { SettingsFormValues, defaultValues } from "@/components/settings/settingsTypes";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { EditUserModal } from "@/components/users/EditUserModal";
 
-export default function PharmacySettings() {
+export default function GroupSettings() {
   const form = useForm<SettingsFormValues>({ defaultValues });
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState("");
+  const [userData, setUserData] = useState<any>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Check if we're on the update-profile route
+  const isUpdateProfileRoute = location.pathname.includes("/update-profile");
+
   const onSubmit = async (data: SettingsFormValues) => {
     setIsSubmitting(true);
     try {
@@ -73,26 +82,40 @@ export default function PharmacySettings() {
         }
 
         if (!data) return;
-        setEmail(data.email)
-        console.log(data.email)
+        setEmail(data.email);
+        setUserData(data);
+        console.log(data.email);
         form.setValue("description", data.notes || "");
         form.setValue("business_name", data.company_name || "");
         form.setValue("email_notifications", data.email_notifaction || false);
         form.setValue("order_updates", data.order_updates || false);
+        
+        // If on update-profile route, open the modal
+        if (isUpdateProfileRoute) {
+          setEditModalOpen(true);
+        }
       } catch (error) {
         console.error("⚠️ Error fetching user:", error);
       }
     };
 
     fetchUser();
-  }, []);
+  }, [isUpdateProfileRoute]);
+
+  // Handle modal close - navigate back to settings
+  const handleModalClose = (open: boolean) => {
+    setEditModalOpen(open);
+    if (!open) {
+      navigate("/group/settings");
+    }
+  };
 
   return (
     <DashboardLayout role="group">
       <div className="space-y-6">
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Settings</h2>
-          <p className="text-muted-foreground">Manage your pharmacy settings and preferences</p>
+          <p className="text-muted-foreground">Manage your group settings and preferences</p>
         </div>
 
         <Form {...form}>
@@ -100,9 +123,9 @@ export default function PharmacySettings() {
             <div className="grid gap-6">
               <BusinessProfileSection form={form} />
               <div className="flex items-center gap-2 text-blue-600 font-medium hover:underline">
-            <ArrowRight className="w-5 h-5" />
-            <Link to={`/update-profile?email=${email}`}>Go to Update Profile</Link>
-          </div>
+                <ArrowRight className="w-5 h-5" />
+                <Link to={`/group/settings/update-profile?email=${email}`}>Go to Update Profile</Link>
+              </div>
               <NotificationSection form={form} />
               <SecuritySection form={form} />
               <div className=" flex justify-center w-full">
@@ -118,6 +141,26 @@ export default function PharmacySettings() {
           </form>
         </Form>
       </div>
+      
+      {/* Update Profile Modal */}
+      {userData && (
+        <EditUserModal
+          user={{
+            id: userData.id,
+            name: userData.name || "N/A",
+            email: userData.email,
+            type: userData.type || "user",
+            status: userData.status || "pending",
+          }}
+          open={editModalOpen}
+          onOpenChange={handleModalClose}
+          onUserUpdated={() => {
+            console.log("Profile updated successfully");
+            navigate("/group/settings");
+          }}
+          self={true}
+        />
+      )}
     </DashboardLayout>
   );
 }

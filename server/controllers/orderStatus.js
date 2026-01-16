@@ -46,17 +46,17 @@ exports.orderSatusCtrl = async (req, res) => {
         userId: order.userId || order.profile_id,
         firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
         lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
-        order_number: order.orderNumber || order.id,
-        tracking_number: order.trackingNumber || '',
-        shipping_method: order.shippingMethod || '',
-      });
+        order_number: order.order_number || order.orderNumber || order.id,
+        tracking_number: order.tracking_number || order.trackingNumber || '',
+        shipping_method: order.shipping_method || order.shippingMethod || '',
+      }); 
     } else if (status === 'delivered') {
       await triggerAutomation('order_delivered', {
         email: order.customerInfo.email,
         userId: order.userId || order.profile_id,
         firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
         lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
-        order_number: order.orderNumber || order.id,
+        order_number: order.order_number || order.orderNumber || order.id,
       });
     }
 
@@ -112,8 +112,8 @@ exports.orderPlacedCtrl = async (req, res) => {
       userId: order.userId || order.profile_id,
       firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
       lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
-      order_number: order.orderNumber || order.id,
-      order_total: order.totalAmount || order.total,
+      order_number: order.order_number || order.orderNumber || order.id,
+      order_total: order.total_amount || order.totalAmount || order.total,
       item_count: order.items?.length || 0,
     });
 
@@ -135,8 +135,8 @@ exports.orderPlacedCtrl = async (req, res) => {
       userId: order.userId || order.profile_id,
       firstName: order.customerInfo.firstName || order.customerInfo.name?.split(' ')[0],
       lastName: order.customerInfo.lastName || order.customerInfo.name?.split(' ').slice(1).join(' '),
-      order_number: order.orderNumber || order.id,
-      order_total: order.totalAmount || order.total,
+      order_number: order.order_number || order.orderNumber || order.id,
+      order_total: order.total_amount || order.totalAmount || order.total,
     });
 
     return res.status(200).json({
@@ -355,7 +355,7 @@ console.log(order)
 
     await mailSender(
       order.customerInfo.email,
-      "Payment Link Send Successfully!",
+      `Complete Your Payment - Order #${order.order_number || order.orderNumber || 'N/A'} | 9RX`,
       emailContent
     );
 

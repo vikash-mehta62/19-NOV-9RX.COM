@@ -18,15 +18,17 @@ const mailSender = require("../utils/mailSender");
 const crypto = require("crypto");
 require("dotenv").config();
 
-// Initialize Supabase client
+// Initialize Supabase client with SERVICE_ROLE_KEY for server-side operations
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_ANON_KEY;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY; // Use service role key for background jobs
 
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ Missing Supabase credentials for Email Cron");
 }
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 // ============================================
 // CONFIGURATION

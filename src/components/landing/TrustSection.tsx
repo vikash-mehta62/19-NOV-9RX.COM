@@ -96,32 +96,32 @@ const TrustSection = () => {
     }
   ];
 
-  const features = [
-    {
-      icon: Shield,
-      title: "Quality Guaranteed",
-      description: "All products meet FDA standards and quality certifications",
-      gradient: "from-blue-500 to-indigo-600"
-    },
-    {
-      icon: Users,
-      title: "Expert Support",
-      description: "Dedicated account managers for personalized service",
-      gradient: "from-indigo-500 to-blue-600"
-    },
-    {
-      icon: Clock,
-      title: "24/7 Availability",
-      description: "Round-the-clock customer support and ordering",
-      gradient: "from-blue-600 to-indigo-500"
-    },
-    {
-      icon: Truck,
-      title: "Fast Shipping",
-      description: "Same-day dispatch for orders before 3 PM EST",
-      gradient: "from-indigo-600 to-blue-500"
-    }
-  ];
+  // const features = [
+  //   {
+  //     icon: Shield,
+  //     title: "Quality Guaranteed",
+  //     description: "All products meet standards and quality certifications",
+  //     gradient: "from-blue-500 to-indigo-600"
+  //   },
+  //   {
+  //     icon: Users,
+  //     title: "Expert Support",
+  //     description: "Dedicated account managers for personalized service",
+  //     gradient: "from-indigo-500 to-blue-600"
+  //   },
+  //   {
+  //     icon: Clock,
+  //     title: "24/7 Availability",
+  //     description: "Round-the-clock customer support and ordering",
+  //     gradient: "from-blue-600 to-indigo-500"
+  //   },
+  //   {
+  //     icon: Truck,
+  //     title: "Fast Shipping",
+  //     description: "Same-day dispatch for orders before 3 PM EST",
+  //     gradient: "from-indigo-600 to-blue-500"
+  //   }
+  // ];
 
   return (
     <section ref={sectionRef} className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-indigo-50/30 to-white relative overflow-hidden">

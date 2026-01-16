@@ -7,17 +7,17 @@ import { useLocation } from "react-router-dom";
 export default function PharmacyOrders() {
 
 
-    const location = useLocation();
-    const [poIs, setPoIs] = useState(false);
-  
-    useEffect(() => {
-      if (location.pathname.startsWith('/pharmacy/po')) {
-        setPoIs(true);
-      } else {
-        setPoIs(false);
-      }
-    }, [location.pathname]);
-  
+  const location = useLocation();
+  const [poIs, setPoIs] = useState(false);
+
+  useEffect(() => {
+    if (location.pathname.startsWith('/pharmacy/po')) {
+      setPoIs(true);
+    } else {
+      setPoIs(false);
+    }
+  }, [location.pathname]);
+
   return (
     <DashboardLayout role="pharmacy">
       <div className="space-y-6">

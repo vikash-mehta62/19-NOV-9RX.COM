@@ -422,11 +422,12 @@ export const InlineProductSizes = ({
         </h3>
         
         {loading ? (
-          <div className="grid grid-cols-1 gap-3 sm:gap-4">
-            {[1, 2, 3].map((i) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+            {[1, 2, 3, 4].map((i) => (
               <Card key={i} className="border-gray-200">
                 <CardContent className="p-3 sm:p-4">
                   <div className="animate-pulse space-y-2 sm:space-y-3">
+                    <div className="aspect-square bg-gray-200 rounded-lg"></div>
                     <div className="h-3 sm:h-4 bg-gray-200 rounded w-1/3"></div>
                     <div className="h-5 sm:h-6 bg-gray-200 rounded w-1/2"></div>
                     <div className="h-7 sm:h-8 bg-gray-200 rounded"></div>
@@ -436,7 +437,7 @@ export const InlineProductSizes = ({
             ))}
           </div>
         ) : displayProduct.sizes && displayProduct.sizes.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 sm:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
             {displayProduct.sizes.map((size) => {
               const sizeId = size.id
               const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
@@ -456,18 +457,18 @@ export const InlineProductSizes = ({
               return (
                 <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden`}>
                   <CardContent className="p-3 sm:p-4 min-w-0">
-                    {/* Mobile: Horizontal Layout, Desktop: Vertical */}
-                    <div className="flex flex-row sm:flex-col gap-3 sm:gap-0">
-                      {/* Product Image */}
+                    {/* Vertical Layout for all screens */}
+                    <div className="flex flex-col gap-3">
+                      {/* Product Image - Full width, square aspect ratio */}
                       <div 
-                        className="relative w-24 h-24 sm:w-full sm:aspect-[4/3] bg-gray-50 rounded-lg overflow-hidden cursor-pointer group flex-shrink-0 sm:mb-3"
+                        className="relative w-full aspect-square bg-gray-50 rounded-lg overflow-hidden cursor-pointer group"
                         onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
                         title="Click to view full product details"
                       >
                         <img
                           src={getSizeImageUrl(size)}
                           alt={`${size.size_value} ${size.size_unit}`}
-                          className="w-full h-full object-contain p-1.5 sm:p-2 group-hover:scale-105 transition-transform"
+                          className="w-full h-full object-contain p-3 sm:p-4 group-hover:scale-105 transition-transform"
                           onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                         />
                         
@@ -510,18 +511,18 @@ export const InlineProductSizes = ({
                         )}
                       </div>
 
-                      {/* Product Info - Flex grow on mobile */}
+                      {/* Product Info */}
                       <div className="flex-1 min-w-0 flex flex-col">
                         {/* Product Name + Size */}
                         <div 
-                          className="mb-1.5 sm:mb-2 cursor-pointer hover:text-blue-600 min-w-0 overflow-hidden"
+                          className="mb-1.5 sm:mb-2 cursor-pointer hover:text-blue-600"
                           onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
                           title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                         >
-                          <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
+                          <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
                             {size.size_value} {size.size_unit}
                           </p>
-                          <p className="text-[10px] sm:text-xs text-gray-500 line-clamp-1 break-words uppercase">
+                          <p className="text-[10px] sm:text-xs text-gray-500 line-clamp-2 break-words uppercase">
                             {displayProduct.name}
                           </p>
                         </div>
@@ -563,43 +564,43 @@ export const InlineProductSizes = ({
 
                         {!isOutOfStock && (
                           <>
-                            {/* Quantity + Add to Cart - Compact on mobile */}
-                            <div className="flex items-center gap-1.5 sm:gap-2 mt-auto">
-                              {/* Quantity Selector */}
-                              <div className="flex items-center border border-gray-200 rounded-md sm:rounded-lg bg-gray-50 shrink-0">
+                            {/* Quantity + Add to Cart */}
+                            <div className="flex flex-col gap-2 mt-auto">
+                              {/* Quantity Selector - Full width */}
+                              <div className="flex items-center justify-center border border-gray-200 rounded-lg bg-gray-50">
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 sm:h-9 sm:w-9 rounded-l-md sm:rounded-l-lg rounded-r-none hover:bg-gray-100 p-0"
+                                  className="h-8 w-10 sm:h-9 sm:w-12 rounded-l-lg rounded-r-none hover:bg-gray-100 p-0"
                                   onClick={() => handleQuantityChange(sizeId, -1)}
                                   disabled={selection.quantity <= 1}
                                 >
-                                  <Minus className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <Minus className="w-4 h-4" />
                                 </Button>
-                                <span className="w-6 sm:w-10 text-center font-semibold text-xs sm:text-sm">{selection.quantity}</span>
+                                <span className="w-12 sm:w-14 text-center font-semibold text-sm">{selection.quantity}</span>
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-7 w-7 sm:h-9 sm:w-9 rounded-r-md sm:rounded-r-lg rounded-l-none hover:bg-gray-100 p-0"
+                                  className="h-8 w-10 sm:h-9 sm:w-12 rounded-r-lg rounded-l-none hover:bg-gray-100 p-0"
                                   onClick={() => handleQuantityChange(sizeId, 1)}
                                   disabled={selection.quantity >= size.stock}
                                 >
-                                  <Plus className="w-3 h-3 sm:w-4 sm:h-4" />
+                                  <Plus className="w-4 h-4" />
                                 </Button>
                               </div>
 
-                              {/* Add to Cart */}
+                              {/* Add to Cart - Full width */}
                               <Button
-                                className="flex-1 h-7 sm:h-9 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md sm:rounded-lg text-[10px] sm:text-sm min-w-0 px-2 sm:px-3"
+                                className="w-full h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs sm:text-sm"
                                 onClick={() => handleAddToCart(size)}
                                 disabled={isAdding[sizeId] || sizeInCart}
                               >
                                 {isAdding[sizeId] ? (
-                                  <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+                                  <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : sizeInCart ? (
-                                  <><Check className="w-3 h-3 sm:w-4 sm:h-4 mr-0.5 sm:mr-1 shrink-0" /><span className="truncate">Added</span></>
+                                  <><Check className="w-4 h-4 mr-1.5" />Added</>
                                 ) : (
-                                  <><ShoppingCart className="w-3 h-3 sm:w-4 sm:h-4 mr-0.5 sm:mr-1 shrink-0" /><span className="truncate">Add to Cart</span></>
+                                  <><ShoppingCart className="w-4 h-4 mr-1.5" />Add to Cart</>
                                 )}
                               </Button>
                             </div>

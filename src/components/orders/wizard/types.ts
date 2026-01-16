@@ -16,6 +16,7 @@ export interface WizardState {
   goToStep: (step: number) => void;
   goToNextStep: () => void;
   goToPreviousStep: () => void;
+  initializeToStep: (step: number, completedSteps: number[]) => void;
 }
 
 export interface StepValidation {

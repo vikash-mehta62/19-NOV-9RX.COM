@@ -139,6 +139,7 @@ export function EditUserModal({
                 submitLabel={formState.isSaving ? "Saving..." : "Update Profile"}
                 isSubmitting={formState.isSaving}
                 hideSteps={true}
+                userId={user.id}
               />
             ) : (
               <TabbedUserForm
@@ -148,6 +149,7 @@ export function EditUserModal({
                 isSubmitting={formState.isSaving}
                 self={self}
                 isAdmin={isAdmin}
+                userId={user.id}
               />
             )}
           </div>

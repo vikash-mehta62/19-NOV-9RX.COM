@@ -36,6 +36,25 @@ export const useWizardState = (totalSteps: number): WizardState => {
     });
   }, []);
 
+  // Helper for initialization - directly set completed steps and navigate
+  const initializeToStep = useCallback((step: number, completedStepsList: number[]) => {
+    if (step < 1 || step > totalSteps) {
+      console.warn(`Cannot initialize to step ${step}. Valid range: 1-${totalSteps}`);
+      return;
+    }
+    
+    // Set all states at once
+    setCompletedSteps(completedStepsList);
+    setCurrentStep(step);
+    
+    // Mark all steps up to current as visited
+    const visited = [];
+    for (let i = 1; i <= step; i++) {
+      visited.push(i);
+    }
+    setVisitedSteps(visited);
+  }, [totalSteps]);
+
   const goToStep = useCallback(
     (step: number) => {
       if (step < 1 || step > totalSteps) {
@@ -93,5 +112,6 @@ export const useWizardState = (totalSteps: number): WizardState => {
     goToStep,
     goToNextStep,
     goToPreviousStep,
+    initializeToStep,
   };
 };

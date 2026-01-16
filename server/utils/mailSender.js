@@ -29,17 +29,25 @@ const mailSender = async (email, title, body) => {
         user: process.env.MAIL_USER,
         pass: process.env.MAIL_PASS,
       },
-      // TLS options for port 587
-      ...(!isSecure && {
-        tls: {
-          rejectUnauthorized: false,
-          minVersion: 'TLSv1.2'
-        }
-      })
-    });
+
+      /**
+       * (TLS config – ZeptoMail ke liye unnecessary)
+       * ZeptoMail already valid TLS deta hai.
+       * ZeptoMail ke liye zaroorat nahi 👇
+       */
+      // TLS options for port 587 
+      // ...(!isSecure && {
+      //   tls: {
+      //     rejectUnauthorized: false,
+      //     minVersion: 'TLSv1.2'
+      //   }
+      // })
+
+    }); 
 
     let info = await transporter.sendMail({
-      from: `"9RX.COM" <${process.env.MAIL_USER}>`,
+      // from: `"9RX.COM" <${process.env.MAIL_USER}>`,
+      from: `"9RX.COM" <noreply@9rx.com>`, // ZeptoMail verified sender address
       to: email.trim(),
       subject: title,
       html: body,

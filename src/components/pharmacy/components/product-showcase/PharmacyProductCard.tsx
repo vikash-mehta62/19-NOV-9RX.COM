@@ -118,7 +118,7 @@ export const PharmacyProductCard = ({
       </div>
 
       {/* Product Image */}
-      <div className="aspect-[4/3] bg-gray-50 p-4 relative">
+      <div className="aspect-square sm:aspect-[4/3] bg-gray-50 p-3 sm:p-4 lg:p-5 relative">
         {!imageLoaded && (
           <div className="absolute inset-0 bg-gray-100 animate-pulse" />
         )}

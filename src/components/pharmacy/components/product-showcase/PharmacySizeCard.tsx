@@ -10,7 +10,7 @@ import { useCart } from "@/hooks/use-cart"
 import { useToast } from "@/hooks/use-toast"
 import { ProductDetails } from "../../types/product.types"
 import type { FlattenedSizeItem } from "./PharmacyProductGrid"
-
+  
 interface PharmacySizeCardProps {
   item: FlattenedSizeItem
   onProductClick?: (product: ProductDetails) => void
@@ -70,14 +70,12 @@ export const PharmacySizeCard = ({
       })
       return
     }
-
+    
     setIsAdding(true)
     try {
       const cartItem = {
         productId: item.productId,
-        name: item.sizeValue 
-          ? `${item.productName} - ${item.sizeValue} ${item.sizeUnit}`
-          : item.productName,
+        name: item.productName,
         sku: item.productSku || item.sizeSku || "",
         price: totalPrice,
         image: getImageUrl(),
@@ -189,7 +187,7 @@ export const PharmacySizeCard = ({
 
       {/* Product Image - Clickable */}
       <div 
-        className="aspect-[4/3] bg-gray-50 p-2 lg:p-4 cursor-pointer relative"
+        className="aspect-square sm:aspect-[4/3] bg-gray-50 p-3 sm:p-4 lg:p-5 cursor-pointer relative"
         onClick={handleCardClick}
       >
         <img

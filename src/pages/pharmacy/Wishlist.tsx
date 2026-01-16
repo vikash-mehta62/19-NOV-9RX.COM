@@ -225,7 +225,8 @@ const Wishlist = () => {
                       {isInStock ? (
                         <>
                           <Check className="w-3 h-3 lg:w-3 lg:h-3 flex-shrink-0" />
-                          <span className="truncate">In Stock ({displayStock} available)</span>
+                          {/* <span className="truncate">In Stock ({displayStock} available)</span> */}
+                          <span className="truncate">In Stock</span>
                         </>
                       ) : (
                         <>

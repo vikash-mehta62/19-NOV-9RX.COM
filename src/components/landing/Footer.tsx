@@ -84,9 +84,9 @@ const Footer = () => {
                 <span className="px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-800/50 rounded-lg text-[10px] sm:text-xs text-slate-400 border border-slate-700">
                   🔒 SSL Secured
                 </span>
-                <span className="px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-800/50 rounded-lg text-[10px] sm:text-xs text-slate-400 border border-slate-700">
+                {/* <span className="px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-800/50 rounded-lg text-[10px] sm:text-xs text-slate-400 border border-slate-700">
                   ✓ FDA Compliant
-                </span>
+                </span> */}
                 <span className="px-2 sm:px-3 py-1 sm:py-1.5 bg-slate-800/50 rounded-lg text-[10px] sm:text-xs text-slate-400 border border-slate-700">
                   ⭐ Top Rated
                 </span>
@@ -174,10 +174,10 @@ const Footer = () => {
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs sm:text-sm">Address</p>
-                    <p className="text-white text-sm sm:text-base">936 Broad River Ln,<br />Charlotte, NC 28211</p>
+                    <p className="text-white text-sm sm:text-base">724 Montana drive,<br />Charlotte, NC 28216</p>
                   </div>
                 </li>
-                <li className="flex items-start gap-3 sm:gap-4">
+                <li className="flex items-start gap-3 sm:gap-4">  
                   <div className="w-10 sm:w-12 h-10 sm:h-12 bg-gradient-to-br from-blue-500/20 to-indigo-500/20 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0">
                     <Clock className="w-4 sm:w-5 h-4 sm:h-5 text-blue-400" />
                   </div>

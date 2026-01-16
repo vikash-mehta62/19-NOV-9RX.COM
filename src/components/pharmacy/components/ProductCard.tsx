@@ -207,20 +207,24 @@ export const ProductCard = ({
           rounded-2xl border border-gray-200 bg-white 
           shadow-sm hover:shadow-md hover:border-blue-300
           transition-all duration-300
-          p-4 flex items-center gap-4
+          p-3 sm:p-4
+          flex flex-col
           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2
+          h-full
         "
             tabIndex={0}
             role="button"
             aria-label={`View ${product.name} details`}
           >
-          {/* LEFT — IMAGE */}
+          {/* IMAGE SECTION */}
           <div
             className="
-          w-24 h-24 rounded-xl overflow-hidden 
-          bg-gray-100 flex-shrink-0
-          group-hover:scale-105 transition-all duration-300
-        "
+            w-full aspect-square rounded-xl overflow-hidden 
+            bg-gray-50 flex-shrink-0
+            group-hover:scale-[1.02] transition-all duration-300
+            flex items-center justify-center
+            mb-3
+          "
           >
             <ProductImage
               image={product.images[0] || product.image}
@@ -230,23 +234,17 @@ export const ProductCard = ({
             />
           </div>
 
-          {/* RIGHT — TEXT DETAILS */}
+          {/* TEXT DETAILS */}
           <div className="flex flex-col justify-center flex-1">
             <h3
               className="
-            text-base font-semibold text-gray-800 
-            mb-1 group-hover:text-purple-600
-            transition-all
-          "
+              text-sm sm:text-base font-semibold text-gray-800 
+              mb-1 group-hover:text-blue-600
+              transition-all line-clamp-2
+            "
             >
               {product.name}
             </h3>
-
-            {/* optional description */}
-            {/* <p className="text-xs text-gray-500 line-clamp-2">{product.description}</p> */}
-
-            {/* PRICE SECTION (optional) */}
-            {/* <div className="mt-2 text-sm font-bold text-green-600">${product.price}</div> */}
           </div>
         </Card>
         </CartAddAnimation>

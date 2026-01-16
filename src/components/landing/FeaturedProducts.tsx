@@ -1,6 +1,10 @@
 import { Package, ArrowRight, Star, ShoppingCart, Eye } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
+import category1 from "../../assests/home/image6.jpg";
+import category2 from "../../assests/home/image1.jpg";
+import category3 from "../../assests/home/image2.jpg";
+import category4 from "../../assests/home/image3.jpg";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
@@ -9,10 +13,9 @@ const FeaturedProducts = () => {
   const products = [
     {
       id: 1,
-      name: "Amber RX Vials",
-      category: "RX Vials",
-      description: "Child-resistant prescription vials in various sizes",
-      price: "From $24.99",
+      name: "COMPLIANCE PACKAGING",
+      image: category1,
+      price: "From $62.99",
       rating: 4.9,
       reviews: 128,
       badge: "Best Seller",
@@ -20,10 +23,9 @@ const FeaturedProducts = () => {
     },
     {
       id: 2,
-      name: "Thermal Prescription Labels",
-      category: "Labels",
-      description: "High-quality thermal labels for clear printing",
-      price: "From $18.99",
+      name: "CONTAINERS & CLOSURES",
+      image: category3,
+      price: "From $27.33",
       rating: 4.8,
       reviews: 95,
       badge: "Popular",
@@ -31,25 +33,23 @@ const FeaturedProducts = () => {
     },
     {
       id: 3,
-      name: "Custom Paper Bags",
-      category: "Paper Bags",
-      description: "Branded pharmacy bags with your logo",
-      price: "From $32.99",
+      name: "RX PAPER BAGS",
+      image: category2,
+      price: "From $59.25",
+      rating: 4.7,
+      reviews: 72,
+      badge: "Popular",
+      color: "from-purple-500 to-pink-500"
+    },
+    {
+      id: 4,
+      name: "ORAL SYRINGES & ACCESSORIES",
+      image: category4,
+      price: "From $12.99",
       rating: 4.9,
       reviews: 156,
       badge: "Customizable",
       color: "from-emerald-500 to-teal-500"
-    },
-    {
-      id: 4,
-      name: "Ointment Jars",
-      category: "Containers",
-      description: "FDA-compliant jars for compounding",
-      price: "From $15.99",
-      rating: 4.7,
-      reviews: 72,
-      badge: "FDA Approved",
-      color: "from-purple-500 to-pink-500"
     }
   ];
 
@@ -86,21 +86,23 @@ const FeaturedProducts = () => {
         </div>
 
         {/* Products Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-6 max-w-6xl mx-auto">
           {products.map((product, index) => (
             <div
               key={product.id}
-              className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-slate-100 cursor-pointer"
+              className="group bg-white rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-500 border border-slate-100 cursor-pointer max-w-[280px] mx-auto w-full"
               onMouseEnter={() => setHoveredProduct(index)}
               onMouseLeave={() => setHoveredProduct(null)}
               onClick={() => navigate("/products")}
             >
               {/* Product Image Area */}
-              <div className={`h-32 sm:h-40 lg:h-48 bg-gradient-to-br ${product.color} relative overflow-hidden`}>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Package className="w-12 sm:w-16 lg:w-20 h-12 sm:h-16 lg:h-20 text-white/30" />
-                </div>
-                
+              <div className="aspect-square bg-gradient-to-br from-gray-50 to-white relative overflow-hidden">
+                <img
+                  src={product.image}
+                  alt={product.name}
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                />
+
                 {/* Badge */}
                 <div className="absolute top-2 sm:top-3 left-2 sm:left-3">
                   <span className="bg-white/90 backdrop-blur-sm text-slate-800 text-[10px] sm:text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-full shadow-sm">
@@ -109,26 +111,22 @@ const FeaturedProducts = () => {
                 </div>
 
                 {/* Hover Actions - Hidden on mobile */}
-                <div className={`absolute inset-0 bg-black/40 items-center justify-center gap-3 transition-opacity duration-300 hidden sm:flex ${hoveredProduct === index ? 'opacity-100' : 'opacity-0'}`}>
-                  <button className="w-8 sm:w-10 h-8 sm:h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
-                    <Eye className="w-4 sm:w-5 h-4 sm:h-5 text-slate-700" />
-                  </button>
-                  <button className="w-8 sm:w-10 h-8 sm:h-10 bg-blue-600 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
-                    <ShoppingCart className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
-                  </button>
-                </div>
+                {/* <div className={`absolute inset-0 bg-black/40 items-center justify-center gap-3 transition-opacity duration-300 hidden sm:flex ${hoveredProduct === index ? 'opacity-100' : 'opacity-0'}`}>
+                    <button className="w-8 sm:w-10 h-8 sm:h-10 bg-white rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
+                      <Eye className="w-4 sm:w-5 h-4 sm:h-5 text-slate-700" />
+                    </button>
+                    <button className="w-8 sm:w-10 h-8 sm:h-10 bg-blue-600 rounded-full flex items-center justify-center hover:scale-110 transition-transform shadow-lg">
+                      <ShoppingCart className="w-4 sm:w-5 h-4 sm:h-5 text-white" />
+                    </button>
+                  </div> */}
               </div>
 
               {/* Product Info */}
               <div className="p-3 sm:p-4 lg:p-5">
-                <p className="text-[10px] sm:text-xs text-blue-600 font-semibold mb-0.5 sm:mb-1">{product.category}</p>
-                <h3 className="text-sm sm:text-base lg:text-lg font-bold text-slate-900 mb-1 sm:mb-2 group-hover:text-blue-600 transition-colors line-clamp-1">
+                <h3 className="text-[11px] sm:text-xs lg:text-sm font-bold text-slate-900 mb-1 sm:mb-2 group-hover:text-blue-600 transition-colors">
                   {product.name}
                 </h3>
-                <p className="text-slate-500 text-xs sm:text-sm mb-2 sm:mb-3 line-clamp-2 hidden sm:block">
-                  {product.description}
-                </p>
-                
+
                 {/* Rating */}
                 <div className="flex items-center gap-1 sm:gap-2 mb-2 sm:mb-3">
                   <div className="flex items-center gap-0.5 sm:gap-1">
@@ -139,9 +137,9 @@ const FeaturedProducts = () => {
                 </div>
 
                 {/* Price */}
-                <div className="flex items-center justify-between">
+                <div className="flex items-center flex-row sm:flex-row gap-1">
                   <span className="text-sm sm:text-base lg:text-lg font-bold text-slate-900">{product.price}</span>
-                  <span className="text-[10px] sm:text-xs text-slate-500 hidden sm:inline">per case</span>
+                  <span className="text-[10px] sm:text-xs text-slate-500 hidden sm:inline">/case</span>
                 </div>
               </div>
             </div>

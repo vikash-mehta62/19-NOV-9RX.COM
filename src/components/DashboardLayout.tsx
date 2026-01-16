@@ -133,7 +133,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "Orders & Invoices",
         items: [
           { icon: FileText, label: "My Orders", path: "/pharmacy/orders" },
-          { icon: History, label: "Order History", path: "/pharmacy/order-history" },
+          // { icon: History, label: "Order History", path: "/pharmacy/order-history" },
           { icon: Receipt, label: "Invoices", path: "/pharmacy/invoices" },
           { icon: FileBarChart, label: "Statements", path: "/pharmacy/statements" },
         ],

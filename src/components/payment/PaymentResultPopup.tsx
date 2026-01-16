@@ -108,7 +108,7 @@ export function PaymentResultPopup({
           className={cn(
             "text-white text-center py-8",
             result.success
-              ? "bg-gradient-to-r from-emerald-500 to-emerald-600"
+              ? "bg-gradient-to-r from-blue-500 to-blue-600"
               : "bg-gradient-to-r from-red-500 to-red-600"
           )}
         >
@@ -285,7 +285,7 @@ export function PaymentResultPopup({
             {result.success ? (
               <Button
                 onClick={handleClose}
-                className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white"
               >
                 Done
               </Button>

@@ -84,12 +84,12 @@ export const PharmacyProductGrid = ({
     const timeoutId = setTimeout(() => setIsLoading(false), 100)
     return () => clearTimeout(timeoutId)
   }, [products])
-
+  
   // Loading skeleton
   if (isLoading) {
     return (
       <div className={currentViewMode === "grid" 
-        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-3 sm:gap-4"
+        ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-5"
         : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
       }>
         {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -131,7 +131,7 @@ export const PharmacyProductGrid = ({
 
   return (
     <div className={currentViewMode === "grid" 
-      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-3 sm:gap-4"
+      ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-5"
       : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
       {/* Check if this is RX PAPER BAGS category - show sizes directly */}

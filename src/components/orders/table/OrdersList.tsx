@@ -726,7 +726,7 @@ export function OrdersList({
         title="No orders found"
         description="Orders will appear here once customers start placing them. You can also create orders manually."
         actionLabel="Create Order"
-        onAction={() => window.location.href = "/admin/orders/create"}
+        onAction={() => window.location.href = "/pharmacy/order/create"}
       />
     );
   }

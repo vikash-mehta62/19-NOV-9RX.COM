@@ -44,12 +44,12 @@ export const ProductImage = ({ image, name, offer, stockStatus }: ProductImagePr
   }, [image]);
 
   return (
-    <div className="mb-4 relative">
-      <div className="aspect-square rounded-xl bg-gray-100/80 flex items-center justify-center p-4 group-hover:bg-white transition-colors">
+    <div className="relative w-full h-full">
+      <div className="w-full h-full rounded-xl bg-gray-50 flex items-center justify-center p-3 sm:p-4 group-hover:bg-white transition-colors">
         <img 
           src={imageUrl}
           alt={name}
-          className=" h-[100%] object-contain transform group-hover:scale-105 transition-transform duration-300"
+          className="w-full h-full object-contain transform group-hover:scale-105 transition-transform duration-300"
           onError={(e) => {
             const target = e.target as HTMLImageElement;
             target.src = '/placeholder.svg';
@@ -58,12 +58,12 @@ export const ProductImage = ({ image, name, offer, stockStatus }: ProductImagePr
         />
       </div>
       {offer && (
-        <Badge className="absolute top-2 right-2 bg-blue-500">
+        <Badge className="absolute top-2 right-2 bg-blue-500 text-xs">
           {offer}
         </Badge>
       )}
       <Badge 
-        className={`absolute top-2 left-2 ${
+        className={`absolute top-2 left-2 text-xs ${
           stockStatus === "Low Stock" ? "bg-amber-500" : "bg-blue-500"
         }`}
       >

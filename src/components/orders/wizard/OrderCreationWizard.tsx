@@ -158,8 +158,8 @@ const OrderCreationWizardComponent = ({
         return;
       }
       
-      // If neither edit mode nor pharmacy mode, or no initial data, just mark as initialized
-      if ((!isEditMode && !isPharmacyMode) || !initialData) {
+      // If no initial data provided, just mark as initialized and start at step 1
+      if (!initialData) {
         setIsInitialized(true);
         return;
       }
@@ -221,19 +221,20 @@ const OrderCreationWizardComponent = ({
         if (wizardState.currentStep !== 1) {
           wizardState.goToStep(1);
         }
-      } else if (initialData.skipToProducts && initialData.billingAddress && initialData.shippingAddress) {
+      } else if (initialData.skipToProducts && 
+                 initialData.billingAddress?.street && 
+                 initialData.shippingAddress?.street) {
         // Check if we should skip directly to products (step 3)
-        // This happens when customer AND addresses are already provided (from ViewProfileModal)
-        console.log("Skipping to products step (step 3)");
-        wizardState.markStepComplete(1);
-        wizardState.markStepComplete(2);
-        wizardState.goToStep(3);
-      } else {
+        // This happens when customer AND COMPLETE addresses are provided (from ViewProfileModal)
+        // Only skip if addresses have actual street data
+        wizardState.initializeToStep(3, [1, 2]);
+      } else if (initialData.customer) {
+        // Customer is pre-selected (from ViewProfileModal or edit mode)
         // Mark step 1 as complete and move to step 2 (addresses)
-        // This happens in edit mode since customer is already selected
-        wizardState.markStepComplete(1);
-        wizardState.goToStep(2);
+        // This will happen even if skipToProducts is true but addresses are incomplete
+        wizardState.initializeToStep(2, [1]);
       }
+      // If no customer selected, stay at step 1 (default)
       
       setIsInitialized(true);
     };
@@ -836,13 +837,12 @@ const OrderCreationWizardComponent = ({
   }, [wizardState, isPharmacyMode]);
 
   const handleEditProducts = useCallback(() => {
-    if (isPharmacyMode) {
-      // In pharmacy mode, redirect to products page to add items
+    if (isPharmacyMode || userType === "group") {
       navigate("/pharmacy/products");
     } else {
       wizardState.goToStep(3);
     }
-  }, [wizardState, isPharmacyMode, navigate]);
+  }, [wizardState, isPharmacyMode, userType, navigate]);
 
   // Handle place order without payment (Admin only)
   const handlePlaceOrderWithoutPayment = useCallback(async () => {

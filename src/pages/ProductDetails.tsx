@@ -954,7 +954,15 @@ return (
                       {/* Product Image - Clickable */}
                       <div 
                         className="aspect-[4/3] bg-gray-50 p-4 cursor-pointer relative"
-                        onClick={() => navigate(`/pharmacy/product/${product.id}/${size.id}`)}
+                        onClick={() => {
+                          const userType = sessionStorage.getItem('userType')?.toLowerCase();
+                          if (userType === 'admin') {
+                            // For admin, just update the selected image instead of navigating
+                            setSelectedImage(sizeImage);
+                          } else if(userType === 'pharmacy') {
+                            navigate(`/pharmacy/product/${product.id}/${size.id}`);
+                          }
+                        }}
                       >
                         <img
                           src={sizeImage}
@@ -980,7 +988,15 @@ return (
                         {/* Product Name + Size - Clickable */}
                         <div 
                           className="cursor-pointer hover:text-blue-600 transition-colors min-w-0"
-                          onClick={() => navigate(`/pharmacy/product/${product.id}/${size.id}`)}
+                          onClick={() => {
+                            const userType = sessionStorage.getItem('userType')?.toLowerCase();
+                            if (userType === 'admin') {
+                              // For admin, just update the selected image instead of navigating
+                              setSelectedImage(sizeImage);
+                            } else if (userType === 'pharmacy') {
+                              navigate(`/pharmacy/product/${product.id}/${size.id}`);
+                            }
+                          }}
                           title={`${product.name} – ${size.size_value} ${size.size_unit}`}
                         >
                           <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">

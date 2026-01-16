@@ -182,7 +182,7 @@ const ProductCard = ({ product, viewMode, onClick, searchQuery = "" }: ProductCa
                   className="mb-2"
                 />
               )}
-
+  
               <p className="text-gray-600 text-sm line-clamp-2 mb-4">{product.description || "Premium pharmacy supply"}</p>
             </div>
             <div className="flex items-center justify-between flex-wrap gap-3">

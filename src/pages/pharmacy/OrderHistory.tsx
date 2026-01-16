@@ -50,7 +50,7 @@ const OrderHistory = () => {
           .select("*")
           .eq("profile_id", userProfile.id)
           .order("created_at", { ascending: false });
-console.log(data)
+          console.log("Order History data", data)
         if (error) throw error;
         setOrders(data || []);
       } catch (error) {
@@ -82,7 +82,7 @@ console.log(data)
     let matchesDate = true;
     if (dateFilter !== "all" && order.created_at) {
       const orderDate = new Date(order.created_at);
-      const now = new Date();
+      const now = new Date(); 
       
       if (dateFilter === "week") {
         matchesDate = isAfter(orderDate, subDays(now, 7));

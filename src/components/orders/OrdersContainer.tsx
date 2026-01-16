@@ -10,6 +10,7 @@ import { Download, Package, PlusCircle, Zap } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/supabaseClient";
 import { OrderSummaryCards } from "./OrderSummaryCards";
+import { isAfter, subDays, subYears, isWithinInterval } from "date-fns";
 
 type SortField = "customer" | "date" | "total" | "status" | "payment_status";
 type SortDirection = "asc" | "desc";
@@ -30,12 +31,26 @@ const orderStatusOrder: Record<string, number> = {
   cancelled: 6,
   credit_approval_processing: 7,
 };
+
+interface OrderHistoryItem {
+  id: string;
+  order_number: string;
+  created_at: string;
+  status: string;
+  total_amount: number;
+  payment_status?: string;
+  items: any[];
+}
+
 import ProductShowcase from "../pharmacy/ProductShowcase";
 import { useLocation, useNavigate } from "react-router-dom";
 import { OrderFormValues } from "./schemas/orderSchema";
 import { CSVLink } from "react-csv";
 import VendorDialogForm from "./vendor-dialof-form";
 import { Pagination } from "../common/Pagination";
+import { Card, CardContent } from "../ui/card";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
 const exportToCSV = (orders: OrderFormValues[]) => {
   if (!orders || orders.length === 0) {
@@ -91,7 +106,7 @@ export const OrdersContainer = ({
   const location = useLocation();
   const navigate = useNavigate();
   const [orderStatus, setOrderStatus] = useState<string>("");
-  
+
   // Stats from database (not paginated)
   const [dbStats, setDbStats] = useState({
     total: 0,
@@ -103,10 +118,14 @@ export const OrdersContainer = ({
     totalRevenue: 0,
     pendingPayment: 0,
   });
-  
+
   // Sorting state
   const [sortField, setSortField] = useState<SortField>("date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  //For the order history status cards
+  const userProfile = useSelector((state: RootState) => state.user.profile);
+  const [historyorders, setHistoryOrders] = useState<OrderHistoryItem[]>([]);
 
   const {
     orders,
@@ -123,12 +142,38 @@ export const OrdersContainer = ({
     handleConfirmOrder: confirmOrder,
     loadOrders,
     loading,
+    setLoading,
     totalOrders,
     page,
     setPage,
     limit,
     setLimit,
   } = useOrderManagement();
+  console.log("OrderDetails Container Rendered", orders);
+
+  useEffect(() => {
+    const fetchOrderHistory = async () => {
+      if (!userProfile?.id) return;
+
+      try {
+        // Use profile_id instead of user_id
+        const { data, error } = await supabase
+          .from("orders")
+          .select("*")
+          .eq("profile_id", userProfile.id)
+          .order("created_at", { ascending: false });
+        console.log("Order History data", data)
+        if (error) throw error;
+        setHistoryOrders(data || []);
+      } catch (error) {
+        console.error("Error fetching order history:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOrderHistory();
+  }, [userProfile]);
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -172,13 +217,13 @@ export const OrdersContainer = ({
   useEffect(() => {
     const fetchStats = async () => {
       if (poIs) return; // Don't fetch stats for PO page
-      
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) return;
 
         const role = sessionStorage.getItem('userType');
-        
+
         let query = supabase
           .from("orders")
           .select("status, payment_status, total_amount, void")
@@ -192,7 +237,7 @@ export const OrdersContainer = ({
             .from("profiles")
             .select("id")
             .eq("group_id", session.user.id);
-          
+
           if (groupProfiles && groupProfiles.length > 0) {
             const userIds = groupProfiles.map(user => user.id);
             query = query.in("profile_id", userIds);
@@ -200,7 +245,7 @@ export const OrdersContainer = ({
         }
 
         const { data: allOrders, error } = await query;
-        
+
         if (error) throw error;
 
         // Calculate stats from all orders
@@ -217,12 +262,12 @@ export const OrdersContainer = ({
 
         allOrders?.forEach((order: any) => {
           if (order.void) return; // Skip voided orders
-          
+
           const status = order.status?.toLowerCase();
           const total = parseFloat(order.total_amount || "0");
-          
+
           stats.total++;
-          
+
           switch (status) {
             case "new":
             case "pending":
@@ -271,6 +316,31 @@ export const OrdersContainer = ({
     setDateRange,
     filteredOrders,
   } = useOrderFilters(orders, poIs);
+
+  // Filter orders for history cards
+  const filteredHistoryOrders = useMemo(() => {
+    return orders.filter(order => {
+      const matchesSearch = order.order_number?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      let matchesDate = true;
+      if (dateRange && dateRange.from && order.date) {
+        const orderDate = new Date(order.date);
+
+        if (dateRange.to) {
+          // If there's a date range, check if order is within it
+          matchesDate = isWithinInterval(orderDate, {
+            start: dateRange.from,
+            end: dateRange.to
+          });
+        } else {
+          // If only 'from' date is set, check if order is after it
+          matchesDate = isAfter(orderDate, dateRange.from);
+        }
+      }
+
+      return matchesSearch && matchesDate;
+    });
+  }, [orders, searchQuery, dateRange]);
 
   // Handle sort
   const handleSort = (field: SortField) => {
@@ -352,15 +422,66 @@ export const OrdersContainer = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {/* Order Summary Cards */}
       {!poIs && userRole === "admin" && (
-        <OrderSummaryCards 
-          stats={dbStats} 
+        <OrderSummaryCards
+          stats={dbStats}
           isLoading={loading}
           onCardClick={handleCardClick}
           activeFilter={statusFilter2}
         />
+      )}
+
+      {/* Stats Cards */}
+      {userRole !== "admin" && (<div className="grid grid-cols-2 md:grid-cols-3 gap-4 sm:-mt-8 md:-mt-8 lg:-mt-8 xl:-mt-8 2xl:-mt-8  ">
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-blue-700">{filteredHistoryOrders.length}</div>
+            <div className="text-sm text-blue-600">Total Orders</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-blue-700">
+              {filteredHistoryOrders.filter(o => o.status === "completed" || o.status === "delivered").length}
+            </div>
+            <div className="text-sm text-blue-600">Completed</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-yellow-50 to-orange-50 border-yellow-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-yellow-700">
+              {filteredHistoryOrders.filter(o => ["processing", "pending", "new"].includes(o.status?.toLowerCase())).length}
+            </div>
+            <div className="text-sm text-yellow-600">In Progress</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-50 to-pink-50 border-purple-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-purple-700">
+              ${filteredHistoryOrders.reduce((sum, o) => sum + parseFloat(o.total || '0'), 0).toFixed(2)}
+            </div>
+            <div className="text-sm text-purple-600">Total Order Value</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-green-700">
+              ${filteredHistoryOrders.reduce((sum, o) => sum + (o.payment_status?.toLowerCase() === 'paid' ? parseFloat(o.total || '0') : 0), 0).toFixed(2)}
+            </div>
+            <div className="text-sm text-green-600">Total Paid</div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
+          <CardContent className="p-4">
+            <div className="text-2xl font-bold text-red-700">
+              ${filteredHistoryOrders.reduce((sum, o) => sum + (o.payment_status?.toLowerCase() !== 'paid' && o.status?.toLowerCase() !== 'cancelled' && o.status?.toLowerCase() !== 'void' ? parseFloat(o.total || '0') : 0), 0).toFixed(2)}
+            </div>
+            <div className="text-sm text-red-600">Total Due</div>
+          </CardContent>
+        </Card>
+      </div>
       )}
 
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
@@ -397,7 +518,7 @@ export const OrdersContainer = ({
             <>
               {!poIs && (
                 <>
-                  <Button 
+                  <Button
                     size="sm"
                     className="gap-2 bg-green-600 hover:bg-green-700 shadow-md"
                     onClick={handleQuickOrderClick}
@@ -405,7 +526,7 @@ export const OrdersContainer = ({
                     <Zap className="h-4 w-4" />
                     Quick Order
                   </Button>
-                  <Button 
+                  <Button
                     size="sm"
                     className="gap-2 bg-blue-600 hover:from-blue-700 hover:to-purple-700 shadow-md"
                     onClick={handleCreateOrderClick}

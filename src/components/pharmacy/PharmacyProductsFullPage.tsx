@@ -762,12 +762,12 @@ export const PharmacyProductsFullPage = () => {
                             className="relative cursor-pointer transform transition-all duration-500 ease-out hover:scale-105 hover:-translate-y-2 active:scale-95 w-full"
                           >
                             {/* Enhanced Image Container with Card Effect */}
-                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-500 bg-white p-6">
+                            <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-500 bg-white p-4 sm:p-6">
                               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-white aspect-square">
                                 <img
                                   src={image}
                                   alt={`Category ${categories[index]}`}
-                                  className="w-full h-full object-contain p-1 transition-transform duration-700 ease-out group-hover:scale-110"
+                                  className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                                 />
                                 
                                 {/* Gradient Overlay on Hover */}
@@ -780,7 +780,7 @@ export const PharmacyProductsFullPage = () => {
 
                             {/* Enhanced Category Label */}
                             <div className="mt-4 text-center px-2">
-                              <span className="text-base font-bold text-gray-800 group-hover:text-blue-600 transition-all duration-300 block leading-tight line-clamp-2">
+                              <span className="text-sm sm:text-base font-bold text-gray-800 group-hover:text-blue-600 transition-all duration-300 block leading-tight line-clamp-2">
                                 {categories[index]}
                               </span>
                               {/* Animated Underline */}

@@ -1517,7 +1517,7 @@ currentOrder.items.forEach((item: any) => {
                     <TabsTrigger value="activity" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                       Activity
                     </TabsTrigger>
-                  </TabsList>
+                  </TabsList> 
 
                   <TabsContent value="overview" className="mt-0">
                     <OverviewTab order={currentOrder} companyName={companyName} poIs={poIs} />

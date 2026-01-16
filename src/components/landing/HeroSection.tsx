@@ -25,6 +25,12 @@ import image1 from "../../assests/home/1.png";
 import image2 from "../../assests/home/2.png";
 import image3 from "../../assests/home/3.png";
 import logo from "../../assests/home/9rx_logo.png";
+import Category1 from "../../assests/home/image1.jpg";
+import Category2 from "../../assests/home/image2.jpg";
+import Category3 from "../../assests/home/image3.jpg";
+import Category4 from "../../assests/home/image4.jpg";
+import Category5 from "../../assests/home/image5.jpg";
+import Category6 from "../../assests/home/image6.jpg";
 
 const useCounter = (end: number, duration: number = 2000) => {
   const [count, setCount] = useState(0);
@@ -71,10 +77,9 @@ export const Navbar = () => {
   ];
 
   return (
-    <nav 
-      className={`fixed w-full top-0 z-50 transition-all duration-500 ${
-        scrolled || mobileMenuOpen ? "bg-white/95 backdrop-blur-xl shadow-lg" : "bg-transparent"
-      }`}
+    <nav
+      className={`fixed w-full top-0 z-50 transition-all duration-500 ${scrolled || mobileMenuOpen ? "bg-white/95 backdrop-blur-xl shadow-lg" : "bg-transparent"
+        }`}
       role="navigation"
       aria-label="Main navigation"
     >
@@ -94,9 +99,8 @@ export const Navbar = () => {
               <a
                 key={link.name}
                 href={link.href}
-                className={`font-medium transition-colors ${
-                  scrolled ? "text-slate-600 hover:text-blue-600" : "text-white/80 hover:text-white"
-                }`}
+                className={`font-medium transition-colors ${scrolled ? "text-slate-600 hover:text-blue-600" : "text-white/80 hover:text-white"
+                  }`}
               >
                 {link.name}
               </a>
@@ -107,9 +111,8 @@ export const Navbar = () => {
             <Button
               onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
               variant="ghost"
-              className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                scrolled || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
-              }`}
+              className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${scrolled || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
+                }`}
             >
               Sign Up
             </Button>
@@ -119,13 +122,12 @@ export const Navbar = () => {
             >
               Login
             </Button>
-            
+
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden p-2 rounded-xl transition-colors ${
-                scrolled || mobileMenuOpen ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10"
-              }`}
+              className={`lg:hidden p-2 rounded-xl transition-colors ${scrolled || mobileMenuOpen ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10"
+                }`}
               aria-label="Toggle menu"
             >
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -170,14 +172,18 @@ const HeroSection = () => {
   const [activeSlide, setActiveSlide] = useState(0);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
 
-  const slides = [
-    { title: "Premium RX Vials", subtitle: "Child-resistant & compliant", color: "from-blue-500 to-indigo-600" },
-    { title: "Custom Paper Bags", subtitle: "Branded packaging solutions", color: "from-indigo-500 to-blue-600" },
-    { title: "Prescription Labels", subtitle: "High-quality thermal labels", color: "from-blue-600 to-indigo-500" },
+  //Category names for future use
+  const categories = [
+    { title: "COMPLIANCE PACKAGING", categoryImages: Category6, color: "from-blue-500 to-indigo-600" }, 
+    { title: "CONTAINERS & CLOSURES", categoryImages: Category2, color: "from-indigo-500 to-blue-600" },
+    { title: "ORAL SYRINGES & ACCESSORIES", categoryImages: Category3, color: "from-blue-600 to-indigo-500" },
+    { title: "OTHER SUPPLY", categoryImages: Category4, color: "from-indigo-600 to-blue-500" },
+    { title: "RX LABELS", categoryImages: Category5, color: "from-blue-500 to-indigo-600" },
+    { title: "RX PAPER BAGS", categoryImages: Category1, color: "from-indigo-500 to-blue-600" },
   ];
 
   useEffect(() => {
-    const interval = setInterval(() => setActiveSlide((prev) => (prev + 1) % slides.length), 4000);
+    const interval = setInterval(() => setActiveSlide((prev) => (prev + 1) % categories.length), 4000);
     return () => clearInterval(interval);
   }, []);
 
@@ -205,7 +211,7 @@ const HeroSection = () => {
         {/* Animated Background - Blue Theme */}
         <div className="absolute inset-0">
           <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-blue-950 to-indigo-950" />
-          <div 
+          <div
             className="absolute inset-0 opacity-50 hidden md:block"
             style={{
               background: `radial-gradient(ellipse 80% 50% at 20% 40%, rgba(59, 130, 246, 0.2) 0%, transparent 50%),
@@ -217,11 +223,11 @@ const HeroSection = () => {
           />
           {/* Grid pattern */}
           <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.03)_1px,transparent_1px)] bg-[size:40px_40px] sm:bg-[size:60px_60px]" />
-          
+
           {/* Glowing orbs - smaller on mobile */}
           <div className="absolute top-1/4 left-1/4 w-[300px] sm:w-[400px] lg:w-[600px] h-[300px] sm:h-[400px] lg:h-[600px] bg-blue-500/10 rounded-full blur-[100px] sm:blur-[150px] animate-pulse" />
           <div className="absolute bottom-1/4 right-1/4 w-[250px] sm:w-[350px] lg:w-[500px] h-[250px] sm:h-[350px] lg:h-[500px] bg-indigo-500/10 rounded-full blur-[80px] sm:blur-[120px] animate-pulse" style={{ animationDelay: '1s' }} />
-          
+
           {/* Floating particles - fewer on mobile */}
           {[...Array(15)].map((_, i) => (
             <div key={i} className="absolute w-1 h-1 bg-blue-400/30 rounded-full hidden sm:block" style={{
@@ -229,7 +235,7 @@ const HeroSection = () => {
               animation: `twinkle ${2 + Math.random() * 3}s ease-in-out infinite`, animationDelay: `${Math.random() * 2}s`,
             }} />
           ))}
-          
+
           {/* Top accent line */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-blue-500/50 to-transparent" />
         </div>
@@ -266,7 +272,7 @@ const HeroSection = () => {
                   <span className="relative inline-block">
                     <span className="bg-gradient-to-r from-blue-400 via-indigo-400 to-sky-400 bg-clip-text text-transparent">Supplies</span>
                     <svg className="absolute -bottom-0.5 sm:-bottom-2 left-0 w-full" viewBox="0 0 200 12" fill="none">
-                      <path d="M2 10C50 2 150 2 198 10" stroke="url(#underline-blue)" strokeWidth="2" strokeLinecap="round"/>
+                      <path d="M2 10C50 2 150 2 198 10" stroke="url(#underline-blue)" strokeWidth="2" strokeLinecap="round" />
                       <defs><linearGradient id="underline-blue" x1="0" y1="0" x2="200" y2="0">
                         <stop stopColor="#60a5fa" /><stop offset="0.5" stopColor="#818cf8" /><stop offset="1" stopColor="#38bdf8" />
                       </linearGradient></defs>
@@ -277,8 +283,8 @@ const HeroSection = () => {
 
               {/* Description - Mobile optimized */}
               <p className="text-sm sm:text-base md:text-lg lg:text-lg xl:text-xl text-slate-400 max-w-xl mx-auto lg:mx-0 leading-relaxed">
-                Quality pharmacy packaging and supplies at competitive prices. 
-                Join <span className="text-blue-400 font-semibold">{pharmacyCount}+</span> independent pharmacies 
+                Quality pharmacy packaging and supplies at competitive prices.
+                Join <span className="text-blue-400 font-semibold">{pharmacyCount}+</span> independent pharmacies
                 that trust us for their daily operations.
               </p>
 
@@ -311,40 +317,43 @@ const HeroSection = () => {
 
             {/* Right Content - Product Card - Hidden on mobile, visible from md up */}
             <div className="lg:col-span-4 relative order-last lg:order-last hidden md:block mt-8 lg:mt-12 xl:mt-16">
-              <div className="relative max-w-sm mx-auto lg:max-w-none" style={{ transform: `translate(${mousePosition.x * 0.3}px, ${mousePosition.y * 0.3}px)`, transition: 'transform 0.3s ease-out' }}>
+              <div className="relative max-w-[280px] sm:max-w-xs mx-auto lg:max-w-none lg:w-[280px] xl:w-[300px]" style={{ transform: `translate(${mousePosition.x * 0.3}px, ${mousePosition.y * 0.3}px)`, transition: 'transform 0.3s ease-out' }}>
                 {/* Compact glow effect */}
-                <div className={`absolute -inset-2 bg-gradient-to-br ${slides[activeSlide].color} opacity-15 rounded-[20px] blur-lg`} />
-                
+                <div className={`absolute -inset-2 bg-gradient-to-br ${categories[activeSlide].color} opacity-15 rounded-[20px] blur-lg`} />
+
                 {/* Responsive main card */}
                 <div className="relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-2xl border border-white/10 rounded-[20px] p-4 lg:p-5 overflow-hidden">
                   {/* Card header */}
                   <div className="flex items-center justify-between mb-3 lg:mb-4">
                     <div className="flex items-center gap-1.5">
-                      <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${slides[activeSlide].color}`} />
+                      <div className={`w-2 h-2 rounded-full bg-gradient-to-br ${categories[activeSlide].color}`} />
                       <span className="text-white/60 text-xs font-medium">Featured</span>
                     </div>
                     <div className="flex gap-1">
-                      {slides.map((_, i) => (
+                      {categories.map((_, i) => (
                         <button key={i} onClick={() => setActiveSlide(i)}
-                          className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeSlide ? `w-4 bg-gradient-to-r ${slides[i].color}` : 'bg-white/20 hover:bg-white/30'}`} />
+                          className={`w-1.5 h-1.5 rounded-full transition-all ${i === activeSlide ? `w-4 bg-gradient-to-r ${categories[i].color}` : 'bg-white/20 hover:bg-white/30'}`} />
                       ))}
                     </div>
                   </div>
 
-                  {/* Product image area - Responsive height */}
-                  <div className="relative h-28 sm:h-32 lg:h-32 mb-3 lg:mb-4 rounded-xl bg-gradient-to-br from-white/5 to-transparent flex items-center justify-center overflow-hidden">
-                    <div className={`absolute inset-0 bg-gradient-to-br ${slides[activeSlide].color} opacity-10`} />
-                    <Package className="w-14 sm:w-16 lg:w-16 h-14 sm:h-16 lg:h-16 text-white/30" />
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">
+                  {/* Product image area - Square shape like pharmacy products */}
+                  <div className="relative aspect-square mb-3 lg:mb-4 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white">
+                    <img 
+                      src={categories[activeSlide].categoryImages} 
+                      alt={categories[activeSlide].title} 
+                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
+                    />
+                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg z-30">
                       HOT
-                    </div>
-                  </div>
+                    </div>      
+                  </div>  
 
                   {/* Product info */}
                   <div className="space-y-2 lg:space-y-3">
-                    <h3 className="text-base lg:text-lg font-bold text-white leading-tight">{slides[activeSlide].title}</h3>
-                    <p className="text-slate-400 text-sm">{slides[activeSlide].subtitle}</p>
-                    
+                    <h3 className="text-base lg:text-lg font-bold text-white leading-tight">{categories[activeSlide].title}</h3>
+                    {/* <p className="text-slate-400 text-sm">{categories[activeSlide].subtitle}</p> */}
+
                     {/* Rating */}
                     <div className="flex items-center gap-1.5">
                       <div className="flex">
@@ -354,18 +363,18 @@ const HeroSection = () => {
                     </div>
 
                     {/* CTA */}
-                    <button 
+                    <button
                       onClick={() => navigate("/products")}
-                      className={`w-full bg-gradient-to-r ${slides[activeSlide].color} text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg text-sm`}
+                      className={`w-full bg-gradient-to-r ${categories[activeSlide].color} text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg text-sm`}
                     >
                       View Products
-                      <ChevronRight className="w-3.5 h-3.5" />
+                      <ChevronRight className="w-3.5 h-3.5" />  
                     </button>
                   </div>
                 </div>
 
                 {/* Floating stat cards - Responsive positioning */}
-                <div className="absolute -left-6 sm:-left-8 lg:-left-8 top-6 sm:top-8 lg:top-8 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg">
+                {/* <div className="absolute -left-6 sm:-left-8 lg:-left-8 top-6 sm:top-8 lg:top-12 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg">
                   <div className="flex items-center gap-1.5 lg:gap-2">
                     <div className="w-7 lg:w-8 h-7 lg:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-md">
                       <Users className="w-3.5 lg:w-4 h-3.5 lg:h-4 text-white" aria-hidden="true" />
@@ -375,9 +384,9 @@ const HeroSection = () => {
                       <div className="text-[8px] lg:text-[9px] text-slate-400">Customers</div>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
-                <div className="absolute -right-4 sm:-right-6 lg:-right-6 bottom-6 sm:bottom-8 lg:bottom-8 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg" style={{ animationDelay: '1s' }}>
+                {/* <div className="absolute -right-4 sm:-right-6 lg:-right-6 bottom-6 sm:bottom-8 lg:bottom-8 bg-white/10 backdrop-blur-xl border border-white/10 rounded-lg p-2 lg:p-2.5 animate-float shadow-lg" style={{ animationDelay: '1s' }}>
                   <div className="flex items-center gap-1.5 lg:gap-2">
                     <div className="w-7 lg:w-8 h-7 lg:h-8 bg-gradient-to-br from-indigo-500 to-blue-500 rounded-lg flex items-center justify-center shadow-md">
                       <Star className="w-3.5 lg:w-4 h-3.5 lg:h-4 text-white" />
@@ -387,7 +396,8 @@ const HeroSection = () => {
                       <div className="text-[8px] lg:text-[9px] text-slate-400">Rating</div>
                     </div>
                   </div>
-                </div>
+                </div> */}
+
               </div>
             </div>
           </div>

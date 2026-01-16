@@ -1,15 +1,38 @@
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
-import { UseFormReturn } from "react-hook-form";
+import { UseFormReturn, FieldErrors } from "react-hook-form";
 import { BaseUserFormData } from "../schemas/sharedFormSchema";
 import { Loader2, Store, Building2, FileText, Key, ChevronLeft, ChevronRight, Check, Rocket, AlertCircle } from "lucide-react";
 import { BasicInformationSection } from "./sections/BasicInformationSection";
 import { ContactInformationSection } from "./sections/ContactInformationSection";
 import { AddressInformationSection } from "./sections/AddressInformationSection";
 import { TaxAndDocumentsSection } from "./sections/TaxAndDocumentsSection";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+
+// Helper to extract readable error messages from validation errors
+const getErrorMessages = (errors: FieldErrors<BaseUserFormData>): string[] => {
+  const messages: string[] = [];
+  const extractErrors = (obj: any, prefix = "") => {
+    for (const key in obj) {
+      if (obj[key]?.message) {
+        // Format field name to be more readable
+        const fieldName = prefix ? `${prefix} ${key}` : key;
+        const readableName = fieldName
+          .replace(/([A-Z])/g, ' $1')
+          .replace(/^./, str => str.toUpperCase())
+          .replace('_', ' ')
+          .trim();
+        messages.push(`${readableName}: ${obj[key].message}`);
+      } else if (typeof obj[key] === "object" && obj[key] !== null) {
+        extractErrors(obj[key], key);
+      }
+    }
+  };
+  extractErrors(errors);
+  return messages;
+};
 
 const STEPS = [
   { id: 1, title: "Business", icon: Store },
@@ -24,6 +47,7 @@ interface SteppedUserFormProps {
   submitLabel: string;
   isSubmitting?: boolean;
   hideSteps?: boolean;
+  userId?: string;
 }
 
 export function SteppedUserForm({
@@ -32,25 +56,50 @@ export function SteppedUserForm({
   submitLabel,
   isSubmitting = false,
   hideSteps = false,
+  userId,
 }: SteppedUserFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [stepError, setStepError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Watch for form errors and update validation errors display
+  useEffect(() => {
+    const errors = form.formState.errors;
+    if (Object.keys(errors).length > 0) {
+      const errorMessages = getErrorMessages(errors);
+      setValidationErrors(errorMessages);
+    } else {
+      setValidationErrors([]);
+    }
+  }, [form.formState.errors]);
 
   const validateStep = (step: number): { valid: boolean; message?: string } => {
     const values = form.getValues();
+    // Clear previous validation errors when moving between steps
+    setValidationErrors([]);
+    
     switch (step) {
       case 1:
-        if (!values.companyName?.trim()) return { valid: false, message: "Store name is required" };
+        // Business Information validation
+        if (!values.firstName?.trim()) return { valid: false, message: "First name is required" };
+        if (!values.lastName?.trim()) return { valid: false, message: "Last name is required" };
+        if (!values.companyName?.trim()) return { valid: false, message: "Store/Company name is required" };
         if (!values.email?.trim()) return { valid: false, message: "Email is required" };
-        if (!values.mobilePhone?.trim() && !values.workPhone?.trim()) return { valid: false, message: "Phone number is required" };
+        if (!values.workPhone?.trim()) return { valid: false, message: "Work phone is required" };
+        if (values.workPhone && values.workPhone.replace(/\D/g, '').length < 10) {
+          return { valid: false, message: "Work phone must be at least 10 digits" };
+        }
+        if (!values.contactPerson?.trim()) return { valid: false, message: "Contact person is required" };
         return { valid: true };
       case 2:
+        // Address validation
         const billing = values.billingAddress;
-        if (!billing?.street1?.trim()) return { valid: false, message: "Street address is required" };
-        if (!billing?.city?.trim()) return { valid: false, message: "City is required" };
-        if (!billing?.state?.trim()) return { valid: false, message: "State is required" };
-        if (!billing?.zip_code?.trim()) return { valid: false, message: "ZIP code is required" };
+        if (!billing?.street1?.trim()) return { valid: false, message: "Billing street address is required" };
+        if (!billing?.city?.trim()) return { valid: false, message: "Billing city is required" };
+        if (!billing?.state?.trim()) return { valid: false, message: "Billing state is required" };
+        if (!billing?.zip_code?.trim()) return { valid: false, message: "Billing ZIP code is required" };
+        if (!billing?.countryRegion?.trim()) return { valid: false, message: "Billing country is required" };
         return { valid: true };
       default:
         return { valid: true };
@@ -76,6 +125,10 @@ export function SteppedUserForm({
 
 
   const handleSubmit = async (values: BaseUserFormData) => {
+    // Clear previous errors
+    setStepError(null);
+    setValidationErrors([]);
+
     // Check if terms are accepted on final step
     if (!termsAccepted) {
       setStepError("Please accept the Terms and Conditions to continue");
@@ -128,8 +181,11 @@ export function SteppedUserForm({
         terms_and_conditions: termsAndConditions as any,
       };
       await onSubmit(formattedValues);
-    } catch (error) {
+    } catch (error: any) {
       console.error("SteppedUserForm: Error in form submission:", error);
+      // Display the error message from the API or validation
+      const errorMessage = error?.message || "Failed to update profile. Please try again.";
+      setStepError(errorMessage);
       throw error;
     }
   };
@@ -176,7 +232,7 @@ export function SteppedUserForm({
                 <h3 className="text-xs font-semibold text-gray-900">Business Documents</h3>
               </div>
             </div>
-            <TaxAndDocumentsSection form={form} isAdmin={false} />
+            <TaxAndDocumentsSection form={form} isAdmin={false} userId={userId} />
           </div>
         );
       case 4:
@@ -295,6 +351,31 @@ export function SteppedUserForm({
   };
 
 
+  // Handle form validation errors from react-hook-form
+  const handleFormError = (errors: FieldErrors<BaseUserFormData>) => {
+    console.log("Form validation errors:", errors);
+    const errorMessages = getErrorMessages(errors);
+    setValidationErrors(errorMessages);
+    
+    // If there are errors, determine which step has the first error and navigate there
+    if (Object.keys(errors).length > 0) {
+      // Check which step has errors
+      const step1Fields = ['firstName', 'lastName', 'companyName', 'email', 'workPhone', 'mobilePhone', 'contactPerson', 'department', 'faxNumber'];
+      const step2Fields = ['billingAddress', 'shippingAddress'];
+      
+      const hasStep1Error = step1Fields.some(field => errors[field as keyof BaseUserFormData]);
+      const hasStep2Error = step2Fields.some(field => errors[field as keyof BaseUserFormData]);
+      
+      if (hasStep1Error && currentStep > 1) {
+        setCurrentStep(1);
+        setStepError("Please fix the errors in Business Information");
+      } else if (hasStep2Error && currentStep > 2) {
+        setCurrentStep(2);
+        setStepError("Please fix the errors in Address Information");
+      }
+    }
+  };
+
   // Prevent form submission on Enter key (only submit on final step button click)
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && currentStep < STEPS.length) {
@@ -305,7 +386,7 @@ export function SteppedUserForm({
   return (
     <Form {...form}>
       <form 
-        onSubmit={form.handleSubmit(handleSubmit)} 
+        onSubmit={form.handleSubmit(handleSubmit, handleFormError)} 
         onKeyDown={handleKeyDown}
         className="h-full flex flex-col"
       >
@@ -344,10 +425,31 @@ export function SteppedUserForm({
 
         {/* Footer - Fixed at bottom */}
         <div className="pt-2 sm:pt-3 mt-2 sm:mt-3 border-t border-gray-100 shrink-0">
-          {stepError && (
-            <Alert variant="destructive" className="mb-2 py-1 px-2">
-              <AlertCircle className="h-3 w-3" />
-              <AlertDescription className="text-[10px] ml-1">{stepError}</AlertDescription>
+          {/* Display validation errors from Zod schema */}
+          {validationErrors.length > 0 && (
+            <Alert variant="destructive" className="mb-3 py-2.5 px-3 border border-red-200 bg-red-50">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                <AlertDescription className="text-xs text-red-800 leading-relaxed">
+                  <ul className="list-disc list-inside space-y-1">
+                    {validationErrors.slice(0, 5).map((error, index) => (
+                      <li key={index}>{error}</li>
+                    ))}
+                    {validationErrors.length > 5 && (
+                      <li>...and {validationErrors.length - 5} more errors</li>
+                    )}
+                  </ul>
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
+          {/* Display step-specific errors */}
+          {stepError && validationErrors.length === 0 && (
+            <Alert variant="destructive" className="mb-3 py-2.5 px-3 border border-red-200 bg-red-50">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 text-red-600 mt-0.5 shrink-0" />
+                <AlertDescription className="text-xs text-red-800">{stepError}</AlertDescription>
+              </div>
             </Alert>
           )}
           <div className="flex gap-2">

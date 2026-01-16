@@ -44,18 +44,18 @@ const Blog = () => {
       image: "/blog/rx-vials-guide.jpg",
       slug: "choosing-right-rx-vials"
     },
+    // {
+    //   id: 3,
+    //   title: "FDA Compliance: What Every Pharmacy Needs to Know",
+    //   excerpt: "Stay compliant with the latest FDA regulations for pharmacy packaging and labeling. Essential information for independent pharmacies.",
+    //   category: "Compliance",
+    //   date: "December 10, 2024",
+    //   readTime: "8 min read",
+    //   image: "/blog/fda-compliance.jpg",
+    //   slug: "fda-compliance-pharmacy-guide"
+    // },
     {
       id: 3,
-      title: "FDA Compliance: What Every Pharmacy Needs to Know",
-      excerpt: "Stay compliant with the latest FDA regulations for pharmacy packaging and labeling. Essential information for independent pharmacies.",
-      category: "Compliance",
-      date: "December 10, 2024",
-      readTime: "8 min read",
-      image: "/blog/fda-compliance.jpg",
-      slug: "fda-compliance-pharmacy-guide"
-    },
-    {
-      id: 4,
       title: "Custom Branding: Elevate Your Pharmacy's Image",
       excerpt: "Learn how custom-branded packaging can help differentiate your pharmacy and build customer loyalty in a competitive market.",
       category: "Business Growth",
@@ -65,7 +65,7 @@ const Blog = () => {
       slug: "custom-branding-pharmacy"
     },
     {
-      id: 5,
+      id: 4,
       title: "New Product Launch: Child-Resistant Vial Caps",
       excerpt: "Introducing our new line of child-resistant vial caps that meet all safety standards while being easy for adults to open.",
       category: "Product Updates",
@@ -75,7 +75,7 @@ const Blog = () => {
       slug: "child-resistant-vial-caps-launch"
     },
     {
-      id: 6,
+      id: 5,
       title: "Reducing Costs: Smart Inventory Management Tips",
       excerpt: "Practical strategies for managing your pharmacy supply inventory efficiently and reducing waste while maintaining stock levels.",
       category: "Tips & Guides",

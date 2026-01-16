@@ -33,13 +33,13 @@ export const SidebarHeader = () => {
       ) : (
         // Expanded state: full logo with user info
         <div className="relative flex items-center gap-3 w-full">
-          <div className="relative group">
+          <div className="relative group flex-shrink-0">
             <div className="absolute inset-0 bg-gradient-to-r from-blue-400 to-purple-500 rounded-xl blur-md opacity-0 group-hover:opacity-40 transition-opacity duration-300"></div>
-            <div className="relative ">
+            <div className="relative">
               <img
                 src={logo}
                 alt="Full Logo"
-                className="h-12 w-12 object-cover rounded-lg"
+                className="h-10 w-auto object-contain"
               />
             </div>
           </div>

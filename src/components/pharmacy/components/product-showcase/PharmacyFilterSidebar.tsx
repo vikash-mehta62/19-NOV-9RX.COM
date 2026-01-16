@@ -204,7 +204,7 @@ export const PharmacyFilterSidebar = ({
                   <button
                     onClick={() => handleCategoryClick(cat.category_name)}
                     className={cn(
-                      "w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-all",
+                      "w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs transition-all",
                       isSelected
                         ? "bg-blue-100 text-blue-700 font-medium shadow-sm"
                         : isExpanded
@@ -212,19 +212,19 @@ export const PharmacyFilterSidebar = ({
                         : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
-                    <span className="flex items-center gap-2 truncate">
+                    <span className="flex items-center gap-1.5 truncate min-w-0 flex-1">
                       {isExpanded ? (
-                        <FolderOpen className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                        <FolderOpen className="w-3.5 h-3.5 text-blue-600 flex-shrink-0" />
                       ) : (
-                        <Folder className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                        <Folder className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
                       )}
-                      <span className="truncate">{cat.category_name}</span>
+                      <span className="truncate text-[11px] leading-tight">{cat.category_name}</span>
                     </span>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <div className="flex items-center gap-1 flex-shrink-0 ml-1">
                       <Badge 
                         variant="secondary" 
                         className={cn(
-                          "text-xs",
+                          "text-[10px] px-1.5 py-0",
                           isSelected ? "bg-blue-200 text-blue-700" : "bg-gray-100 text-gray-600"
                         )}
                       >
@@ -232,7 +232,7 @@ export const PharmacyFilterSidebar = ({
                       </Badge>
                       {catSubcategories.length > 0 && cat.category_name.toUpperCase() !== "RX PAPER BAGS" && (
                         <ChevronRight className={cn(
-                          "w-4 h-4 text-gray-400 transition-transform duration-200",
+                          "w-3.5 h-3.5 text-gray-400 transition-transform duration-200",
                           isExpanded && "rotate-90"
                         )} />
                       )}
@@ -251,13 +251,13 @@ export const PharmacyFilterSidebar = ({
                             key={sub.id}
                             onClick={(e) => handleSubcategoryClick(sub.subcategory_name, e)}
                             className={cn(
-                              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-all",
+                              "w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all",
                               isSubSelected
                                 ? "bg-blue-100 text-blue-700 font-medium"
                                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                             )}
                           >
-                            <span className="truncate">{sub.subcategory_name}</span>
+                            <span className="truncate text-[11px]">{sub.subcategory_name}</span>
                             <Badge 
                               variant="outline" 
                               className={cn(

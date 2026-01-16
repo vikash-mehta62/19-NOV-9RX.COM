@@ -409,7 +409,7 @@ export default function SizeDetail() {
             )}
 
             {!similarLoading && similarProducts.length === 0 && (
-              <div className="text-sm text-gray-500">No similar products linked.</div>
+              <div className="text-sm text-gray-500">No similar products available.</div>
             )}
 
             {!similarLoading && similarProducts.length > 0 && (

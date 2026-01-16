@@ -190,3 +190,20 @@
 
 @media print { .no-print { display: none !important; } body { @apply bg-white text-black; } a { text-decoration: underline; } }
 .swal-custom-zindex { z-index: 99999999 !important; }
+
+/* Date input calendar icon fix */
+input[type="date"] {
+  position: relative;
+  padding-right: 30px !important;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  cursor: pointer;
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+}

@@ -425,6 +425,11 @@ function App() {
               <PharmacySettings />
             </ProtectedRoute>
           } />
+          <Route path="/pharmacy/settings/update-profile" element={
+            <ProtectedRoute allowedRoles={['pharmacy']}>
+              <PharmacySettings />
+            </ProtectedRoute>
+          } />
           <Route path="/pharmacy/invoices" element={
             <ProtectedRoute allowedRoles={['pharmacy']}>
               <PharmacyInvoices />
@@ -523,6 +528,11 @@ function App() {
             </ProtectedRoute>
           } />
           <Route path="/group/settings" element={
+            <ProtectedRoute allowedRoles={['group']}>
+              <GroupSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/group/settings/update-profile" element={
             <ProtectedRoute allowedRoles={['group']}>
               <GroupSettings />
             </ProtectedRoute>

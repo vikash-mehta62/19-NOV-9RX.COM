@@ -23,7 +23,7 @@ function UserSelfDetails() {
       toast({
         title: "Error",
         description: "Email parameter is missing",
-        variant: "destructive",
+        variant: "destructive",   
       });
     }
   }, [userEmail]);

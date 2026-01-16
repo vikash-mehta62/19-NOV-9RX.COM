@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import JsBarcode from "jsbarcode";
+import Logo from "../assests/home/9rx_logo.png"
 
 // Generate barcode as base64 image
 const generateBarcode = (text: string): string => {
@@ -25,7 +26,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
+    const margin = 10;
     const contentWidth = pageWidth - margin * 2;
 
     const packingDetails = packingData?.packingDetails || {};
@@ -34,10 +35,10 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const customerInfo = packingData?.customerInfo || {};
     const shipTo = packingData?.shippingAddress || {};
 
-    // Professional teal color scheme
+    // Professional blue color scheme
     const COLORS = {
-      primary: [20, 184, 166] as [number, number, number],
-      success: [34, 197, 94] as [number, number, number],
+      primary: [37, 99, 235] as [number, number, number],
+      success: [59, 130, 246] as [number, number, number],
       dark: [31, 41, 55] as [number, number, number],
       medium: [107, 114, 128] as [number, number, number],
       light: [243, 244, 246] as [number, number, number],
@@ -46,34 +47,52 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     };
 
     // ==========================================
-    // SECTION 1: TEAL HEADER BAR
+    // SECTION 1: THIN BLUE LINE AT TOP
     // ==========================================
     doc.setFillColor(...COLORS.primary);
-    doc.rect(0, 0, pageWidth, 22, 'F');
+    doc.rect(0, 0, pageWidth, 4, 'F');
 
-    // Logo in header
+    // ==========================================
+    // SECTION 2: LOGO (Left) + SALES ORDER TITLE (Right)
+    // ==========================================
+    let yPos = 12;
+
+    // Logo on left
     try {
       const logo = new Image();
-      logo.src = "/final.png";
+      logo.src = Logo
       await new Promise((resolve, reject) => {
         logo.onload = resolve;
         logo.onerror = reject;
         setTimeout(reject, 2000);
       });
-      const logoHeight = 12;
+      const logoHeight = 14;
       const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", margin, 5, logoWidth, logoHeight);
+      doc.addImage(logo, "PNG", margin, yPos, logoWidth, logoHeight);
     } catch {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.setTextColor(...COLORS.white);
-      doc.text("9RX.com", margin, 14);
+      doc.setFontSize(16);
+      doc.setTextColor(...COLORS.primary);
+      doc.text("9RX.com", margin, yPos + 10);
     }
 
+    // SALES ORDER title on right
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...COLORS.primary);
+    doc.text("PACKING SLIP", pageWidth - margin, yPos + 6, { align: "right" });
+
+    // Order number below title
+    const orderNumber = workOrderData?.order_number || "9RX001193";
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.dark);
+    doc.text(`# ${orderNumber}`, pageWidth - margin, yPos + 14, { align: "right" });
+
     // ==========================================
-    // SECTION 2: COMPANY INFO (Left) + ORDER INFO (Right)
+    // SECTION 3: COMPANY INFO (Left) + ORDER INFO (Right)
     // ==========================================
-    let yPos = 30;
+    yPos = 34;
 
     // Left side - Company Info
     doc.setFont("helvetica", "bold");
@@ -89,30 +108,23 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, yPos + 16);
 
     // Right side - Order Info
-    const orderNumber = workOrderData?.order_number || "9RX001193";
     const formattedDate = new Date().toLocaleDateString("en-US", {
       month: "2-digit",
       day: "2-digit",
       year: "numeric"
     });
 
-    // Order number
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.primary);
-    doc.text(`# ${orderNumber}`, pageWidth - margin, yPos, { align: "right" });
-
     // Date
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(...COLORS.dark);
-    doc.text(`Date: ${formattedDate}`, pageWidth - margin, yPos + 7, { align: "right" });
+    doc.text(`Date: ${formattedDate}`, pageWidth - margin, yPos, { align: "right" });
 
     // PACKED Badge
     const badgeW = 26;
     const badgeH = 8;
     const badgeX = pageWidth - margin - badgeW;
-    const badgeY = yPos + 11;
+    const badgeY = yPos + 4;
     doc.setFillColor(...COLORS.success);
     doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, 'F');
     doc.setFont("helvetica", "bold");
@@ -123,7 +135,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // Barcode
     try {
       const barcodeUrl = generateBarcode(orderNumber);
-      doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, yPos + 22, 50, 12);
+      doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, yPos + 15, 50, 12);
     } catch (e) {
       console.warn("Barcode generation failed:", e);
     }
@@ -245,6 +257,23 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     let currentY = (doc as any).lastAutoTable.finalY + 12;
 
+    // Footer reserved space (footer text + page number + margin)
+    const footerReservedSpace = 25;
+    const maxContentY = pageHeight - footerReservedSpace;
+
+    // Helper function to check and add new page if needed
+    const checkPageBreak = (requiredSpace: number) => {
+      if (currentY + requiredSpace > maxContentY) {
+        doc.addPage();
+        currentY = margin + 10;
+        return true;
+      }
+      return false;
+    };
+
+    // Check if we have space for shipping details section (~35mm needed)
+    checkPageBreak(35);
+
     // Divider line
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
@@ -295,6 +324,9 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     currentY += 15;
 
+    // Check if we have space for warehouse QC section (~30mm needed)
+    checkPageBreak(30);
+
     // Divider line
     doc.setDrawColor(220, 220, 220);
     doc.line(margin, currentY, pageWidth - margin, currentY);
@@ -334,6 +366,12 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     currentY += 15;
 
+    // Check space for special instructions
+    const notes = packingDetails.notes || "N/A";
+    const splitNotes = doc.splitTextToSize(notes, contentWidth);
+    const notesHeight = splitNotes.length * 4 + 15;
+    checkPageBreak(notesHeight);
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.setTextColor(...COLORS.dark);
@@ -342,22 +380,33 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     currentY += 6;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
-    const notes = packingDetails.notes || "N/A";
-    const splitNotes = doc.splitTextToSize(notes, contentWidth);
     doc.text(splitNotes, margin, currentY);
 
     // ==========================================
-    // FOOTER
+    // FOOTER WITH PAGE NUMBERS
     // ==========================================
-    doc.setFontSize(7);
-    doc.setTextColor(...COLORS.medium);
-    doc.setFont("helvetica", "normal");
-    doc.text(
-      "This packing slip was generated by 9RX. Please inspect all items upon delivery and note any discrepancies.",
-      pageWidth / 2,
-      pageHeight - 10,
-      { align: "center" }
-    );
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      
+      doc.setFontSize(7);
+      doc.setTextColor(...COLORS.medium);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        "This packing slip was generated by 9RX. Please inspect all items upon delivery and note any discrepancies.",
+        pageWidth / 2,
+        pageHeight - 14,
+        { align: "center" }
+      );
+      
+      // Page number
+      doc.text(
+        `Page ${i} of ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - 8,
+        { align: "center" }
+      );
+    }
 
     // Save PDF
     doc.save(`Packing_Slip_${orderNumber}.pdf`);

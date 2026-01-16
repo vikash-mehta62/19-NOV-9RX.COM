@@ -24,7 +24,7 @@ const AboutUs = () => {
     {
       icon: Shield,
       title: "Quality Assured",
-      description: "All our products meet FDA standards and undergo rigorous quality checks before reaching you."
+      description: "All our products meet standards and undergo rigorous quality checks before reaching you."
     },
     {
       icon: Truck,
@@ -189,7 +189,7 @@ const AboutUs = () => {
                 "Custom branding available",
                 "Volume discounts up to 25%",
                 "Dedicated account managers",
-                "FDA compliant products",
+                // "FDA compliant products",
                 "Easy online ordering",
                 "30-day return policy"
               ].map((feature, index) => (

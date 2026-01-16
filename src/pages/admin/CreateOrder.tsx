@@ -918,7 +918,7 @@ const profileID =
             <p className="text-sm text-blue-700 mt-1">
               You can edit addresses and products. Customer selection is locked.
             </p>
-          </div>
+          </div>  
         )}
         {preselectedCustomerData && !isEditMode && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -926,15 +926,19 @@ const profileID =
               Creating Order for: {preselectedCustomerData.customer?.name || preselectedCustomerData.customer?.company_name}
             </h2>
             <p className="text-sm text-green-700 mt-1">
-              Customer and addresses are pre-filled. You can start adding products.
+              {preselectedCustomerData.billingAddress?.street && preselectedCustomerData.shippingAddress?.street
+                ? "Customer and addresses are pre-filled. You can start adding products."
+                : "Customer is pre-filled. Please add addresses, then you can start adding products."}
             </p>
           </div>
-        )}
+        )}  
       </div>
       <OrderCreationWizard
         initialData={preselectedCustomerData || existingOrderData}
         isEditMode={isEditMode}
-        isPharmacyMode={!!preselectedCustomerData?.skipToProducts}
+        // isPharmacyMode={!!preselectedCustomerData?.skipToProducts}
+        isPharmacyMode={false}
+        userType="admin"
         onComplete={handleComplete}
         onCancel={handleCancel}
       />

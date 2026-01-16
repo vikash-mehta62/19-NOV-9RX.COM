@@ -106,7 +106,7 @@ export class OrderActivityService {
     orderId: string;
     orderNumber: string;
     oldStatus: string;
-    newStatus: string;
+    newStatus: string;  
     performedBy?: string;
     performedByName?: string;
     performedByEmail?: string;

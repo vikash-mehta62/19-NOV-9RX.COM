@@ -586,6 +586,7 @@ setOrders([])
   return {
     orders,
     loading,
+    setLoading,
     selectedOrder,
     selectedOrders,
     isEditing,

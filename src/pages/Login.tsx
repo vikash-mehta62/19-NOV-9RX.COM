@@ -81,11 +81,11 @@ const features = [
     title: "24/7 Support",
     description: "Always here to help",
   },
-  {
-    icon: Award,
-    title: "Quality Assured",
-    description: "FDA compliant products",
-  },
+  // {
+  //   icon: Award,
+  //   title: "Quality Assured",
+  //   description: "FDA compliant products",
+  // },
 ];
 
 // Stats data

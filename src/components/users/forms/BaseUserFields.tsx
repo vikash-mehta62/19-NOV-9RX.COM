@@ -11,9 +11,10 @@ interface BaseUserFieldsProps {
   form: UseFormReturn<BaseUserFormData>;
   self?:boolean
   isAdmin?: boolean
+  userId?: string
 }
 
-export function BaseUserFields({ form , self=false, isAdmin = false}: BaseUserFieldsProps) {
+export function BaseUserFields({ form , self=false, isAdmin = false, userId}: BaseUserFieldsProps) {
   const customerType = form.watch("type") as "pharmacy" | "hospital" | "group";
   useEffect(() => {
     form.setValue("billingAddress.phone", form.getValues("workPhone"));
@@ -31,7 +32,7 @@ export function BaseUserFields({ form , self=false, isAdmin = false}: BaseUserFi
       <BasicInformationSection form={form}  self={self}/>
       {customerType && <CustomerTypeFields form={form} type={customerType} />}
       <ContactInformationSection form={form} />
-      <TaxAndDocumentsSection form={form} isAdmin={isAdmin} />
+      <TaxAndDocumentsSection form={form} isAdmin={isAdmin} userId={userId} />
       <AddressInformationSection form={form} self={self} />
     </div>
   );

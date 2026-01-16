@@ -11,13 +11,21 @@ import CreditAgreementSection from "@/components/settings/CreditAgreementSection
 import { SettingsFormValues, defaultValues } from "@/components/settings/settingsTypes";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { EditUserModal } from "@/components/users/EditUserModal";
 
 export default function PharmacySettings() {
   const form = useForm<SettingsFormValues>({ defaultValues });
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [email, setEmail] = useState("")
+  const [email, setEmail] = useState("");
+  const [userData, setUserData] = useState<any>(null);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const location = useLocation();
+  const navigate = useNavigate();
+  
+  // Check if we're on the update-profile route
+  const isUpdateProfileRoute = location.pathname.includes("/update-profile");
   const onSubmit = async (data: SettingsFormValues) => {
     setIsSubmitting(true);
     try {
@@ -74,19 +82,33 @@ export default function PharmacySettings() {
         }
 
         if (!data) return;
-        setEmail(data.email)
-        console.log(data.email)
+        setEmail(data.email);
+        setUserData(data);
+        console.log(data.email);
         form.setValue("description", data.notes || "");
         form.setValue("business_name", data.company_name || "");
         form.setValue("email_notifications", data.email_notifaction || false);
         form.setValue("order_updates", data.order_updates || false);
+        
+        // If on update-profile route, open the modal
+        if (isUpdateProfileRoute) {
+          setEditModalOpen(true);
+        }
       } catch (error) {
         console.error("⚠️ Error fetching user:", error);
       }
     };
-
+    
     fetchUser();
-  }, []);
+  }, [isUpdateProfileRoute]);
+
+  // Handle modal close - navigate back to settings
+  const handleModalClose = (open: boolean) => {
+    setEditModalOpen(open);
+    if (!open) {
+      navigate("/pharmacy/settings");
+    }
+  };
 
   return (
     <DashboardLayout role="pharmacy">
@@ -102,7 +124,7 @@ export default function PharmacySettings() {
               <BusinessProfileSection form={form} />
               <div className="flex items-center gap-2 text-blue-600 font-medium hover:underline">
             <ArrowRight className="w-5 h-5" />
-            <Link to={`/update-profile?email=${email}`}>Go to Update Profile</Link>
+            <Link to={`/pharmacy/settings/update-profile?email=${email}`}>Go to Update Profile</Link>
           </div>
               <NotificationSection form={form} />
               <SecuritySection form={form} />
@@ -120,6 +142,26 @@ export default function PharmacySettings() {
           </form>
         </Form>
       </div>
+      
+      {/* Update Profile Modal */}
+      {userData && (
+        <EditUserModal
+          user={{
+            id: userData.id,
+            name: userData.name || "N/A",
+            email: userData.email,
+            type: userData.type || "user",
+            status: userData.status || "pending",
+          }}
+          open={editModalOpen}
+          onOpenChange={handleModalClose}
+          onUserUpdated={() => {
+            console.log("Profile updated successfully");
+            navigate("/pharmacy/settings");
+          }}
+          self={true}
+        />
+      )}
     </DashboardLayout>
   );
 }

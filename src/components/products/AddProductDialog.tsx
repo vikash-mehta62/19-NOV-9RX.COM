@@ -606,6 +606,9 @@ export function AddProductDialog({
                   badge={form.watch("similar_products")?.length ? `${form.watch("similar_products").length}/2` : undefined}
                 >
                   <div className="space-y-4">
+                    <p className="text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-md border border-amber-200">
+                      ⚠️ These similar products will be displayed on the Product Details page when customers view this product.
+                    </p>
                     <FormField
                       control={form.control}
                       name="similar_products"

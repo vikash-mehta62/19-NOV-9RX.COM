@@ -25,6 +25,7 @@ interface TabbedUserFormProps {
   isSubmitting?: boolean;
   self?: boolean;
   isAdmin?: boolean;
+  userId?: string;
 }
 
 // Define which fields belong to which tab for error tracking
@@ -42,6 +43,7 @@ export function TabbedUserForm({
   isSubmitting = false,
   self = false,
   isAdmin = false,
+  userId,
 }: TabbedUserFormProps) {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("basic");
@@ -394,7 +396,7 @@ creditLimit: values.creditLimit
           </TabsContent>
 
           <TabsContent value="tax" className="space-y-4 mt-4">
-            <TaxAndDocumentsSection form={form} isAdmin={isAdmin} />
+            <TaxAndDocumentsSection form={form} isAdmin={isAdmin} userId={userId} />
           </TabsContent>
         </Tabs>
 
