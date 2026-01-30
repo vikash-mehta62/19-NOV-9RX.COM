@@ -317,10 +317,14 @@ interface PaymentFormProps {
   payNow?: boolean
   isBalancePayment?: boolean
   previousPaidAmount?: number
+  onPaymentSuccess?: () => void
 }
 
-const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0 }: PaymentFormProps) => {
-  const [paymentType, setPaymentType] = useState("credit_card")
+const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0, onPaymentSuccess }: PaymentFormProps) => {
+  // Check if this is a Purchase Order (PO)
+  const isPurchaseOrder = orders?.order_number?.startsWith('PO-') || orders?.order_type === 'purchase_order'
+  
+  const [paymentType, setPaymentType] = useState(isPurchaseOrder ? "manaul_payemnt" : "credit_card")
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
@@ -480,6 +484,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       newErrors.country = validateCountry(formData.country)
     } else if (paymentType === "manaul_payemnt") {
       newErrors.notes = validateNotes(formData.notes)
+      // Billing address is optional for manual payments
     } else if (paymentType === "ach") {
       newErrors.routingNumber = validateRoutingNumber(formData.routingNumber)
       newErrors.accountNumber = validateAccountNumber(formData.accountNumber)
@@ -776,34 +781,43 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   <CreditCard className="w-6 h-6" />
                   Payment Method
                 </CardTitle>
-                <CardDescription className="text-blue-100">Select how you'd like to pay</CardDescription>
+                <CardDescription className="text-blue-100">
+                  {isPurchaseOrder ? "Manual payment for Purchase Orders" : "Select how you'd like to pay"}
+                </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType("credit_card")}
-                    className={cn(
-                      "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                      paymentType === "credit_card" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    )}
-                  >
-                    <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
-                    <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
-                    {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType("ach")}
-                    className={cn(
-                      "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                      paymentType === "ach" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    )}
-                  >
-                    <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
-                    <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
-                    {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
-                  </button>
+                <div className={cn(
+                  "grid gap-3",
+                  isPurchaseOrder ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
+                )}>
+                  {!isPurchaseOrder && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentType("credit_card")}
+                        className={cn(
+                          "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                          paymentType === "credit_card" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
+                        <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
+                        {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPaymentType("ach")}
+                        className={cn(
+                          "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                          paymentType === "ach" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                        )}
+                      >
+                        <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
+                        <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
+                        {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
+                      </button>
+                    </>
+                  )}
                   {sessionStorage.getItem("userType")?.toLowerCase() === "admin" && (
                     <button
                       type="button"
@@ -819,6 +833,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     </button>
                   )}
                 </div>
+                {isPurchaseOrder && (
+                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
+                    <p className="flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                      Purchase Orders require manual payment processing. Please enter payment details and reference information.
+                    </p>
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -1059,56 +1081,54 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 </CardContent>
               </Card>
 
-              {/* Billing Address - Only for card/ach */}
-              {paymentType !== "manaul_payemnt" && (
-                <Card className="shadow-lg border-0 mt-6">
-                  <CardHeader className="pb-4">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <MapPin className="w-5 h-5 text-blue-600" />
-                      Billing Address
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+              {/* Billing Address */}
+              <Card className="shadow-lg border-0 mt-6">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MapPin className="w-5 h-5 text-blue-600" />
+                    Billing Address
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="address" className={cn(errors.address && "text-red-500")}>Street Address</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <Input id="address" name="address" placeholder="123 Main Street" value={formData.address} onChange={handleChange} className={cn("pl-11 h-12", errors.address && "border-red-500")} />
+                    </div>
+                    {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="address" className={cn(errors.address && "text-red-500")}>Street Address</Label>
+                      <Label htmlFor="city" className={cn(errors.city && "text-red-500")}>City</Label>
                       <div className="relative">
-                        <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                        <Input id="address" name="address" placeholder="123 Main Street" value={formData.address} onChange={handleChange} className={cn("pl-11 h-12", errors.address && "border-red-500")} />
+                        <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Input id="city" name="city" placeholder="New York" value={formData.city} onChange={handleChange} className={cn("pl-11 h-12", errors.city && "border-red-500")} />
                       </div>
-                      {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
+                      {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="city" className={cn(errors.city && "text-red-500")}>City</Label>
-                        <div className="relative">
-                          <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input id="city" name="city" placeholder="New York" value={formData.city} onChange={handleChange} className={cn("pl-11 h-12", errors.city && "border-red-500")} />
-                        </div>
-                        {errors.city && <p className="text-sm text-red-500">{errors.city}</p>}
+                    <div className="space-y-2">
+                      <Label htmlFor="state" className={cn(errors.state && "text-red-500")}>State</Label>
+                      <div className="relative">
+                        <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                        <Input id="state" name="state" placeholder="NY" value={formData.state} onChange={handleChange} className={cn("pl-11 h-12", errors.state && "border-red-500")} />
                       </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="state" className={cn(errors.state && "text-red-500")}>State</Label>
-                        <div className="relative">
-                          <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input id="state" name="state" placeholder="NY" value={formData.state} onChange={handleChange} className={cn("pl-11 h-12", errors.state && "border-red-500")} />
-                        </div>
-                        {errors.state && <p className="text-sm text-red-500">{errors.state}</p>}
-                      </div>
+                      {errors.state && <p className="text-sm text-red-500">{errors.state}</p>}
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="zip" className={cn(errors.zip && "text-red-500")}>ZIP Code</Label>
-                        <Input id="zip" name="zip" placeholder="10001" value={formData.zip} onChange={handleChange} className={cn("h-12", errors.zip && "border-red-500")} />
-                        {errors.zip && <p className="text-sm text-red-500">{errors.zip}</p>}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="country">Country</Label>
-                        <Input id="country" name="country" placeholder="USA" value={formData.country} onChange={handleChange} className="h-12" />
-                      </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="zip" className={cn(errors.zip && "text-red-500")}>ZIP Code</Label>
+                      <Input id="zip" name="zip" placeholder="10001" value={formData.zip} onChange={handleChange} className={cn("h-12", errors.zip && "border-red-500")} />
+                      {errors.zip && <p className="text-sm text-red-500">{errors.zip}</p>}
                     </div>
-                  </CardContent>
-                </Card>
-              )}
+                    <div className="space-y-2">
+                      <Label htmlFor="country">Country</Label>
+                      <Input id="country" name="country" placeholder="USA" value={formData.country} onChange={handleChange} className="h-12" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Mobile Submit Button */}
               <div className="lg:hidden mt-6">
@@ -1238,6 +1258,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     setShowResultPopup(false)
     if (paymentResult?.success) {
       setModalIsOpen(false)
+      // Call the success callback to refresh order data
+      if (onPaymentSuccess) {
+        onPaymentSuccess()
+      }
     }
   }
 

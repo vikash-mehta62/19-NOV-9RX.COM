@@ -162,7 +162,7 @@ export function OrderTotals({
           
           <div className="flex justify-between text-base font-bold text-red-600">
             <span>Balance Due:</span>
-            <span>${Math.max(0, total - paidAmount).toFixed(2)}</span>
+            <span>${(Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount)).toFixed(2)}</span>
           </div>
         </>
       )}

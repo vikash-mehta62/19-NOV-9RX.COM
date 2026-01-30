@@ -39,6 +39,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
             size_value: size.size_value,
             size_unit: size.size_unit,
             price: size.price,
+            cost_price: size.cost_price || size.price, // Cost price for inventory tracking
             sku: size.sku || "",
             quantity_per_case: size.quantity_per_case,
             stock: size.stock,
@@ -78,7 +79,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
             `"${product.sku}"`,
             `"${size.size_value}"`,
             `"${size.size_unit}"`,
-            `"${size.price}"`,
+            `"${size.cost_price}"`,
             `"${size.stock}"`,
             `"${size.quantity_per_case}"`,
           ].join(",") + "\n";
@@ -125,7 +126,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
         csvContent += [
           `"${size.size_value}"`,
           `"${size.size_unit}"`,
-          `"${size.price}"`,
+          `"${size.cost_price}"`,
           `"${size.stock}"`,
           `"${size.quantity_per_case}"`,
         ].join(",") + "\n";
@@ -206,7 +207,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
                                     {size.size_value} {size.size_unit.toUpperCase()}
                                   </span>
                                   <span className="text-gray-600">Stock: {size.stock}</span>
-                                  <span className="text-gray-600">Price: ${size.price}</span>
+                                  <span className="text-gray-600">Price: ${size.cost_price}</span>
                                 </li>
                               ))}
                             </ul>

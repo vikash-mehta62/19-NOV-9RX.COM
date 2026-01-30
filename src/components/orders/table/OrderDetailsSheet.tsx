@@ -19,7 +19,7 @@ import { PaymentTab } from "../details/tabs/PaymentTab";
 import { ShippingTab } from "../details/tabs/ShippingTab";
 import { ActivityTab } from "../details/tabs/ActivityTab";
 import { OrderActions } from "./OrderActions";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import axios from "../../../../axiosconfig";
@@ -32,6 +32,7 @@ import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
 import { PharmacyOrderDetails } from "@/components/pharmacy/PharmacyOrderDetails";
 import Logo from "../../../assests/home/9rx_logo.png";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -70,7 +71,7 @@ export const OrderDetailsSheet = ({
   onShipOrder,
   onConfirmOrder,
   onDeleteOrder,
-  poIs = false,
+  poIs: poIsProp = false, // Renamed to avoid confusion
   loadOrders,
   userRole = "pharmacy",
 }: OrderDetailsSheetProps) => {
@@ -86,14 +87,34 @@ export const OrderDetailsSheet = ({
   const [chargesOpen, setChargesOpen] = useState(false);
   const [isPackingSlipModalOpen, setIsPackingSlipModalOpen] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
-  
+
   // Ref to track if component is mounted (prevents memory leaks)
   const isMountedRef = useRef(true);
 
   // Update currentOrder when order prop changes
   useEffect(() => {
+    console.log("🔄 OrderDetailsSheet - Order changed:", {
+      orderId: order.id,
+      orderNumber: order.order_number,
+      poAccept: (order as any)?.poAccept
+    });
     setCurrentOrder(order);
   }, [order]);
+
+  // Determine if this is a PO from the order data itself (more reliable than prop)
+  // poAccept: false means it's a Purchase Order
+  // poAccept: true or undefined means it's a Sales Order
+  // Use useMemo to recalculate when currentOrder changes
+  const poIs = useMemo(() => {
+    const isPO = (currentOrder as any)?.poAccept === false;
+    console.log("🔍 OrderDetailsSheet - Calculating poIs:", {
+      orderId: currentOrder.id,
+      orderNumber: currentOrder.order_number,
+      poAccept: (currentOrder as any)?.poAccept,
+      isPO
+    });
+    return isPO;
+  }, [currentOrder]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -145,14 +166,15 @@ export const OrderDetailsSheet = ({
   const fetchPaidAmount = useCallback(async () => {
     if (!currentOrder?.id) return;
     try {
-      const { data: orderData } = await supabase
+      const orderRes = await supabase
         .from("orders")
         .select("paid_amount, total_amount, payment_status")
         .eq("id", currentOrder.id)
         .maybeSingle();
-      
+      const orderData = orderRes.data as { paid_amount?: number; total_amount?: number; payment_status?: string } | null;
+
       if (!isMountedRef.current) return;
-      
+
       let amount = Number(orderData?.paid_amount || 0);
       if (amount === 0 && orderData?.payment_status === 'paid') {
         amount = Number(orderData?.total_amount || 0);
@@ -179,7 +201,7 @@ export const OrderDetailsSheet = ({
 
   const handleStatusUpdate = async (action: "process" | "ship" | "confirm") => {
     if (!currentOrder.id) return;
-    
+
     // Prevent multiple clicks
     if (isUpdatingStatus) return;
     setIsUpdatingStatus(true);
@@ -231,14 +253,15 @@ export const OrderDetailsSheet = ({
     setLoading(true);
     try {
       // Fetch fresh order data from database to ensure accurate information
-      const { data: freshOrder, error } = await supabase
+      const freshRes = await supabase
         .from("orders")
         .select("*")
         .eq("id", currentOrder.id)
         .single();
-      
-      if (error) throw error;
-      
+
+      const freshOrder = freshRes.data as any;
+      if (freshRes.error) throw freshRes.error;
+
       // Prepare order data with all required fields for email template
       const orderData = {
         id: freshOrder.id,
@@ -253,8 +276,8 @@ export const OrderDetailsSheet = ({
         date: freshOrder.date || freshOrder.created_at,
         status: freshOrder.status,
         payment_status: freshOrder.payment_status,
-      };
-      
+      }; 
+
       await axios.post("/paynow-user", orderData);
       toast({
         title: "Payment Link sent successfully",
@@ -363,7 +386,7 @@ export const OrderDetailsSheet = ({
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 12;
-      
+
       // Brand color
       const brandColor: [number, number, number] = [59, 130, 246]; // Blue color
       const darkGray: [number, number, number] = [60, 60, 60];
@@ -383,7 +406,7 @@ export const OrderDetailsSheet = ({
           logo.onerror = () => resolve();
           setTimeout(() => resolve(), 3000);
         });
-        
+
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20;
           const logoWidth = (logo.width / logo.height) * logoHeight;
@@ -398,7 +421,7 @@ export const OrderDetailsSheet = ({
       doc.setFontSize(16);
       doc.setTextColor(...darkGray);
       doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
-      
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
@@ -410,10 +433,10 @@ export const OrderDetailsSheet = ({
       // Determine document type: PO, Sales Order (new), or Invoice (confirmed)
       const invoiceNumber = (currentOrder as any).invoice_number;
       const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
-      
+
       let documentTitle: string;
       let documentNumber: string;
-      
+
       if (poIs) {
         documentTitle = "PURCHASE ORDER";
         documentNumber = currentOrder.order_number;
@@ -424,16 +447,16 @@ export const OrderDetailsSheet = ({
         documentTitle = "SALES ORDER";
         documentNumber = currentOrder.order_number;
       }
-      
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(24);
       doc.setTextColor(...brandColor);
       doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
-      
+
       doc.setFontSize(10);
       doc.setTextColor(...darkGray);
       doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
-      
+
       // Show SO reference on invoice
       if (invoiceNumber && !isNewOrder && !poIs) {
         doc.setFont("helvetica", "normal");
@@ -441,12 +464,12 @@ export const OrderDetailsSheet = ({
         doc.setTextColor(120, 120, 120);
         doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
       }
-      
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
-      
+
       // Payment status badge
       const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
       if (currentOrder.payment_status === "paid") {
@@ -468,7 +491,7 @@ export const OrderDetailsSheet = ({
       // ===== BARCODE =====
       try {
         const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12);
       } catch {
         // Skip barcode if generation fails
       }
@@ -487,13 +510,13 @@ export const OrderDetailsSheet = ({
         // Box background
         doc.setFillColor(...lightGray);
         doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
-        
+
         // Title
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
         doc.text(title, x + 5, infoStartY + 7);
-        
+
         // Content
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
@@ -521,7 +544,7 @@ export const OrderDetailsSheet = ({
             getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
           ].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
         drawInfoBox("VENDOR", margin, vendorLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
           "9RX LLC",
@@ -531,124 +554,148 @@ export const OrderDetailsSheet = ({
           "info@9rx.com"
         ]);
       } else {
-        // INVOICE: Bill To + Ship To Customer
+        // INVOICE & SALES ORDER: Bill To + Ship To Customer
+        console.log("🔍 PDF Debug - Order Data:", {
+          shippingAddress: currentOrder.shippingAddress,
+          customerInfo: currentOrder.customerInfo,
+          companyName: companyName
+        });
+        
+        console.log("🔍 PDF Debug - Full shippingAddress object:", JSON.stringify(currentOrder.shippingAddress, null, 2));
+
+        // Extract billing address from customerInfo.address
+        const billingAddr = currentOrder.customerInfo?.address || {};
+        const billingStreet = billingAddr.street || "";
+        const billingCity = billingAddr.city || "";
+        const billingState = billingAddr.state || "";
+        const billingZip = billingAddr.zip_code || "";
+        
+        // Extract shipping address from shippingAddress.address
+        const shippingAddr = (currentOrder.shippingAddress as any)?.address || {};
+        const shippingStreet = shippingAddr.street || "";
+        const shippingCity = shippingAddr.city || "";
+        const shippingState = shippingAddr.state || "";
+        const shippingZip = shippingAddr.zip_code || "";
+
+        console.log("🔍 PDF Debug - Extracted Fields:", {
+          billing: { street: billingStreet, city: billingCity, state: billingState, zip: billingZip },
+          shipping: { street: shippingStreet, city: shippingCity, state: shippingState, zip: shippingZip }
+        });
+
         const billToLines = [
           companyName,
           currentOrder.customerInfo?.name,
           currentOrder.customerInfo?.phone,
           currentOrder.customerInfo?.email,
-          [
-            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
-            getAddressField(currentOrder.shippingAddress, "billing", "city"),
-            getAddressField(currentOrder.shippingAddress, "billing", "state"),
-            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
-          ].filter(Boolean).join(", ")
+          billingStreet,
+          [billingCity, billingState, billingZip].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
         const shipToLines = [
-          getAddressField(currentOrder.shippingAddress, "shipping", "companyName") || companyName,
+          (currentOrder.shippingAddress as any)?.fullName || companyName,
           currentOrder.customerInfo?.name,
-          getAddressField(currentOrder.shippingAddress, "shipping", "phone") || currentOrder.customerInfo?.phone,
-          [
-            getAddressField(currentOrder.shippingAddress, "shipping", "street1"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "city"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "state"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "zipCode")
-          ].filter(Boolean).join(", ")
+          (currentOrder.shippingAddress as any)?.phone || currentOrder.customerInfo?.phone,
+          shippingStreet,
+          [shippingCity, shippingState, shippingZip].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
+        console.log("🔍 PDF Debug - Final Lines:", {
+          billToLines,
+          shipToLines
+        });
+
         drawInfoBox("BILL TO", margin, billToLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
       }
 
       // ===== ITEMS TABLE =====
       // ===== ITEMS TABLE =====
-const tableStartY = infoStartY + 42;
-const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
-const tableBody: any[] = [];
+      const tableStartY = infoStartY + 42;
+      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+      const tableBody: any[] = [];
 
-let itemIndex = 1;
+      let itemIndex = 1;
 
-currentOrder.items.forEach((item: any) => {
-  item.sizes.forEach((size: any, sizeIndex: number) => {
-    const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
-    const quantity = size.quantity.toString();
-    const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
-    const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
+      currentOrder.items.forEach((item: any) => {
+        item.sizes.forEach((size: any, sizeIndex: number) => {
+          const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
+          const quantity = size.quantity.toString();
+          const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
+          const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
 
-    // Main product row
-    tableBody.push([
-      itemIndex.toString(),
-      item.name,
-      sizeValueUnit,
-      quantity,
-      pricePerUnit,
-      totalPerSize,
-    ]);
+          // Main product row
+          tableBody.push([
+            itemIndex.toString(),
+            item.name,
+            sizeValueUnit,
+            quantity,
+            pricePerUnit,
+            totalPerSize,
+          ]);
 
-    itemIndex++;
-    
-    if (
-      sizeIndex === 0 &&
-      item.description &&
-      item.description.trim() &&
-      !item.description.toLowerCase().includes("test")
-    ) {
-      tableBody.push([
-        "",
-        {
-          content: `↳ ${item.description.trim()}`,
-          styles: {
-            fontStyle: "italic",
-            textColor: [120, 120, 120],
-            fontSize: 8,
-          },
+          itemIndex++;
+
+          if (
+            sizeIndex === 0 &&
+            item.description &&
+            item.description.trim() &&
+            !item.description.toLowerCase().includes("test")
+          ) {
+            tableBody.push([
+              "",
+              {
+                content: `↳ ${item.description.trim()}`,
+                styles: {
+                  fontStyle: "italic",
+                  textColor: [120, 120, 120],
+                  fontSize: 8,
+                },
+              },
+              "",
+              "",
+              "",
+              "",
+            ]);
+          }
+        });
+      });
+
+      // Draw table
+      (doc as any).autoTable({
+        head: tableHead,
+        body: tableBody,
+        startY: tableStartY,
+        styles: {
+          fontSize: 9,
+          cellPadding: 3,
         },
-        "",
-        "",
-        "",
-        "",
-      ]);
-    }
-  });
-});
-
-// Draw table
-(doc as any).autoTable({
-  head: tableHead,
-  body: tableBody,
-  startY: tableStartY,
-  styles: {
-    fontSize: 9,
-    cellPadding: 3,
-  },
-  theme: "striped",
-  headStyles: {
-    fillColor: brandColor,
-    textColor: 255,
-    fontStyle: "bold",
-    halign: "center",
-  },
-  alternateRowStyles: {
-    fillColor: [250, 250, 250],
-  },
-  columnStyles: {
-    0: { halign: "center", cellWidth: 10 },
-    1: { cellWidth: "auto" },
-    2: { halign: "center", cellWidth: 25 },
-    3: { halign: "center", cellWidth: 15 },
-    4: { halign: "right", cellWidth: 25 },
-    5: { halign: "right", cellWidth: 25 },
-  },
-  margin: { left: margin, right: margin, bottom: 30 },
-  tableWidth: "auto",
-  showHead: "everyPage",
-  didDrawPage: () => {
-    doc.setFillColor(...brandColor);
-    doc.rect(0, 0, pageWidth, 5, "F");
-    doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
-  },
-});
+        theme: "striped",
+        headStyles: {
+          fillColor: brandColor,
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "center",
+        },
+        alternateRowStyles: {
+          fillColor: [250, 250, 250],
+        },
+        columnStyles: {
+          0: { halign: "center", cellWidth: 10 },
+          1: { cellWidth: "auto" },
+          2: { halign: "center", cellWidth: 25 },
+          3: { halign: "center", cellWidth: 15 },
+          4: { halign: "right", cellWidth: 25 },
+          5: { halign: "right", cellWidth: 25 },
+        },
+        margin: { left: margin, right: margin, bottom: 30 },
+        tableWidth: "auto",
+        showHead: "everyPage",
+        didDrawPage: () => {
+          doc.setFillColor(...brandColor);
+          doc.rect(0, 0, pageWidth, 5, "F");
+          doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        },
+      });
 
 
       const finalY = (doc as any).lastAutoTable.finalY + 8;
@@ -657,17 +704,18 @@ currentOrder.items.forEach((item: any) => {
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
         return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
       }, 0);
-      const handling = Number((currentOrder as any)?.po_handling_charges || 0);
-      const fred = Number((currentOrder as any)?.po_fred_charges || 0);
+      // PO charges should ONLY be included for Purchase Orders, not Sales Orders
+      const handling = poIs ? Number((currentOrder as any)?.po_handling_charges || 0) : 0;
+      const fred = poIs ? Number((currentOrder as any)?.po_fred_charges || 0) : 0;
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
       const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
-      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
+      // Correct formula: Total = Subtotal + Shipping + Tax + PO Charges (if PO) - Discount
       const total = subtotal + handling + fred + shipping + tax - discountAmount;
 
       // Get discount details for display
       const discountDetails = (currentOrder as any)?.discount_details || [];
-      const discountLabel = discountDetails.length > 0 
+      const discountLabel = discountDetails.length > 0
         ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
         : "Discount";
 
@@ -676,7 +724,7 @@ currentOrder.items.forEach((item: any) => {
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
-      
+
       // Add discount row if discount exists
       if (discountAmount > 0) {
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
@@ -717,8 +765,8 @@ currentOrder.items.forEach((item: any) => {
         doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" });
         pdfPaidAmountY += 12;
       }
-      
-      const pdfBalanceDue = Math.max(0, total - paidAmount);
+
+      const pdfBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
       if (pdfBalanceDue > 0) {
         doc.setFillColor(239, 68, 68); // Red
         doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F");
@@ -729,12 +777,12 @@ currentOrder.items.forEach((item: any) => {
         doc.text(`$${pdfBalanceDue.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" });
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94); // Green
-        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 8, 1, 1, "F");
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setTextColor(255, 255, 255);
-        doc.text("FULLY PAID", pageWidth - margin - 50, pdfPaidAmountY + 5.5, { align: "center" });
-        pdfPaidAmountY += 10;
+        doc.text("FULLY PAID", pageWidth - margin - 45, pdfPaidAmountY + 7, { align: "center" });
+        pdfPaidAmountY += 12;
       }
 
       // ===== FOOTER =====
@@ -743,7 +791,7 @@ currentOrder.items.forEach((item: any) => {
       const summaryEndY = pdfPaidAmountY + 5; // Add some padding after last element
       const minFooterY = pageHeight - 25; // Minimum position from bottom
       const footerY = Math.max(summaryEndY + 10, minFooterY);
-      
+
       // Check if footer would go off page, if so add new page
       if (footerY > pageHeight - 15) {
         // Don't draw footer on this page if it would overlap with page number area
@@ -753,18 +801,18 @@ currentOrder.items.forEach((item: any) => {
         doc.setDrawColor(220, 220, 220);
         doc.setLineWidth(0.3);
         doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
-        
+
         // Thank you message
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
         doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
-        
+
         // Payment info - different for paid vs unpaid
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
-        
+
         if (currentOrder.payment_status === "paid") {
           // Show transaction ID for paid invoices
           const transactionId = (currentOrder as any).payment_transication || "";
@@ -783,18 +831,18 @@ currentOrder.items.forEach((item: any) => {
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      
+
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Ensure footer band is on this page
         doc.setFillColor(59, 130, 246);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
-        
+
         // Draw white background for page number visibility
         doc.setFillColor(255, 255, 255);
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
-        
+
         // Draw page number text
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
@@ -834,7 +882,7 @@ currentOrder.items.forEach((item: any) => {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 12;
-      
+
       // Brand color
       const brandColor: [number, number, number] = [59, 130, 246];
       const darkGray: [number, number, number] = [60, 60, 60];
@@ -854,7 +902,7 @@ currentOrder.items.forEach((item: any) => {
           logo.onerror = () => resolve();
           setTimeout(() => resolve(), 3000);
         });
-        
+
         if (logoLoaded && logo.width > 0) {
           const logoHeight = 20;
           const logoWidth = (logo.width / logo.height) * logoHeight;
@@ -869,7 +917,7 @@ currentOrder.items.forEach((item: any) => {
       doc.setFontSize(16);
       doc.setTextColor(...darkGray);
       doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
-      
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
@@ -880,10 +928,10 @@ currentOrder.items.forEach((item: any) => {
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
       const invoiceNumber = (currentOrder as any).invoice_number;
       const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
-      
+
       let documentTitle: string;
       let documentNumber: string;
-      
+
       if (poIs) {
         documentTitle = "PURCHASE ORDER";
         documentNumber = currentOrder.order_number;
@@ -894,28 +942,28 @@ currentOrder.items.forEach((item: any) => {
         documentTitle = "SALES ORDER";
         documentNumber = currentOrder.order_number;
       }
-      
+
       doc.setFont("helvetica", "bold");
       doc.setFontSize(24);
       doc.setTextColor(...brandColor);
       doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
-      
+
       doc.setFontSize(10);
       doc.setTextColor(...darkGray);
       doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
-      
+
       if (invoiceNumber && !isNewOrder && !poIs) {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
         doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
       }
-      
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
-      
+
       // Payment status badge
       const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
       if (currentOrder.payment_status === "paid") {
@@ -937,7 +985,7 @@ currentOrder.items.forEach((item: any) => {
       // ===== BARCODE =====
       try {
         const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 11, 50, 12);
       } catch {
         // Skip barcode if generation fails
       }
@@ -954,12 +1002,12 @@ currentOrder.items.forEach((item: any) => {
       const drawInfoBox = (title: string, x: number, lines: string[]) => {
         doc.setFillColor(...lightGray);
         doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
-        
+
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
         doc.text(title, x + 5, infoStartY + 7);
-        
+
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(...darkGray);
@@ -985,7 +1033,7 @@ currentOrder.items.forEach((item: any) => {
             getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
           ].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
         drawInfoBox("VENDOR", margin, vendorLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
           "9RX LLC",
@@ -995,31 +1043,38 @@ currentOrder.items.forEach((item: any) => {
           "info@9rx.com"
         ]);
       } else {
+        // INVOICE & SALES ORDER: Bill To + Ship To Customer
+        // Extract billing address from customerInfo.address
+        const billingAddr = currentOrder.customerInfo?.address || {};
+        const billingStreet = billingAddr.street || "";
+        const billingCity = billingAddr.city || "";
+        const billingState = billingAddr.state || "";
+        const billingZip = billingAddr.zip_code || "";
+        
+        // Extract shipping address from shippingAddress.address
+        const shippingAddr = (currentOrder.shippingAddress as any)?.address || {};
+        const shippingStreet = shippingAddr.street || "";
+        const shippingCity = shippingAddr.city || "";
+        const shippingState = shippingAddr.state || "";
+        const shippingZip = shippingAddr.zip_code || "";
+
         const billToLines = [
           companyName,
           currentOrder.customerInfo?.name,
           currentOrder.customerInfo?.phone,
           currentOrder.customerInfo?.email,
-          [
-            getAddressField(currentOrder.shippingAddress, "billing", "street1"),
-            getAddressField(currentOrder.shippingAddress, "billing", "city"),
-            getAddressField(currentOrder.shippingAddress, "billing", "state"),
-            getAddressField(currentOrder.shippingAddress, "billing", "zipCode")
-          ].filter(Boolean).join(", ")
+          billingStreet,
+          [billingCity, billingState, billingZip].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
         const shipToLines = [
-          getAddressField(currentOrder.shippingAddress, "shipping", "companyName") || companyName,
+          (currentOrder.shippingAddress as any)?.fullName || companyName,
           currentOrder.customerInfo?.name,
-          getAddressField(currentOrder.shippingAddress, "shipping", "phone") || currentOrder.customerInfo?.phone,
-          [
-            getAddressField(currentOrder.shippingAddress, "shipping", "street1"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "city"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "state"),
-            getAddressField(currentOrder.shippingAddress, "shipping", "zipCode")
-          ].filter(Boolean).join(", ")
+          (currentOrder.shippingAddress as any)?.phone || currentOrder.customerInfo?.phone,
+          shippingStreet,
+          [shippingCity, shippingState, shippingZip].filter(Boolean).join(", ")
         ].filter(Boolean);
-        
+
         drawInfoBox("BILL TO", margin, billToLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
       }
@@ -1060,14 +1115,14 @@ currentOrder.items.forEach((item: any) => {
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
-        styles: { 
+        styles: {
           fontSize: 9,
           cellPadding: 3,
         },
         theme: "striped",
-        headStyles: { 
-          fillColor: brandColor, 
-          textColor: 255, 
+        headStyles: {
+          fillColor: brandColor,
+          textColor: 255,
           fontStyle: "bold",
           halign: "center"
         },
@@ -1101,17 +1156,18 @@ currentOrder.items.forEach((item: any) => {
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
         return sum + item.sizes.reduce((sizeSum, size) => sizeSum + size.quantity * size.price, 0);
       }, 0);
-      const handling = Number((currentOrder as any)?.po_handling_charges || 0);
-      const fred = Number((currentOrder as any)?.po_fred_charges || 0);
+      // PO charges should ONLY be included for Purchase Orders, not Sales Orders
+      const handling = poIs ? Number((currentOrder as any)?.po_handling_charges || 0) : 0;
+      const fred = poIs ? Number((currentOrder as any)?.po_fred_charges || 0) : 0;
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
       const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
-      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
+      // Correct formula: Total = Subtotal + Shipping + Tax + PO Charges (if PO) - Discount
       const total = subtotal + handling + fred + shipping + tax - discountAmount;
 
       // Get discount details for display
       const discountDetails = (currentOrder as any)?.discount_details || [];
-      const discountLabel = discountDetails.length > 0 
+      const discountLabel = discountDetails.length > 0
         ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
         : "Discount";
 
@@ -1120,7 +1176,7 @@ currentOrder.items.forEach((item: any) => {
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
-      
+
       // Add discount row if discount exists
       if (discountAmount > 0) {
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
@@ -1161,8 +1217,8 @@ currentOrder.items.forEach((item: any) => {
         doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" });
         printPaidAmountY += 12;
       }
-      
-      const printBalanceDue = Math.max(0, total - paidAmount);
+
+      const printBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68); // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F");
@@ -1173,12 +1229,12 @@ currentOrder.items.forEach((item: any) => {
         doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" });
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94); // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F");
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
+        doc.setFontSize(10);
         doc.setTextColor(255, 255, 255);
-        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" });
-        printPaidAmountY += 10;
+        doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" });
+        printPaidAmountY += 12;
       }
 
       // ===== FOOTER =====
@@ -1186,7 +1242,7 @@ currentOrder.items.forEach((item: any) => {
       const summaryEndY = printPaidAmountY + 5;
       const minFooterY = pageHeight - 25;
       const footerY = Math.max(summaryEndY + 10, minFooterY);
-      
+
       // Check if footer would go off page
       if (footerY > pageHeight - 15) {
         // Don't draw footer text if it would overlap with page number area
@@ -1194,16 +1250,16 @@ currentOrder.items.forEach((item: any) => {
         doc.setDrawColor(220, 220, 220);
         doc.setLineWidth(0.3);
         doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
-        
+
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
         doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
-        
+
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(120, 120, 120);
-        
+
         if (currentOrder.payment_status === "paid") {
           const transactionId = (currentOrder as any).payment_transication || "";
           if (transactionId) {
@@ -1220,18 +1276,18 @@ currentOrder.items.forEach((item: any) => {
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      
+
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-        
+
         // Ensure footer band is on this page
         doc.setFillColor(59, 130, 246);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
-        
+
         // Draw white background for page number visibility
         doc.setFillColor(255, 255, 255);
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
-        
+
         // Draw page number text
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
@@ -1242,7 +1298,7 @@ currentOrder.items.forEach((item: any) => {
       // Open PDF in iframe for printing with proper margins
       const pdfBlob = doc.output('blob');
       const pdfUrl = URL.createObjectURL(pdfBlob);
-      
+
       // Create a hidden iframe for printing
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
@@ -1252,9 +1308,9 @@ currentOrder.items.forEach((item: any) => {
       iframe.style.height = '0';
       iframe.style.border = 'none';
       iframe.src = pdfUrl;
-      
+
       document.body.appendChild(iframe);
-      
+
       iframe.onload = () => {
         setTimeout(() => {
           try {
@@ -1295,29 +1351,155 @@ currentOrder.items.forEach((item: any) => {
     for (const item of orderItems) {
       if (item.sizes && item.sizes.length > 0) {
         for (const size of item.sizes) {
-          const { data: currentSize, error: fetchError } = await supabase
+          const currentSizeRes = await supabase
             .from("product_sizes")
-            .select("stock")
+            .select("stock, cost_price")
             .eq("id", size.id)
             .single();
+          const currentSize = (currentSizeRes.data as unknown) as { stock: number; cost_price?: number } | null;
+          const fetchError = currentSizeRes.error;
 
           if (fetchError || !currentSize) {
             console.warn(`Size not found in Supabase for ID: ${size.id}, skipping...`);
             continue;
           }
 
-          const newQuantity = isApprove
-            ? currentSize.stock + size.quantity
-            : currentSize.stock - size.quantity;
+          if (isApprove) {
+            // Calculate new stock
+            const newStock = currentSize.stock + size.quantity;
 
-          const { error: updateError } = await supabase
-            .from("product_sizes")
-            .update({ stock: newQuantity })
-            .eq("id", size.id);
+            // Calculate weighted average cost price
+            const currentCostPrice = (currentSize.cost_price ?? (currentSize.stock > 0 ? currentSize.cost_price : size.price)) as number;
+            const oldTotalCost = currentCostPrice * currentSize.stock;
+            const newTotalCost = size.price * size.quantity;
+            const weightedAvgCostPrice = newStock > 0 ? (oldTotalCost + newTotalCost) / newStock : size.price;
 
-          if (updateError) {
-            console.error(`Failed to update stock for size ID: ${size.id}`, updateError);
-            throw new Error("Failed to update size quantity");
+            // Enhanced debugging
+            console.log(`
+🔍 PO APPROVAL - Size ID: ${size.id}
+📊 Current Data from DB:
+   - Current Stock: ${currentSize.stock}
+   - Current Cost Price: $${currentCostPrice}
+   
+📦 PO Data:
+   - PO Quantity: ${size.quantity}
+   - PO Price: $${size.price}
+   
+🧮 Calculation:
+   - Old Total Cost: $${currentCostPrice} × ${currentSize.stock} = $${oldTotalCost.toFixed(2)}
+   - New Total Cost: $${size.price} × ${size.quantity} = $${newTotalCost.toFixed(2)}
+   - Combined Total: $${(oldTotalCost + newTotalCost).toFixed(2)}
+   - New Stock: ${newStock}
+   - Weighted Avg: $${(oldTotalCost + newTotalCost).toFixed(2)} ÷ ${newStock} = $${weightedAvgCostPrice.toFixed(2)}
+   
+✅ Updating to:
+   - New Stock: ${newStock}
+   - New Cost Price: $${Number(weightedAvgCostPrice.toFixed(2))}
+            `);
+
+            // Update both stock and cost_price
+            const { error: updateError } = await supabase
+              .from("product_sizes")
+              .update({
+                stock: newStock,
+                cost_price: Number(weightedAvgCostPrice.toFixed(2))
+              })
+              .eq("id", size.id);
+
+            if (updateError) {
+              console.error(`❌ Failed to update stock and cost_price for size ID: ${size.id}`, updateError);
+              throw new Error("Failed to update size quantity and cost price");
+            }
+
+            // Verify the update was successful by fetching the updated value
+            const verifyRes = await supabase
+              .from("product_sizes")
+              .select("stock, cost_price")
+              .eq("id", size.id)
+              .single();
+            const verifyData = (verifyRes.data as unknown) as { stock: number; cost_price?: number } | null;
+            const verifyError = verifyRes.error;
+
+            if (verifyError) {
+              console.error(`❌ Failed to verify update for size ID: ${size.id}`, verifyError);
+            } else {
+              console.log(`✅ Database update successful for size ${size.id}`);
+              console.log(`🔍 Verified values in DB: Stock=${verifyData?.stock}, Cost Price=$${verifyData?.cost_price}`);
+
+              // Check if the values match what we expected
+              if (verifyData?.stock !== newStock) {
+                console.error(`⚠️ Stock mismatch! Expected ${newStock}, got ${verifyData?.stock}`);
+              }
+              if (Math.abs((verifyData?.cost_price ?? 0) - Number(weightedAvgCostPrice.toFixed(2))) > 0.01) {
+                console.error(`⚠️ Cost price mismatch! Expected ${Number(weightedAvgCostPrice.toFixed(2))}, got ${verifyData?.cost_price}`);
+              }
+            }
+          } else {
+            // Reject: reduce stock AND reverse weighted average cost_price
+            const currentAvgCost = (currentSize.cost_price ?? size.price) as number;
+            const currentStock = currentSize.stock;
+            const poPrice = size.price;
+            const poQty = size.quantity;
+            
+            // Calculate new stock
+            const newStock = currentStock - poQty;
+            
+            // Reverse weighted average formula:
+            // Old Cost = (Current Avg × Current Stock - PO Cost × PO Qty) / (Current Stock - PO Qty)
+            const oldTotalCost = (currentAvgCost * currentStock) - (poPrice * poQty);
+            const reversedCostPrice = newStock > 0 ? oldTotalCost / newStock : currentAvgCost;
+            
+            // Enhanced debugging for rejection
+            console.log(`
+                🔴 PO REJECTION - Size ID: ${size.id}
+                📊 Current Data from DB:
+                  - Current Stock: ${currentStock}
+                  - Current Cost Price: ${currentAvgCost}
+                  
+                📦 PO Data (Being Removed):
+                  - PO Quantity: ${poQty}
+                  - PO Price: ${poPrice}
+                  
+                🧮 Reverse Calculation:
+                  - Current Total Cost: ${currentAvgCost} × ${currentStock} = ${(currentAvgCost * currentStock).toFixed(2)}
+                  - PO Total Cost: ${poPrice} × ${poQty} = ${(poPrice * poQty).toFixed(2)}
+                  - Remaining Total: ${(currentAvgCost * currentStock).toFixed(2)} - ${(poPrice * poQty).toFixed(2)} = ${oldTotalCost.toFixed(2)}
+                  - New Stock: ${newStock}
+                  - Reversed Avg: ${oldTotalCost.toFixed(2)} ÷ ${newStock} = ${reversedCostPrice.toFixed(2)}
+                  
+                ✅ Updating to:
+                  - New Stock: ${newStock}
+                  - New Cost Price: ${Number(reversedCostPrice.toFixed(2))}
+            `);
+
+            const { error: updateError } = await supabase
+              .from("product_sizes")
+              .update({ 
+                stock: newStock,
+                cost_price: Number(reversedCostPrice.toFixed(2))
+              })
+              .eq("id", size.id);
+
+            if (updateError) {
+              console.error(`❌ Failed to update stock and cost_price for size ID: ${size.id}`, updateError);
+              throw new Error("Failed to update size quantity and cost price");
+            }
+            
+            // Verify the update was successful
+            const verifyRes = await supabase
+              .from("product_sizes")
+              .select("stock, cost_price")
+              .eq("id", size.id)
+              .single();
+            const verifyData = (verifyRes.data as unknown) as { stock: number; cost_price?: number } | null;
+            const verifyError = verifyRes.error;
+            
+            if (verifyError) {
+              console.error(`❌ Failed to verify update for size ID: ${size.id}`, verifyError);
+            } else {
+              console.log(`✅ Database update successful for size ${size.id}`);
+              console.log(`🔍 Verified values in DB: Stock=${verifyData?.stock}, Cost Price=${verifyData?.cost_price}`);
+            }
           }
         }
       }
@@ -1325,7 +1507,67 @@ currentOrder.items.forEach((item: any) => {
   };
 
   const handleApprove = async () => {
-    setChargesOpen(true);
+    // Check if already approved or rejected
+    if ((currentOrder as any).poApproved === true) {
+      toast({
+        title: "Already Approved",
+        description: "This purchase order has already been approved.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if ((currentOrder as any).poRejected === true) {
+      toast({
+        title: "Cannot Approve",
+        description: "This purchase order has been rejected and cannot be approved.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Temporarily close sheet to show popup
+    onOpenChange(false);
+    
+    // Small delay to ensure sheet is closed
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Show warning confirmation
+    const result = await Swal.fire({
+      title: "Approve Purchase Order?",
+      html: `
+        <div class="text-left space-y-2">
+          <p class="text-gray-700">This will:</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Increase inventory stock</li>
+            <li>Update cost prices using weighted average</li>
+            <li>Mark this PO as approved</li>
+          </ul>
+          <p class="text-red-600 font-semibold mt-4">⚠️ This action cannot be undone!</p>
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#2563eb",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Approve",
+      cancelButtonText: "Cancel",
+      customClass: {
+        popup: "!z-[100000] rounded-xl shadow-lg",
+        container: "!z-[100000]",
+      },
+      backdrop: true,
+      allowOutsideClick: false,
+    });
+    
+    if (result.isConfirmed) {
+      // Reopen sheet
+      onOpenChange(true);
+      setChargesOpen(true);
+    } else {
+      // Reopen sheet if cancelled
+      onOpenChange(true);
+    }
   };
 
   const submitCharges = async (handling, fred) => {
@@ -1344,16 +1586,37 @@ currentOrder.items.forEach((item: any) => {
         .from("orders")
         .update({
           poApproved: true,
+          poRejected: false,
           po_handling_charges: handling,
           po_fred_charges: fred,
         })
         .eq("id", order.id);
 
+      // Log PO approval activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logActivity({
+          orderId: order.id,
+          activityType: "updated",
+          description: `Purchase Order approved with handling charges: $${handling.toFixed(2)}, freight charges: $${fred.toFixed(2)}`,
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+          metadata: {
+            po_approved: true,
+            handling_charges: handling,
+            freight_charges: fred,
+          },
+        });
+      } catch (activityError) {
+        console.error("Failed to log PO approval activity:", activityError);
+      }
+
       onOpenChange(false);
       Swal.close();
 
       Swal.fire({
-        title: "Order Approved ?",
+        title: "Order Approved",
         icon: "success",
       }).then(() => window.location.reload());
     } catch (error) {
@@ -1367,10 +1630,68 @@ currentOrder.items.forEach((item: any) => {
   };
 
   const handleReject = async () => {
+    // Check if already rejected or approved
+    if ((currentOrder as any).poRejected === true) {
+      toast({
+        title: "Already Rejected",
+        description: "This purchase order has already been rejected.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if ((currentOrder as any).poApproved === true) {
+      toast({
+        title: "Cannot Reject",
+        description: "This purchase order has been approved and cannot be rejected.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Temporarily close sheet to show popup
+    onOpenChange(false);
+    
+    // Small delay to ensure sheet is closed
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Show warning confirmation
+    const confirmResult = await Swal.fire({
+      title: "Reject Purchase Order?",
+      html: `
+        <div class="text-left space-y-2">
+          <p class="text-gray-700">This will:</p>
+          <ul class="list-disc list-inside text-gray-600 space-y-1">
+            <li>Reduce inventory stock (if previously added)</li>
+            <li>Mark this PO as rejected</li>
+          </ul>
+          <p class="text-red-600 font-semibold mt-4">⚠️ This action cannot be undone!</p>
+        </div>
+      `,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Reject",
+      cancelButtonText: "Cancel",
+      customClass: {
+        popup: "!z-[100000] rounded-xl shadow-lg",
+        container: "!z-[100000]",
+      },
+      backdrop: true,
+      allowOutsideClick: false,
+    });
+    
+    if (!confirmResult.isConfirmed) {
+      // Reopen sheet if cancelled
+      onOpenChange(true);
+      return;
+    }
+    
     try {
       Swal.fire({
         title: "Rejecting Order...",
-        text: "Please wait while we update the stock.",
+        text: "Please wait while we update the stock and cost prices.",
         allowOutsideClick: false,
         allowEscapeKey: false,
         didOpen: () => {
@@ -1388,22 +1709,41 @@ currentOrder.items.forEach((item: any) => {
         .from("orders")
         .update({
           poApproved: false,
+          poRejected: true,
           po_handling_charges: 0,
           po_fred_charges: 0,
         })
         .eq("id", order.id);
 
+      // Log PO rejection activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logActivity({
+          orderId: order.id,
+          activityType: "updated",
+          description: "Purchase Order rejected - stock restored",
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+          metadata: {
+            po_approved: false,
+            handling_charges: 0,
+            freight_charges: 0,
+          },
+        });
+      } catch (activityError) {
+        console.error("Failed to log PO rejection activity:", activityError);
+      }
+
       onOpenChange(false);
       Swal.close();
 
       Swal.fire({
-        title: "Order Rejected ?",
-        text: "Stock has been reduced successfully!",
-        icon: "warning",
+        title: "Order Rejected",
+        text: "Stock and cost prices have been reversed successfully!",
+        icon: "success",
         confirmButtonText: "OK",
-        confirmButtonColor: "#f59e0b",
-        background: "#fff7ed",
-        color: "#78350f",
+        confirmButtonColor: "#dc2626",
         customClass: {
           popup: "z-[99999] rounded-xl shadow-lg",
         },
@@ -1426,7 +1766,7 @@ currentOrder.items.forEach((item: any) => {
   };
 
 
-    const handleDownloadPackingSlip = () => {
+  const handleDownloadPackingSlip = () => {
     // Open modal instead of directly downloading
     setIsPackingSlipModalOpen(true);
   };
@@ -1437,10 +1777,10 @@ currentOrder.items.forEach((item: any) => {
   // Use simplified view for pharmacy users (not editing, not PO)
   if (userRole === "pharmacy" && !isEditing && !poIs) {
     return (
-      <PharmacyOrderDetails 
-        order={currentOrder} 
-        open={open} 
-        onOpenChange={onOpenChange} 
+      <PharmacyOrderDetails
+        order={currentOrder}
+        open={open}
+        onOpenChange={onOpenChange}
       />
     );
   }
@@ -1459,8 +1799,8 @@ currentOrder.items.forEach((item: any) => {
           <div className="flex-1 overflow-y-auto pr-1 sm:pr-2">
             {isEditing ? (
               <div className="mt-4 sm:mt-6">
-                <CreateOrderForm 
-                  initialData={currentOrder} 
+                <CreateOrderForm
+                  initialData={currentOrder}
                   isEditing={isEditing}
                   poIs={poIs}
                 />
@@ -1497,7 +1837,7 @@ currentOrder.items.forEach((item: any) => {
                 />
 
                 {/* Tabs */}
-                <Tabs defaultValue="overview" className="w-full">
+                <Tabs key={currentOrder.id} defaultValue="overview" className="w-full">
                   <TabsList className="w-full h-auto flex sm:grid sm:grid-cols-6 gap-1 mb-4 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30">
                     <TabsTrigger value="overview" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                       Overview
@@ -1517,7 +1857,7 @@ currentOrder.items.forEach((item: any) => {
                     <TabsTrigger value="activity" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                       Activity
                     </TabsTrigger>
-                  </TabsList> 
+                  </TabsList>
 
                   <TabsContent value="overview" className="mt-0">
                     <OverviewTab order={currentOrder} companyName={companyName} poIs={poIs} />
@@ -1543,9 +1883,9 @@ currentOrder.items.forEach((item: any) => {
                         const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
                         const discountAmount = Number((currentOrder as any).discount_amount || 0);
                         const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
-                        
-                        setCurrentOrder(prev => ({ 
-                          ...prev, 
+
+                        setCurrentOrder(prev => ({
+                          ...prev,
                           items: updatedItems,
                           total: newTotal.toFixed(2)
                         }));
@@ -1599,12 +1939,12 @@ currentOrder.items.forEach((item: any) => {
                   <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-2 sm:gap-3 mt-4 pt-4 border-t">
 
                     <button
-                    onClick={handleDownloadPackingSlip}
-                    className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
-                  >
-                    <Package size={18} />
-                    Packing Slip
-                  </button>
+                      onClick={handleDownloadPackingSlip}
+                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
+                    >
+                      <Package size={18} />
+                      Packing Slip
+                    </button>
                     <OrderActions
                       order={currentOrder}
                       onProcessOrder={() => handleStatusUpdate("process")}
@@ -1614,26 +1954,53 @@ currentOrder.items.forEach((item: any) => {
                     />
                   </div>
                 )}
-
-                {/* PO Actions */}
-                {poIs && (
-                  <div className="flex flex-col sm:flex-row w-full justify-end mt-6 gap-3 pt-4 border-t">
-                    {order?.poApproved ? (
-                      <Button onClick={handleReject} variant="destructive" className="gap-2 w-full sm:w-auto">
-                        <XCircle size={18} />
-                        Reject Purchase
-                      </Button>
-                    ) : (
-                      <Button onClick={handleApprove} className="gap-2 bg-blue-600 hover:bg-blue-700 w-full sm:w-auto">
-                        <CheckCircle size={18} />
-                        Approve Purchase
-                      </Button>
-                    )}
-                  </div>
-                )}
               </div>
             )}
           </div>
+
+          {/* PO Actions - Fixed Footer (Outside scrollable area) */}
+          {poIs && !isEditing && (
+            <div className="flex flex-col sm:flex-row w-full justify-end gap-3 pt-3 border-t border-gray-200 bg-white">
+              {/* Show status badge if already processed */}
+              {((currentOrder as any).poApproved || (currentOrder as any).poRejected) && (
+                <div className="flex items-center gap-2 mr-auto">
+                  {(currentOrder as any).poApproved && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      <CheckCircle size={16} />
+                      Approved
+                    </span>
+                  )}
+                  {(currentOrder as any).poRejected && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                      <XCircle size={16} />
+                      Rejected
+                    </span>
+                  )}
+                </div>
+              )}
+              
+              {/* Approve Button - disabled if already approved or rejected */}
+              <Button 
+                onClick={handleApprove} 
+                disabled={(currentOrder as any).poApproved || (currentOrder as any).poRejected}
+                className="gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+              >
+                <CheckCircle size={18} />
+                Approve Purchase
+              </Button>
+              
+              {/* Reject Button - disabled if already rejected or approved */}
+              <Button 
+                onClick={handleReject} 
+                disabled={(currentOrder as any).poRejected || (currentOrder as any).poApproved}
+                variant="destructive" 
+                className="gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
+              >
+                <XCircle size={18} />
+                Reject Purchase
+              </Button>
+            </div>
+          )}
 
           <ChargesDialog open={chargesOpen} onOpenChange={setChargesOpen} onSubmit={submitCharges} />
         </SheetContent>

@@ -177,6 +177,8 @@ export const CustomerTab = ({
     state: getAddressField(shippingAddress, "shipping", "state"),
     zipCode: getAddressField(shippingAddress, "shipping", "zipCode"),
   });
+  console.log('shippingForm:', shippingForm);
+  console.log("customerInfo", customerInfo);
 
   // Handle save billing
   const handleSaveBilling = useCallback(async () => {

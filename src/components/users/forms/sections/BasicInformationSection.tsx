@@ -31,6 +31,12 @@ export function BasicInformationSection({
   self = false,
   isAdmin = false,
 }: BasicInformationSectionProps) {
+  const userType = form.watch("type");
+  const userRole = form.watch("role");
+  const isVendor = userType === "vendor";
+  const isAdminRole = userRole === "admin";
+  const isTypeDisabled = isVendor || isAdminRole;
+  
   return (
     <Card className={self ? "border-0 shadow-none p-0" : ""}>
       {!self && (
@@ -84,28 +90,53 @@ export function BasicInformationSection({
 
         {!self && (
           <div className="grid grid-cols-2 gap-2">
-            <FormField
-              control={form.control}
-              name="type"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel htmlFor="type" className="text-[10px] sm:text-[11px]">Customer Type</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+            {/* Customer Type Field - Disabled for Vendors and Admins */}
+            {isTypeDisabled ? (
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="type" className="text-[10px] sm:text-[11px]">Customer Type</FormLabel>
                     <FormControl>
-                      <SelectTrigger id="type" className="h-7 sm:h-8 text-[11px] sm:text-xs">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
+                      <Input 
+                        id="type" 
+                        {...field}
+                        value={isVendor ? "Vendor" : "Admin"} 
+                        readOnly
+                        className="h-7 sm:h-8 text-[11px] sm:text-xs bg-gray-100 cursor-not-allowed capitalize" 
+                      />
                     </FormControl>
-                    <SelectContent>
-                      <SelectItem value="pharmacy">Pharmacy</SelectItem>
-                      <SelectItem value="hospital">Hospital</SelectItem>
-                      <SelectItem value="group">Group</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage className="text-[9px] sm:text-[10px]" />
-                </FormItem>
-              )}
-            />
+                    <FormMessage className="text-[9px] sm:text-[10px]" />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <FormField
+                control={form.control}
+                name="type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel htmlFor="type" className="text-[10px] sm:text-[11px]">Customer Type</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger id="type" className="h-7 sm:h-8 text-[11px] sm:text-xs">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="pharmacy">Pharmacy</SelectItem>
+                        <SelectItem value="hospital">Hospital</SelectItem>
+                        <SelectItem value="group">Group</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage className="text-[9px] sm:text-[10px]" />
+                  </FormItem>
+                )}
+              />
+            )}
+            
+            {/* Status Field */}
             <FormField
               control={form.control}
               name="status"

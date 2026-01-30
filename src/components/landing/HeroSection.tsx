@@ -174,12 +174,12 @@ const HeroSection = () => {
 
   //Category names for future use
   const categories = [
-    { title: "COMPLIANCE PACKAGING", categoryImages: Category6, color: "from-blue-500 to-indigo-600" }, 
-    { title: "CONTAINERS & CLOSURES", categoryImages: Category2, color: "from-indigo-500 to-blue-600" },
-    { title: "ORAL SYRINGES & ACCESSORIES", categoryImages: Category3, color: "from-blue-600 to-indigo-500" },
-    { title: "OTHER SUPPLY", categoryImages: Category4, color: "from-indigo-600 to-blue-500" },
-    { title: "RX LABELS", categoryImages: Category5, color: "from-blue-500 to-indigo-600" },
-    { title: "RX PAPER BAGS", categoryImages: Category1, color: "from-indigo-500 to-blue-600" },
+    { title: "CONTAINERS & CLOSURES", categoryImages: Category2, color: "from-blue-500 to-indigo-600" },
+    { title: "RX LABELS", categoryImages: Category3, color: "from-indigo-500 to-blue-600" },
+    { title: "COMPLIANCE PACKAGING", categoryImages: Category6, color: "from-blue-600 to-indigo-500" },
+    { title: "RX PAPER BAGS ", categoryImages: Category1, color: "from-indigo-600 to-blue-500" },
+    { title: "ORAL SYRINGES & ACCESSORIES ", categoryImages: Category5, color: "from-blue-500 to-indigo-600" },
+    { title: "OTHER SUPPLY", categoryImages: Category4, color: "from-indigo-500 to-blue-600" },
   ];
 
   useEffect(() => {
@@ -339,15 +339,15 @@ const HeroSection = () => {
 
                   {/* Product image area - Square shape like pharmacy products */}
                   <div className="relative aspect-square mb-3 lg:mb-4 rounded-xl overflow-hidden bg-gradient-to-br from-gray-50 to-white">
-                    <img 
-                      src={categories[activeSlide].categoryImages} 
-                      alt={categories[activeSlide].title} 
-                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110" 
+                    <img
+                      src={categories[activeSlide].categoryImages}
+                      alt={categories[activeSlide].title}
+                      className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                     />
                     <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg z-30">
                       HOT
-                    </div>      
-                  </div>  
+                    </div>
+                  </div>
 
                   {/* Product info */}
                   <div className="space-y-2 lg:space-y-3">
@@ -368,7 +368,7 @@ const HeroSection = () => {
                       className={`w-full bg-gradient-to-r ${categories[activeSlide].color} text-white font-semibold py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg text-sm`}
                     >
                       View Products
-                      <ChevronRight className="w-3.5 h-3.5" />  
+                      <ChevronRight className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

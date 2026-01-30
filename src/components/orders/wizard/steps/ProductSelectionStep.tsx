@@ -23,6 +23,15 @@ import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useScreenSize } from "@/hooks/use-mobile";
 
+const CATEGORY_ORDER = [
+  "CONTAINERS & CLOSURES",
+  "RX LABELS",
+  "COMPLIANCE PACKAGING",
+  "RX PAPER BAGS",
+  "ORAL SYRINGES & ACCESSORIES",
+  "OTHER SUPPLY",
+];
+
 interface ProductSize {
   id: string;
   size_value: string;
@@ -206,10 +215,24 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         } else {
           categoryData.subcategories.push({ name: subcat, count: 1 });
         }
-      }
+      } 
     });
     
-    return Array.from(categoryMap.values()).sort((a, b) => a.name.localeCompare(b.name));
+    // Sort categories based on CATEGORY_ORDER
+    return Array.from(categoryMap.values()).sort((a, b) => {
+      const indexA = CATEGORY_ORDER.indexOf(a.name.toUpperCase());
+      const indexB = CATEGORY_ORDER.indexOf(b.name.toUpperCase());
+      
+      // If both are in CATEGORY_ORDER, sort by their position
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      
+      // If only one is in CATEGORY_ORDER, it comes first
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      
+      // If neither is in CATEGORY_ORDER, sort alphabetically
+      return a.name.localeCompare(b.name);
+    });
   }, [products]);
 
   // Filter products based on search and category selection
@@ -228,11 +251,72 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
     
     // Filter by search query
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(p =>
-        p.name.toLowerCase().includes(query) ||
-        p.sku?.toLowerCase().includes(query)
-      );
+      const query = searchQuery.toLowerCase().trim();
+      const isNumericSearch = /^\d+$/.test(query);
+      const hasSpace = query.includes(' ');
+      
+      // Optimized size matching function
+      const sizeMatches = (size: ProductSize): boolean => {
+        const sizeText = `${size.size_value} ${size.size_unit}`.toLowerCase();
+        
+        // Fast path: exact match
+        if (sizeText === query) return true;
+        
+        // For "6 oz" type searches with space
+        if (hasSpace) {
+          return sizeText.startsWith(query + ' ') || sizeText.endsWith(' ' + query);
+        }
+        
+        // For numeric searches (e.g., "6"), exact value match only
+        if (isNumericSearch) {
+          return size.size_value?.toString() === query;
+        }
+        
+        // For text searches (e.g., "oz", "ml"), check unit or SKU
+        const sizeUnit = size.size_unit?.toLowerCase();
+        const sizeSku = size.sku?.toLowerCase();
+        return sizeUnit?.includes(query) || sizeSku?.includes(query);
+      };
+      
+      filtered = filtered
+        .map(p => {
+          // Cache lowercase values to avoid repeated conversions
+          const productName = p.name.toLowerCase();
+          const productSku = p.sku?.toLowerCase();
+          const productCategory = p.category?.toLowerCase();
+          const productSubcategory = p.subcategory?.toLowerCase();
+          
+          // Check product-level matches
+          const matchesProduct = productName.includes(query) || productSku?.includes(query);
+          const matchesCategory = productCategory?.includes(query) || productSubcategory?.includes(query);
+          const matchesProductOrCategory = matchesProduct || matchesCategory;
+          
+          // If product/category matches, return with all sizes
+          if (matchesProductOrCategory) {
+            return { product: p, shouldInclude: true, filterSizes: false };
+          }
+          
+          // Check if any size matches
+          const hasSizeMatch = p.product_sizes?.some(sizeMatches);
+          
+          return { 
+            product: p, 
+            shouldInclude: hasSizeMatch, 
+            filterSizes: hasSizeMatch 
+          };
+        })
+        .filter(item => item.shouldInclude)
+        .map(item => {
+          if (!item.filterSizes) {
+            return item.product;
+          }
+          
+          // Filter sizes only when needed
+          return {
+            ...item.product,
+            product_sizes: item.product.product_sizes?.filter(sizeMatches) || []
+          };
+        });
     }
     
     return filtered;

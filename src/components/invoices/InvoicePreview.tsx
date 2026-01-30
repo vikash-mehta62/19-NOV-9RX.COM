@@ -110,21 +110,23 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       if (!invoice?.id) return
       
       // First try to get from invoice table
-      const { data: invoiceData } = await supabase
+      const invoiceRes = await supabase
         .from("invoices")
         .select("paid_amount, total_amount, payment_status, order_id")
         .eq("id", invoice.id)
         .maybeSingle()
+      const invoiceData = invoiceRes.data as { paid_amount?: number; total_amount?: number; payment_status?: string; order_id?: string } | null
       
       let amount = Number(invoiceData?.paid_amount || 0)
       
       // Always try to get latest from linked order (source of truth)
       if (invoiceData?.order_id) {
-        const { data: orderData } = await supabase
+        const orderRes = await supabase
           .from("orders")
           .select("paid_amount, total_amount, payment_status")
           .eq("id", invoiceData.order_id)
           .maybeSingle()
+        const orderData = orderRes.data as { paid_amount?: number; total_amount?: number; payment_status?: string } | null
         
         const orderPaidAmount = Number(orderData?.paid_amount || 0)
         
@@ -385,7 +387,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
-      doc.setFontSize(11)
+      doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
@@ -414,11 +416,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.text(`$${balanceDue.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 8, 1, 1, "F")
+        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
-        doc.setFontSize(9)
+        doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 50, paidAmountY + 5.5, { align: "center" })
+        doc.text("FULLY PAID", pageWidth - margin - 45, paidAmountY + 7, { align: "center" })
       }
 
       // ===== FOOTER =====
@@ -642,7 +644,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
-      doc.setFontSize(11)
+      doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
@@ -671,11 +673,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F")
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
-        doc.setFontSize(9)
+        doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" })
+        doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" })
       }
 
       const footerY = pageHeight - 30
@@ -741,7 +743,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
   return (
     <SheetContent className="w-full sm:max-w-[600px] md:max-w-[700px] overflow-y-auto p-0">
-      <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-6 py-3 sm:py-4 relative">
+      <div className="sticky top-0 z-10 bg-white border-b px-4 sm:px-6 py-3 sm:py-4">
         {/* Mobile: Close button positioned absolutely at top right */}
         <div className="sm:hidden absolute top-2 right-2 z-20">
           <SheetClose asChild>

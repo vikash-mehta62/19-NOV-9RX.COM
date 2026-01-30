@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useCart } from "@/hooks/use-cart";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 export default function QuickOrder() {
   const navigate = useNavigate();
@@ -86,13 +87,32 @@ export default function QuickOrder() {
       };
 
       // Insert order
-      const { error: orderError } = await supabase
+      const { data: insertedOrder, error: orderError } = await supabase
         .from("orders")
-        .insert(orderPayload);
+        .insert(orderPayload)
+        .select()
+        .single();
 
       if (orderError) {
         console.error("Order insert error:", orderError);
         throw new Error(orderError.message);
+      }
+
+      // Log order creation activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logOrderCreation({
+          orderId: insertedOrder.id,
+          orderNumber: orderId,
+          totalAmount: totalAmount,
+          status: "new",
+          paymentMethod: "manual",
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+        });
+      } catch (activityError) {
+        console.error("Failed to log order creation activity:", activityError);
       }
 
       // Clear cart

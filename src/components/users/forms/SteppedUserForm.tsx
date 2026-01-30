@@ -136,8 +136,8 @@ export function SteppedUserForm({
     }
 
     try {
-      const validType = (type: string): "pharmacy" | "hospital" | "group" => {
-        const validTypes = ["pharmacy", "hospital", "group"] as const;
+      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" => {
+        const validTypes = ["pharmacy", "hospital", "group", "vendor"] as const;
         return validTypes.includes(type.toLowerCase() as any) ? (type.toLowerCase() as any) : "pharmacy";
       };
       const validStatus = (status: string): "active" | "inactive" | "pending" => {

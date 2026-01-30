@@ -311,7 +311,7 @@ export function AddProductDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-3xl max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogContent className="sm:max-w-5xl max-h-[95vh] p-0 gap-0 flex flex-col">
           {/* Header */}
           <DialogHeader className="px-6 py-4 border-b bg-white sticky top-0 z-10 flex-shrink-0">
             <div className="flex items-center justify-between">

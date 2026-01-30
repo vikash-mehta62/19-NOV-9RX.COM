@@ -908,14 +908,18 @@ export function OrdersList({
                 <div className="flex flex-col items-center">
                   <span className="font-bold text-gray-900">
                     {(() => {
-                      // Calculate correct total: Subtotal + Shipping + Tax - Discount
+                      // Calculate correct total: Subtotal + Shipping + Tax + PO Charges - Discount
                       const itemsSubtotal = order.items?.reduce((total, item) => {
                         return total + (item.sizes?.reduce((sum, size) => sum + size.quantity * size.price, 0) || 0)
                       }, 0) || 0
                       const shippingCost = parseFloat(order.shipping_cost || "0")
                       const taxAmount = parseFloat(order.tax_amount?.toString() || "0")
                       const discountAmt = parseFloat((order as any).discount_amount?.toString() || "0")
-                      const correctTotal = itemsSubtotal + shippingCost + taxAmount - discountAmt
+                      // Add PO charges ONLY for Purchase Orders (check poAccept flag)
+                      const isPurchaseOrder = (order as any).poAccept === false
+                      const handlingCharges = isPurchaseOrder ? parseFloat((order as any).po_handling_charges || "0") : 0
+                      const fredCharges = isPurchaseOrder ? parseFloat((order as any).po_fred_charges || "0") : 0
+                      const correctTotal = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmt
                       return formatTotal(correctTotal)
                     })()}
                   </span>

@@ -187,10 +187,20 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
      setOpen(false)
    
   } catch (error: any) {
+    // Handle specific error cases with user-friendly messages
+    let errorMessage = "Failed to create vendor. Please try again.";
+    
+    // Check for 400 error (user already exists)
+    if (error.response?.status === 400 || error.message?.includes("already") || error.message?.includes("exists")) {
+      errorMessage = `This email (${values.email}) is already registered. Please use a different email address.`;
+    } else if (error.response?.data?.message) {
+      errorMessage = error.response.data.message;
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+
     toast({
-      title: "Error",
-      description:
-        error.message || "Failed to create vendor. Please try again.",
+      description: errorMessage,
       variant: "destructive",
     });
   } finally {
@@ -616,7 +626,9 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit">{mode === "edit" ? "Update Vendor" : "Add Vendor"}</Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating..." : mode === "edit" ? "Update Vendor" : "Add Vendor"}
+              </Button>
             </DialogFooter>
           </form>
         </Form>

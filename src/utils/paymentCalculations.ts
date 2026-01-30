@@ -54,7 +54,10 @@ export async function calculatePaymentSummary(
       ? totalAmount 
       : paidAmount;
 
-    const balanceDue = Math.max(0, totalAmount - finalPaidAmount);
+    // Calculate balance due with proper rounding to avoid floating point issues
+    const rawBalanceDue = totalAmount - finalPaidAmount;
+    const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
+    
     const isFullyPaid = balanceDue === 0 && finalPaidAmount > 0;
     const isPartiallyPaid = finalPaidAmount > 0 && balanceDue > 0;
     const isPending = finalPaidAmount === 0;

@@ -129,32 +129,30 @@ export const SizeVariationField = ({ form }: SizeVariationFieldProps) => {
         name="sizes"
         render={({ field }) => (
           <FormItem>
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-x-auto">
               {field.value?.map((size, index) => (
                 <div
                   key={index}
-                  className="flex items-center justify-between p-3 border rounded-lg bg-secondary/10"
+                  className="flex items-center gap-3 p-3 border rounded-lg bg-secondary/10 whitespace-nowrap min-w-max"
                 >
-                  <div className="grid grid-cols-4 gap-6 flex-1">
+                  <div className="flex items-center gap-8">
                     <div>
-                      <span className="text-sm font-medium">Size</span>
+                      <span className="text-sm font-medium block">Size</span>
                       <p className="text-sm">{size.size_value} {size.size_unit}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium">Unit Price</span>
+                      <span className="text-sm font-medium block">Unit Price</span>
                       <p className="text-sm">${size.price.toFixed(2)}</p>
                     </div>
                     <div>
-                      <span className="text-sm font-medium">Stock</span>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          value={size.stock}
-                          onChange={(e) => handleStockChange(index, e.target.value)}
-                          className="h-8 w-24"
-                          min="0"
-                        />
-                      </div>
+                      <span className="text-sm font-medium block">Stock</span>
+                      <Input
+                        type="number"
+                        value={size.stock}
+                        onChange={(e) => handleStockChange(index, e.target.value)}
+                        className="h-8 w-20"
+                        min="0"
+                      />
                     </div>
                   </div>
                   <Button
@@ -162,6 +160,7 @@ export const SizeVariationField = ({ form }: SizeVariationFieldProps) => {
                     variant="ghost"
                     size="sm"
                     onClick={() => handleRemoveSize(index)}
+                    className="ml-auto flex-shrink-0 hover:bg-red-100 hover:text-red-600"
                   >
                     <X className="h-4 w-4" />
                   </Button>

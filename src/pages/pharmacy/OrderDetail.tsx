@@ -128,7 +128,7 @@ export default function OrderDetail() {
   const discountAmount = Number(order?.discount_amount || 0);
   const total = subtotal + shipping + tax - discountAmount;
   const paidAmount = Number(order?.paid_amount || 0);
-  const balanceDue = Math.max(0, total - paidAmount);
+  const balanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
 
   // Count totals
   const totalLineItems = order?.items?.reduce(

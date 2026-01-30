@@ -6,6 +6,7 @@ import { TrackingDialog } from "../../components/TrackingDialog";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 interface OrderConfirmActionProps {
   order: OrderFormValues;
@@ -37,6 +38,16 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
 
     setIsLoading(true);
     try {
+      // Get old status before update
+      const { data: oldOrder } = await supabase
+        .from("orders")
+        .select("status, order_number")
+        .eq("id", order.id)
+        .single();
+
+      const oldStatus = oldOrder?.status || "unknown";
+      const orderNumber = oldOrder?.order_number || "N/A";
+
       const { error } = await supabase
         .from('orders')
         .update({ 
@@ -48,6 +59,24 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
       if (error) throw error;
 
       setCurrentStatus('processing');
+
+      // Log status change activity (only if status actually changed)
+      if (oldStatus !== "processing") {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await OrderActivityService.logStatusChange({
+            orderId: order.id,
+            orderNumber: orderNumber,
+            oldStatus: oldStatus,
+            newStatus: "processing",
+            performedBy: session?.user?.id,
+            performedByName: session?.user?.user_metadata?.first_name || "Admin",
+            performedByEmail: session?.user?.email,
+          });
+        } catch (activityError) {
+          console.error("Failed to log status change activity:", activityError);
+        }
+      }
       
       toast({
         title: "Success",
@@ -83,6 +112,16 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
     }
 
     try {
+      // Get old status before update
+      const { data: oldOrder } = await supabase
+        .from("orders")
+        .select("status, order_number")
+        .eq("id", order.id)
+        .single();
+
+      const oldStatus = oldOrder?.status || "unknown";
+      const orderNumber = oldOrder?.order_number || "N/A";
+
       const { error } = await supabase
         .from('orders')
         .update({
@@ -97,6 +136,24 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
 
       setCurrentStatus('shipped');
       setShowTrackingDialog(false);
+
+      // Log status change activity (only if status actually changed)
+      if (oldStatus !== "shipped") {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await OrderActivityService.logStatusChange({
+            orderId: order.id,
+            orderNumber: orderNumber,
+            oldStatus: oldStatus,
+            newStatus: "shipped",
+            performedBy: session?.user?.id,
+            performedByName: session?.user?.user_metadata?.first_name || "Admin",
+            performedByEmail: session?.user?.email,
+          });
+        } catch (activityError) {
+          console.error("Failed to log status change activity:", activityError);
+        }
+      }
       
       toast({
         title: "Success",

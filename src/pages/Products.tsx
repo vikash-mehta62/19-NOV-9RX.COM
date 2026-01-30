@@ -39,7 +39,16 @@ import image5 from "../assests/home/image5.jpg";
 import image6 from "../assests/home/image6.jpg";
 import logo from "../assests/home/9rx_logo.png";
 
-const imageArray = [image4, image3, image6, image5, image2, image1];
+const imageArray = [image2, image3, image6, image1, image5, image4];
+
+const CATEGORY_ORDER = [
+  "CONTAINERS & CLOSURES",
+  "RX LABELS",
+  "COMPLIANCE PACKAGING",
+  "RX PAPER BAGS",
+  "ORAL SYRINGES & ACCESSORIES",
+  "OTHER SUPPLY",
+];
 
 interface Product {
   id: string;
@@ -467,7 +476,30 @@ const Products = () => {
     }, 100);
   };
 
-  const categories = useMemo(() => ["all", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))], [products]);
+  const categories = useMemo(() => {
+    const allCategories = ["all", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
+    
+    // Sort categories based on CATEGORY_ORDER
+    const sorted = allCategories.sort((a, b) => {
+      if (a === "all") return -1;
+      if (b === "all") return 1;
+      
+      const indexA = CATEGORY_ORDER.indexOf(a.toUpperCase());
+      const indexB = CATEGORY_ORDER.indexOf(b.toUpperCase());
+      
+      // If both are in CATEGORY_ORDER, sort by their position
+      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
+      
+      // If only one is in CATEGORY_ORDER, it comes first
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+      
+      // If neither is in CATEGORY_ORDER, sort alphabetically
+      return a.localeCompare(b);
+    });
+    
+    return sorted;
+  }, [products]);
 
   const filteredProducts = useMemo(() => {
     let filtered = products;

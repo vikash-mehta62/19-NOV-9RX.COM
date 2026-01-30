@@ -51,6 +51,7 @@ import { Pagination } from "../common/Pagination";
 import { Card, CardContent } from "../ui/card";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
+import { CreatePurchaseOrderDialog } from "./CreatePurchaseOrderDialog";
 
 const exportToCSV = (orders: OrderFormValues[]) => {
   if (!orders || orders.length === 0) {
@@ -547,7 +548,12 @@ export const OrdersContainer = ({
                 Products
               </Button>
 
-              {poIs && <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />}
+              {poIs && (
+                <>
+                  <CreatePurchaseOrderDialog />
+                  <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
+                </>
+              )}
             </>
           )}
         </div>

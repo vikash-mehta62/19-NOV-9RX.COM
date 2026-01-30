@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import "jspdf-autotable";
 import { OrderStatementData, OrderStatementRecord } from "@/types/orderStatement";
+import Logo from "../assests/home/9rx_logo.png";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -45,12 +46,12 @@ export class OrderPDFGenerator {
   private margin = 12;
 
   /**
-   * Create professional PDF document from order statement data in landscape orientation
+   * Create professional PDF document from order statement data in portrait orientation
    */
   async createPDF(statementData: OrderStatementData): Promise<Blob> {
     try {
       const doc = new jsPDF({
-        orientation: "landscape",
+        orientation: "portrait",
         unit: "mm",
         format: "a4",
       }) as jsPDFWithAutoTable;
@@ -85,6 +86,30 @@ export class OrderPDFGenerator {
       // Add footer
       this.addFooter(doc, pageWidth, pageHeight);
 
+      // Add page numbers to all pages (like statement-pdf-generator)
+      const totalPages = doc.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        const pdfWidth = doc.internal.pageSize.getWidth();
+        const pdfHeight = doc.internal.pageSize.getHeight();
+
+        // Thank you message
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+        doc.text("Thank you for your business!", pdfWidth / 2, pdfHeight - 12, { align: "center" });
+
+        // Page number text (at the end)
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 6, { align: "center" });
+
+        // Blue footer band
+        doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
+      }
+
       // Convert to blob and return
       const pdfBlob = doc.output('blob');
       return pdfBlob;
@@ -111,7 +136,7 @@ export class OrderPDFGenerator {
     // Try to add logo
     try {
       const logo = new Image();
-      logo.src = "/logoFul.png";
+      logo.src = Logo;
       await new Promise((resolve, reject) => {
         logo.onload = resolve;
         logo.onerror = reject;
@@ -180,8 +205,8 @@ export class OrderPDFGenerator {
     statementData: OrderStatementData,
     pageWidth: number
   ): void {
-    const sectionY = 36;
-    const boxWidth = 80;
+    const sectionY = 38;
+    const boxWidth = (pageWidth - this.margin * 3) / 2;
 
     // Customer Info Box
     doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
@@ -227,17 +252,18 @@ export class OrderPDFGenerator {
   }
 
   /**
-   * Add summary cards
+   * Add summary cards below customer section
    */
   private addSummaryCards(
     doc: jsPDFWithAutoTable,
     statementData: OrderStatementData,
     pageWidth: number
   ): void {
-    const cardY = 34;
-    const cardWidth = 42;
+    // Position cards below customer/contact boxes
+    const cardY = 66; // Below the customer section (38 + 22 + 6 spacing)
+    // Match statement-pdf-generator card width calculation (adjusted for 3 cards instead of 4)
+    const cardWidth = (pageWidth - this.margin * 2 - 10) / 3; // 3 cards with 2 gaps of 5mm
     const cardHeight = 22;
-    const startX = pageWidth - this.margin - (cardWidth * 3 + 10);
 
     const summaryData = [
       { label: "Total Orders", value: statementData.summary.totalOrders.toString(), isAmount: false, color: COLORS.blue },
@@ -246,11 +272,11 @@ export class OrderPDFGenerator {
     ];
 
     summaryData.forEach((item, index) => {
-      const cardX = startX + (cardWidth + 5) * index;
+      const cardX = this.margin + (cardWidth + 5) * index;
 
       // Card background
       doc.setFillColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
-      doc.setDrawColor(220, 220, 220);
+      doc.setDrawColor(230, 230, 230);
       doc.roundedRect(cardX, cardY, cardWidth, cardHeight, 2, 2, 'FD');
 
       // Top accent line
@@ -259,15 +285,15 @@ export class OrderPDFGenerator {
 
       // Label
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(6);
+      doc.setFontSize(7);
       doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-      doc.text(item.label, cardX + cardWidth / 2, cardY + 8, { align: "center" });
+      doc.text(item.label, cardX + cardWidth / 2, cardY + 9, { align: "center" });
 
       // Value
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(item.isAmount ? 9 : 12);
+      doc.setFontSize(item.isAmount ? 11 : 12);
       doc.setTextColor(item.color[0], item.color[1], item.color[2]);
-      doc.text(item.value, cardX + cardWidth / 2, cardY + 16, { align: "center" });
+      doc.text(item.value, cardX + cardWidth / 2, cardY + 17, { align: "center" });
     });
   }
 
@@ -279,7 +305,7 @@ export class OrderPDFGenerator {
     statementData: OrderStatementData,
     pageWidth: number
   ): void {
-    const tableStartY = 60;
+    const tableStartY = 94; // Updated to start below the summary cards (66 + 22 + 6 spacing)
 
     // Table headers with aging buckets
     const tableHead = [[
@@ -383,8 +409,8 @@ export class OrderPDFGenerator {
       body: tableBody,
       startY: tableStartY,
       styles: {
-        fontSize: 7,
-        cellPadding: 2,
+        fontSize: 6,
+        cellPadding: 1.5,
         textColor: [60, 60, 60],
         lineWidth: 0.1,
         lineColor: [220, 220, 220]
@@ -395,7 +421,8 @@ export class OrderPDFGenerator {
         textColor: COLORS.white,
         fontStyle: "bold",
         halign: "center",
-        cellPadding: 3
+        cellPadding: 2,
+        fontSize: 6
       },
       bodyStyles: {
         fillColor: [255, 255, 255]
@@ -404,20 +431,20 @@ export class OrderPDFGenerator {
         fillColor: [250, 250, 250]
       },
       columnStyles: {
-        0: { cellWidth: 8, halign: "center" },    // #
-        1: { cellWidth: 18, halign: "center" },   // Date
-        2: { cellWidth: 18, halign: "center" },   // Due Date
-        3: { cellWidth: 22, halign: "left" },     // Order #
-        4: { cellWidth: 14, halign: "center" },   // Days Late
-        5: { cellWidth: 22, halign: "right" },    // Original
-        6: { cellWidth: 22, halign: "right", textColor: COLORS.success },  // Paid
-        7: { cellWidth: 22, halign: "right", fontStyle: "bold" },          // Balance
-        8: { cellWidth: 18, halign: "right" },    // Current
-        9: { cellWidth: 18, halign: "right" },    // 1-7
-        10: { cellWidth: 18, halign: "right" },   // 8-14
-        11: { cellWidth: 18, halign: "right" },   // 15-21
-        12: { cellWidth: 18, halign: "right" },   // 22-28
-        13: { cellWidth: 18, halign: "right", textColor: COLORS.danger },  // 29+
+        0: { cellWidth: 6, halign: "center" },    // #
+        1: { cellWidth: 14, halign: "center" },   // Date
+        2: { cellWidth: 14, halign: "center" },   // Due Date
+        3: { cellWidth: 18, halign: "left" },     // Order #
+        4: { cellWidth: 10, halign: "center" },   // Days Late
+        5: { cellWidth: 16, halign: "right" },    // Original
+        6: { cellWidth: 16, halign: "right", textColor: COLORS.success },  // Paid
+        7: { cellWidth: 16, halign: "right", fontStyle: "bold" },          // Balance
+        8: { cellWidth: 14, halign: "right" },    // Current
+        9: { cellWidth: 14, halign: "right" },    // 1-7
+        10: { cellWidth: 14, halign: "right" },   // 8-14
+        11: { cellWidth: 14, halign: "right" },   // 15-21
+        12: { cellWidth: 14, halign: "right" },   // 22-28
+        13: { cellWidth: 14, halign: "right", textColor: COLORS.danger },  // 29+
       },
       margin: { left: this.margin, right: this.margin },
       showHead: "everyPage",
@@ -521,7 +548,7 @@ export class OrderPDFGenerator {
     pageWidth: number,
     pageHeight: number
   ): void {
-    const footerY = pageHeight - 12;
+    const footerY = pageHeight - 22; // Moved up to avoid overlap with page numbers
 
     // Footer line
     doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
@@ -534,14 +561,7 @@ export class OrderPDFGenerator {
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" });
 
-    // Generated timestamp
-    doc.setFontSize(6);
-    doc.text(
-      `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
-      pageWidth / 2,
-      footerY + 8,
-      { align: "center" }
-    );
+    // Generated timestamp (removed - will be replaced by page numbers)
   }
 }
 

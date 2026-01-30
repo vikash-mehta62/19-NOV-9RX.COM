@@ -525,20 +525,22 @@ setOrders([])
       // Log the updated order
       console.log("Updated Order:", updatedOrder);
 
-      // Log status change activity
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await OrderActivityService.logStatusChange({
-          orderId: orderId,
-          orderNumber: orderNumber,
-          oldStatus: oldStatus,
-          newStatus: newStatus,
-          performedBy: session?.user?.id,
-          performedByName: session?.user?.user_metadata?.first_name || "Admin",
-          performedByEmail: session?.user?.email,
-        });
-      } catch (activityError) {
-        console.error("Failed to log status change activity:", activityError);
+      // Log status change activity (only if status actually changed)
+      if (oldStatus !== newStatus) {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await OrderActivityService.logStatusChange({
+            orderId: orderId,
+            orderNumber: orderNumber,
+            oldStatus: oldStatus,
+            newStatus: newStatus,
+            performedBy: session?.user?.id,
+            performedByName: session?.user?.user_metadata?.first_name || "Admin",
+            performedByEmail: session?.user?.email,
+          });
+        } catch (activityError) {
+          console.error("Failed to log status change activity:", activityError);
+        }
       }
 
       // Send the updated order to the backend

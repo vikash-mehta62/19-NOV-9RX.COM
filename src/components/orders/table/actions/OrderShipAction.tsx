@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
 import { supabase } from "@/integrations/supabase/client";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 interface OrderShipActionProps {
   order: OrderFormValues;
@@ -80,6 +81,16 @@ export const OrderShipAction = ({
 
         console.log("Calling onShipOrder callback");
         
+        // Get old status before update
+        const { data: oldOrder } = await supabase
+          .from("orders")
+          .select("status, order_number")
+          .eq("id", order.id)
+          .single();
+
+        const oldStatus = oldOrder?.status || "unknown";
+        const orderNumber = oldOrder?.order_number || "N/A";
+        
         const { data: updatedOrder, error } = await supabase
         .from("orders")
         .update({
@@ -95,6 +106,24 @@ export const OrderShipAction = ({
     
         // Log the updated order
         console.log("Updated Order:", updatedOrder);
+
+        // Log status change activity (only if status actually changed)
+        if (oldStatus !== "shipped") {
+          try {
+            const { data: { session } } = await supabase.auth.getSession();
+            await OrderActivityService.logStatusChange({
+              orderId: order.id,
+              orderNumber: orderNumber,
+              oldStatus: oldStatus,
+              newStatus: "shipped",
+              performedBy: session?.user?.id,
+              performedByName: session?.user?.user_metadata?.first_name || "Admin",
+              performedByEmail: session?.user?.email,
+            });
+          } catch (activityError) {
+            console.error("Failed to log status change activity:", activityError);
+          }
+        }
 
         // Note: Reward points are now awarded when order is created, not when shipped
         // This prevents double-awarding of points

@@ -270,7 +270,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       // ===== BARCODE =====
       try {
         const barcodeDataUrl = generateBarcode(documentNumber)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12)
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12)
       } catch {
         // Skip barcode if generation fails
       }
@@ -387,8 +387,10 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       }
 
       // ===== SUMMARY SECTION =====
-      const handling = Number((order as any)?.po_handling_charges || 0)
-      const fred = Number((order as any)?.po_fred_charges || 0)
+      // PO charges should ONLY be included for Purchase Orders (poAccept: false)
+      const isPurchaseOrder = (order as any)?.poAccept === false
+      const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
+      const fred = isPurchaseOrder ? Number((order as any)?.po_fred_charges || 0) : 0
       const pdfDiscountAmount = discountAmount
       const pdfTotal = subtotal + handling + fred + shipping + tax - pdfDiscountAmount
 
@@ -422,7 +424,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
-      doc.setFontSize(11)
+      doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
@@ -451,11 +453,11 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         doc.text(`$${pdfBalanceDue.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" })
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 8, 1, 1, "F")
+        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
-        doc.setFontSize(9)
+        doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 50, pdfPaidAmountY + 5.5, { align: "center" })
+        doc.text("FULLY PAID", pageWidth - margin - 45, pdfPaidAmountY + 7, { align: "center" })
       }
 
       // ===== FOOTER =====
@@ -604,7 +606,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
       try {
         const barcodeDataUrl = generateBarcode(documentNumber)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 8, 50, 12)
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12)
       } catch { /* Skip barcode */ }
 
       doc.setDrawColor(220, 220, 220)
@@ -678,8 +680,10 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         doc.addPage()
         finalY = 20
       }
-      const handling = Number((order as any)?.po_handling_charges || 0)
-      const fred = Number((order as any)?.po_fred_charges || 0)
+      // PO charges should ONLY be included for Purchase Orders (poAccept: false)
+      const isPurchaseOrder = (order as any)?.poAccept === false
+      const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
+      const fred = isPurchaseOrder ? Number((order as any)?.po_fred_charges || 0) : 0
       const printDiscountAmount = discountAmount
       const pdfTotal = subtotal + handling + fred + shipping + tax - printDiscountAmount
 
@@ -701,7 +705,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
-      doc.setFontSize(11)
+      doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
       doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
@@ -731,11 +735,11 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
       } else if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 8, 1, 1, "F")
+        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
-        doc.setFontSize(9)
+        doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 50, printPaidAmountY + 5.5, { align: "center" })
+        doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" })
       }
 
       const footerY = pageHeight - 30
@@ -1082,7 +1086,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 
                 {/* Balance Due */}
                 {(() => {
-                  const balanceDue = Math.max(0, total - paidAmount);
+                  const balanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
                   const isPartiallyPaid = order.payment_status === 'partial_paid' || (paidAmount > 0 && paidAmount < total);
                   const canPay = balanceDue > 0 && (order.payment_status === 'unpaid' || order.payment_status === 'pending' || order.payment_status === 'partial_paid');
                   

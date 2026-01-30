@@ -34,7 +34,7 @@ export const baseUserSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
-  type: z.enum(["pharmacy", "hospital", "group"]),
+  type: z.enum(["pharmacy", "hospital", "group", "vendor"]),
   status: z.enum(["active", "inactive", "pending"]),
   role: z.enum(["admin", "manager", "staff", "user"]),
   companyName: z.string().min(1, "Company name is required"),

@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
 import { TrackingDialog } from "../components/TrackingDialog";
 import { supabase } from "@/integrations/supabase/client";
+import { OrderActivityService } from "@/services/orderActivityService";
 
 interface OrderHeaderProps {
   order: OrderFormValues;
@@ -79,6 +80,16 @@ export const OrderHeader = ({
 
     setIsShipping(true);
     try {
+      // Get old status before update
+      const { data: oldOrder } = await supabase
+        .from("orders")
+        .select("status, order_number")
+        .eq("id", order.id)
+        .single();
+
+      const oldStatus = oldOrder?.status || "unknown";
+      const orderNumber = oldOrder?.order_number || "N/A";
+
       // Update order in database with tracking info
       const { error } = await supabase
         .from("orders")
@@ -90,6 +101,24 @@ export const OrderHeader = ({
         .eq("id", order.id);
 
       if (error) throw error;
+
+      // Log status change activity (only if status actually changed)
+      if (oldStatus !== "shipped") {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          await OrderActivityService.logStatusChange({
+            orderId: order.id,
+            orderNumber: orderNumber,
+            oldStatus: oldStatus,
+            newStatus: "shipped",
+            performedBy: session?.user?.id,
+            performedByName: session?.user?.user_metadata?.first_name || "Admin",
+            performedByEmail: session?.user?.email,
+          });
+        } catch (activityError) {
+          console.error("Failed to log status change activity:", activityError);
+        }
+      }
 
       // Call the onShipOrder callback to trigger email and refresh
       if (onShipOrder) {
@@ -141,8 +170,8 @@ export const OrderHeader = ({
         <div className="space-y-3 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
             <Package className="w-5 h-5 text-primary" />
-            {/* Show Invoice number if exists, otherwise Sales Order */}
-            {(order as any).invoice_number && order.status !== "new" && order.status !== "pending" ? (
+            {/* Show Invoice number if exists, otherwise Sales Order or Purchase Order */}
+            {(order as any).invoice_number && order.status !== "new" && order.status !== "pending" && !poIs ? (
               <>
                 <div className="flex flex-col">
                   <h2 className="text-xl md:text-2xl font-bold">INV #{(order as any).invoice_number}</h2>
@@ -150,7 +179,9 @@ export const OrderHeader = ({
                 </div>
               </>
             ) : (
-              <h2 className="text-xl md:text-2xl font-bold">SO #{order.order_number}</h2>
+              <h2 className="text-xl md:text-2xl font-bold">
+                {poIs ? `#${order.order_number}` : `SO #${order.order_number}`}
+              </h2>
             )}
             <Button
               variant="ghost"
@@ -243,7 +274,7 @@ export const OrderHeader = ({
       {userRole === "admin" && !order.void && order.status !== "cancelled" && (
         <div className="mt-4 pt-4 border-t">
           <div className="flex flex-wrap gap-2">
-            {onSendEmail && (
+            {order.payment_status !== "paid" && onSendEmail && !poIs && (
               <Button
                 variant="outline"
                 size="sm"
@@ -280,7 +311,7 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {order.payment_status !== "paid" && (
+            {order.payment_status !== "paid" && !poIs && (
               <Button
                 variant="outline"
                 size="sm"

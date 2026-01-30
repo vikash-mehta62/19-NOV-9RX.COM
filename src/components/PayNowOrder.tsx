@@ -9,33 +9,50 @@ function PayNowOrder() {
   const orderID = searchParams.get("orderid");
   const [orderData, setOrderData] = useState<any>(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  const fetchOrder = async () => {
+    if (!orderID) return;
+    try {
+      const { data: order, error } = await supabase
+        .from("orders")
+        .select("*")
+        .eq("id", orderID)
+        .order("created_at", { ascending: false })
+        .maybeSingle();
+
+      if (error) throw error;
+      setOrderData(order);
+    } catch (err) {
+      console.error("Error fetching order:", err);
+    }
+  };
 
   useEffect(() => {
-    const fetchOrder = async () => {
-      if (!orderID) return;
-      try {
-        const { data: order, error } = await supabase
-          .from("orders")
-          .select("*")
-          .eq("id", orderID)
-          .order("created_at", { ascending: false })
-          .maybeSingle();
-
-        if (error) throw error;
-        setOrderData(order);
-      } catch (err) {
-        console.error("Error fetching order:", err);
-      }
-    };
     fetchOrder();
-  }, [orderID]);
+  }, [orderID, refreshTrigger]);
 
   if (!orderData) return <p className="text-center text-gray-500 flex items-center justify-center"><Loader className="animate-spin" size={24} /> Loading...</p>;
 
-  // Calculate amounts
-  const totalAmount = Number(orderData.total_amount || 0);
+  // Calculate amounts with PO charges
+  const itemsSubtotal = orderData.items?.reduce((total: number, item: any) => {
+    return total + (item.sizes?.reduce((sum: number, size: any) => sum + size.quantity * size.price, 0) || 0)
+  }, 0) || 0;
+  
+  const shippingCost = parseFloat(orderData.shipping_cost || "0");
+  const taxAmount = parseFloat(orderData.tax_amount?.toString() || "0");
+  const discountAmount = parseFloat(orderData.discount_amount?.toString() || "0");
+  
+  // Add PO charges ONLY for Purchase Orders (check poAccept flag)
+  const isPurchaseOrder = orderData.poAccept === false; // poAccept: false means it's a PO
+  const handlingCharges = isPurchaseOrder ? parseFloat(orderData.po_handling_charges || "0") : 0;
+  const fredCharges = isPurchaseOrder ? parseFloat(orderData.po_fred_charges || "0") : 0;
+  
+  // Calculate correct total including all charges (PO charges only for POs)
+  const totalAmount = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmount;
+  
   const paidAmount = Number(orderData.paid_amount || 0);
-  const balanceDue = Math.max(0, totalAmount - paidAmount);
+  const balanceDue = Math.abs(totalAmount - paidAmount) < 0.01 ? 0 : Math.max(0, totalAmount - paidAmount);
   const isPartiallyPaid = orderData.payment_status === 'partial_paid' || (paidAmount > 0 && paidAmount < totalAmount);
   const isPaid = orderData.payment_status === 'paid' || balanceDue === 0;
   const canPay = !isPaid && (orderData.payment_status === 'unpaid' || orderData.payment_status === 'pending' || orderData.payment_status === 'partial_paid');
@@ -43,7 +60,20 @@ function PayNowOrder() {
   // Amount to pay - if partially paid, only balance due; otherwise full amount
   const amountToPay = isPartiallyPaid ? balanceDue : totalAmount;
 
-  console.log("Order Data:", { totalAmount, paidAmount, balanceDue, isPartiallyPaid, isPaid, amountToPay });
+  console.log("Order Data:", { 
+    itemsSubtotal, 
+    shippingCost, 
+    taxAmount, 
+    handlingCharges, 
+    fredCharges, 
+    discountAmount,
+    totalAmount, 
+    paidAmount, 
+    balanceDue, 
+    isPartiallyPaid, 
+    isPaid, 
+    amountToPay 
+  });
 
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-xl rounded-xl border border-gray-200">
@@ -166,6 +196,10 @@ function PayNowOrder() {
           payNow={true}
           isBalancePayment={isPartiallyPaid}
           previousPaidAmount={paidAmount}
+          onPaymentSuccess={() => {
+            // Refresh order data after successful payment
+            setRefreshTrigger(prev => prev + 1);
+          }}
         />
       )}
     </div>

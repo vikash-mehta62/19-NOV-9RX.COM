@@ -3,9 +3,9 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import { 
-  ChevronDown, ChevronRight, X, Search, Layers, 
-  Package, FolderOpen, Folder 
+import {
+  ChevronDown, ChevronRight, X, Search, Layers,
+  Package, FolderOpen, Folder
 } from "lucide-react"
 import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/supabaseClient"
@@ -54,6 +54,16 @@ export const PharmacyFilterSidebar = ({
   const [subcategories, setSubcategories] = useState<SubcategoryConfig[]>([])
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
 
+  // Define desired category order here
+  const CATEGORY_ORDER = [
+    "CONTAINERS & CLOSURES",
+    "RX LABELS",
+    "COMPLIANCE PACKAGING",
+    "RX PAPER BAGS",
+    "ORAL SYRINGES & ACCESSORIES",
+    "OTHER SUPPLY",
+  ];
+
   useEffect(() => {
     const fetchFilters = async () => {
       try {
@@ -67,7 +77,15 @@ export const PharmacyFilterSidebar = ({
           .select("*")
           .order("subcategory_name", { ascending: true })
 
-        setCategories(categoryData || [])
+        // Sort categories based on predefined order
+        const sortedCategories = (categoryData || []).sort((a, b) => {
+          return (
+            CATEGORY_ORDER.indexOf(a.category_name) -
+            CATEGORY_ORDER.indexOf(b.category_name)
+          );
+        });
+
+        setCategories(sortedCategories || [])
         setSubcategories(subcategoryData || [])
       } catch (error) {
         console.error("Error fetching filters:", error)
@@ -87,28 +105,28 @@ export const PharmacyFilterSidebar = ({
 
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === "all") return sourceProducts.length
-    
-    const categoryProducts = sourceProducts.filter(p => 
+
+    const categoryProducts = sourceProducts.filter(p =>
       p.category?.toLowerCase() === categoryName.toLowerCase()
     )
-    
+
     // For RX PAPER BAGS, return total sizes count instead of products count
     if (categoryName.toUpperCase() === "RX PAPER BAGS") {
       return categoryProducts.reduce((total, p) => total + (p.sizes?.length || 0), 0)
     }
-    
+
     return categoryProducts.length
   }
 
   const getSubcategoryCount = (subcategoryName: string) => {
-    return sourceProducts.filter(p => 
+    return sourceProducts.filter(p =>
       p.subcategory?.toLowerCase() === subcategoryName.toLowerCase()
     ).length
   }
 
   // Get subcategories for a specific category
   const getSubcategoriesForCategory = (categoryName: string) => {
-    return subcategories.filter(sub => 
+    return subcategories.filter(sub =>
       sub.category_name.toLowerCase() === categoryName.toLowerCase()
     )
   }
@@ -143,7 +161,7 @@ export const PharmacyFilterSidebar = ({
           <span className="font-semibold text-white">Categories</span>
         </div>
         {hasActiveFilters && (
-          <button 
+          <button
             onClick={handleAllProductsClick}
             className="text-xs text-blue-100 hover:text-white transition-colors"
           >
@@ -208,8 +226,8 @@ export const PharmacyFilterSidebar = ({
                       isSelected
                         ? "bg-blue-100 text-blue-700 font-medium shadow-sm"
                         : isExpanded
-                        ? "bg-gray-100 text-gray-900"
-                        : "text-gray-700 hover:bg-gray-100"
+                          ? "bg-gray-100 text-gray-900"
+                          : "text-gray-700 hover:bg-gray-100"
                     )}
                   >
                     <span className="flex items-center gap-1.5 truncate min-w-0 flex-1">
@@ -221,8 +239,8 @@ export const PharmacyFilterSidebar = ({
                       <span className="truncate text-[11px] leading-tight">{cat.category_name}</span>
                     </span>
                     <div className="flex items-center gap-1 flex-shrink-0 ml-1">
-                      <Badge 
-                        variant="secondary" 
+                      <Badge
+                        variant="secondary"
                         className={cn(
                           "text-[10px] px-1.5 py-0",
                           isSelected ? "bg-blue-200 text-blue-700" : "bg-gray-100 text-gray-600"
@@ -258,8 +276,8 @@ export const PharmacyFilterSidebar = ({
                             )}
                           >
                             <span className="truncate text-[11px]">{sub.subcategory_name}</span>
-                            <Badge 
-                              variant="outline" 
+                            <Badge
+                              variant="outline"
                               className={cn(
                                 "text-xs",
                                 isSubSelected && "border-blue-300 bg-blue-50"

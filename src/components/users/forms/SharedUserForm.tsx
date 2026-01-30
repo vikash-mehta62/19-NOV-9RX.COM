@@ -40,11 +40,11 @@ export function SharedUserForm({
       );
 
       // Ensure type is one of the allowed values
-      const validType = (type: string): "pharmacy" | "hospital" | "group" => {
-        const validTypes = ["pharmacy", "hospital", "group"] as const;
+      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" => {
+        const validTypes = ["pharmacy", "hospital", "group", "vendor"] as const;
         const normalizedType = type.toLowerCase();
         return validTypes.includes(normalizedType as any)
-          ? (normalizedType as "pharmacy" | "hospital" | "group")
+          ? (normalizedType as "pharmacy" | "hospital" | "group" | "vendor")
           : "pharmacy";
       };
 

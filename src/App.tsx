@@ -48,6 +48,7 @@ const AdminProducts = lazy(() => import("./pages/admin/Products"));
 const AdminInventory = lazy(() => import("./pages/admin/Inventory"));
 const AdminOrders = lazy(() => import("./pages/admin/Orders"));
 const AdminCreateOrder = lazy(() => import("./pages/admin/CreateOrder"));
+const AdminCreatePurchaseOrder = lazy(() => import("./pages/admin/CreatePurchaseOrder"));
 const AdminQuickOrder = lazy(() => import("./pages/admin/QuickOrder"));
 const AdminInvoices = lazy(() => import("./pages/admin/Invoices"));
 const AdminGroupPricing = lazy(() => import("./pages/admin/GroupPricing"));
@@ -57,6 +58,7 @@ const AdminFestivalThemes = lazy(() => import("./pages/admin/FestivalThemes"));
 const AdminBanners = lazy(() => import("./pages/admin/Banners"));
 const AdminOffers = lazy(() => import("./pages/admin/Offers"));
 const AdminBlogs = lazy(() => import("./pages/admin/Blogs"));
+const AdminAnalytics = lazy(() => import("./pages/admin/Analytics"));
 const AdminAnnouncements = lazy(() => import("./pages/admin/Announcements"));
 const AdminEmailTemplates = lazy(() => import("./pages/admin/EmailTemplates"));
 const AdminEmailCampaigns = lazy(() => import("./pages/admin/EmailCampaigns"));
@@ -246,6 +248,11 @@ function App() {
               <Expenses />
             </ProtectedRoute>
           } />
+          <Route path="/admin/analytics" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminAnalytics />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/orders" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminOrders />
@@ -274,6 +281,11 @@ function App() {
           <Route path="/admin/po/edit/:orderId" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminCreateOrder />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/po/create" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminCreatePurchaseOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/logs" element={
@@ -373,12 +385,12 @@ function App() {
           } />
 
           {/* Pharmacy Routes */}
-          <Route path="/pharmacy" element={<Navigate to="/pharmacy/categories" replace />} />
-          <Route path="/pharmacy/categories" element={
+          <Route path="/pharmacy" element={<Navigate to="/pharmacy/products" replace />} />
+          {/* <Route path="/pharmacy/categories" element={
             <ProtectedRoute allowedRoles={['pharmacy']}>
               <CategoryBrowse />
             </ProtectedRoute>
-          } />
+          } /> */}
           <Route path="/pharmacy/dashboard" element={
             <ProtectedRoute allowedRoles={['pharmacy']}>
               <PharmacyDashboard />

@@ -21,6 +21,7 @@ interface PaymentTabProps {
 export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: PaymentTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [poCharges, setPoCharges] = useState({ handling: 0, fred: 0 });
 
   useEffect(() => {
     const fetchPaidAmount = async () => {
@@ -28,10 +29,10 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
       
       setLoading(true);
       try {
-        // Fetch order with paid_amount field
+        // Fetch order with paid_amount field and PO charges
         const { data: orderData, error } = await supabase
           .from("orders")
-          .select("paid_amount, total_amount, payment_status")
+          .select("paid_amount, total_amount, payment_status, po_handling_charges, po_fred_charges")
           .eq("id", order.id)
           .single();
 
@@ -48,7 +49,28 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
         }
         
         setPaidAmount(amount);
+        
+        // Set PO charges ONLY for Purchase Orders
+        // For Sales Orders, always set to 0 to prevent stale data
+        if (poIs) {
+          setPoCharges({
+            handling: Number(orderData?.po_handling_charges || 0),
+            fred: Number(orderData?.po_fred_charges || 0)
+          });
+        } else {
+          // Clear PO charges for Sales Orders
+          setPoCharges({
+            handling: 0,
+            fred: 0
+          });
+        }
+        
         console.log("💳 PaymentTab - Paid Amount:", amount);
+        console.log("💳 PaymentTab - Order Type:", poIs ? "PO" : "SO");
+        console.log("💳 PaymentTab - PO Charges:", {
+          handling: poIs ? orderData?.po_handling_charges : 0,
+          fred: poIs ? orderData?.po_fred_charges : 0
+        });
       } catch (error) {
         console.error("Error fetching paid amount:", error);
       } finally {
@@ -57,7 +79,7 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
     };
 
     fetchPaidAmount();
-  }, [order.id]);
+  }, [order.id, poIs]); // Added poIs to dependency array
 
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
@@ -68,13 +90,36 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
   const subtotal = calculateSubtotal();
   const shipping = parseFloat(order.shipping_cost || "0");
   const tax = parseFloat(order.tax_amount?.toString() || "0");
-  const handling = parseFloat(order.po_handling_charges || "0");
-  const fred = parseFloat(order.po_fred_charges || "0");
+  
+  // Use fetched PO charges from database ONLY for Purchase Orders
+  // For Sales Orders, these should be 0
+  const handling = poIs ? poCharges.handling : 0;
+  const fred = poIs ? poCharges.fred : 0;
+  
+  // Calculate total including all charges (PO charges only added for POs)
   const total = subtotal + shipping + tax + handling + fred;
-  const balanceDue = Math.max(0, total - paidAmount);
+  
+  // Calculate balance due with proper rounding to avoid floating point issues
+  const rawBalanceDue = total - paidAmount;
+  const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
+  
+  console.log("💰 Payment Calculation:", {
+    subtotal,
+    shipping,
+    tax,
+    handling,
+    fred,
+    total,
+    paidAmount,
+    balanceDue,
+    paymentStatus: order.payment_status
+  });
 
-  const isPaid = order.payment_status === "paid";
-  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
+  // Fix: Check if order is fully paid based on actual amounts, not just status field
+  // An order is fully paid if paid amount >= total OR if payment_status is 'paid' and amounts match within $0.01
+  const amountDifference = Math.abs(total - paidAmount);
+  const isPaid = order.payment_status === "paid" && amountDifference < 0.01;
+  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && balanceDue > 0.01 && !isPaid);
 
   // Get payment method display name
   const getPaymentMethodDisplay = (method: string) => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import category1 from "../../assests/home/image6.jpg";
 import category2 from "../../assests/home/image1.jpg";
 import category3 from "../../assests/home/image2.jpg";
-import category4 from "../../assests/home/image3.jpg";
+import category6 from "../../assests/home/image5.jpg";
 
 const FeaturedProducts = () => {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ const FeaturedProducts = () => {
     {
       id: 4,
       name: "ORAL SYRINGES & ACCESSORIES",
-      image: category4,
+      image: category6,
       price: "From $12.99",
       rating: 4.9,
       reviews: 156,

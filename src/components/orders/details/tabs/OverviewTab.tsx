@@ -47,9 +47,22 @@ const getAddressField = (
   return "";
 };
 
-export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
+export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  
+  // Derive poIs from order data itself for reliability
+  // This ensures we always use the correct order type regardless of prop
+  const poIs = (order as any)?.poAccept === false;
+  
+  console.log("🔍 OverviewTab - Order Type Check:", {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    poAccept: (order as any)?.poAccept,
+    poIsProp,
+    poIsDerived: poIs,
+    mismatch: poIsProp !== poIs
+  });
 
   useEffect(() => {
     const fetchPaidAmount = async () => {
@@ -86,7 +99,7 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
     };
 
     fetchPaidAmount();
-  }, [order.id]);
+  }, [order.id, poIs]); // Added poIs to ensure re-fetch when switching between SO/PO
 
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
@@ -100,19 +113,24 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
   const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
   const discountDetails = (order as any).discount_details || [];
   
-  // Calculate total using single source of truth
-  const total = calculateFinalTotal({
-    subtotal,
-    shipping,
-    tax,
-    discount: discountAmount,
-  });
+  // Add PO charges ONLY for Purchase Orders (check poIs flag)
+  const handling = poIs ? parseFloat((order as any).po_handling_charges || "0") : 0;
+  const fred = poIs ? parseFloat((order as any).po_fred_charges || "0") : 0;
+  
+  // Calculate total including PO charges (only for POs)
+  const total = subtotal + shipping + tax + handling + fred - discountAmount;
 
   // Debug logging
   console.log("📊 OverviewTab Calculations:", {
+    orderId: order.id,
+    orderNumber: order.order_number,
+    poIs,
+    poAccept: (order as any)?.poAccept,
     subtotal,
     shipping,
     tax,
+    handling,
+    fred,
     discountAmount,
     total,
     paidAmount,
@@ -124,7 +142,10 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
   const isPaid = order.payment_status === "paid";
   const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
   const isUnpaid = !isPaid && !isPartiallyPaid;
-  const balanceDue = Math.max(0, total - paidAmount);
+  
+  // Calculate balance due with proper rounding to avoid floating point issues
+  const rawBalanceDue = total - paidAmount;
+  const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
 
   // Get shipping address
   const shippingStreet = getAddressField(order.shippingAddress, "shipping", "street1") || 
@@ -317,6 +338,22 @@ export const OverviewTab = ({ order, companyName, poIs }: OverviewTabProps) => {
               <span className="text-gray-600">Shipping</span>
               <span className="font-medium text-gray-900">${shipping.toFixed(2)}</span>
             </div>
+            
+            {/* PO Charges - Show only for Purchase Orders */}
+            {poIs && handling > 0 && (
+              <div className="flex justify-between items-center py-2">
+                <span className="text-gray-600">Handling Charges</span>
+                <span className="font-medium text-gray-900">${handling.toFixed(2)}</span>
+              </div>
+            )}
+            
+            {poIs && fred > 0 && (
+              <div className="flex justify-between items-center py-2">
+                <span className="text-gray-600">FRED Charges</span>
+                <span className="font-medium text-gray-900">${fred.toFixed(2)}</span>
+              </div>
+            )}
+            
             <div className="flex justify-between items-center py-2">
               <span className="text-gray-600">Tax</span>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>

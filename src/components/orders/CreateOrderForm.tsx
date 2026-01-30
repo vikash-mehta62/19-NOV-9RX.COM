@@ -61,6 +61,11 @@ export function CreateOrderForm({
   const [isPriceChange, setIsPriceChange] = useState<boolean>(false);
   const location = useLocation();
   const [poIs, setPoIs] = useState(false);
+  
+  // Get vendor ID from navigation state for PO creation
+  const locationState = location.state as { vendorId?: string; isPO?: boolean } | null;
+  const vendorId = locationState?.vendorId;
+  
   console.log(initialData?.customerInfo);
   useEffect(() => {
     if (location.pathname.startsWith("/admin/po")) {
@@ -71,12 +76,12 @@ export function CreateOrderForm({
   }, [location.pathname]);
 
   console.log(userProfile);
-  const [pId, setPId] = useState(initialData?.customerInfo.cusid || "");
+  const [pId, setPId] = useState(initialData?.customerInfo?.cusid || vendorId || "");
   const userTypeRole = sessionStorage.getItem("userType");
   console.log(initialData);
   useEffect(() => {
-    setPId(initialData?.customerInfo.cusid || initialData?.customer);
-  }, [initialData, userProfile]);
+    setPId(initialData?.customerInfo?.cusid || initialData?.customer || vendorId || "");
+  }, [initialData, userProfile, vendorId]);
 
   const totalShippingCost =
     sessionStorage.getItem("shipping") == "true"
@@ -87,7 +92,7 @@ export function CreateOrderForm({
     resolver: zodResolver(orderFormSchema),
     defaultValues: {
       id: "", // ✅ Initialize as empty
-      customer: pId || userProfile?.id || "",
+      customer: pId || vendorId || userProfile?.id || "",
       date: new Date().toISOString(),
       total: "0",
       status: "new",
@@ -96,6 +101,7 @@ export function CreateOrderForm({
       poAccept: !poIs,
 
       customerInfo: {
+        cusid: pId || vendorId || "",
         name:
           initialData?.customerInfo?.name ||
           `${initialData?.customerInfo?.name || ""} ${

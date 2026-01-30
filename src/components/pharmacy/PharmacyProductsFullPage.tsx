@@ -79,7 +79,16 @@ export const PharmacyProductsFullPage = () => {
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
 
   //All Category images array.
-  const imageArray = [image6, image2, image3, image4, image5, image1];
+  const imageArray = [image2, image3, image6, image1, image5, image4];
+
+  const CATEGORY_ORDER = [
+  "CONTAINERS & CLOSURES",
+  "RX LABELS",
+  "COMPLIANCE PACKAGING",
+  "RX PAPER BAGS",
+  "ORAL SYRINGES & ACCESSORIES",
+  "OTHER SUPPLY",
+];
 
   // Fetch categories from database
   useEffect(() => {
@@ -94,10 +103,11 @@ export const PharmacyProductsFullPage = () => {
           console.error('Error fetching categories:', error);
           return;
         }
-
+        
         const categoryNames = data?.map(item => item.category_name) || [];
-        setCategories(categoryNames);
-        console.log('PHARMACY -> Fetched categories:', categoryNames);
+        const sortedCategories = CATEGORY_ORDER.filter(cat => categoryNames.includes(cat));
+        setCategories(sortedCategories);
+        console.log('PHARMACY -> Fetched categories:', sortedCategories);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -269,7 +279,7 @@ export const PharmacyProductsFullPage = () => {
     if (products.length === 0) return [];
 
     const query = searchQuery.toLowerCase().trim();
-    
+
     // Single-pass filtering with early returns
     const filtered = products.filter((product) => {
       // Category filter (early return for performance)
@@ -307,11 +317,11 @@ export const PharmacyProductsFullPage = () => {
         const sizeUnit = size.size_unit?.toLowerCase();
         const sizeSku = size.sku?.toLowerCase();
         const combined = `${size.size_value}${size.size_unit}`.toLowerCase();
-        
-        return sizeValue?.includes(query) || 
-               sizeUnit?.includes(query) || 
-               sizeSku?.includes(query) || 
-               combined.includes(query.replace(/\s+/g, ''));
+
+        return sizeValue?.includes(query) ||
+          sizeUnit?.includes(query) ||
+          sizeSku?.includes(query) ||
+          combined.includes(query.replace(/\s+/g, ''));
       }) || false;
     });
 
@@ -355,7 +365,7 @@ export const PharmacyProductsFullPage = () => {
     setSelectedSubcategory("all")
     setSelectedProduct(null)
   }, [])
-  
+
   // If user changes filters/search while a product is open, close it so results update visibly.
   useEffect(() => {
     setSelectedProduct(null);
@@ -685,7 +695,7 @@ export const PharmacyProductsFullPage = () => {
                   <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></div>
                   <span className="text-xs sm:text-sm text-gray-700">
                     <span className="font-semibold text-blue-600">
-                      {selectedCategory.toUpperCase() === "RX PAPER BAGS" 
+                      {selectedCategory.toUpperCase() === "RX PAPER BAGS"
                         ? filteredProducts.reduce((total, p) => total + (p.sizes?.length || 0), 0)
                         : filteredProducts.length}
                     </span> {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? "sizes" : "products"}
@@ -698,24 +708,25 @@ export const PharmacyProductsFullPage = () => {
 
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* View Toggle */}
-                <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
-                  <button
-                    onClick={() => setViewMode("grid")}
-                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
-                  >
-                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
-                      <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setViewMode("compact")}
-                    className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
-                  >
-                    <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
-                      <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
-                    </svg>
-                  </button>
-                </div>
+                {selectedCategory !== "all" && (
+                  <div className="hidden sm:flex items-center border border-gray-200 rounded-lg overflow-hidden">
+                    <button
+                      onClick={() => setViewMode("grid")}
+                      className={`p-1.5 sm:p-2 transition-colors ${viewMode === "grid" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
+                    >
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
+                        <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => setViewMode("compact")}
+                      className={`p-1.5 sm:p-2 transition-colors ${viewMode === "compact" ? "bg-blue-100 text-blue-700" : "text-gray-400 hover:text-gray-600"}`}
+                    > 
+                      <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="currentColor" viewBox="0 0 16 16">
+                        <path fillRule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z" />
+                      </svg>
+                    </button>
+                  </div>)}
 
                 {/* Sort */}
                 <Select value={sortBy} onValueChange={setSortBy}>
@@ -769,10 +780,10 @@ export const PharmacyProductsFullPage = () => {
                                   alt={`Category ${categories[index]}`}
                                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                                 />
-                                
+
                                 {/* Gradient Overlay on Hover */}
                                 <div className="absolute inset-0 bg-gradient-to-t from-blue-500/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                                
+
                                 {/* Hover Ring Effect */}
                                 <div className="absolute inset-0 ring-2 ring-blue-400/0 group-hover:ring-blue-500/50 rounded-xl transition-all duration-500" />
                               </div>

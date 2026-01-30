@@ -90,7 +90,7 @@ const paymentLink = (order) => {
                     <!-- Header -->
                     <tr>
                         <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
-                            <div style="background-color: rgba(255,255,255,0.2); width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                            <div style="background-color: rgba(255,255,255,0.2); width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; text-center;">
                                 <span style="font-size: 32px;">💳</span>
                             </div>
                             <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 700;">Payment Required</h1>

@@ -34,6 +34,60 @@ export function CustomerSelectionField({ form ,initialData,locationId,poIs=false
   const userProfile = useSelector(selectUserProfile);
   console.log(initialData)
 
+  const fetchVendorInfo = async (vendorId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "first_name, last_name, email, mobile_phone, type, company_name, display_name, billing_address"
+        )
+        .eq("status", "active")
+        .eq("type", "vendor")
+        .eq("id", vendorId)
+        .single();
+
+      if (error) {
+        console.error("Failed to fetch vendor information:", error);
+        throw new Error(
+          "Failed to fetch vendor information: " + error.message
+        );
+      }
+
+      if (!data) {
+        throw new Error("No vendor information found.");
+      }
+
+      console.log("Vendor Data", data);
+
+      // Map vendor data to the customerInfo schema
+      const vendorInfo = {
+        name: data.company_name || `${data.first_name} ${data.last_name}`,
+        email: data.email || "",
+        phone: data.billing_address?.phone || data.mobile_phone || "",
+        type: "Pharmacy" as const,
+        address: {
+          street: `${data.billing_address?.street1 || ""} ${data.billing_address?.street2 || ""}`.trim() || "N/A",
+          city: data.billing_address?.city || "N/A",
+          state: data.billing_address?.state || "N/A",
+          zip_code: data.billing_address?.zip_code || "00000",
+        },
+      };
+
+      return vendorInfo;
+    } catch (error) {
+      console.error("Error fetching vendor info:", error);
+      toast({
+        title: "Error",
+        description:
+          error instanceof Error
+            ? error.message
+            : "Failed to load vendor information.",
+        variant: "destructive",
+      });
+      return null;
+    }
+  };
+
   const fetchCustomerInfo = async (userId) => {
     try {
       const { data, error } = await supabase
@@ -190,22 +244,38 @@ export function CustomerSelectionField({ form ,initialData,locationId,poIs=false
 
   // Set form values when component mounts with validation
   useEffect(() => {
-    if (!userProfile?.id) return;
+    if (!userProfile?.id && !initialData?.customerInfo?.cusid) return;
 
     const setCustomerInfo = async () => {
       setIsValidating(true);
       try {
-        const customerInfo = await fetchCustomerInfo(userProfile?.id);
-        const shpiingInfo = await fetchShippingInfo(initialData?.customerInfo.cusid || userProfile?.id);
-        if (customerInfo) {
-          form.setValue("customerInfo", customerInfo);
-          form.trigger("customerInfo"); // Trigger validation
+        // For PO, fetch vendor info if vendorId is provided
+        if (poIs && initialData?.customerInfo?.cusid) {
+          const vendorInfo = await fetchVendorInfo(initialData.customerInfo.cusid);
+          const shippingInfo = await fetchShippingInfo(initialData.customerInfo.cusid);
+          
+          if (vendorInfo) {
+            form.setValue("customerInfo", vendorInfo);
+            form.trigger("customerInfo");
+          }
+          if (shippingInfo) {
+            form.setValue("shippingAddress", shippingInfo);
+            form.trigger("shippingAddress");
+          }
+        } else {
+          // For regular orders, fetch customer info
+          const customerInfo = await fetchCustomerInfo(userProfile?.id);
+          const shippingInfo = await fetchShippingInfo(initialData?.customerInfo.cusid || userProfile?.id);
+          
+          if (customerInfo) {
+            form.setValue("customerInfo", customerInfo);
+            form.trigger("customerInfo");
+          }
+          if (shippingInfo) {
+            form.setValue("shippingAddress", shippingInfo);
+            form.trigger("shippingAddress");
+          }
         }
-        if (shpiingInfo) {
-          form.setValue("shippingAddress", shpiingInfo);
-          form.trigger("shippingAddress"); // Trigger validation
-        }
-        
       } catch (error) {
         console.error("Error setting customer info:", error);
         toast({
@@ -220,7 +290,7 @@ export function CustomerSelectionField({ form ,initialData,locationId,poIs=false
     };
 
     setCustomerInfo();
-  }, [userProfile?.id,form]);
+  }, [userProfile?.id, form, initialData?.customerInfo?.cusid, poIs]);
 
   return (
     <div className="space-y-6">
