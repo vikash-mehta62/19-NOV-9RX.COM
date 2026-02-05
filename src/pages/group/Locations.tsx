@@ -57,21 +57,21 @@ export default function Locations() {
       const formatLocations = (data) => {
         return data.map((location, index) => ({
           id: location.id || index + 1,
-          name: location.name?.trim() ? location.name : `Location ${index + 1}`, // Set default if name is undefined or empty
+          name: location.display_name?.trim() ? location.display_name : `Location ${index + 1}`, // Set default if name is undefined or empty
           address: `${
-            location.address?.street1?.trim() ? location.address.street1 : "N/A"
+            location.billing_address?.street1?.trim() ? location.billing_address.street1 : "N/A"
           }, ${
-            location.address?.city?.trim() ? location.address.city : "N/A"
+            location.billing_address?.city?.trim() ? location.billing_address.city : "N/A"
           } ${
-            location.address?.zip_code?.trim() ? location.address.zip_code : "N/A"
+            location.billing_address?.zip_code?.trim() ? location.billing_address.zip_code : "N/A"
           }`
           
           ,
           countryRegion: location.countryRegion || "N/A",
           phone: location.phone || "N/A",
           faxNumber: location.faxNumber || "N/A",
-          contact_email: location.contact_email || "N/A",
-          contact_phone: location.contact_phone || "N/A",
+          contact_email: location.email || "N/A",
+          contact_phone: location.mobile_phone || "N/A",
           created_at: location.created_at ? new Date(location.created_at).toISOString() : "N/A",
           updated_at: location.updated_at ? new Date(location.updated_at).toISOString() : "N/A",
           profile_id: location.profile_id || "N/A",
