@@ -57,6 +57,7 @@ interface InvoicePreviewProps {
     shippin_cost?: string
     tax?: number
     total?: number
+    total_amount?: number
     payment_status: string
     payment_method: string
     payment_notes: string
@@ -169,8 +170,27 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   })
 
   const isPaid = invoice?.payment_status === "paid"
-  // Subtotal is the items total (before tax, shipping, and discount)
+  // Use stored total_amount if available, otherwise calculate
+  const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
   const subtotalAmount = invoice?.subtotal || 0
+  const taxAmount = Number(invoice?.tax || 0)
+  const shippingCost = Number(invoice?.shippin_cost || 0)
+  const discountAmount = Number((invoice as any)?.discount_amount || 0)
+  
+  // Calculate total - use stored total if available, otherwise calculate
+  const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount
+  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal
+  
+  console.log("Invoice totals:", {
+    subtotal: subtotalAmount,
+    tax: taxAmount,
+    shipping: shippingCost,
+    discount: discountAmount,
+    calculatedTotal,
+    storedTotal,
+    finalTotal: totalAmount,
+    paidAmount
+  })
 
   // Generate barcode
   const generateBarcode = (text: string): string => {
@@ -366,8 +386,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const taxAmount = invoice?.tax || 0
       const invoiceDiscountAmount = Number((invoice as any)?.discount_amount || 0)
       const invoiceDiscountDetails = (invoice as any)?.discount_details || []
-      // Calculate correct total: Subtotal + Shipping + Tax - Discount
-      const totalAmount = subtotalAmount + shippingCost + taxAmount - invoiceDiscountAmount
+      // Use stored total_amount if available, otherwise calculate
+      const calculatedTotal = subtotalAmount + shippingCost + taxAmount - invoiceDiscountAmount
+      const pdfTotalAmount = totalAmount // Use the totalAmount we calculated earlier from stored value
 
       // Build summary body with discount if applicable
       const invoiceSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
@@ -390,7 +411,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      doc.text(`$${pdfTotalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
 
       // Add Paid Amount and Balance Due
       let paidAmountY = summaryFinalY + 14
@@ -405,7 +426,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         paidAmountY += 12
       }
       
-      const balanceDue = Math.max(0, totalAmount - paidAmount)
+      const balanceDue = Math.max(0, pdfTotalAmount - paidAmount)
       if (balanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
@@ -623,8 +644,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const taxAmount = invoice?.tax || 0
       const printDiscountAmount = Number((invoice as any)?.discount_amount || 0)
       const printDiscountDetails = (invoice as any)?.discount_details || []
-      // Calculate correct total: Subtotal + Shipping + Tax - Discount
-      const totalAmount = subtotalAmount + shippingCost + taxAmount - printDiscountAmount
+      // Use stored total_amount if available, otherwise calculate
+      const printCalculatedTotal = subtotalAmount + shippingCost + taxAmount - printDiscountAmount
+      const pdfTotalAmount = totalAmount // Use the totalAmount we calculated earlier from stored value
 
       // Build summary body with discount if applicable
       const printSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
@@ -647,7 +669,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(10)
       doc.setTextColor(255, 255, 255)
       doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${totalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      doc.text(`$${pdfTotalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
 
       // Add Paid Amount and Balance Due for Print
       let printPaidAmountY = summaryFinalY + 14
@@ -662,7 +684,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         printPaidAmountY += 12
       }
       
-      const printBalanceDue = Math.max(0, totalAmount - paidAmount)
+      const printBalanceDue = Math.max(0, pdfTotalAmount - paidAmount)
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
@@ -919,7 +941,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 </>
               )}
               <Separator />
-              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-gray-900">Total</span><span className="font-bold text-base sm:text-lg text-gray-900">${(subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-gray-900">Total</span><span className="font-bold text-base sm:text-lg text-gray-900">${totalAmount.toFixed(2)}</span></div>
               {Number((invoice as any)?.discount_amount || 0) > 0 && (
                 <div className="text-right text-sm text-green-600">
                   You saved: ${Number((invoice as any)?.discount_amount || 0).toFixed(2)}
@@ -933,7 +955,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 </div>
               )}
               {/* Balance Due */}
-              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-red-600">Balance Due</span><span className="font-bold text-base sm:text-lg text-red-600">${Math.max(0, (subtotalAmount + (invoice?.tax || 0) + Number(invoice?.shippin_cost || 0) - Number((invoice as any)?.discount_amount || 0)) - paidAmount).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-red-600">Balance Due</span><span className="font-bold text-base sm:text-lg text-red-600">${Math.max(0, totalAmount - paidAmount).toFixed(2)}</span></div>
             </CardContent>
           </Card>
         </div>
@@ -941,3 +963,4 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     </SheetContent>
   )
 }
+

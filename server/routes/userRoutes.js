@@ -3,7 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 
 // Initialize Supabase Admin Client with service role key
-const supabaseUrl = process.env.SUPABASE_URL || "https://wrvmbgmmuoivsfancgft.supabase.co";
+const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Helper to get Supabase admin client

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,7 @@ import {
   Download, Upload, Sparkles, RefreshCw, Copy, Trash2
 } from "lucide-react";
 import { defaultBanners, bannerDesignTemplates, pharmacyStockImages } from "@/data/defaultBanners";
+import html2canvas from 'html2canvas';
 
 interface BannerDesign {
   title: string;
@@ -63,6 +64,8 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
   const [selectedTemplate, setSelectedTemplate] = useState(bannerDesignTemplates[0]);
   const [previewMode, setPreviewMode] = useState<"desktop" | "mobile">("desktop");
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -146,6 +149,127 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
     } finally {
       setSaving(false);
     }
+  };
+
+  // Quick Actions Functions
+  const exportDesign = async () => {
+    if (!previewRef.current) {
+      toast({ 
+        title: "Error", 
+        description: "Preview not ready. Please try again.", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(previewRef.current, {
+        backgroundColor: null,
+        scale: 2, // Higher quality
+        useCORS: true,
+        allowTaint: true,
+        logging: false
+      });
+
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          throw new Error("Failed to create image");
+        }
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        const fileName = `banner-${design.title.toLowerCase().replace(/\s+/g, '-')}-${Date.now()}.png`;
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        toast({ 
+          title: "Banner Exported", 
+          description: "Banner image downloaded successfully" 
+        });
+      }, 'image/png');
+    } catch (error: any) {
+      console.error('Export error:', error);
+      toast({ 
+        title: "Export Failed", 
+        description: "Could not export banner. Please try again.", 
+        variant: "destructive" 
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const duplicateBanner = async () => {
+    try {
+      const duplicateData = {
+        ...design,
+        title: `${design.title} (Copy)`,
+        display_order: (editingBanner?.display_order || 0) + 1,
+        is_active: false,
+        target_user_types: ["all"],
+        target_devices: ["all"],
+        target_locations: [],
+      };
+
+      const { error } = await supabase.from("banners").insert([duplicateData]);
+      if (error) throw error;
+      
+      toast({ 
+        title: "Banner Duplicated", 
+        description: "A copy has been created (inactive)" 
+      });
+      
+      if (onSave) onSave(duplicateData);
+    } catch (error: any) {
+      toast({ 
+        title: "Error", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    }
+  };
+
+  const handleCustomImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast({ 
+        title: "Invalid File", 
+        description: "Please select an image file", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ 
+        title: "File Too Large", 
+        description: "Image must be less than 5MB", 
+        variant: "destructive" 
+      });
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const imageUrl = e.target?.result as string;
+      setDesign(prev => ({
+        ...prev,
+        image_url: imageUrl,
+        mobile_image_url: imageUrl
+      }));
+      toast({ 
+        title: "Image Loaded", 
+        description: "Custom image applied to banner" 
+      });
+    };
+    reader.readAsDataURL(file);
   };
 
   const BannerPreview = ({ isMobile = false }) => {
@@ -488,7 +612,9 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <BannerPreview isMobile={previewMode === "mobile"} />
+              <div ref={previewRef}>
+                <BannerPreview isMobile={previewMode === "mobile"} />
+              </div>
             </CardContent>
           </Card>
 
@@ -498,18 +624,47 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Button variant="outline" className="w-full justify-start">
-                <Download className="h-4 w-4 mr-2" />
-                Export Design
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={exportDesign}
+                disabled={exporting}
+              >
+                {exporting ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-4 w-4 mr-2" />
+                    Export Design
+                  </>
+                )}
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={duplicateBanner}
+              >
                 <Copy className="h-4 w-4 mr-2" />
                 Duplicate Banner
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={() => document.getElementById('custom-image-upload')?.click()}
+              >
                 <Upload className="h-4 w-4 mr-2" />
                 Upload Custom Image
               </Button>
+              <input
+                id="custom-image-upload"
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleCustomImageUpload}
+              />
             </CardContent>
           </Card>
         </div>

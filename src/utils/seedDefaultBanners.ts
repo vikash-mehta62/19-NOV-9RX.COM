@@ -37,20 +37,10 @@ export const seedDefaultBanners = async (forceReseed = false) => {
       title: banner.title,
       subtitle: banner.subtitle,
       image_url: banner.image_url,
-      mobile_image_url: banner.mobile_image_url,
       link_url: banner.link_url,
       link_text: banner.link_text,
-      banner_type: banner.banner_type,
-      background_color: banner.background_color,
-      text_color: banner.text_color,
-      overlay_opacity: banner.overlay_opacity,
       display_order: banner.display_order,
-      is_active: banner.is_active,
-      target_user_types: banner.target_user_types,
-      target_devices: banner.target_devices,
-      target_locations: banner.target_locations,
-      view_count: 0,
-      click_count: 0
+      is_active: banner.is_active
     }));
 
     // Insert default banners

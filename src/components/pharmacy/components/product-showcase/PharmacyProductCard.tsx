@@ -17,6 +17,10 @@ interface PharmacyProductCardProps {
     displayImage: string
     totalStock: number
     matchingSizes?: any[]
+    effectivePrice?: number
+    offerBadge?: string
+    hasOffer?: boolean
+    discountPercent?: number
   }
   onProductClick?: (product: ProductDetails) => void
   searchQuery?: string
@@ -104,6 +108,12 @@ export const PharmacyProductCard = ({
       >
       {/* Top Left Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+        {/* Offer Badge - Highest Priority */}
+        {product.offerBadge && product.hasOffer && (
+          <Badge className="bg-red-500 text-white text-[10px] px-2 py-0.5 font-bold shadow-md">
+            {product.offerBadge}
+          </Badge>
+        )}
         {sizesCount > 1 && (
           <Badge className="bg-blue-500 text-white text-[10px] px-2 py-0.5">
             {sizesCount} Sizes
@@ -162,12 +172,26 @@ export const PharmacyProductCard = ({
         {/* Starting Price - Large & Bold */}
         <div className="pt-0.5 sm:pt-1">
           <span className="text-[10px] sm:text-xs text-gray-500">Starting at</span>
-          <div>
-            <span className="text-base sm:text-xl font-bold text-gray-900">
-              ${product.displayPrice.toFixed(2)}
-            </span>
-            <span className="text-xs sm:text-sm text-gray-500 ml-0.5 sm:ml-1">/ case</span>
+          <div className="flex items-baseline gap-2">
+            <div>
+              <span className="text-base sm:text-xl font-bold text-gray-900">
+                ${(product.effectivePrice || product.displayPrice).toFixed(2)}
+              </span>
+              <span className="text-xs sm:text-sm text-gray-500 ml-0.5 sm:ml-1">/ case</span>
+            </div>
+            {/* Show original price if there's an offer */}
+            {product.hasOffer && product.effectivePrice && product.effectivePrice < product.displayPrice && (
+              <span className="text-xs sm:text-sm text-gray-400 line-through">
+                ${product.displayPrice.toFixed(2)}
+              </span>
+            )}
           </div>
+          {/* Show savings amount */}
+          {product.hasOffer && product.discountPercent && product.discountPercent > 0 && (
+            <div className="text-[10px] sm:text-xs text-red-600 font-semibold mt-0.5">
+              Save {product.discountPercent}% • ${(product.displayPrice - (product.effectivePrice || product.displayPrice)).toFixed(2)} off
+            </div>
+          )}
         </div>
 
         {/* Units per Case + Unit Price */}

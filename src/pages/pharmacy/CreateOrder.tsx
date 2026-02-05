@@ -14,9 +14,9 @@ import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
 
 // Invoice creation function for paid orders
-const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number) => {
+const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number, retryCount = 0): Promise<void> => {
   try {
-    console.log(`🧾 Creating invoice for paid order: ${order.id}`);
+    console.log(`🧾 Creating invoice for paid order: ${order.id} (attempt ${retryCount + 1})`);
 
     // Get invoice number
     const year = new Date().getFullYear();
@@ -94,6 +94,14 @@ const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmo
     console.log("🟢 Order updated with invoice_created = true");
   } catch (err: any) {
     console.error("❌ Invoice create error:", err.message);
+    
+    // If duplicate invoice number error and we haven't retried too many times, retry
+    if (err.message?.includes('duplicate key value') && err.message?.includes('invoice_number') && retryCount < 3) {
+      console.log(`🔄 Retrying invoice creation due to duplicate (attempt ${retryCount + 2}/4)...`);
+      await new Promise(resolve => setTimeout(resolve, 100 * (retryCount + 1))); // Exponential backoff
+      return createInvoiceForPaidOrder(order, totalAmount, taxAmount, retryCount + 1);
+    }
+    
     throw new Error(err.message);
   }
 };
@@ -487,11 +495,13 @@ export default function PharmacyCreateOrder() {
           .single();
 
         // Use final total for credit update (already calculated above)
-        const newCreditUsed = (customerProfile?.credit_used || 0) + finalTotal;
+        // Convert credit_used to number since it might be stored as text
+        const currentCreditUsed = parseFloat(customerProfile?.credit_used || '0') || 0;
+        const newCreditUsed = currentCreditUsed + finalTotal;
 
         await supabase
           .from("profiles")
-          .update({ credit_used: newCreditUsed })
+          .update({ credit_used: newCreditUsed.toString() })
           .eq("id", session.user.id);
       }
 
@@ -565,11 +575,21 @@ export default function PharmacyCreateOrder() {
         description: `Order ${newOrderId} has been created and is ready for processing`,
       });
 
+      console.log("🧹 Clearing cart...");
       // Clear cart after successful order creation
-      await clearCart();
+      try {
+        await clearCart();
+        console.log("✅ Cart cleared successfully");
+      } catch (cartError) {
+        console.error("❌ Error clearing cart:", cartError);
+        // Continue anyway
+      }
 
+      console.log("🔄 Navigating to orders page...");
       // Navigate back to orders list
-      navigate("/pharmacy/orders");
+      setTimeout(() => {
+        navigate("/pharmacy/orders");
+      }, 500); // Small delay to ensure toast is visible
     } catch (error) {
       console.error("Error in handleComplete:", error);
       toast({

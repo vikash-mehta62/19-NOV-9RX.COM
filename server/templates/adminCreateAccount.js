@@ -83,7 +83,7 @@ const adminAccountActiveTemplate = (name, email) => {
     </head>
     <body>
         <div class="container">
-            <img src="https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/download.png" alt="Company Logo" class="logo">
+            <img src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/download.png" alt="Company Logo" class="logo">
             
             <div class="header">🎉 Your Account Has Been Successfully Created!</div>
             

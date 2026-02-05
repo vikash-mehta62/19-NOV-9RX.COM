@@ -22,6 +22,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -88,6 +98,8 @@ export const ABTestManager = () => {
   const [testResults, setTestResults] = useState<Record<string, ABTestResult>>({});
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [testToDelete, setTestToDelete] = useState<string | null>(null);
   const [editingTest, setEditingTest] = useState<ABTest | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const { toast } = useToast();
@@ -228,15 +240,23 @@ export const ABTestManager = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this A/B test?")) return;
+    setTestToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!testToDelete) return;
     
     try {
-      const { error } = await supabase.from("ab_tests").delete().eq("id", id);
+      const { error } = await supabase.from("ab_tests").delete().eq("id", testToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "A/B test deleted successfully" });
       fetchTests();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteDialogOpen(false);
+      setTestToDelete(null);
     }
   };
 
@@ -646,6 +666,34 @@ export const ABTestManager = () => {
           )}
         </CardContent>
       </Card>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-500" />
+              Delete A/B Test
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-2">
+              <p>Are you sure you want to delete this A/B test?</p>
+              <p className="text-sm font-medium text-destructive">
+                This action cannot be undone. All test data and results will be permanently removed.
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Test
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

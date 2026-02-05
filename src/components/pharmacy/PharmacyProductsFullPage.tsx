@@ -22,6 +22,7 @@ import { ProductDetails } from "./types/product.types"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
+import { getProductsWithOffers } from "@/services/productOfferService"
 import {
   Loader2, Filter, X, ArrowLeft,
   ShoppingCart, Settings,
@@ -254,7 +255,43 @@ export const PharmacyProductsFullPage = () => {
           }
         })
 
-        setProducts(mappedProducts)
+        console.log("Mapped Products:", mappedProducts);
+        
+        // Fetch offers for all products
+        try {
+          const productIds = mappedProducts.map(p => p.id);
+          console.log("Fetching offers for product IDs:", productIds);
+          
+          const offersMap = await getProductsWithOffers(productIds);
+          
+          console.log("Offers Map size:", offersMap.size);
+          console.log("Offers Map entries:", Array.from(offersMap.entries()));
+          
+          // Merge offer data with products
+          const productsWithOffers = mappedProducts.map(product => {
+            const offerData = offersMap.get(product.id);
+            console.log(`Product ${product.name} (${product.id}):`, offerData);
+            
+            if (offerData && offerData.hasOffer) {
+              console.log(`✅ Product ${product.name} has offer:`, offerData);
+              return {
+                ...product,
+                effectivePrice: offerData.effectivePrice,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer,
+                discountPercent: offerData.discountPercent
+              };
+            }
+            return product;
+          });
+          
+          console.log("Products with Offers:", productsWithOffers);
+          setProducts(productsWithOffers);
+        } catch (offerError) {
+          console.error("Error fetching offers:", offerError);
+          // Still set products even if offers fail
+          setProducts(mappedProducts);
+        }
       } catch (error) {
         console.error("Error fetching products:", error)
         toast({

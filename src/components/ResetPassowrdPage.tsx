@@ -22,6 +22,7 @@ export default function ResetPasswordPage() {
     setStatus({ message: "", type: "" });
     setLoading(true);
 
+    // Use full URL with hash mode for better compatibility
     const siteUrl = window.location.origin;
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${siteUrl}/reset-password`,

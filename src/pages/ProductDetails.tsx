@@ -24,6 +24,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { getProductEffectivePrice } from "@/services/productOfferService"
 
 // Apply group pricing to sizes - SAME LOGIC AS PRODUCT SHOWCASE
 const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string) => {
@@ -176,6 +177,12 @@ const ProductDetails = () => {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
   const [addingToCart, setAddingToCart] = useState(false)
+  const [productOffer, setProductOffer] = useState<{
+    effectivePrice: number
+    discountPercent: number
+    offerBadge: string | null
+    hasOffer: boolean
+  } | null>(null)
 
   const getSupabaseImageUrl = async (path: string): Promise<string> => {
     if (!path || path === "/placeholder.svg") return "/placeholder.svg"
@@ -205,10 +212,18 @@ const ProductDetails = () => {
     }
   }
 
-  // Get price for a size - Simple getter since pricing already applied
+  // Get price for a size - Apply offer discount if available
   const getSizePrice = (size: any) => {
     if (!isLoggedIn) return null
-    return size.price || 0
+    
+    let basePrice = size.price || 0;
+    
+    // Apply offer discount if product has an active offer
+    if (productOffer?.hasOffer && productOffer.discountPercent > 0) {
+      basePrice = basePrice * (1 - productOffer.discountPercent / 100);
+    }
+    
+    return basePrice;
   }
 
   // Handle add to cart - Multiple sizes (Same logic as ProductCard)
@@ -459,6 +474,23 @@ const ProductDetails = () => {
         }
 
         setProduct(mappedProduct)
+
+        // Fetch product offers
+        try {
+          const offerData = await getProductEffectivePrice(mappedProduct.id);
+          if (offerData && offerData.hasOffer) {
+            console.log("Product has active offer:", offerData);
+            setProductOffer({
+              effectivePrice: offerData.effectivePrice,
+              discountPercent: offerData.discountPercent,
+              offerBadge: offerData.offerBadge,
+              hasOffer: offerData.hasOffer
+            });
+          }
+        } catch (offerError) {
+          console.error("Error fetching product offers:", offerError);
+          // Continue without offers if there's an error
+        }
       } catch (error) {
         console.error("Error fetching product:", error)
         toast({
@@ -727,6 +759,12 @@ return (
             <div className="flex-1 space-y-3">
               {/* Category & Subcategory Badges with animations */}
               <div className="flex flex-wrap items-center gap-2">
+                {/* Offer Badge - Highest Priority */}
+                {productOffer?.hasOffer && productOffer.offerBadge && (
+                  <Badge className="bg-gradient-to-r from-red-500 to-red-600 text-white px-3 py-1 text-xs font-bold rounded-full shadow-md hover:shadow-lg transition-all duration-200 hover:scale-105 animate-pulse">
+                    🎁 {productOffer.offerBadge}
+                  </Badge>
+                )}
                 {product.category && (
                   <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
                     {product.category}
@@ -744,6 +782,15 @@ return (
               <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold leading-tight text-gray-900 tracking-tight">
                 {product.name}
               </h1>
+
+              {/* Offer Savings Message */}
+              {productOffer?.hasOffer && productOffer.discountPercent > 0 && (
+                <div className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 px-4 py-2 rounded-lg">
+                  <p className="text-sm font-semibold text-red-700">
+                    🔥 Limited Time Offer: Save {productOffer.discountPercent}% on all sizes!
+                  </p>
+                </div>
+              )}
 
               {/* Enhanced Additional Info Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
@@ -914,13 +961,24 @@ return (
                 {product.sizes.map((size) => {
                   const quantity = selectedSizes.get(size.id) || 1
                   const price = getSizePrice(size) || 0
+                  const originalPrice = size.price || 0 // Original price before offer
                   const inCart = isSizeInCart(size.id)
                   const sizeImage = size.image ? (imageUrls[size.image] || size.image) : (imageUrls[product.image_url] || product.image_url)
                   const isOutOfStock = size.stock <= 0
                   const unitsPerCase = size.quantity_per_case || 0
                   const unitPrice = unitsPerCase > 0 ? price / unitsPerCase : 0
-                  const hasDiscount = size.originalPrice > 0 && size.originalPrice > price
-                  const discountPercent = hasDiscount ? Math.round((1 - price / size.originalPrice) * 100) : 0
+                  
+                  // Check for group pricing discount
+                  const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > originalPrice
+                  const groupDiscountPercent = hasGroupDiscount ? Math.round((1 - originalPrice / size.originalPrice) * 100) : 0
+                  
+                  // Check for offer discount
+                  const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
+                  const offerDiscountPercent = hasOfferDiscount ? productOffer.discountPercent : 0
+                  
+                  // Combined discount
+                  const totalDiscountPercent = groupDiscountPercent + offerDiscountPercent
+                  const hasAnyDiscount = hasGroupDiscount || hasOfferDiscount
 
                   return (
                     <Card
@@ -942,13 +1000,24 @@ return (
                         </div>
                       )}
 
-                      {/* Discount Badge */}
-                      {hasDiscount && discountPercent > 5 && !inCart && (
-                        <div className="absolute top-2 left-2 z-10">
-                          <Badge className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5">
-                            {discountPercent}% OFF
-                          </Badge>
-                        </div>
+                      {/* Discount Badge - Show offer or group discount */}
+                      {!inCart && (
+                        <>
+                          {hasOfferDiscount && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <Badge className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 shadow-md">
+                                🎁 {offerDiscountPercent}% OFF
+                              </Badge>
+                            </div>
+                          )}
+                          {hasGroupDiscount && !hasOfferDiscount && groupDiscountPercent > 5 && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <Badge className="bg-purple-500 text-white text-[10px] font-bold px-2 py-0.5">
+                                {groupDiscountPercent}% OFF
+                              </Badge>
+                            </div>
+                          )}
+                        </>
                       )}
 
                       {/* Product Image - Clickable */}
@@ -1015,12 +1084,25 @@ return (
                         {/* Case Price - Large & Bold */}
                         {isLoggedIn ? (
                           <div className="pt-1">
-                            <span className="text-xl font-bold text-gray-900">
-                              ${price.toFixed(2)}
-                            </span>
-                            <span className="text-sm text-gray-500 ml-1">/ case</span>
-                            {hasDiscount && (
-                              <span className="text-sm text-gray-400 line-through ml-2">${size.originalPrice.toFixed(2)}</span>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-xl font-bold text-gray-900">
+                                ${price.toFixed(2)}
+                              </span>
+                              <span className="text-sm text-gray-500">/ case</span>
+                              {/* Show original price if there's any discount */}
+                              {hasAnyDiscount && (
+                                <span className="text-sm text-gray-400 line-through">
+                                  ${(size.originalPrice || originalPrice).toFixed(2)}
+                                </span>
+                              )}
+                            </div>
+                            {/* Show savings breakdown */}
+                            {hasAnyDiscount && (
+                              <div className="text-xs text-red-600 font-semibold mt-0.5">
+                                {hasOfferDiscount && `🎁 Offer: ${offerDiscountPercent}% off`}
+                                {hasGroupDiscount && hasOfferDiscount && ' + '}
+                                {hasGroupDiscount && `Group: ${groupDiscountPercent}% off`}
+                              </div>
                             )}
                             {/* Reward Points */}
                             <div className="flex items-center gap-1 mt-1">

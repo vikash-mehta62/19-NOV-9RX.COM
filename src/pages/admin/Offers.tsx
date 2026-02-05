@@ -32,6 +32,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -230,6 +231,10 @@ export default function Offers() {
   const [productSearch, setProductSearch] = useState("");
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; type: 'offer' | 'deal' } | null>(null);
+  const [removeProductDialogOpen, setRemoveProductDialogOpen] = useState(false);
+  const [productToRemove, setProductToRemove] = useState<{ id: string; name: string } | null>(null);
   const { toast } = useToast();
 
   // Daily Deals State
@@ -401,14 +406,30 @@ export default function Offers() {
   };
 
   const handleDeleteDeal = async (id: string) => {
-    if (!confirm("Are you sure you want to remove this deal?")) return;
+    setItemToDelete({ id, type: 'deal' });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
+
     try {
-      const { error } = await supabase.from("daily_deals").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Deal removed successfully" });
-      fetchDailyDeals();
+      if (itemToDelete.type === 'deal') {
+        const { error } = await supabase.from("daily_deals").delete().eq("id", itemToDelete.id);
+        if (error) throw error;
+        toast({ title: "Success", description: "Deal removed successfully" });
+        fetchDailyDeals();
+      } else {
+        const { error } = await supabase.from("offers").delete().eq("id", itemToDelete.id);
+        if (error) throw error;
+        toast({ title: "Success", description: "Offer deleted successfully" });
+        fetchOffers();
+      }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteDialogOpen(false);
+      setItemToDelete(null);
     }
   };
 
@@ -482,14 +503,30 @@ export default function Offers() {
 
   const fetchProductOffers = async (offerId: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("product_offers")
         .select(`
           *,
-          products (name, price, sku)
+          products (name, base_price, sku)
         `)
         .eq("offer_id", offerId);
-      setProductOffers(data || []);
+      
+      if (error) {
+        console.error("Error fetching product offers:", error);
+        throw error;
+      }
+      
+      // Map base_price to price for compatibility
+      const mappedData = (data || []).map(po => ({
+        ...po,
+        products: po.products ? {
+          ...po.products,
+          price: po.products.base_price
+        } : null
+      }));
+      
+      setProductOffers(mappedData);
+      console.log("✅ Fetched product offers:", mappedData);
     } catch (error) {
       console.error("Error fetching product offers:", error);
     }
@@ -527,12 +564,19 @@ export default function Offers() {
     }
   };
 
-  const handleRemoveProductOffer = async (productOfferId: string) => {
+  const handleRemoveProductOffer = async (productOfferId: string, productName: string) => {
+    setProductToRemove({ id: productOfferId, name: productName });
+    setRemoveProductDialogOpen(true);
+  };
+
+  const confirmRemoveProduct = async () => {
+    if (!productToRemove) return;
+
     try {
       const { error } = await supabase
         .from("product_offers")
         .delete()
-        .eq("id", productOfferId);
+        .eq("id", productToRemove.id);
 
       if (error) throw error;
 
@@ -542,6 +586,9 @@ export default function Offers() {
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setRemoveProductDialogOpen(false);
+      setProductToRemove(null);
     }
   };
 
@@ -674,15 +721,8 @@ export default function Offers() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this offer?")) return;
-    try {
-      const { error } = await supabase.from("offers").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Offer deleted successfully" });
-      fetchOffers();
-    } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    }
+    setItemToDelete({ id, type: 'offer' });
+    setDeleteDialogOpen(true);
   };
 
   const toggleActive = async (id: string, currentStatus: boolean) => {
@@ -1379,7 +1419,7 @@ export default function Offers() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleRemoveProductOffer(po.id)}
+                            onClick={() => handleRemoveProductOffer(po.id, po.products?.name || 'this product')}
                           >
                             <Unlink className="h-4 w-4 text-red-500" />
                           </Button>
@@ -1752,6 +1792,32 @@ export default function Offers() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Confirm Delete Dialog */}
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={confirmDelete}
+          title={itemToDelete?.type === 'deal' ? "Delete Daily Deal?" : "Delete Offer?"}
+          description={
+            itemToDelete?.type === 'deal'
+              ? "Are you sure you want to remove this daily deal? This action cannot be undone."
+              : "Are you sure you want to delete this offer? This will also remove all product assignments. This action cannot be undone."
+          }
+        />
+
+        {/* Confirm Remove Product Dialog */}
+        <ConfirmDeleteDialog
+          open={removeProductDialogOpen}
+          onOpenChange={setRemoveProductDialogOpen}
+          onConfirm={confirmRemoveProduct}
+          title="Remove Product from Offer?"
+          description={
+            productToRemove
+              ? `Are you sure you want to remove "${productToRemove.name}" from this offer? The product will no longer receive the discount.`
+              : "Are you sure you want to remove this product from the offer?"
+          }
+        />
       </div>
     </DashboardLayout>
   );

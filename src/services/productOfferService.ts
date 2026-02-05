@@ -165,10 +165,10 @@ export async function getProductsWithOffers(productIds: string[]): Promise<Map<s
   const results = new Map();
 
   try {
-    // Get all products
+    // Get all products with their sizes to get actual prices
     const { data: products } = await supabase
       .from("products")
-      .select("id, price, offer_id, offer_price, offer_start_date, offer_end_date, offer_badge")
+      .select("id, base_price, offer_id, offer_price, offer_start_date, offer_end_date, offer_badge, product_sizes(price)")
       .in("id", productIds);
 
     if (!products) return results;
@@ -187,7 +187,16 @@ export async function getProductsWithOffers(productIds: string[]): Promise<Map<s
     const now = new Date();
 
     for (const product of products) {
-      let effectivePrice = product.price;
+      // Get the lowest price from product sizes, or use base_price as fallback
+      let productPrice = product.base_price || 0;
+      if (product.product_sizes && product.product_sizes.length > 0) {
+        const prices = product.product_sizes.map((s: any) => s.price).filter((p: number) => p > 0);
+        if (prices.length > 0) {
+          productPrice = Math.min(...prices);
+        }
+      }
+      
+      let effectivePrice = productPrice;
       let discountPercent = 0;
       let offerBadge: string | null = null;
       let hasOffer = false;
@@ -202,7 +211,7 @@ export async function getProductsWithOffers(productIds: string[]): Promise<Map<s
         new Date(product.offer_end_date) >= now
       ) {
         effectivePrice = product.offer_price;
-        discountPercent = Math.round(((product.price - product.offer_price) / product.price) * 100);
+        discountPercent = Math.round(((productPrice - product.offer_price) / productPrice) * 100);
         offerBadge = product.offer_badge || `${discountPercent}% OFF`;
         hasOffer = true;
       } else if (productOffers) {
@@ -221,12 +230,12 @@ export async function getProductsWithOffers(productIds: string[]): Promise<Map<s
         if (linkedOffer) {
           const offer = linkedOffer.offers as any;
           if (offer.offer_type === "percentage") {
-            effectivePrice = product.price * (1 - offer.discount_value / 100);
+            effectivePrice = productPrice * (1 - offer.discount_value / 100);
             discountPercent = offer.discount_value;
             offerBadge = `${offer.discount_value}% OFF`;
           } else if (offer.offer_type === "flat") {
-            effectivePrice = Math.max(product.price - offer.discount_value, 0);
-            discountPercent = Math.round((offer.discount_value / product.price) * 100);
+            effectivePrice = Math.max(productPrice - offer.discount_value, 0);
+            discountPercent = Math.round((offer.discount_value / productPrice) * 100);
             offerBadge = `$${offer.discount_value} OFF`;
           }
           hasOffer = true;

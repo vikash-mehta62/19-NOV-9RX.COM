@@ -150,12 +150,15 @@ export function InvoiceTableContent({
                 {/* Amount */}
                 <TableCell className="py-4 text-right font-mono">
                   <span className="font-semibold text-gray-900">
-                    {/* Calculate correct amount: subtotal + tax + shipping - discount */}
+                    {/* Use stored total_amount if available, otherwise calculate */}
                     {formatCurrency(
-                      (invoice.subtotal || 0) + 
-                      (invoice.tax_amount || 0) + 
-                      Number(invoice.shippin_cost || 0) - 
-                      Number((invoice as any).discount_amount || 0)
+                      invoice.total_amount || 
+                      (
+                        (invoice.subtotal || 0) + 
+                        (invoice.tax_amount || 0) + 
+                        Number(invoice.shippin_cost || 0) - 
+                        Number((invoice as any).discount_amount || 0)
+                      )
                     )}
                   </span>
                 </TableCell>

@@ -119,7 +119,7 @@ const customizationQueryEmail = (name, email, phone, selectedProducts) => {
     <body>
         <div class="container">
             <div class="logo-container">
-                <img class="logo" src="https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/download.png" alt="9RX.com">
+                <img class="logo" src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/download.png" alt="9RX.com">
             </div>
             <div class="message">New Customization Inquiry</div>
             <div class="info">

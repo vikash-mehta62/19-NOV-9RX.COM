@@ -2,10 +2,11 @@ import { OrderFormValues } from "../../schemas/orderSchema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { 
   CreditCard, DollarSign, Receipt, AlertCircle, 
   CheckCircle2, XCircle, FileText, Wallet, 
-  Building, Hash, Truck, Calculator
+  Building, Hash, Truck, Calculator, Tag
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
@@ -90,14 +91,16 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
   const subtotal = calculateSubtotal();
   const shipping = parseFloat(order.shipping_cost || "0");
   const tax = parseFloat(order.tax_amount?.toString() || "0");
+  const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
+  const discountDetails = (order as any).discount_details || [];
   
   // Use fetched PO charges from database ONLY for Purchase Orders
   // For Sales Orders, these should be 0
   const handling = poIs ? poCharges.handling : 0;
   const fred = poIs ? poCharges.fred : 0;
   
-  // Calculate total including all charges (PO charges only added for POs)
-  const total = subtotal + shipping + tax + handling + fred;
+  // Calculate total including all charges (PO charges only added for POs) and subtracting discount
+  const total = subtotal + shipping + tax + handling + fred - discountAmount;
   
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;
@@ -335,6 +338,34 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
               </div>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
+
+            {/* Show discount if applied */}
+            {discountAmount > 0 && (
+              <>
+                <Separator />
+                {discountDetails && discountDetails.length > 0 ? (
+                  discountDetails.map((discount: any, index: number) => (
+                    <div key={index} className="flex justify-between items-center py-2">
+                      <div className="flex items-center gap-2">
+                        <Tag className="w-4 h-4 text-green-500" />
+                        <span className="text-green-600">{discount.name || "Discount"}</span>
+                      </div>
+                      <span className="font-medium text-green-600">
+                        {discount.amount > 0 ? `-$${discount.amount.toFixed(2)}` : "Free Shipping"}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex justify-between items-center py-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-green-500" />
+                      <span className="text-green-600">Discount</span>
+                    </div>
+                    <span className="font-medium text-green-600">-${discountAmount.toFixed(2)}</span>
+                  </div>
+                )}
+              </>
+            )}
 
             {/* Total */}
             <div className="border-t pt-4 mt-2">

@@ -24,6 +24,16 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Table,
   TableBody,
   TableCell,
@@ -210,6 +220,8 @@ export default function Banners() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [bannerToDelete, setBannerToDelete] = useState<string | null>(null);
   const [editingBanner, setEditingBanner] = useState<Banner | null>(null);
   const [previewBanner, setPreviewBanner] = useState<Banner | null>(null);
   const [formData, setFormData] = useState(initialFormState);
@@ -435,14 +447,23 @@ export default function Banners() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this banner?")) return;
+    setBannerToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!bannerToDelete) return;
+    
     try {
-      const { error } = await supabase.from("banners").delete().eq("id", id);
+      const { error } = await supabase.from("banners").delete().eq("id", bannerToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "Banner deleted successfully" });
       fetchBanners();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteDialogOpen(false);
+      setBannerToDelete(null);
     }
   };
 
@@ -1471,6 +1492,34 @@ export default function Banners() {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-red-500" />
+                Delete Banner
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-2">
+                <p>Are you sure you want to delete this banner?</p>
+                <p className="text-sm font-medium text-destructive">
+                  This action cannot be undone. The banner will be permanently removed from your system.
+                </p>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={confirmDelete}
+                className="bg-red-500 hover:bg-red-600 focus:ring-red-500"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Banner
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </DashboardLayout>
   );

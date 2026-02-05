@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { getProductsWithOffers } from "@/services/productOfferService";
 
 export interface ProductShowcaseProps {
   groupShow?: boolean;
@@ -171,7 +172,34 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
         
 
         console.log("Mapped Products with Discounts:", mappedProducts);
-        setProducts(mappedProducts);
+        
+        // Fetch offers for all products
+        try {
+          const productIds = mappedProducts.map(p => p.id);
+          const offersMap = await getProductsWithOffers(productIds);
+          
+          // Merge offer data with products
+          const productsWithOffers = mappedProducts.map(product => {
+            const offerData = offersMap.get(product.id);
+            if (offerData && offerData.hasOffer) {
+              return {
+                ...product,
+                effectivePrice: offerData.effectivePrice,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer,
+                discountPercent: offerData.discountPercent
+              };
+            }
+            return product;
+          });
+          
+          console.log("Products with Offers:", productsWithOffers);
+          setProducts(productsWithOffers);
+        } catch (offerError) {
+          console.error("Error fetching offers:", offerError);
+          // Still set products even if offers fail
+          setProducts(mappedProducts);
+        }
       } catch (error) {
         console.error("Error fetching products:", error);
         toast({

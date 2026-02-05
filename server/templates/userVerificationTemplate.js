@@ -17,7 +17,7 @@ const userVerificationTemplate = (groupname, name, email) => {
     </head>
     <body>
         <div class="container">
-            <img src="https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/download.png" alt="Logo" class="logo">
+            <img src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/download.png" alt="Logo" class="logo">
             <div class="header">🔹 User Verification Request</div>
             <p class="message">A new user has registered for verification.</p>
             <p><strong>Name:</strong> ${name}</p>

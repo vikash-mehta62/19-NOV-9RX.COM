@@ -299,11 +299,23 @@ export async function savePaymentMethod(
   isDefault?: boolean
 ): Promise<{ success: boolean; id?: string; error?: string }> {
   try {
+    // Verify the user is authenticated and matches the profileId
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      return { success: false, error: "You must be logged in to save payment methods" };
+    }
+    
+    if (user.id !== profileId) {
+      console.error("Profile ID mismatch:", { userId: user.id, profileId });
+      return { success: false, error: "Profile ID does not match authenticated user" };
+    }
+    
     // For now, we'll save masked data locally
     // In production, you'd create a Customer Profile in Authorize.net CIM
     
     let insertData: any = {
-      profile_id: profileId,
+      profile_id: user.id, // Use authenticated user ID
       method_type: methodType,
       payment_profile_id: `local_${Date.now()}`, // Placeholder - would be from Authorize.net
       billing_first_name: billingAddress.firstName,
@@ -345,12 +357,14 @@ export async function savePaymentMethod(
       .single();
 
     if (error) {
-      return { success: false, error: error.message };
+      console.error("Error saving payment method:", error);
+      return { success: false, error: `Failed to save payment method: ${error.message}` };
     }
 
     return { success: true, id: data.id };
   } catch (error: any) {
-    return { success: false, error: error.message };
+    console.error("Exception saving payment method:", error);
+    return { success: false, error: error.message || "An unexpected error occurred" };
   }
 }
 

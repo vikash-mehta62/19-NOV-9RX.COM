@@ -96,28 +96,7 @@ export function AddUserModal({
       enablePortal: false,
       portalLanguage: "English",
       taxPercantage: "0",
-      locations: [
-        // ✅ Fix: Change from object `{}` to an array `[]`
-        {
-          name: "",
-          type: "headquarters", // Provide a valid default type
-          status: "active", // Provide a valid default status
-          address: {
-            attention: "",
-            countryRegion: "",
-            street1: "",
-            street2: "",
-            city: "",
-            state: "",
-            zip_code: "",
-            phone: "",
-            faxNumber: "",
-          },
-          manager: "",
-          contactEmail: "",
-          contactPhone: "",
-        },
-      ],
+      locations: [], // Start with empty locations array - users can add locations later
     },
   });
 
@@ -202,7 +181,11 @@ export function AddUserModal({
 
       // console.log('Attempting to insert user with data:', userData);
 
-      const { error } = await supabase.from("profiles").upsert(userData);
+      const { data: insertedProfile, error } = await supabase
+        .from("profiles")
+        .insert(userData)
+        .select()
+        .single();
 
 
       if(userData.status==="active" && userData.email_notifaction){
@@ -249,11 +232,11 @@ export function AddUserModal({
       //   .select();
 
       if (error) {
-        // console.error('Supabase error creating user:', error);
+        console.error('Supabase error creating profile:', error);
         throw new Error(error.message);
       }
 
-      // console.log('User created successfully:', data);
+      console.log('Profile created successfully:', insertedProfile);
 
       toast({
         title: "Success",
