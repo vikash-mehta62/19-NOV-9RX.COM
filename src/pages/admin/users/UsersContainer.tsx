@@ -2,8 +2,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserFilters } from "@/components/users/filters/UserFilters";
 import UsersTable, { User } from "@/components/users/UsersTable";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
-import { useState } from "react";
+import { supabase } from "@/supabaseClient";
+import { useState, useEffect } from "react";
 import { Loader2, X, Users, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +41,43 @@ export function UsersContainer({
   const { toast } = useToast();
   const [groupid, setGroup] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [availableGroups, setAvailableGroups] = useState<Array<{id: string, name: string}>>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
+
+  // Fetch groups separately to ensure they're available
+  useEffect(() => {
+    const fetchGroups = async () => {
+      setGroupsLoading(true);
+      try {
+        const { data: groupProfiles, error } = await supabase
+          .from("profiles")
+          .select("id, display_name, first_name, last_name, company_name")
+          .eq("type", "group")
+          .eq("status", "active");
+
+        if (error) {
+          console.error("Error fetching groups:", error);
+          return;
+        }
+
+        const groups = (groupProfiles || []).map(profile => ({
+          id: profile.id,
+          name: profile.display_name || 
+                profile.company_name || 
+                `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
+                'Unnamed Group'
+        }));
+
+        setAvailableGroups(groups);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      } finally {
+        setGroupsLoading(false);
+      }
+    };
+
+    fetchGroups();
+  }, []);
 
   const addGroup = async () => {
     if (!groupid) {
@@ -90,8 +127,6 @@ export function UsersContainer({
   const clearSelection = () => {
     onSelectionChange([]);
   };
-
-  const groupUsers = users.filter((user) => user.type.toLowerCase() === "group");
 
   return (
     <Card>
@@ -146,20 +181,20 @@ export function UsersContainer({
                 <Select
                   value={groupid}
                   onValueChange={setGroup}
-                  disabled={isLoading}
+                  disabled={isLoading || groupsLoading}
                 >
                   <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue placeholder="Select a group" />
+                    <SelectValue placeholder={groupsLoading ? "Loading groups..." : "Select a group"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {groupUsers.length === 0 ? (
+                    {availableGroups.length === 0 ? (
                       <div className="p-2 text-sm text-muted-foreground text-center">
-                        No groups available
+                        {groupsLoading ? "Loading groups..." : "No groups available"}
                       </div>
                     ) : (
-                      groupUsers.map((user) => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.name}
+                      availableGroups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
                         </SelectItem>
                       ))
                     )}
