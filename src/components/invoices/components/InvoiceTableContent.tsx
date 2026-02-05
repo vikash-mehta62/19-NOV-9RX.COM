@@ -200,7 +200,7 @@ export function InvoiceTableContent({
                 <TableCell className="py-4" onClick={(e) => e.stopPropagation()}>
                   <div className={`
                     flex items-center justify-end gap-1 transition-opacity duration-200
-                    ${isHovered ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}
+                   
                   `}>
                     <Button
                       variant="ghost"
