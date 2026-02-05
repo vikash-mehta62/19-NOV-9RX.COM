@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Edit, Trash2, Eye, Calendar, Sparkles } from "lucide-react";
 import { format, isWithinInterval, parseISO } from "date-fns";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 interface FestivalTheme {
   id: string;
@@ -85,6 +86,8 @@ export default function FestivalThemes() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTheme, setEditingTheme] = useState<Partial<FestivalTheme> | null>(null);
   const [previewTheme, setPreviewTheme] = useState<FestivalTheme | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [themeToDelete, setThemeToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -152,14 +155,14 @@ export default function FestivalThemes() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this theme?")) return;
+  const handleDelete = async () => {
+    if (!themeToDelete) return;
 
     try {
       const { error } = await supabase
         .from("festival_themes")
         .delete()
-        .eq("id", id);
+        .eq("id", themeToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "Theme deleted successfully" });
       fetchThemes();
@@ -169,7 +172,15 @@ export default function FestivalThemes() {
         description: error.message,
         variant: "destructive",
       });
+    } finally {
+      setDeleteDialogOpen(false);
+      setThemeToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setThemeToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const toggleActive = async (theme: FestivalTheme) => {
@@ -343,7 +354,7 @@ export default function FestivalThemes() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => handleDelete(theme.id)}
+                            onClick={() => openDeleteDialog(theme.id)}
                           >
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
@@ -370,6 +381,14 @@ export default function FestivalThemes() {
             {previewTheme && <ThemePreviewCard theme={previewTheme} fullPreview />}
           </DialogContent>
         </Dialog>
+
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={handleDelete}
+          title="Delete Festival Theme"
+          description="Are you sure you want to delete this theme? This action cannot be undone."
+        />
       </div>
     </DashboardLayout>
   );

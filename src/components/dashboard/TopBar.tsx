@@ -35,8 +35,12 @@ export const TopBar = () => {
           .limit(10);
         
         if (error) {
-          // Table might not exist, silently ignore
-          console.log('Notifications table not available');
+          // Table might not exist or other error, silently ignore
+          if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
+            console.log('ℹ️ Notifications table not yet created. Run migration: 20260206_create_notifications_table.sql');
+          } else {
+            console.error('Error fetching notifications:', error);
+          }
           return;
         }
         
@@ -48,14 +52,15 @@ export const TopBar = () => {
             read: n.read
           })));
         }
-      } catch (err) {
+      } catch (err: any) {
         // Silently ignore if table doesn't exist
-        console.log('Notifications not available');
+        console.log('ℹ️ Notifications feature not available yet');
       }
     };
 
     fetchNotifications();
 
+    // Only subscribe to real-time if we successfully fetched notifications
     const channel = supabase
       .channel('notifications_channel')
       .on(

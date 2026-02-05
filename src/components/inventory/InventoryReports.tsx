@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge"; // Although Badge is imported, it
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client"; // Assuming this path is correct
 import { ChevronDown, ChevronUp, Download } from "lucide-react"; // Added Download icon
-import React from "react";
 interface InventoryReportsProps {
   inventoryData: InventoryItem[];
 }
@@ -170,8 +169,9 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
               </thead>
               <tbody>
                 {products.map((item, index) => (
-                  <React.Fragment key={item.id}>
+                  <>
                     <tr
+                      key={item.id}
                       className={`border-b ${
                         index % 2 === 0 ? "bg-gray-50" : "bg-white"
                       } hover:bg-gray-100 transition-colors`}
@@ -196,8 +196,8 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
                       </td>
                     </tr>
                     {expanded === item.id && (
-                      <tr>
-                        <td colSpan={5} className="px-5 py-4 bg-gray-50"> {/* Adjusted colSpan to 5 */}
+                      <tr key={`${item.id}-expanded`}>
+                        <td colSpan={5} className="px-5 py-4 bg-gray-50">
                           <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
                             <h4 className="font-semibold text-gray-700 mb-2">Size Details</h4>
                             <ul className="space-y-3">
@@ -215,7 +215,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
                         </td>
                       </tr>
                     )}
-                  </React.Fragment>
+                  </>
                 ))}
               </tbody>
             </table>

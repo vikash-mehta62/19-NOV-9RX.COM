@@ -131,14 +131,17 @@ export default function AdminRewards() {
     setLoading(true)
     try {
       // Fetch config
-      const { data: configData } = await supabase
+      const { data: configData, error: configError } = await supabase
         .from("rewards_config")
         .select("*")
         .limit(1)
-        .single()
+        .maybeSingle() // Use maybeSingle() instead of single() to handle 0 rows gracefully
       
       if (configData) {
         setConfig(configData)
+      } else if (!configError) {
+        // No config exists yet, use defaults
+        console.log("No rewards config found, using defaults")
       }
 
       // Fetch tiers

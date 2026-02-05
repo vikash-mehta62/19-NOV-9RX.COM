@@ -121,10 +121,24 @@ export default function EmailSettings() {
     setSaving(true);
     try {
       for (const [key, value] of Object.entries(settings)) {
-        await supabase
+        // Use upsert to insert if not exists, update if exists
+        const { error } = await supabase
           .from("email_settings")
-          .update({ setting_value: value })
-          .eq("setting_key", key);
+          .upsert(
+            { 
+              setting_key: key, 
+              setting_value: value,
+              setting_type: key === 'api_key' || key === 'smtp_pass' ? 'secret' : 'string',
+              description: getSettingDescription(key),
+              updated_at: new Date().toISOString()
+            },
+            { onConflict: 'setting_key' }
+          );
+        
+        if (error) {
+          console.error(`Error saving ${key}:`, error);
+          throw error;
+        }
       }
       toast({ title: "Success", description: "Settings saved successfully" });
     } catch (error: any) {
@@ -134,45 +148,75 @@ export default function EmailSettings() {
     }
   };
 
+  // Helper function to get description for settings
+  const getSettingDescription = (key: string): string => {
+    const descriptions: Record<string, string> = {
+      provider: 'Email service provider',
+      api_key: 'API key for email provider',
+      from_email: 'Default sender email',
+      from_name: 'Default sender name',
+      reply_to: 'Reply-to email address',
+      smtp_host: 'SMTP server hostname',
+      smtp_port: 'SMTP server port',
+      smtp_user: 'SMTP username',
+      smtp_pass: 'SMTP password',
+      rate_limit: 'Maximum emails per hour',
+      batch_size: 'Emails per batch for bulk sending',
+      retry_attempts: 'Maximum retry attempts for failed emails',
+      retry_delay: 'Delay in minutes between retries',
+    };
+    return descriptions[key] || '';
+  };
+
   const handleTestEmail = async () => {
     if (!testEmail) return;
     
     setTesting(true);
     try {
-      // Queue a test email
-      const { error } = await supabase.from("email_queue").insert({
-        email: testEmail,
-        subject: "🧪 Test Email from 9RX",
-        html_content: `
-          <!DOCTYPE html>
-          <html>
-          <head><meta charset="UTF-8"></head>
-          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
-              <h1 style="color: white; margin: 0;">✅ Test Email Successful!</h1>
-            </div>
-            <div style="padding: 30px; background: #f9fafb; border-radius: 0 0 10px 10px;">
-              <p>This is a test email from your 9RX email system.</p>
-              <p><strong>Provider:</strong> ${settings.provider || "Not configured"}</p>
-              <p><strong>From:</strong> ${settings.from_name || "9RX"} &lt;${settings.from_email || "noreply@9rx.com"}&gt;</p>
-              <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-              <p style="color: #6b7280; font-size: 14px;">If you received this email, your email configuration is working correctly!</p>
-            </div>
-          </body>
-          </html>
-        `,
-        status: "pending",
-        priority: 10,
-        scheduled_at: new Date().toISOString(),
-        metadata: { is_test: true },
+      // First, save settings to make sure latest config is used
+      await handleSave();
+      
+      // Call the backend API directly to send test email immediately
+      const baseUrl = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const response = await fetch(`${baseUrl}/api/email/send-test`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: testEmail,
+          subject: "🧪 Test Email from 9RX",
+          content: `
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="UTF-8"></head>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+                <h1 style="color: white; margin: 0;">✅ Test Email Successful!</h1>
+              </div>
+              <div style="padding: 30px; background: #f9fafb; border-radius: 0 0 10px 10px;">
+                <p>This is a test email from your 9RX email system.</p>
+                <p><strong>Provider:</strong> ${settings.provider || "Not configured"}</p>
+                <p><strong>From:</strong> ${settings.from_name || "9RX"} &lt;${settings.from_email || "noreply@9rx.com"}&gt;</p>
+                <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                <p style="color: #6b7280; font-size: 14px;">If you received this email, your email configuration is working correctly!</p>
+              </div>
+            </body>
+            </html>
+          `,
+        }),
       });
 
-      if (error) throw error;
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to send test email");
+      }
 
       toast({
-        title: "Test Email Queued! 🧪",
-        description: `Test email will be sent to ${testEmail}`,
+        title: "Test Email Sent! ✅",
+        description: `Email successfully sent to ${testEmail}`,
       });
       setTestDialogOpen(false);
       setTestEmail("");

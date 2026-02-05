@@ -76,6 +76,8 @@ const Rewards = () => {
   useEffect(() => {
     if (!userProfile?.id) return;
 
+    console.log("Setting up real-time subscriptions for user:", userProfile.id);
+
     // Subscribe to profile changes (for points updates)
     const profileChannel = supabase
       .channel(`profile-points-${userProfile.id}`)
@@ -88,21 +90,39 @@ const Rewards = () => {
           filter: `id=eq.${userProfile.id}`
         },
         (payload) => {
-          console.log('Profile updated (real-time):', payload);
+          console.log('✅ Profile updated (real-time):', payload);
           const newData = payload.new as any;
+          
+          // Update points immediately
           if (newData.reward_points !== undefined) {
+            console.log('Updating current points to:', newData.reward_points);
             setCurrentPoints(newData.reward_points || 0);
           }
           if (newData.lifetime_reward_points !== undefined) {
+            console.log('Updating lifetime points to:', newData.lifetime_reward_points);
             setLifetimePoints(newData.lifetime_reward_points || 0);
           }
+          
           // Update tier based on new points
           if (tiers.length > 0 && newData.reward_points !== undefined) {
             updateTierFromPoints(newData.reward_points || 0);
           }
+          
+          // Show toast notification
+          if (payload.old && newData.reward_points !== (payload.old as any).reward_points) {
+            const diff = newData.reward_points - (payload.old as any).reward_points;
+            if (diff > 0) {
+              toast({
+                title: "Points Added! 🎉",
+                description: `You received ${diff} reward points!`,
+              });
+            }
+          }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Profile subscription status:', status);
+      });
 
     // Subscribe to new reward transactions
     const transactionsChannel = supabase
@@ -116,18 +136,84 @@ const Rewards = () => {
           filter: `user_id=eq.${userProfile.id}`
         },
         (payload) => {
-          console.log('New transaction (real-time):', payload);
+          console.log('✅ New transaction (real-time):', payload);
           const newTransaction = payload.new as RewardTransaction;
           setRecentActivity(prev => [newTransaction, ...prev.slice(0, 9)]);
+          
+          // Refresh points from database to ensure sync
+          fetchUserPoints();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Transactions subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up subscriptions');
       supabase.removeChannel(profileChannel);
       supabase.removeChannel(transactionsChannel);
     };
   }, [userProfile?.id, tiers]);
+
+  // Helper function to fetch fresh points from database
+  const fetchUserPoints = async () => {
+    if (!userProfile?.id) {
+      console.log("No user ID available");
+      return;
+    }
+    
+    try {
+      console.log("Fetching fresh points for user:", userProfile.id);
+      
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("reward_points, lifetime_reward_points")
+        .eq("id", userProfile.id)
+        .single();
+      
+      if (error) {
+        console.error("Error fetching user points:", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch reward points. Please refresh the page.",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (data) {
+        console.log("Fetched fresh points:", {
+          reward_points: data.reward_points,
+          lifetime_reward_points: data.lifetime_reward_points
+        });
+        
+        // Ensure we have valid numbers
+        const currentPts = typeof data.reward_points === 'number' ? data.reward_points : 0;
+        const lifetimePts = typeof data.lifetime_reward_points === 'number' ? data.lifetime_reward_points : 0;
+        
+        setCurrentPoints(currentPts);
+        setLifetimePoints(lifetimePts);
+        
+        if (tiers.length > 0) {
+          updateTierFromPoints(currentPts);
+        }
+        
+        toast({
+          title: "Points Refreshed ✅",
+          description: `Current: ${currentPts} points`,
+        });
+      } else {
+        console.warn("No data returned from profiles query");
+      }
+    } catch (error) {
+      console.error("Error in fetchUserPoints:", error);
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred while fetching points.",
+        variant: "destructive"
+      });
+    }
+  };
 
   // Helper function to update tier based on points
   const updateTierFromPoints = (points: number) => {
@@ -380,7 +466,18 @@ const Rewards = () => {
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-pink-100 text-sm">Available Points</p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-pink-100 text-sm">Available Points</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={fetchUserPoints}
+                      className="h-6 w-6 p-0 text-pink-100 hover:text-white hover:bg-pink-600/50"
+                      title="Refresh points"
+                    >
+                      <Zap className="h-4 w-4" />
+                    </Button>
+                  </div>
                   <h2 className="text-4xl font-bold mt-1">{currentPoints.toLocaleString()}</h2>
                   <p className="text-pink-200 text-sm mt-2">
                     Lifetime earned: {lifetimePoints.toLocaleString()} points

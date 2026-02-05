@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
@@ -82,6 +83,7 @@ export default function Settings() {
         const { error: insertError } = await supabase.from("settings").insert({
           profile_id: userProfile.id,
           ...defaultValues,
+          store_hours: JSON.parse(JSON.stringify(defaultValues.store_hours)) as Json,
         });
 
         if (insertError) {
@@ -158,6 +160,7 @@ export default function Settings() {
       const { error: settingsError } = await supabase.from("settings").upsert({
         profile_id: userProfile.id,
         ...generalSettings,
+        store_hours: JSON.parse(JSON.stringify(generalSettings.store_hours)) as Json,
         updated_at: new Date().toISOString(),
       });
 
@@ -201,7 +204,28 @@ export default function Settings() {
     const loadSettings = async () => {
       const settings = await fetchSettings();
       if (settings) {
-        form.reset(settings);
+        // Sanitize settings - convert null values to appropriate defaults
+        const sanitizedSettings = Object.fromEntries(
+          Object.entries(settings).map(([key, value]) => {
+            // Convert null to empty string for string fields, keep other types as is
+            if (value === null) {
+              // Check if it's a field that should be a string
+              const defaultValue = defaultValues[key as keyof SettingsFormValues];
+              if (typeof defaultValue === 'string') {
+                return [key, ''];
+              }
+              if (typeof defaultValue === 'number') {
+                return [key, 0];
+              }
+              if (typeof defaultValue === 'boolean') {
+                return [key, false];
+              }
+              return [key, defaultValue ?? ''];
+            }
+            return [key, value];
+          })
+        );
+        form.reset(sanitizedSettings as SettingsFormValues);
       }
     };
 
@@ -307,7 +331,7 @@ export default function Settings() {
 
               {/* Invoices Tab */}
               <TabsContent value="invoices" className="space-y-6">
-                <InvoiceSection form={form} />
+                <InvoiceSection />
                 <InvoiceTemplateSection form={form} />
               </TabsContent>
 

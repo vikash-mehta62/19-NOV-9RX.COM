@@ -26,6 +26,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Pencil, Trash2, FileText, Eye, Star, StarOff } from "lucide-react";
 import { format } from "date-fns";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 interface Blog {
   id: string;
@@ -63,6 +64,8 @@ export default function Blogs() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Blog | null>(null);
   const [formData, setFormData] = useState(initialFormState);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [blogToDelete, setBlogToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -160,16 +163,24 @@ export default function Blogs() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this blog post?")) return;
+  const handleDelete = async () => {
+    if (!blogToDelete) return;
     try {
-      const { error } = await supabase.from("blogs").delete().eq("id", id);
+      const { error } = await supabase.from("blogs").delete().eq("id", blogToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "Blog deleted successfully" });
       fetchBlogs();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteDialogOpen(false);
+      setBlogToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setBlogToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const togglePublished = async (id: string, currentStatus: boolean) => {
@@ -455,7 +466,7 @@ export default function Blogs() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(blog)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(blog.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(blog.id)}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
@@ -467,6 +478,14 @@ export default function Blogs() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={handleDelete}
+          title="Delete Blog Post"
+          description="Are you sure you want to delete this blog post? This action cannot be undone."
+        />
       </div>
     </DashboardLayout>
   );

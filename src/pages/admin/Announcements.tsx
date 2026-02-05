@@ -37,6 +37,7 @@ import {
   Bell, MessageSquare, Layers
 } from "lucide-react";
 import { format } from "date-fns";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 interface Announcement {
   id: string;
@@ -98,6 +99,8 @@ export default function Announcements() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingAnnouncement, setEditingAnnouncement] = useState<Announcement | null>(null);
   const [formData, setFormData] = useState(initialFormState);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [announcementToDelete, setAnnouncementToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -173,16 +176,24 @@ export default function Announcements() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this announcement?")) return;
+  const handleDelete = async () => {
+    if (!announcementToDelete) return;
     try {
-      const { error } = await supabase.from("announcements").delete().eq("id", id);
+      const { error } = await supabase.from("announcements").delete().eq("id", announcementToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "Announcement deleted successfully" });
       fetchAnnouncements();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setDeleteDialogOpen(false);
+      setAnnouncementToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setAnnouncementToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const toggleActive = async (id: string, currentStatus: boolean) => {
@@ -476,7 +487,7 @@ export default function Announcements() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(announcement)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(announcement.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(announcement.id)}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
@@ -488,6 +499,14 @@ export default function Announcements() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={handleDelete}
+          title="Delete Announcement"
+          description="Are you sure you want to delete this announcement? This action cannot be undone."
+        />
       </div>
     </DashboardLayout>
   );

@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 
 interface EmailAutomation {
@@ -235,6 +236,8 @@ export default function EmailAutomations() {
   const [activeTab, setActiveTab] = useState("all");
   const [runningCron, setRunningCron] = useState(false);
   const [savingTemplate, setSavingTemplate] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [automationToDelete, setAutomationToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -428,16 +431,106 @@ export default function EmailAutomations() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this automation?")) return;
+  const handleDelete = async () => {
+    if (!automationToDelete) return;
+    
     try {
-      const { error } = await supabase.from("email_automations").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Automation deleted successfully" });
+      console.log("🗑️ Starting deletion process for automation:", automationToDelete);
+      
+      // Step 1: Update email_queue to remove automation references
+      console.log("Step 1: Updating email_queue...");
+      const { error: queueError } = await supabase
+        .from("email_queue")
+        .update({ automation_id: null })
+        .eq("automation_id", automationToDelete);
+      
+      if (queueError) {
+        console.error("❌ Error updating email_queue:", queueError);
+      } else {
+        console.log("✅ email_queue updated");
+      }
+
+      // Step 2: Delete automation_executions
+      console.log("Step 2: Deleting automation_executions...");
+      const { error: execError } = await supabase
+        .from("automation_executions")
+        .delete()
+        .eq("automation_id", automationToDelete);
+      
+      if (execError) {
+        console.error("❌ Error deleting automation_executions:", execError);
+      } else {
+        console.log("✅ automation_executions deleted");
+      }
+
+      // Step 3: Update email_tracking
+      console.log("Step 3: Updating email_tracking...");
+      const { error: trackingError } = await supabase
+        .from("email_tracking")
+        .update({ automation_id: null })
+        .eq("automation_id", automationToDelete);
+      
+      if (trackingError) {
+        console.error("❌ Error updating email_tracking:", trackingError);
+      } else {
+        console.log("✅ email_tracking updated");
+      }
+
+      // Step 4: Update email_logs (if exists)
+      console.log("Step 4: Updating email_logs...");
+      const { error: logsError } = await supabase
+        .from("email_logs")
+        .update({ automation_id: null })
+        .eq("automation_id", automationToDelete);
+      
+      if (logsError) {
+        console.error("❌ Error updating email_logs:", logsError);
+      } else {
+        console.log("✅ email_logs updated");
+      }
+
+      // Step 5: Now delete the automation
+      console.log("Step 5: Deleting automation...");
+      const { error } = await supabase
+        .from("email_automations")
+        .delete()
+        .eq("id", automationToDelete);
+        
+      if (error) {
+        console.error("❌ Error deleting automation:", error);
+        throw error;
+      }
+      
+      console.log("✅ Automation deleted successfully!");
+      toast({ 
+        title: "Success ✅", 
+        description: "Automation and all related records deleted successfully" 
+      });
       fetchAutomations();
+      fetchRecentExecutions();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("❌ Delete error:", error);
+      
+      // Show detailed error message
+      let errorMsg = error.message || "Failed to delete automation";
+      if (error.message && error.message.includes("foreign key")) {
+        errorMsg = "Database constraint error. Please run CHECK_AND_FIX_AUTOMATIONS.sql in Supabase SQL Editor to fix foreign key constraints.";
+      }
+      
+      toast({ 
+        title: "Error", 
+        description: errorMsg,
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setAutomationToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setAutomationToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const handleDuplicate = async (automation: EmailAutomation) => {
@@ -534,8 +627,41 @@ export default function EmailAutomations() {
   const handleRunCron = async () => {
     setRunningCron(true);
     try {
-      const response = await fetch('/api/email/cron/run-all', { method: 'POST' });
-      const data = await response.json();
+      // Check if server is running by making the request
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch('/api/email/cron/run-all', { 
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      clearTimeout(timeoutId);
+      
+      // Check if response is ok
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Email automation server is not running. Please start the server with 'npm start' in the server directory.");
+        }
+        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+      }
+      
+      // Check if response has content
+      const text = await response.text();
+      if (!text) {
+        throw new Error("Empty response from server");
+      }
+      
+      // Try to parse JSON
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error("Invalid JSON response from server");
+      }
       
       if (data.success) {
         toast({
@@ -548,7 +674,23 @@ export default function EmailAutomations() {
         throw new Error(data.error || "Failed to run cron");
       }
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("Cron execution error:", error);
+      
+      let errorMessage = "Failed to execute cron jobs.";
+      
+      if (error.name === 'AbortError') {
+        errorMessage = "Request timed out. The server may not be running.";
+      } else if (error.message.includes('fetch')) {
+        errorMessage = "Cannot connect to server. Please ensure the Node.js server is running on the correct port.";
+      } else {
+        errorMessage = error.message;
+      }
+      
+      toast({ 
+        title: "Error", 
+        description: errorMessage,
+        variant: "destructive" 
+      });
     } finally {
       setRunningCron(false);
     }
@@ -1039,7 +1181,7 @@ export default function EmailAutomations() {
                             <Button variant="ghost" size="sm" onClick={() => handleEdit(automation)} title="Edit">
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(automation.id)} title="Delete">
+                            <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(automation.id)} title="Delete">
                               <Trash2 className="h-4 w-4 text-red-500" />
                             </Button>
                           </div>
@@ -1052,6 +1194,14 @@ export default function EmailAutomations() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={handleDelete}
+          title="Delete Email Automation"
+          description="Are you sure you want to delete this automation? This will also remove all related execution history and queued emails."
+        />
 
 
         {/* Test Automation Dialog */}

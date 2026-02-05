@@ -12,11 +12,24 @@ export const addressSchema = z.object({
   faxNumber: z.string().optional(),
 });
 
+// Location address schema - all fields optional for locations
+const locationAddressSchema = z.object({
+  attention: z.string().optional(),
+  countryRegion: z.string().optional(),
+  street1: z.string().optional(),
+  street2: z.string().optional(),
+  city: z.string().optional(),
+  state: z.string().optional(),
+  zip_code: z.string().optional(),
+  phone: z.string().optional(),
+  faxNumber: z.string().optional(),
+});
+
 const locationSchema = z.object({
   name: z.string().optional(),
   type: z.enum(["headquarters", "branch", "warehouse", "retail"]).optional(),
   status: z.enum(["active", "inactive", "pending"]).optional(),
-  address: addressSchema.optional(),
+  address: locationAddressSchema.optional(),
   manager: z.string().optional(),
   contactEmail: z.string().optional(),
   contactPhone: z.string().optional(),

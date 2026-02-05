@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Plus, Pencil, Trash2, Mail, Eye, Code, FileText, Wand2 } from "lucide-react";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 interface EmailTemplate {
   id: string;
@@ -82,6 +83,8 @@ export default function EmailTemplates() {
   const [previewHtml, setPreviewHtml] = useState("");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [formData, setFormData] = useState(initialFormState);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -159,16 +162,117 @@ export default function EmailTemplates() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this template?")) return;
+  const handleDelete = async () => {
+    if (!templateToDelete) return;
+    
     try {
-      const { error } = await supabase.from("email_templates").delete().eq("id", id);
-      if (error) throw error;
-      toast({ title: "Success", description: "Template deleted successfully" });
+      console.log("🗑️ Starting deletion process for template:", templateToDelete);
+      
+      // Step 1: Update email_queue to remove template references
+      console.log("Step 1: Updating email_queue...");
+      const { error: queueError } = await supabase
+        .from("email_queue")
+        .update({ template_id: null })
+        .eq("template_id", templateToDelete);
+      
+      if (queueError) {
+        console.error("❌ Error updating email_queue:", queueError);
+      } else {
+        console.log("✅ email_queue updated");
+      }
+
+      // Step 2: Update email_automations to remove template references
+      console.log("Step 2: Updating email_automations...");
+      const { error: automationsError } = await supabase
+        .from("email_automations")
+        .update({ template_id: null })
+        .eq("template_id", templateToDelete);
+      
+      if (automationsError) {
+        console.error("❌ Error updating email_automations:", automationsError);
+      } else {
+        console.log("✅ email_automations updated");
+      }
+
+      // Step 3: Update email_campaigns to remove template references
+      console.log("Step 3: Updating email_campaigns...");
+      const { error: campaignsError } = await supabase
+        .from("email_campaigns")
+        .update({ template_id: null })
+        .eq("template_id", templateToDelete);
+      
+      if (campaignsError) {
+        console.error("❌ Error updating email_campaigns:", campaignsError);
+      } else {
+        console.log("✅ email_campaigns updated");
+      }
+
+      // Step 4: Update email_tracking
+      console.log("Step 4: Updating email_tracking...");
+      const { error: trackingError } = await supabase
+        .from("email_tracking")
+        .update({ template_id: null })
+        .eq("template_id", templateToDelete);
+      
+      if (trackingError) {
+        console.error("❌ Error updating email_tracking:", trackingError);
+      } else {
+        console.log("✅ email_tracking updated");
+      }
+
+      // Step 5: Update email_logs
+      console.log("Step 5: Updating email_logs...");
+      const { error: logsError } = await supabase
+        .from("email_logs")
+        .update({ template_id: null })
+        .eq("template_id", templateToDelete);
+      
+      if (logsError) {
+        console.error("❌ Error updating email_logs:", logsError);
+      } else {
+        console.log("✅ email_logs updated");
+      }
+
+      // Step 6: Now delete the template
+      console.log("Step 6: Deleting template...");
+      const { error } = await supabase
+        .from("email_templates")
+        .delete()
+        .eq("id", templateToDelete);
+        
+      if (error) {
+        console.error("❌ Error deleting template:", error);
+        throw error;
+      }
+      
+      console.log("✅ Template deleted successfully!");
+      toast({ 
+        title: "Success ✅", 
+        description: "Template and all related records deleted successfully" 
+      });
       fetchTemplates();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      console.error("❌ Delete error:", error);
+      
+      let errorMsg = error.message || "Failed to delete template";
+      if (error.message && error.message.includes("foreign key")) {
+        errorMsg = "Database constraint error. Please run the migration: 20260206_fix_all_foreign_key_constraints.sql";
+      }
+      
+      toast({ 
+        title: "Error", 
+        description: errorMsg,
+        variant: "destructive" 
+      });
+    } finally {
+      setDeleteDialogOpen(false);
+      setTemplateToDelete(null);
     }
+  };
+
+  const openDeleteDialog = (id: string) => {
+    setTemplateToDelete(id);
+    setDeleteDialogOpen(true);
   };
 
   const handlePreview = (html: string) => {
@@ -429,7 +533,7 @@ export default function EmailTemplates() {
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(template)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(template.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(template.id)}>
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
@@ -441,6 +545,14 @@ export default function EmailTemplates() {
             )}
           </CardContent>
         </Card>
+
+        <ConfirmDeleteDialog
+          open={deleteDialogOpen}
+          onOpenChange={setDeleteDialogOpen}
+          onConfirm={handleDelete}
+          title="Delete Email Template"
+          description="Are you sure you want to delete this template? This will remove it from all automations, campaigns, and queued emails."
+        />
       </div>
     </DashboardLayout>
   );
