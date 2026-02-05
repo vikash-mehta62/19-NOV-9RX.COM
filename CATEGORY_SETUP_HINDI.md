@@ -5,7 +5,7 @@
 ### 1. Database Tables
 - **subcategory_configs** table banaya gaya hai
 - Categories aur subcategories ke liye data insert kiya gaya hai
-
+# up
 ### 2. Add Product Modal
 - Category select karne ke baad subcategory field show hota hai
 - Do tabs hain:
