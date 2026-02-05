@@ -91,10 +91,20 @@ export function UsersContainer({
 
     setIsLoading(true);
     try {
+      console.log("Assigning users to group:", {
+        selectedUsers,
+        groupId: groupid,
+        userCount: selectedUsers.length
+      });
+
       const { data, error } = await supabase
         .from("profiles")
-        .update({ group_id: groupid })
-        .in("id", selectedUsers);
+        .update({ 
+          group_id: groupid,
+          updated_at: new Date().toISOString()
+        })
+        .in("id", selectedUsers)
+        .select(); // Add select to get the updated data
 
       if (error) {
         console.error("Error updating profiles:", error.message);
@@ -106,14 +116,21 @@ export function UsersContainer({
         return;
       }
 
+      console.log("Successfully updated profiles:", data);
+
       toast({
         title: "Success",
         description: `${selectedUsers.length} user(s) added to group successfully`,
       });
 
+      // Clear selection and refresh data
       onSelectionChange([]);
       setGroup("");
+      
+      // Force a page refresh to ensure data is updated
+      window.location.reload();
     } catch (error) {
+      console.error("Unexpected error:", error);
       toast({
         title: "Error",
         description: "An unexpected error occurred",
