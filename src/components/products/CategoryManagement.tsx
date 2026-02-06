@@ -7,4 +7,4 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Loader2, Plus, Edit2, Trash2 } from "lucid
+import { Loader2, Plus, Edit2, Trash2 } from "lucide-react"
