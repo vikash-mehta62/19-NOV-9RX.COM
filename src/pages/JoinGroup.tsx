@@ -185,31 +185,97 @@ const JoinGroup = () => {
         throw new Error("Failed to create account");
       }
 
-      // Update profile with group_id
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .update({
-          first_name: form.first_name,
-          last_name: form.last_name,
-          display_name: `${form.first_name} ${form.last_name}`,
-          company_name: form.company_name,
-          mobile_phone: form.phone,
-          group_id: invitation!.group_id,
-          type: "pharmacy",
-          status: "pending", // Admin will need to approve
-          role: "user",
-        })
-        .eq("id", authData.user.id);
+      console.log("User created:", authData.user.id);
 
-      if (profileError) {
-        console.error("Profile update error:", profileError);
+      // Wait a moment for the trigger to create the profile
+      await new Promise(resolve => setTimeout(resolve, 1500));
+
+      // Check if profile exists
+      const { data: existingProfile, error: checkError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("id", authData.user.id)
+        .single();
+
+      console.log("Profile check:", { exists: !!existingProfile, error: checkError });
+
+      const profileData = {
+        id: authData.user.id,
+        first_name: form.first_name,
+        last_name: form.last_name,
+        display_name: `${form.first_name} ${form.last_name}`,
+        company_name: form.company_name,
+        mobile_phone: form.phone,
+        group_id: invitation!.group_id,
+        type: "pharmacy",
+        status: "pending",
+        account_status: "pending",
+        role: "user",
+        email: form.email,
+        created_at: new Date().toISOString(),
+      };
+
+      let profileError;
+
+      if (existingProfile) {
+        // Profile exists, update it
+        console.log("Updating existing profile with group_id:", invitation!.group_id);
+        
+        // Try regular update first
+        const { error: updateError, data: updateData } = await supabase
+          .from("profiles")
+          .update(profileData)
+          .eq("id", authData.user.id)
+          .select();
+        
+        if (updateError) {
+          console.error("Regular update failed:", updateError);
+          console.log("Attempting update with specific fields...");
+          
+          // If regular update fails, try updating only critical fields
+          const { error: retryError } = await supabase
+            .from("profiles")
+            .update({
+              first_name: form.first_name,
+              last_name: form.last_name,
+              display_name: `${form.first_name} ${form.last_name}`,
+              company_name: form.company_name,
+              mobile_phone: form.phone,
+              group_id: invitation!.group_id,
+              type: "pharmacy",
+              status: "pending",
+              account_status: "pending",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", authData.user.id);
+          
+          profileError = retryError;
+        } else {
+          console.log("Profile updated successfully:", updateData);
+          profileError = null;
+        }
+      } else {
+        // Profile doesn't exist, insert it
+        console.log("Inserting new profile with group_id:", invitation!.group_id);
+        const { error } = await supabase
+          .from("profiles")
+          .insert(profileData);
+        profileError = error;
       }
 
-      // Mark invitation as accepted
+      if (profileError) {
+        console.error("Profile operation error:", profileError);
+        throw new Error(`Failed to create profile: ${profileError.message}`);
+      }
+
+      console.log("Profile created/updated successfully with group_id:", invitation!.group_id);
+
+      // Update invitation - keep status as "pending" until admin approves
+      // Only update accepted_at and accepted_by fields
       await supabase
         .from("pharmacy_invitations")
         .update({
-          status: "accepted",
+          status: "pending", // Keep pending until admin approval
           accepted_at: new Date().toISOString(),
           accepted_by: authData.user.id,
         })

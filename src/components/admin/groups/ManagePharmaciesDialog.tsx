@@ -69,17 +69,30 @@ export function ManagePharmaciesDialog({
   const fetchPharmacies = async () => {
     try {
       setLoading(true);
+      
+      console.log("Fetching pharmacies for group:", groupId);
+      
       const { data, error } = await supabase
         .from("profiles")
-        .select("id, display_name, company_name, email, status, created_at")
+        .select("id, display_name, company_name, email, status, created_at, group_id")
         .eq("group_id", groupId)
         .eq("type", "pharmacy")
         .order("created_at", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error fetching pharmacies:", error);
+        throw error;
+      }
+      
+      console.log("Fetched pharmacies:", data?.length || 0, "pharmacies");
       setPharmacies(data || []);
     } catch (err) {
       console.error("Error fetching pharmacies:", err);
+      toast({
+        title: "Error",
+        description: "Failed to load pharmacies. Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }

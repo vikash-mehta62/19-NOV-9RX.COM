@@ -197,7 +197,9 @@ export default function EmailCampaigns() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [confirmSendOpen, setConfirmSendOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<EmailCampaign | null>(null);
+  const [campaignToDelete, setCampaignToDelete] = useState<string | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<EmailCampaign | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [recipientCount, setRecipientCount] = useState(0);
@@ -485,15 +487,24 @@ export default function EmailCampaigns() {
     setDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this campaign?")) return;
+  const handleDelete = (id: string) => {
+    setCampaignToDelete(id);
+    setConfirmDeleteOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!campaignToDelete) return;
+    
     try {
-      const { error } = await supabase.from("email_campaigns").delete().eq("id", id);
+      const { error } = await supabase.from("email_campaigns").delete().eq("id", campaignToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "Campaign deleted successfully" });
       fetchCampaigns();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setConfirmDeleteOpen(false);
+      setCampaignToDelete(null);
     }
   };
 
@@ -1311,6 +1322,37 @@ export default function EmailCampaigns() {
               <AlertDialogAction onClick={confirmSend} className="bg-green-600 hover:bg-green-700">
                 <Send className="h-4 w-4 mr-2" />
                 Send Now
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Confirm Delete Dialog */}
+        <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <Trash2 className="h-5 w-5 text-red-600" />
+                Delete Campaign?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="space-y-3">
+                <p>Are you sure you want to delete this campaign?</p>
+                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-4 rounded-lg">
+                  <p className="text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>This action cannot be undone. The campaign and all its data will be permanently removed.</span>
+                  </p>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={confirmDelete} 
+                className="bg-red-600 hover:bg-red-700 focus:ring-red-600"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Campaign
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,7 @@ import {
   Clock,
   AlertCircle,
   Loader2,
+  Users,
 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,6 +45,7 @@ interface AccessRequest {
   mobile_phone?: string;
   work_phone?: string;
   created_at: string;
+  group_id?: string; // Added for group invitation tracking
   billing_address?: {
     street1?: string;
     street2?: string;
@@ -80,7 +82,59 @@ export function AccessRequestDetailDialog({
   const [feedback, setFeedback] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionType, setActionType] = useState<"approve" | "reject" | null>(null);
+  const [groupInfo, setGroupInfo] = useState<{ name: string; email: string } | null>(null);
+  const [invitationInfo, setInvitationInfo] = useState<any>(null);
   const { toast } = useToast();
+
+  // Fetch group and invitation info when dialog opens
+  useEffect(() => {
+    if (request?.group_id && open) {
+      fetchGroupInfo();
+      fetchInvitationInfo();
+    } else {
+      setGroupInfo(null);
+      setInvitationInfo(null);
+    }
+  }, [request?.group_id, request?.id, open]);
+
+  const fetchGroupInfo = async () => {
+    if (!request?.group_id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('display_name, first_name, last_name, email, company_name')
+        .eq('id', request.group_id)
+        .single();
+
+      if (!error && data) {
+        setGroupInfo({
+          name: data.display_name || data.company_name || `${data.first_name} ${data.last_name}`,
+          email: data.email,
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching group info:', err);
+    }
+  };
+
+  const fetchInvitationInfo = async () => {
+    if (!request?.id) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('pharmacy_invitations')
+        .select('*')
+        .eq('accepted_by', request.id)
+        .single();
+
+      if (!error && data) {
+        setInvitationInfo(data);
+      }
+    } catch (err) {
+      console.error('Error fetching invitation info:', err);
+    }
+  };
 
   if (!request) return null;
 
@@ -143,6 +197,48 @@ export function AccessRequestDetailDialog({
       console.log("Update result:", { data, error, userId });
 
       if (error) throw error;
+
+      // If user was created via group invitation, update pharmacy_invitations table
+      if (request.group_id) {
+        console.log("Updating invitation status for user:", userId, "group:", request.group_id);
+        
+        const { data: invitationData, error: invitationError } = await supabase
+          .from('pharmacy_invitations')
+          .update({ 
+            status: 'accepted' // Mark as accepted when admin approves
+          })
+          .eq('accepted_by', userId)
+          .eq('status', 'pending') // Only update if currently pending
+          .select();
+
+        if (invitationError) {
+          console.error('Error updating invitation status:', invitationError);
+        } else {
+          console.log('Invitation status updated:', invitationData);
+        }
+        
+        // If no rows updated, try alternative approach (match by email)
+        if (!invitationData || invitationData.length === 0) {
+          console.log('No invitation updated by accepted_by, trying by email...');
+          
+          const { data: altData, error: altError } = await supabase
+            .from('pharmacy_invitations')
+            .update({ 
+              status: 'accepted',
+              accepted_by: userId // Also update accepted_by if it was NULL
+            })
+            .eq('group_id', request.group_id)
+            .eq('email', request.email)
+            .eq('status', 'pending')
+            .select();
+          
+          if (altError) {
+            console.error('Alternative invitation update failed:', altError);
+          } else {
+            console.log('Invitation updated via email match:', altData);
+          }
+        }
+      }
 
       // Verify only one record was updated
       if (data && data.length === 1) {
@@ -232,6 +328,21 @@ export function AccessRequestDetailDialog({
       console.log("Reject result:", { data, error, userId });
 
       if (error) throw error;
+
+      // If user was created via group invitation, update pharmacy_invitations table
+      if (request.group_id) {
+        const { error: invitationError } = await supabase
+          .from('pharmacy_invitations')
+          .update({ 
+            status: 'cancelled' // Mark as cancelled when admin rejects
+          })
+          .eq('accepted_by', userId)
+          .eq('status', 'pending'); // Only update if currently pending
+
+        if (invitationError) {
+          console.error('Error updating invitation status:', invitationError);
+        }
+      }
 
       toast({
         title: "❌ User Rejected",
@@ -391,6 +502,64 @@ export function AccessRequestDetailDialog({
                       <span className="text-gray-500">Shipping Address</span>
                       <p className="font-medium">{shippingAddress}</p>
                     </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Group Invitation Info - Show if user came via group invitation */}
+          {request.group_id && (groupInfo || invitationInfo) && (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="pt-4">
+                <h3 className="font-semibold text-blue-900 mb-3 flex items-center gap-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  Group Invitation
+                </h3>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center gap-2 p-2 bg-white rounded border border-blue-200">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <span className="text-blue-900 font-medium">
+                      This user was invited by a group to join their network
+                    </span>
+                  </div>
+                  {groupInfo && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1">
+                        <span className="text-blue-700">Group Name</span>
+                        <p className="font-medium text-blue-900">{groupInfo.name}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-blue-700">Group Email</span>
+                        <p className="font-medium text-blue-900">{groupInfo.email}</p>
+                      </div>
+                    </div>
+                  )}
+                  {invitationInfo && (
+                    <>
+                      {invitationInfo.message && (
+                        <div className="space-y-1">
+                          <span className="text-blue-700">Invitation Message</span>
+                          <p className="font-medium text-blue-900 italic">"{invitationInfo.message}"</p>
+                        </div>
+                      )}
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                          <span className="text-blue-700">Invited On</span>
+                          <p className="font-medium text-blue-900">
+                            {format(new Date(invitationInfo.created_at), "PPP")}
+                          </p>
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-blue-700">Accepted On</span>
+                          <p className="font-medium text-blue-900">
+                            {invitationInfo.accepted_at 
+                              ? format(new Date(invitationInfo.accepted_at), "PPP")
+                              : "N/A"}
+                          </p>
+                        </div>
+                      </div>
+                    </>
                   )}
                 </div>
               </CardContent>

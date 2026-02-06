@@ -833,8 +833,8 @@ export default function GroupOrder() {
           <Card className="p-8">
             <div className="space-y-6">
               <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center">
-                  <MapPin className="w-6 h-6 text-emerald-600" />
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                  <MapPin className="w-6 h-6 text-blue-600" />
                 </div>
                 <div>
                   <h2 className="text-xl font-semibold">Select Pharmacy Location</h2>
@@ -889,7 +889,7 @@ export default function GroupOrder() {
                   </Select>
 
                   <Button
-                    className="w-full h-12 bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                    className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-medium"
                     onClick={() => handlePharmacySelect(selectedPharmacy)}
                     disabled={!selectedPharmacy}
                   >

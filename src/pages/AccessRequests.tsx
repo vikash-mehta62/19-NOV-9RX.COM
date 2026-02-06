@@ -63,7 +63,7 @@ export default function AccessRequests() {
       setLoading(true);
       let query = supabase
         .from('profiles')
-        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, tax_id, display_name')
+        .select('id, first_name, last_name, email, company_name, type, created_at, status, account_status, mobile_phone, work_phone, billing_address, shipping_address, tax_id, display_name, group_id, rejection_reason')
         .order('created_at', { ascending: false });
 
       if (statusFilter !== 'all') {
@@ -118,7 +118,7 @@ export default function AccessRequests() {
       // First get the user details to check notification preference
       const { data: userData, error: userError } = await supabase
         .from('profiles')
-        .select('email, first_name, last_name, company_name, email_notifaction')
+        .select('email, first_name, last_name, company_name, email_notifaction, group_id')
         .eq('id', profileId)
         .single();
 
@@ -130,6 +130,49 @@ export default function AccessRequests() {
         .eq('id', profileId);
 
       if (error) throw error;
+
+      // If user was created via group invitation, update pharmacy_invitations table
+      if (userData.group_id) {
+        console.log("Updating invitation status for user:", profileId, "group:", userData.group_id);
+        
+        const { data: invitationData, error: invitationError } = await supabase
+          .from('pharmacy_invitations')
+          .update({ 
+            status: 'accepted' // Mark as accepted when admin approves
+          })
+          .eq('accepted_by', profileId)
+          .eq('status', 'pending') // Only update if currently pending
+          .select();
+
+        if (invitationError) {
+          console.error('Error updating invitation status:', invitationError);
+          // Don't throw - profile approval is more important
+        } else {
+          console.log('Invitation status updated:', invitationData);
+        }
+        
+        // If no rows updated, try alternative approach (match by email)
+        if (!invitationData || invitationData.length === 0) {
+          console.log('No invitation updated by accepted_by, trying by email...');
+          
+          const { data: altData, error: altError } = await supabase
+            .from('pharmacy_invitations')
+            .update({ 
+              status: 'accepted',
+              accepted_by: profileId // Also update accepted_by if it was NULL
+            })
+            .eq('group_id', userData.group_id)
+            .eq('email', userData.email)
+            .eq('status', 'pending')
+            .select();
+          
+          if (altError) {
+            console.error('Alternative invitation update failed:', altError);
+          } else {
+            console.log('Invitation updated via email match:', altData);
+          }
+        }
+      }
 
       // Send email notification if user has email_notifaction enabled
       if (userData && userData.email_notifaction && userData.email) {
@@ -163,12 +206,35 @@ export default function AccessRequests() {
 
   const handleReject = async (profileId: string) => {
     try {
+      // Get user details to check if they came via group invitation
+      const { data: userData } = await supabase
+        .from('profiles')
+        .select('group_id')
+        .eq('id', profileId)
+        .single();
+
       const { error } = await supabase
         .from('profiles')
         .update({ status: 'rejected', account_status: 'rejected' })
         .eq('id', profileId);
 
       if (error) throw error;
+
+      // If user was created via group invitation, update pharmacy_invitations table
+      if (userData?.group_id) {
+        const { error: invitationError } = await supabase
+          .from('pharmacy_invitations')
+          .update({ 
+            status: 'cancelled' // Mark as cancelled when admin rejects
+          })
+          .eq('accepted_by', profileId)
+          .eq('status', 'pending'); // Only update if currently pending
+
+        if (invitationError) {
+          console.error('Error updating invitation status:', invitationError);
+          // Don't throw - profile rejection is more important
+        }
+      }
 
       toast({
         title: 'Access Rejected',

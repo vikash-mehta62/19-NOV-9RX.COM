@@ -31,8 +31,8 @@ const userFormSchema = z.object({
 
   // Company Information
   company_name: z.string().optional(),
-  type: z.enum(["pharmacy", "hospital"]),
-  account_status: z.enum(["active", "inactive", "pending"]),
+  type: z.enum(["pharmacy", "hospital", "group"]),
+  account_status: z.enum(["active", "inactive", "pending", "approved", "rejected"]).optional(),
 
   // Billing Information
   billing_address: z.object({
@@ -85,6 +85,7 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
   // Initialize form with user data
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userFormSchema),
+    mode: "onChange",
     defaultValues: {
       first_name: userData?.first_name || "",
       last_name: userData?.last_name || "",
@@ -93,7 +94,7 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
       work_phone: userData?.work_phone || "",
       company_name: userData?.company_name || "",
       type: userData?.type || "pharmacy",
-      account_status: userData?.account_status || "pending",
+      account_status: userData?.account_status || "active",
       billing_address: {
         street1: userData?.billing_address?.street1 || "",
         street2: userData?.billing_address?.street2 || "",
@@ -126,18 +127,58 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
     },
   })
 
-  console.log(userData.shipping_address)
+  // Reset form when userData changes
+  useEffect(() => {
+    if (userData && open) {
+      form.reset({
+        first_name: userData?.first_name || "",
+        last_name: userData?.last_name || "",
+        email: userData?.email || "",
+        mobile_phone: userData?.mobile_phone || "",
+        work_phone: userData?.work_phone || "",
+        company_name: userData?.company_name || "",
+        type: userData?.type || "pharmacy",
+        billing_address: {
+          street1: userData?.billing_address?.street1 || "",
+          street2: userData?.billing_address?.street2 || "",
+          attention: userData?.billing_address?.attention || "",
+          city: userData?.billing_address?.city || "",
+          state: userData?.billing_address?.state || "",
+          zipCode: userData?.billing_address?.zip_code || "",
+          phone: userData?.billing_address?.phone || "",
+          faxNumber: userData?.billing_address?.faxNumber || "",
+          countryRegion: userData?.billing_address?.country || "",
+        },
+        same_as_shipping: userData?.same_as_shipping || false,
+        shipping_address: {
+          street1: userData?.shipping_address?.street1 || "",
+          street2: userData?.shipping_address?.street2 || "",
+          attention: userData?.shipping_address?.attention || "",
+          city: userData?.shipping_address?.city || "",
+          state: userData?.shipping_address?.state || "",
+          zipCode: userData?.shipping_address?.zip_code || "",
+          phone: userData?.shipping_address?.phone || "",
+          faxNumber: userData?.shipping_address?.faxNumber || "",
+          countryRegion: userData?.shipping_address?.country || "",
+        },
+        currency: userData?.currency || "USD",
+        payment_terms: userData?.payment_terms || "DueOnReceipt",
+        tax_preference: userData?.tax_preference || "Taxable",
+        portal_language: userData?.portal_language || "English",
+        enable_portal: userData?.enable_portal || false,
+      })
+    }
+  }, [userData, open, form])
+  
   const onSubmit = async (data: UserFormValues) => {
     setLoading(true)
     try {
-      console.log(data)
-
       const profileData = {
         first_name: data.first_name?.trim(),
         last_name: data.last_name?.trim(),
         email: data.email?.trim(),
         type: data.type,
-        account_status: data.account_status,
+        // account_status: data.account_status,
         company_name: data.company_name?.trim() || null,
         display_name:
           data.first_name?.trim() && data.last_name?.trim()
@@ -188,14 +229,20 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
         updated_at: new Date().toISOString(),
       }
 
-      const { data: userDataDb, error } = await supabase
+      // Update the profile (no need to select back, update is enough)
+      const { error } = await supabase
         .from("profiles")
         .update(profileData)
         .eq("id", userData.id)
-        .select()
-        .maybeSingle()
+
+      console.log("=== SUPABASE UPDATE RESULT ===")
+      console.log("Error:", error)
+      console.log("Profile data sent:", JSON.stringify(profileData, null, 2))
+      console.log("User ID:", userData.id)
+      console.log("==============================")
 
       if (error) {
+        console.error("❌ SUPABASE UPDATE ERROR ❌")
         console.error("Supabase update error:", error)
         console.error("Error details:", {
           code: error.code,
@@ -209,15 +256,27 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
           description: `Failed to update profile: ${error.message}`,
           variant: "destructive",
         })
-        throw new Error(`Database error: ${error.message}`)
+        setLoading(false)
+        return
       }
 
       toast({
         title: "User updated successfully",
         description: "The user information has been updated.",
       })
+      
+      console.log("✅ UPDATE SUCCESSFUL - Closing dialog")
+      
+      // Call onSave callback to refresh parent data
+      if (onSave) {
+        onSave(data)
+      }
+      
+      // Close dialog
       onOpenChange()
     } catch (error) {
+      console.error("❌ CATCH BLOCK ERROR ❌")
+      console.error("Error:", error)
       toast({
         title: "Error updating user",
         description: "There was an error updating the user information.",
@@ -256,7 +315,21 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
           <DialogDescription>Update locations information. Click save when you're done.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form 
+            onSubmit={form.handleSubmit(
+              onSubmit,
+              (errors) => {
+                console.log("=== FORM VALIDATION FAILED ===")
+                console.log("Validation errors:", JSON.stringify(errors, null, 2))
+                toast({
+                  title: "Validation Error",
+                  description: "Please fill all required fields correctly",
+                  variant: "destructive",
+                })
+              }
+            )} 
+            className="space-y-6"
+          >
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="grid grid-cols-3 mb-4">
                 <TabsTrigger value="personal">Personal</TabsTrigger>
@@ -696,12 +769,18 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
                 variant="outline"
                 onClick={() => onOpenChange()}
                 disabled={loading}
-                className={loading ? "opacity-50 cursor-not-allowed" : ""}
               >
                 Cancel
               </Button>
 
-              <Button type="submit" disabled={loading} className={loading ? "opacity-50 cursor-not-allowed" : ""}>
+              <Button 
+                type="submit" 
+                disabled={loading}
+                onClick={(e) => {
+                  console.log("Save button clicked", e)
+                  console.log("Form state:", form.formState)
+                }}
+              >
                 {loading ? "Saving Changes..." : "Save Changes"}
               </Button>
             </DialogFooter>
