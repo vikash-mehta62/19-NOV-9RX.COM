@@ -918,51 +918,6 @@ async function cleanupOldData() {
 }
 
 // ============================================
-// MAIN CRON STARTER
-// ============================================
-function startEmailCron() {
-  log("🚀", "========================================");
-  log("🚀", "Email Cron Service Starting...");
-  log("📋", "Configuration:", {
-    queueInterval: `${CONFIG.queueInterval / 1000}s`,
-    abandonedCartInterval: `${CONFIG.abandonedCartInterval / 60000}m`,
-    inactiveUserInterval: `${CONFIG.inactiveUserInterval / 60000}m`,
-    automationInterval: `${CONFIG.automationInterval / 1000}s`,
-    retryInterval: `${CONFIG.retryInterval / 60000}m`,
-  });
-  log("🚀", "========================================");
-
-  // 1. Process email queue (every 30 seconds)
-  setInterval(processEmailQueue, CONFIG.queueInterval);
-
-  // 2. Retry failed emails (every 5 minutes)
-  setInterval(retryFailedEmails, CONFIG.retryInterval);
-
-  // 3. Check abandoned carts (every 5 minutes)
-  setInterval(checkAbandonedCarts, CONFIG.abandonedCartInterval);
-
-  // 4. Check inactive users (every hour)
-  setInterval(checkInactiveUsers, CONFIG.inactiveUserInterval);
-
-  // 5. Process scheduled automations (every minute)
-  setInterval(processScheduledAutomations, CONFIG.automationInterval);
-
-  // 6. Cleanup old data (every 24 hours)
-  setInterval(cleanupOldData, CONFIG.cleanupInterval);
-
-  // Run initial checks after 5 seconds
-  setTimeout(async () => {
-    log("🔄", "Running initial checks...");
-    await processEmailQueue();
-    await checkAbandonedCarts();
-    await processScheduledAutomations();
-    log("✅", "Initial checks complete");
-  }, 5000);
-
-  log("✅", "Email Cron Service Started Successfully");
-}
-
-// ============================================
 // 7. TRIGGER EVENT-BASED AUTOMATIONS
 // ============================================
 /**
