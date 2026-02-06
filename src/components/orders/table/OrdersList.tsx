@@ -1024,7 +1024,7 @@ export function OrdersList({
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-600"
+                          className="h-8 w-8 p-0  transition-opacity hover:bg-blue-100 hover:text-blue-600"
                           onClick={(e) => {
                             e.stopPropagation();
                             onOrderClick(order);
