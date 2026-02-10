@@ -181,6 +181,17 @@ export const updateUserProfile = async (
       taxPercantage: Number(values.taxPercantage) || 0,
       referral_name: values.referralName?.trim() || null,
       state_id: values.stateId?.trim() || null,
+      tax_id: values.taxId?.trim() || null,
+      alternative_email: values.alternativeEmail?.trim() || null,
+      fax_number: values.faxNumber?.trim() || null,
+      department: values.department?.trim() || null,
+      terms_and_conditions: values.terms_and_conditions || null,
+      notes: values.notes?.trim() || null,
+      website: values.website?.trim() || null,
+      preferred_contact_method: values.preferredContactMethod || null,
+      language_preference: values.languagePreference || null,
+      payment_method: values.paymentMethod || null,
+      group_station: values.groupStation?.trim() || null,
       updated_at: new Date().toISOString(),
     };
 

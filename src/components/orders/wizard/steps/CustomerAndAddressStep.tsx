@@ -386,7 +386,7 @@ export const CustomerAndAddressStep = ({
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
             <div>
               <p className="text-xs text-gray-500 mb-0.5">Name</p>
               <p className="text-sm font-medium text-gray-900">{customer?.name || "-"}</p>
@@ -397,7 +397,7 @@ export const CustomerAndAddressStep = ({
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-0.5">Email</p>
-              <p className="text-sm font-medium text-gray-900">{customer?.email || "-"}</p>
+              <p className="text-sm font-medium text-gray-900 break-words">{customer?.email || "-"}</p>
             </div>
             <div>
               <p className="text-xs text-gray-500 mb-0.5">Phone</p>

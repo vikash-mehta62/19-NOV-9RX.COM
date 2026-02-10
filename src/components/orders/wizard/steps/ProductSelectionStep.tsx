@@ -125,7 +125,8 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
             (p: any) => p?.product_id === size.id
           );
           if (groupProduct?.new_price) {
-            newPrice = parseFloat(groupProduct.new_price) || size.price;
+            const parsed = parseFloat(groupProduct.new_price);
+            newPrice = (parsed > 0) ? parsed : size.price;
           }
         }
 

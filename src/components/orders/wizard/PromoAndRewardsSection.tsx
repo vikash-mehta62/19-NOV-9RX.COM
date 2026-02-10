@@ -77,6 +77,7 @@ interface PromoAndRewardsSectionProps {
   shipping?: number; // Shipping cost to include in credit memo calculation
   hasFreeShipping?: boolean; // User already has free shipping from profile
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
+  cartItems?: { productId: string }[];
 }
 
 export function PromoAndRewardsSection({
@@ -85,6 +86,7 @@ export function PromoAndRewardsSection({
   shipping = 0,
   hasFreeShipping = false,
   onDiscountChange,
+  cartItems = [],
 }: PromoAndRewardsSectionProps) {
   const { toast } = useToast();
   const [promoCode, setPromoCode] = useState("");
@@ -167,7 +169,7 @@ export function PromoAndRewardsSection({
 
       setLoadingCreditMemos(true);
       try {
-        const { data, error } = await supabase
+        const { data, error } = await (supabase as any)
           .from("credit_memos")
           .select("id, memo_number, amount, balance, reason, status, expires_at")
           .eq("customer_id", customerId)
@@ -259,11 +261,52 @@ export function PromoAndRewardsSection({
 
         if (error) throw error;
 
-        // Filter offers based on min order amount
+        const userType = sessionStorage.getItem("userType");
+        const productIds = cartItems.map((item) => item.productId);
+
+        // Fetch product categories for cart items (for category filtering)
+        let cartCategories: string[] = [];
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from("products")
+            .select("id, category")
+            .in("id", productIds);
+          cartCategories = (products || []).map((p) => p.category).filter(Boolean);
+        }
+
+        // Filter offers based on all criteria
         const qualifyingOffers = (data || []).filter((offer) => {
+          // Check min order amount
           if (offer.min_order_amount && subtotal < offer.min_order_amount) {
             return false;
           }
+
+          // Check usage limit
+          if (offer.usage_limit && offer.used_count >= offer.usage_limit) {
+            return false;
+          }
+
+          // Check applicable_to restrictions
+          if (offer.applicable_to === "user_group" && offer.user_groups) {
+            if (!userType || !offer.user_groups.includes(userType)) {
+              return false;
+            }
+          }
+
+          if (offer.applicable_to === "category" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+            const hasMatch = cartCategories.some((cat) => offer.applicable_ids.includes(cat));
+            if (!hasMatch) {
+              return false;
+            }
+          }
+
+          if (offer.applicable_to === "product" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+            const hasMatch = productIds.some((id) => offer.applicable_ids.includes(id));
+            if (!hasMatch) {
+              return false;
+            }
+          }
+
           return true;
         });
 
@@ -276,7 +319,7 @@ export function PromoAndRewardsSection({
     };
 
     fetchOffers();
-  }, [subtotal]);
+  }, [subtotal, cartItems]);
 
   // Calculate and notify parent of discount changes
   useEffect(() => {
@@ -392,6 +435,58 @@ export function PromoAndRewardsSection({
         return;
       }
 
+      // Check first order restriction
+      if (offer.applicable_to === "first_order" && customerId) {
+        const { count } = await (supabase as any)
+          .from("orders")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", customerId)
+          .neq("status", "cancelled");
+
+        if ((count || 0) > 0) {
+          setPromoError("This offer is only valid for first orders");
+          return;
+        }
+      }
+
+      // Check user group restriction
+      if (offer.applicable_to === "user_group" && offer.user_groups) {
+        const userType = sessionStorage.getItem("userType");
+        if (!userType || !offer.user_groups.includes(userType)) {
+          setPromoError("This offer is not available for your account type");
+          return;
+        }
+      }
+
+      // Check category restriction
+      if (offer.applicable_to === "category" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+        // Fetch categories for cart products
+        const productIds = cartItems.map((item) => item.productId);
+        if (productIds.length > 0) {
+          const { data: products } = await supabase
+            .from("products")
+            .select("id, category")
+            .in("id", productIds);
+
+          const cartCategories = (products || []).map((p) => p.category).filter(Boolean);
+          const hasMatch = cartCategories.some((cat) => offer.applicable_ids!.includes(cat));
+          if (!hasMatch) {
+            setPromoError("This offer is not applicable to items in your cart");
+            return;
+          }
+        }
+      }
+
+      // Check product restriction
+      if (offer.applicable_to === "product" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+        const productIds = cartItems.map((item) => item.productId);
+        const hasMatch = productIds.some((id) => offer.applicable_ids!.includes(id));
+        if (!hasMatch) {
+          setPromoError("This offer is not applicable to items in your cart");
+          return;
+        }
+      }
+
       // Calculate discount
       let discountAmount = 0;
       if (offer.offer_type === "percentage") {
@@ -452,7 +547,25 @@ export function PromoAndRewardsSection({
   };
 
   // Apply offer directly
-  const handleApplyOffer = (offer: Offer) => {
+  const handleApplyOffer = async (offer: any) => {
+    // Check first order restriction
+    if (offer.applicable_to === "first_order" && customerId) {
+      const { count } = await (supabase as any)
+        .from("orders")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", customerId)
+        .neq("status", "cancelled");
+
+      if ((count || 0) > 0) {
+        toast({
+          title: "Cannot Apply Offer",
+          description: "This offer is only valid for first orders",
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     let discountAmount = 0;
     if (offer.offer_type === "percentage") {
       discountAmount = (subtotal * (offer.discount_value || 0)) / 100;

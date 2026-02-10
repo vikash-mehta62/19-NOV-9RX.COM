@@ -64,12 +64,10 @@ export default function Locations() {
             location.billing_address?.city?.trim() ? location.billing_address.city : "N/A"
           } ${
             location.billing_address?.zip_code?.trim() ? location.billing_address.zip_code : "N/A"
-          }`
-          
-          ,
+          }`,
           countryRegion: location.countryRegion || "N/A",
           phone: location.phone || "N/A",
-          faxNumber: location.faxNumber || "N/A",
+          faxNumber: location.fax_number || "N/A",
           contact_email: location.email || "N/A",
           contact_phone: location.mobile_phone || "N/A",
           created_at: location.created_at ? new Date(location.created_at).toISOString() : "N/A",

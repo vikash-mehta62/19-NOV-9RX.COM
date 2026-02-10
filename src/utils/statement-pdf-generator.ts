@@ -58,7 +58,6 @@ export class StatementPDFGenerator {
       }) as jsPDFWithAutoTable;
 
       const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
 
       // Add header with gradient effect
       this.addHeaderGradient(doc, pageWidth);
@@ -84,15 +83,33 @@ export class StatementPDFGenerator {
       // Add totals section
       this.addTotalsSection(doc, statementData, pageWidth);
 
-      // Add footer
-      this.addFooter(doc, pageWidth, pageHeight);
-
-      // Add page numbers to all pages
+      // Add footer and page numbers to all pages
       const totalPages = doc.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
         const pdfWidth = doc.internal.pageSize.getWidth();
         const pdfHeight = doc.internal.pageSize.getHeight();
+
+        // Footer line
+        const footerY = pdfHeight - 30;
+        doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+        doc.setLineWidth(0.5);
+        doc.line(this.margin, footerY, pdfWidth - this.margin, footerY);
+
+        // Company info
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
+        doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pdfWidth / 2, footerY + 5, { align: "center" });
+
+        // Generated timestamp
+        doc.setFontSize(7);
+        doc.text(
+          `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
+          pdfWidth / 2,
+          footerY + 10,
+          { align: "center" }
+        );
 
         // Thank you message
         doc.setFont("helvetica", "italic");
@@ -100,13 +117,13 @@ export class StatementPDFGenerator {
         doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
         doc.text("Thank you for your business!", pdfWidth / 2, pdfHeight - 12, { align: "center" });
 
-        // Page number text (at the end)
+        // Page number text
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
         doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 6, { align: "center" });
 
-        // Green footer band
+        // Footer band
         doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
       }
@@ -398,14 +415,14 @@ export class StatementPDFGenerator {
         5: { cellWidth: 25, halign: "right", textColor: COLORS.success },  // Credit
         6: { cellWidth: 28, halign: "right", fontStyle: "bold" }           // Balance
       },
-      margin: { left: this.margin, right: this.margin },
+      margin: { top: 20, bottom: 35, left: this.margin, right: this.margin },
       showHead: 'everyPage',
       didDrawPage: (data: any) => {
         if (data.pageNumber > 1) {
           // Add small blue line at top of continuation pages
           doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
           doc.rect(0, 0, pageWidth, 3, 'F');
-          
+
           doc.setFont("helvetica", "bold");
           doc.setFontSize(10);
           doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
@@ -423,9 +440,20 @@ export class StatementPDFGenerator {
     statementData: StatementData,
     pageWidth: number
   ): void {
-    const finalY = doc.lastAutoTable.finalY + 10;
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let finalY = doc.lastAutoTable.finalY + 10;
     const totalsWidth = 90;
     const totalsX = pageWidth - this.margin - totalsWidth;
+    const totalsHeight = 55; // Total height needed for the totals section + badge
+
+    // Check if there's enough space on the current page for the totals section
+    if (finalY + totalsHeight > pageHeight - 35) {
+      doc.addPage();
+      // Add blue header line on new page
+      doc.setFillColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
+      doc.rect(0, 0, pageWidth, 3, 'F');
+      finalY = 20;
+    }
 
     // Totals box
     doc.setFillColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
@@ -476,37 +504,6 @@ export class StatementPDFGenerator {
       doc.setTextColor(255, 255, 255);
       doc.text("BALANCE DUE", totalsX + totalsWidth - 17.5, badgeY + 5.5, { align: "center" });
     }
-  }
-
-  /**
-   * Add footer
-   */
-  private addFooter(
-    doc: jsPDFWithAutoTable,
-    pageWidth: number,
-    pageHeight: number
-  ): void {
-    const footerY = pageHeight - 30;
-
-    // Footer line
-    doc.setDrawColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-    doc.setLineWidth(0.5);
-    doc.line(this.margin, footerY, pageWidth - this.margin, footerY);
-
-    // Company info
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 5, { align: "center" });
-
-    // Generated timestamp
-    doc.setFontSize(7);
-    doc.text(
-      `Generated on ${new Date().toLocaleDateString("en-US")} at ${new Date().toLocaleTimeString("en-US")}`,
-      pageWidth / 2,
-      footerY + 10,
-      { align: "center" }
-    );
   }
 
   /**

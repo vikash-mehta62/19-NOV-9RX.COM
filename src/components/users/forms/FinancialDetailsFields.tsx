@@ -96,7 +96,7 @@ export function FinancialDetailsFields({ form }: FinancialDetailsFieldsProps) {
             <FormLabel>Credit Limit ($)</FormLabel>
             <FormControl>
               <Input 
-                {...field} 
+              {...field} 
                 type="number" 
                 placeholder="0.00"
                 onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}

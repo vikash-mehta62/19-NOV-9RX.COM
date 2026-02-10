@@ -218,7 +218,8 @@ export const PharmacyProductsFullPage = () => {
                     (product: any) => product.product_id === size.id
                   )
                   if (groupProduct) {
-                    newPrice = parseFloat(groupProduct.new_price) || size.price
+                    const parsed = parseFloat(groupProduct.new_price)
+                    newPrice = (parsed > 0) ? parsed : size.price
                   }
                 }
                 return {

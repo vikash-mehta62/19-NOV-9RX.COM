@@ -24,6 +24,7 @@ export const SidebarProfile = () => {
 
   const userName = `${userProfile?.first_name ?? "User"} ${userProfile?.last_name ?? ""}`.trim();
   const userEmail = userProfile?.email ?? "No email available";
+  const userType = userProfile?.type;
   const { toast } = useToast();
 
   // Function to get initials for the avatar fallback
@@ -108,7 +109,9 @@ export const SidebarProfile = () => {
             <User className="w-4 h-4 mr-2 text-blue-600" />
             <span className="font-medium">Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem className="rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-800 dark:hover:to-gray-700 cursor-pointer transition-all duration-200">
+          <DropdownMenuItem
+           onClick={() => navigate(`/${userType}/settings`)}
+           className="rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-800 dark:hover:to-gray-700 cursor-pointer transition-all duration-200">
             <Settings className="w-4 h-4 mr-2 text-purple-600" />
             <span className="font-medium">Settings</span>
           </DropdownMenuItem>

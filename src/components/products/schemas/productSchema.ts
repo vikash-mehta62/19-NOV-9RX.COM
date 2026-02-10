@@ -111,7 +111,7 @@ export const productFormSchema = z.object({
         size_unit: z.string(),
         sku: z.string(),
         image: z.string().nullish(),
-        price: z.coerce.number().min(0, "Price must be positive"),
+        price: z.coerce.number().min(0.01, "Price must be greater than 0"),
         groupIds: z.array(z.string().uuid()).optional().default([]),
         disAllogroupIds: z.array(z.string().uuid()).optional().default([]),
 
@@ -123,7 +123,7 @@ export const productFormSchema = z.object({
 
         price_per_case: z.coerce
           .number()
-          .min(0, "Price per case must be positive"),
+          .min(0.01, "Price per case must be greater than 0"),
         stock: z.coerce.number().min(0, "Stock must be positive"),
         unit: z.coerce.boolean().optional(),
         case: z.coerce.boolean().optional(),

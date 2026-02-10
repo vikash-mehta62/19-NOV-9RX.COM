@@ -241,6 +241,7 @@ const OrderSummaryCardComponent = ({
               shipping={shipping}
               hasFreeShipping={hasFreeShipping}
               onDiscountChange={handleDiscountChange}
+              cartItems={items}
             />
           </div>
 

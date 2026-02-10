@@ -19,6 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/components/ui/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import axios from "axios"
 
 // Define the user data schema
 const userFormSchema = z.object({
@@ -229,31 +230,25 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
         updated_at: new Date().toISOString(),
       }
 
-      // Update the profile (no need to select back, update is enough)
-      const { error } = await supabase
-        .from("profiles")
-        .update(profileData)
-        .eq("id", userData.id)
+      // Update the profile using backend API (bypasses RLS)
+      const response = await axios.post("/update-user-profile", {
+        id: userData.id,
+        ...profileData,
+      })
 
-      console.log("=== SUPABASE UPDATE RESULT ===")
-      console.log("Error:", error)
+      console.log("=== API UPDATE RESULT ===")
+      console.log("Response:", response.data)
       console.log("Profile data sent:", JSON.stringify(profileData, null, 2))
       console.log("User ID:", userData.id)
       console.log("==============================")
 
-      if (error) {
-        console.error("❌ SUPABASE UPDATE ERROR ❌")
-        console.error("Supabase update error:", error)
-        console.error("Error details:", {
-          code: error.code,
-          message: error.message,
-          details: error.details,
-          hint: error.hint,
-        })
+      if (!response.data?.success) {
+        console.error("API UPDATE ERROR")
+        console.error("Error:", response.data?.message)
 
         toast({
           title: "Error",
-          description: `Failed to update profile: ${error.message}`,
+          description: `Failed to update profile: ${response.data?.message || "Unknown error"}`,
           variant: "destructive",
         })
         setLoading(false)
@@ -274,12 +269,13 @@ export function EditLocationPopup({ open, onOpenChange, userData, onSave }: User
       
       // Close dialog
       onOpenChange()
-    } catch (error) {
-      console.error("❌ CATCH BLOCK ERROR ❌")
+    } catch (error: any) {
+      console.error("CATCH BLOCK ERROR")
       console.error("Error:", error)
+      const errorMessage = error.response?.data?.message || error.message || "There was an error updating the user information."
       toast({
         title: "Error updating user",
-        description: "There was an error updating the user information.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
