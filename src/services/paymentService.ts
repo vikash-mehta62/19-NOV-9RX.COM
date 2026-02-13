@@ -314,7 +314,7 @@ export async function processACHPaymentFortisPay(
     }
 
     // Get API base URL
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
     // Call backend FortisPay endpoint
     const response = await fetch(`${apiBaseUrl}/pay-ach-fortispay`, {

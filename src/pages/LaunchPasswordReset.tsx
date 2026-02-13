@@ -176,7 +176,7 @@ export default function LaunchPasswordReset() {
 
       // Mark both password reset and terms accepted as completed
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
         
         console.log("🔄 Marking completion - API Base URL:", apiBaseUrl);
         console.log("🔄 User Email:", email);

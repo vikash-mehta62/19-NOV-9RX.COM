@@ -65,7 +65,7 @@ export default function LaunchPasswordReset() {
   useEffect(() => {
     const checkBackendHealth = async () => {
       try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
         const response = await fetch(`${apiBaseUrl}/api/launch/health`, {
           method: "GET",
         });
@@ -96,7 +96,7 @@ export default function LaunchPasswordReset() {
         return;
       }
 
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
       const response = await fetch(`${apiBaseUrl}/api/launch/reset-stats`, {
         headers: {
           "Authorization": `Bearer ${session.access_token}`,
@@ -190,7 +190,7 @@ export default function LaunchPasswordReset() {
         return;
       }
 
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
       const response = await fetch(`${apiBaseUrl}/api/launch/send-reset-emails`, {
         method: "POST",
         headers: {

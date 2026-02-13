@@ -10,12 +10,12 @@ export default defineConfig(({ mode }) => ({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:4001',
+        target: 'https://9rx.mahitechnocrafts.in',
         changeOrigin: true,
         secure: false,
       },
       '/logs': {
-        target: 'http://localhost:4001',
+        target: 'https://9rx.mahitechnocrafts.in',
         changeOrigin: true,
         secure: false,
       },
