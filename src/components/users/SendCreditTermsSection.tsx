@@ -124,6 +124,16 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
   };
 
   const handleSendTerms = async () => {
+    // Validate that credit terms template exists
+    if (!creditTermsTemplate) {
+      toast({
+        title: "Cannot Send Terms",
+        description: "No active credit terms template found. Please create a credit terms template first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSending(true);
     try {
       const { data: session } = await supabase.auth.getSession();
@@ -138,7 +148,7 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
         credit_limit: parseFloat(creditLimit),
         net_terms: parseInt(netTerms),
         interest_rate: parseFloat(interestRate),
-        terms_version: creditTermsTemplate?.version || "1.0",
+        terms_version: creditTermsTemplate.version,
         custom_message: customMessage || null,
         expires_at: expiresAt.toISOString(),
         status: "pending",
@@ -219,7 +229,10 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
             </Button>
             <Dialog open={showSendDialog} onOpenChange={setShowSendDialog}>
               <DialogTrigger asChild>
-                <Button className="bg-purple-600 hover:bg-purple-700">
+                <Button 
+                  className="bg-purple-600 hover:bg-purple-700"
+                  disabled={!creditTermsTemplate}
+                >
                   <Send className="w-4 h-4 mr-2" />
                   Send Credit Terms
                 </Button>
@@ -353,6 +366,22 @@ export function SendCreditTermsSection({ userId, userName }: SendCreditTermsSect
         </div>
       </CardHeader>
       <CardContent>
+        {/* Warning Banner if no template exists */}
+        {!creditTermsTemplate && (
+          <div className="mb-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5" />
+              <div>
+                <p className="font-semibold text-amber-800">No Credit Terms Template Found</p>
+                <p className="text-sm text-amber-700 mt-1">
+                  You need to create an active credit terms template before sending terms to users. 
+                  Please run the FIX_CREDIT_TERMS_DATA.sql script or contact your database administrator.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {sentTermsList.length === 0 ? (
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">

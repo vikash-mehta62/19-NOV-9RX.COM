@@ -348,6 +348,167 @@ app.post("/pay", async (req, res) => {
   }
 });
 
+// FortisPay ACH Payment Endpoint
+app.post("/pay-ach-fortispay", async (req, res) => {
+  try {
+    const {
+      invoiceNumber,
+      amount: rawAmount,
+      accountType,
+      routingNumber,
+      accountNumber,
+      nameOnAccount,
+      address,
+      city,
+      state,
+      zip: rawZip,
+      country,
+      orderId,
+      description,
+      secCode = "WEB",
+      // Optional identity verification fields
+      checkNumber,
+      dlNumber,
+      dlState,
+      ssn4,
+      dobYear,
+    } = req.body;
+
+    const amount = rawAmount ? parseFloat(rawAmount) : 0;
+    const zip = rawZip ? String(rawZip) : "";
+
+    // Validate required fields
+    if (!amount || amount <= 0) {
+      return res.status(400).json({ error: "Valid amount is required" });
+    }
+    if (!routingNumber || !accountNumber || !nameOnAccount) {
+      return res.status(400).json({ error: "Incomplete bank account details" });
+    }
+
+    // Validate FortisPay credentials
+    const FORTIS_API_URL = process.env.VITE_FORTIS_API_URL || "https://api.fortispay.com/v2";
+    const FORTIS_USER_ID = process.env.VITE_FORTIS_USER_ID;
+    const FORTIS_USER_API_KEY = process.env.VITE_FORTIS_USER_API_KEY;
+    const FORTIS_LOCATION_ID = process.env.VITE_FORTIS_LOCATION_ID;
+    const FORTIS_PRODUCT_TRANSACTION_ID = process.env.VITE_FORTIS_PRODUCT_TRANSACTION_ID_ACH;
+
+    if (!FORTIS_USER_ID || !FORTIS_USER_API_KEY || !FORTIS_LOCATION_ID || !FORTIS_PRODUCT_TRANSACTION_ID) {
+      return res.status(500).json({ 
+        error: "FortisPay configuration missing",
+        message: "Please configure FortisPay API credentials" 
+      });
+    }
+
+    // Map account type to FortisPay format
+    let fortisAccountType = "checking";
+    if (accountType?.toLowerCase() === "savings") {
+      fortisAccountType = "savings";
+    }
+
+    // Build FortisPay transaction request
+    const transactionRequest = {
+      transaction: {
+        action: "debit",
+        payment_method: "ach",
+        account_holder_name: nameOnAccount,
+        account_number: accountNumber,
+        account_type: fortisAccountType,
+        routing: routingNumber,
+        ach_sec_code: secCode,
+        transaction_amount: amount.toFixed(2),
+        location_id: FORTIS_LOCATION_ID,
+        product_transaction_id: FORTIS_PRODUCT_TRANSACTION_ID,
+        
+        // Billing information
+        billing_street: address || "",
+        billing_city: city || "",
+        billing_state: state || "",
+        billing_zip: zip || "",
+        
+        // Optional fields
+        description: description || "ACH Payment",
+        order_num: orderId || invoiceNumber,
+        check_number: checkNumber,
+        
+        // Identity verification (optional)
+        dl_number: dlNumber,
+        dl_state: dlState,
+        ssn4: ssn4,
+        dob_year: dobYear,
+        
+        // Effective date
+        effective_date: new Date().toISOString().split('T')[0],
+      },
+    };
+
+    console.log("FortisPay ACH Request:", JSON.stringify(transactionRequest, null, 2));
+
+    // Make API request to FortisPay
+    const axios = require("axios");
+    const response = await axios.post(`${FORTIS_API_URL}/transactions`, transactionRequest, {
+      headers: {
+        "Content-Type": "application/json",
+        "user-id": FORTIS_USER_ID,
+        "user-api-key": FORTIS_USER_API_KEY,
+      },
+    });
+
+    const result = response.data;
+    console.log("FortisPay ACH Response:", JSON.stringify(result, null, 2));
+
+    // Parse FortisPay response
+    const transaction = result.transaction;
+    
+    // Status IDs:
+    // 131 = Pending Origination (ACH)
+    // 132 = Originating (ACH)
+    // 133 = Originated (ACH)
+    // 134 = Settled (ACH)
+    // 301 = Declined
+    
+    const isSuccess = transaction.status_id === 131 || 
+                     transaction.status_id === 132 || 
+                     transaction.status_id === 133 || 
+                     transaction.status_id === 134;
+
+    if (isSuccess) {
+      return res.json({
+        success: true,
+        message: transaction.verbiage || "ACH payment initiated successfully",
+        transactionId: transaction.id,
+        statusId: transaction.status_id,
+        authCode: transaction.auth_code,
+      });
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: transaction.verbiage || "ACH payment declined",
+        error: transaction.response_message,
+        errorCode: transaction.reason_code_id?.toString(),
+        statusId: transaction.status_id,
+      });
+    }
+  } catch (error) {
+    console.error("FortisPay ACH Payment Error:", error);
+    
+    // Handle axios errors
+    if (error.response) {
+      const errorData = error.response.data;
+      return res.status(error.response.status).json({
+        success: false,
+        error: errorData.message || errorData.error || "FortisPay API error",
+        errorCode: errorData.code,
+      });
+    }
+    
+    return res.status(500).json({ 
+      success: false,
+      error: "Internal Server Error", 
+      details: error.message 
+    });
+  }
+});
+
 // ACH/eCheck Payment Endpoint
 app.post("/pay-ach", async (req, res) => {
   try {
@@ -592,6 +753,7 @@ app.use(generalLimiter);
 app.use("/logs", require("./routes/logsRoute"))
 app.use("/api/email", require("./routes/emailRoutes")) // Email tracking, webhooks, unsubscribe
 app.use("/api/users", require("./routes/userRoutes")) // User management (secure)
+app.use("/api/launch", require("./routes/launchRoutes")) // Website launch password reset & T&C
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)

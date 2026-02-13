@@ -7,6 +7,7 @@ import { Form } from "@/components/ui/form";
 import { BusinessProfileSection } from "@/components/settings/BusinessProfileSection";
 import { NotificationSection } from "@/components/settings/NotificationSection";
 import { SecuritySection } from "@/components/settings/SecuritySection";
+import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import CreditAgreementSection from "@/components/settings/CreditAgreementSection";
 import { SettingsFormValues, defaultValues } from "@/components/settings/settingsTypes";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,7 @@ export default function PharmacySettings() {
           </div>
               <NotificationSection form={form} />
               <SecuritySection form={form} />
+              <AppearanceSection />
               <CreditAgreementSection />
               <div className=" flex justify-center w-full">
                 <Button

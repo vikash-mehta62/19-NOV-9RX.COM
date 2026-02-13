@@ -312,6 +312,8 @@ export const PharmacyProductsFullPage = () => {
   const filteredProducts = useMemo(() => {
     console.log('=== PHARMACY PRODUCTS FILTERING ===');
     console.log('Search query:', searchQuery);
+    console.log('Selected category:', selectedCategory);
+    console.log('Selected subcategory:', selectedSubcategory);
     console.log('Total products:', products.length);
 
     if (products.length === 0) return [];
@@ -326,8 +328,17 @@ export const PharmacyProductsFullPage = () => {
       }
 
       // Subcategory filter
-      if (selectedSubcategory !== "all" && product.subcategory?.toLowerCase() !== selectedSubcategory.toLowerCase()) {
-        return false;
+      // When a subcategory is selected, ONLY show products that match that specific subcategory
+      if (selectedSubcategory !== "all") {
+        // Product must have a subcategory value that matches the selected one
+        if (!product.subcategory || product.subcategory.trim() === "") {
+          // Product has no subcategory, filter it out
+          return false;
+        }
+        if (product.subcategory.toLowerCase() !== selectedSubcategory.toLowerCase()) {
+          console.log(`Product "${product.name}" filtered out - subcategory: "${product.subcategory}" vs selected: "${selectedSubcategory}"`);
+          return false;
+        }
       }
 
       // Price range filter

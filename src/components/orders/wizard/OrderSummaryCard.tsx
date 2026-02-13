@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import { PromoAndRewardsSection } from "./PromoAndRewardsSection";
 
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer" | "redeemed_reward";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward" | "credit_memo";
   name: string;
   amount: number;
   offerId?: string;
@@ -17,6 +17,12 @@ interface AppliedDiscount {
   pointsUsed?: number;
   redemptionId?: string;
   rewardType?: string;
+  creditMemoId?: string;
+  // Add item-level discount information
+  itemDiscounts?: Map<string, number>; // productId -> discount amount
+  discountType?: "percentage" | "flat" | "free_shipping";
+  discountValue?: number;
+  applicableTo?: string;
 }
 
 export interface OrderSummaryCardProps {
@@ -173,49 +179,95 @@ const OrderSummaryCardComponent = ({
                 role="list"
                 aria-label="Order items"
               >
-                {items.map((item, index) => (
-                  <div
-                    key={`${item.productId}-${index}`}
-                    className="flex gap-2 sm:gap-3 text-xs sm:text-sm transition-all duration-200 hover:bg-gray-50 rounded p-1"
-                    role="listitem"
-                  >
-                    <img
-                      src={item.image}
-                      alt=""
-                      className="w-10 h-10 sm:w-12 sm:h-12 rounded object-cover flex-shrink-0"
-                      aria-hidden="true"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900 truncate text-xs sm:text-sm" title={item.name}>
-                        {item.name}
-                      </p>
-                      {item.sku && (
-                        <p className="text-gray-400 text-xs">
-                          SKU: {item.sku}
+                {items.map((item, index) => {
+                  // Calculate item total
+                  const itemTotal = item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0
+                    ? item.sizes.reduce((sum, size) => sum + ((size.quantity || 0) * (size.price || 0)), 0)
+                    : item.price * item.quantity;
+                  
+                  // Check if this item has a discount applied from promo/offer
+                  const promoDiscount = appliedDiscounts.find(d => 
+                    (d.type === 'promo' || d.type === 'offer') && d.itemDiscounts
+                  );
+                  
+                  // Debug logging
+                  if (index === 0) {
+                    console.log('=== ORDER SUMMARY CARD DEBUG ===');
+                    console.log('appliedDiscounts:', appliedDiscounts);
+                    console.log('promoDiscount:', promoDiscount);
+                    console.log('promoDiscount.itemDiscounts:', promoDiscount?.itemDiscounts);
+                    console.log('item.productId:', item.productId);
+                    console.log('item.name:', item.name);
+                  }
+                  
+                  let itemDiscount = 0;
+                  let hasDiscount = false;
+                  
+                  if (promoDiscount && promoDiscount.itemDiscounts) {
+                    // Check if this specific item has a discount in the Map
+                    itemDiscount = promoDiscount.itemDiscounts.get(item.productId) || 0;
+                    hasDiscount = itemDiscount > 0;
+                    
+                    if (index === 0) {
+                      console.log('itemDiscount from Map:', itemDiscount);
+                      console.log('hasDiscount:', hasDiscount);
+                    }
+                  }
+                  
+                  const discountedPrice = itemTotal - itemDiscount;
+                  
+                  return (
+                    <div
+                      key={`${item.productId}-${index}`}
+                      className="flex gap-2 sm:gap-3 text-xs sm:text-sm transition-all duration-200 hover:bg-gray-50 rounded p-1"
+                      role="listitem"
+                    >
+                      <img
+                        src={item.image}
+                        alt=""
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded object-cover flex-shrink-0"
+                        aria-hidden="true"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-gray-900 truncate text-xs sm:text-sm" title={item.name}>
+                          {item.name}
                         </p>
-                      )}
-                      {/* Show sizes with SKU */}
-                      {item.sizes && item.sizes.length > 0 && (
-                        <div className="mt-1 space-y-0.5">
-                          {item.sizes.map((size: any, sizeIdx: number) => (
-                            <div key={sizeIdx} className="text-xs text-gray-500">
-                              <span>{size.size_value} {size.size_unit} × {size.quantity}</span>
-                              {size.sku && <span className="text-gray-400 ml-1">(SKU: {size.sku})</span>}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                        {item.sku && (
+                          <p className="text-gray-400 text-xs">
+                            SKU: {item.sku}
+                          </p>
+                        )}
+                        {/* Show sizes with SKU */}
+                        {item.sizes && item.sizes.length > 0 && (
+                          <div className="mt-1 space-y-0.5">
+                            {item.sizes.map((size: any, sizeIdx: number) => (
+                              <div key={sizeIdx} className="text-xs text-gray-500">
+                                <span>{size.size_value} {size.size_unit} × {size.quantity}</span>
+                                {size.sku && <span className="text-gray-400 ml-1">(SKU: {size.sku})</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        {hasDiscount ? (
+                          <div className="space-y-0.5">
+                            <p className="text-xs text-gray-400 line-through">
+                              ${itemTotal.toFixed(2)}
+                            </p>
+                            <p className="font-medium text-green-600 text-xs sm:text-sm">
+                              ${discountedPrice.toFixed(2)}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="font-medium text-gray-900 text-xs sm:text-sm">
+                            ${itemTotal.toFixed(2)}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-medium text-gray-900 text-xs sm:text-sm">
-                        ${(item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0
-                          ? item.sizes.reduce((sum, size) => sum + ((size.quantity || 0) * (size.price || 0)), 0)
-                          : item.price
-                        ).toFixed(2)}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 

@@ -117,7 +117,8 @@ export const PharmacySizeCard = ({
   }
 
   const handleCardClick = () => {
-    navigate(`/pharmacy/product/${item.productId}/${item.sizeId}`)
+    const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
+    navigate(`/${userType}/product/${item.productId}/${item.sizeId}`)
   }
 
   const handleWishlistToggle = async (e: React.MouseEvent) => {

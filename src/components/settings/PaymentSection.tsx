@@ -38,6 +38,14 @@ import {
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 
 interface PaymentSectionProps {
   form: UseFormReturn<SettingsFormValues>;
@@ -46,6 +54,7 @@ interface PaymentSectionProps {
 export function PaymentSection({ form }: PaymentSectionProps) {
   const [showApiKey, setShowApiKey] = useState(false);
   const [showTransactionKey, setShowTransactionKey] = useState(false);
+  const [showFortisApiKey, setShowFortisApiKey] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<"success" | "error" | null>(null);
   const [testMessage, setTestMessage] = useState<string>("");
@@ -54,6 +63,16 @@ export function PaymentSection({ form }: PaymentSectionProps) {
   const isTestMode = form.watch("authorize_net_test_mode");
   const apiLoginId = form.watch("authorize_net_api_login_id");
   const transactionKey = form.watch("authorize_net_transaction_key");
+  
+  const creditCardProcessor = form.watch("credit_card_processor");
+  const achProcessor = form.watch("ach_processor");
+  
+  const fortisPayEnabled = form.watch("fortispay_enabled");
+  const fortisPayTestMode = form.watch("fortispay_test_mode");
+  const fortisPayUserId = form.watch("fortispay_user_id");
+  const fortisPayApiKey = form.watch("fortispay_user_api_key");
+  const fortisPayLocationId = form.watch("fortispay_location_id");
+  const fortisPayProductId = form.watch("fortispay_product_transaction_id_ach");
 
   const testConnection = async () => {
     if (!apiLoginId || !transactionKey) {

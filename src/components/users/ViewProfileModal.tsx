@@ -75,6 +75,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { createNotification } from "@/services/notificationService";
 import { EnhancedPaymentTab } from "./EnhancedPaymentTab";
 import { AnalyticsTab } from "./tabs/AnalyticsTab";
 import { GroupManagementTab } from "./tabs/GroupManagementTab";
@@ -552,7 +553,14 @@ export function ViewProfileModal({
 
       if (error) throw error;
 
-      setSelectedOrder(orderData);
+      // Map the order data to match the expected format
+      // Ensure 'total' field is set from 'total_amount' for OrderHeader compatibility
+      const mappedOrder = {
+        ...orderData,
+        total: orderData.total_amount || orderData.total || 0,
+      };
+
+      setSelectedOrder(mappedOrder);
       setIsOrderSheetOpen(true);
     } catch (err: any) {
       toast({ title: "Error", description: "Failed to load order details", variant: "destructive" });
@@ -668,7 +676,7 @@ export function ViewProfileModal({
     try {
       if (editingTask) {
         // Update existing task
-        const { error } = await supabase
+        const { data: updatedTask, error } = await supabase
           .from("customer_tasks")
           .update({
             title: taskForm.title,
@@ -679,13 +687,42 @@ export function ViewProfileModal({
             reminder_date: taskForm.reminder_date || null,
             assigned_to: taskForm.assigned_to || userId,
           })
-          .eq("id", editingTask.id);
+          .eq("id", editingTask.id)
+          .select()
+          .single();
 
         if (error) throw error;
-        toast({ title: "Success", description: "Task updated successfully" });
+        toast({ 
+          title: "✏️ Task Updated", 
+          description: `"${taskForm.title}" has been updated successfully` 
+        });
+
+        // Create notification for task update (send to admin who updated it)
+        if (currentUser?.id) {
+          try {
+            await createNotification({
+              user_id: currentUser.id,  // Send to admin who updated the task
+              title: '✏️ Task Updated',
+              message: `Task "${taskForm.title}" has been updated`,
+              type: 'info',
+              link: `/users/${userId}`,
+              metadata: {
+                task_id: editingTask.id,
+                task_title: taskForm.title,
+                customer_id: userId,
+                priority: taskForm.priority,
+                status: taskForm.status,
+                assigned_to: taskForm.assigned_to,
+                action: 'updated',
+              },
+            });
+          } catch (notifError) {
+            console.error('Failed to create notification:', notifError);
+          }
+        }
       } else {
         // Create new task
-        const { error } = await supabase.from("customer_tasks").insert({
+        const { data: newTask, error } = await supabase.from("customer_tasks").insert({
           customer_id: userId,
           title: taskForm.title,
           description: taskForm.description,
@@ -695,10 +732,43 @@ export function ViewProfileModal({
           reminder_date: taskForm.reminder_date || null,
           assigned_to: taskForm.assigned_to || userId,
           created_by: currentUser?.id,
-        });
+        })
+        .select()
+        .single();
 
         if (error) throw error;
-        toast({ title: "Success", description: "Task added successfully" });
+        toast({ 
+          title: "✅ Task Created", 
+          description: `"${taskForm.title}" has been added successfully` 
+        });
+
+        // Create notification for task creation (send to admin who created it)
+        if (currentUser?.id) {
+          try {
+            console.log('Creating task notification for admin:', currentUser.id);
+            const notification = await createNotification({
+              user_id: currentUser.id,  // Send to admin who created the task
+              title: '📋 Task Created',
+              message: `Task "${taskForm.title}" has been created and assigned to ${taskForm.assigned_to === userId ? 'customer' : 'user'}`,
+              type: 'info',
+              link: `/users/${userId}`,
+              metadata: {
+                task_id: newTask?.id,
+                task_title: taskForm.title,
+                customer_id: userId,
+                priority: taskForm.priority,
+                due_date: taskForm.due_date,
+                assigned_to: taskForm.assigned_to,
+                action: 'created',
+              },
+            });
+            console.log('Task notification created:', notification);
+          } catch (notifError) {
+            console.error('Failed to create notification:', notifError);
+          }
+        } else {
+          console.log('No currentUser.id, skipping notification');
+        }
       }
 
       setTaskForm({
@@ -721,13 +791,46 @@ export function ViewProfileModal({
   const handleDeleteTask = async () => {
     if (!deleteTaskId) return;
     try {
+      // Get task details before deletion for notification
+      const { data: task } = await supabase
+        .from("customer_tasks")
+        .select('title, assigned_to, customer_id')
+        .eq("id", deleteTaskId)
+        .single();
+
       const { error } = await supabase.from("customer_tasks").delete().eq("id", deleteTaskId);
       if (error) throw error;
-      toast({ title: "Success", description: "Task deleted successfully" });
+      
+      toast({ 
+        title: "🗑️ Task Deleted", 
+        description: task ? `"${task.title}" has been deleted successfully` : "Task deleted successfully"
+      });
+
+      // Create notification for task deletion (send to admin who deleted it)
+      if (currentUser?.id && task) {
+        try {
+          await createNotification({
+            user_id: currentUser.id,  // Send to admin who deleted the task
+            title: '🗑️ Task Deleted',
+            message: `Task "${task.title}" has been deleted`,
+            type: 'info',
+            link: `/users/${task.customer_id}`,
+            metadata: {
+              task_id: deleteTaskId,
+              task_title: task.title,
+              customer_id: task.customer_id,
+              action: 'deleted',
+            },
+          });
+        } catch (notifError) {
+          console.error('Failed to create notification:', notifError);
+        }
+      }
+
       setDeleteTaskId(null);
       fetchAllData();
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "❌ Error", description: err.message, variant: "destructive" });
     }
   };
 
@@ -1052,16 +1155,58 @@ export function ViewProfileModal({
 
   const updateTaskStatus = async (taskId: string, newStatus: string) => {
     try {
+      // Get task details for notification
+      const { data: task } = await supabase
+        .from("customer_tasks")
+        .select('title, assigned_to, customer_id')
+        .eq("id", taskId)
+        .single();
+
       const { error } = await supabase
         .from("customer_tasks")
         .update({ status: newStatus })
         .eq("id", taskId);
 
       if (error) throw error;
+
+      toast({
+        title: "✅ Status Updated",
+        description: `Task status changed to ${newStatus}`,
+      });
+
+      // Create notification for status change (send to admin who changed it)
+      if (currentUser?.id && task) {
+        try {
+          const statusEmojis: Record<string, string> = {
+            pending: '⏳',
+            in_progress: '🔄',
+            completed: '✅',
+            cancelled: '❌',
+          };
+
+          await createNotification({
+            user_id: currentUser.id,  // Send to admin who changed the status
+            title: `${statusEmojis[newStatus] || '📋'} Task Status Changed`,
+            message: `Task "${task.title}" status changed to ${newStatus}`,
+            type: newStatus === 'completed' ? 'success' : 'info',
+            link: `/users/${task.customer_id}`,
+            metadata: {
+              task_id: taskId,
+              task_title: task.title,
+              customer_id: task.customer_id,
+              new_status: newStatus,
+              action: 'status_changed',
+            },
+          });
+        } catch (notifError) {
+          console.error('Failed to create notification:', notifError);
+        }
+      }
+
       fetchAllData();
     } catch (err: any) {
       toast({
-        title: "Error",
+        title: "❌ Error",
         description: err.message,
         variant: "destructive",
       });

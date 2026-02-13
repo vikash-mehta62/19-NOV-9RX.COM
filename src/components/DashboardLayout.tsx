@@ -22,7 +22,6 @@ import {
   Wallet,
   Gift,
   Heart,
-  HelpCircle,
   Image,
   Percent,
   PenSquare,
@@ -32,6 +31,10 @@ import {
   Zap,
   ShoppingBag,
   CreditCard,
+  Shield,
+  Brain,
+  Bell,
+  Layers,
 } from "lucide-react"
 import { SidebarHeader } from "./dashboard/SidebarHeader";
 import { SidebarProfile } from "./dashboard/SidebarProfile";
@@ -114,7 +117,11 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "System",
         items: [
           { icon: FileBarChart, label: "Analytics", path: "/admin/analytics" },
+          { icon: Brain, label: "Intelligence", path: "/admin/intelligence" },
+          { icon: Bell, label: "Alerts", path: "/admin/alerts" },
+          { icon: Zap, label: "Automation", path: "/admin/automation" },
           { icon: Settings, label: "Settings", path: "/admin/settings" },
+          { icon: Shield, label: "Launch Reset", path: "/admin/launch-password-reset" },
           { icon: CreditCard, label: "Payments", path: "/admin/payment-transactions" },
           { icon: Users, label: "Store Approval", path: "/admin/access-requests" },
           { icon: Logs, label: "Activity Logs", path: "/admin/logs" },
@@ -151,7 +158,6 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "Account",
         items: [
           { icon: Settings, label: "Settings", path: "/pharmacy/settings" },
-          { icon: HelpCircle, label: "Help & Support", path: "/pharmacy/help" },
         ],
       },
     ],

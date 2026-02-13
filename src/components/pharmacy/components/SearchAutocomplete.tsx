@@ -99,7 +99,8 @@ export const SearchAutocomplete = ({
     if (onProductSelect) {
       onProductSelect(productId);
     } else {
-      navigate(`/pharmacy/product/${productId}`);
+      const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
+      navigate(`/${userType}/product/${productId}`);
     }
   };
 

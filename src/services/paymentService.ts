@@ -1,4 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
+import { 
+  processFortisACHPayment, 
+  FortisACHPaymentData, 
+  FortisBillingAddress,
+  FortisSecCode,
+  validateACHData 
+} from "./fortisPayService";
 
 export interface CardPaymentData {
   cardNumber: string;
@@ -13,6 +20,12 @@ export interface ACHPaymentData {
   accountNumber: string;
   nameOnAccount: string;
   bankName?: string;
+  // FortisPay specific fields (optional)
+  checkNumber?: string;
+  dlNumber?: string;
+  dlState?: string;
+  ssn4?: string;
+  dobYear?: string;
 }
 
 export interface BillingAddress {
@@ -205,7 +218,7 @@ export async function processCardPayment(
   }
 }
 
-// Process ACH payment - Uses Supabase Edge Function
+// Process ACH payment - Uses Supabase Edge Function (Authorize.Net)
 export async function processACHPayment(
   achData: ACHPaymentData,
   billingAddress: BillingAddress,
@@ -265,6 +278,104 @@ export async function processACHPayment(
       success: false,
       message: "ACH processing error",
       errorMessage: error.message,
+    };
+  }
+}
+
+// Process ACH payment via FortisPay (using backend endpoint)
+export async function processACHPaymentFortisPay(
+  achData: ACHPaymentData,
+  billingAddress: BillingAddress,
+  amount: number,
+  orderId?: string,
+  description?: string,
+  secCode: FortisSecCode = "WEB"
+): Promise<PaymentResult> {
+  try {
+    // Validate ACH data
+    const validation = validateACHData({
+      accountHolderName: achData.nameOnAccount,
+      accountNumber: achData.accountNumber,
+      accountType: achData.accountType === "businessChecking" ? "checking" : achData.accountType,
+      routingNumber: achData.routingNumber,
+      checkNumber: achData.checkNumber,
+      dlNumber: achData.dlNumber,
+      dlState: achData.dlState,
+      ssn4: achData.ssn4,
+      dobYear: achData.dobYear,
+    });
+
+    if (!validation.valid) {
+      return {
+        success: false,
+        message: "Validation failed",
+        errorMessage: validation.errors.join(", "),
+      };
+    }
+
+    // Get API base URL
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "http://localhost:4001";
+
+    // Call backend FortisPay endpoint
+    const response = await fetch(`${apiBaseUrl}/pay-ach-fortispay`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount,
+        accountType: achData.accountType === "businessChecking" ? "checking" : achData.accountType,
+        routingNumber: achData.routingNumber,
+        accountNumber: achData.accountNumber,
+        nameOnAccount: achData.nameOnAccount,
+        address: billingAddress.address,
+        city: billingAddress.city,
+        state: billingAddress.state,
+        zip: billingAddress.zip,
+        country: billingAddress.country || "USA",
+        orderId,
+        description,
+        secCode,
+        checkNumber: achData.checkNumber,
+        dlNumber: achData.dlNumber,
+        dlState: achData.dlState,
+        ssn4: achData.ssn4,
+        dobYear: achData.dobYear,
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        message: result.message || "FortisPay API error",
+        errorMessage: result.error || "Failed to process ACH payment",
+        errorCode: result.errorCode,
+      };
+    }
+
+    if (result.success) {
+      return {
+        success: true,
+        transactionId: result.transactionId,
+        authCode: result.authCode,
+        message: result.message || "ACH payment initiated successfully",
+      };
+    } else {
+      return {
+        success: false,
+        message: result.message || "ACH payment failed",
+        errorCode: result.errorCode,
+        errorMessage: result.error,
+      };
+    }
+  } catch (error: any) {
+    console.error("FortisPay ACH Payment Error:", error);
+    return {
+      success: false,
+      message: "ACH processing error",
+      errorMessage: error.message || "An unexpected error occurred",
     };
   }
 }

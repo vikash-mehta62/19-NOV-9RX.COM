@@ -147,16 +147,47 @@ export function PaymentSection({
     });
 
     try {
-      // Use Supabase Edge Function for ACH payment
-      const response = await processACHPayment({
-        accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
-        routingNumber: data.payment.achRoutingNumber,
-        accountNumber: data.payment.achAccountNumber,
-        nameOnAccount: data.payment.achAccountName,
-        amount: Number.parseFloat(data.total),
-        customerEmail: data.customerInfo.email,
-        testMode: apiCredentials.testMode,
-      });
+      // Check which processor to use
+      const processor = import.meta.env.VITE_ACH_PAYMENT_PROCESSOR || "authorize_net";
+      
+      let response;
+      
+      if (processor === "fortispay") {
+        // Use FortisPay for ACH payment
+        const { processACHPaymentFortisPay } = await import("@/services/paymentService");
+        
+        response = await processACHPaymentFortisPay(
+          {
+            accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
+            routingNumber: data.payment.achRoutingNumber,
+            accountNumber: data.payment.achAccountNumber,
+            nameOnAccount: data.payment.achAccountName,
+          },
+          {
+            firstName: data.customerInfo.firstName || "",
+            lastName: data.customerInfo.lastName || "",
+            address: data.customerInfo.address || "",
+            city: data.customerInfo.city || "",
+            state: data.customerInfo.state || "",
+            zip: data.customerInfo.zip || "",
+            country: "US",
+          },
+          Number.parseFloat(data.total),
+          data.orderId,
+          `Order Payment - ${data.customerInfo.email}`
+        );
+      } else {
+        // Use Authorize.Net (default)
+        response = await processACHPayment({
+          accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
+          routingNumber: data.payment.achRoutingNumber,
+          accountNumber: data.payment.achAccountNumber,
+          nameOnAccount: data.payment.achAccountName,
+          amount: Number.parseFloat(data.total),
+          customerEmail: data.customerInfo.email,
+          testMode: apiCredentials.testMode,
+        });
+      }
 
       if (response.success) {
         toast({
@@ -164,7 +195,7 @@ export function PaymentSection({
           description: `ACH payment processed successfully. Transaction ID: ${response.transactionId}`,
         });
       } else {
-        throw new Error(response.error || "Failed to process ACH payment");
+        throw new Error(response.errorMessage || response.message || "Failed to process ACH payment");
       }
     } catch (error) {
       console.error("Payment processing error:", error);

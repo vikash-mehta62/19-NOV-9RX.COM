@@ -53,6 +53,7 @@ interface DailyDeal {
   start_date: string;
   end_date: string;
   display_order: number;
+  offer_id?: string | null; // Link to auto-created offer
   products?: {
     id: string;
     name: string;
@@ -216,6 +217,14 @@ const initialFormState = {
   image_url: "",
 };
 
+// Available user types - will be fetched from database
+const USER_TYPES = [
+  { value: "pharmacy", label: "Pharmacy" },
+  { value: "group", label: "Group" },
+  { value: "hospital", label: "Hospital" },
+  { value: "vendor", label: "Vendor" },
+];
+
 
 export default function Offers() {
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -353,27 +362,137 @@ export default function Offers() {
 
   const handleDealSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Validate product has a valid price
+    const selectedProduct = products.find(p => p.id === dealFormData.product_id);
+    if (selectedProduct && selectedProduct.price === 0) {
+      toast({ 
+        title: "Warning: Zero Price Product", 
+        description: "This product has a base price of $0. The deal may not display correctly. Please update the product price first or ensure it has valid size prices.",
+        variant: "destructive"
+      });
+      // Allow to continue but warn the user
+    }
+    
     try {
-      const payload = {
-        product_id: dealFormData.product_id,
-        discount_percent: dealFormData.discount_percent,
-        badge_type: dealFormData.badge_type,
-        is_active: dealFormData.is_active,
-        start_date: dealFormData.start_date,
-        end_date: dealFormData.end_date,
-      };
-
       if (editingDeal) {
-        const { error } = await supabase
+        // UPDATE EXISTING DEAL
+        const dealPayload = {
+          product_id: dealFormData.product_id,
+          discount_percent: dealFormData.discount_percent,
+          badge_type: dealFormData.badge_type,
+          is_active: dealFormData.is_active,
+          start_date: dealFormData.start_date,
+          end_date: dealFormData.end_date,
+        };
+
+        const { error: dealError } = await supabase
           .from("daily_deals")
-          .update(payload)
+          .update(dealPayload)
           .eq("id", editingDeal.id);
-        if (error) throw error;
+        
+        if (dealError) throw dealError;
+
+        // Update linked offer if it exists
+        if (editingDeal.offer_id) {
+          const { error: offerError } = await supabase
+            .from("offers")
+            .update({
+              discount_value: dealFormData.discount_percent,
+              is_active: dealFormData.is_active,
+              start_date: dealFormData.start_date,
+              end_date: dealFormData.end_date,
+            })
+            .eq("id", editingDeal.offer_id);
+          
+          if (offerError) {
+            console.error("Error updating linked offer:", offerError);
+            // Don't throw - deal update succeeded
+          }
+        }
+
         toast({ title: "Success", description: "Deal updated successfully" });
       } else {
-        const { error } = await supabase.from("daily_deals").insert([payload]);
-        if (error) throw error;
-        toast({ title: "Success", description: "Deal added successfully" });
+        // CREATE NEW DEAL
+        const dealPayload = {
+          product_id: dealFormData.product_id,
+          discount_percent: dealFormData.discount_percent,
+          badge_type: dealFormData.badge_type,
+          is_active: dealFormData.is_active,
+          start_date: dealFormData.start_date,
+          end_date: dealFormData.end_date,
+        };
+
+        // Step 1: Create the daily deal (without offer_id first)
+        const { data: deal, error: dealError } = await supabase
+          .from("daily_deals")
+          .insert([dealPayload])
+          .select()
+          .single();
+        
+        if (dealError) throw dealError;
+
+        // Step 2: Create corresponding offer for checkout integration
+        const productName = products.find(p => p.id === dealFormData.product_id)?.name || "Product";
+        const offerPayload = {
+          title: `Daily Deal: ${dealFormData.badge_type} - ${productName}`,
+          description: `Auto-created offer for daily deal. Discount: ${dealFormData.discount_percent}%`,
+          offer_type: "percentage",
+          discount_value: dealFormData.discount_percent,
+          is_active: dealFormData.is_active,
+          start_date: dealFormData.start_date,
+          end_date: dealFormData.end_date,
+          applicable_to: "product",
+          applicable_ids: [dealFormData.product_id],
+          min_order_amount: 0,
+          max_discount_amount: 0,
+          usage_limit: 0,
+          promo_code: null, // Auto-apply, no code needed
+        };
+
+        const { data: offer, error: offerError } = await supabase
+          .from("offers")
+          .insert([offerPayload])
+          .select()
+          .single();
+        
+        if (offerError) {
+          console.error("Error creating offer:", offerError);
+          // Don't throw - deal was created successfully
+          toast({ 
+            title: "Partial Success", 
+            description: "Deal created but checkout integration failed. Contact support.",
+            variant: "destructive"
+          });
+        } else {
+          // Step 3: Link offer to product via product_offers
+          const { error: linkError } = await supabase
+            .from("product_offers")
+            .insert([{
+              product_id: dealFormData.product_id,
+              offer_id: offer.id,
+              is_active: true,
+            }]);
+          
+          if (linkError) {
+            console.error("Error linking offer to product:", linkError);
+          }
+
+          // Step 4: Update daily_deal with offer_id reference
+          const { error: updateError } = await supabase
+            .from("daily_deals")
+            .update({ offer_id: offer.id })
+            .eq("id", deal.id);
+          
+          if (updateError) {
+            console.error("Error updating deal with offer_id:", updateError);
+          }
+
+          toast({ 
+            title: "Success", 
+            description: "Deal created and discount will apply at checkout!" 
+          });
+        }
       }
 
       setDealsDialogOpen(false);
@@ -415,9 +534,27 @@ export default function Offers() {
 
     try {
       if (itemToDelete.type === 'deal') {
+        // Find the deal to get its offer_id
+        const deal = dailyDeals.find(d => d.id === itemToDelete.id);
+        
+        // Delete the daily deal (CASCADE will delete product_offer link)
         const { error } = await supabase.from("daily_deals").delete().eq("id", itemToDelete.id);
         if (error) throw error;
-        toast({ title: "Success", description: "Deal removed successfully" });
+
+        // Delete the linked offer if it exists (CASCADE will handle product_offers)
+        if (deal?.offer_id) {
+          const { error: offerError } = await supabase
+            .from("offers")
+            .delete()
+            .eq("id", deal.offer_id);
+          
+          if (offerError) {
+            console.error("Error deleting linked offer:", offerError);
+            // Don't throw - deal deletion succeeded
+          }
+        }
+
+        toast({ title: "Success", description: "Deal and discount removed successfully" });
         fetchDailyDeals();
       } else {
         const { error } = await supabase.from("offers").delete().eq("id", itemToDelete.id);
@@ -943,12 +1080,13 @@ export default function Offers() {
                           categories.map((cat) => (
                             <Badge
                               key={cat.id}
-                              variant={formData.applicable_ids.includes(cat.id) ? "default" : "outline"}
+                              variant={formData.applicable_ids.includes(cat.name) ? "default" : "outline"}
                               className="cursor-pointer"
                               onClick={() => {
-                                const ids = formData.applicable_ids.includes(cat.id)
-                                  ? formData.applicable_ids.filter(id => id !== cat.id)
-                                  : [...formData.applicable_ids, cat.id];
+                                // ⚠️ IMPORTANT: For category offers, use category NAME not ID
+                                const ids = formData.applicable_ids.includes(cat.name)
+                                  ? formData.applicable_ids.filter(id => id !== cat.name)
+                                  : [...formData.applicable_ids, cat.name];
                                 setFormData({ ...formData, applicable_ids: ids });
                               }}
                             >
@@ -957,6 +1095,11 @@ export default function Offers() {
                           ))
                         )}
                       </div>
+                      {formData.applicable_ids.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {formData.applicable_ids.length} categories selected: {formData.applicable_ids.join(", ")}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1007,23 +1150,30 @@ export default function Offers() {
                   {formData.applicable_to === "user_group" && (
                     <div className="col-span-2">
                       <Label>Select User Groups</Label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {["Pharmacy", "Group", "Hospital", "New Users", "VIP"].map((group) => (
+                      <div className="flex flex-wrap gap-2 mt-2 p-3 border rounded-lg">
+                        {USER_TYPES.map((userType) => (
                           <Badge
-                            key={group}
-                            variant={formData.user_groups.includes(group) ? "default" : "outline"}
-                            className="cursor-pointer"
+                            key={userType.value}
+                            variant={formData.user_groups.includes(userType.value) ? "default" : "outline"}
+                            className="cursor-pointer hover:bg-primary/10 transition-colors"
                             onClick={() => {
-                              const groups = formData.user_groups.includes(group)
-                                ? formData.user_groups.filter(g => g !== group)
-                                : [...formData.user_groups, group];
+                              const groups = formData.user_groups.includes(userType.value)
+                                ? formData.user_groups.filter(g => g !== userType.value)
+                                : [...formData.user_groups, userType.value];
                               setFormData({ ...formData, user_groups: groups });
                             }}
                           >
-                            {group}
+                            {userType.label}
                           </Badge>
                         ))}
                       </div>
+                      {formData.user_groups.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-2">
+                          {formData.user_groups.length} groups selected: {formData.user_groups.map(g => 
+                            USER_TYPES.find(ut => ut.value === g)?.label || g
+                          ).join(", ")}
+                        </p>
+                      )}
                     </div>
                   )}
 
@@ -1596,8 +1746,17 @@ export default function Offers() {
                                 <div>
                                   <p className="font-medium text-sm">{product.name}</p>
                                   <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
+                                  {product.price === 0 && (
+                                    <p className="text-xs text-amber-600 font-medium">⚠️ Zero price - may not display correctly</p>
+                                  )}
                                 </div>
-                                <p className="font-medium">${product.price.toFixed(2)}</p>
+                                <p className="font-medium">
+                                  {product.price === 0 ? (
+                                    <span className="text-amber-600">$0.00</span>
+                                  ) : (
+                                    `$${product.price.toFixed(2)}`
+                                  )}
+                                </p>
                               </div>
                             ))
                           )}
@@ -1608,6 +1767,11 @@ export default function Offers() {
                           <p className="text-sm font-medium">
                             Selected: {products.find(p => p.id === dealFormData.product_id)?.name}
                           </p>
+                          {products.find(p => p.id === dealFormData.product_id)?.price === 0 && (
+                            <p className="text-xs text-amber-600 font-medium mt-1">
+                              ⚠️ Warning: This product has a zero base price and may not display correctly in the deals section.
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1722,6 +1886,7 @@ export default function Offers() {
                         <TableHead>Badge</TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead>Status</TableHead>
+                        <TableHead>Checkout</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1771,6 +1936,17 @@ export default function Offers() {
                                   <Badge className="bg-green-100 text-green-800">Active</Badge>
                                 )}
                               </button>
+                            </TableCell>
+                            <TableCell>
+                              {deal.offer_id ? (
+                                <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200">
+                                  <CheckCircle2 className="h-3 w-3 mr-1" /> Integrated
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-amber-600 border-amber-300">
+                                  <AlertCircle className="h-3 w-3 mr-1" /> Display Only
+                                </Badge>
+                              )}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-1">

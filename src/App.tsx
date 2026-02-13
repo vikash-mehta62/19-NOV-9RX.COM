@@ -36,6 +36,7 @@ const AccessRequests = lazy(() => import("./pages/AccessRequests"));
 // Lazy loaded auth/utility pages
 const ActivationUser = lazy(() => import("./components/ActiovationUser"));
 const PasswordReset = lazy(() => import("./components/ResetPassword"));
+const LaunchPasswordReset = lazy(() => import("./pages/LaunchPasswordReset"));
 const UserSelfDetails = lazy(() => import("./components/UserSelfDetails"));
 const PayNowOrder = lazy(() => import("./components/PayNowOrder"));
 const CartItemsPricing = lazy(() => import("./components/CartItemsPricing"));
@@ -46,6 +47,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminProducts = lazy(() => import("./pages/admin/Products"));
 const AdminInventory = lazy(() => import("./pages/admin/Inventory"));
+const AdminInventoryPhase2 = lazy(() => import("./pages/admin/InventoryPhase2"));
 const AdminOrders = lazy(() => import("./pages/admin/Orders"));
 const AdminCreateOrder = lazy(() => import("./pages/admin/CreateOrder"));
 const AdminCreatePurchaseOrder = lazy(() => import("./pages/admin/CreatePurchaseOrder"));
@@ -65,11 +67,18 @@ const AdminEmailCampaigns = lazy(() => import("./pages/admin/EmailCampaigns"));
 const AdminEmailAutomations = lazy(() => import("./pages/admin/EmailAutomations"));
 const AdminEmailSettings = lazy(() => import("./pages/admin/EmailSettings"));
 const AdminAbandonedCarts = lazy(() => import("./pages/admin/AbandonedCarts"));
+const AdminIntelligence = lazy(() => import("./pages/admin/Intelligence"));
+const AdminAlerts = lazy(() => import("./pages/admin/Alerts"));
+const AdminAutomation = lazy(() => import("./pages/admin/Automation"));
+const AdminReports = lazy(() => import("./pages/admin/Reports"));
+const AdminSuppliers = lazy(() => import("./pages/admin/Suppliers"));
+const AdminCostTracking = lazy(() => import("./pages/admin/CostTracking"));
 const AdminRewards = lazy(() => import("./pages/admin/Rewards"));
 const AdminCreditManagement = lazy(() => import("./pages/admin/CreditManagement"));
 const AdminPaymentTransactions = lazy(() => import("./pages/admin/PaymentTransactions"));
 const Expenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+const AdminLaunchPasswordReset = lazy(() => import("./pages/admin/LaunchPasswordReset"));
 
 // Lazy loaded Pharmacy pages
 const PharmacyDashboard = lazy(() => import("./pages/pharmacy/Dashboard"));
@@ -91,6 +100,7 @@ const PharmacyPaymentMethods = lazy(() => import("./pages/pharmacy/PaymentMethod
 const PharmacyNotifications = lazy(() => import("./pages/pharmacy/Notifications"));
 const PharmacyInvoices = lazy(() => import("./pages/pharmacy/Invoices"));
 const PharmacyBuyAgain = lazy(() => import("./pages/pharmacy/BuyAgain"));
+const PharmacyDeals = lazy(() => import("./pages/pharmacy/Deals"));
 
 // Lazy loaded Group pages
 const GroupDashboard = lazy(() => import("./pages/group/Dashboard"));
@@ -201,7 +211,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/activation" element={<ActivationUser />} />
           <Route path="/update-profile" element={<UserSelfDetails />} />
-          <Route path="/reset-password" element={<PasswordReset />} />
+          <Route path="/reset-password" element={<LaunchPasswordReset />} />
           <Route path="/reset-password-page" element={<ResetPasswordPage />} />
           <Route path="/pay-now" element={<PayNowOrder />} />
           <Route path="/products" element={<Products />} />
@@ -243,6 +253,11 @@ function App() {
               <AdminInventory />
             </ProtectedRoute>
           } />
+          <Route path="/admin/inventory-phase2" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminInventoryPhase2 />
+            </ProtectedRoute>
+          } />
           <Route path="/admin/expenses" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <Expenses />
@@ -251,6 +266,36 @@ function App() {
           <Route path="/admin/analytics" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminAnalytics />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/intelligence" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminIntelligence />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/alerts" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminAlerts />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/reports" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminReports />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/suppliers" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminSuppliers />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/cost-tracking" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminCostTracking />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/automation" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminAutomation />
             </ProtectedRoute>
           } />
           <Route path="/admin/orders" element={
@@ -316,6 +361,11 @@ function App() {
           <Route path="/admin/settings" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminSettings />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/launch-password-reset" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminLaunchPasswordReset />
             </ProtectedRoute>
           } />
           <Route path="/admin/payment-transactions" element={
@@ -391,6 +441,11 @@ function App() {
               <CategoryBrowse />
             </ProtectedRoute>
           } /> */}
+          <Route path="/pharmacy/deals" element={
+            <ProtectedRoute allowedRoles={['pharmacy']}>
+              <PharmacyDeals />
+            </ProtectedRoute>
+          } />
           <Route path="/pharmacy/dashboard" element={
             <ProtectedRoute allowedRoles={['pharmacy']}>
               <PharmacyDashboard />
@@ -522,6 +577,11 @@ function App() {
           <Route path="/group/products" element={
             <ProtectedRoute allowedRoles={['group']}>
               <GroupProducts />
+            </ProtectedRoute>
+          } />
+          <Route path="/group/product/:productId/:sizeId" element={
+            <ProtectedRoute allowedRoles={['group']}>
+              <SizeDetail />
             </ProtectedRoute>
           } />
           <Route path="/group/product/:productId" element={

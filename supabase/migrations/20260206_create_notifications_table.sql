@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS notifications (
     user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
     title VARCHAR(255) NOT NULL,
     message TEXT NOT NULL,
-    type VARCHAR(50) DEFAULT 'info', -- info, success, warning, error, order, payment
+    type VARCHAR(50) DEFAULT 'info', -- info, success, warning, error, order, payment, automation
     read BOOLEAN DEFAULT FALSE,
     link VARCHAR(500), -- Optional link to related resource
     metadata JSONB, -- Additional data (order_id, payment_id, etc.)

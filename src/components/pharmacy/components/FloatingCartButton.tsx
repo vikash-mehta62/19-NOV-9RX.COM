@@ -60,8 +60,9 @@ export const FloatingCartButton = () => {
   };
 
   const handleViewDetails = (productId: string) => {
+    const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
     setIsExpanded(false);
-    navigate(`/pharmacy/product/${productId}`);
+    navigate(`/${userType}/product/${productId}`);
   };
 
   // Don't show if no items or on order create page
@@ -160,7 +161,10 @@ export const FloatingCartButton = () => {
                       className="w-full bg-blue-600 hover:bg-blue-700 gap-2 min-h-[44px] rounded-xl"
                       onClick={() => {
                         setIsExpanded(false);
-                        navigate("/pharmacy/order/create");
+                        const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy';
+                        // Different user types have different order creation paths
+                        const orderPath = userType === 'pharmacy' ? `/${userType}/order/create` : `/${userType}/order`;
+                        navigate(orderPath);
                       }}
                     >
                       Proceed to Checkout

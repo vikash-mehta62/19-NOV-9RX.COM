@@ -1,51 +1,32 @@
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination";
+import { Pagination } from "@/components/ui/pagination";
 
 interface LocationTablePaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  pageSize?: number;
+  totalItems?: number;
 }
 
 export function LocationTablePagination({
   currentPage,
   totalPages,
   onPageChange,
+  pageSize = 10,
+  totalItems,
 }: LocationTablePaginationProps) {
+  // Calculate totalItems if not provided
+  const calculatedTotalItems = totalItems ?? totalPages * pageSize;
+  
   return (
-    <div className="mt-4">
-      <Pagination>
-        <PaginationContent>
-          <PaginationItem>
-            <PaginationPrevious 
-              onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-              className={currentPage === 1 ? 'pointer-events-none opacity-50' : ''}
-            />
-          </PaginationItem>
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-            <PaginationItem key={page}>
-              <PaginationLink
-                onClick={() => onPageChange(page)}
-                isActive={currentPage === page}
-              >
-                {page}
-              </PaginationLink>
-            </PaginationItem>
-          ))}
-          <PaginationItem>
-            <PaginationNext 
-              onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
-              className={currentPage === totalPages ? 'pointer-events-none opacity-50' : ''}
-            />
-          </PaginationItem>
-        </PaginationContent>
-      </Pagination>
-    </div>
+    <Pagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      pageSize={pageSize}
+      totalItems={calculatedTotalItems}
+      onPageChange={onPageChange}
+      onPageSizeChange={() => {}} // Not used in this context
+      className="mt-4"
+    />
   );
 }

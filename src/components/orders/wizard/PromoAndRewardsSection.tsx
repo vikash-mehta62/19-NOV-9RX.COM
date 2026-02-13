@@ -8,6 +8,14 @@ import { Label } from "@/components/ui/label";
 
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { PromoCodeDisplay } from "@/components/PromoCodeDisplay";
+import { 
+  validatePromoCode as validatePromoCodeNew, 
+  preparePromoDisplayData, 
+  calculateApplicableAmount,
+  calculateItemDiscounts,
+  type CartItem 
+} from "@/services/promoCodeService";
 import {
   Tag,
   Gift,
@@ -69,6 +77,29 @@ interface AppliedDiscount {
   redemptionId?: string;
   rewardType?: string;
   creditMemoId?: string;
+  // Add item-level discount information
+  itemDiscounts?: Map<string, number>; // productId -> discount amount
+  discountType?: "percentage" | "flat" | "free_shipping";
+  discountValue?: number;
+  applicableTo?: string;
+}
+
+interface PromoDisplayData {
+  promoCode: string;
+  discountAmount: number;
+  applicableAmount: number;
+  totalAmount: number;
+  applicableTo: "all" | "product" | "category" | "user_group" | "first_order";
+  applicableItems: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    hasDiscount: boolean;
+  }>;
+  discountType: "percentage" | "flat" | "free_shipping";
+  discountValue: number;
+  offer: any;
 }
 
 interface PromoAndRewardsSectionProps {
@@ -77,7 +108,7 @@ interface PromoAndRewardsSectionProps {
   shipping?: number; // Shipping cost to include in credit memo calculation
   hasFreeShipping?: boolean; // User already has free shipping from profile
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
-  cartItems?: { productId: string }[];
+  cartItems?: { productId: string; categoryId?: string; price: number; quantity: number; name?: string }[];
 }
 
 export function PromoAndRewardsSection({
@@ -93,6 +124,7 @@ export function PromoAndRewardsSection({
   const [isValidating, setIsValidating] = useState(false);
   const [appliedPromo, setAppliedPromo] = useState<AppliedDiscount | null>(null);
   const [promoError, setPromoError] = useState("");
+  const [promoDisplayData, setPromoDisplayData] = useState<PromoDisplayData | null>(null);
 
   // Rewards state
   const [userRewards, setUserRewards] = useState<{
@@ -293,19 +325,36 @@ export function PromoAndRewardsSection({
             }
           }
 
-          if (offer.applicable_to === "category" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+          // For category offers: applicable_ids should contain category NAMES (strings)
+          if (offer.applicable_to === "category") {
+            // If no applicable_ids specified, reject (invalid configuration)
+            if (!offer.applicable_ids || offer.applicable_ids.length === 0) {
+              console.warn(`Offer ${offer.title} has category restriction but no applicable_ids`);
+              return false;
+            }
+            // Check if any cart item's category matches
             const hasMatch = cartCategories.some((cat) => offer.applicable_ids.includes(cat));
             if (!hasMatch) {
               return false;
             }
           }
 
-          if (offer.applicable_to === "product" && offer.applicable_ids && offer.applicable_ids.length > 0) {
+          // For product offers: applicable_ids should contain product IDs (UUIDs)
+          if (offer.applicable_to === "product") {
+            // If no applicable_ids specified, reject (invalid configuration)
+            if (!offer.applicable_ids || offer.applicable_ids.length === 0) {
+              console.warn(`Offer ${offer.title} has product restriction but no applicable_ids`);
+              return false;
+            }
+            // Check if any cart item's product ID matches
             const hasMatch = productIds.some((id) => offer.applicable_ids.includes(id));
             if (!hasMatch) {
               return false;
             }
           }
+
+          // For "all" offers, always qualify (no restrictions)
+          // For "first_order" and "user_group", already checked above
 
           return true;
         });
@@ -328,6 +377,10 @@ export function PromoAndRewardsSection({
 
     // Add promo discount
     if (appliedPromo) {
+      console.log('=== DISCOUNT CHANGE EFFECT ===');
+      console.log('appliedPromo:', appliedPromo);
+      console.log('appliedPromo.itemDiscounts:', appliedPromo.itemDiscounts);
+      
       discounts.push(appliedPromo);
       totalDiscount += appliedPromo.amount;
     }
@@ -392,140 +445,144 @@ export function PromoAndRewardsSection({
       totalDiscount += rewardsDiscount;
     }
 
+    console.log('=== CALLING onDiscountChange ===');
+    console.log('discounts array:', discounts);
+    console.log('totalDiscount:', totalDiscount);
+    
     onDiscountChange(discounts, totalDiscount);
   }, [appliedPromo, appliedCreditMemo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange]);
 
   // Validate promo code
   const handleApplyPromo = async () => {
-    if (!promoCode.trim()) {
-      setPromoError("Please enter a promo code");
-      return;
-    }
-
-    setIsValidating(true);
-    setPromoError("");
-
-    try {
-      // Find the offer with this promo code
-      const { data: offer, error } = await supabase
-        .from("offers")
-        .select("*")
-        .eq("promo_code", promoCode.toUpperCase())
-        .eq("is_active", true)
-        .lte("start_date", new Date().toISOString())
-        .gte("end_date", new Date().toISOString())
-        .single();
-
-      if (error || !offer) {
-        setPromoError("Invalid or expired promo code");
+      if (!promoCode.trim()) {
+        setPromoError("Please enter a promo code");
         return;
       }
 
-      // Check usage limit
-      if (offer.usage_limit && offer.used_count >= offer.usage_limit) {
-        setPromoError("This promo code has reached its usage limit");
-        return;
-      }
+      setIsValidating(true);
+      setPromoError("");
 
-      // Check minimum order amount
-      if (offer.min_order_amount && subtotal < offer.min_order_amount) {
-        setPromoError(
-          `Minimum order amount of $${offer.min_order_amount.toFixed(2)} required`
+      try {
+        // Get product IDs from cart
+        const productIds = cartItems.map(item => item.productId);
+        
+        // Fetch product details (name and category) for validation and display
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, name, category")
+          .in("id", productIds);
+
+        const productMap = new Map(
+          products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
         );
-        return;
-      }
 
-      // Check first order restriction
-      if (offer.applicable_to === "first_order" && customerId) {
-        const { count } = await (supabase as any)
-          .from("orders")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", customerId)
-          .neq("status", "cancelled");
+        // Convert cart items to CartItem format with categories
+        const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
+          productId: item.productId,
+          categoryId: productMap.get(item.productId)?.category || item.categoryId,
+          price: item.price,
+          quantity: item.quantity
+        }));
 
-        if ((count || 0) > 0) {
-          setPromoError("This offer is only valid for first orders");
+        // Use new validation service
+        const userType = sessionStorage.getItem("userType") || undefined;
+        const result = await validatePromoCodeNew(
+          promoCode.toUpperCase(),
+          subtotal,
+          cartItemsForValidation,
+          customerId,
+          userType
+        );
+
+        if (!result.valid) {
+          setPromoError(result.error || "Invalid promo code");
           return;
         }
-      }
 
-      // Check user group restriction
-      if (offer.applicable_to === "user_group" && offer.user_groups) {
-        const userType = sessionStorage.getItem("userType");
-        if (!userType || !offer.user_groups.includes(userType)) {
-          setPromoError("This offer is not available for your account type");
+        // Fetch offer details for display
+        const { data: offer, error: offerError } = await supabase
+          .from("offers")
+          .select("*")
+          .eq("id", result.offerId)
+          .single();
+
+        if (offerError || !offer) {
+          setPromoError("Failed to load offer details");
           return;
         }
+
+        // Prepare product names map for display
+        const productNames = new Map(
+          products?.map(p => [p.id, p.name]) || []
+        );
+
+        // Prepare display data
+        const displayData = preparePromoDisplayData(
+          result,
+          offer,
+          cartItemsForValidation,
+          productNames
+        );
+
+        // Calculate item-level discounts
+        const itemDiscounts = calculateItemDiscounts(
+          cartItemsForValidation,
+          offer,
+          result.calculatedDiscount || 0
+        );
+
+        console.log('=== PROMO APPLY DEBUG ===');
+        console.log('offer:', offer);
+        console.log('result.calculatedDiscount:', result.calculatedDiscount);
+        console.log('cartItemsForValidation:', cartItemsForValidation);
+        console.log('itemDiscounts Map:', itemDiscounts);
+        console.log('itemDiscounts size:', itemDiscounts.size);
+        console.log('itemDiscounts entries:', Array.from(itemDiscounts.entries()));
+
+        // Set applied promo with item discounts
+        setAppliedPromo({
+          type: "promo",
+          name: offer.title,
+          amount: result.calculatedDiscount,
+          offerId: offer.id,
+          promoCode: promoCode.toUpperCase(),
+          itemDiscounts: itemDiscounts,
+          discountType: result.discountType,
+          discountValue: result.discountValue,
+          applicableTo: offer.applicable_to,
+        });
+
+        // Set display data
+        setPromoDisplayData({
+          promoCode: promoCode.toUpperCase(),
+          discountAmount: result.calculatedDiscount,
+          applicableAmount: result.applicableAmount,
+          totalAmount: subtotal,
+          applicableTo: offer.applicable_to as any,
+          applicableItems: displayData.applicableItems,
+          discountType: result.discountType as any,
+          discountValue: result.discountValue,
+          offer: offer
+        });
+
+        toast({
+          title: "Promo Code Applied! 🎉",
+          description: `${offer.title} - You save $${result.calculatedDiscount.toFixed(2)}`,
+        });
+
+        setPromoCode("");
+      } catch (error) {
+        console.error("Error validating promo:", error);
+        setPromoError("Failed to validate promo code");
+      } finally {
+        setIsValidating(false);
       }
-
-      // Check category restriction
-      if (offer.applicable_to === "category" && offer.applicable_ids && offer.applicable_ids.length > 0) {
-        // Fetch categories for cart products
-        const productIds = cartItems.map((item) => item.productId);
-        if (productIds.length > 0) {
-          const { data: products } = await supabase
-            .from("products")
-            .select("id, category")
-            .in("id", productIds);
-
-          const cartCategories = (products || []).map((p) => p.category).filter(Boolean);
-          const hasMatch = cartCategories.some((cat) => offer.applicable_ids!.includes(cat));
-          if (!hasMatch) {
-            setPromoError("This offer is not applicable to items in your cart");
-            return;
-          }
-        }
-      }
-
-      // Check product restriction
-      if (offer.applicable_to === "product" && offer.applicable_ids && offer.applicable_ids.length > 0) {
-        const productIds = cartItems.map((item) => item.productId);
-        const hasMatch = productIds.some((id) => offer.applicable_ids!.includes(id));
-        if (!hasMatch) {
-          setPromoError("This offer is not applicable to items in your cart");
-          return;
-        }
-      }
-
-      // Calculate discount
-      let discountAmount = 0;
-      if (offer.offer_type === "percentage") {
-        discountAmount = (subtotal * (offer.discount_value || 0)) / 100;
-        if (offer.max_discount_amount) {
-          discountAmount = Math.min(discountAmount, offer.max_discount_amount);
-        }
-      } else if (offer.offer_type === "flat") {
-        discountAmount = offer.discount_value || 0;
-      } else if (offer.offer_type === "free_shipping") {
-        // Free shipping is handled separately
-        discountAmount = 0;
-      }
-
-      setAppliedPromo({
-        type: "promo",
-        name: offer.title,
-        amount: discountAmount,
-        offerId: offer.id,
-        promoCode: promoCode.toUpperCase(),
-      });
-
-      toast({
-        title: "Promo Code Applied! 🎉",
-        description: `${offer.title} - You save $${discountAmount.toFixed(2)}`,
-      });
-
-      setPromoCode("");
-    } catch (error) {
-      console.error("Error validating promo:", error);
-      setPromoError("Failed to validate promo code");
-    } finally {
-      setIsValidating(false);
     }
-  };
 
   // Remove applied promo
   const handleRemovePromo = () => {
     setAppliedPromo(null);
+    setPromoDisplayData(null);
     toast({
       title: "Promo Removed",
       description: "Promo code has been removed from your order",
@@ -548,48 +605,135 @@ export function PromoAndRewardsSection({
 
   // Apply offer directly
   const handleApplyOffer = async (offer: any) => {
-    // Check first order restriction
-    if (offer.applicable_to === "first_order" && customerId) {
-      const { count } = await (supabase as any)
-        .from("orders")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", customerId)
-        .neq("status", "cancelled");
+      try {
+        // Check first order restriction
+        if (offer.applicable_to === "first_order" && customerId) {
+          const { count } = await (supabase as any)
+            .from("orders")
+            .select("*", { count: "exact", head: true })
+            .eq("profile_id", customerId)
+            .neq("status", "cancelled");
 
-      if ((count || 0) > 0) {
+          if ((count || 0) > 0) {
+            toast({
+              title: "Cannot Apply Offer",
+              description: "This offer is only valid for first orders",
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+
+        // Get product IDs from cart
+        const productIds = cartItems.map(item => item.productId);
+
+        // Fetch product details (name and category) for validation and display
+        const { data: products } = await supabase
+          .from("products")
+          .select("id, name, category")
+          .in("id", productIds);
+
+        const productMap = new Map(
+          products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
+        );
+
+        // Convert cart items to CartItem format with categories
+        const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
+          productId: item.productId,
+          categoryId: productMap.get(item.productId)?.category || item.categoryId,
+          price: item.price,
+          quantity: item.quantity
+        }));
+
+        // Calculate applicable amount based on offer type
+        let applicableAmount = subtotal;
+
+        if (offer.applicable_to === "product" && offer.applicable_ids) {
+          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product');
+        } else if (offer.applicable_to === "category" && offer.applicable_ids) {
+          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category');
+        }
+
+        // Calculate discount
+        let discountAmount = 0;
+        if (offer.offer_type === "percentage") {
+          discountAmount = (applicableAmount * (offer.discount_value || 0)) / 100;
+          if (offer.max_discount_amount) {
+            discountAmount = Math.min(discountAmount, offer.max_discount_amount);
+          }
+        } else if (offer.offer_type === "flat") {
+          discountAmount = Math.min(offer.discount_value || 0, applicableAmount);
+        }
+
+        // Prepare product names map for display
+        const productNames = new Map(
+          products?.map(p => [p.id, p.name]) || []
+        );
+
+        // Prepare display data
+        const displayData = preparePromoDisplayData(
+          {
+            valid: true,
+            offerId: offer.id,
+            discountType: offer.offer_type,
+            discountValue: offer.discount_value,
+            message: '',
+            calculatedDiscount: discountAmount,
+            applicableAmount: applicableAmount
+          },
+          offer,
+          cartItemsForValidation,
+          productNames
+        );
+
+        // Calculate item-level discounts
+        const itemDiscounts = calculateItemDiscounts(
+          cartItemsForValidation,
+          offer,
+          discountAmount
+        );
+
+        // Set applied promo with item discounts
+        setAppliedPromo({
+          type: "offer",
+          name: offer.title,
+          amount: discountAmount,
+          offerId: offer.id,
+          promoCode: offer.promo_code || undefined,
+          itemDiscounts: itemDiscounts,
+          discountType: offer.offer_type,
+          discountValue: offer.discount_value,
+          applicableTo: offer.applicable_to,
+        });
+
+        // Set display data
+        setPromoDisplayData({
+          promoCode: offer.promo_code || offer.title,
+          discountAmount: discountAmount,
+          applicableAmount: applicableAmount,
+          totalAmount: subtotal,
+          applicableTo: offer.applicable_to as any,
+          applicableItems: displayData.applicableItems,
+          discountType: offer.offer_type as any,
+          discountValue: offer.discount_value,
+          offer: offer
+        });
+
         toast({
-          title: "Cannot Apply Offer",
-          description: "This offer is only valid for first orders",
+          title: "Offer Applied! 🎉",
+          description: `${offer.title} - You save $${discountAmount.toFixed(2)}`,
+        });
+
+        setShowOffers(false);
+      } catch (error) {
+        console.error("Error applying offer:", error);
+        toast({
+          title: "Error",
+          description: "Failed to apply offer",
           variant: "destructive",
         });
-        return;
       }
     }
-
-    let discountAmount = 0;
-    if (offer.offer_type === "percentage") {
-      discountAmount = (subtotal * (offer.discount_value || 0)) / 100;
-      if (offer.max_discount_amount) {
-        discountAmount = Math.min(discountAmount, offer.max_discount_amount);
-      }
-    } else if (offer.offer_type === "flat") {
-      discountAmount = offer.discount_value || 0;
-    }
-
-    setAppliedPromo({
-      type: "offer",
-      name: offer.title,
-      amount: discountAmount,
-      offerId: offer.id,
-    });
-
-    toast({
-      title: "Offer Applied! 🎉",
-      description: `${offer.title} - You save $${discountAmount.toFixed(2)}`,
-    });
-
-    setShowOffers(false);
-  };
 
   // Apply redeemed reward
   const handleApplyRedeemedReward = (reward: RedeemedReward) => {
@@ -770,25 +914,26 @@ export function PromoAndRewardsSection({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          {appliedPromo ? (
-            <div className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                <div>
-                  <p className="font-medium text-green-800">{appliedPromo.name}</p>
-                  <p className="text-sm text-green-600">
-                    {appliedPromo.promoCode && `Code: ${appliedPromo.promoCode} • `}
-                    Saving ${appliedPromo.amount.toFixed(2)}
-                  </p>
-                </div>
-              </div>
+          {appliedPromo && promoDisplayData ? (
+            <div className="space-y-3">
+              <PromoCodeDisplay
+                promoCode={promoDisplayData.promoCode}
+                discountAmount={promoDisplayData.discountAmount}
+                applicableAmount={promoDisplayData.applicableAmount}
+                totalAmount={promoDisplayData.totalAmount}
+                applicableTo={promoDisplayData.applicableTo}
+                applicableItems={promoDisplayData.applicableItems}
+                discountType={promoDisplayData.discountType}
+                discountValue={promoDisplayData.discountValue}
+              />
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={handleRemovePromo}
-                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                className="w-full text-red-600 hover:text-red-700 hover:bg-red-50"
               >
-                <XCircle className="h-4 w-4" />
+                <XCircle className="h-4 w-4 mr-2" />
+                Remove Promo Code
               </Button>
             </div>
           ) : (

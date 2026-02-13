@@ -47,6 +47,34 @@ export interface SettingsFormValues {
   authorize_net_api_login_id: string;
   authorize_net_transaction_key: string;
   authorize_net_test_mode: boolean;
+  credit_card_processor: string;
+  ach_processor: string;
+  
+  // FortisPay Settings
+  fortispay_enabled: boolean;
+  fortispay_user_id: string;
+  fortispay_user_api_key: string;
+  fortispay_location_id: string;
+  fortispay_product_transaction_id_ach: string;
+  fortispay_test_mode: boolean;
+
+  // Payment Terms & Fees
+  late_payment_enabled: boolean;
+  late_payment_interest_rate: number;
+  late_payment_grace_period_days: number;
+  late_payment_fee_type: string; // 'percentage' or 'fixed'
+  late_payment_fixed_fee: number;
+  card_processing_fee_enabled: boolean;
+  card_processing_fee_percentage: number;
+  card_processing_fee_pass_to_customer: boolean;
+  ach_processing_fee_enabled: boolean;
+  ach_processing_fee_amount: number;
+  ach_processing_fee_pass_to_customer: boolean;
+  minimum_payment_amount: number;
+  payment_terms_text: string;
+  early_payment_discount_enabled: boolean;
+  early_payment_discount_percentage: number;
+  early_payment_discount_days: number;
 
   // Notification Settings
   email_notifications: boolean;
@@ -145,6 +173,34 @@ export const defaultValues: SettingsFormValues = {
   authorize_net_api_login_id: "",
   authorize_net_transaction_key: "",
   authorize_net_test_mode: false,
+  credit_card_processor: "authorize_net",
+  ach_processor: "authorize_net",
+  
+  // FortisPay
+  fortispay_enabled: false,
+  fortispay_user_id: "",
+  fortispay_user_api_key: "",
+  fortispay_location_id: "",
+  fortispay_product_transaction_id_ach: "",
+  fortispay_test_mode: false,
+
+  // Payment Terms & Fees
+  late_payment_enabled: false,
+  late_payment_interest_rate: 1.5,
+  late_payment_grace_period_days: 15,
+  late_payment_fee_type: "percentage",
+  late_payment_fixed_fee: 25,
+  card_processing_fee_enabled: false,
+  card_processing_fee_percentage: 2.9,
+  card_processing_fee_pass_to_customer: false,
+  ach_processing_fee_enabled: false,
+  ach_processing_fee_amount: 1.5,
+  ach_processing_fee_pass_to_customer: false,
+  minimum_payment_amount: 0,
+  payment_terms_text: "Payment is due within 30 days of invoice date. Late payments may incur additional fees.",
+  early_payment_discount_enabled: false,
+  early_payment_discount_percentage: 2,
+  early_payment_discount_days: 10,
 
   // Notifications
   email_notifications: false,

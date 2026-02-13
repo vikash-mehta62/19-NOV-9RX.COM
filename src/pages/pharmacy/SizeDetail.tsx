@@ -43,6 +43,7 @@ import { ProductReviews } from "@/components/reviews/ProductReviews"
 import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
 import { PharmacyProductCard } from "@/components/pharmacy/components/product-showcase/PharmacyProductCard"
 import { canUserReview } from "@/services/reviewService"
+import { getProductEffectivePrice } from "@/services/productOfferService"
 import logo from "../../assests/home/9rx_logo.png"
 
 export default function SizeDetail() {
@@ -51,6 +52,7 @@ export default function SizeDetail() {
   const { toast } = useToast()
   const userProfile = useSelector(selectUserProfile)
   const { addToCart, cartItems } = useCart()
+  const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
 
   const [data, setData] = useState<{ product: any; size: any; otherSizes: any[] } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,6 +67,12 @@ export default function SizeDetail() {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([])
   const [similarLoading, setSimilarLoading] = useState(false)
+  const [productOffer, setProductOffer] = useState<{
+    effectivePrice: number;
+    discountPercent: number;
+    offerBadge: string | null;
+    hasOffer: boolean;
+  } | null>(null)
 
   const totalCartItems = useMemo(() =>
     cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
@@ -111,6 +119,23 @@ export default function SizeDetail() {
           canUserReview(userProfile.id, productId).then(result => {
             setCanReview(result.canReview)
           })
+        }
+
+        // Load product offers
+        if (productId) {
+          getProductEffectivePrice(productId).then(offerData => {
+            if (offerData && offerData.hasOffer) {
+              console.log("SizeDetail - Product has offer:", offerData);
+              setProductOffer({
+                effectivePrice: offerData.effectivePrice,
+                discountPercent: offerData.discountPercent,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer
+              });
+            }
+          }).catch(err => {
+            console.error("Error loading product offer:", err);
+          });
         }
 
         setLoading(false)
@@ -182,7 +207,7 @@ export default function SizeDetail() {
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center">
         <Package className="w-16 h-16 text-gray-300 mb-4" />
         <h2 className="text-xl font-semibold text-gray-700 mb-2">Product Not Found</h2>
-        <Button onClick={() => navigate("/pharmacy/products")} className="mt-4">
+        <Button onClick={() => navigate(`/${userType}/products`)} className="mt-4">
           <ArrowLeft className="w-4 h-4 mr-2" /> Back
         </Button>
       </div>
@@ -266,20 +291,20 @@ export default function SizeDetail() {
               // For other categories, expand the product to show its sizes
               const isRxPaperBags = product?.category?.toUpperCase() === "RX PAPER BAGS";
               if (isRxPaperBags) {
-                navigate("/pharmacy/products", { state: { selectedCategory: product?.category } });
+                navigate(`/${userType}/products`, { state: { selectedCategory: product?.category } });
               } else {
-                navigate("/pharmacy/products", { state: { selectedCategory: product?.category, selectedProductId: productId } });
+                navigate(`/${userType}/products`, { state: { selectedCategory: product?.category, selectedProductId: productId } });
               }
             }} className="gap-1">
               <ArrowLeft className="w-4 h-4" /> Back
             </Button>
-            <img src={logo} alt="Logo" className="h-16 w-auto hidden sm:block cursor-pointer" onClick={() => navigate("/pharmacy/products")} />
+            <img src={logo} alt="Logo" className="h-16 w-auto hidden sm:block cursor-pointer" onClick={() => navigate(`/${userType}/products`)} />
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => setIsWishlisted(!isWishlisted)}>
               <Heart className={`w-5 h-5 ${isWishlisted ? "fill-red-500 text-red-500" : ""}`} />
             </Button>
-            <Button variant="ghost" size="icon" onClick={() => navigate("/pharmacy/order/create")} className="relative">
+            <Button variant="ghost" size="icon" onClick={() => navigate(`/${userType}/order/create`)} className="relative">
               <ShoppingCart className="w-5 h-5" />
               {totalCartItems > 0 && (
                 <span className="absolute -top-1 -right-1 h-5 w-5 bg-blue-600 text-white text-[10px] rounded-full flex items-center justify-center">
@@ -297,11 +322,11 @@ export default function SizeDetail() {
       {/* Breadcrumb */}
       <div className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-2 text-sm text-gray-500">
-          <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate("/pharmacy/products", { state: { selectedCategory: product?.category } })}>{product?.category || "Products"}</span>
+          <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/${userType}/products`, { state: { selectedCategory: product?.category } })}>{product?.category || "Products"}</span>
           {" / "}
           {product?.category?.toUpperCase() !== "RX PAPER BAGS" && (
             <>
-              <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate("/pharmacy/products", { state: { selectedCategory: product?.category, selectedProductId: productId } })}>{product?.name}</span>
+              <span className="hover:text-blue-600 cursor-pointer" onClick={() => navigate(`/${userType}/products`, { state: { selectedCategory: product?.category, selectedProductId: productId } })}>{product?.name}</span>
               {" / "}
             </>
           )}
@@ -365,7 +390,7 @@ export default function SizeDetail() {
                           return (
                             <button
                               key={s.id}
-                              onClick={() => navigate(`/pharmacy/product/${productId}/${s.id}`)}
+                              onClick={() => navigate(`/${userType}/product/${productId}/${s.id}`)}
                               className="w-full flex items-center gap-3 p-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50 transition-all text-left"
                             >
                               <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
@@ -448,10 +473,36 @@ export default function SizeDetail() {
             {/* Price Card */}
             <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-50">
               <CardContent className="p-4">
+                {/* Show offer badge if available */}
+                {productOffer?.hasOffer && productOffer.offerBadge && (
+                  <div className="mb-2">
+                    <Badge className="bg-red-500 text-white text-sm font-bold">
+                      🎁 {productOffer.offerBadge}
+                    </Badge>
+                  </div>
+                )}
+                
                 <div className="flex items-baseline gap-2">
-                  <span className="text-3xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
+                  {/* Show original price crossed out if there's a discount */}
+                  {productOffer?.hasOffer && productOffer.discountPercent > 0 && (
+                    <span className="text-xl text-gray-400 line-through">${casePrice.toFixed(2)}</span>
+                  )}
+                  {/* Show discounted or regular price */}
+                  <span className={`text-3xl font-bold ${productOffer?.hasOffer ? 'text-green-600' : 'text-gray-900'}`}>
+                    ${productOffer?.hasOffer && productOffer.discountPercent > 0 
+                      ? (casePrice * (1 - productOffer.discountPercent / 100)).toFixed(2)
+                      : casePrice.toFixed(2)}
+                  </span>
                   <span className="text-gray-500">/ case</span>
                 </div>
+                
+                {/* Show savings text */}
+                {productOffer?.hasOffer && productOffer.discountPercent > 0 && (
+                  <p className="text-sm text-red-600 font-semibold mt-1">
+                    Save {productOffer.discountPercent}% • ${(casePrice * productOffer.discountPercent / 100).toFixed(2)} off
+                  </p>
+                )}
+                
                 {unitsPerCase > 0 && (
                   <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
                     <Package className="w-4 h-4 text-gray-400" />

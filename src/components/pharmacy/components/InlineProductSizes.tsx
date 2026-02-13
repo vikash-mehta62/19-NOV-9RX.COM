@@ -14,6 +14,7 @@ import { useCart } from '@/hooks/use-cart'
 import { useToast } from '@/hooks/use-toast'
 import { ProductDetails } from '../types/product.types'
 import { WishlistItem } from '@/hooks/use-wishlist'
+import { getProductEffectivePrice } from '@/services/productOfferService'
 
 interface InlineProductSizesProps {
   product: ProductDetails | null
@@ -39,9 +40,16 @@ export const InlineProductSizes = ({
   const [fullProduct, setFullProduct] = useState<ProductDetails | null>(null)
   const [loading, setLoading] = useState(false)
   const [customizations, setCustomizations] = useState<Record<string, { enabled: boolean; text: string }>>({})
+  const [productOffer, setProductOffer] = useState<{
+    effectivePrice: number;
+    discountPercent: number;
+    offerBadge: string | null;
+    hasOffer: boolean;
+  } | null>(null)
   const { addToCart, cartItems } = useCart()
   const { toast } = useToast()
   const userProfile = useSelector(selectUserProfile)
+  const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
 
   // Fetch complete product data with sizes when product changes
   useEffect(() => {
@@ -156,6 +164,23 @@ export const InlineProductSizes = ({
         }
 
         setFullProduct(mappedProduct)
+
+        // Load product offers
+        if (product.id) {
+          getProductEffectivePrice(product.id).then(offerData => {
+            if (offerData && offerData.hasOffer) {
+              console.log("InlineProductSizes - Product has offer:", offerData);
+              setProductOffer({
+                effectivePrice: offerData.effectivePrice,
+                discountPercent: offerData.discountPercent,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer
+              });
+            }
+          }).catch(err => {
+            console.error("Error loading product offer:", err);
+          });
+        }
       } catch (error) {
         console.error("Error fetching product:", error)
         toast({
@@ -357,7 +382,7 @@ export const InlineProductSizes = ({
         <div className="flex items-start sm:items-center gap-3 sm:gap-4">
           <div 
             className="relative w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg sm:rounded-xl overflow-hidden border-2 border-blue-200 cursor-pointer hover:shadow-md hover:border-blue-400 transition-all group flex-shrink-0"
-            onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+            onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
             title="Click to view full product page"
           >
             <img
@@ -373,7 +398,7 @@ export const InlineProductSizes = ({
           <div className="flex-1 min-w-0">
             <h2 
               className="text-base sm:text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors line-clamp-2 sm:line-clamp-none"
-              onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+              onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
               title="Click to view full product page"
             >
               {displayProduct.name}
@@ -406,7 +431,7 @@ export const InlineProductSizes = ({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => navigate(`/pharmacy/product/${displayProduct.id}`)}
+            onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
             className="border-blue-300 text-blue-700 hover:bg-blue-50 hover:border-blue-400 text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
           >
             <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
@@ -443,7 +468,21 @@ export const InlineProductSizes = ({
               const sizeId = size.id
               const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
               const customization = customizations[sizeId] || { enabled: false, text: '' }
-              const casePrice = size.price
+              
+              // Check for group pricing discount OR product offer discount
+              const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
+              const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
+              const hasDiscount = hasGroupDiscount || hasOfferDiscount
+              const discountPercent = hasOfferDiscount 
+                ? productOffer.discountPercent 
+                : (hasGroupDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0)
+              
+              // Calculate case price with offer discount applied
+              const originalCasePrice = size.price
+              const casePrice = hasOfferDiscount 
+                ? originalCasePrice * (1 - productOffer.discountPercent / 100)
+                : originalCasePrice
+              
               const unitsPerCase = size.quantity_per_case || 0
               const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
               const customizationPrice = customization.enabled && displayProduct.customization?.allowed 
@@ -452,8 +491,6 @@ export const InlineProductSizes = ({
               const totalPrice = (casePrice * selection.quantity) + customizationPrice
               const isOutOfStock = size.stock <= 0
               const sizeInCart = isInCart(sizeId)
-              const hasDiscount = size.originalPrice > 0 && size.originalPrice > size.price
-              const discountPercent = hasDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0
 
               return (
                 <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden`}>
@@ -463,7 +500,7 @@ export const InlineProductSizes = ({
                       {/* Product Image - Full width, square aspect ratio */}
                       <div 
                         className="relative w-full aspect-square bg-gray-50 rounded-lg overflow-hidden cursor-pointer group"
-                        onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                        onClick={() => navigate(`/${userType}/product/${displayProduct.id}/${sizeId}`)}
                         title="Click to view full product details"
                       >
                         <img
@@ -517,7 +554,7 @@ export const InlineProductSizes = ({
                         {/* Product Name + Size */}
                         <div 
                           className="mb-1.5 sm:mb-2 cursor-pointer hover:text-blue-600"
-                          onClick={() => navigate(`/pharmacy/product/${displayProduct.id}/${sizeId}`)}
+                          onClick={() => navigate(`/${userType}/product/${displayProduct.id}/${sizeId}`)}
                           title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                         >
                           <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
@@ -533,14 +570,34 @@ export const InlineProductSizes = ({
                           <p className="text-[9px] sm:text-[10px] text-gray-400 mb-1 sm:mb-2">SKU: {size.sku}</p>
                         )}
 
+                        {/* Offer Badge */}
+                        {hasOfferDiscount && productOffer?.offerBadge && (
+                          <div className="mb-1.5 sm:mb-2">
+                            <Badge className="bg-red-500 text-white text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
+                              🎁 {productOffer.offerBadge}
+                            </Badge>
+                          </div>
+                        )}
+
                         {/* Case Price - Large & Bold */}
                         <div className="mb-0.5 sm:mb-1 flex flex-wrap items-baseline gap-0.5 sm:gap-1">
-                          <span className="text-base sm:text-xl font-bold text-gray-900">${casePrice.toFixed(2)}</span>
-                          <span className="text-[10px] sm:text-sm text-gray-500">/ case</span>
+                          {/* Show original price crossed out if there's a discount */}
                           {hasDiscount && (
-                            <span className="text-[10px] sm:text-sm text-gray-400 line-through">${size.originalPrice.toFixed(2)}</span>
+                            <span className="text-sm sm:text-base text-gray-400 line-through">${originalCasePrice.toFixed(2)}</span>
                           )}
+                          {/* Show discounted or regular price */}
+                          <span className={`text-base sm:text-xl font-bold ${hasDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                            ${casePrice.toFixed(2)}
+                          </span>
+                          <span className="text-[10px] sm:text-sm text-gray-500">/ case</span>
                         </div>
+                        
+                        {/* Show savings text */}
+                        {hasDiscount && discountPercent > 0 && (
+                          <p className="text-[9px] sm:text-xs text-red-600 font-semibold mb-1">
+                            Save {discountPercent}% • ${(originalCasePrice * discountPercent / 100).toFixed(2)} off
+                          </p>
+                        )}
 
                         {/* Units per Case + Unit Price */}
                         {unitsPerCase > 0 && (

@@ -42,10 +42,24 @@ import { PaymentResultPopup, PaymentResultData } from "@/components/payment/Paym
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
   const cleaned = cardNumber.replace(/\D/g, "")
-  const expectedLength = cardType?.maxLength || 16
   
+  // Minimum length check
   if (cleaned.length < 13) return "Card number too short"
-  if (cleaned.length !== expectedLength) return `${cardType?.name || "Card"} requires ${expectedLength} digits`
+  
+  // Maximum length check - allow 13-19 digits for flexibility
+  if (cleaned.length > 19) return "Card number too long"
+  
+  // For Visa, allow 13 or 16 digits (Authorize.Net test cards are 13 digits)
+  if (cardType?.name === "Visa") {
+    if (cleaned.length !== 13 && cleaned.length !== 16) {
+      return "Visa cards must be 13 or 16 digits"
+    }
+  } else if (cardType?.maxLength) {
+    // For other cards, check exact length
+    if (cleaned.length !== cardType.maxLength) {
+      return `${cardType.name} requires ${cardType.maxLength} digits`
+    }
+  }
   
   // Luhn algorithm check
   let sum = 0
@@ -141,9 +155,11 @@ function validateNotes(notes: string) {
 function detectCardType(cardNumber: string) {
   const cleaned = cardNumber.replace(/\D/g, "")
   
-  // Visa: starts with 4
+  // Visa: starts with 4 (13 or 16 digits)
   if (/^4/.test(cleaned)) {
-    return { type: "visa", name: "Visa", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
+    // Authorize.Net test cards can be 13 digits
+    const maxLength = cleaned.length >= 16 ? 16 : 13
+    return { type: "visa", name: "Visa", cvvLength: 3, maxLength, format: [4, 4, 4, 4] }
   }
   
   // Mastercard: starts with 51-55 or 2221-2720
@@ -522,6 +538,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
 
     setLoading(true)
+    
+    // Check which ACH processor to use from database settings
+    const { getACHProcessor } = await import("@/config/paymentConfig");
+    const achProcessor = await getACHProcessor();
 
     // Manual payment handling
     if (paymentType === "manaul_payemnt") {
@@ -593,27 +613,58 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     
     const cardNameParts = getNameParts(formData.cardholderName);
     const achNameParts = getNameParts(formData.nameOnAccount);
-    
-    const paymentRequest = paymentType === "credit_card"
-      ? {
-          payment: { type: "card" as const, cardNumber: formData.cardNumber, expirationDate: formData.expirationDate.replace("/", ""), cvv: formData.cvv, cardholderName: formData.cardholderName },
-          amount: formData.amount,
-          invoiceNumber: orders?.order_number,
-          orderId,
-          customerEmail: customer?.email,
-          billing: { firstName: cardNameParts.firstName, lastName: cardNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
-        }
-      : {
-          payment: { type: "ach" as const, accountType: formData.accountType as "checking" | "savings", routingNumber: formData.routingNumber, accountNumber: formData.accountNumber, nameOnAccount: formData.nameOnAccount, echeckType: "WEB" as const },
-          amount: formData.amount,
-          invoiceNumber: orders?.order_number,
-          orderId,
-          customerEmail: customer?.email,
-          billing: { firstName: achNameParts.firstName, lastName: achNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
-        }
 
     try {
-      const response: PaymentResponse = await processPayment(paymentRequest)
+      let response: PaymentResponse;
+      
+      // Handle ACH payment based on processor selection
+      if (paymentType === "ach" && achProcessor === "fortispay") {
+        // Use FortisPay for ACH
+        const { processACHPaymentFortisPay } = await import("@/services/paymentService");
+        
+        response = await processACHPaymentFortisPay(
+          {
+            accountType: formData.accountType as "checking" | "savings" | "businessChecking",
+            routingNumber: formData.routingNumber,
+            accountNumber: formData.accountNumber,
+            nameOnAccount: formData.nameOnAccount,
+          },
+          {
+            firstName: achNameParts.firstName,
+            lastName: achNameParts.lastName,
+            address: formData.address || "N/A",
+            city: formData.city || "N/A",
+            state: formData.state || "N/A",
+            zip: formData.zip || "00000",
+            country: formData.country || "USA",
+          },
+          formData.amount,
+          orderId,
+          `Order Payment - ${orders?.order_number}`,
+          "WEB"
+        );
+      } else {
+        // Use Authorize.Net (default) for both card and ACH
+        const paymentRequest = paymentType === "credit_card"
+          ? {
+              payment: { type: "card" as const, cardNumber: formData.cardNumber, expirationDate: formData.expirationDate.replace("/", ""), cvv: formData.cvv, cardholderName: formData.cardholderName },
+              amount: formData.amount,
+              invoiceNumber: orders?.order_number,
+              orderId,
+              customerEmail: customer?.email,
+              billing: { firstName: cardNameParts.firstName, lastName: cardNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
+            }
+          : {
+              payment: { type: "ach" as const, accountType: formData.accountType as "checking" | "savings", routingNumber: formData.routingNumber, accountNumber: formData.accountNumber, nameOnAccount: formData.nameOnAccount, echeckType: "WEB" as const },
+              amount: formData.amount,
+              invoiceNumber: orders?.order_number,
+              orderId,
+              customerEmail: customer?.email,
+              billing: { firstName: achNameParts.firstName, lastName: achNameParts.lastName, address: formData.address || "N/A", city: formData.city || "N/A", state: formData.state || "N/A", zip: formData.zip || "00000", country: formData.country || "USA" },
+            };
+        
+        response = await processPayment(paymentRequest);
+      }
 
       // Log transaction to payment_transactions table (for both success and failure)
       const cardLastFour = paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined

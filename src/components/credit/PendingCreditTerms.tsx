@@ -97,11 +97,21 @@ const PendingCreditTerms = () => {
         }
 
         // Fetch terms content
-        const { data: content } = await supabase
+        const { data: content, error: termsError } = await supabase
           .from("credit_terms")
           .select("*")
           .eq("version", terms.terms_version)
+          .eq("is_active", true)
           .single();
+
+        if (termsError) {
+          console.error("Error fetching terms content:", termsError);
+          toast({
+            title: "Error Loading Terms",
+            description: `Could not load terms version ${terms.terms_version}. Please contact support.`,
+            variant: "destructive",
+          });
+        }
 
         if (content) setTermsContent(content);
       }

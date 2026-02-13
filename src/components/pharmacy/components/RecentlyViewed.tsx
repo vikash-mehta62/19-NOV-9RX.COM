@@ -76,12 +76,14 @@ export const RecentlyViewed = () => {
       </CardHeader>
       <CardContent>
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-          {recentProducts.map((product) => (
-            <div
-              key={product.id}
-              className="flex-shrink-0 w-36 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer group"
-              onClick={() => navigate(`/pharmacy/product/${product.id}`)}
-            >
+          {recentProducts.map((product) => {
+            const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
+            return (
+              <div
+                key={product.id}
+                className="flex-shrink-0 w-36 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors cursor-pointer group"
+                onClick={() => navigate(`/${userType}/product/${product.id}`)}
+              >
               {/* Image */}
               <div className="relative h-28 overflow-hidden rounded-t-xl">
                 <img
@@ -106,7 +108,7 @@ export const RecentlyViewed = () => {
                 </p>
               </div>
             </div>
-          ))}
+          )})}
         </div>
       </CardContent>
     </Card>

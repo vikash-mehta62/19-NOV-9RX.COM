@@ -341,3 +341,65 @@ export async function getProductsOnSale(limit: number = 50): Promise<ProductWith
     return [];
   }
 }
+
+// Get offer information for size variants (inherits from parent product)
+export async function getSizeVariantOffer(
+  productId: string,
+  sizeId: string
+): Promise<{
+  offerBadge: string | null;
+  hasOffer: boolean;
+  discountPercent: number;
+  effectivePrice?: number;
+} | null> {
+  try {
+    // Get parent product offer
+    const parentOffer = await getProductEffectivePrice(productId);
+    
+    if (!parentOffer || !parentOffer.hasOffer) {
+      return {
+        offerBadge: null,
+        hasOffer: false,
+        discountPercent: 0
+      };
+    }
+
+    // Get the size price
+    const { data: sizeData } = await supabase
+      .from('product_sizes')
+      .select('price')
+      .eq('id', sizeId)
+      .single();
+
+    if (!sizeData) {
+      return {
+        offerBadge: parentOffer.offerBadge,
+        hasOffer: true,
+        discountPercent: parentOffer.discountPercent
+      };
+    }
+
+    // Calculate effective price for this size using parent discount
+    const sizePrice = sizeData.price;
+    const effectivePrice = sizePrice * (1 - parentOffer.discountPercent / 100);
+
+    // Return offer info for size variant
+    return {
+      offerBadge: parentOffer.offerBadge,
+      hasOffer: true,
+      discountPercent: parentOffer.discountPercent,
+      effectivePrice: Math.round(effectivePrice * 100) / 100
+    };
+  } catch (error) {
+    console.error("Error getting size variant offer:", error);
+    return null;
+  }
+}
+
+// Export CartItem type for use in other services
+export interface CartItem {
+  productId: string;
+  categoryId?: string;
+  price: number;
+  quantity: number;
+}

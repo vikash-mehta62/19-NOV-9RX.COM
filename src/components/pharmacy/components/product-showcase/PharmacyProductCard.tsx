@@ -84,12 +84,8 @@ export const PharmacyProductCard = ({
       onProductClick(product)
       return
     }
-    const userType = sessionStorage.getItem('userType')
-    if (userType === 'admin') {
-      navigate(`/admin/product/${product.id}`)
-    } else {
-      navigate(`/pharmacy/product/${product.id}`)
-    }
+    const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
+    navigate(`/${userType}/product/${product.id}`)
   }
 
   return (
@@ -244,6 +240,11 @@ export const PharmacyProductCard = ({
             <div className="space-y-1.5 max-h-32 overflow-y-auto">
               {product.sizes.map((size, index) => {
                 const isMatching = isSizeMatching(size)
+                // Calculate discounted price if offer exists
+                const sizePrice = size.price || 0
+                const hasDiscount = product.hasOffer && product.discountPercent > 0
+                const discountedPrice = hasDiscount ? sizePrice * (1 - product.discountPercent / 100) : sizePrice
+                
                 return (
                   <div 
                     key={index} 
@@ -262,14 +263,30 @@ export const PharmacyProductCard = ({
                           Match
                         </Badge>
                       )}
+                      {hasDiscount && (
+                        <Badge className="bg-red-500 text-white text-xs px-1 py-0">
+                          {product.discountPercent}% OFF
+                        </Badge>
+                      )}
                       {size.sku && (
                         <span className="text-gray-500 text-xs">SKU: {size.sku}</span>
                       )}
                     </div>
                     <div className="text-right">
-                      <div className={`font-semibold ${isMatching ? 'text-blue-800' : 'text-gray-900'}`}>
-                        ${(size.price || 0).toFixed(2)}
-                      </div>
+                      {hasDiscount ? (
+                        <div className="space-y-0.5">
+                          <div className="text-xs text-gray-400 line-through">
+                            ${sizePrice.toFixed(2)}
+                          </div>
+                          <div className={`font-semibold text-green-600 ${isMatching ? 'text-blue-800' : ''}`}>
+                            ${discountedPrice.toFixed(2)}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className={`font-semibold ${isMatching ? 'text-blue-800' : 'text-gray-900'}`}>
+                          ${sizePrice.toFixed(2)}
+                        </div>
+                      )}
                       {size.stock !== undefined && (
                         <div className="text-xs text-gray-500">
                           Stock: {size.stock}

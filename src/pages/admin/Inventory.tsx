@@ -5,6 +5,7 @@ import { LowStockAlerts } from "@/components/inventory/LowStockAlerts";
 import { StockAdjustmentDialog } from "@/components/inventory/StockAdjustmentDialog";
 import { StockAdjustmentHistory } from "@/components/inventory/StockAdjustmentHistory";
 import { InventoryReports } from "@/components/inventory/InventoryReports";
+import { ExpiryAlertsDashboard } from "@/components/inventory/ExpiryAlertsDashboard";
 import { useInventoryTracking } from "@/hooks/use-inventory-tracking";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -55,6 +56,11 @@ const Inventory = () => {
           <div className="">
             <InventoryReports inventoryData={inventory} />
             {/* <StockAdjustmentHistory /> */}
+          </div>
+
+          {/* Expiry Alerts Dashboard */}
+          <div className="">
+            <ExpiryAlertsDashboard />
           </div>
         </div>
       </div>

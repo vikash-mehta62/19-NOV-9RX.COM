@@ -35,8 +35,9 @@ export const StickyCartSummary = () => {
   }
 
   const handleViewDetails = (productId: string) => {
+    const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
     setIsExpanded(false)
-    navigate(`/pharmacy/product/${productId}`)
+    navigate(`/${userType}/product/${productId}`)
   }
 
   return (
@@ -105,7 +106,12 @@ export const StickyCartSummary = () => {
             </div>
             <Button 
               className="w-full bg-blue-600 hover:bg-blue-700 gap-2 min-h-[44px] rounded-xl"
-              onClick={() => navigate("/pharmacy/order/create")}
+              onClick={() => {
+                const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy';
+                // Different user types have different order creation paths
+                const orderPath = userType === 'pharmacy' ? `/${userType}/order/create` : `/${userType}/order`;
+                navigate(orderPath);
+              }}
             >
               Proceed to Checkout
               <ArrowRight className="w-4 h-4" />

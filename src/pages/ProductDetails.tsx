@@ -475,9 +475,19 @@ const ProductDetails = () => {
 
         setProduct(mappedProduct)
 
+        console.log("=== PRODUCT LOADED ===");
+        console.log("Product:", mappedProduct);
+        console.log("Product ID:", mappedProduct.id);
+        console.log("Product Name:", mappedProduct.name);
+
         // Fetch product offers
         try {
           const offerData = await getProductEffectivePrice(mappedProduct.id);
+          console.log("=== PRODUCT OFFER DEBUG ===");
+          console.log("Product ID:", mappedProduct.id);
+          console.log("Product Name:", mappedProduct.name);
+          console.log("Offer Data:", offerData);
+          
           if (offerData && offerData.hasOffer) {
             console.log("Product has active offer:", offerData);
             setProductOffer({
@@ -486,6 +496,9 @@ const ProductDetails = () => {
               offerBadge: offerData.offerBadge,
               hasOffer: offerData.hasOffer
             });
+            console.log("productOffer state set successfully");
+          } else {
+            console.log("No active offer for this product");
           }
         } catch (offerError) {
           console.error("Error fetching product offers:", offerError);
@@ -976,6 +989,15 @@ return (
                   const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
                   const offerDiscountPercent = hasOfferDiscount ? productOffer.discountPercent : 0
                   
+                  // Debug logging for first size only
+                  if (product.sizes.indexOf(size) === 0) {
+                    console.log("=== SIZE CARD RENDER DEBUG ===");
+                    console.log("Size:", size.size_value, size.size_unit);
+                    console.log("productOffer:", productOffer);
+                    console.log("hasOfferDiscount:", hasOfferDiscount);
+                    console.log("offerDiscountPercent:", offerDiscountPercent);
+                  }
+                  
                   // Combined discount
                   const totalDiscountPercent = groupDiscountPercent + offerDiscountPercent
                   const hasAnyDiscount = hasGroupDiscount || hasOfferDiscount
@@ -1028,8 +1050,8 @@ return (
                           if (userType === 'admin') {
                             // For admin, just update the selected image instead of navigating
                             setSelectedImage(sizeImage);
-                          } else if(userType === 'pharmacy') {
-                            navigate(`/pharmacy/product/${product.id}/${size.id}`);
+                          } else {
+                            navigate(`/${userType}/product/${product.id}/${size.id}`);
                           }
                         }}
                       >

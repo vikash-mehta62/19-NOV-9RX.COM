@@ -23,14 +23,14 @@ import { string } from "zod";
 interface LocationTableRowProps {
   location: Location;
   onView: (id: number) => void;
-  onEdit: (id: number) => void;
+  // onEdit: (id: number) => void;
   getStatusColor: (status: string) => string;
 }
 
 export function LocationTableRow({
   location,
   onView,
-  onEdit,
+  // onEdit,
   getStatusColor
 }: LocationTableRowProps) {
   return (
@@ -87,20 +87,20 @@ export function LocationTableRow({
           >
             <Eye className="h-4 w-4" />
           </Button>
-          <Button
+          {/* <Button
             variant="ghost"
             size="icon"
             onClick={() => onEdit(location.id)}
           >
             <Edit className="h-4 w-4" />
-          </Button>
-          <Button
+          </Button> */}
+          {/* <Button
             variant="ghost"
             size="icon"
             onClick={() => deleteUser(String(location.id),location.name)}
           >
             <Trash2 className="h-4 w-4"  />
-          </Button>
+          </Button> */}
           {/* <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon">

@@ -31,6 +31,8 @@ import {
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { EmptyState, TableSkeleton } from "@/components/common/EmptyState";
+import { InventoryTransactionService } from "@/services/inventoryTransactionService";
+import { StockReservationService } from "@/services/stockReservationService";
 
 // Import UI components for the cancel dialog
 import {
@@ -175,6 +177,56 @@ export function OrdersList({
 
       if (updateError) throw updateError;
 
+      // ✅ Record inventory transaction when order is confirmed
+      if (newStatus === 'processing' || newStatus === 'new') {
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('product_id, quantity')
+          .eq('order_id', orderId);
+
+        if (orderItems && orderItems.length > 0) {
+          const { data: { session } } = await supabase.auth.getSession();
+          for (const item of orderItems) {
+            await InventoryTransactionService.recordTransaction(
+              item.product_id,
+              'sale',
+              -item.quantity,
+              orderId,
+              `Order confirmed - Status: ${newStatus}`,
+              session?.user?.id
+            );
+          }
+          console.log('✅ Inventory transactions recorded for order confirmation');
+        }
+      }
+
+      // ✅ Restore stock when order is cancelled
+      if (newStatus === 'cancelled') {
+        const { data: orderItems } = await supabase
+          .from('order_items')
+          .select('product_id, quantity')
+          .eq('order_id', orderId);
+
+        if (orderItems && orderItems.length > 0) {
+          // Release reservation
+          await StockReservationService.releaseReservation(orderId);
+          
+          // Record restoration
+          const { data: { session } } = await supabase.auth.getSession();
+          for (const item of orderItems) {
+            await InventoryTransactionService.recordTransaction(
+              item.product_id,
+              'restoration',
+              item.quantity,
+              orderId,
+              `Order cancelled - Stock restored`,
+              session?.user?.id
+            );
+          }
+          console.log('✅ Stock restored and transactions recorded for cancelled order');
+        }
+      }
+
       toast({
         title: "Success",
         description: `Order status updated to ${newStatus}`,
@@ -234,13 +286,26 @@ export function OrdersList({
   const acceptPO = async (orderId: string) => {
     setLoadingPO(true);
     try {
-      // Your existing acceptPO logic
-      const orderNumber = await generateOrderId();
+      // Get current order to extract PO number
+      const { data: currentOrder, error: fetchError } = await supabase
+        .from("orders")
+        .select("order_number")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchError || !currentOrder) {
+        throw new Error("Failed to fetch order");
+      }
+
+      // Remove "PO-" prefix from order number
+      // Example: "PO-9RX000221" becomes "9RX000221"
+      const newOrderNumber = currentOrder.order_number.replace(/^PO-/i, "");
+
       const { data: updatedOrder, error: updateErrorOrder } = await supabase
         .from("orders")
         .update({
           poAccept: true,
-          order_number: orderNumber,
+          order_number: newOrderNumber,
           updated_at: new Date().toISOString(),
         })
         .eq("id", orderId)

@@ -6,7 +6,7 @@ import { LocationContactSection } from "@/components/settings/LocationContactSec
 import { SecuritySection } from "@/components/settings/SecuritySection";
 import { InvoiceSection } from "@/components/settings/InvoiceSection";
 import { InvoiceTemplateSection } from "@/components/settings/InvoiceTemplateSection";
-import { PaymentSection } from "@/components/settings/PaymentSection";
+import { PaymentSection } from "@/components/settings/PaymentSectionEnhanced";
 import { TaxSettingsSection } from "@/components/settings/TaxSettingsSection";
 import { ShippingSettingsSection } from "@/components/settings/ShippingSettingsSection";
 import { OrderSettingsSection } from "@/components/settings/OrderSettingsSection";
@@ -26,6 +26,7 @@ import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
+import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -37,15 +38,24 @@ import {
   Mail, 
   Clock, 
   Share2,
-  DollarSign,
   Shield,
-  FolderTree
+  FolderTree,
+  Palette
 } from "lucide-react";
 
 interface PaymentSettings {
   enabled: boolean;
   apiLoginId: string;
   transactionKey: string;
+  testMode: boolean;
+}
+
+interface FortisPaySettings {
+  enabled: boolean;
+  userId: string;
+  userApiKey: string;
+  locationId: string;
+  productTransactionIdAch: string;
   testMode: boolean;
 }
 
@@ -104,6 +114,17 @@ export default function Settings() {
         console.error("Error fetching payment settings:", paymentError);
       }
 
+      const { data: fortisPayData, error: fortisPayError } = await supabase
+        .from("payment_settings")
+        .select("settings")
+        .eq("provider", "fortispay")
+        .eq("profile_id", userProfile.id)
+        .maybeSingle();
+
+      if (fortisPayError) {
+        console.error("Error fetching FortisPay settings:", fortisPayError);
+      }
+
       const paymentSettings = paymentData?.settings
         ? (paymentData.settings as unknown as PaymentSettings)
         : {
@@ -113,12 +134,29 @@ export default function Settings() {
             testMode: false,
           };
 
+      const fortisPaySettings = fortisPayData?.settings
+        ? (fortisPayData.settings as unknown as FortisPaySettings)
+        : {
+            enabled: false,
+            userId: "",
+            userApiKey: "",
+            locationId: "",
+            productTransactionIdAch: "",
+            testMode: false,
+          };
+
       const combinedSettings = {
         ...(settingsData || defaultValues),
         authorize_net_enabled: paymentSettings.enabled,
         authorize_net_api_login_id: paymentSettings.apiLoginId,
         authorize_net_transaction_key: paymentSettings.transactionKey,
         authorize_net_test_mode: paymentSettings.testMode,
+        fortispay_enabled: fortisPaySettings.enabled,
+        fortispay_user_id: fortisPaySettings.userId,
+        fortispay_user_api_key: fortisPaySettings.userApiKey,
+        fortispay_location_id: fortisPaySettings.locationId,
+        fortispay_product_transaction_id_ach: fortisPaySettings.productTransactionIdAch,
+        fortispay_test_mode: fortisPaySettings.testMode,
       };
 
       return combinedSettings;
@@ -146,11 +184,26 @@ export default function Settings() {
         testMode: data.authorize_net_test_mode,
       };
 
+      const fortisPaySettings = {
+        enabled: data.fortispay_enabled,
+        userId: data.fortispay_user_id,
+        userApiKey: data.fortispay_user_api_key,
+        locationId: data.fortispay_location_id,
+        productTransactionIdAch: data.fortispay_product_transaction_id_ach,
+        testMode: data.fortispay_test_mode,
+      };
+
       const {
         authorize_net_enabled,
         authorize_net_api_login_id,
         authorize_net_transaction_key,
         authorize_net_test_mode,
+        fortispay_enabled,
+        fortispay_user_id,
+        fortispay_user_api_key,
+        fortispay_location_id,
+        fortispay_product_transaction_id_ach,
+        fortispay_test_mode,
         current_password,
         new_password,
         ...generalSettings
@@ -188,6 +241,27 @@ export default function Settings() {
       if (paymentError) {
         console.error("Payment settings save error:", paymentError);
         toast.error(`Failed to save payment settings: ${paymentError.message}`);
+        return;
+      }
+
+      // Save FortisPay settings
+      const { error: fortisPayError } = await supabase
+        .from("payment_settings")
+        .upsert(
+          {
+            profile_id: userProfile.id,
+            provider: "fortispay",
+            settings: fortisPaySettings,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "profile_id,provider",
+          }
+        );
+
+      if (fortisPayError) {
+        console.error("FortisPay settings save error:", fortisPayError);
+        toast.error(`Failed to save FortisPay settings: ${fortisPayError.message}`);
         return;
       }
 
@@ -259,7 +333,7 @@ export default function Settings() {
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
               <div className="space-y-2">
-                <TabsList className="grid grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-5 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>
@@ -280,13 +354,13 @@ export default function Settings() {
                     <FileText className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Invoices</span>
                   </TabsTrigger>
-                  <TabsTrigger value="email" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                  {/* <TabsTrigger value="email" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Mail className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Email</span>
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                 </TabsList>
 
-                <TabsList className="grid grid-cols-2 md:grid-cols-4 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-5 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="hours" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Hours</span>
@@ -302,6 +376,10 @@ export default function Settings() {
                   <TabsTrigger value="categories" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <FolderTree className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Categories</span>
+                  </TabsTrigger>
+                  <TabsTrigger value="appearance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Palette className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Appearance</span>
                   </TabsTrigger>
                 </TabsList>
               </div>
@@ -365,6 +443,11 @@ export default function Settings() {
                     <CategoryManagement />
                   </CardContent>
                 </Card>
+              </TabsContent>
+
+              {/* Appearance Tab */}
+              <TabsContent value="appearance" className="space-y-6">
+                <AppearanceSection />
               </TabsContent>
             </Tabs>
 

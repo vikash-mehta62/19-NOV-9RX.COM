@@ -1,6 +1,13 @@
 // Promo Code Service - Validate and apply promo codes
 import { supabase } from "@/integrations/supabase/client";
 
+export interface CartItem {
+  productId: string;
+  categoryId?: string;
+  price: number;
+  quantity: number;
+}
+
 interface PromoValidationResult {
   valid: boolean;
   offerId?: string;
@@ -8,7 +15,9 @@ interface PromoValidationResult {
   discountValue?: number;
   maxDiscount?: number;
   message: string;
+  error?: string;
   calculatedDiscount?: number;
+  applicableAmount?: number; // Amount the discount applies to
 }
 
 interface Offer {
@@ -29,14 +38,30 @@ interface Offer {
   user_groups: string[] | null;
 }
 
-// Validate promo code
+// Helper function to calculate applicable amount for product/category specific offers
+export function calculateApplicableAmount(
+  cartItems: CartItem[],
+  applicableIds: string[],
+  applicationType: 'product' | 'category'
+): number {
+  return cartItems
+    .filter(item => {
+      if (applicationType === 'product') {
+        return applicableIds.includes(item.productId);
+      } else {
+        return item.categoryId && applicableIds.includes(item.categoryId);
+      }
+    })
+    .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+}
+
+// Validate promo code (new signature with cart items)
 export async function validatePromoCode(
   code: string,
   orderAmount: number,
+  cartItems: CartItem[],
   userId?: string,
-  userType?: string,
-  categoryIds?: string[],
-  productIds?: string[]
+  userType?: string
 ): Promise<PromoValidationResult> {
   try {
     if (!code || code.trim() === "") {
@@ -86,7 +111,7 @@ export async function validatePromoCode(
       const { count } = await supabase
         .from("orders")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", userId)
+        .eq("profile_id", userId)
         .neq("status", "cancelled");
 
       if ((count || 0) > 0) {
@@ -101,8 +126,14 @@ export async function validatePromoCode(
       }
     }
 
+    // Extract product and category IDs from cart
+    const productIds = cartItems.map(item => item.productId);
+    const categoryIds = cartItems
+      .map(item => item.categoryId)
+      .filter((id): id is string => id !== undefined);
+
     // Check category restriction
-    if (offer.applicable_to === "category" && offer.applicable_ids && categoryIds) {
+    if (offer.applicable_to === "category" && offer.applicable_ids && categoryIds.length > 0) {
       const hasMatchingCategory = categoryIds.some(id => offer.applicable_ids!.includes(id));
       if (!hasMatchingCategory) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
@@ -110,27 +141,50 @@ export async function validatePromoCode(
     }
 
     // Check product restriction
-    if (offer.applicable_to === "product" && offer.applicable_ids && productIds) {
+    if (offer.applicable_to === "product" && offer.applicable_ids && productIds.length > 0) {
       const hasMatchingProduct = productIds.some(id => offer.applicable_ids!.includes(id));
       if (!hasMatchingProduct) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
       }
     }
 
-    // Calculate discount
+    // Calculate applicable amount based on offer type
+    let applicableAmount = orderAmount; // Default to full order
+
+    if (offer.applicable_to === "product" && offer.applicable_ids) {
+      // Calculate only for matching products
+      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'product');
+      
+      if (applicableAmount === 0) {
+        return { valid: false, message: "This offer is not applicable to items in your cart" };
+      }
+    } else if (offer.applicable_to === "category" && offer.applicable_ids) {
+      // Calculate only for matching categories
+      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'category');
+      
+      if (applicableAmount === 0) {
+        return { valid: false, message: "This offer is not applicable to items in your cart" };
+      }
+    }
+
+    // Calculate discount based on applicable amount
     let calculatedDiscount = 0;
     
     if (offer.offer_type === "percentage") {
-      calculatedDiscount = (orderAmount * (offer.discount_value || 0)) / 100;
+      calculatedDiscount = (applicableAmount * (offer.discount_value || 0)) / 100;
       if (offer.max_discount_amount && calculatedDiscount > offer.max_discount_amount) {
         calculatedDiscount = offer.max_discount_amount;
       }
     } else if (offer.offer_type === "flat") {
-      calculatedDiscount = offer.discount_value || 0;
+      calculatedDiscount = Math.min(offer.discount_value || 0, applicableAmount);
     } else if (offer.offer_type === "free_shipping") {
       // Free shipping - discount will be applied to shipping cost
       calculatedDiscount = 0; // Handled separately
     }
+
+    const savingsMessage = offer.offer_type === "free_shipping" 
+      ? `${offer.title} applied! Free shipping on this order`
+      : `${offer.title} applied! You save $${calculatedDiscount.toFixed(2)}`;
 
     return {
       valid: true,
@@ -138,13 +192,49 @@ export async function validatePromoCode(
       discountType: offer.offer_type as any,
       discountValue: offer.discount_value || 0,
       maxDiscount: offer.max_discount_amount || undefined,
-      message: `${offer.title} applied! You save $${calculatedDiscount.toFixed(2)}`,
+      message: savingsMessage,
       calculatedDiscount,
+      applicableAmount,
     };
   } catch (error: any) {
     console.error("Error validating promo code:", error);
     return { valid: false, message: "Error validating promo code" };
   }
+}
+
+// Backward compatible wrapper (deprecated - use validatePromoCode with cartItems)
+export async function validatePromoCodeLegacy(
+  code: string,
+  orderAmount: number,
+  userId?: string,
+  userType?: string,
+  categoryIds?: string[],
+  productIds?: string[]
+): Promise<PromoValidationResult> {
+  // Convert to new format
+  const cartItems: CartItem[] = [];
+  
+  if (productIds && productIds.length > 0) {
+    // Create cart items from product IDs (price will be estimated)
+    for (const productId of productIds) {
+      cartItems.push({
+        productId,
+        categoryId: categoryIds?.[0], // Approximate
+        price: orderAmount / productIds.length, // Estimate equal distribution
+        quantity: 1
+      });
+    }
+  } else {
+    // Fallback: single item with full amount
+    cartItems.push({
+      productId: 'unknown',
+      categoryId: categoryIds?.[0],
+      price: orderAmount,
+      quantity: 1
+    });
+  }
+  
+  return validatePromoCode(code, orderAmount, cartItems, userId, userType);
 }
 
 // Apply promo code (increment usage count)
@@ -295,4 +385,97 @@ export function calculateBestDiscount(
   }
 
   return { offer: bestOffer, discount: bestDiscount };
+}
+
+// Helper function to prepare promo code display data
+export function preparePromoDisplayData(
+  validationResult: PromoValidationResult,
+  offer: Offer,
+  cartItems: CartItem[],
+  productNames?: Map<string, string>
+): {
+  applicableItems: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    hasDiscount: boolean;
+  }>;
+  applicableTo: string;
+} {
+  const applicableItems = cartItems.map(item => {
+    let hasDiscount = false;
+
+    // Check if this item gets the discount
+    if (offer.applicable_to === "all") {
+      hasDiscount = true;
+    } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+      hasDiscount = offer.applicable_ids.includes(item.productId);
+    } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
+      hasDiscount = offer.applicable_ids.includes(item.categoryId);
+    }
+
+    return {
+      id: item.productId,
+      name: productNames?.get(item.productId) || `Product ${item.productId.slice(0, 8)}`,
+      price: item.price,
+      quantity: item.quantity,
+      hasDiscount,
+    };
+  });
+
+  return {
+    applicableItems,
+    applicableTo: offer.applicable_to,
+  };
+}
+
+// Calculate item-level discounts for display
+export function calculateItemDiscounts(
+  cartItems: CartItem[],
+  offer: Offer,
+  totalDiscount: number
+): Map<string, number> {
+  const itemDiscounts = new Map<string, number>();
+
+  if (offer.applicable_to === "all") {
+    // Distribute discount proportionally across all items
+    const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    cartItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      const itemDiscount = (itemTotal / totalAmount) * totalDiscount;
+      itemDiscounts.set(item.productId, itemDiscount);
+    });
+  } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+    // Calculate discount only for matching products
+    const applicableItems = cartItems.filter(item => 
+      offer.applicable_ids!.includes(item.productId)
+    );
+    const applicableAmount = applicableItems.reduce((sum, item) => 
+      sum + (item.price * item.quantity), 0
+    );
+
+    applicableItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
+      itemDiscounts.set(item.productId, itemDiscount);
+    });
+  } else if (offer.applicable_to === "category" && offer.applicable_ids) {
+    // Calculate discount only for matching categories
+    const applicableItems = cartItems.filter(item => 
+      item.categoryId && offer.applicable_ids!.includes(item.categoryId)
+    );
+    const applicableAmount = applicableItems.reduce((sum, item) => 
+      sum + (item.price * item.quantity), 0
+    );
+
+    applicableItems.forEach(item => {
+      const itemTotal = item.price * item.quantity;
+      const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
+      itemDiscounts.set(item.productId, itemDiscount);
+    });
+  }
+
+  return itemDiscounts;
 }

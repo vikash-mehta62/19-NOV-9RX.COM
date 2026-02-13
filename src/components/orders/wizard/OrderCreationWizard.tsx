@@ -32,7 +32,7 @@ import "./wizard-animations.css";
 
 // Applied discount interface
 interface AppliedDiscount {
-  type: "promo" | "rewards" | "offer" | "redeemed_reward";
+  type: "promo" | "rewards" | "offer" | "redeemed_reward" | "credit_memo";
   name: string;
   amount: number;
   offerId?: string;
@@ -40,6 +40,12 @@ interface AppliedDiscount {
   pointsUsed?: number;
   redemptionId?: string;
   rewardType?: string;
+  creditMemoId?: string;
+  // Add item-level discount information
+  itemDiscounts?: Map<string, number>; // productId -> discount amount
+  discountType?: "percentage" | "flat" | "free_shipping";
+  discountValue?: number;
+  applicableTo?: string;
 }
 
 const OrderCreationWizardComponent = ({
