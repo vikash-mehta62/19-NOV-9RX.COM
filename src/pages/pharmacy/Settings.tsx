@@ -129,7 +129,7 @@ export default function PharmacySettings() {
           </div>
               <NotificationSection form={form} />
               <SecuritySection form={form} />
-              <AppearanceSection />
+              {/* <AppearanceSection /> */}
               <CreditAgreementSection />
               <div className=" flex justify-center w-full">
                 <Button

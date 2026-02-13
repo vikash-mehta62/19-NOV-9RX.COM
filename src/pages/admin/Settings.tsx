@@ -446,9 +446,9 @@ export default function Settings() {
               </TabsContent>
 
               {/* Appearance Tab */}
-              <TabsContent value="appearance" className="space-y-6">
+              {/* <TabsContent value="appearance" className="space-y-6">
                 <AppearanceSection />
-              </TabsContent>
+              </TabsContent> */}
             </Tabs>
 
             <div className="flex justify-end mt-6">

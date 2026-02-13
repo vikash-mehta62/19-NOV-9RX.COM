@@ -20,6 +20,7 @@ export default function PasswordReset() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
+  const [hasValidSession, setHasValidSession] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -37,6 +38,29 @@ export default function PasswordReset() {
 
   const password = watch("password");
 
+  // Check if user has valid password recovery session
+  useState(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      // Check if this is a password recovery session
+      if (session?.user) {
+        setHasValidSession(true);
+      } else {
+        toast({
+          title: "Invalid or Expired Link",
+          description: "This password reset link is invalid or has expired. Please request a new one.",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          navigate("/reset-password-request");
+        }, 2000);
+      }
+    };
+    
+    checkSession();
+  });
+
   // Password strength checker
   const getPasswordStrength = (pass: string) => {
     let strength = 0;
@@ -53,8 +77,27 @@ export default function PasswordReset() {
   const strengthColors = ["bg-red-500", "bg-orange-500", "bg-yellow-500", "bg-blue-400", "bg-blue-600"];
 
   const onSubmit = async (data: PasswordResetFormValues) => {
+    if (!hasValidSession) {
+      toast({
+        title: "Invalid Session",
+        description: "Please use a valid password reset link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
+      // Get current session to verify it's a recovery session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        throw new Error("No valid session found. Please request a new password reset link.");
+      }
+
+      console.log("🔐 Resetting password for user:", session.user.email);
+
+      // Update password for the currently authenticated user (from recovery token)
       const { data: userData, error } = await supabase.auth.updateUser({
         password: data.password,
       });
@@ -62,6 +105,8 @@ export default function PasswordReset() {
       if (error) {
         throw error;
       }
+
+      console.log("✅ Password updated successfully for:", userData?.user?.email);
 
       if (userData?.user?.user_metadata) {
         const userMeta = userData.user.user_metadata;
@@ -81,10 +126,14 @@ export default function PasswordReset() {
         description: "Your password has been reset successfully.",
       });
 
+      // Sign out to clear the recovery session
+      await supabase.auth.signOut();
+
       setTimeout(() => {
         navigate("/login", { state: { defaultTab: "login" } });
       }, 2000);
     } catch (error: any) {
+      console.error("❌ Password reset error:", error);
       toast({
         title: "Error",
         description: error?.message || "Failed to reset password. Please try again.",

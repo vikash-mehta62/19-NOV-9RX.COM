@@ -212,6 +212,7 @@ function App() {
           <Route path="/activation" element={<ActivationUser />} />
           <Route path="/update-profile" element={<UserSelfDetails />} />
           <Route path="/reset-password" element={<LaunchPasswordReset />} />
+          <Route path="/launch-password-reset" element={<LaunchPasswordReset />} />
           <Route path="/reset-password-page" element={<ResetPasswordPage />} />
           <Route path="/pay-now" element={<PayNowOrder />} />
           <Route path="/products" element={<Products />} />

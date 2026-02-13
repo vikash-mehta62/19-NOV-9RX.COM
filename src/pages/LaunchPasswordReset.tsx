@@ -24,9 +24,11 @@ export default function LaunchPasswordReset() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [currentStep, setCurrentStep] = useState<"terms" | "password">("terms"); // Always start with terms
+  const [currentStep, setCurrentStep] = useState<"terms" | "password">("terms");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [userEmail, setUserEmail] = useState(emailFromUrl);
+  const [hasValidSession, setHasValidSession] = useState(false);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -43,6 +45,68 @@ export default function LaunchPasswordReset() {
   });
 
   const password = watch("password");
+
+  // Check if user has valid password recovery session
+  useEffect(() => {
+    const checkSession = async () => {
+      try {
+        // First, check if there's a hash in the URL (Supabase auth callback)
+        const hashParams = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken = hashParams.get('access_token');
+        const refreshToken = hashParams.get('refresh_token');
+        const type = hashParams.get('type');
+
+        console.log("🔍 Checking URL hash params:", { 
+          hasAccessToken: !!accessToken, 
+          hasRefreshToken: !!refreshToken,
+          type 
+        });
+
+        // If we have tokens in the URL, Supabase should handle them automatically
+        if (accessToken && type === 'recovery') {
+          console.log("✅ Recovery tokens found in URL, waiting for Supabase to process...");
+          // Wait a bit for Supabase to process the tokens
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Now check the session
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        console.log("🔍 Session check result:", { 
+          hasSession: !!session, 
+          userEmail: session?.user?.email,
+          error: error?.message 
+        });
+        
+        if (session?.user) {
+          setHasValidSession(true);
+          setUserEmail(session.user.email || emailFromUrl);
+          console.log("✅ Valid recovery session found for:", session.user.email);
+        } else {
+          console.log("❌ No valid session found");
+          toast({
+            title: "Invalid or Expired Link",
+            description: "This password reset link is invalid or has expired. Please request a new one.",
+            variant: "destructive",
+          });
+          setTimeout(() => {
+            navigate("/reset-password-request");
+          }, 3000);
+        }
+      } catch (error) {
+        console.error("❌ Error checking session:", error);
+        toast({
+          title: "Error",
+          description: "Failed to verify reset link. Please try again.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsCheckingSession(false);
+      }
+    };
+    
+    checkSession();
+  }, [emailFromUrl, navigate, toast]);
 
   // Password strength checker
   const getPasswordStrength = (pass: string) => {
@@ -72,23 +136,34 @@ export default function LaunchPasswordReset() {
   };
 
   const onSubmit = async (data: PasswordResetFormValues) => {
+    if (!hasValidSession) {
+      toast({
+        title: "Invalid Session",
+        description: "Please use a valid password reset link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
-      // Get current user session to get email
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      const email = userEmail || currentUser?.email;
+      // Get current user session to verify and get email
+      const { data: { session } } = await supabase.auth.getSession();
+      const email = session?.user?.email || userEmail;
 
-      if (!email) {
+      if (!email || !session?.user) {
         toast({
           title: "Error",
-          description: "Unable to identify user. Please try again.",
+          description: "Unable to identify user. Please try again with a fresh reset link.",
           variant: "destructive",
         });
         setIsLoading(false);
         return;
       }
 
-      // Update the password
+      console.log("🔐 Resetting password for user:", email);
+
+      // Update the password for the currently authenticated user (from recovery token)
       const { data: userData, error } = await supabase.auth.updateUser({
         password: data.password,
       });
@@ -96,6 +171,8 @@ export default function LaunchPasswordReset() {
       if (error) {
         throw error;
       }
+
+      console.log("✅ Password updated successfully for:", email);
 
       // Mark both password reset and terms accepted as completed
       try {
@@ -141,10 +218,14 @@ export default function LaunchPasswordReset() {
         description: "Password reset and Terms accepted successfully!",
       });
 
+      // Sign out to clear the recovery session
+      await supabase.auth.signOut();
+
       setTimeout(() => {
         navigate("/login", { state: { defaultTab: "login" } });
       }, 2000);
     } catch (error: any) {
+      console.error("❌ Password reset error:", error);
       toast({
         title: "Error",
         description: error?.message || "Failed to reset password. Please try again.",
@@ -190,18 +271,27 @@ export default function LaunchPasswordReset() {
 
       {/* Add padding-top to account for fixed navbar */}
       <div className="pt-24 flex items-center justify-center min-h-screen px-4 py-12">
+        {isCheckingSession ? (
+          <div className="w-full max-w-2xl">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Verifying Reset Link...</h2>
+              <p className="text-gray-600">Please wait while we verify your password reset link.</p>
+            </div>
+          </div>
+        ) : (
         <div className="w-full max-w-2xl">
           {/* Progress Steps - Always show for launch flow */}
           {!isSuccess && (
             <div className="mb-8">
               <div className="flex items-center justify-center gap-4">
                 <div className="flex items-center gap-2">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg leading-none ${
                     currentStep === "terms" 
                       ? "bg-blue-600 text-white" 
                       : "bg-green-600 text-white"
                   }`}>
-                    {currentStep === "password" ? <Check className="w-5 h-5" /> : "1"}
+                    {currentStep === "password" ? <Check className="w-6 h-6" /> : "1"}
                   </div>
                   <span className={`font-medium ${
                     currentStep === "terms" ? "text-blue-600" : "text-green-600"
@@ -213,7 +303,7 @@ export default function LaunchPasswordReset() {
                   currentStep === "password" ? "bg-green-600" : "bg-gray-300"
                 }`} />
                 <div className="flex items-center gap-2">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg leading-none ${
                     currentStep === "password" 
                       ? "bg-blue-600 text-white" 
                       : "bg-gray-300 text-gray-600"
@@ -523,6 +613,7 @@ export default function LaunchPasswordReset() {
             </p>
           </div>
         </div>
+        )}
       </div>
     </div>
   );

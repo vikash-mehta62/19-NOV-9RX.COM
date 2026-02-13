@@ -754,6 +754,7 @@ app.use("/logs", require("./routes/logsRoute"))
 app.use("/api/email", require("./routes/emailRoutes")) // Email tracking, webhooks, unsubscribe
 app.use("/api/users", require("./routes/userRoutes")) // User management (secure)
 app.use("/api/launch", require("./routes/launchRoutes")) // Website launch password reset & T&C
+app.use("/api/otp", require("./routes/otpRoutes")) // OTP-based authentication
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)

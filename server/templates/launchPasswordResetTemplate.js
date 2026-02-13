@@ -58,6 +58,13 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
         text-align: center;
       }
       
+      .logo-image {
+        max-width: 180px;
+        height: auto;
+        margin: 0 0 16px 0;
+        display: inline-block;
+      }
+      
       .logo {
         font-size: 42px;
         font-weight: 700;
@@ -172,13 +179,16 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
         background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
         color: #ffffff;
         border-radius: 50%;
-        display: flex;
+        display: inline-flex;
         align-items: center;
         justify-content: center;
         font-weight: 700;
         font-size: 16px;
         margin-right: 16px;
         box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+        text-align: center;
+        line-height: 36px;
+        vertical-align: middle;
       }
       
       .step-content {
@@ -377,7 +387,7 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
             <!-- Header -->
             <tr>
               <td class="header">
-                <h1 class="logo">9RX</h1>
+                <img src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/9rx_logo.png" alt="9RX Logo" class="logo-image">
                 <p class="logo-subtitle">Your Trusted Pharmacy Partner</p>
               </td>
             </tr>
@@ -409,7 +419,6 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
                   <h3 class="steps-title">📋 Complete These Steps:</h3>
                   
                   <div class="step">
-                    <div class="step-number text-center">1</div>
                     <div class="step-content">
                       <p class="step-title">Review Terms & Conditions</p>
                       <p class="step-description">Read and accept our updated Terms & Conditions to continue</p>
@@ -417,7 +426,6 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
                   </div>
                   
                   <div class="step">
-                    <div class="step-number text-center">2</div>
                     <div class="step-content">
                       <p class="step-title">Reset Your Password</p>
                       <p class="step-description">Create a new secure password for enhanced account security</p>

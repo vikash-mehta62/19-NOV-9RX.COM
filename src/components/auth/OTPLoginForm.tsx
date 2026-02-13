@@ -1,0 +1,339 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { Mail, Lock, Loader2, CheckCircle2, Timer, Shield, Eye, EyeOff } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import axios from "../../../axiosconfig";
+import { useDispatch } from "react-redux";
+import { setUserProfile } from "../../store/actions/userAction";
+
+export const OTPLoginForm = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [otp, setOTP] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSendingOTP, setIsSendingOTP] = useState(false);
+  const [error, setError] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [emailValid, setEmailValid] = useState<boolean | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const dispatch = useDispatch();
+
+  // Countdown timer for resend OTP
+  useEffect(() => {
+    if (countdown > 0) {
+      const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [countdown]);
+
+  const isValidEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
+
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setEmail(value);
+    if (value.length > 0) {
+      setEmailValid(isValidEmail(value));
+    } else {
+      setEmailValid(null);
+    }
+  };
+
+  const handleSendOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsSendingOTP(true);
+
+    try {
+      if (!isValidEmail(email)) {
+        throw new Error("Please enter a valid email address");
+      }
+
+      if (!password || password.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+
+      const response = await axios.post("/api/otp/send", {
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
+
+      if (response.data.success) {
+        setOtpSent(true);
+        setCountdown(60); // 60 seconds cooldown
+        toast({
+          title: "OTP Sent",
+          description: "Please check your email for the OTP code",
+        });
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to send OTP";
+      setError(errorMessage);
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingOTP(false);
+    }
+  };
+
+  const handleVerifyOTP = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+
+    try {
+      if (!otp || otp.length !== 6) {
+        throw new Error("Please enter a valid 6-digit OTP");
+      }
+
+      const response = await axios.post("/api/otp/verify", {
+        email: email.trim().toLowerCase(),
+        otp: otp.trim(),
+      });
+
+      if (response.data.success) {
+        const { user, session } = response.data;
+
+        // Set Supabase session
+        const { supabase } = await import("@/supabaseClient");
+        const { error: sessionError } = await supabase.auth.setSession({
+          access_token: session.access_token,
+          refresh_token: session.refresh_token,
+        });
+
+        if (sessionError) {
+          console.error("Failed to set Supabase session:", sessionError);
+          throw new Error("Failed to create session. Please try again.");
+        }
+
+        // Store session data
+        sessionStorage.setItem("isLoggedIn", "true");
+        sessionStorage.setItem("userType", user.type);
+        sessionStorage.setItem("userEmail", user.email);
+        sessionStorage.setItem("userId", user.id);
+        sessionStorage.setItem("userRole", user.role || "user");
+        sessionStorage.setItem("shipping", user.freeShipping || "false");
+        sessionStorage.setItem("taxper", user.taxPercantage || "0");
+        sessionStorage.setItem("order_pay", user.order_pay || "false");
+        sessionStorage.setItem("lastActivity", Date.now().toString());
+
+        // Update Redux store
+        dispatch(setUserProfile(user));
+
+        toast({
+          title: "Login Successful",
+          description: `Welcome back, ${user.firstName}!`,
+        });
+
+        // Navigate to appropriate dashboard
+        const dashboardRoutes: Record<string, string> = {
+          admin: "/admin/dashboard",
+          pharmacy: "/pharmacy/products",
+          hospital: "/hospital/dashboard",
+          group: "/group/dashboard",
+        };
+
+        const route = dashboardRoutes[user.type] || "/";
+        navigate(route, { replace: true });
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || err.message || "Invalid OTP";
+      setError(errorMessage);
+      toast({
+        title: "Verification Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendOTP = async () => {
+    if (countdown > 0) return;
+    
+    setError("");
+    setIsSendingOTP(true);
+
+    try {
+      const response = await axios.post("/api/otp/resend", {
+        email: email.trim().toLowerCase(),
+        password: password,
+      });
+
+      if (response.data.success) {
+        setCountdown(60);
+        toast({
+          title: "OTP Resent",
+          description: "A new OTP has been sent to your email",
+        });
+      }
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message || "Failed to resend OTP";
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsSendingOTP(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6"> 
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {!otpSent ? (
+        <form onSubmit={handleSendOTP} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <div className="relative">
+              <Mail className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                id="email"
+                type="email"
+                placeholder="your.email@example.com"
+                value={email}
+                onChange={handleEmailChange}
+                className="pl-10"
+                disabled={isSendingOTP}
+                required
+              />
+              {emailValid !== null && (
+                <div className="absolute right-3 top-3">
+                  {emailValid ? (
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                  ) : (
+                    <div className="h-5 w-5 rounded-full border-2 border-red-500" />
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-10 pr-10"
+                disabled={isSendingOTP}
+                minLength={6}
+                required
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-3 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+              </button>
+            </div>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSendingOTP || !emailValid || password.length < 6}
+          >
+            {isSendingOTP ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending OTP...
+              </>
+            ) : (
+              <>
+                <Shield className="mr-2 h-4 w-4" />
+                Send OTP
+              </>
+            )}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={handleVerifyOTP} className="space-y-4">
+          <Alert>
+            <Mail className="h-4 w-4" />
+            <AlertDescription>
+              We've sent a 6-digit OTP to <strong>{email}</strong>
+            </AlertDescription>
+          </Alert>
+
+          <div className="space-y-2">
+            <Label htmlFor="otp">Enter OTP</Label>
+            <div className="relative">
+              <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
+              <Input
+                id="otp"
+                type="text"
+                placeholder="000000"
+                value={otp}
+                onChange={(e) => setOTP(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="pl-10 text-center text-2xl tracking-widest"
+                maxLength={6}
+                disabled={isLoading}
+                required
+              />
+            </div>
+            <p className="text-sm text-gray-500 flex items-center gap-1">
+              <Timer className="h-3 w-3" />
+              OTP expires in 10 minutes
+            </p>
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isLoading || otp.length !== 6}
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Verifying...
+              </>
+            ) : (
+              "Verify & Login"
+            )}
+          </Button>
+
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="link"
+              onClick={handleResendOTP}
+              disabled={countdown > 0 || isSendingOTP}
+              className="text-sm"
+            >
+              {countdown > 0 ? (
+                `Resend OTP in ${countdown}s`
+              ) : (
+                "Resend OTP"
+              )}
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
+  );
+};

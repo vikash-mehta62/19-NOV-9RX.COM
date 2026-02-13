@@ -188,7 +188,7 @@ export const TopBar = () => {
       <SidebarTrigger />
       <div className="flex items-center gap-1 sm:gap-2">
         {/* Theme Toggle */}
-        <ThemeToggle />
+        {/* <ThemeToggle /> */}
         
         {/* Hide CartDrawer for pharmacy users as they have cart in sidebar */}
         {sessionStorage.getItem('userType') !== 'pharmacy' && <CartDrawer />}

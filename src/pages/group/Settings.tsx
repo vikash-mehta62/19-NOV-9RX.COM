@@ -129,7 +129,7 @@ export default function GroupSettings() {
               </div>
               <NotificationSection form={form} />
               <SecuritySection form={form} />
-              <AppearanceSection />
+              {/* <AppearanceSection /> */}
               <div className=" flex justify-center w-full">
                 <Button
                   type="submit"

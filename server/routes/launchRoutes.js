@@ -102,10 +102,15 @@ router.post("/send-reset-emails", async (req, res) => {
       
       await Promise.all(batch.map(async (user) => {
         try {
-          // Generate password reset token
+          // Generate password reset token with redirect to launch password reset page
+          const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/launch-password-reset?launch=true`;
+          
           const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
             email: user.email,
+            options: {
+              redirectTo: redirectUrl,
+            }
           });
 
           if (resetError) {
@@ -115,8 +120,12 @@ router.post("/send-reset-emails", async (req, res) => {
             return;
           }
 
-          // Create reset link with T&C acceptance flow (no token needed, always show terms first)
-          const resetLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password?launch=true&email=${encodeURIComponent(user.email)}`;
+          console.log(`✅ Generated recovery link for ${user.email}`);
+          console.log(`   Redirect URL: ${redirectUrl}`);
+
+          // Use the actual Supabase recovery link which creates a proper session
+          // This link will automatically authenticate the user and redirect to our page
+          const resetLink = resetData.properties.action_link;
           const termsLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/terms-and-conditions`;
 
           // Send email
