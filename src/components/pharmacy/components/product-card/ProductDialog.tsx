@@ -97,7 +97,7 @@ export const ProductDialog = ({
         .filter((size: any) => size.image)
         .map(
           (size: any) =>
-            `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${size.image}`
+            `https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${size.image}`
         );
 
       setSelectedSizeImages(sizeImages);

@@ -191,7 +191,7 @@ export default function SizeDetail() {
   const getImageUrl = (image?: string) => {
     if (!image) return "/placeholder.svg"
     if (image.startsWith("http")) return image
-    return `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${image}`
+    return `https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${image}`
   }
 
   if (loading) {

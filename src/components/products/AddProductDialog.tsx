@@ -225,14 +225,11 @@ export function AddProductDialog({
         .select('*')
         .order('subcategory_name')
       if (!error && data) {
-        console.log("Fetched all subcategories:", data)
         setAllSubcategories(data)
       }
     }
     fetchAllSubcategories()
   }, [])
-
-  console.log("All Subcategories:", allSubcategories)
   
   // Reset form when dialog opens or initialData changes
   useEffect(() => {
@@ -305,7 +302,10 @@ export function AddProductDialog({
     fetchCategories()
   }
 
-  const isBasicInfoComplete = selectedCategory && productName && description
+  // Ensure description is a string and has minimum length
+  const descriptionText = String(description || '').trim()
+  const productNameTrimmed = String(productName || '').trim()
+  const isBasicInfoComplete = selectedCategory && productNameTrimmed && descriptionText.length >= 10
   const progress = Math.round((completedSections.length / 3) * 100)
 
   return (
@@ -771,7 +771,13 @@ export function AddProductDialog({
                 <Button
                   type="submit"
                   disabled={loading || !isBasicInfoComplete}
-                  onClick={form.handleSubmit(handleSubmit)}
+                  onClick={() => {
+                    form.handleSubmit(handleSubmit, (errors) => {
+                      console.error('Form validation errors:', errors);
+                      const errorFields = Object.keys(errors).join(', ');
+                      alert(`Validation errors in: ${errorFields}. Please check all fields.`);
+                    })();
+                  }}
                   className="h-10 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6"
                 >
                   {loading ? (

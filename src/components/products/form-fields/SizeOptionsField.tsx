@@ -301,7 +301,6 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
                 setNewSize={setNewSize}
                 form={form}
               />
-              <FormMessage />
             </FormItem>
           )}
         />

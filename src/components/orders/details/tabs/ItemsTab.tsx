@@ -992,7 +992,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
 
   const getProductImage = () => {
     if (!selectedProduct) return "/placeholder.svg";
-    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/";
+    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/";
     if (selectedProduct.images && selectedProduct.images.length > 0) {
       if (selectedProduct.images[0].startsWith("http")) return selectedProduct.images[0];
       return basePath + selectedProduct.images[0];

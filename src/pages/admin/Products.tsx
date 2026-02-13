@@ -428,7 +428,7 @@ const Products = () => {
                     {/* Enhanced Product Image */}
                     <div className="relative aspect-square bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
                       <img
-                        src={`https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
+                        src={`https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`}
                         alt={product.name}
                         className="w-full h-full object-contain p-4 group-hover:scale-105 transition-transform duration-300"
                       />
@@ -566,7 +566,7 @@ const Products = () => {
                           <div className="w-14 h-14 bg-gradient-to-br from-gray-100 to-gray-200 rounded-xl overflow-hidden shadow-sm">
                             <img
                               src={product.images && product.images[0]
-                                ? `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`
+                                ? `https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${product.images[0]}`
                                 : "/placeholder.svg"
                               }
                               alt={product.name}

@@ -60,16 +60,13 @@ export const SizeList = ({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
-  console.log(sizes, "sizes")
+  
   // Form values - ye bhi top pe
   const productName = form?.getValues("name") || "Product";
   const productUPCcode = form?.getValues("upcCode") || "";
   const productNdcCode = form?.getValues("ndcCode") || "";
   const productExpiry = form?.getValues("unitToggle") || "";
   const productLotNumber = form?.getValues("lotNumber") || "";
-
-  console.log("category:", category);
-  console.log("productUPCcode:", productUPCcode);
 
   // ⚠️ useEffect MUST be before any return statement
   useEffect(() => {

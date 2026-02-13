@@ -199,7 +199,7 @@ export const ProductSizesPanel = ({
   const displayProduct = fullProduct || product
 
   const getImageUrl = (image?: string) => {
-    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
+    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/"
     if (image) {
       if (image.startsWith("http")) return image
       return basePath + image
@@ -213,7 +213,7 @@ export const ProductSizesPanel = ({
   }
 
   const getSizeImageUrl = (size: any) => {
-    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
+    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/"
     
     // First try size-specific image
     if (size.image) {

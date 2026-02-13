@@ -91,7 +91,7 @@ export const productFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
   sku: z.string().min(2, "Product code must be at least 2 characters"),
-  key_features: z.string().min(2, "key features must be at least 2 characters"),
+  key_features: z.string().optional().default(""),
   squanence: z.any().optional(),
 
   ndcCode: z.any().optional(),
@@ -123,7 +123,7 @@ export const productFormSchema = z.object({
 
         price_per_case: z.coerce
           .number()
-          .min(0.01, "Price per case must be greater than 0"),
+          .min(0, "Price per case must be positive"),
         stock: z.coerce.number().min(0, "Stock must be positive"),
         unit: z.coerce.boolean().optional(),
         case: z.coerce.boolean().optional(),

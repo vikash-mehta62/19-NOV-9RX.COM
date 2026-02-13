@@ -49,7 +49,7 @@ export const ProductCard = ({ product, onView, onAddToCart, onEdit, showActions 
   const reviewCount = Math.floor(Math.random() * 500) + 50
 
   const getImageUrl = () => {
-    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
+    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/"
     if (product.image_url) return product.image_url
     if (product.images && product.images.length > 0) return basePath + product.images[0]
     if (product.sizes && product.sizes.length > 0) {

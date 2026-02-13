@@ -59,13 +59,13 @@ export const ProductSizeOptions = ({
   const getSizeImageUrl = (size: any) => {
     if (size.image) {
       if (size.image.startsWith("http")) return size.image;
-      return `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${size.image}`;
+      return `https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${size.image}`;
     }
     // Fallback to product image
     if (product.images && product.images.length > 0) {
       const img = product.images[0];
       if (img.startsWith("http")) return img;
-      return `https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/${img}`;
+      return `https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${img}`;
     }
     return "/placeholder.svg";
   };

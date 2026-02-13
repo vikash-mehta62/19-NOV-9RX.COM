@@ -71,7 +71,7 @@ export const PharmacyProductCard = ({
   }
 
   const getImageUrl = () => {
-    const basePath = "https://cfyqeilfmodrbiamqgme.supabase.co/storage/v1/object/public/product-images/"
+    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/"
     if (product.images && product.images.length > 0) {
       if (product.images[0].startsWith("http")) return product.images[0]
       return basePath + product.images[0]
