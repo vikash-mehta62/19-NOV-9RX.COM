@@ -108,7 +108,8 @@ const allowedOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "https://www.9rx.com",
-  "https://9rx.com"
+  "https://9rx.com",
+  "https://9rx.vercel.app"
 ];
 
 app.use(
