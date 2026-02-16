@@ -276,7 +276,7 @@ export const OrderDetailsSheet = ({
         date: freshOrder.date || freshOrder.created_at,
         status: freshOrder.status,
         payment_status: freshOrder.payment_status,
-      }; 
+      };
 
       await axios.post("/paynow-user", orderData);
       toast({
@@ -560,7 +560,7 @@ export const OrderDetailsSheet = ({
           customerInfo: currentOrder.customerInfo,
           companyName: companyName
         });
-        
+
         console.log("🔍 PDF Debug - Full shippingAddress object:", JSON.stringify(currentOrder.shippingAddress, null, 2));
 
         // Extract billing address from customerInfo.address
@@ -569,7 +569,7 @@ export const OrderDetailsSheet = ({
         const billingCity = billingAddr.city || "";
         const billingState = billingAddr.state || "";
         const billingZip = billingAddr.zip_code || "";
-        
+
         // Extract shipping address from shippingAddress.address
         const shippingAddr = (currentOrder.shippingAddress as any)?.address || {};
         const shippingStreet = shippingAddr.street || "";
@@ -1050,7 +1050,7 @@ export const OrderDetailsSheet = ({
         const billingCity = billingAddr.city || "";
         const billingState = billingAddr.state || "";
         const billingZip = billingAddr.zip_code || "";
-        
+
         // Extract shipping address from shippingAddress.address
         const shippingAddr = (currentOrder.shippingAddress as any)?.address || {};
         const shippingStreet = shippingAddr.street || "";
@@ -1369,32 +1369,34 @@ export const OrderDetailsSheet = ({
             const newStock = currentSize.stock + size.quantity;
 
             // Calculate weighted average cost price
-            const currentCostPrice = (currentSize.cost_price ?? (currentSize.stock > 0 ? currentSize.cost_price : size.price)) as number;
+            // If cost_price is null/undefined/0 in DB, fall back to the selling price (size.price from product_sizes)
+            // This treats existing stock as if it was purchased at the selling price
+            const currentCostPrice = (currentSize.cost_price && currentSize.cost_price > 0 ? currentSize.cost_price : size.price) as number;
             const oldTotalCost = currentCostPrice * currentSize.stock;
             const newTotalCost = size.price * size.quantity;
             const weightedAvgCostPrice = newStock > 0 ? (oldTotalCost + newTotalCost) / newStock : size.price;
 
             // Enhanced debugging
             console.log(`
-🔍 PO APPROVAL - Size ID: ${size.id}
-📊 Current Data from DB:
-   - Current Stock: ${currentSize.stock}
-   - Current Cost Price: $${currentCostPrice}
-   
-📦 PO Data:
-   - PO Quantity: ${size.quantity}
-   - PO Price: $${size.price}
-   
-🧮 Calculation:
-   - Old Total Cost: $${currentCostPrice} × ${currentSize.stock} = $${oldTotalCost.toFixed(2)}
-   - New Total Cost: $${size.price} × ${size.quantity} = $${newTotalCost.toFixed(2)}
-   - Combined Total: $${(oldTotalCost + newTotalCost).toFixed(2)}
-   - New Stock: ${newStock}
-   - Weighted Avg: $${(oldTotalCost + newTotalCost).toFixed(2)} ÷ ${newStock} = $${weightedAvgCostPrice.toFixed(2)}
-   
-✅ Updating to:
-   - New Stock: ${newStock}
-   - New Cost Price: $${Number(weightedAvgCostPrice.toFixed(2))}
+            🔍 PO APPROVAL - Size ID: ${size.id}
+            📊 Current Data from DB:
+              - Current Stock: ${currentSize.stock}
+              - Current Cost Price: $${currentCostPrice}
+              
+            📦 PO Data:
+              - PO Quantity: ${size.quantity}
+              - PO Price: $${size.price}
+              
+            🧮 Calculation:
+              - Old Total Cost: $${currentCostPrice} × ${currentSize.stock} = $${oldTotalCost.toFixed(2)}
+              - New Total Cost: $${size.price} × ${size.quantity} = $${newTotalCost.toFixed(2)}
+              - Combined Total: $${(oldTotalCost + newTotalCost).toFixed(2)}
+              - New Stock: ${newStock}
+              - Weighted Avg: $${(oldTotalCost + newTotalCost).toFixed(2)} ÷ ${newStock} = $${weightedAvgCostPrice.toFixed(2)}
+              
+            ✅ Updating to:
+              - New Stock: ${newStock}
+              - New Cost Price: $${Number(weightedAvgCostPrice.toFixed(2))}
             `);
 
             // Update both stock and cost_price
@@ -1436,19 +1438,19 @@ export const OrderDetailsSheet = ({
             }
           } else {
             // Reject: reduce stock AND reverse weighted average cost_price
-            const currentAvgCost = (currentSize.cost_price ?? size.price) as number;
+            const currentAvgCost = (currentSize.cost_price && currentSize.cost_price > 0 ? currentSize.cost_price : size.price) as number;
             const currentStock = currentSize.stock;
             const poPrice = size.price;
             const poQty = size.quantity;
-            
+
             // Calculate new stock
             const newStock = currentStock - poQty;
-            
+
             // Reverse weighted average formula:
             // Old Cost = (Current Avg × Current Stock - PO Cost × PO Qty) / (Current Stock - PO Qty)
             const oldTotalCost = (currentAvgCost * currentStock) - (poPrice * poQty);
             const reversedCostPrice = newStock > 0 ? oldTotalCost / newStock : currentAvgCost;
-            
+
             // Enhanced debugging for rejection
             console.log(`
                 🔴 PO REJECTION - Size ID: ${size.id}
@@ -1474,7 +1476,7 @@ export const OrderDetailsSheet = ({
 
             const { error: updateError } = await supabase
               .from("product_sizes")
-              .update({ 
+              .update({
                 stock: newStock,
                 cost_price: Number(reversedCostPrice.toFixed(2))
               })
@@ -1484,7 +1486,7 @@ export const OrderDetailsSheet = ({
               console.error(`❌ Failed to update stock and cost_price for size ID: ${size.id}`, updateError);
               throw new Error("Failed to update size quantity and cost price");
             }
-            
+
             // Verify the update was successful
             const verifyRes = await supabase
               .from("product_sizes")
@@ -1493,7 +1495,7 @@ export const OrderDetailsSheet = ({
               .single();
             const verifyData = (verifyRes.data as unknown) as { stock: number; cost_price?: number } | null;
             const verifyError = verifyRes.error;
-            
+
             if (verifyError) {
               console.error(`❌ Failed to verify update for size ID: ${size.id}`, verifyError);
             } else {
@@ -1516,7 +1518,7 @@ export const OrderDetailsSheet = ({
       });
       return;
     }
-    
+
     if ((currentOrder as any).poRejected === true) {
       toast({
         title: "Cannot Approve",
@@ -1525,13 +1527,13 @@ export const OrderDetailsSheet = ({
       });
       return;
     }
-    
+
     // Temporarily close sheet to show popup
     onOpenChange(false);
-    
+
     // Small delay to ensure sheet is closed
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     // Show warning confirmation
     const result = await Swal.fire({
       title: "Approve Purchase Order?",
@@ -1559,10 +1561,12 @@ export const OrderDetailsSheet = ({
       backdrop: true,
       allowOutsideClick: false,
     });
-    
+
     if (result.isConfirmed) {
-      // Reopen sheet
+      // Reopen sheet first, then open charges dialog after a small delay
+      // so the Sheet content is fully mounted before the dialog opens
       onOpenChange(true);
+      await new Promise(resolve => setTimeout(resolve, 200));
       setChargesOpen(true);
     } else {
       // Reopen sheet if cancelled
@@ -1582,15 +1586,30 @@ export const OrderDetailsSheet = ({
 
       await updateSizeQuantities(order.items, true);
 
-      await supabase
+      console.log("📝 Updating PO approval for order ID:", order.id);
+      const { data: updateData, error: updateError } = await supabase
         .from("orders")
         .update({
           poApproved: true,
           poRejected: false,
           po_handling_charges: handling,
           po_fred_charges: fred,
+          status: "approved",
         })
-        .eq("id", order.id);
+        .eq("id", order.id)
+        .select();
+
+      if (updateError) {
+        console.error("❌ Failed to update PO approval status:", updateError);
+        throw new Error(`Database update failed: ${updateError.message}`);
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error("❌ PO approval update returned no rows - possible RLS policy issue or wrong order ID:", order.id);
+        throw new Error("Update failed: no rows were updated. Check RLS policies or order ID.");
+      }
+
+      console.log("✅ PO approval updated successfully:", updateData);
 
       // Log PO approval activity
       try {
@@ -1620,10 +1639,11 @@ export const OrderDetailsSheet = ({
         icon: "success",
       }).then(() => window.location.reload());
     } catch (error) {
+      console.error("❌ PO approval error:", error);
       Swal.close();
       Swal.fire({
         title: "Error",
-        text: "Approval failed",
+        text: error instanceof Error ? error.message : "Approval failed. Check console for details.",
         icon: "error",
       });
     }
@@ -1639,7 +1659,7 @@ export const OrderDetailsSheet = ({
       });
       return;
     }
-    
+
     if ((currentOrder as any).poApproved === true) {
       toast({
         title: "Cannot Reject",
@@ -1648,13 +1668,13 @@ export const OrderDetailsSheet = ({
       });
       return;
     }
-    
+
     // Temporarily close sheet to show popup
     onOpenChange(false);
-    
+
     // Small delay to ensure sheet is closed
     await new Promise(resolve => setTimeout(resolve, 100));
-    
+
     // Show warning confirmation
     const confirmResult = await Swal.fire({
       title: "Reject Purchase Order?",
@@ -1681,13 +1701,13 @@ export const OrderDetailsSheet = ({
       backdrop: true,
       allowOutsideClick: false,
     });
-    
+
     if (!confirmResult.isConfirmed) {
       // Reopen sheet if cancelled
       onOpenChange(true);
       return;
     }
-    
+
     try {
       Swal.fire({
         title: "Rejecting Order...",
@@ -1705,15 +1725,31 @@ export const OrderDetailsSheet = ({
       });
 
       await updateSizeQuantities(order.items, false);
-      await supabase
+
+      console.log("📝 Updating PO rejection for order ID:", order.id);
+      const { data: updateData, error: updateError } = await supabase
         .from("orders")
         .update({
           poApproved: false,
           poRejected: true,
           po_handling_charges: 0,
           po_fred_charges: 0,
+          status: "rejected",
         })
-        .eq("id", order.id);
+        .eq("id", order.id)
+        .select();
+
+      if (updateError) {
+        console.error("❌ Failed to update PO rejection status:", updateError);
+        throw new Error(`Database update failed: ${updateError.message}`);
+      }
+
+      if (!updateData || updateData.length === 0) {
+        console.error("❌ PO rejection update returned no rows - possible RLS policy issue or wrong order ID:", order.id);
+        throw new Error("Update failed: no rows were updated. Check RLS policies or order ID.");
+      }
+
+      console.log("✅ PO rejection updated successfully:", updateData);
 
       // Log PO rejection activity
       try {
@@ -1978,22 +2014,22 @@ export const OrderDetailsSheet = ({
                   )}
                 </div>
               )}
-              
+
               {/* Approve Button - disabled if already approved or rejected */}
-              <Button 
-                onClick={handleApprove} 
+              <Button
+                onClick={handleApprove}
                 disabled={(currentOrder as any).poApproved || (currentOrder as any).poRejected}
                 className="gap-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
               >
                 <CheckCircle size={18} />
                 Approve Purchase
               </Button>
-              
+
               {/* Reject Button - disabled if already rejected or approved */}
-              <Button 
-                onClick={handleReject} 
+              <Button
+                onClick={handleReject}
                 disabled={(currentOrder as any).poRejected || (currentOrder as any).poApproved}
-                variant="destructive" 
+                variant="destructive"
                 className="gap-2 disabled:opacity-50 disabled:cursor-not-allowed w-full sm:w-auto"
               >
                 <XCircle size={18} />

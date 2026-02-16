@@ -272,10 +272,14 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       const totalAmount = calculateOrderTotal(cartItems, shippingCost);
 
       // Generate PO number
-      const poNumber = await generatePurchaseOrderId();
+      let poNumber = await generatePurchaseOrderId();
+
+      if (!poNumber) {
+        throw new Error("Failed to generate purchase order number. Please try again.");
+      }
 
       // Prepare PO data
-      const poData = {
+      const poData: any = {
         order_number: poNumber,
         profile_id: vendorId, // Vendor is the "customer" for PO
         status: data.status,
@@ -308,14 +312,55 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         payment_status: "unpaid",
       };
 
-      // Create PO in database
-      const { data: poResponse, error: poError } = await supabase
-        .from("orders")
-        .insert(poData)
-        .select()
-        .single();
+      // Create PO in database with retry logic for duplicate order numbers
+      let poResponse: any = null;
+      const MAX_PO_RETRIES = 5;
 
-      if (poError) throw new Error(poError.message);
+      for (let attempt = 0; attempt < MAX_PO_RETRIES; attempt++) {
+        const { data: insertResult, error: poError } = await supabase
+          .from("orders")
+          .insert(poData)
+          .select()
+          .single();
+
+        if (!poError) {
+          poResponse = insertResult;
+          break;
+        }
+
+        // If duplicate order number, generate a new one and retry
+        if (poError.code === '23505' && poError.message.includes('orders_order_number_key')) {
+          console.warn(`⚠️ Duplicate PO number detected (attempt ${attempt + 1}/${MAX_PO_RETRIES}), generating new one...`);
+          const newPoNumber = await generatePurchaseOrderId();
+          if (!newPoNumber) {
+            // Fallback: timestamp-based PO number
+            const fallback = `PO-9RX${Date.now().toString().slice(-8)}`;
+            console.warn(`⚠️ RPC failed, using fallback PO number: ${fallback}`);
+            poData.order_number = fallback;
+            poNumber = fallback;
+          } else {
+            poData.order_number = newPoNumber;
+            poNumber = newPoNumber;
+          }
+        } else {
+          throw new Error(poError.message);
+        }
+      }
+
+      if (!poResponse) {
+        // Final emergency fallback
+        const uuid = crypto.randomUUID().split('-')[0];
+        const emergencyPO = `PO-9RX${uuid.toUpperCase()}`;
+        poData.order_number = emergencyPO;
+        poNumber = emergencyPO;
+        const { data: emergencyResult, error: emergencyError } = await supabase
+          .from("orders")
+          .insert(poData)
+          .select()
+          .single();
+        if (emergencyError) throw new Error(emergencyError.message);
+        poResponse = emergencyResult;
+      }
 
       // Insert order items into order_items table (for analytics and reporting)
       const orderItemsData = cartItems.flatMap((item: any) => {

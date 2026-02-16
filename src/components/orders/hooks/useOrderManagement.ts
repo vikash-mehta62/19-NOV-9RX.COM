@@ -148,6 +148,7 @@ setOrders([])
             voidReason: order.voidReason,
             cancelReason: order.cancelReason,
             poApproved: order.poApproved,
+            poRejected: order.poRejected,
             po_handling_charges: order.po_handling_charges,
             po_fred_charges: order.po_fred_charges,
             // Add discount fields

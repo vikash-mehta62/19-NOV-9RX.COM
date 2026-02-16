@@ -260,8 +260,42 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {userRole === "admin" && onDelete && (
-              <Button variant="destructive" size="sm" onClick={onDelete} className="gap-1">
+            {userRole === "admin" && onDelete && !order.void && !(order as any).deleted_at && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={async () => {
+                  // Import Swal dynamically if not already imported
+                  const Swal = (await import('sweetalert2')).default;
+                  
+                  const result = await Swal.fire({
+                    title: 'Delete Order?',
+                    html: `
+                      <div class="text-left space-y-2">
+                        <p class="text-gray-700">Are you sure you want to delete this order?</p>
+                        <p class="text-sm text-gray-600">Order: <strong>${order.order_number}</strong></p>
+                        <p class="text-red-600 font-semibold mt-4">⚠️ This action cannot be undone!</p>
+                      </div>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonColor: '#dc2626',
+                    cancelButtonColor: '#6b7280',
+                    confirmButtonText: 'Yes, Delete',
+                    cancelButtonText: 'Cancel',
+                    customClass: {
+                      popup: 'rounded-xl shadow-lg',
+                    },
+                    backdrop: true,
+                    allowOutsideClick: false,
+                  });
+
+                  if (result.isConfirmed) {
+                    onDelete();
+                  }
+                }} 
+                className="gap-1"
+              >
                 <Trash2 className="w-4 h-4" />
                 <span className="hidden sm:inline">Delete</span>
               </Button>

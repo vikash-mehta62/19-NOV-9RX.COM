@@ -849,6 +849,11 @@ export function OrdersList({
             <SortableHeader field="total">
               Amount
             </SortableHeader>
+            {poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Status
+              </TableHead>
+            )}
             {!poIs && (
               <>
                 <SortableHeader field="status">
@@ -995,6 +1000,24 @@ export function OrdersList({
                   )}
                 </div>
               </TableCell>
+
+              {poIs && (
+                <TableCell className="text-center">
+                  {(order as any).poApproved ? (
+                    <Badge variant="secondary" className="bg-green-100 text-green-800 font-medium text-xs px-2.5 py-1 rounded-full">
+                      APPROVED
+                    </Badge>
+                  ) : (order as any).poRejected ? (
+                    <Badge variant="secondary" className="bg-red-100 text-red-800 font-medium text-xs px-2.5 py-1 rounded-full">
+                      REJECTED
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 font-medium text-xs px-2.5 py-1 rounded-full">
+                      PENDING
+                    </Badge>
+                  )}
+                </TableCell>
+              )}
 
               {!poIs && (
                 <>

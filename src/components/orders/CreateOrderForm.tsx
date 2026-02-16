@@ -832,33 +832,13 @@ export function CreateOrderForm({
     // ✅ STEP 3: Generate invoice ONLY for prepay customers
     console.log(`✅ Creating invoice for prepay customer: ${order.profile_id}`);
 
-    const year = new Date().getFullYear();
+    // Use atomic RPC to generate invoice number (prevents race conditions)
+    const { data: invoiceNumber, error: invoiceGenError } = await supabase.rpc('generate_invoice_number');
 
-    // Get invoice number
-    const { data: inData, error: fetchError } = await supabase
-      .from("centerize_data")
-      .select("id, invoice_no, invoice_start")
-      .order("id", { ascending: false })
-      .limit(1);
-
-    if (fetchError) throw new Error(fetchError.message);
-
-    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-    const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-    // Update invoice number
-    if (inData?.[0]?.id) {
-      const { error: updateError } = await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0].id);
-
-      if (updateError) throw new Error(updateError.message);
+    if (invoiceGenError || !invoiceNumber) {
+      console.error("Failed to generate invoice number:", invoiceGenError);
+      throw new Error("Failed to generate invoice number");
     }
-
-    const invoiceNumber = `${invoiceStart}-${year}${newInvNo
-      .toString()
-      .padStart(6, "0")}`;
     const dueDate = new Date(
       new Date(order.estimated_delivery).getTime() + 30 * 24 * 60 * 60 * 1000
     ).toISOString();

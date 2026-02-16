@@ -1047,6 +1047,11 @@ return (
                         className="aspect-[4/3] bg-gray-50 p-4 cursor-pointer relative"
                         onClick={() => {
                           const userType = sessionStorage.getItem('userType')?.toLowerCase();
+                          if (!userType || !isLoggedIn) {
+                            // If not logged in, don't navigate - just show the image
+                            setSelectedImage(sizeImage);
+                            return;
+                          }
                           if (userType === 'admin') {
                             // For admin, just update the selected image instead of navigating
                             setSelectedImage(sizeImage);
@@ -1081,6 +1086,11 @@ return (
                           className="cursor-pointer hover:text-blue-600 transition-colors min-w-0"
                           onClick={() => {
                             const userType = sessionStorage.getItem('userType')?.toLowerCase();
+                            if (!userType || !isLoggedIn) {
+                              // If not logged in, don't navigate - just show the image
+                              setSelectedImage(sizeImage);
+                              return;
+                            }
                             if (userType === 'admin') {
                               // For admin, just update the selected image instead of navigating
                               setSelectedImage(sizeImage);

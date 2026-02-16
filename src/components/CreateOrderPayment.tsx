@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "../../axiosconfig";
 import {
   CreditCard,
@@ -95,6 +95,7 @@ const CreateOrderPaymentForm = ({
   const userProfile = useSelector(selectUserProfile);
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const isSubmitting = useRef(false); // Guard against double submission
   const [tax, settax] = useState(0);
   const taxper = sessionStorage.getItem("taxper");
   const [saveCard, setSaveCard] = useState(false);
@@ -316,6 +317,12 @@ const CreateOrderPaymentForm = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Prevent double submission
+    if (isSubmitting.current) {
+      console.warn("⚠️ Payment already in progress, ignoring duplicate submission");
+      return;
+    }
+    
     if (!validateForm()) {
       toast({
         title: "Validation Error",
@@ -325,32 +332,27 @@ const CreateOrderPaymentForm = ({
       return;
     }
 
+    isSubmitting.current = true;
     setLoading(true);
 
-    const year = new Date().getFullYear();
     const cleanedCartItems = cleanCartItems(cartItems);
 
-    const { data: inData, error: erroIn } = await supabase
-      .from("centerize_data")
-      .select("id, invoice_no, invoice_start")
-      .order("id", { ascending: false })
-      .limit(1);
+    // Generate invoice number for payment reference (before payment processing)
+    const { data: invoiceNumber, error: invoiceError } = await supabase.rpc('generate_invoice_number');
 
-    if (erroIn) {
-      console.error("Supabase Fetch Error:", erroIn);
+    if (invoiceError || !invoiceNumber) {
+      console.error("Failed to generate invoice number:", invoiceError);
+      toast({
+        title: "Error",
+        description: "Failed to generate invoice number. Please try again.",
+        variant: "destructive",
+      });
       setLoading(false);
-      return null;
+      isSubmitting.current = false;
+      return;
     }
 
-    let newInvNo = 1;
-    let invoiceStart = "INV";
-
-    if (inData && inData.length > 0) {
-      newInvNo = (inData[0].invoice_no || 0) + 1;
-      invoiceStart = inData[0].invoice_start || "INV";
-    }
-
-    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+    console.log("✅ Generated invoice number:", invoiceNumber);
 
     try {
       let paymentResponse: any;
@@ -472,9 +474,10 @@ const CreateOrderPaymentForm = ({
 
       // Payment successful - process the order
       const response = { data: paymentResponse };
-      await processOrder(response, cleanedCartItems, invoiceNumber, newInvNo, inData);
+      await processOrder(response, cleanedCartItems, invoiceNumber);
     } catch (error: any) {
       setLoading(false);
+      isSubmitting.current = false;
       
       const errorMessage = error?.message || "Something went wrong. Please try again.";
       
@@ -499,9 +502,7 @@ const CreateOrderPaymentForm = ({
   const processOrder = async (
     response: any,
     cleanedCartItems: any[],
-    invoiceNumber: string,
-    newInvNo: number,
-    inData: any
+    invoiceNumber: string
   ) => {
     try {
       const data = formDataa;
@@ -521,6 +522,7 @@ const CreateOrderPaymentForm = ({
           variant: "destructive",
         });
         setLoading(false);
+        isSubmitting.current = false;
         return;
       }
 
@@ -571,10 +573,8 @@ const CreateOrderPaymentForm = ({
 
       const newOrder = orderResponse[0];
 
-      await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0]?.id);
+      // Invoice number was already generated before payment processing
+      console.log("✅ Using invoice number:", invoiceNumber);
 
       const estimatedDeliveryDate = new Date(newOrder.estimated_delivery);
       const dueDate = new Date(estimatedDeliveryDate);
@@ -607,16 +607,70 @@ const CreateOrderPaymentForm = ({
         discount_details: discountDetails || [],
       };
 
-      const { data: invoicedata2, error } = await supabase
-        .from("invoices")
-        .insert(invoiceData as any)
-        .select()
-        .single();
+      let finalInvoiceData;
+      let finalInvoiceNumber = invoiceNumber;
 
-      if (error) throw error;
+      // Robust retry loop for invoice insertion to handle out-of-sync counters
+      const MAX_INVOICE_RETRIES = 5;
+      let invoiceInserted = false;
 
-      // Log activities
-      await logOrderActivities(newOrder, orderNumber, finalTotal, response, invoiceNumber, invoicedata2);
+      for (let attempt = 0; attempt < MAX_INVOICE_RETRIES; attempt++) {
+        const { data: insertedInvoice, error: insertError } = await supabase
+          .from("invoices")
+          .insert(invoiceData as any)
+          .select()
+          .single();
+
+        if (!insertError) {
+          finalInvoiceData = insertedInvoice;
+          invoiceInserted = true;
+          break;
+        }
+
+        // If duplicate invoice number, generate a new one and retry
+        if (insertError.code === '23505' && insertError.message.includes('invoices_invoice_number_key')) {
+          console.warn(`⚠️ Duplicate invoice number detected (attempt ${attempt + 1}/${MAX_INVOICE_RETRIES}), generating new one...`);
+          
+          const { data: newInvoiceNumber, error: newInvoiceError } = await supabase.rpc('generate_invoice_number');
+          
+          if (newInvoiceError || !newInvoiceNumber) {
+            // Fallback: generate a unique invoice number using timestamp
+            const fallbackNumber = `INV-${new Date().getFullYear()}${Date.now().toString().slice(-8)}`;
+            console.warn(`⚠️ RPC failed, using fallback invoice number: ${fallbackNumber}`);
+            invoiceData.invoice_number = fallbackNumber;
+            finalInvoiceNumber = fallbackNumber;
+          } else {
+            console.log("✅ Generated new invoice number:", newInvoiceNumber);
+            invoiceData.invoice_number = newInvoiceNumber;
+            finalInvoiceNumber = newInvoiceNumber;
+          }
+          // Continue loop to retry insert with new number
+        } else {
+          // Non-duplicate error, throw immediately
+          throw insertError;
+        }
+      }
+
+      if (!invoiceInserted) {
+        // Final fallback: use a guaranteed unique number with UUID suffix
+        const uuid = crypto.randomUUID().split('-')[0];
+        const emergencyNumber = `INV-${new Date().getFullYear()}${uuid.toUpperCase()}`;
+        console.warn(`⚠️ All retry attempts failed, using emergency invoice number: ${emergencyNumber}`);
+        invoiceData.invoice_number = emergencyNumber;
+        finalInvoiceNumber = emergencyNumber;
+
+        const { data: emergencyInvoice, error: emergencyError } = await supabase
+          .from("invoices")
+          .insert(invoiceData as any)
+          .select()
+          .single();
+
+        if (emergencyError) throw emergencyError;
+        finalInvoiceData = emergencyInvoice;
+      }
+
+      // Log activities with the final invoice data
+      await logOrderActivities(newOrder, orderNumber, finalTotal, response, finalInvoiceNumber, finalInvoiceData);
 
       // Send email notification
       const { data: profileData } = await supabase
@@ -706,6 +760,7 @@ const CreateOrderPaymentForm = ({
           });
           setShowSuccessPopup(true);
           setLoading(false);
+          isSubmitting.current = false;
           await clearCart();
           return; // Don't navigate yet, wait for popup
         } catch (rewardError) {
@@ -719,6 +774,7 @@ const CreateOrderPaymentForm = ({
           });
           setShowSuccessPopup(true);
           setLoading(false);
+          isSubmitting.current = false;
           await clearCart();
           return;
         }
@@ -732,12 +788,14 @@ const CreateOrderPaymentForm = ({
         });
         setShowSuccessPopup(true);
         setLoading(false);
+        isSubmitting.current = false;
         await clearCart();
         return;
       }
     } catch (error) {
       console.error("Order creation error:", error);
       setLoading(false);
+      isSubmitting.current = false;
       toast({
         title: "Error Creating Order",
         description: error instanceof Error ? error.message : "There was a problem creating your order.",

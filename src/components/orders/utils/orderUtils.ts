@@ -1,92 +1,36 @@
 import { toast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 
-export const generateOrderId = async () => {
-  const year = new Date().getFullYear(); // Get current year (e.g., 2025)
-
-  // Fetch latest order from the database
-  const { data, error } = await supabase
-    .from("centerize_data")
-    .select("id, order_no, order_start") 
-    .order("id", { ascending: false }) // Get latest order
-    .limit(1);
+export const generateOrderId = async (): Promise<string | null> => {
+  // Use atomic database function to prevent race conditions
+  const { data: orderNumber, error } = await supabase.rpc('generate_order_number');
 
   if (error) {
-    console.error("🚨 Supabase Fetch Error:", error);
-    return null;
+    console.error("🚨 Supabase RPC Error (order number):", error);
+    // Fallback: generate a timestamp-based order number
+    const fallback = `9RX${Date.now().toString().slice(-8)}`;
+    console.warn(`⚠️ Using fallback order number: ${fallback}`);
+    return fallback;
   }
 
-  let newOrderNo = 1; // Default to 1 if no previous order exists
-  let orderStart = "9RX"; // Default order prefix
-
-  if (data && data.length > 0) {
-    newOrderNo = (data[0].order_no || 0) + 1; // Increment last order number
-    orderStart = data[0].order_start || "9RX"; // Use existing order_start
-  }
-
-  // Format order ID like '9RX202500001'
-  const orderId = `${orderStart}${newOrderNo.toString().padStart(6, "0")}`;
-
-  // ✅ Update the latest order_no in the database
-  const { error: updateError } = await supabase
-    .from("centerize_data")
-    .update({ order_no: newOrderNo }) // Correct update syntax
-    .eq("id", data[0]?.id); // Update only the latest record
-
-  if (updateError) {
-    console.error("🚨 Supabase Update Error:", updateError);
-  } else {
-    console.log("✅ Order No Updated to:", newOrderNo);
-  }
-
-  console.log("✅ Generated Order ID:", orderId);
-  return orderId;
+  console.log("✅ Generated Order ID:", orderNumber);
+  return orderNumber;
 };
 
-
-
-export const generatePurchaseOrderId = async () => {
-  const year = new Date().getFullYear();
-
-  // Fetch latest row from centerize_data
-  const { data, error } = await supabase
-    .from("centerize_data")
-    .select("id, purchase_no, purchase_start")
-    .order("id", { ascending: false })
-    .limit(1);
+export const generatePurchaseOrderId = async (): Promise<string | null> => {
+  // Use atomic database function to prevent race conditions
+  const { data: purchaseOrderNumber, error } = await supabase.rpc('generate_purchase_order_number');
 
   if (error) {
-    console.error("🚨 Supabase Fetch Error:", error);
-    return null;
+    console.error("🚨 Supabase RPC Error (PO number):", error);
+    // Fallback: generate a timestamp-based PO number
+    const fallback = `PO-9RX${Date.now().toString().slice(-8)}`;
+    console.warn(`⚠️ Using fallback PO number: ${fallback}`);
+    return fallback;
   }
 
-  let newPurchaseNo = 1;
-  let purchaseStart = "PO-9RX"; // Default purchase prefix
-
-  if (data && data.length > 0) {
-    newPurchaseNo = (data[0].purchase_no || 0) + 1;
-    purchaseStart = data[0].purchase_start || "PO-9RX";
-  }
-
-  // Format like 'PO202500001'
-  const purchaseOrderId = `${purchaseStart}${newPurchaseNo
-    .toString()
-    .padStart(6, "0")}`;
-
-  // Update the purchase_no in DB
-  const { error: updateError } = await supabase
-    .from("centerize_data")
-    .update({ purchase_no: newPurchaseNo })
-    .eq("id", data[0]?.id);
-
-  if (updateError) {
-    console.error("🚨 Supabase Update Error:", updateError);
-  } else {
-    console.log("✅ Purchase No Updated to:", newPurchaseNo);
-  }
-
-  console.log("✅ Generated Purchase Order ID:", purchaseOrderId);
-  return purchaseOrderId;
+  console.log("✅ Generated Purchase Order ID:", purchaseOrderNumber);
+  return purchaseOrderNumber;
 };
 
 export const calculateOrderTotal = (items: any[], shippingCost: number = 0) => {
