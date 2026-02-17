@@ -69,8 +69,9 @@ export const InlineProductSizes = ({
 
         const { data: productData, error } = await supabase
           .from("products")
-          .select("*, product_sizes(*)")
+          .select("*, product_sizes!inner(*)")
           .eq("id", product.id)
+          .eq("product_sizes.is_active", true) // Only fetch active sizes
           .single()
 
         if (error) throw error

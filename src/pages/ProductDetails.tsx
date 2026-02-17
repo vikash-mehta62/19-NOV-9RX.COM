@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check, Gift, HelpCircle } from "lucide-react"
+import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check, Gift, HelpCircle, MoreHorizontal } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import logo from "../assests/home/9rx_logo.png"
 import { useCart } from "@/hooks/use-cart"
@@ -24,6 +24,12 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { getProductEffectivePrice } from "@/services/productOfferService"
 
 // Apply group pricing to sizes - SAME LOGIC AS PRODUCT SHOWCASE
@@ -413,20 +419,27 @@ const ProductDetails = () => {
             price: productData.customization?.price || 0,
           },
           sizes: Array.isArray(productData.product_sizes)
-            ? productData.product_sizes.map((size) => ({
-                id: size.id,
-                product_id: size.product_id,
-                size_value: size.size_value || "",
-                size_unit: size.size_unit || "",
-                sku: size.sku || "",
-                price: size.price || 0,
-                price_per_case: size.price_per_case || 0,
-                stock: size.stock || 0,
-                quantity_per_case: size.quantity_per_case || 0,
-                image: size.image || "",
-                created_at: size.created_at,
-                updated_at: size.updated_at,
-              }))
+            ? productData.product_sizes
+                .map((size) => ({
+                  id: size.id,
+                  product_id: size.product_id,
+                  size_value: size.size_value || "",
+                  size_unit: size.size_unit || "",
+                  sku: size.sku || "",
+                  price: size.price || 0,
+                  price_per_case: size.price_per_case || 0,
+                  stock: size.stock || 0,
+                  quantity_per_case: size.quantity_per_case || 0,
+                  image: size.image || "",
+                  is_active: size.is_active !== false, // Include is_active field, default to true
+                  created_at: size.created_at,
+                  updated_at: size.updated_at,
+                }))
+                // Filter out inactive sizes for non-admin users
+                .filter((size) => {
+                  const isAdmin = userProfile?.type === 'admin';
+                  return isAdmin || size.is_active !== false;
+                })
             : [],
         }
 
@@ -997,8 +1010,65 @@ return (
                           : "border-gray-200 hover:border-blue-300 hover:shadow-md"
                       }`}
                     >
+                      {/* Admin 3-Dot Menu */}
+                      {userProfile?.type === 'admin' && (
+                        <div className="absolute top-2 right-2 z-20">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 hover:bg-gray-100 rounded-full"
+                              >
+                                <MoreHorizontal className="h-4 w-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem
+                                onClick={async () => {
+                                  try {
+                                    const newStatus = !size.is_active;
+                                    const { error } = await supabase
+                                      .from('product_sizes')
+                                      .update({ is_active: newStatus })
+                                      .eq('id', size.id);
+                                    
+                                    if (error) throw error;
+                                    
+                                    toast({
+                                      title: "Success",
+                                      description: `Size ${newStatus ? 'activated' : 'deactivated'} successfully`,
+                                    });
+                                    
+                                    // Refresh product data
+                                    window.location.reload();
+                                  } catch (error: any) {
+                                    toast({
+                                      title: "Error",
+                                      description: error.message,
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                              >
+                                {size.is_active ? 'Set Inactive' : 'Set Active'}
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
+
+                      {/* Inactive Badge for Admin */}
+                      {userProfile?.type === 'admin' && !size.is_active && (
+                        <div className="absolute top-2 left-2 z-10">
+                          <Badge className="bg-red-500 text-white text-[10px] px-2 py-0.5">
+                            Inactive
+                          </Badge>
+                        </div>
+                      )}
+
                       {/* In Cart Badge */}
-                      {inCart && (
+                      {inCart && size.is_active !== false && (
                         <div className="absolute top-2 left-2 z-10">
                           <Badge className="bg-blue-500 text-white text-[10px] px-2 py-0.5">
                             <Check className="w-3 h-3 mr-1" /> In Cart

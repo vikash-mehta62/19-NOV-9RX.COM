@@ -48,7 +48,7 @@ const FeaturedProducts = () => {
       price: "From $12.99",
       rating: 4.9,
       reviews: 156,
-      badge: "Customizable",
+      badge: "",
       color: "from-emerald-500 to-teal-500"
     }
   ];
@@ -104,11 +104,11 @@ const FeaturedProducts = () => {
                 />
 
                 {/* Badge */}
-                <div className="absolute top-2 sm:top-3 left-2 sm:left-3">
+                {product.badge !== "" && <div className="absolute top-2 sm:top-3 left-2 sm:left-3">
                   <span className="bg-white/90 backdrop-blur-sm text-slate-800 text-[10px] sm:text-xs font-bold px-2 sm:px-3 py-1 sm:py-1.5 rounded-full shadow-sm">
                     {product.badge}
                   </span>
-                </div>
+                </div>}
 
                 {/* Hover Actions - Hidden on mobile */}
                 {/* <div className={`absolute inset-0 bg-black/40 items-center justify-center gap-3 transition-opacity duration-300 hidden sm:flex ${hoveredProduct === index ? 'opacity-100' : 'opacity-0'}`}>

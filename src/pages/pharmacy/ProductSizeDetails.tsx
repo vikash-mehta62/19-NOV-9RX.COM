@@ -57,9 +57,10 @@ const ProductSizeDetails = () => {
       try {
         const { data: productData, error: productError } = await supabase
           .from("products")
-          .select("*, product_sizes(*), customization")
+          .select("*, product_sizes!inner(*), customization")
           .eq("id", productId)
           .eq("is_active", true) // Only fetch active products
+          .eq("product_sizes.is_active", true) // Only fetch active sizes
           .single()
 
         if (productError || !productData) {
@@ -73,7 +74,7 @@ const ProductSizeDetails = () => {
         const sizeData = productData.product_sizes?.find((s: any) => s.id === sizeId)
         
         if (!sizeData) {
-          toast({ title: "Error", description: "Size not found", variant: "destructive" })
+          toast({ title: "Error", description: "Size not found or inactive", variant: "destructive" })
           navigate("/pharmacy")
           return
         }
