@@ -25,6 +25,12 @@ export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
     if (!window.google) {
       console.error("Google Maps API not loaded");
     }
+    
+    // Set default country to USA if not already set
+    const currentCountry = form.getValues(fieldName("countryRegion"));
+    if (!currentCountry) {
+      form.setValue(fieldName("countryRegion"), "USA");
+    }
   }, []);
 
   // Extract address details from Google Places API

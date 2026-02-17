@@ -16,6 +16,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+declare global {
+  interface Window {
+    google: any;
+  }
+}
+
 export interface Address {
   street: string;
   city: string;
@@ -102,6 +108,10 @@ export const AddressInformationStep = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedBillingLocation, setSelectedBillingLocation] = useState<string>("");
   const [selectedShippingLocation, setSelectedShippingLocation] = useState<string>("");
+  
+  // Google Address API suggestions
+  const [billingSuggestions, setBillingSuggestions] = useState<any[]>([]);
+  const [shippingSuggestions, setShippingSuggestions] = useState<any[]>([]);
 
   // Filter valid locations with addresses (only active ones)
   // Note: status can be "active" or "inactive" - we only exclude inactive
@@ -256,6 +266,102 @@ export const AddressInformationStep = ({
       setIsEditingShipping(false);
     }
   }, [sameAsBilling, billingForm]);
+
+  // Google Address API - Handle billing address change
+  const handleBillingStreetChange = (value: string) => {
+    setBillingForm({ ...billingForm, street: value });
+    
+    if (value.length > 2 && window.google) {
+      const service = new window.google.maps.places.AutocompleteService();
+      service.getPlacePredictions(
+        { input: value, types: ["geocode", "establishment"] },
+        (predictions: any[]) => {
+          setBillingSuggestions(predictions || []);
+        }
+      );
+    } else {
+      setBillingSuggestions([]);
+    }
+  };
+
+  // Google Address API - Handle shipping address change
+  const handleShippingStreetChange = (value: string) => {
+    setShippingForm({ ...shippingForm, street: value });
+    
+    if (value.length > 2 && window.google) {
+      const service = new window.google.maps.places.AutocompleteService();
+      service.getPlacePredictions(
+        { input: value, types: ["geocode", "establishment"] },
+        (predictions: any[]) => {
+          setShippingSuggestions(predictions || []);
+        }
+      );
+    } else {
+      setShippingSuggestions([]);
+    }
+  };
+
+  // Google Address API - Handle billing suggestion click
+  const handleBillingSuggestionClick = (suggestion: any) => {
+    const placesService = new window.google.maps.places.PlacesService(
+      document.createElement("div")
+    );
+    placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
+      if (place && place.address_components) {
+        let city = "", state = "", zipCode = "";
+        const street = place.formatted_address?.split(",")[0] || "";
+        
+        place.address_components.forEach((component: any) => {
+          if (component.types.includes("locality")) 
+            city = component.long_name;
+          if (component.types.includes("administrative_area_level_1")) 
+            state = component.short_name;
+          if (component.types.includes("postal_code")) 
+            zipCode = component.long_name;
+        });
+        
+        setBillingForm({
+          ...billingForm,
+          street,
+          city,
+          state,
+          zip_code: zipCode,
+        });
+      }
+    });
+    setBillingSuggestions([]);
+  };
+
+  // Google Address API - Handle shipping suggestion click
+  const handleShippingSuggestionClick = (suggestion: any) => {
+    const placesService = new window.google.maps.places.PlacesService(
+      document.createElement("div")
+    );
+    placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
+      if (place && place.address_components) {
+        let city = "", state = "", zipCode = "";
+        const street = place.formatted_address?.split(",")[0] || "";
+        
+        place.address_components.forEach((component: any) => {
+          if (component.types.includes("locality")) 
+            city = component.long_name;
+          if (component.types.includes("administrative_area_level_1")) 
+            state = component.short_name;
+          if (component.types.includes("postal_code")) 
+            zipCode = component.long_name;
+        });
+        
+        setShippingForm({
+          ...shippingForm,
+          street,
+          city,
+          state,
+          zip_code: zipCode,
+        });
+      }
+    });
+    setShippingSuggestions([]);
+  };
 
   // Validation function
   const validateAddress = (address: Partial<Address>, prefix: string): boolean => {
@@ -442,7 +548,7 @@ export const AddressInformationStep = ({
                 />
               </div>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2 relative">
               <Label htmlFor="billing-street">
                 Street Address <span className="text-red-500">*</span>
               </Label>
@@ -450,9 +556,25 @@ export const AddressInformationStep = ({
                 id="billing-street"
                 placeholder="123 Main St"
                 value={billingForm.street}
-                onChange={(e) => setBillingForm({ ...billingForm, street: e.target.value })}
+                onChange={(e) => handleBillingStreetChange(e.target.value)}
                 className={cn("w-full", errors["billing.street"] ? "border-red-500" : "")}
               />
+              {billingSuggestions.length > 0 && (
+                <ul className="absolute left-0 w-full bg-white border-2 border-blue-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                  {billingSuggestions.map((suggestion) => (
+                    <li
+                      key={suggestion.place_id}
+                      className="cursor-pointer hover:bg-blue-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                      onClick={() => handleBillingSuggestionClick(suggestion)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-3 h-3 text-gray-400" />
+                        {suggestion.description}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
               {errors["billing.street"] && (
                 <p className="text-sm text-red-500">{errors["billing.street"]}</p>
               )}
@@ -670,7 +792,7 @@ export const AddressInformationStep = ({
               </div>
 
               {/* Address Fields */}
-              <div className="space-y-2">
+              <div className="space-y-2 relative">
                 <Label htmlFor="shipping-street">
                   Street Address <span className="text-red-500">*</span>
                 </Label>
@@ -678,11 +800,25 @@ export const AddressInformationStep = ({
                   id="shipping-street"
                   placeholder="123 Main St"
                   value={shippingForm.street}
-                  onChange={(e) =>
-                    setShippingForm({ ...shippingForm, street: e.target.value })
-                  }
+                  onChange={(e) => handleShippingStreetChange(e.target.value)}
                   className={cn("w-full", errors["shipping.street"] ? "border-red-500" : "")}
                 />
+                {shippingSuggestions.length > 0 && (
+                  <ul className="absolute left-0 w-full bg-white border-2 border-green-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                    {shippingSuggestions.map((suggestion) => (
+                      <li
+                        key={suggestion.place_id}
+                        className="cursor-pointer hover:bg-green-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                        onClick={() => handleShippingSuggestionClick(suggestion)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3 h-3 text-gray-400" />
+                          {suggestion.description}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 {errors["shipping.street"] && (
                   <p className="text-sm text-red-500">{errors["shipping.street"]}</p>
                 )}

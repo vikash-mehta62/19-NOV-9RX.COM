@@ -70,7 +70,7 @@ const defaultValues: VendorFormData = {
   mobilePhone: "",
   billingAddress: {
     attention: "",
-    countryRegion: "",
+    countryRegion: "USA",
     street1: "",
     street2: "",
     city: "",

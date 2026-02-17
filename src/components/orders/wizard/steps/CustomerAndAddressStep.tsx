@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 export interface BillingAddress {
   company_name?: string;
@@ -112,6 +113,10 @@ export const CustomerAndAddressStep = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [selectedBillingLocation, setSelectedBillingLocation] = useState<string>("");
   const [selectedShippingLocation, setSelectedShippingLocation] = useState<string>("");
+  
+  // Google Address API suggestions
+  const [billingSuggestions, setBillingSuggestions] = useState<any[]>([]);
+  const [shippingSuggestions, setShippingSuggestions] = useState<any[]>([]);
 
   // Filter valid locations with addresses (only active ones)
   const validLocations = savedLocations.filter((loc) => {
@@ -257,6 +262,50 @@ export const CustomerAndAddressStep = ({
       setIsEditingShipping(false);
     }
   }, [sameAsBilling, billingForm]);
+
+  // Google Address API - Handle billing address change
+  const handleBillingStreetChange = (value: string) => {
+    setBillingForm({ ...billingForm, street: value });
+    getAddressPredictions(value, setBillingSuggestions);
+  };
+
+  // Google Address API - Handle shipping address change
+  const handleShippingStreetChange = (value: string) => {
+    setShippingForm({ ...shippingForm, street: value });
+    getAddressPredictions(value, setShippingSuggestions);
+  };
+
+  // Google Address API - Handle billing suggestion click
+  const handleBillingSuggestionClick = (suggestion: any) => {
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (address) {
+        setBillingForm({
+          ...billingForm,
+          street: address.street,
+          city: address.city,
+          state: address.state,
+          zip_code: address.zip_code,
+        });
+      }
+    });
+    setBillingSuggestions([]);
+  };
+
+  // Google Address API - Handle shipping suggestion click
+  const handleShippingSuggestionClick = (suggestion: any) => {
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (address) {
+        setShippingForm({
+          ...shippingForm,
+          street: address.street,
+          city: address.city,
+          state: address.state,
+          zip_code: address.zip_code,
+        });
+      }
+    });
+    setShippingSuggestions([]);
+  };
 
   // Validation function for address
   const validateAddress = (address: Partial<BillingAddress>, prefix: string): boolean => {
@@ -476,9 +525,30 @@ export const CustomerAndAddressStep = ({
                     <Input placeholder="Attn" value={billingForm.attention} onChange={(e) => setBillingForm({ ...billingForm, attention: e.target.value })} />
                   </div>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 relative">
                   <Label className="text-xs">Street Address <span className="text-red-500">*</span></Label>
-                  <Input className={errors["billing.street"] ? "border-red-500" : ""} placeholder="123 Main St" value={billingForm.street} onChange={(e) => setBillingForm({ ...billingForm, street: e.target.value })} />
+                  <Input 
+                    className={errors["billing.street"] ? "border-red-500" : ""} 
+                    placeholder="123 Main St" 
+                    value={billingForm.street} 
+                    onChange={(e) => handleBillingStreetChange(e.target.value)} 
+                  />
+                  {billingSuggestions.length > 0 && (
+                    <ul className="absolute left-0 w-full bg-white border-2 border-blue-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                      {billingSuggestions.map((suggestion) => (
+                        <li
+                          key={suggestion.place_id}
+                          className="cursor-pointer hover:bg-blue-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                          onClick={() => handleBillingSuggestionClick(suggestion)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <MapPin className="w-3 h-3 text-gray-400" />
+                            {suggestion.description}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                   {errors["billing.street"] && <p className="text-xs text-red-500">{errors["billing.street"]}</p>}
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -596,9 +666,30 @@ export const CustomerAndAddressStep = ({
                     </div>
                   </div>
                   {/* Address Fields */}
-                  <div className="space-y-1">
+                  <div className="space-y-1 relative">
                     <Label className="text-xs">Street Address <span className="text-red-500">*</span></Label>
-                    <Input className={errors["shipping.street"] ? "border-red-500" : ""} placeholder="123 Main St" value={shippingForm.street} onChange={(e) => setShippingForm({ ...shippingForm, street: e.target.value })} />
+                    <Input 
+                      className={errors["shipping.street"] ? "border-red-500" : ""} 
+                      placeholder="123 Main St" 
+                      value={shippingForm.street} 
+                      onChange={(e) => handleShippingStreetChange(e.target.value)} 
+                    />
+                    {shippingSuggestions.length > 0 && (
+                      <ul className="absolute left-0 w-full bg-white border-2 border-green-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                        {shippingSuggestions.map((suggestion) => (
+                          <li
+                            key={suggestion.place_id}
+                            className="cursor-pointer hover:bg-green-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                            onClick={() => handleShippingSuggestionClick(suggestion)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-3 h-3 text-gray-400" />
+                              {suggestion.description}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     {errors["shipping.street"] && <p className="text-xs text-red-500">{errors["shipping.street"]}</p>}
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

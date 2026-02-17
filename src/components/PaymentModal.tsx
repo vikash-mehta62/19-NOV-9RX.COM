@@ -38,6 +38,7 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { OrderActivityService } from "@/services/orderActivityService"
 import { PaymentResultPopup, PaymentResultData } from "@/components/payment/PaymentResultPopup"
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper"
 
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
@@ -350,6 +351,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   // Payment result popup state
   const [showResultPopup, setShowResultPopup] = useState(false)
   const [paymentResult, setPaymentResult] = useState<PaymentResultData | null>(null)
+  
+  // Google Address API suggestions
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([])
 
   const [formData, setFormData] = useState({
     amount: 0,
@@ -449,6 +453,30 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     } else {
       setFormData({ ...formData, [name]: value })
     }
+  }
+
+  // Google Address API - Handle address change
+  const handleAddressChange = (value: string) => {
+    setFormData({ ...formData, address: value })
+    setErrors({ ...errors, address: null })
+    getAddressPredictions(value, setAddressSuggestions)
+  }
+
+  // Google Address API - Handle suggestion click
+  const handleAddressSuggestionClick = (suggestion: any) => {
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (address) {
+        setFormData({
+          ...formData,
+          address: address.street,
+          city: address.city,
+          state: address.state,
+          zip: address.zip_code,
+          country: address.country || "USA",
+        })
+      }
+    })
+    setAddressSuggestions([])
   }
 
   const authorizeErrorMap: Record<string, string> = {
@@ -1141,12 +1169,35 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="space-y-2">
+                  <div className="space-y-2 relative">
                     <Label htmlFor="address" className={cn(errors.address && "text-red-500")}>Street Address</Label>
                     <div className="relative">
                       <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                      <Input id="address" name="address" placeholder="123 Main Street" value={formData.address} onChange={handleChange} className={cn("pl-11 h-12", errors.address && "border-red-500")} />
+                      <Input 
+                        id="address" 
+                        name="address" 
+                        placeholder="123 Main Street" 
+                        value={formData.address} 
+                        onChange={(e) => handleAddressChange(e.target.value)} 
+                        className={cn("pl-11 h-12", errors.address && "border-red-500")} 
+                      />
                     </div>
+                    {addressSuggestions.length > 0 && (
+                      <ul className="absolute left-0 w-full bg-white border-2 border-blue-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                        {addressSuggestions.map((suggestion) => (
+                          <li
+                            key={suggestion.place_id}
+                            className="cursor-pointer hover:bg-blue-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                            onClick={() => handleAddressSuggestionClick(suggestion)}
+                          >
+                            <div className="flex items-center gap-2">
+                              <MapPin className="w-3 h-3 text-gray-400" />
+                              {suggestion.description}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     {errors.address && <p className="text-sm text-red-500">{errors.address}</p>}
                   </div>
                   <div className="grid grid-cols-2 gap-4">

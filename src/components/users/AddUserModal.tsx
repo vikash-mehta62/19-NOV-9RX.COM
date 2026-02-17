@@ -67,7 +67,7 @@ export function AddUserModal({
       // documents: [],
       billingAddress: {
         attention: "",
-        countryRegion: "",
+        countryRegion: "USA",
         street1: "",
         street2: "",
         city: "",
@@ -78,7 +78,7 @@ export function AddUserModal({
       },
       shippingAddress: {
         attention: "",
-        countryRegion: "",
+        countryRegion: "USA",
         street1: "",
         street2: "",
         city: "",

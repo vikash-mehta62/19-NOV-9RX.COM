@@ -95,7 +95,7 @@ export function AddPharmacyModal({
       phone: "",
       address: {
         attention: "",
-        countryRegion: "",
+        countryRegion: "USA",
         street1: "",
         street2: "",
         city: "",
@@ -106,7 +106,7 @@ export function AddPharmacyModal({
       },
       addressAddress: {
         attention: "",
-        countryRegion: "",
+        countryRegion: "USA",
         street1: "",
         street2: "",
         city: "",

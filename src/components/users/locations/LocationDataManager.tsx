@@ -68,7 +68,7 @@ export function LocationDataManager({
                 city,
                 state,
                 attention: "",
-                countryRegion: "",
+                countryRegion: "USA",
                 street2: "",
                 zip_code: "",
                 phone: "",

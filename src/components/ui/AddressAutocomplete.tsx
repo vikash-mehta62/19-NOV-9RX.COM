@@ -1,13 +1,13 @@
 /**
  * Address Autocomplete Component
- * Uses browser's native autocomplete with enhanced UX
- * Falls back gracefully when Google Places API is not available
+ * Uses Google Places API for address suggestions
  */
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MapPin, Loader2, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 export interface AddressComponents {
   street: string;
@@ -58,40 +58,45 @@ export function AddressAutocomplete({
   disabled = false,
 }: AddressAutocompleteProps) {
   const [isLoading, setIsLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<string[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const inputRef = useRef<HTMLInputElement>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
-  // Simple address suggestions based on common patterns
-  const generateSuggestions = useCallback((input: string) => {
-    if (input.length < 3) {
+  // Get address predictions from Google Places API
+  const handleInputChange = useCallback((inputValue: string) => {
+    onChange(inputValue);
+    
+    if (inputValue.length < 3) {
       setSuggestions([]);
+      setShowSuggestions(false);
       return;
     }
 
-    // This is a placeholder - in production, you'd integrate with Google Places API
-    // For now, we provide helpful formatting hints
-    const hints: string[] = [];
-    
-    // Check if input looks like a street address
-    const hasNumber = /^\d+/.test(input);
-    if (hasNumber && !input.includes(",")) {
-      hints.push(`${input}, City, State ZIP`);
-    }
+    setIsLoading(true);
+    getAddressPredictions(inputValue, (predictions) => {
+      setSuggestions(predictions);
+      setShowSuggestions(predictions.length > 0);
+      setIsLoading(false);
+    });
+  }, [onChange]);
 
-    setSuggestions(hints);
-  }, []);
-
-  // Debounced input handler
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      generateSuggestions(value);
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [value, generateSuggestions]);
+  // Handle suggestion selection
+  const handleSuggestionSelect = (suggestion: any) => {
+    setIsLoading(true);
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (address) {
+        onChange(address.street);
+        if (onAddressSelect) {
+          onAddressSelect(address);
+        }
+      }
+      setIsLoading(false);
+    });
+    setShowSuggestions(false);
+    setSelectedIndex(-1);
+  };
 
   // Handle keyboard navigation
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -119,40 +124,6 @@ export function AddressAutocomplete({
         setSelectedIndex(-1);
         break;
     }
-  };
-
-  // Handle suggestion selection
-  const handleSuggestionSelect = (suggestion: string) => {
-    onChange(suggestion);
-    setShowSuggestions(false);
-    setSelectedIndex(-1);
-
-    // Try to parse the address
-    const parsed = parseAddress(suggestion);
-    if (parsed && onAddressSelect) {
-      onAddressSelect(parsed);
-    }
-  };
-
-  // Simple address parser
-  const parseAddress = (address: string): AddressComponents | null => {
-    // Try to parse "Street, City, State ZIP" format
-    const parts = address.split(",").map((p) => p.trim());
-    
-    if (parts.length >= 3) {
-      const street = parts[0];
-      const city = parts[1];
-      const stateZip = parts[2].split(" ");
-      
-      if (stateZip.length >= 2) {
-        const state = stateZip[0];
-        const zip_code = stateZip.slice(1).join(" ");
-        
-        return { street, city, state, zip_code };
-      }
-    }
-    
-    return null;
   };
 
   // Close suggestions when clicking outside
@@ -186,15 +157,12 @@ export function AddressAutocomplete({
           id={id}
           type="text"
           value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
-            setShowSuggestions(true);
-          }}
-          onFocus={() => setShowSuggestions(true)}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={() => value.length >= 3 && setShowSuggestions(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           disabled={disabled}
-          autoComplete="street-address"
+          autoComplete="off"
           className={cn(
             "pr-10 min-h-[44px]",
             error && "border-red-500 focus-visible:ring-red-500"
@@ -224,7 +192,7 @@ export function AddressAutocomplete({
           >
             {suggestions.map((suggestion, index) => (
               <button
-                key={index}
+                key={suggestion.place_id}
                 type="button"
                 role="option"
                 aria-selected={index === selectedIndex}
@@ -238,7 +206,7 @@ export function AddressAutocomplete({
               >
                 <div className="flex items-center gap-2">
                   <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" aria-hidden="true" />
-                  <span>{suggestion}</span>
+                  <span>{suggestion.description}</span>
                 </div>
               </button>
             ))}
@@ -254,7 +222,7 @@ export function AddressAutocomplete({
 
       {/* Helper text */}
       <p className="text-xs text-gray-500">
-        Enter address in format: Street, City, State ZIP
+        Start typing to see address suggestions from Google Places
       </p>
     </div>
   );

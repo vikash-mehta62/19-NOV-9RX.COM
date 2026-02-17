@@ -23,7 +23,7 @@ export function LocationsInput({ form }: LocationsInputProps) {
       status: "pending",
       address: {
         attention: "",
-        countryRegion: "",
+        countryRegion: "USA",
         street1: "",
         street2: "",
         city: "",

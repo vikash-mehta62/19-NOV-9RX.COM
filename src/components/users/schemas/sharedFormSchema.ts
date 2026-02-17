@@ -2,7 +2,7 @@ import * as z from "zod";
 
 export const addressSchema = z.object({
   attention: z.string().optional(),
-  countryRegion: z.string().min(1, "Country is required"),
+  countryRegion: z.string().min(1, "Country is required").default("USA"),
   street1: z.string().min(1, "Street Address 1 is required"),
   street2: z.string().optional(),
   city: z.string().min(1, "City is required"),
@@ -15,7 +15,7 @@ export const addressSchema = z.object({
 // Location address schema - all fields optional for locations
 const locationAddressSchema = z.object({
   attention: z.string().optional(),
-  countryRegion: z.string().optional(),
+  countryRegion: z.string().optional().default("USA"),
   street1: z.string().optional(),
   street2: z.string().optional(),
   city: z.string().optional(),

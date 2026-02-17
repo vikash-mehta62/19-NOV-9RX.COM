@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -16,10 +17,34 @@ import { Button } from "@/components/ui/button";
 import { MapPin, Phone, Mail, Plus } from "lucide-react";
 import { UseFormReturn } from "react-hook-form";
 import { SettingsFormValues } from "./settingsTypes";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 interface LocationContactSectionProps {
   form: UseFormReturn<SettingsFormValues>;
 }
+
+export function LocationContactSection({ form }: LocationContactSectionProps) {
+  // Google Address API suggestions
+  const [addressSuggestions, setAddressSuggestions] = useState<any[]>([]);
+
+  // Handle address change with Google API
+  const handleAddressChange = (value: string) => {
+    form.setValue("address", value);
+    getAddressPredictions(value, setAddressSuggestions);
+  };
+
+  // Handle suggestion click
+  const handleSuggestionClick = (suggestion: any) => {
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (address) {
+        form.setValue("address", address.street);
+        form.setValue("city", address.city);
+        form.setValue("state", address.state);
+        form.setValue("zip_code", address.zip_code);
+      }
+    });
+    setAddressSuggestions([]);
+  };
 
 export function LocationContactSection({ form }: LocationContactSectionProps) {
   return (
@@ -43,13 +68,33 @@ export function LocationContactSection({ form }: LocationContactSectionProps) {
             control={form.control}
             name="address"
             render={({ field }) => (
-              <FormItem>
+              <FormItem className="relative">
                 <FormLabel className="flex items-center gap-2">
                   <MapPin className="h-4 w-4" /> Street Address
                 </FormLabel>
                 <FormControl>
-                  <Input placeholder="Enter street address" {...field} />
+                  <Input 
+                    placeholder="Enter street address" 
+                    value={field.value}
+                    onChange={(e) => handleAddressChange(e.target.value)}
+                  />
                 </FormControl>
+                {addressSuggestions.length > 0 && (
+                  <ul className="absolute left-0 w-full bg-white border-2 border-blue-200 shadow-lg z-50 mt-1 max-h-60 overflow-y-auto rounded-lg">
+                    {addressSuggestions.map((suggestion) => (
+                      <li
+                        key={suggestion.place_id}
+                        className="cursor-pointer hover:bg-blue-50 px-4 py-3 text-sm border-b border-gray-100 last:border-b-0 transition-colors"
+                        onClick={() => handleSuggestionClick(suggestion)}
+                      >
+                        <div className="flex items-center gap-2">
+                          <MapPin className="w-3 h-3 text-gray-400" />
+                          {suggestion.description}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </FormItem>
             )}
           />
