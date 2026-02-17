@@ -59,7 +59,7 @@ router.post("/send", async (req, res) => {
     // Step 2: Check if user profile exists and is active
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, first_name, last_name, status, portal_access, type")
+      .select("id, email, first_name, last_name, status, portal_access, type, group_id")
       .eq("id", authData.user.id)
       .single();
 
@@ -76,6 +76,36 @@ router.post("/send", async (req, res) => {
         success: false, 
         message: "Account is not active. Please contact support." 
       });
+    }
+
+    // Check if user belongs to a group and validate group status
+    if (profile.group_id) {
+      const { data: groupProfile, error: groupError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, status, type")
+        .eq("id", profile.group_id)
+        .single();
+
+      if (groupError || !groupProfile) {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Your group account no longer exists. Please contact support." 
+        });
+      }
+
+      if (groupProfile.status !== "active") {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Your group account is not active. Please contact your group administrator." 
+        });
+      }
+
+      if (groupProfile.type !== "group") {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Invalid group configuration. Please contact support." 
+        });
+      }
     }
 
     // Check portal access for non-admin users

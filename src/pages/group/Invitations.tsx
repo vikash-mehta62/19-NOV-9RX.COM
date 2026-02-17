@@ -3,7 +3,7 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { InvitationsList } from "@/components/group/InvitationsList";
 import { InvitePharmacyDialog } from "@/components/group/InvitePharmacyDialog";
 import { Button } from "@/components/ui/button";
-import { Send, Mail } from "lucide-react";
+import { Send, Mail, UserPlus } from "lucide-react";
 
 const GroupInvitations = () => {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -15,20 +15,28 @@ const GroupInvitations = () => {
 
   return (
     <DashboardLayout role="group">
-      <div className="space-y-6 p-6">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-screen-2xl mx-auto bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
         {/* Header */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <Mail className="h-8 w-8" />
-              Pharmacy Invitations
-            </h1>
-            <p className="text-muted-foreground mt-1">
-              Invite pharmacies to join your group network
-            </p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-600 rounded-lg shadow-lg">
+                <Mail className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Pharmacy Invitations</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Invite pharmacies to join your group network
+                </p>
+              </div>
+            </div>
           </div>
-          <Button onClick={() => setInviteDialogOpen(true)}>
-            <Send className="h-4 w-4 mr-2" />
+          <Button 
+            onClick={() => setInviteDialogOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            size="lg"
+          >
+            <UserPlus className="h-5 w-5 mr-2" />
             Invite Pharmacy
           </Button>
         </div>

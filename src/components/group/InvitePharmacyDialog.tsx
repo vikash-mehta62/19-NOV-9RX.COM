@@ -117,8 +117,10 @@ export function InvitePharmacyDialog({
         return;
       }
 
-      // Generate unique token
-      const token = uuidv4();
+      // Generate cryptographically secure token
+      const tokenArray = new Uint8Array(32);
+      crypto.getRandomValues(tokenArray);
+      const token = Array.from(tokenArray, byte => byte.toString(16).padStart(2, '0')).join('');
       const expiresAt = addDays(new Date(), 7); // 7 days expiry
 
       // Create invitation

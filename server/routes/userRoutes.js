@@ -32,9 +32,18 @@ router.post("/create-user", async (req, res) => {
       });
     }
 
+    // Validate or generate secure password
+    let userPassword = password;
+    if (!userPassword) {
+      // Generate a secure random password if not provided
+      const crypto = require('crypto');
+      userPassword = crypto.randomBytes(16).toString('base64').slice(0, 16);
+      console.log(`Generated secure password for ${email}: ${userPassword}`);
+    }
+
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password: password || "12345678",
+      password: userPassword,
       email_confirm: true,
       user_metadata: {
         first_name: firstName,
@@ -126,10 +135,19 @@ router.post("/create-pharmacy-user", async (req, res) => {
       });
     }
 
+    // Validate or generate secure password
+    let userPassword = password;
+    if (!userPassword) {
+      // Generate a secure random password if not provided
+      const crypto = require('crypto');
+      userPassword = crypto.randomBytes(16).toString('base64').slice(0, 16);
+      console.log(`Generated secure password for ${email}: ${userPassword}`);
+    }
+
     // Create user in Supabase Auth
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      password: password || "12345678",
+      password: userPassword,
       email_confirm: true,
       user_metadata: {
         first_name: firstName,
@@ -194,4 +212,288 @@ router.post("/create-pharmacy-user", async (req, res) => {
   }
 });
 
+// Update pharmacy profile after signup (for group invitation flow)
+router.put("/update-pharmacy-profile/:userId", async (req, res) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { userId } = req.params;
+    const {
+      firstName,
+      lastName,
+      companyName,
+      phone,
+      groupId,
+    } = req.body;
+
+    // Validate required fields
+    if (!userId || !groupId) {
+      return res.status(400).json({
+        success: false,
+        message: "Missing required fields: userId, groupId",
+      });
+    }
+
+    // Wait for trigger to complete (with retries)
+    let profileExists = false;
+    let retries = 5;
+    
+    while (!profileExists && retries > 0) {
+      const { data: checkProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .eq("id", userId)
+        .maybeSingle();
+      
+      if (checkProfile) {
+        profileExists = true;
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        retries--;
+      }
+    }
+
+    if (!profileExists) {
+      // Profile doesn't exist - create it via upsert
+      const profileData = {
+        id: userId,
+        first_name: firstName,
+        last_name: lastName,
+        display_name: `${firstName} ${lastName}`,
+        company_name: companyName || "",
+        mobile_phone: phone || "",
+        group_id: groupId,
+        type: "pharmacy",
+        status: "pending",
+        account_status: "pending",
+        role: "user",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: upsertError, data: upsertData } = await supabaseAdmin
+        .from("profiles")
+        .upsert([profileData])
+        .select()
+        .single();
+
+      if (upsertError) {
+        console.error("Profile Upsert Error:", upsertError);
+        return res.status(400).json({
+          success: false,
+          message: upsertError.message || "Failed to create user profile",
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: "Profile created successfully",
+        profile: upsertData,
+      });
+    }
+
+    // Profile exists - update it
+    const { error: profileError, data: profileData } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+        display_name: `${firstName} ${lastName}`,
+        company_name: companyName || "",
+        mobile_phone: phone || "",
+        group_id: groupId,
+        type: "pharmacy",
+        status: "pending",
+        account_status: "pending",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+      .select();
+
+    if (profileError) {
+      console.error("Profile Update Error:", profileError);
+      return res.status(400).json({
+        success: false,
+        message: profileError.message || "Failed to update user profile",
+      });
+    }
+
+    // Return first result (should only be one)
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      profile: profileData && profileData.length > 0 ? profileData[0] : null,
+    });
+  } catch (error) {
+    console.error("Update Profile Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+      details: error.message,
+    });
+  }
+});
+
 module.exports = router;
+
+// Approve user access request
+router.post("/approve-access/:userId", async (req, res) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { userId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    // Get user details first
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from("profiles")
+      .select("email, first_name, last_name, company_name, email_notifaction, group_id")
+      .eq("id", userId)
+      .single();
+
+    if (userError) {
+      console.error("Error fetching user:", userError);
+      return res.status(400).json({
+        success: false,
+        message: userError.message || "Failed to fetch user details",
+      });
+    }
+
+    // Update profile status
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({ 
+        status: "active", 
+        account_status: "approved" 
+      })
+      .eq("id", userId);
+
+    if (updateError) {
+      console.error("Error updating profile:", updateError);
+      return res.status(400).json({
+        success: false,
+        message: updateError.message || "Failed to approve user",
+      });
+    }
+
+    // If user was created via group invitation, update pharmacy_invitations table
+    if (userData.group_id) {
+      console.log("Updating invitation status for user:", userId, "group:", userData.group_id);
+      
+      // Try by accepted_by first
+      const { error: invitationError } = await supabaseAdmin
+        .from("pharmacy_invitations")
+        .update({ status: "accepted" })
+        .eq("accepted_by", userId)
+        .in("status", ["pending", "accepted"]);
+
+      if (invitationError) {
+        console.error("Error updating invitation (by accepted_by):", invitationError);
+        
+        // Fallback: try by email
+        const { error: altError } = await supabaseAdmin
+          .from("pharmacy_invitations")
+          .update({ 
+            status: "accepted",
+            accepted_by: userId 
+          })
+          .eq("group_id", userData.group_id)
+          .eq("email", userData.email)
+          .in("status", ["pending", "accepted"]);
+        
+        if (altError) {
+          console.error("Error updating invitation (by email):", altError);
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "User access approved successfully",
+      user: userData,
+    });
+  } catch (error) {
+    console.error("Approve Access Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+});
+
+// Reject user access request
+router.post("/reject-access/:userId", async (req, res) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { userId } = req.params;
+    const { reason } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "User ID is required",
+      });
+    }
+
+    // Get user details first
+    const { data: userData, error: userError } = await supabaseAdmin
+      .from("profiles")
+      .select("group_id, email")
+      .eq("id", userId)
+      .single();
+
+    if (userError) {
+      console.error("Error fetching user:", userError);
+      return res.status(400).json({
+        success: false,
+        message: userError.message || "Failed to fetch user details",
+      });
+    }
+
+    // Update profile status
+    const { error: updateError } = await supabaseAdmin
+      .from("profiles")
+      .update({ 
+        status: "rejected", 
+        account_status: "rejected",
+        rejection_reason: reason || null
+      })
+      .eq("id", userId);
+
+    if (updateError) {
+      console.error("Error updating profile:", updateError);
+      return res.status(400).json({
+        success: false,
+        message: updateError.message || "Failed to reject user",
+      });
+    }
+
+    // If user was created via group invitation, update pharmacy_invitations table
+    if (userData.group_id) {
+      const { error: invitationError } = await supabaseAdmin
+        .from("pharmacy_invitations")
+        .update({ status: "cancelled" })
+        .eq("accepted_by", userId)
+        .eq("status", "pending");
+
+      if (invitationError) {
+        console.error("Error updating invitation status:", invitationError);
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "User access rejected successfully",
+    });
+  } catch (error) {
+    console.error("Reject Access Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+});

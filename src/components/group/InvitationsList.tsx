@@ -254,27 +254,43 @@ export function InvitationsList({ onInviteClick, refreshTrigger }: InvitationsLi
 
   return (
     <TooltipProvider>
-      <Card>
-        <CardHeader>
+      <Card className="shadow-lg border-0">
+        <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
           <div className="flex items-center justify-between">
             <div>
-              <CardTitle className="flex items-center gap-2">
-                <Mail className="h-5 w-5" />
+              <CardTitle className="flex items-center gap-2 text-xl font-semibold text-gray-900">
+                <Mail className="h-5 w-5 text-blue-600" />
                 Invitations
                 {pendingCount > 0 && (
-                  <Badge variant="secondary">{pendingCount} pending</Badge>
+                  <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-200">
+                    {pendingCount} pending
+                  </Badge>
                 )}
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-gray-600 mt-1">
                 Manage pharmacy invitations to your group
               </CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={fetchInvitations}>
-                <RefreshCw className="h-4 w-4" />
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={fetchInvitations}
+                    className="border-gray-300 hover:bg-gray-100"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Refresh invitations</TooltipContent>
+              </Tooltip>
               {onInviteClick && (
-                <Button size="sm" onClick={onInviteClick}>
+                <Button 
+                  size="sm" 
+                  onClick={onInviteClick}
+                  className="bg-blue-600 hover:bg-blue-700"
+                >
                   <Send className="h-4 w-4 mr-2" />
                   Invite
                 </Button>
@@ -282,32 +298,37 @@ export function InvitationsList({ onInviteClick, refreshTrigger }: InvitationsLi
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-6">
           {invitations.length === 0 ? (
-            <div className="text-center py-8 border-2 border-dashed rounded-lg">
-              <Mail className="h-12 w-12 mx-auto text-muted-foreground/50" />
-              <p className="text-muted-foreground mt-2">No invitations yet</p>
-              <p className="text-sm text-muted-foreground">
-                Invite pharmacies to join your group
+            <div className="text-center py-12 border-2 border-dashed rounded-lg bg-gradient-to-br from-gray-50 to-gray-100">
+              <div className="p-4 bg-blue-100 rounded-full w-20 h-20 mx-auto flex items-center justify-center mb-4">
+                <Mail className="h-10 w-10 text-blue-600" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No invitations yet</h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Start building your pharmacy network by sending invitations
               </p>
               {onInviteClick && (
-                <Button className="mt-4" onClick={onInviteClick}>
+                <Button 
+                  className="mt-2 bg-blue-600 hover:bg-blue-700 shadow-lg" 
+                  onClick={onInviteClick}
+                >
                   <Send className="h-4 w-4 mr-2" />
                   Send First Invitation
                 </Button>
               )}
             </div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg overflow-hidden shadow-sm">
               <Table>
-                <TableHeader>
+                <TableHeader className="bg-gray-50">
                   <TableRow>
-                    <TableHead>Pharmacy</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Sent</TableHead>
-                    <TableHead>Expires</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Pharmacy</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Email</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Status</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Sent</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Expires</TableHead>
+                    <TableHead className="text-right font-semibold text-gray-700">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -322,57 +343,71 @@ export function InvitationsList({ onInviteClick, refreshTrigger }: InvitationsLi
                       isPast(new Date(invitation.expires_at));
 
                     return (
-                      <TableRow key={invitation.id}>
+                      <TableRow key={invitation.id} className="hover:bg-gray-50 transition-colors">
                         <TableCell>
                           <div>
-                            <div className="font-medium">
+                            <div className="font-medium text-gray-900">
                               {invitation.pharmacy_name || "-"}
                             </div>
                             {invitation.contact_person && (
-                              <div className="text-xs text-muted-foreground">
+                              <div className="text-xs text-gray-500 mt-0.5">
                                 {invitation.contact_person}
                               </div>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell>{invitation.email}</TableCell>
+                        <TableCell className="text-gray-700">{invitation.email}</TableCell>
                         <TableCell>
-                          <Badge className={statusConfig.color}>
+                          <Badge className={cn(statusConfig.color, "font-medium")}>
                             <StatusIcon className="h-3 w-3 mr-1" />
                             {statusConfig.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
+                        <TableCell className="text-sm text-gray-600">
                           {formatDistanceToNow(new Date(invitation.created_at), {
                             addSuffix: true,
                           })}
                         </TableCell>
                         <TableCell className="text-sm">
                           {invitation.status === "pending" && !isExpired ? (
-                            <span className="text-muted-foreground">
+                            <span className="text-gray-600">
                               {formatDistanceToNow(new Date(invitation.expires_at), {
                                 addSuffix: true,
                               })}
                             </span>
+                          ) : invitation.status === "accepted" && invitation.accepted_at ? (
+                            <span className="text-green-600 font-medium">
+                              Accepted {formatDistanceToNow(new Date(invitation.accepted_at), {
+                                addSuffix: true,
+                              })}
+                            </span>
                           ) : invitation.status === "accepted" ? (
-                            <span className="text-green-600">
-                              {format(new Date(invitation.accepted_at), "MMM d, yyyy")}
+                            <span className="text-green-600 font-medium">
+                              Accepted
+                            </span>
+                          ) : isExpired || invitation.status === "expired" ? (
+                            <span className="text-red-600 font-medium">
+                              Expired {formatDistanceToNow(new Date(invitation.expires_at), {
+                                addSuffix: true,
+                              })}
                             </span>
                           ) : (
-                            "-"
+                            <span className="text-gray-400">-</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="sm">
+                              <Button variant="ghost" size="sm" className="hover:bg-gray-100">
                                 <MoreVertical className="h-4 w-4" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent align="end" className="w-48">
+                              {/* Copy Link - for pending and expired */}
                               {(invitation.status === "pending" || isExpired) && (
                                 <DropdownMenuItem
                                   onClick={() => copyInviteLink(invitation)}
+                                  className="cursor-pointer"
                                 >
                                   <Copy className="h-4 w-4 mr-2" />
                                   {copiedId === invitation.id
@@ -380,26 +415,80 @@ export function InvitationsList({ onInviteClick, refreshTrigger }: InvitationsLi
                                     : "Copy Link"}
                                 </DropdownMenuItem>
                               )}
+                              
+                              {/* Resend - for expired */}
                               {(invitation.status === "expired" || isExpired) && (
                                 <DropdownMenuItem
                                   onClick={() => handleResend(invitation)}
+                                  className="cursor-pointer"
                                 >
                                   <RefreshCw className="h-4 w-4 mr-2" />
                                   Resend
                                 </DropdownMenuItem>
                               )}
+                              
+                              {/* Cancel - for pending */}
                               {invitation.status === "pending" && !isExpired && (
                                 <DropdownMenuItem
                                   onClick={() => {
                                     setSelectedInvitation(invitation);
                                     setCancelDialogOpen(true);
                                   }}
-                                  className="text-red-600"
+                                  className="text-red-600 cursor-pointer focus:text-red-600"
                                 >
                                   <XCircle className="h-4 w-4 mr-2" />
                                   Cancel
                                 </DropdownMenuItem>
                               )}
+                              
+                              {/* Copy Email - for accepted */}
+                              {invitation.status === "accepted" && (
+                                <DropdownMenuItem
+                                  onClick={async () => {
+                                    try {
+                                      await navigator.clipboard.writeText(invitation.email);
+                                      toast({
+                                        title: "Email Copied",
+                                        description: "Email address copied to clipboard",
+                                      });
+                                    } catch {
+                                      toast({
+                                        title: "Error",
+                                        description: "Failed to copy email",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  className="cursor-pointer"
+                                >
+                                  <Mail className="h-4 w-4 mr-2" />
+                                  Copy Email
+                                </DropdownMenuItem>
+                              )}
+                              
+                              {/* View Details - for all statuses */}
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  toast({
+                                    title: "Invitation Details",
+                                    description: (
+                                      <div className="space-y-1 text-sm mt-2">
+                                        <div><strong>Pharmacy:</strong> {invitation.pharmacy_name || "N/A"}</div>
+                                        <div><strong>Contact:</strong> {invitation.contact_person || "N/A"}</div>
+                                        <div><strong>Phone:</strong> {invitation.phone || "N/A"}</div>
+                                        <div><strong>Email:</strong> {invitation.email}</div>
+                                        {invitation.message && (
+                                          <div><strong>Message:</strong> {invitation.message}</div>
+                                        )}
+                                      </div>
+                                    ),
+                                  });
+                                }}
+                                className="cursor-pointer"
+                              >
+                                <AlertCircle className="h-4 w-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>

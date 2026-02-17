@@ -155,30 +155,32 @@ export function LocationsTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-4">
+      {/* Enhanced Search and Filter Bar */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-lg border">
         <div className="flex-1">
           <Input
-            placeholder="Search locations..."
+            placeholder="🔍 Search locations by name..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="max-w-sm border-gray-300 focus:border-blue-500 focus:ring-blue-500"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[180px]">
-              <Filter className="w-4 h-4 mr-2" />
+            <SelectTrigger className="w-[180px] border-gray-300">
+              <Filter className="w-4 h-4 mr-2 text-gray-600" />
               <SelectValue placeholder="Filter by status" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="inactive">Inactive</SelectItem>
+              <SelectItem value="active">✓ Active</SelectItem>
+              <SelectItem value="inactive">✗ Inactive</SelectItem>
+              <SelectItem value="pending">⏳ Pending</SelectItem>
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]">
-              <ArrowUpDown className="w-4 h-4 mr-2" />
+            <SelectTrigger className="w-[180px] border-gray-300">
+              <ArrowUpDown className="w-4 h-4 mr-2 text-gray-600" />
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
@@ -192,14 +194,15 @@ export function LocationsTable({
             variant="outline"
             size="icon"
             onClick={toggleSortOrder}
-            className="px-3"
+            className="px-3 border-gray-300 hover:bg-gray-100"
+            title={`Sort ${sortOrder === 'asc' ? 'Descending' : 'Ascending'}`}
           >
-            <ArrowUpDown className="h-4 w-4" />
+            <ArrowUpDown className={`h-4 w-4 transition-transform ${sortOrder === 'desc' ? 'rotate-180' : ''}`} />
           </Button>
           <Button
             variant="outline"
             onClick={handleExport}
-            className="gap-2"
+            className="gap-2 border-gray-300 hover:bg-gray-100"
           >
             <Download className="h-4 w-4" />
             Export
@@ -207,20 +210,40 @@ export function LocationsTable({
         </div>
       </div>
 
-      <div className="border rounded-md">
+      {/* Results Summary */}
+      <div className="flex items-center justify-between px-2">
+        <p className="text-sm text-gray-600">
+          Showing <span className="font-semibold text-gray-900">{filteredLocations.length}</span> of <span className="font-semibold text-gray-900">{locations.length}</span> locations
+        </p>
+      </div>
+
+      {/* Enhanced Table */}
+      <div className="border rounded-lg overflow-hidden shadow-sm">
         <div className="max-h-[500px] overflow-auto">
           <Table>
             <LocationTableHeader />
             <TableBody>
-              {filteredLocations.map((location, index) => (
-                <LocationTableRow
-                  key={index}
-                  location={location}
-                  onView={handleView}
-                  onEdit={handleEdit}
-                  getStatusColor={getStatusColor}
-                />
-              ))}
+              {filteredLocations.length > 0 ? (
+                filteredLocations.map((location, index) => (
+                  <LocationTableRow
+                    key={index}
+                    location={location}
+                    onView={handleView}
+                    onEdit={handleEdit}
+                    getStatusColor={getStatusColor}
+                  />
+                ))
+              ) : (
+                <tr>
+                  <td colSpan={6} className="text-center py-12">
+                    <div className="flex flex-col items-center gap-2">
+                      <Filter className="h-12 w-12 text-gray-300" />
+                      <p className="text-gray-500 font-medium">No locations found</p>
+                      <p className="text-sm text-gray-400">Try adjusting your search or filters</p>
+                    </div>
+                  </td>
+                </tr>
+              )}
             </TableBody>
           </Table>
         </div>

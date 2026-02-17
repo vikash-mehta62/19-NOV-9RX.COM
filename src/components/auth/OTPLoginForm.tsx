@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import axios from "../../../axiosconfig";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "../../store/actions/userAction";
+import { supabase } from "@/integrations/supabase/client";
 
 export const OTPLoginForm = () => {
   const [email, setEmail] = useState("");
@@ -24,6 +25,11 @@ export const OTPLoginForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const dispatch = useDispatch();
+
+  // Clear any errors when component mounts
+  useEffect(() => {
+    setError("");
+  }, []);
 
   // Countdown timer for resend OTP
   useEffect(() => {
@@ -107,7 +113,6 @@ export const OTPLoginForm = () => {
         const { user, session } = response.data;
 
         // Set Supabase session
-        const { supabase } = await import("@/supabaseClient");
         const { error: sessionError } = await supabase.auth.setSession({
           access_token: session.access_token,
           refresh_token: session.refresh_token,
@@ -144,6 +149,25 @@ export const OTPLoginForm = () => {
           hospital: "/hospital/dashboard",
           group: "/group/dashboard",
         };
+
+        // For group users, validate they have proper setup
+        if (user.type === "group") {
+          // Check if group has basic configuration
+          const { data: groupProfile } = await supabase
+            .from("profiles")
+            .select("commission_rate, bypass_min_price, can_manage_pricing")
+            .eq("id", user.id)
+            .single();
+
+          if (!groupProfile) {
+            toast({
+              title: "Setup Required",
+              description: "Your group account needs to be configured. Please contact support.",
+              variant: "destructive",
+            });
+            // Still allow login but show warning
+          }
+        }
 
         const route = dashboardRoutes[user.type] || "/";
         navigate(route, { replace: true });

@@ -115,72 +115,33 @@ export default function AccessRequests() {
 
   const handleApprove = async (profileId: string) => {
     try {
-      // First get the user details to check notification preference
-      const { data: userData, error: userError } = await supabase
-        .from('profiles')
-        .select('email, first_name, last_name, company_name, email_notifaction, group_id')
-        .eq('id', profileId)
-        .single();
+      const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
-      if (userError) throw userError;
+      const response = await fetch(`${BASE_URL}/api/users/approve-access/${profileId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'active', account_status: 'approved' })
-        .eq('id', profileId);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to approve access');
+      }
 
-      if (error) throw error;
+      const result = await response.json();
 
-      // If user was created via group invitation, update pharmacy_invitations table
-      if (userData.group_id) {
-        console.log("Updating invitation status for user:", profileId, "group:", userData.group_id);
-        
-        const { data: invitationData, error: invitationError } = await supabase
-          .from('pharmacy_invitations')
-          .update({ 
-            status: 'accepted' // Mark as accepted when admin approves
-          })
-          .eq('accepted_by', profileId)
-          .eq('status', 'pending') // Only update if currently pending
-          .select();
-
-        if (invitationError) {
-          console.error('Error updating invitation status:', invitationError);
-          // Don't throw - profile approval is more important
-        } else {
-          console.log('Invitation status updated:', invitationData);
-        }
-        
-        // If no rows updated, try alternative approach (match by email)
-        if (!invitationData || invitationData.length === 0) {
-          console.log('No invitation updated by accepted_by, trying by email...');
-          
-          const { data: altData, error: altError } = await supabase
-            .from('pharmacy_invitations')
-            .update({ 
-              status: 'accepted',
-              accepted_by: profileId // Also update accepted_by if it was NULL
-            })
-            .eq('group_id', userData.group_id)
-            .eq('email', userData.email)
-            .eq('status', 'pending')
-            .select();
-          
-          if (altError) {
-            console.error('Alternative invitation update failed:', altError);
-          } else {
-            console.log('Invitation updated via email match:', altData);
-          }
-        }
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to approve access');
       }
 
       // Send email notification if user has email_notifaction enabled
-      if (userData && userData.email_notifaction && userData.email) {
-        const userName = userData.first_name || userData.company_name || 'User';
+      if (result.user && result.user.email_notifaction && result.user.email) {
+        const userName = result.user.first_name || result.user.company_name || 'User';
         try {
           await axios.post(`${BASE_URL}/active`, {
             name: userName,
-            email: userData.email,
+            email: result.user.email,
             admin: true // true means account is active
           });
         } catch (emailError) {
@@ -194,11 +155,11 @@ export default function AccessRequests() {
       });
 
       loadRequests();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error approving access:', error);
       toast({
         title: 'Error',
-        description: 'Failed to approve access request.',
+        description: error.message || 'Failed to approve access request.',
         variant: 'destructive',
       });
     }
@@ -206,34 +167,27 @@ export default function AccessRequests() {
 
   const handleReject = async (profileId: string) => {
     try {
-      // Get user details to check if they came via group invitation
-      const { data: userData } = await supabase
-        .from('profiles')
-        .select('group_id')
-        .eq('id', profileId)
-        .single();
+      const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'rejected', account_status: 'rejected' })
-        .eq('id', profileId);
+      const response = await fetch(`${BASE_URL}/api/users/reject-access/${profileId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          reason: 'Rejected by admin' // You can add a reason field to the UI if needed
+        }),
+      });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to reject access');
+      }
 
-      // If user was created via group invitation, update pharmacy_invitations table
-      if (userData?.group_id) {
-        const { error: invitationError } = await supabase
-          .from('pharmacy_invitations')
-          .update({ 
-            status: 'cancelled' // Mark as cancelled when admin rejects
-          })
-          .eq('accepted_by', profileId)
-          .eq('status', 'pending'); // Only update if currently pending
+      const result = await response.json();
 
-        if (invitationError) {
-          console.error('Error updating invitation status:', invitationError);
-          // Don't throw - profile rejection is more important
-        }
+      if (!result.success) {
+        throw new Error(result.message || 'Failed to reject access');
       }
 
       toast({
@@ -242,11 +196,11 @@ export default function AccessRequests() {
       });
 
       loadRequests();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error rejecting access:', error);
       toast({
         title: 'Error',
-        description: 'Failed to reject access request.',
+        description: error.message || 'Failed to reject access request.',
         variant: 'destructive',
       });
     }

@@ -8,8 +8,9 @@ import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { fetchCustomerLocation } from "./Dashboard";
 import { Button } from "@/components/ui/button";
-import { PlusCircle } from "lucide-react";
+import { PlusCircle, MapPin } from "lucide-react";
 import { AddPharmacyModal } from "@/components/group/AddPharmacyModal";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 // Sample data for demonstration
 const sampleLocations: Location[] = [
@@ -107,35 +108,49 @@ export default function Locations() {
 
   return (
     <DashboardLayout role="group">
-      <div className="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto">
+      <div className="p-4 md:p-6 lg:p-8 space-y-6 max-w-screen-2xl mx-auto bg-gradient-to-br from-gray-50 to-gray-100 min-h-screen">
   
         {/* Header */}
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-800">Manage Locations</h1>
-            <p className="text-sm text-gray-500">View, add, and manage all your pharmacy locations.</p>
+          <div className="space-y-1">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-blue-600 rounded-lg">
+                <MapPin className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Manage Locations</h1>
+                <p className="text-sm text-gray-600 mt-1">View, add, and manage all your pharmacy locations</p>
+              </div>
+            </div>
           </div>
           <Button
             onClick={() => setIsAddPharmacyOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200"
+            size="lg"
           >
-            <PlusCircle className="mr-2 h-4 w-4" />
+            <PlusCircle className="mr-2 h-5 w-5" />
             Add Location
           </Button>
         </div>
   
-   
-  
         {/* Table Section */}
-        <div className="bg-white rounded-lg shadow border border-gray-200">
-          <LocationsTable
-            locations={dbLocations}
-            currentPage={currentPage}
-            totalPages={totalPages}
-            onPageChange={setCurrentPage}
-            fetchLocations={fetchLocations}
-          />
-        </div>
+        <Card className="shadow-lg border-0">
+          <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b">
+            <CardTitle className="text-xl font-semibold text-gray-900">All Locations</CardTitle>
+            <CardDescription className="text-gray-600">
+              Manage and monitor all your pharmacy locations in one place
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <LocationsTable
+              locations={dbLocations}
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+              fetchLocations={fetchLocations}
+            />
+          </CardContent>
+        </Card>
       </div>
   
       {/* Modal */}

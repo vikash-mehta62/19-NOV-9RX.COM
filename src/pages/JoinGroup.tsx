@@ -86,6 +86,9 @@ const JoinGroup = () => {
         return;
       }
 
+      // Verify email matches invitation (case-insensitive)
+      const invitationEmail = inviteData.email.toLowerCase().trim();
+      
       // Check if already accepted
       if (inviteData.status === "accepted") {
         setStep("invalid");
@@ -102,6 +105,13 @@ const JoinGroup = () => {
 
       // Check if expired
       if (isPast(new Date(inviteData.expires_at))) {
+        // Mark invitation as expired in database
+        await supabase
+          .from("pharmacy_invitations")
+          .update({ status: "expired" })
+          .eq("id", inviteData.id)
+          .eq("status", "pending"); // Only update if still pending
+
         setStep("expired");
         setError("This invitation has expired");
         return;
@@ -126,7 +136,7 @@ const JoinGroup = () => {
       // Pre-fill form with invitation data
       setForm((prev) => ({
         ...prev,
-        email: inviteData.email,
+        email: inviteData.email, // Use exact email from invitation
         company_name: inviteData.pharmacy_name || "",
         phone: inviteData.phone || "",
         first_name: inviteData.contact_person?.split(" ")[0] || "",
@@ -167,9 +177,33 @@ const JoinGroup = () => {
     try {
       setSubmitting(true);
 
+      // Validate that the group still exists and is active
+      const { data: groupData, error: groupError } = await supabase
+        .from("profiles")
+        .select("id, status, type, display_name")
+        .eq("id", invitation!.group_id)
+        .single();
+
+      if (groupError || !groupData) {
+        throw new Error("The group that invited you no longer exists. Please contact support.");
+      }
+
+      if (groupData.status !== "active") {
+        throw new Error("The group that invited you is not currently active. Please contact the group administrator.");
+      }
+
+      if (groupData.type !== "group") {
+        throw new Error("Invalid group configuration. Please contact support.");
+      }
+
+      // Verify email matches invitation (security check)
+      if (form.email.toLowerCase().trim() !== invitation!.email.toLowerCase().trim()) {
+        throw new Error("Email address must match the invitation. Please use the email address that received the invitation.");
+      }
+
       // Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: form.email,
+        email: form.email.toLowerCase().trim(), // Ensure lowercase
         password: form.password,
         options: {
           data: {
@@ -186,96 +220,48 @@ const JoinGroup = () => {
       }
 
       console.log("User created:", authData.user.id);
+      console.log("Session:", authData.session ? "Active" : "No session - email confirmation may be required");
 
-      // Wait a moment for the trigger to create the profile
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      // Use backend API to create/update profile with group_id (bypasses RLS)
+      // Backend handles waiting for trigger and will create profile if it doesn't exist
+      console.log("Creating/updating profile via backend API with group_id:", invitation!.group_id);
 
-      // Check if profile exists
-      const { data: existingProfile, error: checkError } = await supabase
-        .from("profiles")
-        .select("id")
-        .eq("id", authData.user.id)
-        .single();
+      const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
-      console.log("Profile check:", { exists: !!existingProfile, error: checkError });
+      const response = await fetch(`${BASE_URL}/api/users/update-pharmacy-profile/${authData.user.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          firstName: form.first_name,
+          lastName: form.last_name,
+          companyName: form.company_name,
+          phone: form.phone,
+          groupId: invitation!.group_id,
+        }),
+      });
 
-      const profileData = {
-        id: authData.user.id,
-        first_name: form.first_name,
-        last_name: form.last_name,
-        display_name: `${form.first_name} ${form.last_name}`,
-        company_name: form.company_name,
-        mobile_phone: form.phone,
-        group_id: invitation!.group_id,
-        type: "pharmacy",
-        status: "pending",
-        account_status: "pending",
-        role: "user",
-        email: form.email,
-        created_at: new Date().toISOString(),
-      };
-
-      let profileError;
-
-      if (existingProfile) {
-        // Profile exists, update it
-        console.log("Updating existing profile with group_id:", invitation!.group_id);
-        
-        // Try regular update first
-        const { error: updateError, data: updateData } = await supabase
-          .from("profiles")
-          .update(profileData)
-          .eq("id", authData.user.id)
-          .select();
-        
-        if (updateError) {
-          console.error("Regular update failed:", updateError);
-          console.log("Attempting update with specific fields...");
-          
-          // If regular update fails, try updating only critical fields
-          const { error: retryError } = await supabase
-            .from("profiles")
-            .update({
-              first_name: form.first_name,
-              last_name: form.last_name,
-              display_name: `${form.first_name} ${form.last_name}`,
-              company_name: form.company_name,
-              mobile_phone: form.phone,
-              group_id: invitation!.group_id,
-              type: "pharmacy",
-              status: "pending",
-              account_status: "pending",
-              updated_at: new Date().toISOString(),
-            })
-            .eq("id", authData.user.id);
-          
-          profileError = retryError;
-        } else {
-          console.log("Profile updated successfully:", updateData);
-          profileError = null;
-        }
-      } else {
-        // Profile doesn't exist, insert it
-        console.log("Inserting new profile with group_id:", invitation!.group_id);
-        const { error } = await supabase
-          .from("profiles")
-          .insert(profileData);
-        profileError = error;
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Backend API error:", response.status, errorText);
+        throw new Error(`Failed to update profile: ${response.status} ${errorText}`);
       }
 
-      if (profileError) {
-        console.error("Profile operation error:", profileError);
-        throw new Error(`Failed to create profile: ${profileError.message}`);
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.message || "Failed to update profile");
       }
 
-      console.log("Profile created/updated successfully with group_id:", invitation!.group_id);
+      console.log("Profile created/updated successfully:", result.profile);
 
-      // Update invitation - keep status as "pending" until admin approves
-      // Only update accepted_at and accepted_by fields
+      // Update invitation - mark as "accepted" (awaiting admin approval in profile)
+      // The profile.status will remain "pending" until admin approves
       await supabase
         .from("pharmacy_invitations")
         .update({
-          status: "pending", // Keep pending until admin approval
+          status: "accepted", // Mark invitation as accepted by pharmacy
           accepted_at: new Date().toISOString(),
           accepted_by: authData.user.id,
         })
@@ -413,6 +399,9 @@ const JoinGroup = () => {
                 <span>{invitation.pharmacy_name}</span>
               </div>
             )}
+            <p className="text-xs text-muted-foreground mt-2">
+              You must use this email address to accept the invitation
+            </p>
           </div>
 
           {/* Registration Form */}
