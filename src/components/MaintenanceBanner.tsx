@@ -1,26 +1,14 @@
 import { AlertTriangle, X } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 const MaintenanceBanner = () => {
   const [isVisible, setIsVisible] = useState(true);
-  const [isDismissed, setIsDismissed] = useState(false);
-
-  useEffect(() => {
-    // Check if user has dismissed the banner in this session
-    const dismissed = sessionStorage.getItem('maintenanceBannerDismissed');
-    if (dismissed === 'true') {
-      setIsVisible(false);
-      setIsDismissed(true);
-    }
-  }, []);
 
   const handleDismiss = () => {
     setIsVisible(false);
-    setIsDismissed(true);
-    sessionStorage.setItem('maintenanceBannerDismissed', 'true');
   };
 
-  if (!isVisible || isDismissed) return null;
+  if (!isVisible) return null;
 
   return (
     <div className="fixed top-0 left-0 right-0 z-[9999] bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 text-white shadow-lg animate-in slide-in-from-top duration-300">

@@ -13,20 +13,15 @@ const MaintenanceModal = () => {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // Check if user has seen the modal in this session
-    const modalShown = sessionStorage.getItem('maintenanceModalShown');
-    if (!modalShown) {
-      // Show modal after a short delay
-      const timer = setTimeout(() => {
-        setIsOpen(true);
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
+    // Show modal after a short delay
+    const timer = setTimeout(() => {
+      setIsOpen(true);
+    }, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleClose = () => {
     setIsOpen(false);
-    sessionStorage.setItem('maintenanceModalShown', 'true');
   };
 
   return (
