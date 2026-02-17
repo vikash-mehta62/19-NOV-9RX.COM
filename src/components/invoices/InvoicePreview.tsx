@@ -880,16 +880,23 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {invoice?.items?.flatMap((item, itemIndex) => 
-                  item.sizes?.map((size: any, sizeIndex: number) => (
-                    <tr key={`item-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{itemIndex + 1}</td>
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{item.name}</td>
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.size_value} {size.size_unit}</td>
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.quantity}</td>
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">${Number(size.price).toFixed(2)}</td>
-                      <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center font-medium text-gray-900">${Number(size.quantity * size.price).toFixed(2)}</td>
-                    </tr>
-                  )) || []
+                  item.sizes?.map((size: any, sizeIndex: number) => {
+                    // Calculate the actual row number across all items and sizes
+                    const rowNumber = invoice.items
+                      .slice(0, itemIndex)
+                      .reduce((acc, prevItem) => acc + (prevItem.sizes?.length || 0), 0) + sizeIndex + 1;
+                    
+                    return (
+                      <tr key={`item-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{rowNumber}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{item.name}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.size_value} {size.size_unit}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.quantity}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">${Number(size.price).toFixed(2)}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center font-medium text-gray-900">${Number(size.quantity * size.price).toFixed(2)}</td>
+                      </tr>
+                    );
+                  }) || []
                 )}
               </tbody>
             </table>
