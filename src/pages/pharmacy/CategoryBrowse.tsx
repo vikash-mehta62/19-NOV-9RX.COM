@@ -43,7 +43,8 @@ export default function CategoryBrowse() {
         // Fetch product counts per category
         const { data: products, error: productsError } = await supabase
           .from("products")
-          .select("category");
+          .select("category")
+          .eq("is_active", true);
 
         if (productsError) {
           throw productsError;

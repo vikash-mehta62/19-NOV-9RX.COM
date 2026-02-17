@@ -62,7 +62,7 @@ const TrustSection = () => {
       icon: Building2,
       value: pharmacies,
       suffix: "+",
-      label: "Partner Pharmacies",
+      label: "Pharmacies",
       description: "Trusted nationwide",
       color: "from-blue-500 to-indigo-600",
       bgColor: "bg-blue-50"

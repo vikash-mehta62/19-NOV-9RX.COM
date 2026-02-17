@@ -41,6 +41,7 @@ export interface Product {
   quantity_per_case?: number;
   shipping_cost?: number;
   size_unit?: string;
+  is_active?: boolean; // Product active/inactive status
 
   size_value?: number;
   base_price: number;

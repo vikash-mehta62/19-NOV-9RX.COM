@@ -53,9 +53,10 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
       }
       
       .header {
-        background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
         padding: 48px 40px;
         text-align: center;
+        border-bottom: 3px solid #2563eb;
       }
       
       .logo-image {
@@ -75,7 +76,7 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
       }
       
       .logo-subtitle {
-        color: #dbeafe;
+        color: #2563eb;
         font-size: 15px;
         font-weight: 500;
         margin: 0;
@@ -476,8 +477,8 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
                   <h4 class="section-title">❓ Need Assistance?</h4>
                   <p class="section-text">Our support team is here to help:</p>
                   <ul class="section-list">
-                    <li>📧 Email: <a href="mailto:support@9rx.com" style="color: #1d4ed8; text-decoration: none; font-weight: 600;">support@9rx.com</a></li>
-                    <li>📞 Phone: <strong>1-800-9RX-HELP</strong></li>
+                    <li>📧 Email: <a href="mailto:info@9rx.com" style="color: #1d4ed8; text-decoration: none; font-weight: 600;">info@9rx.com</a></li>
+                    <li>📞 Phone: <strong>(800) 940-9619</strong></li>
                     <li>💬 Live chat available on our website</li>
                   </ul>
                 </div>

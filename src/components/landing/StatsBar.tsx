@@ -55,7 +55,7 @@ const StatsBar = () => {
   }, []);
 
   const stats = [
-    { icon: Building2, value: pharmacies, suffix: "+", label: "Partner Pharmacies" },
+    { icon: Building2, value: pharmacies, suffix: "+", label: "Pharmacies" },
     { icon: Package, value: products, suffix: "+", label: "Products Available" },
     { icon: Truck, value: orders, suffix: "+", label: "Orders Delivered" },
     { icon: Award, value: satisfaction, suffix: "%", label: "Satisfaction Rate" },

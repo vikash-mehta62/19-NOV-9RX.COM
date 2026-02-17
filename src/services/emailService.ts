@@ -39,7 +39,7 @@ export async function getEmailSettings(): Promise<EmailSettings | null> {
       api_key: settings.api_key || "",
       from_email: settings.from_email || "noreply@9rx.com",
       from_name: settings.from_name || "9RX Pharmacy Supplies",
-      reply_to: settings.reply_to || "support@9rx.com",
+      reply_to: settings.reply_to || "info@9rx.com",
     };
   } catch (error) {
     console.error("Error fetching email settings:", error);

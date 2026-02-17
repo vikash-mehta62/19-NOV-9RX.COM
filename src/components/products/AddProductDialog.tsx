@@ -161,13 +161,6 @@ export function AddProductDialog({
   const sizes = form.watch("sizes")
   const images = form.watch("images")
 
-  // Auto-generate SKU based on category
-  const generateSKU = (category: string) => {
-    const timestamp = Date.now().toString().slice(-4)
-    const prefix = category.slice(0, 3).toUpperCase()
-    return `${prefix}-${timestamp}`
-  }
-
   // Fetch categories from database
   const fetchCategories = async () => {
     const { data, error } = await supabase
@@ -209,11 +202,6 @@ export function AddProductDialog({
     // Auto-fill name with category if empty
     if (selectedCategory && !productName) {
       form.setValue("name", selectedCategory)
-    }
-
-    // Auto-generate SKU
-    if (selectedCategory && !form.getValues("sku")) {
-      form.setValue("sku", generateSKU(selectedCategory))
     }
   }, [selectedCategory])
 
@@ -437,48 +425,26 @@ export function AddProductDialog({
                       />
                     </div>
 
-                    {/* Name & SKU Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <FormField
-                        control={form.control}
-                        name="name"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm font-medium">
-                              Product Name <span className="text-red-500">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="e.g., Premium RX Vial 30ml"
-                                className="h-11"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-
-                      <FormField
-                        control={form.control}
-                        name="sku"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel className="text-sm font-medium">
-                              SKU <span className="text-red-500">*</span>
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                placeholder="Auto-generated"
-                                className="h-11 font-mono"
-                                {...field}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                    {/* Product Name - Full Width */}
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-sm font-medium">
+                            Product Name <span className="text-red-500">*</span>
+                          </FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="e.g., Premium RX Vial 30ml"
+                              className="h-11"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
                     {/* Description */}
                     <FormField

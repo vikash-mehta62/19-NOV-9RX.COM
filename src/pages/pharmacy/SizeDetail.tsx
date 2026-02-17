@@ -90,6 +90,7 @@ export default function SizeDetail() {
       .from("products")
       .select("id, name, category, description, image_url, images, key_features, customization, similar_products, product_sizes(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost)")
       .eq("id", productId)
+      .eq("is_active", true) // Only fetch active products
       .single()
       .then(({ data: productData, error }) => {
         if (!isMounted) return
@@ -167,6 +168,7 @@ export default function SizeDetail() {
         .select("id, name, category, description, image_url, images, customization, sizes:product_sizes(id, size_value, size_unit, price, stock, quantity_per_case)")
         .in("subcategory", candidates)
         .neq("id", productId)
+        .eq("is_active", true) // Only fetch active products
         .limit(8)
 
       if (!error && products) {

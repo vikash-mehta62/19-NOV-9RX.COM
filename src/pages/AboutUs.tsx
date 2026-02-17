@@ -9,7 +9,7 @@ const AboutUs = () => {
   }, []);
 
   const stats = [
-    { icon: Building2, value: "250+", label: "Partner Pharmacies" },
+    { icon: Building2, value: "250+", label: "Pharmacies" },
     { icon: Package, value: "500+", label: "Products Available" },
     { icon: Star, value: "98%", label: "Satisfaction Rate" },
     { icon: Clock, value: "14+", label: "Years Experience" },

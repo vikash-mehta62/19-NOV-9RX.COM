@@ -239,7 +239,7 @@ const emailTemplates = {
       </div>
 
       <p style="color:#475569;line-height:1.6;margin:20px 0;">
-        Had an issue with your order? <a href="mailto:support@9rx.com" style="color:#10b981;">Contact our support team</a> and we'll make it right.
+        Had an issue with your order? <a href="mailto:info@9rx.com" style="color:#10b981;">Contact our support team</a> and we'll make it right.
       </p>
     </div>
 

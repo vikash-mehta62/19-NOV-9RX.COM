@@ -61,7 +61,7 @@ const Footer = () => {
               <div>
                 <img src={logo} alt="9RX Logo" className="h-16 sm:h-12 lg:h-14 mb-4 sm:mb-6 brightness-0 invert" />
                 <p className="text-slate-400 leading-relaxed max-w-sm text-sm sm:text-base">
-                  Your trusted partner for premium pharmacy supplies. Serving independent pharmacies nationwide with quality products and exceptional service since 2010.
+                  Your trusted partner for premium pharmacy supplies. Serving independent pharmacies nationwide with quality products and exceptional service since 2024.
                 </p>
               </div>
               
@@ -183,7 +183,7 @@ const Footer = () => {
                   </div>
                   <div>
                     <p className="text-slate-500 text-xs sm:text-sm">Business Hours</p>
-                    <p className="text-white text-sm sm:text-base">Mon - Fri: 9AM - 6PM EST</p>
+                    <p className="text-white text-sm sm:text-base">Mon - Fri: 9AM - 5PM EST</p>
                   </div>
                 </li>
               </ul>

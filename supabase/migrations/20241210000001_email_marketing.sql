@@ -164,7 +164,7 @@ INSERT INTO email_settings (setting_key, setting_value, setting_type, descriptio
 ('api_key', '', 'secret', 'API key for email provider'),
 ('from_email', 'noreply@9rx.com', 'string', 'Default sender email'),
 ('from_name', '9RX Pharmacy Supplies', 'string', 'Default sender name'),
-('reply_to', 'support@9rx.com', 'string', 'Reply-to email address'),
+('reply_to', 'info@9rx.com', 'string', 'Reply-to email address'),
 ('abandoned_cart_delay_hours', '24', 'number', 'Hours before sending abandoned cart email'),
 ('abandoned_cart_max_reminders', '3', 'number', 'Maximum cart reminders per user'),
 ('inactive_user_days', '30', 'number', 'Days of inactivity before reminder'),

@@ -37,7 +37,8 @@ export const CategoryPills = ({ selectedCategory, onCategorySelect }: CategoryPi
         // Get product counts per category
         const { data: products } = await supabase
           .from("products")
-          .select("category");
+          .select("category")
+          .eq("is_active", true);
 
         const categoryCounts: Record<string, number> = {};
         products?.forEach((p) => {

@@ -74,6 +74,7 @@ export default function HospitalDashboard() {
         const { data: products, error: productsError } = await supabase
           .from("products")
           .select("name, sku, price:base_price, current_stock")
+          .eq("is_active", true)
           .order("created_at", { ascending: false })
           .limit(5);
 

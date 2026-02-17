@@ -72,6 +72,7 @@ export const SearchAutocomplete = ({
         const { data } = await supabase
           .from("products")
           .select("id, name, category, image_url, base_price")
+          .eq("is_active", true)
           .or(`name.ilike.%${value}%,sku.ilike.%${value}%,category.ilike.%${value}%`)
           .limit(6);
 

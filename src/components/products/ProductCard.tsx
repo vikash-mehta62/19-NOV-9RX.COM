@@ -178,11 +178,6 @@ export const ProductCard = ({ product, onView, onAddToCart, onEdit, showActions 
           <span className="text-emerald-600">In Stock</span>
         </div>
 
-        {/* SKU */}
-        <p className="text-[10px] sm:text-xs text-gray-400">
-          SKU: {product.sku}
-        </p>
-
         {/* Action Buttons */}
         {showActions && (
           <div className="pt-1.5 sm:pt-2 space-y-1.5 sm:space-y-2">

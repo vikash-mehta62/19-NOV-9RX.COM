@@ -98,7 +98,7 @@ const ReturnPolicy = () => {
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">1</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Contact Customer Service</h4>
-                    <p className="text-gray-600 text-sm">Email returns@9rx.com or call +1 (800) 969-6295 to initiate a return</p>
+                    <p className="text-gray-600 text-sm">Email info@9rx.com or call +1 (800) 969-6295 to initiate a return</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">

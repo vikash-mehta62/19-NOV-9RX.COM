@@ -26,6 +26,7 @@ export default function LaunchPasswordReset() {
   const [isSuccess, setIsSuccess] = useState(false);
   const [currentStep, setCurrentStep] = useState<"terms" | "password">("terms");
   const [termsAccepted, setTermsAccepted] = useState(false);
+  const [achAuthorizationAccepted, setAchAuthorizationAccepted] = useState(false);
   const [userEmail, setUserEmail] = useState(emailFromUrl);
   const [hasValidSession, setHasValidSession] = useState(false);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
@@ -132,6 +133,14 @@ export default function LaunchPasswordReset() {
       });
       return;
     }
+    if (!achAuthorizationAccepted) {
+      toast({
+        title: "ACH Authorization Required",
+        description: "Please accept the ACH Authorization to continue.",
+        variant: "destructive",
+      });
+      return;
+    }
     setCurrentStep("password");
   };
 
@@ -173,6 +182,28 @@ export default function LaunchPasswordReset() {
       }
 
       console.log("✅ Password updated successfully for:", email);
+
+      // Save ACH authorization to profile
+      if (achAuthorizationAccepted) {
+        try {
+          const { error: achError } = await supabase
+            .from("profiles")
+            .update({
+              ach_authorization_accepted: true,
+              ach_authorization_accepted_at: new Date().toISOString(),
+              ach_authorization_version: "1.0",
+            })
+            .eq("id", session.user.id);
+
+          if (achError) {
+            console.error("❌ Error saving ACH authorization:", achError);
+          } else {
+            console.log("✅ ACH authorization saved successfully");
+          }
+        } catch (achSaveError) {
+          console.error("Error saving ACH authorization:", achSaveError);
+        }
+      }
 
       // Mark both password reset and terms accepted as completed
       try {
@@ -402,44 +433,38 @@ export default function LaunchPasswordReset() {
                         with our Privacy Policy. By using our service, you consent to our collection and use of your data.
                       </p>
 
-                      <h3 className="font-bold text-base mt-6">5. Prescription Medications</h3>
-                      <p>
-                        All prescription medications require a valid prescription from a licensed healthcare provider. 
-                        We reserve the right to verify prescriptions and refuse service if necessary.
-                      </p>
-
-                      <h3 className="font-bold text-base mt-6">6. Payment Terms</h3>
+                      <h3 className="font-bold text-base mt-6">5. Payment Terms</h3>
                       <p>
                         You agree to pay all fees and charges associated with your purchases. All prices are subject 
                         to change without notice. Payment must be made at the time of purchase.
                       </p>
 
-                      <h3 className="font-bold text-base mt-6">7. Refund Policy</h3>
+                      <h3 className="font-bold text-base mt-6">6. Refund Policy</h3>
                       <p>
                         Refunds are subject to our refund policy. Prescription medications may not be eligible for 
                         refund once dispensed. Please contact customer service for refund requests.
                       </p>
 
-                      <h3 className="font-bold text-base mt-6">8. Limitation of Liability</h3>
+                      <h3 className="font-bold text-base mt-6">7. Limitation of Liability</h3>
                       <p>
                         9RX shall not be liable for any indirect, incidental, special, consequential, or punitive 
                         damages resulting from your use of or inability to use the service.
                       </p>
 
-                      <h3 className="font-bold text-base mt-6">9. Changes to Terms</h3>
+                      <h3 className="font-bold text-base mt-6">8. Changes to Terms</h3>
                       <p>
                         We reserve the right to modify these terms at any time. We will notify users of any material 
                         changes. Your continued use of the service constitutes acceptance of the modified terms.
                       </p>
 
-                      <h3 className="font-bold text-base mt-6">10. Contact Information</h3>
+                      <h3 className="font-bold text-base mt-6">9. Contact Information</h3>
                       <p>
-                        For questions about these Terms, please contact us at support@9rx.com or call 1-800-9RX-HELP.
+                        For questions about these Terms, please contact us at info@9rx.com or call (800) 940-9619.
                       </p>
                     </div>
                   </div>
 
-                  {/* Accept Checkbox */}
+                  {/* Accept Terms Checkbox */}
                   <div className="flex items-start gap-3 p-4 bg-blue-50 rounded-xl border border-blue-200">
                     <Checkbox
                       id="terms"
@@ -453,17 +478,38 @@ export default function LaunchPasswordReset() {
                     </label>
                   </div>
 
+                  {/* ACH Authorization Checkbox */}
+                  <div className="flex items-start gap-3 p-4 bg-green-50 rounded-xl border border-green-200">
+                    <Checkbox
+                      id="ach-authorization"
+                      checked={achAuthorizationAccepted}
+                      onCheckedChange={(checked) => setAchAuthorizationAccepted(checked as boolean)}
+                      className="mt-1"
+                    />
+                    <label htmlFor="ach-authorization" className="text-sm text-gray-700 cursor-pointer">
+                      <span className="font-semibold">ACH Authorization:</span> I authorize 9RX to electronically debit my bank account 
+                      for payments via ACH (Automated Clearing House). I understand that this authorization will remain in effect 
+                      until I revoke it in writing. I agree that ACH transactions comply with U.S. law and that I have the authority 
+                      to authorize debits from the specified bank account.
+                    </label>
+                  </div>
+
                   {/* Continue Button */}
                   <Button
                     onClick={handleAcceptTerms}
-                    disabled={!termsAccepted}
-                    className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold text-base transition-all duration-200 shadow-lg shadow-blue-500/25"
+                    disabled={!termsAccepted || !achAuthorizationAccepted}
+                    className="w-full h-12 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl font-semibold text-base transition-all duration-200 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <span className="flex items-center gap-2">
                       <Check className="w-5 h-5" />
-                      Accept & Continue to Password Reset
+                      Accept All & Continue to Password Reset
                     </span>
                   </Button>
+                  {(!termsAccepted || !achAuthorizationAccepted) && (
+                    <p className="text-xs text-center text-gray-500 mt-2">
+                      Please accept both Terms & Conditions and ACH Authorization to continue
+                    </p>
+                  )}
                 </div>
               ) : (
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">

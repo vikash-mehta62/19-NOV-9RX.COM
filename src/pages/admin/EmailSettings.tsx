@@ -463,7 +463,7 @@ export default function EmailSettings() {
                     type="email"
                     value={settings.reply_to || ""}
                     onChange={(e) => updateSetting("reply_to", e.target.value)}
-                    placeholder="support@9rx.com"
+                    placeholder="info@9rx.com"
                     className="mt-2"
                   />
                   <p className="text-xs text-muted-foreground mt-1">

@@ -6,10 +6,11 @@ export const fetchProductsService = async (
   page: number,
   pageSize: number,
   category: string,
-  searchQuery: string
+  searchQuery: string,
+  includeInactive: boolean = false // Admin can see inactive products
 ) => {
   console.log('=== FETCH PRODUCTS SERVICE ===');
-  console.log('Parameters:', { page, pageSize, category, searchQuery });
+  console.log('Parameters:', { page, pageSize, category, searchQuery, includeInactive });
   
   const offset = (page - 1) * pageSize;
 
@@ -30,6 +31,11 @@ export const fetchProductsService = async (
 
     if (category !== "all") {
       query = query.eq("category", category);
+    }
+
+    // Filter by active status unless admin wants to see all
+    if (!includeInactive) {
+      query = query.eq("is_active", true);
     }
 
     const result = await query;
@@ -59,6 +65,11 @@ export const fetchProductsService = async (
     basicQuery = basicQuery.eq("category", category);
   }
 
+  // Filter by active status unless admin wants to see all
+  if (!includeInactive) {
+    basicQuery = basicQuery.eq("is_active", true);
+  }
+
   const basicResult = await basicQuery;
   console.log('Basic search result:', basicResult);
 
@@ -69,7 +80,7 @@ export const fetchProductsService = async (
 
   // If no basic results, try size-based search
   console.log('No basic results found, trying size-based search...');
-  const sizeResult = await fetchProductsBySizeSearch(page, pageSize, category, searchQuery);
+  const sizeResult = await fetchProductsBySizeSearch(page, pageSize, category, searchQuery, includeInactive);
   console.log('Size search final result:', sizeResult);
   return sizeResult;
 };
@@ -79,7 +90,8 @@ const fetchProductsBySizeSearch = async (
   page: number,
   pageSize: number,
   category: string,
-  searchQuery: string
+  searchQuery: string,
+  includeInactive: boolean = false
 ) => {
   const offset = (page - 1) * pageSize;
   const searchTerm = searchQuery.trim();
@@ -173,6 +185,11 @@ const fetchProductsBySizeSearch = async (
 
     if (category !== "all") {
       productsQuery = productsQuery.eq("category", category);
+    }
+
+    // Filter by active status unless admin wants to see all
+    if (!includeInactive) {
+      productsQuery = productsQuery.eq("is_active", true);
     }
 
     const result = await productsQuery;

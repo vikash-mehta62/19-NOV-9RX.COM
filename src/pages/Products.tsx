@@ -435,7 +435,7 @@ const Products = () => {
     const fetchProducts = async () => {
       setError(null);
       try {
-        const { data, error: fetchError } = await supabase.from("products").select("*, product_sizes(*)").order("created_at", { ascending: false });
+        const { data, error: fetchError } = await supabase.from("products").select("*, product_sizes(*)").eq("is_active", true).order("created_at", { ascending: false });
         if (fetchError) {
           console.error(fetchError);
           setError("Failed to load products. Please try again.");
@@ -460,7 +460,7 @@ const Products = () => {
     setTimeout(() => {
       const fetchProducts = async () => {
         try {
-          const { data, error: fetchError } = await supabase.from("products").select("*, product_sizes(*)").order("created_at", { ascending: false });
+          const { data, error: fetchError } = await supabase.from("products").select("*, product_sizes(*)").eq("is_active", true).order("created_at", { ascending: false });
           if (fetchError) {
             setError("Failed to load products. Please try again.");
             return;

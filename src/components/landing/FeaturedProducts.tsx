@@ -153,7 +153,7 @@ const FeaturedProducts = () => {
               <Package className="w-5 sm:w-6 h-5 sm:h-6" />
             </div>
             <div className="text-center sm:text-left">
-              <p className="font-semibold text-sm sm:text-base">Browse 500+ Products</p>
+              <p className="font-semibold text-sm sm:text-base">Browse 250+ Products</p>
               <p className="text-blue-200 text-xs sm:text-sm">Find everything your pharmacy needs</p>
             </div>
             <button

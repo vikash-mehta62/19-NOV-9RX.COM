@@ -210,7 +210,13 @@ export const PharmacyFilterSidebar = ({
             </button>
 
             {/* Categories with Subcategories */}
-            {categories.map((cat) => {
+            {categories
+              .filter((cat) => {
+                // Only show categories that have products
+                const count = getCategoryCount(cat.category_name);
+                return count > 0;
+              })
+              .map((cat) => {
               const isExpanded = expandedCategory === cat.category_name
               const isSelected = selectedCategory === cat.category_name && selectedSubcategory === "all"
               const catSubcategories = getSubcategoriesForCategory(cat.category_name)
@@ -260,7 +266,13 @@ export const PharmacyFilterSidebar = ({
                   {/* Subcategories (Expanded) - Hide for RX PAPER BAGS */}
                   {isExpanded && catSubcategories.length > 0 && cat.category_name.toUpperCase() !== "RX PAPER BAGS" && (
                     <div className="ml-3 pl-3 border-l-2 border-blue-200 space-y-0.5 animate-in slide-in-from-top-2 duration-200">
-                      {catSubcategories.map((sub) => {
+                      {catSubcategories
+                        .filter((sub) => {
+                          // Only show subcategories that have products
+                          const subCount = getSubcategoryCount(sub.subcategory_name);
+                          return subCount > 0;
+                        })
+                        .map((sub) => {
                         const isSubSelected = selectedSubcategory === sub.subcategory_name
                         const subCount = getSubcategoryCount(sub.subcategory_name)
 

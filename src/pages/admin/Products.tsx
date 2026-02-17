@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Search, Grid3X3, List, Package, X, ArrowLeft,
-  Edit, Trash2, Eye, MoreHorizontal, Filter
+  Edit, Trash2, Eye, MoreHorizontal, Filter, CheckCircle, XCircle
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -63,12 +63,29 @@ const Products = () => {
     handleDeleteProduct,
     handleBulkAddProducts,
     loading
-  } = useProducts();
+  } = useProducts(true); // Admin can see inactive products
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [categories, setCategories] = useState<string[]>([]);
+
+  // Handle product active/inactive toggle
+  const handleToggleActive = async (productId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('products')
+        .update({ is_active: !currentStatus })
+        .eq('id', productId);
+
+      if (error) throw error;
+
+      // Refresh products list
+      window.location.reload();
+    } catch (error) {
+      console.error('Error toggling product status:', error);
+    }
+  };
 
   // Set category from navigation state (when coming back from product details)
   useEffect(() => {
@@ -453,6 +470,22 @@ const Products = () => {
                               <Edit className="w-4 h-4 mr-3" />
                               Edit Product
                             </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleToggleActive(product.id, product.is_active ?? true)}
+                              className="rounded-lg"
+                            >
+                              {product.is_active !== false ? (
+                                <>
+                                  <XCircle className="w-4 h-4 mr-3" />
+                                  Set Inactive
+                                </>
+                              ) : (
+                                <>
+                                  <CheckCircle className="w-4 h-4 mr-3" />
+                                  Set Active
+                                </>
+                              )}
+                            </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600 rounded-lg"
                               onClick={() => handleDeleteProduct(product.id)}
@@ -471,6 +504,16 @@ const Products = () => {
                           className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-lg shadow-sm"
                         >
                           {product.category}
+                        </Badge>
+                      )}
+
+                      {/* Inactive Status Badge */}
+                      {product.is_active === false && (
+                        <Badge
+                          variant="secondary"
+                          className="absolute top-3 left-3 bg-red-500 text-white text-xs px-2 py-1 rounded-lg shadow-sm"
+                        >
+                          Inactive
                         </Badge>
                       )}
 
@@ -494,10 +537,6 @@ const Products = () => {
                           className="mb-3"
                         />
                       )}
-
-                      <p className="text-xs text-gray-500 mb-3 font-mono bg-gray-50 px-2 py-1 rounded-md inline-block">
-                        SKU: {product.sku || "N/A"}
-                      </p>
 
                       <div className="flex items-center justify-between">
                         <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">
@@ -576,7 +615,14 @@ const Products = () => {
                         </TableCell>
                         <TableCell className="py-4">
                           <div>
-                            <p className="font-semibold text-gray-900 text-base mb-1">{product.name}</p>
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-semibold text-gray-900 text-base">{product.name}</p>
+                              {product.is_active === false && (
+                                <Badge variant="secondary" className="bg-red-500 text-white text-xs px-2 py-1 rounded-lg">
+                                  Inactive
+                                </Badge>
+                              )}
+                            </div>
 
                             {/* Search Match Indicator */}
                             {searchQuery && (
@@ -639,6 +685,22 @@ const Products = () => {
                               }} className="rounded-lg">
                                 <Edit className="w-4 h-4 mr-3" />
                                 Edit Product
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => handleToggleActive(product.id, product.is_active ?? true)}
+                                className="rounded-lg"
+                              >
+                                {product.is_active !== false ? (
+                                  <>
+                                    <XCircle className="w-4 h-4 mr-3" />
+                                    Set Inactive
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle className="w-4 h-4 mr-3" />
+                                    Set Active
+                                  </>
+                                )}
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-red-600 rounded-lg"

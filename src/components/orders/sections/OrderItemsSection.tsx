@@ -19,7 +19,7 @@ export function OrderItemsSection({ orderItems, form, setIsCus, isCus, isEditing
 
   useEffect(() => {
     const fetchProducts = async () => {
-      const { data, error } = await supabase.from("products").select("*");
+      const { data, error } = await supabase.from("products").select("*").eq("is_active", true);
       if (error) {
         toast({
           title: "Error",

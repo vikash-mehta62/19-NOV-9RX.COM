@@ -82,6 +82,7 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
         groupIds, disAllogroupIds
       )
     `)
+    .eq("is_active", true)
     .order("name");
 
   if (error) throw error;

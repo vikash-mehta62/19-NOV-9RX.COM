@@ -59,6 +59,7 @@ const ProductSizeDetails = () => {
           .from("products")
           .select("*, product_sizes(*), customization")
           .eq("id", productId)
+          .eq("is_active", true) // Only fetch active products
           .single()
 
         if (productError || !productData) {

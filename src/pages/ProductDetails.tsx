@@ -807,22 +807,6 @@ return (
 
               {/* Enhanced Additional Info Pills */}
               <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
-                {product.sku && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-lg transition-colors duration-200 cursor-help">
-                          <Package className="w-3.5 h-3.5 text-gray-600" />
-                          <span className="text-xs font-mono font-semibold text-gray-800">{product.sku}</span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Product SKU</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                )}
-                
                 {product.quantity_per_case && (
                   <TooltipProvider>
                     <Tooltip>

@@ -49,9 +49,19 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
       // Fetch Products with Sizes
       try {
-        const { data: productsData, error } = await supabase
+        // Check if user is admin - admins see all products, customers see only active
+        const isAdmin = userProfile?.type === 'admin' || userProfile?.role === 'admin';
+        
+        let query = supabase
           .from("products")
           .select("*, product_sizes(*)");
+        
+        // Only filter by is_active for non-admin users
+        if (!isAdmin) {
+          query = query.eq("is_active", true);
+        }
+        
+        const { data: productsData, error } = await query;
 
         if (error) {
           throw error;

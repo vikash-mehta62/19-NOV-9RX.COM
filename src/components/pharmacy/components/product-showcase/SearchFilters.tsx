@@ -87,7 +87,8 @@ export const SearchFilters = ({
         // Get total products count
         const { count, error: countError } = await supabase
           .from("products")
-          .select("*", { count: "exact", head: true });
+          .select("*", { count: "exact", head: true })
+          .eq("is_active", true);
 
         if (!countError) {
           setTotalProducts(count || 0);

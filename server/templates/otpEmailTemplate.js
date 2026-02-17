@@ -176,7 +176,7 @@ const otpEmailTemplate = (otp, userName = "User") => {
     
     <div class="footer">
       <p><strong>9RX - Your Trusted B2B Pharmacy Partner</strong></p>
-      <p>Need help? Contact us at <a href="mailto:support@9rx.com">support@9rx.com</a></p>
+      <p>Need help? Contact us at <a href="mailto:info@9rx.com">info@9rx.com</a></p>
       <p style="margin-top: 20px; font-size: 12px; color: #999;">
         This is an automated email. Please do not reply to this message.
       </p>

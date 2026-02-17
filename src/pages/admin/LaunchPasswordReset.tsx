@@ -60,6 +60,7 @@ export default function LaunchPasswordReset() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [sendMode, setSendMode] = useState<"all" | "selected" | "test">("test");
   const [backendStatus, setBackendStatus] = useState<"checking" | "online" | "offline">("checking");
+  const [userSearchQuery, setUserSearchQuery] = useState("");
 
   // Check backend health on mount
   useEffect(() => {
@@ -239,6 +240,24 @@ export default function LaunchPasswordReset() {
   const completionPercentage = stats
     ? Math.round((stats.completed / stats.total_emails_sent) * 100)
     : 0;
+
+  // Filter users based on search query
+  const filteredUsers = users.filter((user) => {
+    if (!userSearchQuery) return true;
+    
+    const searchLower = userSearchQuery.toLowerCase();
+    const firstName = (user.first_name || '').toLowerCase();
+    const lastName = (user.last_name || '').toLowerCase();
+    const email = (user.email || '').toLowerCase();
+    const fullName = `${firstName} ${lastName}`.trim();
+    
+    return (
+      firstName.includes(searchLower) ||
+      lastName.includes(searchLower) ||
+      fullName.includes(searchLower) ||
+      email.includes(searchLower)
+    );
+  });
 
   return (
     <DashboardLayout>
@@ -459,19 +478,34 @@ export default function LaunchPasswordReset() {
                   </div>
                 </div>
 
+                {/* Search Bar */}
+                <div className="space-y-2">
+                  <Label htmlFor="userSearch">Search Users</Label>
+                  <Input
+                    id="userSearch"
+                    type="text"
+                    placeholder="Search by name or email..."
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Showing {filteredUsers.length} of {users.length} users
+                  </p>
+                </div>
+
                 <div className="border rounded-lg max-h-96 overflow-y-auto">
                   {loadingUsers ? (
                     <div className="p-4 text-center">
                       <Loader2 className="h-6 w-6 animate-spin mx-auto" />
                       <p className="text-sm text-muted-foreground mt-2">Loading users...</p>
                     </div>
-                  ) : users.length === 0 ? (
+                  ) : filteredUsers.length === 0 ? (
                     <div className="p-4 text-center text-muted-foreground">
-                      No users found
+                      {userSearchQuery ? "No users match your search" : "No users found"}
                     </div>
                   ) : (
                     <div className="divide-y">
-                      {users.map((user) => (
+                      {filteredUsers.map((user) => (
                         <div
                           key={user.id}
                           className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer"

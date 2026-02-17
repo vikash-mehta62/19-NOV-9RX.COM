@@ -42,7 +42,7 @@ const formatErrorMessage = (error: any): string => {
   return "An unexpected error occurred.";
 };
 
-export const useProducts = () => {
+export const useProducts = (includeInactive: boolean = false) => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
@@ -69,13 +69,14 @@ export const useProducts = () => {
     setLoading(true);
     try {
       console.log('=== USE-PRODUCTS FETCH ===');
-      console.log('Fetching products with:', { page, search, category });
+      console.log('Fetching products with:', { page, search, category, includeInactive });
       
       const { data: productsData, error, count } = await fetchProductsService(
         page,
         PAGE_SIZE,
         category,
-        search
+        search,
+        includeInactive
       );
 
       console.log('=== FETCH RESULT ===');
@@ -105,7 +106,7 @@ export const useProducts = () => {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, includeInactive]);
 
   // Debounced search effect
   useEffect(() => {

@@ -121,6 +121,7 @@ export const DealsSection = () => {
           const { data: products } = await supabase
             .from("products")
             .select("id, name, image_url, base_price")
+            .eq("is_active", true)
             .limit(6);
 
           if (products && products.length > 0) {

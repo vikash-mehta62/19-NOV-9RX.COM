@@ -81,7 +81,7 @@ const Help = () => {
                 <Phone className="w-6 h-6 text-blue-600" />
               </div>
               <h3 className="font-semibold text-gray-900">Call Us</h3>
-              <p className="text-sm text-gray-500 mt-1">1-800-9RX-HELP</p>
+              <p className="text-sm text-gray-500 mt-1">(800) 940-9619</p>
               <p className="text-xs text-gray-400 mt-2">Mon-Fri 9AM-6PM EST</p>
             </CardContent>
           </Card>
@@ -92,7 +92,7 @@ const Help = () => {
                 <Mail className="w-6 h-6 text-purple-600" />
               </div>
               <h3 className="font-semibold text-gray-900">Email Support</h3>
-              <p className="text-sm text-gray-500 mt-1">support@9rx.com</p>
+              <p className="text-sm text-gray-500 mt-1">info@9rx.com</p>
               <p className="text-xs text-gray-400 mt-2">Response within 24 hours</p>
             </CardContent>
           </Card>

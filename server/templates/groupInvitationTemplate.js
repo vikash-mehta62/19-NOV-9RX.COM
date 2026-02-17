@@ -96,7 +96,7 @@ const groupInvitationTemplate = (data) => {
           <tr>
             <td style="padding: 30px 40px; background-color: #f9fafb; border-radius: 0 0 12px 12px; text-align: center;">
               <p style="color: #6b7280; font-size: 13px; margin: 0 0 10px;">
-                Questions? Contact us at <a href="mailto:support@9rx.com" style="color: #2563eb;">support@9rx.com</a>
+                Questions? Contact us at <a href="mailto:info@9rx.com" style="color: #2563eb;">info@9rx.com</a>
               </p>
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">
                 © ${new Date().getFullYear()} 9RX. All rights reserved.

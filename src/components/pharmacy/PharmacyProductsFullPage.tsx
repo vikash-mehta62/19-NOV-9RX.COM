@@ -155,9 +155,27 @@ export const PharmacyProductsFullPage = () => {
         })
       }
       try {
-        const { data: productsData, error } = await supabase
+        // Check if user is admin - admins see all products, customers see only active
+        const isAdmin = userProfile?.type === 'admin' || userProfile?.role === 'admin';
+        
+        console.log('🔍 User Profile:', userProfile);
+        console.log('👤 Is Admin:', isAdmin);
+        
+        let query = supabase
           .from("products")
-          .select("*, product_sizes(*)")
+          .select("*, product_sizes(*)");
+        
+        // Only filter by is_active for non-admin users
+        if (!isAdmin) {
+          console.log('✅ Applying is_active filter (non-admin user)');
+          query = query.eq("is_active", true);
+        } else {
+          console.log('⚠️ NOT applying is_active filter (admin user)');
+        }
+        
+        const { data: productsData, error } = await query;
+        
+        console.log('📦 Products fetched:', productsData?.length);
 
         if (error) throw error
 

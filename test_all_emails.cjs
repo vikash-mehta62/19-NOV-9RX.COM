@@ -92,7 +92,7 @@ async function testAllEmails() {
       unsubscribe_url: "https://9rx.com/unsubscribe",
       company_name: "9RX",
       current_year: new Date().getFullYear().toString(),
-      support_email: "support@9rx.com",
+      support_email: "info@9rx.com",
       website_url: "https://9rx.com"
     };
 

@@ -138,6 +138,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           id, name, sku, category, image_url,
           product_sizes (id, size_value, size_unit, price, price_per_case, stock, sku)
         `)
+        .eq("is_active", true)
         .order("name");
       if (error) throw error;
       return data || [];
