@@ -426,6 +426,7 @@ const Rewards = () => {
       case "earn": return <Star className="w-4 h-4 text-green-600" />;
       case "redeem": return <Gift className="w-4 h-4 text-orange-600" />;
       case "bonus": return <Trophy className="w-4 h-4 text-purple-600" />;
+      case "adjust": return <Zap className="w-4 h-4 text-red-600" />;
       default: return <Star className="w-4 h-4 text-blue-600" />;
     }
   };
@@ -641,7 +642,8 @@ const Rewards = () => {
                   <div className="flex items-center gap-3">
                     <div className={`p-2 rounded-full ${
                       activity.transaction_type === "earn" ? "bg-green-100" : 
-                      activity.transaction_type === "redeem" ? "bg-orange-100" : "bg-purple-100"
+                      activity.transaction_type === "redeem" ? "bg-orange-100" : 
+                      activity.transaction_type === "adjust" ? "bg-red-100" : "bg-purple-100"
                     }`}>
                       {getTransactionIcon(activity.transaction_type)}
                     </div>
@@ -650,7 +652,7 @@ const Rewards = () => {
                       <p className="text-sm text-gray-500">{formatDate(activity.created_at)}</p>
                     </div>
                   </div>
-                  <span className={`font-semibold ${activity.points > 0 ? "text-white" : "text-orange-600"}`}>
+                  <span className={`font-semibold ${activity.points > 0 ? "text-green-600" : "text-red-600"}`}>
                     {activity.points > 0 ? "+" : ""}{activity.points} pts
                   </span>
                 </div>

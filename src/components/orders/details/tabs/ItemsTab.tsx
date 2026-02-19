@@ -290,7 +290,7 @@ export const ItemsTab = ({
       // Get current order data for activity logging
       const { data: currentOrderData } = await supabase
         .from("orders")
-        .select("total_amount, items, order_number, payment_status, paid_amount")
+        .select("total_amount, items, order_number, payment_status, paid_amount, profile_id, location_id, payment_method")
         .eq("id", orderId)
         .single();
 
@@ -298,6 +298,7 @@ export const ItemsTab = ({
       const oldItemCount = currentOrderData?.items?.length || 0;
       const newItemCount = itemsToSave.length;
       const paidAmount = Number(currentOrderData?.paid_amount || 0);
+      const customerIdForPoints = currentOrderData?.location_id || currentOrderData?.profile_id;
 
       // Determine if payment status should change
       let updatePaymentStatus = newPaymentStatus;
@@ -347,15 +348,50 @@ export const ItemsTab = ({
           .eq("id", invoiceData.id);
       }
 
+      // Adjust reward points if order total changed (only for non-credit orders)
+      if (oldTotal !== newTotal && currentOrderData?.payment_method !== 'credit' && customerIdForPoints) {
+        try {
+          console.log('🎁 Adjusting reward points for order edit...');
+          const { adjustRewardPointsForOrderEdit } = await import("@/services/rewardPointsAdjustmentService");
+          
+          const adjustmentResult = await adjustRewardPointsForOrderEdit(
+            customerIdForPoints,
+            orderId!,
+            oldTotal,
+            newTotal,
+            currentOrderData?.order_number || ''
+          );
+
+          if (adjustmentResult.success && adjustmentResult.pointsAdjusted !== 0) {
+            const pointsChange = adjustmentResult.pointsAdjusted;
+            const changeType = pointsChange > 0 ? 'added' : 'deducted';
+            const absPoints = Math.abs(pointsChange);
+            
+            toast({
+              title: "Reward Points Adjusted",
+              description: `${absPoints} points ${changeType} due to order total change`,
+              duration: 4000,
+            });
+            
+            console.log(`✅ Reward points adjusted: ${pointsChange > 0 ? '+' : ''}${pointsChange} points`);
+          } else if (!adjustmentResult.success && adjustmentResult.error) {
+            console.warn('⚠️  Reward points adjustment skipped:', adjustmentResult.error);
+          }
+        } catch (rewardError) {
+          console.error('❌ Error adjusting reward points:', rewardError);
+          // Don't throw - order update was successful
+        }
+      }
+
       // Log activity for items change
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const { OrderActivityService } = await import("@/services/orderActivityService");
         
-        let activityDescription = `Order items modified. Total changed from ${oldTotal.toFixed(2)} to ${newTotal.toFixed(2)}`;
+        let activityDescription = `Order items modified. Total changed from $${oldTotal.toFixed(2)} to $${newTotal.toFixed(2)}`;
         if (updatePaymentStatus === 'partial_paid') {
           const balanceDue = newTotal - paidAmount;
-          activityDescription += `. Balance due: ${balanceDue.toFixed(2)}`;
+          activityDescription += `. Balance due: $${balanceDue.toFixed(2)}`;
         }
 
         await OrderActivityService.logActivity({

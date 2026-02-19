@@ -216,6 +216,34 @@ export class OrderActivityService {
   }
 
   /**
+   * Log order cancel
+   */
+  static async logOrderCancel(params: {
+    orderId: string;
+    orderNumber: string;
+    reason?: string;
+    performedBy?: string;
+    performedByName?: string;
+    performedByEmail?: string;
+  }) {
+    console.log("🔵 Logging order cancel:", params);
+    return this.logActivity({
+      orderId: params.orderId,
+      activityType: "cancelled",
+      description: params.reason
+        ? `Order cancelled: ${params.reason}`
+        : "Order cancelled",
+      performedBy: params.performedBy,
+      performedByName: params.performedByName,
+      performedByEmail: params.performedByEmail,
+      metadata: {
+        order_number: params.orderNumber,
+        reason: params.reason,
+      },
+    });
+  }
+
+  /**
    * Log note added
    */
   static async logNoteAdded(params: {

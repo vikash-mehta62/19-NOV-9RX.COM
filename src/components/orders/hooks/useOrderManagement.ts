@@ -287,6 +287,15 @@ setOrders([])
     try {
       console.log("Void Reason:", reason);
 
+      // Get order data before voiding (for reward points reversal)
+      const { data: orderBeforeVoid, error: fetchOrderError } = await supabase
+        .from("orders")
+        .select("id, order_number, total_amount, profile_id, location_id, payment_method")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchOrderError) throw fetchOrderError;
+
       // Step 1: Update the invoices table
       const { error: invoiceUpdateError } = await supabase
         .from("invoices")
@@ -303,7 +312,65 @@ setOrders([])
         .single(); // Get updated order
       if (orderUpdateError) throw orderUpdateError;
 
-      // Step 3: Reverse stock for order items
+      // Step 3: Reverse reward points if order had points awarded
+      if (orderBeforeVoid && orderBeforeVoid.payment_method !== 'credit') {
+        try {
+          console.log('🔄 Reversing reward points for voided order...');
+          
+          // Check ALL reward transactions for this order (original + edits)
+          const { data: rewardTransactions } = await supabase
+            .from("reward_transactions")
+            .select("id, points")
+            .eq("reference_id", orderId)
+            .in("reference_type", ["order", "order_edit"]) // ✅ Include both order and order_edit
+            .eq("transaction_type", "earn");
+
+          if (rewardTransactions && rewardTransactions.length > 0) {
+            // Calculate total points to reverse (sum of all transactions)
+            const totalPointsToReverse = rewardTransactions.reduce((sum, t) => sum + (t.points || 0), 0);
+            
+            if (totalPointsToReverse > 0) {
+              const customerId = orderBeforeVoid.location_id || orderBeforeVoid.profile_id;
+              
+              // Get customer's current points
+              const { data: customer } = await supabase
+                .from("profiles")
+                .select("reward_points")
+                .eq("id", customerId)
+                .single();
+
+              if (customer) {
+                const newPoints = Math.max(0, (customer.reward_points || 0) - totalPointsToReverse);
+                
+                // Update customer points
+                await supabase
+                  .from("profiles")
+                  .update({ reward_points: newPoints })
+                  .eq("id", customerId);
+
+                // Log reversal transaction
+                await supabase
+                  .from("reward_transactions")
+                  .insert({
+                    user_id: customerId,
+                    points: -totalPointsToReverse,
+                    transaction_type: "adjust",
+                    description: `Order #${orderBeforeVoid.order_number} voided: -${totalPointsToReverse} points reversed`,
+                    reference_type: "order_void",
+                    reference_id: orderId
+                  });
+
+                console.log(`✅ Reversed ${totalPointsToReverse} reward points for voided order (${rewardTransactions.length} transactions)`);
+              }
+            }
+          }
+        } catch (rewardError) {
+          console.error('❌ Error reversing reward points:', rewardError);
+          // Don't throw - order void should still succeed
+        }
+      }
+
+      // Step 4: Reverse stock for order items
       const { data: orderItems, error: itemsError } = await supabase
         .from("order_items")
         .select("product_id, quantity")
@@ -326,7 +393,7 @@ setOrders([])
         }
       }
 
-      // Step 4: Reverse stock for size-level if needed
+      // Step 5: Reverse stock for size-level if needed
       const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
       for (const size of sizes) {
         const { data: currentSize, error: fetchError } = await supabase
@@ -350,6 +417,21 @@ setOrders([])
             updateError
           );
         }
+      }
+
+      // Step 6: Log void activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logOrderVoid({
+          orderId: orderId,
+          orderNumber: orderBeforeVoid.order_number,
+          reason: reason,
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+        });
+      } catch (activityError) {
+        console.error("Failed to log void activity:", activityError);
       }
 
       // Step 5: Update UI
@@ -387,6 +469,15 @@ setOrders([])
     try {
       console.log("Cancel Reason:", reason);
 
+      // Get order data before cancelling (for reward points reversal)
+      const { data: orderBeforeCancel, error: fetchOrderError } = await supabase
+        .from("orders")
+        .select("id, order_number, total_amount, profile_id, location_id, payment_method")
+        .eq("id", orderId)
+        .single();
+
+      if (fetchOrderError) throw fetchOrderError;
+
       // Step 1: Update the invoices table
       const { error: invoiceUpdateError } = await supabase
         .from("invoices")
@@ -403,7 +494,65 @@ setOrders([])
         .single();
       if (orderUpdateError) throw orderUpdateError;
 
-      // Step 3: Restore product-level stock
+      // Step 3: Reverse reward points if order had points awarded
+      if (orderBeforeCancel && orderBeforeCancel.payment_method !== 'credit') {
+        try {
+          console.log('🔄 Reversing reward points for cancelled order...');
+          
+          // Check ALL reward transactions for this order (original + edits)
+          const { data: rewardTransactions } = await supabase
+            .from("reward_transactions")
+            .select("id, points")
+            .eq("reference_id", orderId)
+            .in("reference_type", ["order", "order_edit"]) // ✅ Include both order and order_edit
+            .eq("transaction_type", "earn");
+
+          if (rewardTransactions && rewardTransactions.length > 0) {
+            // Calculate total points to reverse (sum of all transactions)
+            const totalPointsToReverse = rewardTransactions.reduce((sum, t) => sum + (t.points || 0), 0);
+            
+            if (totalPointsToReverse > 0) {
+              const customerId = orderBeforeCancel.location_id || orderBeforeCancel.profile_id;
+              
+              // Get customer's current points
+              const { data: customer } = await supabase
+                .from("profiles")
+                .select("reward_points")
+                .eq("id", customerId)
+                .single();
+
+              if (customer) {
+                const newPoints = Math.max(0, (customer.reward_points || 0) - totalPointsToReverse);
+                
+                // Update customer points
+                await supabase
+                  .from("profiles")
+                  .update({ reward_points: newPoints })
+                  .eq("id", customerId);
+
+                // Log reversal transaction
+                await supabase
+                  .from("reward_transactions")
+                  .insert({
+                    user_id: customerId,
+                    points: -totalPointsToReverse,
+                    transaction_type: "adjust",
+                    description: `Order #${orderBeforeCancel.order_number} cancelled: -${totalPointsToReverse} points reversed`,
+                    reference_type: "order_cancel",
+                    reference_id: orderId
+                  });
+
+                console.log(`✅ Reversed ${totalPointsToReverse} reward points for cancelled order (${rewardTransactions.length} transactions)`);
+              }
+            }
+          }
+        } catch (rewardError) {
+          console.error('❌ Error reversing reward points:', rewardError);
+          // Don't throw - order cancellation should still succeed
+        }
+      }
+
+      // Step 4: Restore product-level stock
       const { data: orderItems, error: itemsError } = await supabase
         .from("order_items")
         .select("product_id, quantity")
@@ -426,7 +575,7 @@ setOrders([])
         }
       }
 
-      // Step 4: Restore size-level stock (if applicable)
+      // Step 5: Restore size-level stock (if applicable)
       const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
       for (const size of sizes) {
         const { data: currentSize, error: fetchError } = await supabase
@@ -452,7 +601,22 @@ setOrders([])
         }
       }
 
-      // Step 5: Update UI
+      // Step 5: Log cancel activity
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await OrderActivityService.logOrderCancel({
+          orderId: orderId,
+          orderNumber: orderBeforeCancel.order_number,
+          reason: reason,
+          performedBy: session?.user?.id,
+          performedByName: session?.user?.user_metadata?.first_name || "Admin",
+          performedByEmail: session?.user?.email,
+        });
+      } catch (activityError) {
+        console.error("Failed to log cancel activity:", activityError);
+      }
+
+      // Step 6: Update UI
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
           order.id === orderId

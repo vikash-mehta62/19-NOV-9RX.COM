@@ -703,18 +703,27 @@ export function CreateOrderForm({
       if (orderError) throw new Error(orderError.message);
 
       // Award reward points for the order (only for non-credit orders)
+      // Points should be awarded to the customer (profileID), not the admin creating the order
       const paymentMethod = data.payment?.method;
-      if (paymentMethod !== "credit" && orderResponse.id && totalAmount > 0 && pId) {
+      if (paymentMethod !== "credit" && orderResponse.id && totalAmount > 0 && profileID) {
         try {
+          console.log(`🎁 Awarding reward points to customer: ${profileID} for order: ${orderNumber}`);
           const rewardResult = await awardOrderPoints(
-            pId,
+            profileID, // Award points to the customer, not the admin
             orderResponse.id,
             totalAmount,
             orderNumber
           );
           
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
-            console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+            console.log(`✅ Reward points awarded: ${rewardResult.pointsEarned} points to customer ${profileID}`);
+            
+            // Show toast notification to admin about points awarded
+            toast({
+              title: "Reward Points Awarded",
+              description: `Customer earned ${rewardResult.pointsEarned} reward points for this order!`,
+              duration: 3000,
+            });
           }
         } catch (rewardError) {
           console.error("❌ Error awarding reward points:", rewardError);
