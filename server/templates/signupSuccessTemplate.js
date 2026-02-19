@@ -113,7 +113,7 @@ const signupSuccessTemplate = (name) => {
         <div class="container">
             <div class="logo-container">
                 <a href="https://9rx.com">
-                    <img class="logo" src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/download.png" alt="9RX.com">
+                    <img class="logo" src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png" alt="9RX.com">
                 </a>
             </div>
             <div class="message">Welcome to 9RX!</div>

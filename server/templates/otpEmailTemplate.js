@@ -28,10 +28,10 @@ const otpEmailTemplate = (otp, userName = "User") => {
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
     .header {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      padding: 40px 30px;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      padding: 48px 40px;
       text-align: center;
-      color: #ffffff;
+      border-bottom: 3px solid #2563eb;
     }
     .header h1 {
       margin: 0;
@@ -139,7 +139,7 @@ const otpEmailTemplate = (otp, userName = "User") => {
 <body>
   <div class="email-container">
     <div class="header">
-      <img src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/9rx_logo.png" alt="9RX Logo" class="logo-image">
+      <img src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png" alt="9RX Logo" class="logo-image">
       <h1>Login Verification</h1>
     </div>
     

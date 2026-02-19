@@ -10,6 +10,8 @@ import axios from "../../../axiosconfig";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "../../store/actions/userAction";
 import { supabase } from "@/integrations/supabase/client";
+import { PasswordResetNotification } from "./PasswordResetNotification";
+import { UnverifiedAccountNotification } from "./UnverifiedAccountNotification";
 
 export const OTPLoginForm = () => {
   const [email, setEmail] = useState("");
@@ -22,6 +24,8 @@ export const OTPLoginForm = () => {
   const [emailValid, setEmailValid] = useState<boolean | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [countdown, setCountdown] = useState(0);
+  const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
+  const [showUnverifiedDialog, setShowUnverifiedDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const dispatch = useDispatch();
@@ -68,6 +72,25 @@ export const OTPLoginForm = () => {
         throw new Error("Password must be at least 6 characters long");
       }
 
+      // FIRST: Check if email is verified by querying email_confirmed_at column directly
+      const { data: authData, error: authError } = await supabase.rpc('check_email_verification', {
+        user_email: email.trim().toLowerCase()
+      });
+
+      console.log("Email verification check:", authData);
+
+      // authData is an array with one object: [{email_confirmed: boolean, confirmed_at: timestamp}]
+      // If user exists and email is NOT confirmed, show unverified dialog
+      if (authData && authData.length > 0) {
+        const verificationStatus = authData[0];
+        if (verificationStatus.email_confirmed === false) {
+          setShowUnverifiedDialog(true);
+          setIsSendingOTP(false);
+          return;
+        }
+      }
+
+      // Email is verified, proceed with OTP send
       const response = await axios.post("/api/otp/send", {
         email: email.trim().toLowerCase(),
         password: password,
@@ -123,6 +146,41 @@ export const OTPLoginForm = () => {
           throw new Error("Failed to create session. Please try again.");
         }
 
+        // Check if user requires password reset (exclude admin role)
+        if (user.role !== "admin") {
+          const { data: profileData, error: profileError } = await supabase
+            .from("profiles")
+            .select("requires_password_reset")
+            .eq("id", user.id)
+            .single();
+
+          if (profileError) {
+            console.error("Error checking password reset flag:", profileError);
+          }
+
+          // If user requires password reset, show notification and sign out
+          if (profileData?.requires_password_reset === true) {
+            // Sign out the user immediately
+            await supabase.auth.signOut();
+            
+            // Show the password reset notification dialog
+            setShowPasswordResetDialog(true);
+            
+            // Log this attempt for admin visibility
+            try {
+              await supabase.from("password_reset_requests").insert({
+                user_id: user.id,
+                email: user.email,
+                requested_at: new Date().toISOString(),
+              });
+            } catch (logError) {
+              console.error("Failed to log password reset request:", logError);
+            }
+            
+            return;
+          }
+        }
+
         // Store session data
         sessionStorage.setItem("isLoggedIn", "true");
         sessionStorage.setItem("userType", user.type);
@@ -135,7 +193,22 @@ export const OTPLoginForm = () => {
         sessionStorage.setItem("lastActivity", Date.now().toString());
 
         // Update Redux store
-        dispatch(setUserProfile(user));
+        dispatch(setUserProfile({
+          id: user.id,
+          email: user.email,
+          first_name: user.firstName,  // Convert from camelCase to snake_case
+          last_name: user.lastName,
+          type: user.type,
+          role: user.role,
+          status: user.status,
+          display_name: user.displayName,
+          company_name: user.companyName,
+          group_id: user.groupId,
+          portal_access: user.portalAccess,
+          freeShipping: user.freeShipping,
+          taxPercantage: user.taxPercantage,
+          order_pay: user.order_pay,
+        }));
 
         toast({
           title: "Login Successful",
@@ -216,8 +289,35 @@ export const OTPLoginForm = () => {
     }
   };
 
+  const handlePasswordResetDialogClose = () => {
+    setShowPasswordResetDialog(false);
+    // Reset form state
+    setOtpSent(false);
+    setOTP("");
+    setPassword("");
+    setError("");
+  };
+
+  const handleUnverifiedDialogClose = () => {
+    setShowUnverifiedDialog(false);
+    // Reset form state
+    setPassword("");
+    setError("");
+  };
+
   return (
-    <div className="space-y-6"> 
+    <div className="space-y-6">
+      <PasswordResetNotification
+        open={showPasswordResetDialog}
+        onClose={handlePasswordResetDialogClose}
+      />
+      
+      <UnverifiedAccountNotification
+        open={showUnverifiedDialog}
+        onClose={handleUnverifiedDialogClose}
+        email={email}
+      />
+      
       {error && (
         <Alert variant="destructive">
           <AlertDescription>{error}</AlertDescription>

@@ -17,7 +17,7 @@ export const ProductThumbnail = ({ product }: ProductThumbnailProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/";
+    const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/";
 
     let finalImage: string | null = null;
 

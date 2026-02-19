@@ -5,7 +5,7 @@ const mailSender = require("../utils/mailSender");
 const otpEmailTemplate = require("../templates/otpEmailTemplate");
 
 // Initialize Supabase Admin Client
-const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
+const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
@@ -38,8 +38,8 @@ router.post("/send", async (req, res) => {
 
     // Step 1: Authenticate user with Supabase
     const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
+    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
+    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -50,9 +50,24 @@ router.post("/send", async (req, res) => {
     });
 
     if (authError || !authData.user) {
+      // Check if error is due to unconfirmed email
+      if (authError && authError.message && authError.message.toLowerCase().includes('email not confirmed')) {
+        return res.status(403).json({ 
+          success: false, 
+          message: "Email not confirmed. Please contact admin for account verification." 
+        });
+      }
       return res.status(401).json({ 
         success: false, 
         message: "Invalid email or password" 
+      });
+    }
+
+    // Additional check: Verify email is confirmed
+    if (!authData.user.email_confirmed_at) {
+      return res.status(403).json({ 
+        success: false, 
+        message: "Email not confirmed. Please contact admin for account verification." 
       });
     }
 
@@ -219,7 +234,7 @@ router.post("/verify", async (req, res) => {
 
     // OTP verified successfully - Now authenticate with Supabase to create session
     const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
+    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
@@ -320,7 +335,7 @@ router.post("/resend", async (req, res) => {
     // Re-verify credentials and send new OTP
     // Reuse the send endpoint logic
     const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
+    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
     const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
     
     const supabase = createClient(supabaseUrl, supabaseAnonKey);

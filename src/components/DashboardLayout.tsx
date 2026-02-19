@@ -41,7 +41,6 @@ import { SidebarProfile } from "./dashboard/SidebarProfile";
 import { TopBar } from "./dashboard/TopBar";
 import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
-import { AnnouncementDisplay } from "./AnnouncementDisplay"
 import { useCart } from "@/hooks/use-cart"
 
 interface DashboardLayoutProps {
@@ -237,7 +236,6 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           <TopBar />
           <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 overflow-y-auto">
             <div className="mx-auto max-w-7xl w-full">
-              <AnnouncementDisplay userRole={role} />
               {children}
             </div>
           </div>

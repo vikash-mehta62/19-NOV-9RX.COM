@@ -1,6 +1,6 @@
 -- Fix A/B Tests RLS Policy Error
 -- Run this in Supabase SQL Editor to allow creating A/B tests
--- URL: https://supabase.com/dashboard/project/asnhfgfhidhzswqkhpzz/editor
+-- URL: https://supabase.com/dashboard/project/qiaetxkxweghuoxyhvml/editor
 
 -- First, check if ab_tests table exists
 DO $$ 

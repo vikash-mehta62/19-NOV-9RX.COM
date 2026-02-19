@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Using the service role key to bypass RLS for debugging
-const SUPABASE_URL = "https://asnhfgfhidhzswqkhpzz.supabase.co";
+const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
 // NOTE: This key should ideally come from env vars, but using here for debug as requested
 // IF YOU DO NOT HAVE SERVICE ROLE KEY, WE MUST RELY ON RLS POLICIES WORKING CORRECTLY
 // Trying with anon key first, but maybe we need to sign in?

@@ -44,7 +44,7 @@ export const PharmacySizeCard = ({
   )
 
   const getImageUrl = () => {
-    const basePath = "https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/"
+    const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/"
     if (item.image) {
       if (item.image.startsWith("http")) return item.image
       return basePath + item.image

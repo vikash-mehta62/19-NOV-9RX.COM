@@ -1,7 +1,7 @@
 -- =====================================================
 -- COMPLETE DATABASE SETUP FOR PASSWORD RESET SYSTEM
 -- Run this entire script in Supabase SQL Editor
--- Database: https://asnhfgfhidhzswqkhpzz.supabase.co
+-- Database: https://qiaetxkxweghuoxyhvml.supabase.co
 -- =====================================================
 
 -- =====================================================

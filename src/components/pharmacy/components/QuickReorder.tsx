@@ -180,7 +180,7 @@ export const QuickReorder = () => {
             <div className="flex gap-3">
               <div className="w-16 h-16 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                 <img
-                  src={`https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/${item.image}`}
+                  src={`https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${item.image}`}
                   alt={item.name}
                   className="w-full h-full object-contain p-1"
                   onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}

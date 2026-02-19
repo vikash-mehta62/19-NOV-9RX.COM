@@ -5,11 +5,15 @@ import type { Database } from './types';
 // const SUPABASE_URL = "https://cfyqeilfmodrbiamqgme.supabase.co";
 // const SUPABASE_URL = "https://wrvmbgmmuoivsfancgft.supabase.co";
 //9RX DB
-const SUPABASE_URL = "https://asnhfgfhidhzswqkhpzz.supabase.co";
+// const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
+
 // const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNmeXFlaWxmbW9kcmJpYW1xZ21lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzYzMzU1MzUsImV4cCI6MjA1MTkxMTUzNX0.iQNaVfII5iplmoH-acTf50VHm3YDue9XCHvHas4vMOA";
 // const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMzIzMTcsImV4cCI6MjA3ODYwODMxN30.qtTYnhBes4nd7n_kDH_S3HxS7Zl0pf1JW708wOJ7e08";
-//9rx DB
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
+
+//9RX DB - US West
+const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
+//9RX DB - US West
+const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
 
 
 // Import the supabase client like this:

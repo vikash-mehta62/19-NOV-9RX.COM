@@ -68,34 +68,8 @@ export const SignupForm = () => {
 
       console.log("Auth user created successfully:", authData.user.id);
 
-      // Step 2: Create profile
-      const profileData = {
-        id: authData.user.id,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        display_name: `${formData.firstName} ${formData.lastName}`,
-        email: formData.email,
-        mobile_phone: formData.phone,
-        work_phone: formData.phone,
-        status: "pending",
-        type: "pharmacy", // Set type as pharmacy by default
-        role: "user", // Default role
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      // console.log("Attempting to create profile with data:", profileData);
-
-      const { error: profileError } = await supabase
-        .from("profiles")
-        .upsert([profileData]);
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError);
-        // Note: Cannot delete auth user from client-side, admin will need to clean up orphaned users
-        // The user can try signing up again with the same email
-        throw profileError;
-      }
+      // Note: Profile is automatically created by database trigger (on_auth_user_created)
+      // No need to manually insert into profiles table
 
       // Apply referral code if provided
       if (formData.referralCode && formData.referralCode.trim()) {
@@ -121,7 +95,7 @@ export const SignupForm = () => {
         console.error("Error in user verification:", error.response?.data || error.message);
       }
       
-      console.log("Profile created successfully");
+      console.log("User signup completed successfully");
       toast({
         title: "Account Created",
         description:

@@ -1,7 +1,11 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://asnhfgfhidhzswqkhpzz.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ';
+//9RX DB
+// const supabaseUrl = 'https://qiaetxkxweghuoxyhvml.supabase.co';
+
+//9RX DB - US West
+const supabaseUrl = 'https://qiaetxkxweghuoxyhvml.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E';
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
@@ -55,7 +59,7 @@ const expectedFields = [
   'shipping_address',
   'same_as_shipping',
   'freeShipping',
-  'order-pay',
+  'order_pay',
 
   // Financial Information
   'tax_preference',

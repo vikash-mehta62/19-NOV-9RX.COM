@@ -43,7 +43,6 @@ import {
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 
 import image1 from "../../assests/home/image1.jpg";
 import image2 from "../../assests/home/image2.jpg";
@@ -550,12 +549,7 @@ export const PharmacyProductsFullPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Announcements */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4">
-        <AnnouncementDisplay userRole="pharmacy" />
-      </div>
-
+    <div className="min-h-screen bg-gray-50 mt-5">
       {/* Promotional Banner */}
       <PromoBanner />
 

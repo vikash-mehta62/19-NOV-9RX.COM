@@ -38,7 +38,7 @@ const groupInvitationTemplate = (data) => {
           <!-- Header -->
           <tr>
             <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%); border-radius: 12px 12px 0 0;">
-              <img src="https://9rx.com/logo.png" alt="9RX Logo" style="height: 50px; margin-bottom: 20px;">
+              <img src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png" alt="9RX Logo" style="height: 50px; margin-bottom: 20px;">
               <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">You're Invited!</h1>
               <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 10px 0 0;">Join ${groupName} on 9RX</p>
             </td>

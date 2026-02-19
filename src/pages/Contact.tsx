@@ -79,7 +79,7 @@ const Contact = () => {
     {
       icon: Clock,
       title: "Business Hours",
-      value: "Mon - Fri: 9AM - 6PM",
+      value: "Mon - Fri: 9AM - 5PM",
       description: "EST Time Zone",
       href: null
     }

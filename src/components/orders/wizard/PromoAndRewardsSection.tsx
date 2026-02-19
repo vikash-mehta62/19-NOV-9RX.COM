@@ -251,7 +251,7 @@ export function PromoAndRewardsSection({
             .from("rewards_config")
             .select("points_per_dollar, point_redemption_value")
             .limit(1)
-            .single();
+            .maybeSingle();
 
           // Use point_redemption_value if set, otherwise calculate from points_per_dollar
           // Default: 100 points = $1, so 1 point = $0.01

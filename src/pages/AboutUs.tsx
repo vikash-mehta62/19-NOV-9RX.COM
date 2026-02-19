@@ -99,7 +99,7 @@ const AboutUs = () => {
             </div>
           </div>
         </section>
-
+647074
         {/* Our Story */}
         <section className="py-20 bg-gradient-to-b from-white to-blue-50/50">
           <div className="container mx-auto px-4">
@@ -124,15 +124,15 @@ const AboutUs = () => {
                   </p>
                 </div>
               </div>
-              <div className="relative">
-                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-8 text-white">
+              <div className="relative lg:pb-24">
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 rounded-3xl p-8 text-white mb-8 lg:mb-0">
                   <Eye className="w-12 h-12 mb-6 opacity-80" />
                   <h3 className="text-2xl font-bold mb-4">Our Vision</h3>
                   <p className="text-blue-100 leading-relaxed">
                     To be the most trusted and reliable pharmacy supply partner in America, empowering independent pharmacies to thrive through quality products, competitive pricing, and exceptional service.
                   </p>
                 </div>
-                <div className="absolute -bottom-6 -right-6 bg-white rounded-2xl p-6 shadow-xl max-w-xs">
+                <div className="lg:absolute lg:-bottom-6 lg:-right-6 bg-white rounded-2xl p-6 shadow-xl max-w-xs">
                   <Target className="w-8 h-8 text-blue-600 mb-3" />
                   <h4 className="font-bold text-slate-900 mb-2">Our Mission</h4>
                   <p className="text-sm text-slate-600">

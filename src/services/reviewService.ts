@@ -45,7 +45,7 @@ export async function submitReview(
       .select("id")
       .eq("user_id", userId)
       .eq("product_id", productId)
-      .single()
+      .maybeSingle()
 
     if (existingReview) {
       return { success: false, message: "You have already reviewed this product" }
@@ -123,7 +123,7 @@ async function awardReviewPoints(userId: string, reviewId: string): Promise<numb
     const { data: config } = await supabase
       .from("rewards_config")
       .select("review_bonus")
-      .single()
+      .maybeSingle()
 
     const reviewBonus = config?.review_bonus || 50
 
@@ -301,7 +301,7 @@ export async function canUserReview(userId: string, productId: string): Promise<
     .select("id")
     .eq("user_id", userId)
     .eq("product_id", productId)
-    .single()
+    .maybeSingle()
 
   if (existingReview) {
     return { canReview: false, reason: "You have already reviewed this product" }
