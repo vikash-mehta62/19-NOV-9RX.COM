@@ -360,7 +360,7 @@ export default function Settings() {
                   </TabsTrigger> */}
                 </TabsList>
 
-                <TabsList className="grid grid-cols-3 md:grid-cols-5 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-4 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="hours" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Hours</span>
@@ -377,10 +377,10 @@ export default function Settings() {
                     <FolderTree className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Categories</span>
                   </TabsTrigger>
-                  <TabsTrigger value="appearance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                  {/* <TabsTrigger value="appearance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Palette className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Appearance</span>
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                 </TabsList>
               </div>
 

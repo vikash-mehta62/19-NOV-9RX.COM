@@ -388,7 +388,7 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
             <!-- Header -->
             <tr>
               <td class="header">
-                <img src="https://asnhfgfhidhzswqkhpzz.supabase.co/storage/v1/object/public/product-images/9rx_logo.png" alt="9RX Logo" class="logo-image">
+                <img src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png" alt="9RX Logo" class="logo-image">
                 <p class="logo-subtitle">Your Trusted Pharmacy Partner</p>
               </td>
             </tr>

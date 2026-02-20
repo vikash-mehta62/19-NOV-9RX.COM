@@ -72,7 +72,7 @@ export const DealsSection = () => {
         const { data: settingsData } = await supabase
           .from("daily_deals_settings")
           .select("*")
-          .single();
+          .maybeSingle();
 
         if (settingsData) {
           setSettings(settingsData);
@@ -117,35 +117,14 @@ export const DealsSection = () => {
             }
           }
         } else {
-          // Fallback: If no settings table exists, use simulated deals
-          const { data: products } = await supabase
-            .from("products")
-            .select("id, name, image_url, base_price")
-            .eq("is_active", true)
-            .limit(6);
-
-          if (products && products.length > 0) {
-            const dealsWithDiscount = products.map((p, index) => {
-              const discountPercent = [10, 15, 20, 25, 30][index % 5];
-              return {
-                id: p.id,
-                name: p.name,
-                image_url: p.image_url || "/placeholder.svg",
-                original_price: p.base_price,
-                base_price: p.base_price * (1 - discountPercent / 100),
-                discount_percent: discountPercent,
-                offer_badge: index % 3 === 0 ? "HOT DEAL" : index % 3 === 1 ? "BEST SELLER" : "LIMITED",
-              };
-            });
-            setDeals(dealsWithDiscount);
-            setSettings({
-              is_enabled: true,
-              section_title: "Deals of the Day",
-              section_subtitle: "Limited time offers - Don't miss out!",
-              countdown_enabled: true,
-              max_products: 6,
-            });
-          }
+          // If no settings exist, don't show the section by default
+          setSettings({
+            is_enabled: false,
+            section_title: "Deals of the Day",
+            section_subtitle: "Limited time offers - Don't miss out!",
+            countdown_enabled: true,
+            max_products: 6,
+          });
         }
       } catch (error) {
         console.error("Error fetching deals:", error);
@@ -236,9 +215,12 @@ export const DealsSection = () => {
                 {/* Image */}
                 <div className="relative h-40 overflow-hidden rounded-t-xl bg-gray-100">
                   <img
-                    src={product.image_url || "/placeholder.svg"}
+                    src={product.image_url || "https://placehold.co/400x300/e5e7eb/6b7280?text=No+Image"}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://placehold.co/400x300/e5e7eb/6b7280?text=No+Image";
+                    }}
                   />
                   
                   {/* Gradient Overlay */}

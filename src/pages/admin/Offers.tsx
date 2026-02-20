@@ -293,9 +293,9 @@ export default function Offers() {
       const { data, error } = await supabase
         .from("daily_deals_settings")
         .select("*")
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error) throw error;
       
       if (data) {
         setDealsSettings(data);

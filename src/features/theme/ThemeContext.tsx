@@ -60,7 +60,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         .from('user_preferences')
         .select('theme')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (error || !data) {
         // No preference found, use localStorage fallback

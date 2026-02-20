@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/supabaseClient";
+import { supabase } from "@/integrations/supabase/client";
 import { User } from "@/components/users/UsersTable";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 

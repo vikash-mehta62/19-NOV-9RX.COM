@@ -440,7 +440,12 @@ export async function executeAutomationRules() {
 
   // Trigger high value order check
   const { error: orderError } = await supabase.rpc('check_high_value_orders');
-  if (orderError) console.error('Order check error:', orderError);
+  if (orderError) {
+    // Only log if it's not a "function not found" error
+    if (orderError.code !== 'PGRST202') {
+      console.error('Order check error:', orderError);
+    }
+  }
 
   // Trigger auto-reorder
   const { error: reorderError } = await supabase.rpc('trigger_auto_reorder');

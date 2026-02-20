@@ -83,7 +83,7 @@ const PendingCreditTerms = () => {
         .in("status", ["pending", "viewed"])
         .order("sent_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (terms) {
         setPendingTerms(terms);

@@ -79,14 +79,20 @@ export function TaxAndDocumentsSection({ form, isAdmin = false, userId }: TaxAnd
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size (max 10MB)
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "Error", description: "File size must be less than 10MB", variant: "destructive" });
+    if (!userId) {
+      toast({ 
+        title: "Cannot Upload Yet", 
+        description: "Please save the customer first, then you can upload documents from the edit screen.", 
+        variant: "destructive" 
+      });
+      e.target.value = ''; // Reset file input
       return;
     }
 
-    if (!userId) {
-      toast({ title: "Error", description: "User ID is required to upload documents", variant: "destructive" });
+    // Validate file size (max 10MB)
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ title: "Error", description: "File size must be less than 10MB", variant: "destructive" });
+      e.target.value = ''; // Reset file input
       return;
     }
 
@@ -295,22 +301,29 @@ export function TaxAndDocumentsSection({ form, isAdmin = false, userId }: TaxAnd
 
         <div className="space-y-2">
           <FormLabel>Documents</FormLabel>
-          <div className="flex items-center gap-2">
-            <Input
-              type="file"
-              className="hidden"
-              id="document-upload"
-              onChange={handleFileUpload}
-              disabled={isUploading}
-              accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-            />
-            <Button asChild variant="outline" disabled={isUploading}>
-              <label htmlFor="document-upload" className="cursor-pointer">
-                {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                {isUploading ? "Uploading..." : "Upload Document"}
-              </label>
-            </Button>
-          </div>
+          {!userId && (
+            <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border">
+              💡 Documents can be uploaded after creating the customer. Save this form first, then edit the customer to add documents.
+            </p>
+          )}
+          {userId && (
+            <div className="flex items-center gap-2">
+              <Input
+                type="file"
+                className="hidden"
+                id="document-upload"
+                onChange={handleFileUpload}
+                disabled={isUploading}
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+              />
+              <Button asChild variant="outline" disabled={isUploading}>
+                <label htmlFor="document-upload" className="cursor-pointer">
+                  {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                  {isUploading ? "Uploading..." : "Upload Document"}
+                </label>
+              </Button>
+            </div>
+          )}
 
           {isLoading && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">

@@ -43,7 +43,6 @@ import {
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 
 import image1 from "../../assests/home/image1.jpg";
 import image2 from "../../assests/home/image2.jpg";
@@ -213,6 +212,11 @@ export const PharmacyProductsFullPage = () => {
             quantityPerCase: item.quantity_per_case || 0,
             sizes: item.product_sizes
               ?.filter((size: any) => {
+                // Filter out inactive sizes for non-admin users
+                if (!isAdmin && size.is_active === false) {
+                  return false;
+                }
+                
                 const groupIds = size.groupIds || []
                 const disAllowGroupIds = size.disAllogroupIds || []
                 const isDisallowed = groupData?.some(
@@ -276,23 +280,33 @@ export const PharmacyProductsFullPage = () => {
 
         console.log("Mapped Products:", mappedProducts);
         
+        // Filter out products with no active sizes for non-admin users
+        const productsToDisplay = isAdmin 
+          ? mappedProducts 
+          : mappedProducts.filter(product => product.sizes && product.sizes.length > 0);
+        
+        console.log("Products to display (after filtering):", productsToDisplay.length);
+        
         // Fetch offers for all products
         try {
-          const productIds = mappedProducts.map(p => p.id);
+          const productIds = productsToDisplay.map(p => p.id);
           console.log("Fetching offers for product IDs:", productIds);
+          console.log("User Profile ID:", userProfile?.id);
           
-          const offersMap = await getProductsWithOffers(productIds);
+          const offersMap = await getProductsWithOffers(productIds, userProfile?.id);
           
           console.log("Offers Map size:", offersMap.size);
           console.log("Offers Map entries:", Array.from(offersMap.entries()));
           
           // Merge offer data with products
-          const productsWithOffers = mappedProducts.map(product => {
+          const productsWithOffers = productsToDisplay.map(product => {
             const offerData = offersMap.get(product.id);
-            console.log(`Product ${product.name} (${product.id}):`, offerData);
+            console.log(`🔍 Product: ${product.name} (${product.id})`);
+            console.log(`   Category: ${product.category}`);
+            console.log(`   Offer Data:`, offerData);
             
             if (offerData && offerData.hasOffer) {
-              console.log(`✅ Product ${product.name} has offer:`, offerData);
+              console.log(`✅ Applying offer to ${product.name}:`, offerData);
               return {
                 ...product,
                 effectivePrice: offerData.effectivePrice,
@@ -301,6 +315,7 @@ export const PharmacyProductsFullPage = () => {
                 discountPercent: offerData.discountPercent
               };
             }
+            console.log(`❌ No offer for ${product.name}`);
             return product;
           });
           
@@ -309,7 +324,7 @@ export const PharmacyProductsFullPage = () => {
         } catch (offerError) {
           console.error("Error fetching offers:", offerError);
           // Still set products even if offers fail
-          setProducts(mappedProducts);
+          setProducts(productsToDisplay);
         }
       } catch (error) {
         console.error("Error fetching products:", error)
@@ -550,12 +565,7 @@ export const PharmacyProductsFullPage = () => {
 
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Announcements */}
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 pt-3 sm:pt-4">
-        <AnnouncementDisplay userRole="pharmacy" />
-      </div>
-
+    <div className="min-h-screen bg-gray-50 mt-5">
       {/* Promotional Banner */}
       <PromoBanner />
 

@@ -444,6 +444,20 @@ const ProductDetails = () => {
         }
 
         console.log("Mapped product:", mappedProduct)
+        
+        // Check if product has any active sizes for non-admin users
+        // const isAdmin = userProfile?.type === 'admin';
+        // if (!isAdmin && mappedProduct.sizes.length === 0) {
+        //   console.log("No active sizes available for this product")
+        //   toast({
+        //     title: "Product Unavailable",
+        //     description: "This product is currently unavailable. Please check back later.",
+        //     variant: "destructive",
+        //   })
+        //   navigate(-1) // Go back to previous page
+        //   return
+        // }
+        
         setProduct(mappedProduct)
 
         // Process all image URLs
@@ -950,7 +964,7 @@ return (
 
         {/* ---------------- VARIANT CARDS GRID - Each variant with its own image & price ---------------- */}
         <div className="pb-20 lg:pb-8">
-          {product.sizes && product.sizes.length > 0 && (
+          {product.sizes && product.sizes.length > 0 ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between mb-6">
                 <h3 className="font-bold text-lg flex items-center text-gray-900 group">
@@ -1304,6 +1318,35 @@ return (
                 })}
               </div>
             </div>
+          ) : (
+            <Card className="shadow-lg border-2 border-amber-200 bg-amber-50">
+              <CardContent className="p-8 text-center">
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center">
+                    <Package className="w-8 h-8 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg text-gray-900 mb-2">
+                      No Sizes Available
+                    </h3>
+                    <p className="text-gray-600 text-sm">
+                      {userProfile?.type === 'admin' 
+                        ? 'All sizes for this product are currently inactive. Activate at least one size to make this product available to customers.'
+                        : 'This product is currently unavailable. Please check back later or contact support.'}
+                    </p>
+                  </div>
+                  {userProfile?.type === 'admin' && (
+                    <Button
+                      variant="outline"
+                      className="mt-2"
+                      onClick={() => navigate('/admin/products')}
+                    >
+                      Go to Product Management
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           )}
         </div>
 

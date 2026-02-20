@@ -1,7 +1,7 @@
 -- ⚡ SINGLE FIX FOR ALL BANNER ERRORS
 -- This script safely adds ONLY missing columns (won't re-add existing ones)
 -- Copy ALL of this and run in Supabase SQL Editor
--- URL: https://supabase.com/dashboard/project/asnhfgfhidhzswqkhpzz/editor
+-- URL: https://supabase.com/dashboard/project/qiaetxkxweghuoxyhvml/editor
 
 -- Add targeting columns (only if they don't exist)
 ALTER TABLE banners ADD COLUMN IF NOT EXISTS target_user_types TEXT[] DEFAULT ARRAY['all'];

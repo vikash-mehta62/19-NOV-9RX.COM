@@ -41,9 +41,10 @@ export default function CategoryBrowse() {
         }
 
         // Fetch product counts per category
+        // We need to count only products that have at least one active size
         const { data: products, error: productsError } = await supabase
           .from("products")
-          .select("category")
+          .select("id, category, product_sizes!inner(is_active)")
           .eq("is_active", true);
 
         if (productsError) {
@@ -51,14 +52,21 @@ export default function CategoryBrowse() {
         }
 
         // Calculate product count per category (case-insensitive)
+        // Only count products that have at least one active size
         const productCountMap = new Map<string, number>();
-        products?.forEach((product) => {
-          if (product.category) {
-            const categoryLower = product.category.toLowerCase();
-            productCountMap.set(
-              categoryLower,
-              (productCountMap.get(categoryLower) || 0) + 1
+        products?.forEach((product: any) => {
+          if (product.category && product.product_sizes) {
+            // Check if product has at least one active size
+            const hasActiveSizes = product.product_sizes.some(
+              (size: any) => size.is_active !== false
             );
+            if (hasActiveSizes) {
+              const categoryLower = product.category.toLowerCase();
+              productCountMap.set(
+                categoryLower,
+                (productCountMap.get(categoryLower) || 0) + 1
+              );
+            }
           }
         });
 

@@ -64,7 +64,7 @@ export async function checkAndAwardBirthdayBonus(userId: string): Promise<{
     const { data: config } = await supabase
       .from("rewards_config")
       .select("birthday_bonus")
-      .single()
+      .maybeSingle()
 
     const birthdayBonus = config?.birthday_bonus || 100
 

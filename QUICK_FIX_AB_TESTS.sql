@@ -1,6 +1,6 @@
 -- ⚡ QUICK FIX: A/B Tests RLS Error
 -- Copy and run this in Supabase SQL Editor
--- URL: https://supabase.com/dashboard/project/asnhfgfhidhzswqkhpzz/editor
+-- URL: https://supabase.com/dashboard/project/qiaetxkxweghuoxyhvml/editor
 
 -- Drop restrictive policies
 DROP POLICY IF EXISTS "Admin can manage A/B tests" ON ab_tests;

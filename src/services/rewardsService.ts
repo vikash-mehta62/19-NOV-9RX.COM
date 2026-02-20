@@ -25,7 +25,7 @@ export async function getRewardsConfig(): Promise<RewardsConfig | null> {
     .from("rewards_config")
     .select("*")
     .limit(1)
-    .single()
+    .maybeSingle()
   return data
 }
 

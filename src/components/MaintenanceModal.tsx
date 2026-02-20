@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -34,7 +33,7 @@ const MaintenanceModal = () => {
             </div>
             <DialogTitle className="text-xl">Website Maintenance Notice</DialogTitle>
           </div>
-          <DialogDescription className="text-base space-y-3 pt-2">
+          <div className="text-base space-y-3 pt-2">
             <p className="font-semibold text-gray-900">
               🚧 We are currently upgrading our website
             </p>
@@ -49,7 +48,7 @@ const MaintenanceModal = () => {
             <p className="text-sm text-gray-600 mt-3">
               We appreciate your patience and understanding. Thank you for being with us!
             </p>
-          </DialogDescription>
+          </div>
         </DialogHeader>
         <div className="flex justify-end gap-3 mt-4">
           <Button

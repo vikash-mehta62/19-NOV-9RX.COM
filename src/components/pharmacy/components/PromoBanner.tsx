@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { X, Gift, Truck, Percent, Clock, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PromoMessage {
   id: string;
@@ -12,18 +13,64 @@ interface PromoMessage {
   bgColor: string;
 }
 
-const defaultPromos: PromoMessage[] = [
-  { id: "1", icon: "truck", text: "Free shipping on orders over $100", bgColor: "from-violet-600 to-purple-600" },
-  { id: "2", icon: "percent", text: "Use code SAVE10 for 10% off your first order", bgColor: "from-violet-600 to-purple-600" },
-  { id: "3", icon: "gift", text: "Earn 2x reward points on all orders this week", bgColor: "from-violet-600 to-purple-600" },
-];
-
 const iconMap = { gift: Gift, truck: Truck, percent: Percent, clock: Clock };
+
+// Helper function to determine icon based on announcement type
+const getIconFromType = (type: string | null): "gift" | "truck" | "percent" | "clock" => {
+  if (!type) return "gift";
+  const lowerType = type.toLowerCase();
+  if (lowerType.includes("shipping") || lowerType.includes("delivery")) return "truck";
+  if (lowerType.includes("discount") || lowerType.includes("sale") || lowerType.includes("percent")) return "percent";
+  if (lowerType.includes("time") || lowerType.includes("limited")) return "clock";
+  return "gift";
+};
 
 export const PromoBanner = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
-  const [promos] = useState<PromoMessage[]>(defaultPromos);
+  const [promos, setPromos] = useState<PromoMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch promo banners from database
+  useEffect(() => {
+    const fetchPromos = async () => {
+      try {
+        const now = new Date().toISOString();
+        const { data, error } = await supabase
+          .from("announcements")
+          .select("*")
+          .eq("is_active", true)
+          .eq("display_type", "banner")
+          .or(`target_audience.eq.pharmacy,target_audience.eq.all`)
+          .lte("start_date", now)
+          .gte("end_date", now)
+          .order("priority", { ascending: false });
+
+        if (error) {
+          console.error("Error fetching promo banners:", error);
+          setPromos([]);
+        } else if (data && data.length > 0) {
+          const formattedPromos: PromoMessage[] = data.map((announcement) => ({
+            id: announcement.id,
+            icon: getIconFromType(announcement.announcement_type),
+            text: announcement.message,
+            link: announcement.link_url || undefined,
+            bgColor: "from-violet-600 to-purple-600",
+          }));
+          setPromos(formattedPromos);
+        } else {
+          setPromos([]);
+        }
+      } catch (error) {
+        console.error("Error fetching promo banners:", error);
+        setPromos([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPromos();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -42,7 +89,7 @@ export const PromoBanner = () => {
     sessionStorage.setItem("promoBannerDismissed", "true");
   };
 
-  if (!isVisible || promos.length === 0) return null;
+  if (!isVisible || promos.length === 0 || loading) return null;
 
   const currentPromo = promos[currentIndex];
   const IconComponent = iconMap[currentPromo.icon];

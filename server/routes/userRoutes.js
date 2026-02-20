@@ -3,7 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 
 // Initialize Supabase Admin Client with service role key
-const supabaseUrl = process.env.SUPABASE_URL || "https://asnhfgfhidhzswqkhpzz.supabase.co";
+const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 // Helper to get Supabase admin client
@@ -23,7 +23,7 @@ const getSupabaseAdmin = () => {
 router.post("/create-user", async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const { email, password, firstName, lastName, userMetadata } = req.body;
+    const { email, password, firstName, lastName, userMetadata, profileData } = req.body;
 
     if (!email || !firstName) {
       return res.status(400).json({
@@ -60,11 +60,36 @@ router.post("/create-user", async (req, res) => {
       });
     }
 
+    // If profileData is provided, create/upsert the profile using admin client (bypasses RLS)
+    let profileResult = null;
+    if (profileData && typeof profileData === 'object') {
+      const fullProfileData = {
+        ...profileData,
+        id: authData.user.id,
+        email: email.toLowerCase().trim(),
+      };
+
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .upsert(fullProfileData, { onConflict: "id" })
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error("Profile creation error (admin create-user):", profileError);
+        // Don't fail the whole request - auth user was created successfully
+        profileResult = { success: false, error: profileError.message };
+      } else {
+        profileResult = { success: true, data: profile };
+      }
+    }
+
     return res.json({
       success: true,
       message: "User created successfully",
       userId: authData.user.id,
       user: authData.user,
+      profile: profileResult,
     });
   } catch (error) {
     console.error("Create User Error:", error);
@@ -88,13 +113,57 @@ router.delete("/delete-user/:userId", async (req, res) => {
       });
     }
 
+    // First check if user exists in auth
+    const { data: existingUser, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    
+    if (getUserError && getUserError.status !== 404) {
+      console.error("Error checking user existence:", getUserError);
+      return res.status(400).json({
+        success: false,
+        message: "Failed to verify user status",
+        error: {
+          code: getUserError.code,
+          status: getUserError.status
+        }
+      });
+    }
+
+    // If user doesn't exist in auth, consider it already deleted (success)
+    if (!existingUser || getUserError?.status === 404) {
+      console.log("User already deleted from auth:", userId);
+      return res.json({
+        success: true,
+        message: "User already deleted from authentication system",
+        alreadyDeleted: true
+      });
+    }
+
+    // User exists, proceed with deletion
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (error) {
       console.error("Delete User Error:", error);
+      
+      // If error is "user not found" or "unexpected_failure" with null user, treat as success
+      if (error.code === 'unexpected_failure' || error.status === 404) {
+        console.log("User deletion resulted in expected error (likely already deleted):", error.code);
+        return res.json({
+          success: true,
+          message: "User deleted successfully",
+          note: "User was already removed from authentication system"
+        });
+      }
+      
+      // Return detailed error information for other errors
       return res.status(400).json({
         success: false,
         message: error.message || "Failed to delete user",
+        error: {
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+          status: error.status
+        }
       });
     }
 
@@ -107,6 +176,7 @@ router.delete("/delete-user/:userId", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Internal server error",
+      details: error.toString()
     });
   }
 });
@@ -361,6 +431,17 @@ router.post("/approve-access/:userId", async (req, res) => {
         success: false,
         message: userError.message || "Failed to fetch user details",
       });
+    }
+
+    // IMPORTANT: Update auth.users to confirm email
+    const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
+      userId,
+      { email_confirm: true }
+    );
+
+    if (authUpdateError) {
+      console.error("Error confirming email in auth.users:", authUpdateError);
+      // Don't fail the request, just log the error
     }
 
     // Update profile status

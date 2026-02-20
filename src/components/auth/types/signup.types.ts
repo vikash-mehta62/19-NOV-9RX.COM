@@ -17,28 +17,30 @@ export interface SignupFormData {
   email: string;
   password: string;
   confirmPassword: string;
-  companyName: string;
+  companyName?: string;
   referralCode?: string;
+  phone?: string; // Simple phone field for basic signup
+  termsAccepted: boolean; // Terms & conditions acceptance
   
   // Step 2: Pharmacy Details
-  pharmacyLicense: string;
+  pharmacyLicense?: string;
   
   // Step 3: Contact Information
-  workPhone: string;
-  mobilePhone: string;
+  workPhone?: string;
+  mobilePhone?: string;
   alternativeEmail?: string;
   fax?: string;
-  contactPerson: string;
+  contactPerson?: string;
   department?: string;
   
   // Step 4: Addresses
-  billingAddress: AddressData;
-  shippingAddress: AddressData;
-  sameAsShipping: boolean;
+  billingAddress?: AddressData;
+  shippingAddress?: AddressData;
+  sameAsShipping?: boolean;
   
   // Step 5: Tax & Documents
   stateId?: string;
-  taxPreference: 'taxable' | 'tax_exempt';
+  taxPreference?: 'taxable' | 'tax_exempt';
   taxPercentage?: number;
   taxId?: string;
   documents?: File[];

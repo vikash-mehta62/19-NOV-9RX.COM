@@ -73,7 +73,7 @@ export default function Deals() {
         const { data: settingsData } = await supabase
           .from("daily_deals_settings")
           .select("*")
-          .single();
+          .maybeSingle();
 
         if (settingsData) {
           setSettings(settingsData);

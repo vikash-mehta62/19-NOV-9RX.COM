@@ -39,6 +39,9 @@ const AccessRequests = lazy(() => import("./pages/AccessRequests"));
 const ActivationUser = lazy(() => import("./components/ActiovationUser"));
 const PasswordReset = lazy(() => import("./components/ResetPassword"));
 const LaunchPasswordReset = lazy(() => import("./pages/LaunchPasswordReset"));
+const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
+const ResetPasswordNew = lazy(() => import("./pages/auth/ResetPassword"));
+const AcceptTerms = lazy(() => import("./pages/AcceptTerms"));
 const UserSelfDetails = lazy(() => import("./components/UserSelfDetails"));
 const PayNowOrder = lazy(() => import("./components/PayNowOrder"));
 const CartItemsPricing = lazy(() => import("./components/CartItemsPricing"));
@@ -78,6 +81,7 @@ const AdminCostTracking = lazy(() => import("./pages/admin/CostTracking"));
 const AdminRewards = lazy(() => import("./pages/admin/Rewards"));
 const AdminCreditManagement = lazy(() => import("./pages/admin/CreditManagement"));
 const AdminPaymentTransactions = lazy(() => import("./pages/admin/PaymentTransactions"));
+const AdminTermsManagement = lazy(() => import("./pages/admin/TermsManagement"));
 const Expenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
 const AdminLaunchPasswordReset = lazy(() => import("./pages/admin/LaunchPasswordReset"));
@@ -115,7 +119,7 @@ const GroupLocations = lazy(() => import("./pages/group/Locations"));
 const GroupPricing = lazy(() => import("./pages/group/Pricing"));
 const GroupInvitations = lazy(() => import("./pages/group/Invitations"));
 const GroupProducts = lazy(() => import("./pages/group/GroupProduct"));
-const Staff = lazy(() => import("./pages/group/Staff").then(m => ({ default: m.Staff })));
+const Staff = lazy(() => import("./pages/group/Staff"));
 
 // Lazy loaded Hospital pages
 const HospitalDashboard = lazy(() => import("./pages/hospital/Dashboard"));
@@ -203,8 +207,8 @@ function App() {
 
   return (
     <>
-      <MaintenanceBanner />
-      <MaintenanceModal />
+      {/* <MaintenanceBanner /> */}
+      {/* <MaintenanceModal /> */}
       <CartSync />
       <BannerSeeder />
       <Suspense fallback={<PageLoader />}>
@@ -213,9 +217,11 @@ function App() {
           <Route path="/" element={<Index />} />
           <Route path="/product/:id" element={<ProductDetails />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/reset-password" element={<ResetPasswordNew />} />
+          <Route path="/accept-terms" element={<AcceptTerms />} />
           <Route path="/activation" element={<ActivationUser />} />
           <Route path="/update-profile" element={<UserSelfDetails />} />
-          <Route path="/reset-password" element={<LaunchPasswordReset />} />
           <Route path="/launch-password-reset" element={<LaunchPasswordReset />} />
           <Route path="/reset-password-page" element={<ResetPasswordPage />} />
           <Route path="/pay-now" element={<PayNowOrder />} />
@@ -436,6 +442,11 @@ function App() {
           <Route path="/admin/credit-management" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminCreditManagement />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/terms-management" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminTermsManagement />
             </ProtectedRoute>
           } />
 

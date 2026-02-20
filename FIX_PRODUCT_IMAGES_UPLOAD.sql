@@ -1,13 +1,13 @@
 -- =====================================================
 -- FIX PRODUCT IMAGES UPLOAD ISSUE
--- Database: https://asnhfgfhidhzswqkhpzz.supabase.co
+-- Database: https://qiaetxkxweghuoxyhvml.supabase.co
 -- =====================================================
 -- 
 -- PROBLEM: product-images bucket has NO RLS policies
 -- SOLUTION: Add policies to allow authenticated users to upload/manage images
 --
 -- Run this in Supabase SQL Editor:
--- https://supabase.com/dashboard/project/asnhfgfhidhzswqkhpzz/sql/new
+-- https://supabase.com/dashboard/project/qiaetxkxweghuoxyhvml/sql/new
 -- =====================================================
 
 -- Enable RLS on storage.objects (if not already enabled)

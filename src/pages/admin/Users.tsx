@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { PasswordResetRequests } from "@/components/users/PasswordResetRequests";
 
 const Users = () => {
   const { toast } = useToast();
@@ -112,6 +113,8 @@ const Users = () => {
             onFilterChange={setFilterType}
           />
         </div>
+
+        <PasswordResetRequests />
 
         <UsersContainer
           users={users}
