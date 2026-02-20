@@ -171,11 +171,14 @@ const CreateOrderPaymentForm = ({
   // Fetch saved payment methods
   useEffect(() => {
     const fetchSavedCards = async () => {
-      if (!userProfile?.id) return;
+      // Use pId (customer ID) if available, otherwise use userProfile.id (for self-checkout)
+      const profileIdToUse = pId || userProfile?.id;
+      
+      if (!profileIdToUse) return;
       
       setLoadingSavedCards(true);
       try {
-        const methods = await getSavedPaymentMethods(userProfile.id);
+        const methods = await getSavedPaymentMethods(profileIdToUse);
         setSavedCards(methods);
       } catch (error) {
         console.error("Error fetching saved cards:", error);
@@ -185,7 +188,7 @@ const CreateOrderPaymentForm = ({
     };
     
     fetchSavedCards();
-  }, [userProfile?.id]);
+  }, [pId, userProfile?.id]); // Re-fetch when customer changes
 
   // Calculate estimated reward points
   useEffect(() => {
@@ -440,8 +443,10 @@ const CreateOrderPaymentForm = ({
         if (saveCard && paymentType === "credit_card" && userProfile?.id && formDataa?.customerInfo?.email) {
           try {
             console.log("🔵 Saving card to Authorize.net profile...");
+            // Use pId (customer ID) if available, otherwise use userProfile.id (for self-checkout)
+            const profileIdToSave = pId || userProfile.id;
             const saveResult = await saveCardToProfile(
-              userProfile.id,
+              profileIdToSave,
               formDataa.customerInfo.email,
               formData.cardNumber,
               formData.expirationDate,
