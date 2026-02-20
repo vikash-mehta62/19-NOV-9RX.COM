@@ -68,7 +68,7 @@ const testimonials = [
 const features = [
   {
     icon: Package,
-    title: "500+ Products",
+    title: "250+ Products",
     description: "Premium pharmacy supplies",
   },
   {
@@ -91,7 +91,7 @@ const features = [
 // Stats data
 const stats = [
   { value: "10,000+", label: "Happy Customers" },
-  { value: "500+", label: "Products" },
+  { value: "250+", label: "Products" },
   { value: "99.9%", label: "Uptime" },
   { value: "24/7", label: "Support" },
 ];
@@ -179,7 +179,7 @@ const Login = () => {
 
           {/* Main Content */}
           <div className="flex-1 flex flex-col justify-center max-w-lg">
-            <h1 className="text-4xl lg:text-5xl font-bold leading-tight mb-6">
+            <h1 className="text-3xl lg:text-4xl xl:text-4xl font-bold leading-tight mb-6">
               Your Trusted Partner for
               <span className="block text-yellow-300 mt-2">Pharmacy Supplies</span>
             </h1>

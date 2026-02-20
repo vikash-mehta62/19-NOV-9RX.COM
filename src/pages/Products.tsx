@@ -573,7 +573,7 @@ const Products = () => {
                 aria-label="Call us at 1-800-969-6295"
               >
                 <Phone className="w-4 h-4" aria-hidden="true" />
-                <span className="text-sm font-medium">+1 (800) 969-6295</span>
+                <span className="text-sm font-medium">+1 (800) 940-9619</span>
               </a>
               <Button
                 variant="ghost"

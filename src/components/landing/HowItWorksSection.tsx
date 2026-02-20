@@ -19,10 +19,10 @@ const HowItWorksSection = () => {
       icon: Search,
       step: "02", 
       title: "Browse & Select",
-      description: "Explore our extensive catalog of 500+ pharmacy supplies. Filter by category, compare prices, and find exactly what you need.",
+      description: "Explore our extensive catalog of 250+ pharmacy supplies. Filter by category, compare prices, and find exactly what you need.",
       color: "from-indigo-500 to-blue-600",
       bgColor: "bg-indigo-50",
-      features: ["500+ products", "Smart search", "Real-time stock"]
+      features: ["250+ products", "Smart search", "Real-time stock"]
     },
     {
       icon: CheckCircle,

@@ -10,7 +10,7 @@ const AboutUs = () => {
 
   const stats = [
     { icon: Building2, value: "250+", label: "Pharmacies" },
-    { icon: Package, value: "500+", label: "Products Available" },
+    { icon: Package, value: "250+", label: "Products Available" },
     { icon: Star, value: "98%", label: "Satisfaction Rate" },
     { icon: Clock, value: "14+", label: "Years Experience" },
   ];
@@ -77,7 +77,7 @@ const AboutUs = () => {
                 </span>
               </h1>
               <p className="text-xl text-slate-300 max-w-2xl mx-auto">
-                Since 2010, we've been dedicated to providing independent pharmacies with premium quality supplies at competitive prices.
+                Since 2024, we've been dedicated to providing independent pharmacies with premium quality supplies at competitive prices.
               </p>
             </div>
           </div>
@@ -99,7 +99,7 @@ const AboutUs = () => {
             </div>
           </div>
         </section>
-647074
+
         {/* Our Story */}
         <section className="py-20 bg-gradient-to-b from-white to-blue-50/50">
           <div className="container mx-auto px-4">
@@ -114,7 +114,7 @@ const AboutUs = () => {
                 </h2>
                 <div className="space-y-4 text-slate-600 leading-relaxed">
                   <p>
-                    9RX was founded in 2010 with a simple mission: to provide independent pharmacies with the same quality supplies and competitive pricing that large chains enjoy.
+                    9RX was founded in 2024 with a simple mission: to provide independent pharmacies with the same quality supplies and competitive pricing that large chains enjoy.
                   </p>
                   <p>
                     Our founder, Snehal Patel, experienced firsthand the challenges of sourcing quality pharmacy supplies at reasonable prices. This inspired him to create 9RX – a company dedicated to serving the unique needs of independent pharmacies.

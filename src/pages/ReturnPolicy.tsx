@@ -98,7 +98,7 @@ const ReturnPolicy = () => {
                   <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 text-blue-700 font-bold">1</div>
                   <div>
                     <h4 className="font-medium text-gray-900">Contact Customer Service</h4>
-                    <p className="text-gray-600 text-sm">Email info@9rx.com or call +1 (800) 969-6295 to initiate a return</p>
+                    <p className="text-gray-600 text-sm">Email info@9rx.com or call +1 (800) 940-9619 to initiate a return</p>
                   </div>
                 </div>
                 <div className="flex gap-4 items-start">
@@ -132,7 +132,7 @@ const ReturnPolicy = () => {
               <ul className="list-disc pl-6 text-gray-600 mb-4 space-y-2">
                 <li>Full refund for items in original condition</li>
                 <li>Shipping costs are non-refundable unless the return is due to our error</li>
-                <li>Restocking fees may apply for large orders (over $1,000)</li>
+                <li>Restocking fees may apply 25% in all return items</li>
               </ul>
 
               <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Damaged or Defective Items</h2>
@@ -144,9 +144,9 @@ const ReturnPolicy = () => {
               <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Contact Us</h2>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
                 <p><strong>Returns Department</strong></p>
-                <p>Email: returns@9rx.com</p>
-                <p>Phone: +1 (800) 969-6295</p>
-                <p>Hours: Mon-Fri 9AM-6PM EST</p>
+                <p>Email: info@9rx.com</p>
+                <p>Phone: +1 (800) 940-9619</p>
+                <p>Hours: Mon-Fri 9AM-5PM EST</p>
               </div>
             </div>
           </div>

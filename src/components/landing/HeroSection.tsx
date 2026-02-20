@@ -344,9 +344,9 @@ const HeroSection = () => {
                       alt={categories[activeSlide].title}
                       className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                     />
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg z-30">
+                    {/* <div className="absolute top-2 right-2 bg-blue-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-lg z-30">
                       HOT
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Product info */}
@@ -421,12 +421,12 @@ const HeroSection = () => {
         </div>
 
         {/* Scroll indicator - hidden on mobile */}
-        <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 hidden sm:flex">
+        {/* <div className="absolute bottom-6 sm:bottom-8 left-1/2 -translate-x-1/2 flex-col items-center gap-2 hidden sm:flex">
           <span className="text-slate-500 text-xs uppercase tracking-[0.2em]">Explore</span>
           <div className="w-6 h-10 border-2 border-slate-600 rounded-full flex justify-center pt-2">
             <div className="w-1.5 h-3 bg-blue-400 rounded-full animate-scroll" />
           </div>
-        </div>
+        </div> */}
       </section>
 
       {/* Banner Section */}

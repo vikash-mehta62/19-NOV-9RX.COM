@@ -1,9 +1,29 @@
 import { Phone, Mail, MapPin, Clock, Facebook, Twitter, Linkedin, Instagram, ArrowRight, Heart, ExternalLink } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import logo from "../../assests/home/9rx_logo.png";
 
 const Footer = () => {
   const currentYear = new Date().getFullYear();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const scrollToFaq = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (location.pathname === "/") {
+      const el = document.getElementById("faq");
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth" });
+      }
+    } else {
+      navigate("/");
+      setTimeout(() => {
+        const el = document.getElementById("faq");
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 300);
+    }
+  };
 
   const quickLinks = [
     { name: "Products", href: "/products" },
@@ -32,10 +52,10 @@ const Footer = () => {
   ];
 
   const socialLinks = [
-    { icon: Facebook, href: "https://facebook.com/9rxsupplies", label: "Facebook" },
-    { icon: Twitter, href: "https://twitter.com/9rxsupplies", label: "Twitter" },
+    { icon: Facebook, href: "", label: "Facebook" },
+    { icon: Twitter, href: "", label: "Twitter" },
     { icon: Linkedin, href: "https://linkedin.com/company/9rx", label: "LinkedIn" },
-    { icon: Instagram, href: "https://instagram.com/9rxsupplies", label: "Instagram" },
+    { icon: Instagram, href: "", label: "Instagram" },
   ];
 
   return (
@@ -68,14 +88,26 @@ const Footer = () => {
               {/* Social Links */}
               <div className="flex gap-2 sm:gap-3">
                 {socialLinks.map((social, index) => (
-                  <a
-                    key={index}
-                    href={social.href}
-                    aria-label={social.label}
-                    className="w-9 sm:w-11 h-9 sm:h-11 bg-slate-800/80 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-400 hover:bg-blue-500 hover:text-white transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-500/25"
-                  >
-                    <social.icon className="w-4 sm:w-5 h-4 sm:h-5" />
-                  </a>
+                  social.href ? (
+                    <a
+                      key={index}
+                      href={social.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-label={social.label}
+                      className="w-9 sm:w-11 h-9 sm:h-11 bg-slate-800/80 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-400 hover:bg-blue-500 hover:text-white transition-all duration-300 hover:scale-110 hover:shadow-lg hover:shadow-blue-500/25"
+                    >
+                      <social.icon className="w-4 sm:w-5 h-4 sm:h-5" />
+                    </a>
+                  ) : (
+                    <span
+                      key={index}
+                      aria-label={social.label}
+                      className="w-9 sm:w-11 h-9 sm:h-11 bg-slate-800/80 rounded-lg sm:rounded-xl flex items-center justify-center text-slate-400"
+                    >
+                      <social.icon className="w-4 sm:w-5 h-4 sm:h-5" />
+                    </span>
+                  )
                 ))}
               </div>
 
@@ -150,7 +182,7 @@ const Footer = () => {
                     <div>
                       <p className="text-slate-500 text-xs sm:text-sm">Call Us</p>
                       <p className="text-white font-semibold group-hover:text-blue-400 transition-colors text-sm sm:text-base">
-                        +1 800 969 6295
+                        +1 (800) 940-9619
                       </p>
                     </div>
                   </a>
@@ -200,13 +232,24 @@ const Footer = () => {
               </p>
               <div className="flex flex-wrap justify-center gap-3 sm:gap-6 text-xs sm:text-sm">
                 {supportLinks.slice(0, 4).map((link, index) => (
-                  <Link
-                    key={index}
-                    to={link.href}
-                    className="text-slate-500 hover:text-blue-400 transition-colors"
-                  >
-                    {link.name}
-                  </Link>
+                  link.href === "/#faq" ? (
+                    <a
+                      key={index}
+                      href="/#faq"
+                      onClick={scrollToFaq}
+                      className="text-slate-500 hover:text-blue-400 transition-colors cursor-pointer"
+                    >
+                      {link.name}
+                    </a>
+                  ) : (
+                    <Link
+                      key={index}
+                      to={link.href}
+                      className="text-slate-500 hover:text-blue-400 transition-colors"
+                    >
+                      {link.name}
+                    </Link>
+                  )
                 ))}
               </div>
             </div>
