@@ -50,6 +50,16 @@ export const validateSignupForm = (
     return false;
   }
 
+  if (!formData.termsAccepted) {
+    console.error("Terms validation failed: terms not accepted");
+    toast({
+      title: "Validation Error",
+      description: "You must agree to the Terms & Conditions and Privacy Policy to create an account.",
+      variant: "destructive",
+    });
+    return false;
+  }
+
   console.log("Form validation passed successfully");
   return true;
 };

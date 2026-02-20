@@ -107,34 +107,10 @@ export function AddUserModal({
 
       console.log(session)
 
-      // Call secure backend API to create user
-      const response = await axios.post("/api/users/create-user", {
-        email: values.email,
-        password: "12345678",
-        firstName: values.firstName,
-        lastName: values.lastName,
-        userMetadata: {
-          first_name: values.firstName,
-          last_name: values.lastName,
-        },
-      });
-
-      if (!response.data?.success || !response.data?.userId) {
-        throw new Error(response.data?.message || "Failed to create user");
-      }
-
-      const tempUserData = { id: response.data.userId };
-
-      // Generate a new UUID for the user
-      // const userId = uuidv4();
-
-      // Format the data for Supabase
-      const userData = {
-        id: tempUserData?.id,
+      // Format the profile data for Supabase
+      const profileData = {
         first_name: values.firstName,
         last_name: values.lastName,
-        // display_name:values.firstName + " " + values.lastName,
-        email: values.email.toLowerCase().trim(),
         type: values.type.toLowerCase(),
         status: values.status.toLowerCase(),
         role: values.role.toLowerCase(),
@@ -173,75 +149,127 @@ export function AddUserModal({
         credit_limit: values.creditLimit || 0,
         payment_method: values.paymentMethod || null,
         account_status: "active",
-        email_notifaction:values.email_notifaction || false,
+        email_notifaction: values.email_notifaction || false,
         referral_name: values.referralName || null, // Admin-only field
         state_id: values.stateId || null, // State ID field
-
       };
 
-      // console.log('Attempting to insert user with data:', userData);
+      // Generate a random secure password
+      const generatePassword = () => {
+        const length = 12;
+        const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+        let password = "";
+        for (let i = 0; i < length; i++) {
+          password += charset.charAt(Math.floor(Math.random() * charset.length));
+        }
+        return password;
+      };
 
-      const { data: insertedProfile, error } = await supabase
-        .from("profiles")
-        .insert(userData)
-        .select()
-        .single();
+      const temporaryPassword = generatePassword();
 
+      // Call secure backend API to create user AND profile in one call (bypasses RLS)
+      const response = await axios.post("/api/users/create-user", {
+        email: values.email,
+        password: temporaryPassword,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        userMetadata: {
+          first_name: values.firstName,
+          last_name: values.lastName,
+        },
+        profileData: profileData,
+      });
 
-      if(userData.status==="active" && userData.email_notifaction){
+      if (!response.data?.success || !response.data?.userId) {
+        throw new Error(response.data?.message || "Failed to create user");
+      }
+
+      const tempUserData = { id: response.data.userId };
+      const insertedProfile = response.data.profile?.data || null;
+
+      // Check if profile creation failed on server
+      if (response.data.profile && !response.data.profile.success) {
+        console.error('Server profile creation error:', response.data.profile.error);
+        throw new Error(response.data.profile.error || 'Failed to create profile');
+      }
+
+      console.log('Attempting to insert user with data:', profileData);
+      console.log('Profile created successfully via server:', insertedProfile);
+
+      // Always send welcome email with credentials to newly created users
+      try {
+        // Generate terms acceptance token
+        let termsAcceptanceLink = null;
         try {
-          const response = await axios.post("/active-admin", {
-            name: `${userData.first_name} ${userData.last_name}`,
-            email: userData.email,
-            admin: true
+          const tokenResponse = await axios.post("/api/terms/generate-token", {
+            userId: tempUserData.id,
+            email: values.email.toLowerCase().trim()
           });
+          
+          if (tokenResponse.data.success) {
+            termsAcceptanceLink = tokenResponse.data.actionLink;
+            console.log("Terms acceptance link generated:", termsAcceptanceLink);
+          }
+        } catch (tokenError) {
+          console.error("Error generating terms link:", tokenError);
+          // Continue without link - email will still be sent
+        }
 
-          const { data: update, error } = await supabase
+        const notifResponse = await axios.post("/active-admin", {
+          name: `${profileData.first_name} ${profileData.last_name}`,
+          email: values.email.toLowerCase().trim(),
+          admin: true,
+          password: temporaryPassword,
+          termsAcceptanceLink: termsAcceptanceLink
+        });
+
+        console.log("Welcome email sent successfully:", notifResponse.data);
+
+        // Update profile to mark that email notification was sent
+        const { error: updateError } = await supabase
           .from("profiles")
           .update({ email_notifaction: true })
-          .eq("id", tempUserData?.id); // Corrected eq() usage
+          .eq("id", tempUserData?.id);
         
-        if (error) {
-          console.error("Error updating profile:", error.message);
-       
+        if (updateError) {
+          console.error("Error updating email notification flag:", updateError.message);
+        }
+
+        toast({
+          title: "Success",
+          description: `${values.firstName} ${values.lastName} has been created and welcome email sent with login credentials`,
+        });
+      } catch (error) {
+        console.error("Error sending welcome email:", error);
+        
+        // Check if it's a network error or server error
+        if (error.response) {
+          // Server responded with error status
+          console.error("Server error response:", error.response.data);
+          toast({
+            title: "User Created",
+            description: `${values.firstName} ${values.lastName} has been created, but email failed: ${error.response.data?.message || error.response.data?.error || 'Server error'}`,
+            variant: "destructive",
+          });
+        } else if (error.request) {
+          // Network error
+          console.error("Network error:", error.request);
+          toast({
+            title: "User Created",
+            description: `${values.firstName} ${values.lastName} has been created, but email failed due to network error. Please check server connection.`,
+            variant: "destructive",
+          });
         } else {
-          console.log("Profile updated successfully:", update);
-        
-        }
-        
-          console.log("Verification Successful:", response.data);
-      
-          async function sendResetPasswordLink(email) {
-            const { data, error } = await supabase.auth.resetPasswordForEmail(email);
-          
-            if (error) {
-              console.error('Error sending reset password email:', error.message);
-            } else {
-              console.log('Password reset email sent successfully!', data);
-            }
-          }
-          // sendResetPasswordLink(userData.email)
-        } catch (error) {
-          console.error("Error in user verification:", error.response?.data || error.message);
+          // Other error
+          console.error("Email error:", error.message);
+          toast({
+            title: "User Created",
+            description: `${values.firstName} ${values.lastName} has been created, but email failed: ${error.message}`,
+            variant: "destructive",
+          });
         }
       }
-        
-      // const { data, error } = await supabase
-      //   .from('profiles')
-      //   .insert([userData])
-      //   .select();
 
-      if (error) {
-        console.error('Supabase error creating profile:', error);
-        throw new Error(error.message);
-      }
-
-      console.log('Profile created successfully:', insertedProfile);
-
-      toast({
-        title: "Success",
-        description: `${values.firstName} ${values.lastName} has been created successfully`,
-      });
       queryClient.invalidateQueries({ queryKey: ["users"] });
 
       form.reset();

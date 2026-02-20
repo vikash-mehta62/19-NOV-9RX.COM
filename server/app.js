@@ -756,6 +756,8 @@ app.use("/api/email", require("./routes/emailRoutes")) // Email tracking, webhoo
 app.use("/api/users", require("./routes/userRoutes")) // User management (secure)
 app.use("/api/launch", require("./routes/launchRoutes")) // Website launch password reset & T&C
 app.use("/api/otp", require("./routes/otpRoutes")) // OTP-based authentication
+app.use("/api/terms", require("./routes/termsRoutes")) // Terms acceptance for admin-created users
+app.use("/api/terms-management", require("./routes/termsManagementRoutes")) // Terms & ACH management
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)
@@ -773,6 +775,91 @@ app.post("/customization", emailLimiter, customization)
 app.post("/paynow-user", emailLimiter, paymentLinkCtrl)
 app.post("/group-invitation", emailLimiter, groupInvitationCtrl)
 app.post("/invoice-quickbook", invoicesCtrl)
+
+// Create signup profile (bypasses RLS - used during signup when user is not yet authenticated)
+app.post("/create-signup-profile", async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        success: false,
+        message: "Server configuration error - Supabase admin not initialized"
+      });
+    }
+
+    const { userId, email, firstName, lastName, phone, termsAccepted, termsAcceptedAt, termsVersion } = req.body;
+
+    if (!userId || !email) {
+      return res.status(400).json({
+        success: false,
+        message: "userId and email are required"
+      });
+    }
+
+    // Verify this userId actually exists in auth.users
+    const { data: authUser, error: authCheckError } = await supabaseAdmin.auth.admin.getUserById(userId);
+    if (authCheckError || !authUser?.user) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid user ID - user does not exist in auth"
+      });
+    }
+
+    // Prepare terms acceptance data
+    const termsData = termsAccepted ? {
+      accepted: true,
+      acceptedAt: termsAcceptedAt || new Date().toISOString(),
+      version: termsVersion || "1.0",
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent')
+    } : null;
+
+    // Upsert profile using admin client (bypasses RLS)
+    const { data, error } = await supabaseAdmin
+      .from("profiles")
+      .upsert(
+        {
+          id: userId,
+          email: email,
+          first_name: firstName || "",
+          last_name: lastName || "",
+          mobile_phone: phone || "",
+          work_phone: phone || "",
+          display_name: `${firstName || ""} ${lastName || ""}`.trim(),
+          type: "pharmacy",
+          status: "pending",
+          role: "user",
+          requires_password_reset: false,
+          terms_and_conditions: termsData,
+          terms_accepted_at: termsAccepted ? (termsAcceptedAt || new Date().toISOString()) : null,
+          terms_version: termsAccepted ? (termsVersion || "1.0") : null,
+        },
+        { onConflict: "id" }
+      )
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Signup profile creation error:", error);
+      return res.status(400).json({
+        success: false,
+        message: error.message || "Failed to create profile"
+      });
+    }
+
+    console.log("Signup profile created/updated for:", email);
+    return res.json({
+      success: true,
+      message: "Profile created successfully",
+      data: data
+    });
+  } catch (error) {
+    console.error("Create signup profile error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error"
+    });
+  }
+});
 
 // Update user profile (bypasses RLS for self-update flow)
 app.post("/update-user-profile", async (req, res) => {

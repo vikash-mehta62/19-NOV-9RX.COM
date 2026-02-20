@@ -19,15 +19,19 @@ export const SignupForm = () => {
     lastName: "",
     phone: "",
     referralCode: "",
-  });
+    termsAccepted: false,
+  } as SignupFormData);
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { id, value } = e.target;
+    const { id, value, type, checked } = e.target;
     // console.log(`Input changed - Field: ${id}, Value: ${value}`);
-    setFormData((prev) => ({ ...prev, [id]: value }));
+    setFormData((prev) => ({ 
+      ...prev, 
+      [id]: type === 'checkbox' ? checked : value 
+    }));
   };
 
   const handleSignup = async (e: React.FormEvent) => {
@@ -42,8 +46,18 @@ export const SignupForm = () => {
     setIsLoading(true);
 
     try {
+      // Step 0: Check if email already exists in profiles
+      const { data: existingProfile } = await supabase
+        .from("profiles")
+        .select("id, email")
+        .eq("email", formData.email)
+        .maybeSingle();
+
+      if (existingProfile) {
+        throw new Error("An account with this email already exists. Please sign in instead.");
+      }
+
       // Step 1: Create auth user
-      // console.log("Attempting to create auth user...");
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -68,8 +82,28 @@ export const SignupForm = () => {
 
       console.log("Auth user created successfully:", authData.user.id);
 
-      // Note: Profile is automatically created by database trigger (on_auth_user_created)
-      // No need to manually insert into profiles table
+      // Step 2: Create or update profile via server endpoint
+      // Note: Uses admin client on server to bypass RLS, since user is not authenticated yet
+      //   - If DB trigger already created a minimal profile, server upserts with full details
+      //   - If trigger is disabled, server creates the profile from scratch
+      console.log("Creating/updating profile entry via server...");
+      const profileResponse = await axios.post("/create-signup-profile", {
+        userId: authData.user.id,
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        phone: formData.phone,
+        termsAccepted: formData.termsAccepted,
+        termsAcceptedAt: new Date().toISOString(),
+        termsVersion: "1.0",
+      });
+
+      if (!profileResponse.data?.success) {
+        console.error("Profile creation error:", profileResponse.data);
+        throw new Error(profileResponse.data?.message || "Failed to create profile");
+      }
+
+      console.log("Profile created successfully");
 
       // Apply referral code if provided
       if (formData.referralCode && formData.referralCode.trim()) {
@@ -110,6 +144,7 @@ export const SignupForm = () => {
         lastName: "",
         phone: "",
         referralCode: "",
+        termsAccepted: false,
       });
 
       navigate("/login", { state: { defaultTab: "login" } });
@@ -139,13 +174,15 @@ export const SignupForm = () => {
       <Button 
         type="submit" 
         className="w-full h-12 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg shadow-blue-500/30 hover:shadow-blue-500/40 transition-all duration-300 min-h-[48px] focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2" 
-        disabled={isLoading}
+        disabled={isLoading || !formData.termsAccepted}
       >
         {isLoading ? (
           <>
             <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
             Creating Account...
           </>
+        ) : !formData.termsAccepted ? (
+          "Please accept Terms & Conditions"
         ) : (
           "Create Account"
         )}

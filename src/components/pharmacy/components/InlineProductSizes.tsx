@@ -165,6 +165,18 @@ export const InlineProductSizes = ({
         }
 
         setFullProduct(mappedProduct)
+        
+        // Check if product has any active sizes (only for non-admin users)
+        // const isAdmin = userProfile?.type === 'admin';
+        // if (!isAdmin && (!mappedProduct.sizes || mappedProduct.sizes.length === 0)) {
+        //   toast({
+        //     title: "Product Unavailable",
+        //     description: "This product currently has no available sizes.",
+        //     variant: "destructive",
+        //   })
+        //   onClose() // Close the inline view
+        //   return
+        // }
 
         // Load product offers
         if (product.id) {

@@ -34,8 +34,9 @@ export const PharmacySizeCard = ({
 
   const isOutOfStock = item.stock <= 0
   const casePrice = item.price
+  const effectiveCasePrice = item.hasOffer && item.effectivePrice ? item.effectivePrice : casePrice
   const unitsPerCase = item.quantityPerCase || 0
-  const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
+  const unitPrice = unitsPerCase > 0 ? effectiveCasePrice / unitsPerCase : 0
 
   // Check if this size is already in cart
   const isInCart = cartItems.some(
@@ -57,7 +58,7 @@ export const PharmacySizeCard = ({
     return "/placeholder.svg"
   }
 
-  const totalPrice = casePrice * quantity
+  const totalPrice = effectiveCasePrice * quantity
 
   const handleAddToCart = async (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -84,7 +85,7 @@ export const PharmacySizeCard = ({
           id: item.sizeId,
           size_value: item.sizeValue,
           size_unit: item.sizeUnit,
-          price: casePrice,
+          price: effectiveCasePrice,
           quantity: quantity,
           sku: item.sizeSku,
           total_price: totalPrice,
@@ -163,6 +164,15 @@ export const PharmacySizeCard = ({
         : "border-gray-200 hover:border-blue-300 hover:shadow-md"
     }`}>
       
+      {/* Offer Badge - Top Left */}
+      {item.offerBadge && item.hasOffer && (
+        <div className="absolute top-1.5 lg:top-2 left-1.5 lg:left-2 z-20">
+          <Badge className="bg-red-500 text-white text-[9px] lg:text-[10px] px-1.5 lg:px-2 py-0.5 font-bold shadow-md">
+            {item.offerBadge}
+          </Badge>
+        </div>
+      )}
+      
       {/* Wishlist Button - Subtle */}
       {onAddToWishlist && onRemoveFromWishlist && isInWishlist && (
         <button
@@ -229,12 +239,23 @@ export const PharmacySizeCard = ({
           )}
         </div>
 
-        {/* Case Price - Large & Bold */}
-        <div>
-          <span className="text-base lg:text-lg font-bold text-gray-900">
-            ${casePrice.toFixed(2)}
-          </span>
-          <span className="text-[10px] lg:text-xs text-gray-500 ml-1">/ case</span>
+        {/* Case Price - Large & Bold with Offer Support */}
+        <div className="flex items-center gap-1.5">
+          {item.hasOffer && item.effectivePrice ? (
+            <>
+              <span className="text-base lg:text-lg font-bold text-red-600">
+                ${item.effectivePrice.toFixed(2)}
+              </span>
+              <span className="text-xs lg:text-sm text-gray-400 line-through">
+                ${casePrice.toFixed(2)}
+              </span>
+            </>
+          ) : (
+            <span className="text-base lg:text-lg font-bold text-gray-900">
+              ${casePrice.toFixed(2)}
+            </span>
+          )}
+          <span className="text-[10px] lg:text-xs text-gray-500">/ case</span>
         </div>
 
         {/* Units per Case + Unit Price */}

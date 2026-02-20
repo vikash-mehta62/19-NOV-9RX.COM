@@ -215,9 +215,12 @@ export const DealsSection = () => {
                 {/* Image */}
                 <div className="relative h-40 overflow-hidden rounded-t-xl bg-gray-100">
                   <img
-                    src={product.image_url || "/placeholder.svg"}
+                    src={product.image_url || "https://placehold.co/400x300/e5e7eb/6b7280?text=No+Image"}
                     alt={product.name}
                     className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    onError={(e) => {
+                      e.currentTarget.src = "https://placehold.co/400x300/e5e7eb/6b7280?text=No+Image";
+                    }}
                   />
                   
                   {/* Gradient Overlay */}

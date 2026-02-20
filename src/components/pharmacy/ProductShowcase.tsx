@@ -187,7 +187,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
         // Fetch offers for all products
         try {
           const productIds = mappedProducts.map(p => p.id);
-          const offersMap = await getProductsWithOffers(productIds);
+          const offersMap = await getProductsWithOffers(productIds, userProfile?.id);
           
           // Merge offer data with products
           const productsWithOffers = mappedProducts.map(product => {

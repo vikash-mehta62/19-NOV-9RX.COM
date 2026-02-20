@@ -74,7 +74,7 @@ router.post("/send", async (req, res) => {
     // Step 2: Check if user profile exists and is active
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, first_name, last_name, status, portal_access, type, group_id")
+      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset")
       .eq("id", authData.user.id)
       .single();
 
@@ -82,6 +82,15 @@ router.post("/send", async (req, res) => {
       return res.status(404).json({ 
         success: false, 
         message: "User profile not found" 
+      });
+    }
+
+    // Check if user requires password reset (exclude admin role)
+    if (profile.requires_password_reset === true && profile.role !== "admin") {
+      return res.status(403).json({ 
+        success: false, 
+        message: "PASSWORD_RESET_REQUIRED",
+        requiresPasswordReset: true
       });
     }
 

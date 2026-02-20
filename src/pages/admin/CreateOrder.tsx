@@ -392,7 +392,10 @@ const profileID =
           description: "The order has been updated",
         });
 
-        navigate("/admin/orders");
+        // Navigate back to orders list after 2 seconds
+        setTimeout(() => {
+          navigate("/admin/orders");
+        }, 2000);
         return;
       }
 
@@ -768,8 +771,10 @@ const profileID =
         description: successMessage,
       });
 
-      // Navigate back to orders list
-      navigate("/admin/orders");
+      // Navigate back to orders list after 2 seconds
+      setTimeout(() => {
+        navigate("/admin/orders");
+      }, 2000);
     } catch (error) {
       console.error("Error in handleComplete:", error);
       toast({
@@ -894,7 +899,10 @@ const profileID =
         description: "The order and payment adjustment have been processed",
       });
 
-      navigate("/admin/orders");
+      // Navigate back to orders list after 2 seconds
+      setTimeout(() => {
+        navigate("/admin/orders");
+      }, 2000);
     } catch (error: any) {
       console.error("Error updating order after payment adjustment:", error);
       toast({

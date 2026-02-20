@@ -420,6 +420,13 @@ const CreateOrderPaymentForm = ({
           },
         };
 
+        // Check if user is authenticated before calling the Edge Function
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError || !session) {
+          throw new Error("You must be logged in to process payments. Please log in and try again.");
+        }
+
         // Call Supabase Edge Function for payment processing
         const { data: directPaymentResponse, error: paymentError } = await supabase.functions.invoke(
           "process-payment",

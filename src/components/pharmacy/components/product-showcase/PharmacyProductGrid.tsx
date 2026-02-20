@@ -26,6 +26,10 @@ export interface FlattenedSizeItem {
   quantityPerCase?: number
   image?: string
   shippingCost?: number
+  offerBadge?: string | null
+  hasOffer?: boolean
+  effectivePrice?: number
+  discountPercent?: number
 }
 
 interface PharmacyProductGridProps {
@@ -74,7 +78,12 @@ export const PharmacyProductGrid = ({
           '/placeholder.svg',
         totalStock: product.sizes 
           ? product.sizes.reduce((sum, size) => sum + (size.stock || 0), 0)
-          : product.stock || 0
+          : product.stock || 0,
+        // Explicitly pass offer data
+        offerBadge: product.offerBadge,
+        hasOffer: product.hasOffer,
+        effectivePrice: product.effectivePrice,
+        discountPercent: product.discountPercent
       }
     })
   }, [products])
@@ -137,25 +146,38 @@ export const PharmacyProductGrid = ({
       {/* Check if this is RX PAPER BAGS category - show sizes directly */}
       {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? (
         productItems.flatMap(product => 
-          (product.sizes || []).map(size => ({
-            productId: product.id.toString(),
-            productName: product.name,
-            productDescription: product.description,
-            productCategory: product.category,
-            productSubcategory: product.subcategory,
-            productSku: product.sku,
-            productImages: product.images,
-            sizeId: size.id,
-            sizeValue: size.size_value,
-            sizeUnit: size.size_unit,
-            sizeSku: size.sku,
-            price: size.price,
-            originalPrice: size.originalPrice,
-            stock: size.stock,
-            quantityPerCase: size.quantity_per_case,
-            image: size.image,
-            shippingCost: size.shipping_cost
-          } as FlattenedSizeItem))
+          (product.sizes || []).map(size => {
+            // Calculate effective price for this size if parent has offer
+            let sizeEffectivePrice = size.price;
+            if (product.hasOffer && product.discountPercent) {
+              sizeEffectivePrice = size.price * (1 - product.discountPercent / 100);
+            }
+            
+            return {
+              productId: product.id.toString(),
+              productName: product.name,
+              productDescription: product.description,
+              productCategory: product.category,
+              productSubcategory: product.subcategory,
+              productSku: product.sku,
+              productImages: product.images,
+              sizeId: size.id,
+              sizeValue: size.size_value,
+              sizeUnit: size.size_unit,
+              sizeSku: size.sku,
+              price: size.price,
+              originalPrice: size.originalPrice,
+              stock: size.stock,
+              quantityPerCase: size.quantity_per_case,
+              image: size.image,
+              shippingCost: size.shipping_cost,
+              // Inherit offer data from parent product
+              offerBadge: product.offerBadge,
+              hasOffer: product.hasOffer,
+              effectivePrice: sizeEffectivePrice,
+              discountPercent: product.discountPercent
+            } as FlattenedSizeItem
+          })
         ).map((item, index) => (
           <PharmacySizeCard
             key={`${item.productId}-${item.sizeId}-${index}`}

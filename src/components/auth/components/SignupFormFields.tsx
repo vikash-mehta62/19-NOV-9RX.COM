@@ -1,5 +1,6 @@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SignupFormData } from "../types/signup.types";
 import { Eye, EyeOff, User, Mail, Phone, Lock, CheckCircle2, XCircle, Gift, Loader2 } from "lucide-react";
 import { useState, useMemo, useEffect } from "react";
@@ -304,6 +305,56 @@ export const SignupFormFields = ({
             <XCircle className="h-3 w-3" /> Invalid referral code
           </p>
         )}
+      </div>
+
+      {/* Terms & Conditions Checkbox */}
+      <div className="space-y-3">
+        <div className="flex items-start space-x-3">
+          <Checkbox
+            id="termsAccepted"
+            checked={formData.termsAccepted}
+            onCheckedChange={(checked) => {
+              const event = {
+                target: {
+                  id: "termsAccepted",
+                  type: "checkbox",
+                  checked: checked === true,
+                }
+              } as React.ChangeEvent<HTMLInputElement>;
+              onChange(event);
+            }}
+            disabled={isLoading}
+            className="mt-0.5"
+          />
+          <div className="grid gap-1.5 leading-none">
+            <label
+              htmlFor="termsAccepted"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+            >
+              I agree to the{" "}
+              <a
+                href="/terms-of-service"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                Terms of Service
+              </a>{" "}
+              and{" "}
+              <a
+                href="/privacy-policy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:text-blue-800 underline"
+              >
+                Privacy Policy
+              </a>
+            </label>
+            <p className="text-xs text-gray-500">
+              By creating an account, you agree to our terms of service and privacy policy.
+            </p>
+          </div>
+        </div>
       </div>
     </div>
   );

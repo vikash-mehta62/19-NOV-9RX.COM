@@ -23,7 +23,7 @@ const getSupabaseAdmin = () => {
 router.post("/create-user", async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
-    const { email, password, firstName, lastName, userMetadata } = req.body;
+    const { email, password, firstName, lastName, userMetadata, profileData } = req.body;
 
     if (!email || !firstName) {
       return res.status(400).json({
@@ -60,11 +60,36 @@ router.post("/create-user", async (req, res) => {
       });
     }
 
+    // If profileData is provided, create/upsert the profile using admin client (bypasses RLS)
+    let profileResult = null;
+    if (profileData && typeof profileData === 'object') {
+      const fullProfileData = {
+        ...profileData,
+        id: authData.user.id,
+        email: email.toLowerCase().trim(),
+      };
+
+      const { data: profile, error: profileError } = await supabaseAdmin
+        .from("profiles")
+        .upsert(fullProfileData, { onConflict: "id" })
+        .select()
+        .single();
+
+      if (profileError) {
+        console.error("Profile creation error (admin create-user):", profileError);
+        // Don't fail the whole request - auth user was created successfully
+        profileResult = { success: false, error: profileError.message };
+      } else {
+        profileResult = { success: true, data: profile };
+      }
+    }
+
     return res.json({
       success: true,
       message: "User created successfully",
       userId: authData.user.id,
       user: authData.user,
+      profile: profileResult,
     });
   } catch (error) {
     console.error("Create User Error:", error);

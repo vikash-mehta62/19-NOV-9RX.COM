@@ -244,33 +244,55 @@ exports.accountActivation = async (req, res) => {
 
 exports.adminAccountActivation = async (req, res) => {
   try {
-    const { name, email, admin = false } = req.body;
-
+    console.log("📧 Admin account activation email request received:", {
+      body: req.body,
+      timestamp: new Date().toISOString()
+    });
+    
+    const { name, email, admin = false, password, termsAcceptanceLink } = req.body;
 
     // Ensure required fields are present
     if (!name || !email) {
+      console.log("❌ Missing required fields:", { name: !!name, email: !!email });
       return res.status(400).json({
         success: false,
         message: "Missing required order details.",
       });
     }
 
+    console.log("📝 Generating email content for:", email);
     // Generate email content using the template
-    const emailContent = adminAccountActiveTemplate(name, email, admin);
+    const emailContent = adminAccountActiveTemplate(name, email, admin, password, termsAcceptanceLink);
 
+    console.log("📤 Attempting to send email to:", email);
     // Send email
-    await mailSender(
+    const emailResult = await mailSender(
       email,
       "Your Account has been created Successfully! ",
       emailContent
     );
 
-    return res.status(200).json({
-      success: true,
-      message: "Account Active",
-    });
+    console.log("📧 Email send result:", emailResult);
+
+    if (emailResult.success) {
+      console.log("✅ Email sent successfully to:", email);
+      return res.status(200).json({
+        success: true,
+        message: "Account Active",
+        emailSent: true,
+        messageId: emailResult.messageId
+      });
+    } else {
+      console.log("❌ Email failed to send:", emailResult.error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to send email",
+        error: emailResult.error
+      });
+    }
+
   } catch (error) {
-    console.error("Error in Order Status Controller:", error);
+    console.error("💥 Error in adminAccountActivation:", error);
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",

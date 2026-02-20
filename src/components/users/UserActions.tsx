@@ -16,8 +16,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreVertical, UserCheck, UserMinus, UserPen, X, Eye, Loader2, Trash2 } from "lucide-react";
+import { MoreVertical, UserCheck, UserMinus, UserPen, X, Eye, Loader2, Trash2, FileText } from "lucide-react";
 import { useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { EditUserModal } from "./EditUserModal";
 import { ViewProfileModal } from "./ViewProfileModal";
 import { activateUser } from "./actions/activateUser";
@@ -43,6 +44,7 @@ const UserActions = ({
   onUserUpdated,
 }: UserActionsProps) => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -68,6 +70,11 @@ const UserActions = ({
           return;
         case "edit":
           setEditModalOpen(true);
+          setIsLoading(null);
+          return;
+        case "generatePDF":
+          console.log(`Attempting to generate PDF for user ID: ${userId}, user name: ${userName}`);
+          await handleGeneratePDF();
           setIsLoading(null);
           return;
         case "activate":
@@ -135,6 +142,73 @@ const UserActions = ({
     setDeleteDialogOpen(false);
   };
 
+  const handleGeneratePDF = async () => {
+    try {
+      if (!userId || userId.trim() === '') {
+        throw new Error('Invalid user ID - cannot generate PDF');
+      }
+
+      console.log(`Generating PDF for user ID: ${userId}, user name: ${userName}`);
+      
+      // Use the correct API base URL from environment variables
+      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
+                           import.meta.env.VITE_APP_BASE_URL || 
+                           "http://localhost:4001";
+      
+      const pdfUrl = `${API_BASE_URL}/api/terms-management/generate-pdf/${userId}`;
+      console.log(`Making request to: ${pdfUrl}`);
+      
+      const response = await fetch(pdfUrl, {
+        method: 'GET',
+        credentials: 'include', // Include cookies for authentication
+      });
+
+      console.log(`Response status: ${response.status}`);
+
+      if (!response.ok) {
+        // Try to get error message from response
+        let errorMessage = 'Failed to generate PDF';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.error('Server error:', errorData);
+        } catch (e) {
+          // If response is not JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      const blob = await response.blob();
+      console.log(`PDF blob size: ${blob.size} bytes`);
+      
+      if (blob.size === 0) {
+        throw new Error('Generated PDF is empty');
+      }
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${userName.replace(/\s+/g, '-')}-profile-report-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "Profile PDF generated successfully"
+      });
+    } catch (error) {
+      console.error('PDF generation error:', error);
+      toast({
+        title: "Error", 
+        description: error.message || "Failed to generate PDF report",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <>
       <DropdownMenu>
@@ -149,6 +223,19 @@ const UserActions = ({
             <Eye className="mr-2 h-4 w-4" />
             View Profile
           </DropdownMenuItem>
+          {userType === "pharmacy" && (
+            <DropdownMenuItem 
+              onClick={() => handleAction("generatePDF")}
+              disabled={isLoading === "generatePDF"}
+            >
+              {isLoading === "generatePDF" ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileText className="mr-2 h-4 w-4" />
+              )}
+              Generate PDF Report
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onClick={() => handleAction("edit")}>
             <UserPen className="mr-2 h-4 w-4" />
             Edit

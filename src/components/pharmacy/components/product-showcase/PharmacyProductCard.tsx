@@ -35,6 +35,16 @@ export const PharmacyProductCard = ({
   const [imageLoaded, setImageLoaded] = useState(false)
   const [showSizes, setShowSizes] = useState(false)
 
+  // Debug: Log offer data for RX PAPER BAGS products
+  if (product.category === 'RX PAPER BAGS') {
+    console.log(`🎴 PharmacyProductCard - ${product.name}:`, {
+      hasOffer: product.hasOffer,
+      offerBadge: product.offerBadge,
+      effectivePrice: product.effectivePrice,
+      discountPercent: product.discountPercent
+    });
+  }
+
   const isOutOfStock = product.totalStock <= 0
   const sizesCount = product.sizes?.length || 0
   

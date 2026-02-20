@@ -90,7 +90,44 @@ export const OTPLoginForm = () => {
         }
       }
 
-      // Email is verified, proceed with OTP send
+      // Check if user requires password reset BEFORE sending OTP
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("requires_password_reset, role, id")
+        .eq("email", email.trim().toLowerCase())
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Error checking password reset flag:", profileError);
+      }
+
+      // If no profile exists at all, let the OTP flow continue - 
+      // the auth check will handle invalid credentials
+      if (!profileData) {
+        console.warn("No profile found for email:", email.trim().toLowerCase());
+      }
+
+      // If user requires password reset (exclude admin role), show notification and don't send OTP
+      if (profileData && profileData.requires_password_reset === true && profileData.role !== "admin") {
+        // Show the password reset notification dialog
+        setShowPasswordResetDialog(true);
+        
+        // Log this attempt for admin visibility
+        try {
+          await supabase.from("password_reset_requests").insert({
+            user_id: profileData.id,
+            email: email.trim().toLowerCase(),
+            requested_at: new Date().toISOString(),
+          });
+        } catch (logError) {
+          console.error("Failed to log password reset request:", logError);
+        }
+        
+        setIsSendingOTP(false);
+        return;
+      }
+
+      // Email is verified and no password reset required, proceed with OTP send
       const response = await axios.post("/api/otp/send", {
         email: email.trim().toLowerCase(),
         password: password,
@@ -105,6 +142,34 @@ export const OTPLoginForm = () => {
         });
       }
     } catch (err: any) {
+      // Check if error is due to password reset requirement
+      if (err.response?.data?.requiresPasswordReset === true || 
+          err.response?.data?.message === "PASSWORD_RESET_REQUIRED") {
+        setShowPasswordResetDialog(true);
+        
+        // Try to log this attempt
+        try {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("email", email.trim().toLowerCase())
+            .maybeSingle();
+          
+          if (profileData) {
+            await supabase.from("password_reset_requests").insert({
+              user_id: profileData.id,
+              email: email.trim().toLowerCase(),
+              requested_at: new Date().toISOString(),
+            });
+          }
+        } catch (logError) {
+          console.error("Failed to log password reset request:", logError);
+        }
+        
+        setIsSendingOTP(false);
+        return;
+      }
+      
       const errorMessage = err.response?.data?.message || "Failed to send OTP";
       setError(errorMessage);
       toast({
@@ -146,40 +211,8 @@ export const OTPLoginForm = () => {
           throw new Error("Failed to create session. Please try again.");
         }
 
-        // Check if user requires password reset (exclude admin role)
-        if (user.role !== "admin") {
-          const { data: profileData, error: profileError } = await supabase
-            .from("profiles")
-            .select("requires_password_reset")
-            .eq("id", user.id)
-            .single();
-
-          if (profileError) {
-            console.error("Error checking password reset flag:", profileError);
-          }
-
-          // If user requires password reset, show notification and sign out
-          if (profileData?.requires_password_reset === true) {
-            // Sign out the user immediately
-            await supabase.auth.signOut();
-            
-            // Show the password reset notification dialog
-            setShowPasswordResetDialog(true);
-            
-            // Log this attempt for admin visibility
-            try {
-              await supabase.from("password_reset_requests").insert({
-                user_id: user.id,
-                email: user.email,
-                requested_at: new Date().toISOString(),
-              });
-            } catch (logError) {
-              console.error("Failed to log password reset request:", logError);
-            }
-            
-            return;
-          }
-        }
+        // Password reset check is now done before OTP is sent
+        // This section is kept for backward compatibility but should not trigger
 
         // Store session data
         sessionStorage.setItem("isLoggedIn", "true");
@@ -230,7 +263,7 @@ export const OTPLoginForm = () => {
             .from("profiles")
             .select("commission_rate, bypass_min_price, can_manage_pricing")
             .eq("id", user.id)
-            .single();
+            .maybeSingle();
 
           if (!groupProfile) {
             toast({
@@ -353,7 +386,16 @@ export const OTPLoginForm = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <button
+                type="button"
+                onClick={() => navigate("/forgot-password")}
+                className="text-sm text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+              >
+                Forgot Password?
+              </button>
+            </div>
             <div className="relative">
               <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
               <Input
