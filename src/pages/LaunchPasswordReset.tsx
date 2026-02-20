@@ -144,128 +144,270 @@ export default function LaunchPasswordReset() {
     setCurrentStep("password");
   };
 
+
+
   const onSubmit = async (data: PasswordResetFormValues) => {
-    if (!hasValidSession) {
-      toast({
-        title: "Invalid Session",
-        description: "Please use a valid password reset link.",
-        variant: "destructive",
-      });
-      return;
+  if (!hasValidSession) {
+    toast({
+      title: "Invalid Session",
+      description: "Please use a valid password reset link.",
+      variant: "destructive",
+    });
+    return;
+  }
+
+  setIsLoading(true);
+
+  try {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError || !session?.user) {
+      throw new Error("Session expired. Please request a new reset link.");
     }
 
-    setIsLoading(true);
+    const userId = session.user.id;
+    const email = session.user.email || userEmail;
+
+    console.log("🔐 Processing password reset for:", email);
+
+    /* ===============================
+       1️⃣ Update Password (Auth)
+    =============================== */
+    const { error: passwordError } = await supabase.auth.updateUser({
+      password: data.password,
+    });
+
+    if (passwordError) {
+      throw passwordError;
+    }
+
+    console.log("✅ Password updated successfully");
+
+    /* ===============================
+       2️⃣ Update Profile (Single Update)
+    =============================== */
+    const now = new Date().toISOString();
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        // Terms
+        terms_accepted: true,
+        terms_accepted_at: now,
+        terms_version: "1.0",
+
+        // ACH
+        ach_authorization_accepted: achAuthorizationAccepted || false,
+        ach_authorization_accepted_at: achAuthorizationAccepted ? now : null,
+        ach_authorization_version: achAuthorizationAccepted ? "1.0" : null,
+
+        // Password Reset Flags
+        requires_password_reset: false,
+        password_reset_required: false,
+        last_password_reset_at: now,
+
+        // Optional: track login
+        last_login: now,
+      })
+      .eq("id", userId);
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    console.log("✅ Profile updated successfully");
+
+    /* ===============================
+       3️⃣ External Launch Tracking
+    =============================== */
     try {
-      // Get current user session to verify and get email
-      const { data: { session } } = await supabase.auth.getSession();
-      const email = session?.user?.email || userEmail;
+      const apiBaseUrl =
+        import.meta.env.VITE_API_BASE_URL ||
+        "https://9rx.mahitechnocrafts.in";
 
-      if (!email || !session?.user) {
-        toast({
-          title: "Error",
-          description: "Unable to identify user. Please try again with a fresh reset link.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      console.log("🔐 Resetting password for user:", email);
-
-      // Update the password for the currently authenticated user (from recovery token)
-      const { data: userData, error } = await supabase.auth.updateUser({
-        password: data.password,
-      });
-
-      if (error) {
-        throw error;
-      }
-
-      console.log("✅ Password updated successfully for:", email);
-
-      // Save ACH authorization to profile
-      if (achAuthorizationAccepted) {
-        try {
-          const { error: achError } = await supabase
-            .from("profiles")
-            .update({
-              ach_authorization_accepted: true,
-              ach_authorization_accepted_at: new Date().toISOString(),
-              ach_authorization_version: "1.0",
-            })
-            .eq("id", session.user.id);
-
-          if (achError) {
-            console.error("❌ Error saving ACH authorization:", achError);
-          } else {
-            console.log("✅ ACH authorization saved successfully");
-          }
-        } catch (achSaveError) {
-          console.error("Error saving ACH authorization:", achSaveError);
-        }
-      }
-
-      // Mark both password reset and terms accepted as completed
-      try {
-        const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
-        
-        console.log("🔄 Marking completion - API Base URL:", apiBaseUrl);
-        console.log("🔄 User Email:", email);
-        
-        const response = await fetch(`${apiBaseUrl}/api/launch/mark-completed`, {
+      const response = await fetch(
+        `${apiBaseUrl}/api/launch/mark-completed`,
+        {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            email: email,
-            action: "both", // Mark both password reset and terms accepted
+            email,
+            action: "both",
           }),
-        });
-
-        const responseText = await response.text();
-        console.log("📝 Response status:", response.status);
-        console.log("📝 Response body:", responseText);
-
-        if (response.ok) {
-          console.log("✅ Password reset and terms acceptance marked successfully");
-        } else {
-          console.error("❌ Failed to mark completion:", responseText);
-          // Don't fail the whole operation if tracking fails
-          toast({
-            title: "Warning",
-            description: "Password changed but tracking may have failed. Please contact admin if needed.",
-            variant: "destructive",
-          });
         }
-      } catch (updateError) {
-        console.error("Error updating launch reset status:", updateError);
-        // Don't fail the whole operation if tracking fails
+      );
+
+      if (!response.ok) {
+        console.warn("⚠ Launch tracking failed");
+      } else {
+        console.log("✅ Launch completion tracked");
       }
-
-      setIsSuccess(true);
-      toast({
-        title: "Success!",
-        description: "Password reset and Terms accepted successfully!",
-      });
-
-      // Sign out to clear the recovery session
-      await supabase.auth.signOut();
-
-      setTimeout(() => {
-        navigate("/login", { state: { defaultTab: "login" } });
-      }, 2000);
-    } catch (error: any) {
-      console.error("❌ Password reset error:", error);
-      toast({
-        title: "Error",
-        description: error?.message || "Failed to reset password. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    } catch (trackingError) {
+      console.warn("⚠ Launch tracking error:", trackingError);
     }
-  };
+
+    /* ===============================
+       4️⃣ Success UI
+    =============================== */
+    setIsSuccess(true);
+
+    toast({
+      title: "Success!",
+      description:
+        "Password reset and Terms accepted successfully!",
+    });
+
+    /* ===============================
+       5️⃣ Clear Recovery Session
+    =============================== */
+    await supabase.auth.signOut();
+
+    setTimeout(() => {
+      navigate("/login", { state: { defaultTab: "login" } });
+    }, 2000);
+
+  } catch (error: any) {
+    console.error("❌ Password reset error:", error);
+
+    toast({
+      title: "Error",
+      description:
+        error?.message ||
+        "Failed to complete setup. Please try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setIsLoading(false);
+  }
+};
+
+  // const onSubmit = async (data: PasswordResetFormValues) => {
+  //   if (!hasValidSession) {
+  //     toast({
+  //       title: "Invalid Session",
+  //       description: "Please use a valid password reset link.",
+  //       variant: "destructive",
+  //     });
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+  //   try {
+  //     // Get current user session to verify and get email
+  //     const { data: { session } } = await supabase.auth.getSession();
+  //     const email = session?.user?.email || userEmail;
+
+  //     if (!email || !session?.user) {
+  //       toast({
+  //         title: "Error",
+  //         description: "Unable to identify user. Please try again with a fresh reset link.",
+  //         variant: "destructive",
+  //       });
+  //       setIsLoading(false);
+  //       return;
+  //     }
+
+  //     console.log("🔐 Resetting password for user:", email);
+
+  //     // Update the password for the currently authenticated user (from recovery token)
+  //     const { data: userData, error } = await supabase.auth.updateUser({
+  //       password: data.password,
+  //     });
+
+  //     if (error) {
+  //       throw error;
+  //     }
+
+  //     console.log("✅ Password updated successfully for:", email);
+
+  //     // Save ACH authorization to profile
+  //     if (achAuthorizationAccepted) {
+  //       try {
+  //         const { error: achError } = await supabase
+  //           .from("profiles")
+  //           .update({
+  //             ach_authorization_accepted: true,
+  //             ach_authorization_accepted_at: new Date().toISOString(),
+  //             ach_authorization_version: "1.0",
+  //           })
+  //           .eq("id", session.user.id);
+
+  //         if (achError) {
+  //           console.error("❌ Error saving ACH authorization:", achError);
+  //         } else {
+  //           console.log("✅ ACH authorization saved successfully");
+  //         }
+  //       } catch (achSaveError) {
+  //         console.error("Error saving ACH authorization:", achSaveError);
+  //       }
+  //     }
+
+  //     // Mark both password reset and terms accepted as completed
+  //     try {
+  //       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
+        
+  //       console.log("🔄 Marking completion - API Base URL:", apiBaseUrl);
+  //       console.log("🔄 User Email:", email);
+        
+  //       const response = await fetch(`${apiBaseUrl}/api/launch/mark-completed`, {
+  //         method: "POST",
+  //         headers: {
+  //           "Content-Type": "application/json",
+  //         },
+  //         body: JSON.stringify({
+  //           email: email,
+  //           action: "both", // Mark both password reset and terms accepted
+  //         }),
+  //       });
+
+  //       const responseText = await response.text();
+  //       console.log("📝 Response status:", response.status);
+  //       console.log("📝 Response body:", responseText);
+
+  //       if (response.ok) {
+  //         console.log("✅ Password reset and terms acceptance marked successfully");
+  //       } else {
+  //         console.error("❌ Failed to mark completion:", responseText);
+  //         // Don't fail the whole operation if tracking fails
+  //         toast({
+  //           title: "Warning",
+  //           description: "Password changed but tracking may have failed. Please contact admin if needed.",
+  //           variant: "destructive",
+  //         });
+  //       }
+  //     } catch (updateError) {
+  //       console.error("Error updating launch reset status:", updateError);
+  //       // Don't fail the whole operation if tracking fails
+  //     }
+
+  //     setIsSuccess(true);
+  //     toast({
+  //       title: "Success!",
+  //       description: "Password reset and Terms accepted successfully!",
+  //     });
+
+  //     // Sign out to clear the recovery session
+  //     await supabase.auth.signOut();
+
+  //     setTimeout(() => {
+  //       navigate("/login", { state: { defaultTab: "login" } });
+  //     }, 2000);
+  //   } catch (error: any) {
+  //     console.error("❌ Password reset error:", error);
+  //     toast({
+  //       title: "Error",
+  //       description: error?.message || "Failed to reset password. Please try again.",
+  //       variant: "destructive",
+  //     });
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-blue-50">
