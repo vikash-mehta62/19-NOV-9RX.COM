@@ -390,12 +390,12 @@ const Login = () => {
             </Card>
 
             {/* Bottom text */}
-            <p className="text-center text-gray-500 text-sm mt-6">
+            {/* <p className="text-center text-gray-500 text-sm mt-6">
               By signing in, you agree to our{" "}
               <a href="/terms-of-service" className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Terms of Service</a>
               {" "}and{" "}
               <a href="/privacy-policy" className="text-blue-600 hover:underline focus:outline-none focus:ring-2 focus:ring-blue-500 rounded">Privacy Policy</a>
-            </p>
+            </p> */}
           </div>
         </div>
       </div>

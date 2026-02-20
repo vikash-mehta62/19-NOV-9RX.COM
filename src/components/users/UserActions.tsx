@@ -153,7 +153,7 @@ const UserActions = ({
       // Use the correct API base URL from environment variables
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
                            import.meta.env.VITE_APP_BASE_URL || 
-                           "http://localhost:4001";
+                           "https://9rx.mahitechnocrafts.in";
       
       const pdfUrl = `${API_BASE_URL}/api/terms-management/generate-pdf/${userId}`;
       console.log(`Making request to: ${pdfUrl}`);
