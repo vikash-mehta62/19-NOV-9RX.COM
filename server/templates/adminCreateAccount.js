@@ -13,7 +13,7 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
             }
             body { 
                 font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                background-color: #f4f7fa;
                 color: #333; 
                 margin: 0; 
                 padding: 20px;
@@ -23,153 +23,135 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                 max-width: 600px;
                 margin: 0 auto;
                 background: #ffffff;
-                border-radius: 16px;
+                border-radius: 12px;
                 overflow: hidden;
-                box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             }
             .header-section {
-                background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+                background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
                 padding: 40px 30px;
                 text-align: center;
-                color: white;
+                border-bottom: 3px solid #2563eb;
             }
             .logo { 
                 width: 100px; 
                 height: auto;
                 margin-bottom: 20px;
-                filter: brightness(0) invert(1);
             }
             .header-title { 
-                font-size: 28px; 
+                font-size: 26px; 
                 font-weight: 700; 
+                color: #1e40af;
                 margin-bottom: 8px;
-                text-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
             .header-subtitle {
-                font-size: 16px;
-                opacity: 0.9;
-                font-weight: 400;
+                font-size: 15px;
+                color: #3b82f6;
+                font-weight: 500;
             }
             .content-section {
                 padding: 40px 30px;
                 text-align: center;
             }
             .welcome-message { 
-                font-size: 18px; 
+                font-size: 16px; 
                 color: #4b5563; 
                 margin-bottom: 30px;
                 line-height: 1.7;
+                text-align: left;
             }
             .user-info-card { 
                 background: #f8fafc;
-                border: 2px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 24px;
-                margin: 30px 0;
-                display: inline-block;
-                min-width: 280px;
+                border: 1px solid #e2e8f0;
+                border-left: 4px solid #3b82f6;
+                border-radius: 8px;
+                padding: 20px 24px;
+                margin: 24px 0;
+                text-align: left;
             }
             .user-info-card p {
                 margin: 8px 0;
-                font-size: 16px;
+                font-size: 15px;
+                color: #374151;
             }
             .user-info-card strong {
                 color: #1e293b;
                 font-weight: 600;
             }
             .password-card {
-                background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
-                border: 2px solid #f59e0b;
-                border-radius: 12px;
+                background: #fffbeb;
+                border: 1px solid #fbbf24;
+                border-left: 4px solid #f59e0b;
+                border-radius: 8px;
                 padding: 24px;
-                margin: 30px 0;
-                box-shadow: 0 4px 6px rgba(245, 158, 11, 0.1);
+                margin: 24px 0;
             }
             .password-label {
-                font-size: 16px;
+                font-size: 15px;
                 color: #92400e;
                 font-weight: 600;
                 margin-bottom: 12px;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 8px;
+                text-align: left;
             }
             .password-value {
                 font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-                font-size: 24px;
+                font-size: 22px;
                 font-weight: 700;
                 color: #1e40af;
                 background: #ffffff;
                 padding: 12px 20px;
                 border-radius: 8px;
-                border: 2px solid #3b82f6;
+                border: 2px dashed #3b82f6;
                 letter-spacing: 2px;
                 margin: 12px 0;
+                text-align: center;
                 word-break: break-all;
             }
             .security-warning {
-                font-size: 14px;
+                font-size: 13px;
                 color: #dc2626;
                 margin-top: 12px;
                 font-weight: 500;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                gap: 6px;
+                text-align: left;
             }
             .button-container {
-                margin: 40px 0;
-                display: flex;
-                flex-direction: column;
-                gap: 16px;
-                align-items: center;
+                margin: 32px 0;
+                text-align: center;
             }
             .btn {
                 display: inline-block;
-                padding: 16px 32px;
-                font-size: 16px;
+                padding: 14px 32px;
+                font-size: 15px;
                 font-weight: 600;
                 text-decoration: none;
-                border-radius: 12px;
-                transition: all 0.3s ease;
+                border-radius: 8px;
                 min-width: 200px;
                 text-align: center;
-                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+                margin: 6px;
             }
             .btn-primary {
-                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-                color: #ffffff;
-                border: 2px solid #3b82f6;
-            }
-            .btn-primary:hover {
-                background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-                transform: translateY(-2px);
-                box-shadow: 0 8px 15px rgba(59, 130, 246, 0.3);
+                background: #2563eb;
+                color: #ffffff !important;
             }
             .btn-secondary {
-                background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-                color: #ffffff;
-                border: 2px solid #6366f1;
-            }
-            .btn-secondary:hover {
-                background: linear-gradient(135deg, #5b21b6 0%, #4c1d95 100%);
-                transform: translateY(-2px);
-                box-shadow: 0 8px 15px rgba(99, 102, 241, 0.3);
+                background: #f8fafc;
+                color: #2563eb !important;
+                border: 2px solid #2563eb;
             }
             .footer-section {
                 background: #f8fafc;
-                padding: 30px;
+                padding: 24px 30px;
                 text-align: center;
                 border-top: 1px solid #e2e8f0;
             }
             .footer-text {
-                font-size: 14px;
+                font-size: 13px;
                 color: #64748b;
-                margin-bottom: 16px;
+                margin-bottom: 12px;
+                line-height: 1.6;
             }
             .support-info {
-                font-size: 13px;
+                font-size: 12px;
                 color: #94a3b8;
             }
             @media (max-width: 600px) {
@@ -178,10 +160,10 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                     border-radius: 12px;
                 }
                 .header-section, .content-section {
-                    padding: 30px 20px;
+                    padding: 28px 20px;
                 }
                 .header-title {
-                    font-size: 24px;
+                    font-size: 22px;
                 }
                 .password-value {
                     font-size: 18px;
@@ -189,7 +171,7 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                 }
                 .btn {
                     min-width: 180px;
-                    padding: 14px 24px;
+                    padding: 12px 24px;
                 }
             }
         </style>
@@ -210,8 +192,8 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                 </p>
                 
                 <div class="user-info-card">
-                    <p><strong>👤 Name:</strong> ${name}</p>
-                    <p><strong>📧 Email:</strong> ${email}</p>
+                    <p>👤 <strong>Name:</strong> ${name}</p>
+                    <p>📧 <strong>Email:</strong> ${email}</p>
                 </div>
                 
                 <div class="password-card">
@@ -225,7 +207,7 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                 </div>
 
                 <div class="button-container">
-                    <a href="http://localhost:3000/login" class="btn btn-primary">
+                    <a href="https://www.9rx.com/login" class="btn btn-primary">
                         🚀 Login to Your Account
                     </a>
                     ${termsAcceptanceLink ? `
@@ -242,10 +224,10 @@ const adminAccountActiveTemplate = (name, email, admin = false, password = "1234
                     <strong>Important:</strong> ${termsAcceptanceLink ? 'Please click the "Accept Terms & Privacy Policy" button above to complete your account setup. ' : ''}Please change your temporary password after your first login for security.
                 </p>
                 <p class="footer-text">
-                    <strong>Need Help?</strong> Our support team is here to assist you with any questions or concerns.
+                    Need help? Our support team is here to assist you.
                 </p>
                 <p class="support-info">
-                    📞 Contact Support | 💬 Live Chat Available | 📧 support@9rx.com
+                    📞 +1 (800) 969-6295 &nbsp;|&nbsp; 📧 support@9rx.com &nbsp;|&nbsp; 🌐 www.9rx.com
                 </p>
             </div>
         </div>
