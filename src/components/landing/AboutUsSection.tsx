@@ -69,7 +69,7 @@ const AboutUsSection = () => {
             Leading Pharmacy Distribution
           </h2>
           <p className="text-gray-600 text-lg max-w-3xl mx-auto animate-fade-in">
-            Since 2010, 9Rx Wholesale has been serving independent pharmacies with reliable supplies and exceptional service
+            Since 2024, 9Rx Wholesale has been serving independent pharmacies with reliable supplies and exceptional service
           </p>
         </div>
 

@@ -2,6 +2,7 @@
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.tsx'
+import ScrollToTop from './components/ScrollToTop'
 import './index.css'
 import { Provider } from 'react-redux';
 import { store } from './store/store';
@@ -43,6 +44,7 @@ const root = createRoot(rootElement)
 root.render(
   <QueryClientProvider client={queryClient}>
     <BrowserRouter>
+      <ScrollToTop />
       <Provider store={store}>
         <ThemeProvider>
           <ToastProvider>

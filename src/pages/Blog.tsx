@@ -17,8 +17,8 @@ const Blog = () => {
     "Industry News",
     "Product Updates",
     "Tips & Guides",
-    "Compliance",
-    "Business Growth"
+    // "Compliance",
+    // "Business Growth"
   ];
 
   const [activeCategory, setActiveCategory] = useState("All Posts");

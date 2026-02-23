@@ -36,7 +36,7 @@ const TrustSection = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   const pharmacies = useCounter(250, 2000, isVisible);
-  const products = useCounter(500, 2500, isVisible);
+  const products = useCounter(250, 2500, isVisible);
   const satisfaction = useCounter(98, 1500, isVisible);
   const years = useCounter(14, 1000, isVisible);
 
@@ -172,7 +172,7 @@ const TrustSection = () => {
               </div>
               
               {/* Value */}
-              <div className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-slate-900 mb-1 sm:mb-2 tabular-nums">
+              <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-slate-900 mb-1 sm:mb-2 tabular-nums">
                 {stat.value}{stat.suffix}
               </div>
               

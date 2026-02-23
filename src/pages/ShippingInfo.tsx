@@ -12,14 +12,14 @@ const ShippingInfo = () => {
     {
       icon: Truck,
       title: "Standard Shipping",
-      time: "5-7 Business Days",
+      time: "3-4 Business Days",
       price: "Calculated at checkout",
       color: "from-blue-500 to-indigo-500"
     },
     {
       icon: Clock,
       title: "Express Shipping",
-      time: "2-3 Business Days",
+      time: "Next Day",
       price: "Additional fees apply",
       color: "from-amber-500 to-orange-500"
     },
@@ -75,13 +75,13 @@ const ShippingInfo = () => {
             <p className="text-gray-500 mb-8">Everything you need to know about our shipping policies</p>
 
             {/* Free Shipping Banner */}
-            <div className="bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl p-6 mb-8 text-white">
+            <div className="bg-gradient-to-r from-blue-500 to-blue-500 rounded-xl p-6 mb-8 text-white">
               <div className="flex items-center gap-4">
                 <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center">
                   <DollarSign className="w-8 h-8" />
                 </div>
                 <div>
-                  <h3 className="text-2xl font-bold">FREE Shipping on Orders $500+</h3>
+                  <h3 className="text-2xl font-bold">FREE Shipping on Orders $300+</h3>
                   <p className="text-emerald-100">Enjoy free standard shipping on qualifying orders</p>
                 </div>
               </div>
@@ -136,9 +136,9 @@ const ShippingInfo = () => {
               <h2 className="text-xl font-semibold text-gray-900 mt-8 mb-4">Contact Us</h2>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
                 <p><strong>Shipping Questions?</strong></p>
-                <p>Email: shipping@9rx.com</p>
-                <p>Phone: +1 (800) 969-6295</p>
-                <p>Hours: Mon-Fri 9AM-6PM EST</p>
+                <p>Email: info@9rx.com</p>
+                <p>Phone: +1 (800) 940-9619</p>
+                <p>Hours: Mon-Fri 9AM-5PM EST</p>
               </div>
             </div>
           </div>

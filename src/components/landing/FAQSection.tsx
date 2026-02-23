@@ -13,7 +13,7 @@ const FAQSection = () => {
     },
     {
       question: "How fast is shipping?",
-      answer: "Orders placed before 3:00 PM EST are dispatched the same day. Standard shipping typically takes 2-5 business days depending on your location. Express and overnight shipping options are also available for urgent needs.",
+      answer: "Orders placed before 3:00 PM EST are dispatched the same day. Standard shipping typically takes 3-4 business days depending on your location. Express and overnight shipping options are also available for urgent needs.",
       category: "Shipping"
     },
     {
@@ -41,7 +41,7 @@ const FAQSection = () => {
   const categories = [...new Set(faqs.map(f => f.category))];
 
   return (
-    <section className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-blue-50/20 to-white relative overflow-hidden">
+    <section id="faq" className="py-16 sm:py-20 lg:py-24 bg-gradient-to-b from-white via-blue-50/20 to-white relative overflow-hidden scroll-mt-20">
       {/* Background decorations - Unified blue theme */}
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_at_top_left,_var(--tw-gradient-stops))] from-blue-100/30 via-transparent to-transparent" />
@@ -152,7 +152,7 @@ const FAQSection = () => {
                       className="flex items-center gap-2 sm:gap-3 bg-white/20 hover:bg-white/30 rounded-lg sm:rounded-xl px-3 sm:px-4 py-2 sm:py-3 transition-colors text-sm sm:text-base"
                     >
                       <Phone className="w-4 sm:w-5 h-4 sm:h-5" />
-                      <span className="font-medium">+1 800 969 6295</span>
+                      <span className="font-medium">+1 (800) 940-9619</span>
                     </a>
                     <a
                       href="mailto:info@9rx.com"

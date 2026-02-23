@@ -111,7 +111,7 @@ const PrivacyPolicy = () => {
               </p>
               <div className="bg-gray-50 rounded-lg p-4 text-gray-600">
                 <p><strong>9RX LLC</strong></p>
-                <p>936 Broad River Ln, Charlotte, NC 28211</p>
+                <p>724 Montana drive, Charlotte, NC 28216</p>
                 <p>Email: info@9rx.com</p>
                 <p>Phone: +1 (800) 940-9619</p>
               </div>

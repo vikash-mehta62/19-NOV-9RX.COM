@@ -58,9 +58,9 @@ const Contact = () => {
     {
       icon: Phone,
       title: "Phone",
-      value: "+1 800 969 6295",
-      description: "Mon-Fri 9AM-6PM EST",
-      href: "tel:+18009696295"
+      value: "+1 (800) 940-9619",
+      description: "Mon-Fri 9AM-5PM EST",
+      href: "tel:+18009409619"
     },
     {
       icon: Mail,
@@ -72,9 +72,9 @@ const Contact = () => {
     {
       icon: MapPin,
       title: "Address",
-      value: "936 Broad River Ln",
-      description: "Charlotte, NC 28211",
-      href: "https://maps.google.com/?q=936+Broad+River+Ln+Charlotte+NC+28211"
+      value: "724 Montana drive,",
+      description: "Charlotte, NC 28216",
+      href: "https://maps.google.com/?q=724+Montana+drive+Charlotte+NC+28216"
     },
     {
       icon: Clock,
@@ -267,8 +267,8 @@ const Contact = () => {
                 <div className="bg-gradient-to-br from-blue-100 to-indigo-100 rounded-2xl h-64 flex items-center justify-center">
                   <div className="text-center">
                     <MapPin className="w-12 h-12 text-blue-400 mx-auto mb-3" />
-                    <p className="text-slate-600 font-medium">936 Broad River Ln</p>
-                    <p className="text-slate-500">Charlotte, NC 28211</p>
+                    <p className="text-slate-600 font-medium">724 Montana drive</p>
+                    <p className="text-slate-500">Charlotte, NC 28216</p>
                   </div>
                 </div>
 
@@ -277,7 +277,7 @@ const Contact = () => {
                   <h4 className="font-bold text-lg mb-2">Need Immediate Help?</h4>
                   <p className="text-blue-100 text-sm mb-4">Our support team is available Monday through Friday.</p>
                   <a
-                    href="tel:+18009696295"
+                    href="tel:+18009409619"
                     className="inline-flex items-center gap-2 bg-white text-blue-600 px-5 py-2.5 rounded-xl font-semibold hover:bg-blue-50 transition-colors"
                   >
                     <Phone className="w-4 h-4" />

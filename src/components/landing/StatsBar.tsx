@@ -33,7 +33,7 @@ const StatsBar = () => {
   const sectionRef = useRef<HTMLDivElement>(null);
 
   const pharmacies = useCounter(250, 2000, isVisible);
-  const products = useCounter(500, 2500, isVisible);
+  const products = useCounter(250, 2500, isVisible);
   const orders = useCounter(10000, 2000, isVisible);
   const satisfaction = useCounter(98, 1500, isVisible);
 
