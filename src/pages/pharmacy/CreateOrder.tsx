@@ -487,7 +487,9 @@ export default function PharmacyCreateOrder() {
       }
 
       // If credit payment, update customer's credit_used
-      if (paymentMethod === "credit") {
+      // NOTE: For credit orders that need approval (credit_approval_processing), 
+      // credit will be charged when admin approves the order, not immediately
+      if (paymentMethod === "credit" && orderStatus !== "credit_approval_processing") {
         const { data: customerProfile } = await supabase
           .from("profiles")
           .select("credit_used")

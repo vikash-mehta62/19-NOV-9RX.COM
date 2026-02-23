@@ -45,8 +45,8 @@ By applying for and using a 9RX Credit Line, you agree to these terms and condit
 
 ### 8. Dispute Resolution
 - Contact our credit department within 30 days to dispute any charges
-- Email: credit@9rx.com
-- Phone: +1 (800) 969-6295
+- Email: info@9rx.com
+- Phone: +1 (800) 940-9619
 
 ### 9. Changes to Terms
 - 9RX may update these terms at any time

@@ -112,8 +112,7 @@ const WizardNavigationComponent = ({
               {isSubmitting ? (
                 <>
                   <LoadingSpinner size="sm" className="border-white border-t-white/50" aria-hidden="true" />
-                  <span className="hidden sm:inline">Processing...</span>
-                  <span className="sm:hidden">Processing</span>
+                  <span>{getButtonText()}</span>
                   <span className="sr-only">Processing your order, please wait</span>
                 </>
               ) : (

@@ -148,13 +148,28 @@ const PendingCreditTerms = () => {
 
       if (error) throw error;
 
-      // Update profiles with credit details (for EnhancedPaymentTab)
+      // Fetch current profile to get existing credit limit & usage
+      const { data: currentProfile, error: fetchErr } = await supabase
+        .from("profiles")
+        .select("credit_limit, credit_used")
+        .eq("id", userProfile?.id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      const existingLimit = Number(currentProfile?.credit_limit || 0);
+      const existingUsed = Number(currentProfile?.credit_used || 0);
+      const addedLimit = Number(pendingTerms.credit_limit);
+      const newTotalLimit = existingLimit + addedLimit;
+      const newAvailable = newTotalLimit - existingUsed;
+
+      // Update profiles — ADD new limit to existing (not replace)
       const { error: profileError } = await supabase
         .from("profiles")
         .update({
-          credit_limit: pendingTerms.credit_limit,
-          available_credit: pendingTerms.credit_limit,
-          credit_used: 0,
+          credit_limit: newTotalLimit,
+          available_credit: newAvailable,
+          // Keep existing credit_used — do NOT reset to 0
           payment_terms: `net_${pendingTerms.net_terms}`,
           credit_days: pendingTerms.net_terms,
           late_payment_fee_percentage: pendingTerms.interest_rate,
@@ -164,53 +179,20 @@ const PendingCreditTerms = () => {
 
       if (profileError) throw profileError;
 
-      // Create/Update active credit line (for Admin Credit Lines tab)
-      // Check for existing line first to avoid duplicates
-      const { data: existingLine } = await supabase
-        .from("user_credit_lines")
-        .select("id, used_credit")
-        .eq("user_id", userProfile?.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Update credit line via SECURITY DEFINER function (bypasses RLS)
+      const { error: lineError } = await supabase.rpc("accept_credit_terms_update_line", {
+        p_user_id: userProfile?.id,
+        p_new_total_limit: newTotalLimit,
+        p_available_credit: newAvailable,
+        p_used_credit: existingUsed,
+        p_net_terms: pendingTerms.net_terms,
+        p_interest_rate: pendingTerms.interest_rate,
+      });
 
-      const usedCredit = existingLine?.used_credit || 0;
-      const newLimit = pendingTerms.credit_limit;
-      const availableCredit = newLimit - usedCredit;
-
-      const creditLineData = {
-          user_id: userProfile?.id,
-          credit_limit: newLimit,
-          available_credit: availableCredit,
-          used_credit: usedCredit,
-          net_terms: pendingTerms.net_terms,
-          interest_rate: pendingTerms.interest_rate,
-          status: "active",
-          payment_score: 100
-      };
-
-      let lineError;
-
-      if (existingLine) {
-        const { error } = await supabase
-          .from("user_credit_lines")
-          .update({
-            credit_limit: newLimit,
-            available_credit: availableCredit,
-            net_terms: pendingTerms.net_terms,
-            interest_rate: pendingTerms.interest_rate,
-            status: "active"
-          })
-          .eq("id", existingLine.id);
-        lineError = error;
-      } else {
-        const { error } = await supabase
-          .from("user_credit_lines")
-          .upsert(creditLineData); // upsert is fine here if we don't have ID, but insert is clearer. upsert without ID = insert.
-        lineError = error;
+      if (lineError) {
+        console.error("Credit line update error:", lineError);
+        // Non-fatal: profile is already updated, credit line is secondary
       }
-
-      if (lineError) throw lineError;
 
       toast({
         title: "Terms Accepted!",
