@@ -831,8 +831,6 @@ app.post("/create-signup-profile", async (req, res) => {
           role: "user",
           requires_password_reset: false,
           terms_and_conditions: termsData,
-          terms_accepted_at: termsAccepted ? (termsAcceptedAt || new Date().toISOString()) : null,
-          terms_version: termsAccepted ? (termsVersion || "1.0") : null,
         },
         { onConflict: "id" }
       )

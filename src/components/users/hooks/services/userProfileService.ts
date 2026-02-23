@@ -100,6 +100,12 @@ export const updateUserProfilePublic = async (
       fax_number: values.faxNumber?.trim() || null,
       department: values.department?.trim() || null,
       terms_and_conditions: values.terms_and_conditions || null,
+      // Add Privacy Policy and ACH Authorization
+      privacy_policy_accepted: (values as any).privacy_policy_accepted || false,
+      privacy_policy_accepted_at: (values as any).privacy_policy_accepted_at || null,
+      ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
+      ach_authorization_accepted_at: (values as any).ach_authorization_accepted_at || null,
+      ach_authorization_version: (values as any).ach_authorization_version || null,
       updated_at: new Date().toISOString(),
     };
 
@@ -186,6 +192,12 @@ export const updateUserProfile = async (
       fax_number: values.faxNumber?.trim() || null,
       department: values.department?.trim() || null,
       terms_and_conditions: values.terms_and_conditions || null,
+      // Add Privacy Policy and ACH Authorization
+      privacy_policy_accepted: (values as any).privacy_policy_accepted || false,
+      privacy_policy_accepted_at: (values as any).privacy_policy_accepted_at || null,
+      ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
+      ach_authorization_accepted_at: (values as any).ach_authorization_accepted_at || null,
+      ach_authorization_version: (values as any).ach_authorization_version || null,
       notes: values.notes?.trim() || null,
       website: values.website?.trim() || null,
       preferred_contact_method: values.preferredContactMethod || null,

@@ -164,7 +164,7 @@ exports.userNotificationCtrl = async (req, res) => {
       });
     }
     const emailContent = userVerificationTemplate(groupname, name, email);
-    const userEmailContent = signupSuccessTemplate(name);
+    const userEmailContent = signupSuccessTemplate(name, email);
 
     // Notify Admin
     await mailSender(

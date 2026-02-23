@@ -1,4 +1,7 @@
-const signupSuccessTemplate = (name) => {
+const signupSuccessTemplate = (name, email) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
+    const updateProfileUrl = `${frontendUrl}/update-profile?email=${encodeURIComponent(email)}`;
+    
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -85,6 +88,31 @@ const signupSuccessTemplate = (name) => {
                 padding: 2px 0;
             }
 
+            .button {
+                display: inline-block;
+                padding: 14px 32px;
+                background: linear-gradient(135deg, #0EA5E9 0%, #38BDF8 100%);
+                color: white;
+                text-decoration: none;
+                border-radius: 8px;
+                font-weight: 600;
+                margin: 20px 0;
+                text-align: center;
+                transition: all 0.3s ease;
+                box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+            }
+
+            .button:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 6px 20px rgba(14, 165, 233, 0.4);
+                background: linear-gradient(135deg, #0284C7 0%, #0EA5E9 100%);
+            }
+
+            .button-container {
+                text-align: center;
+                margin: 24px 0;
+            }
+
             .support {
                 text-align: center;
                 font-size: 14px;
@@ -106,6 +134,11 @@ const signupSuccessTemplate = (name) => {
                 .message {
                     font-size: 24px;
                 }
+
+                .button {
+                    padding: 12px 24px;
+                    font-size: 14px;
+                }
             }
         </style>
     </head>
@@ -123,6 +156,12 @@ const signupSuccessTemplate = (name) => {
                     <p>Thank you for signing up with 9RX. We have received your registration request.</p>
                     <p>Our team is currently reviewing your account details. You will receive another email once your account is verified and active.</p>
                 </div>
+                <div class="button-container">
+                    <a href="${updateProfileUrl}" class="button">Complete Your Profile</a>
+                </div>
+                <p style="text-align: center; color: #64748B; font-size: 14px;">
+                    Click the button above to complete your profile information while we review your account.
+                </p>
                 <p>If you have any questions in the meantime, please don't hesitate to contact us.</p>
                 <div class="support">
                     &copy; ${new Date().getFullYear()} 9RX. All rights reserved.

@@ -35,8 +35,10 @@ function UserSelfDetails() {
       const { data, error } = await supabase
         .from("profiles")
         .select()
-        .eq("email", userEmail)
+        .eq("email", userEmail?.toLowerCase().trim())
         .maybeSingle();
+
+      console.log("📊 Query Response:", { data, error });
 
       if (error) {
         console.error("🚨 Supabase Fetch Error:", error);
@@ -50,7 +52,17 @@ function UserSelfDetails() {
       }
 
       if (!data) {
-        console.warn("⚠️ No user found for this email.");
+        console.warn("⚠️ No user found for this email:", userEmail);
+        console.log("🔍 Trying to check if user exists in database...");
+        
+        // Additional debug query
+        const { count } = await supabase
+          .from("profiles")
+          .select("*", { count: "exact", head: true })
+          .ilike("email", userEmail?.trim() || "");
+        
+        console.log("📊 Total matching profiles:", count);
+        
         toast({
           title: "User Not Found",
           description: "No user found with this email address",

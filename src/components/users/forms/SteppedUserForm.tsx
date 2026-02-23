@@ -179,6 +179,13 @@ export function SteppedUserForm({
         languagePreference: values.languagePreference || "English",
         creditLimit: values.creditLimit ? Number(values.creditLimit) : 0,
         terms_and_conditions: termsAndConditions as any,
+        // Add Privacy Policy acceptance
+        privacy_policy_accepted: true,
+        privacy_policy_accepted_at: new Date().toISOString(),
+        // Add ACH Authorization acceptance (if checkbox was checked)
+        ach_authorization_accepted: values.achAuthorizationAccepted || false,
+        ach_authorization_accepted_at: values.achAuthorizationAccepted ? new Date().toISOString() : null,
+        ach_authorization_version: values.achAuthorizationAccepted ? "1.0" : null,
       };
       await onSubmit(formattedValues);
     } catch (error: any) {
@@ -336,6 +343,23 @@ export function SteppedUserForm({
                 />
                 <label htmlFor="terms" className="text-[11px] text-gray-700 leading-relaxed cursor-pointer">
                   I agree to the <a href="https://www.9rx.com/terms-and-conditions" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Terms and Conditions</a> and <a href="https://www.9rx.com/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline font-medium">Privacy Policy</a>. I confirm that all information provided is accurate and complete.
+                </label>
+              </div>
+            </div>
+
+            {/* ACH Authorization (Optional) */}
+            <div className="rounded-lg p-3 border bg-blue-50 border-blue-200">
+              <div className="flex items-start gap-3">
+                <Checkbox 
+                  id="achAuthorization" 
+                  checked={form.watch("achAuthorizationAccepted") || false}
+                  onCheckedChange={(checked) => {
+                    form.setValue("achAuthorizationAccepted", checked === true);
+                  }}
+                  className="mt-0.5"
+                />
+                <label htmlFor="achAuthorization" className="text-[11px] text-gray-700 leading-relaxed cursor-pointer">
+                  <span className="font-semibold text-blue-800">ACH Authorization (Optional):</span> I authorize 9RX to electronically debit my bank account for payments. I understand that this authorization will remain in effect until I cancel it in writing.
                 </label>
               </div>
             </div>

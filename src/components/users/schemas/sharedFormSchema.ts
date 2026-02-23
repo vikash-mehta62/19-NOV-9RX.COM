@@ -86,6 +86,7 @@ export const baseUserSchema = z.object({
   referralName: z.string().optional(), // Admin-only field
   stateId: z.string().optional(), // State ID field
   terms_and_conditions: termsAndConditionsSchema.optional(), // Terms acceptance with timestamp
+  achAuthorizationAccepted: z.boolean().optional(), // ACH Authorization checkbox
 });
 
 export type BaseUserFormData = z.infer<typeof baseUserSchema>;

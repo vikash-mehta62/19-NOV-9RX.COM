@@ -391,8 +391,13 @@ router.post("/mark-completed", async (req, res) => {
     const profileUpdateData = {};
     
     if (reset.terms_accepted_at) {
-      profileUpdateData.terms_accepted_at = reset.terms_accepted_at;
-      profileUpdateData.terms_version = "1.0";
+      // Create terms_and_conditions JSONB object
+      profileUpdateData.terms_and_conditions = {
+        accepted: true,
+        acceptedAt: reset.terms_accepted_at,
+        version: "1.0",
+        method: "launch_password_reset"
+      };
     }
     
     if (reset.password_reset_at) {

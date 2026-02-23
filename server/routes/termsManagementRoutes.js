@@ -101,11 +101,11 @@ router.get("/user-terms/:profileId", async (req, res) => {
       .from("profiles")
       .select(`
         id, first_name, last_name, email, company_name,
-        terms_accepted, terms_accepted_at, terms_signature, terms_version,
+        terms_and_conditions, terms_signature,
         privacy_policy_accepted, privacy_policy_accepted_at, privacy_policy_signature,
         ach_authorization_accepted, ach_authorization_accepted_at, ach_authorization_signature,
         ach_authorization_version, ach_authorization_ip_address,
-        terms_and_conditions, created_at, updated_at
+        created_at, updated_at
       `)
       .eq("id", profileId)
       .single();
@@ -117,22 +117,11 @@ router.get("/user-terms/:profileId", async (req, res) => {
       });
     }
 
-    // Get terms acceptance history
-    const { data: history, error: historyError } = await supabaseAdmin
-      .from("terms_acceptance_history")
-      .select("*")
-      .eq("profile_id", profileId)
-      .order("accepted_at", { ascending: false });
-
-    if (historyError) {
-      console.error("Error fetching terms history:", historyError);
-    }
-
     return res.json({
       success: true,
       data: {
         profile: profile,
-        history: history || []
+        history: []
       }
     });
 
@@ -211,7 +200,7 @@ router.get("/users-terms-status", async (req, res) => {
       .from("profiles")
       .select(`
         id, first_name, last_name, email, company_name, type, status,
-        terms_accepted, terms_accepted_at, terms_signature,
+        terms_and_conditions, terms_signature,
         privacy_policy_accepted, privacy_policy_accepted_at, privacy_policy_signature,
         ach_authorization_accepted, ach_authorization_accepted_at, ach_authorization_signature,
         created_at
@@ -280,8 +269,12 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
         status: "active",
         phone: "(555) 123-4567",
         mobile_phone: "(555) 987-6543",
-        terms_accepted: true,
-        terms_accepted_at: new Date().toISOString(),
+        terms_and_conditions: {
+          accepted: true,
+          acceptedAt: new Date().toISOString(),
+          version: "1.0",
+          ipAddress: "127.0.0.1"
+        },
         privacy_policy_accepted: true,
         privacy_policy_accepted_at: new Date().toISOString(),
         ach_authorization_accepted: false,
@@ -443,14 +436,14 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
     const colW = (contentWidth - 20) / 3;
     
     // Terms of Service
-    const termsAccepted = userData.terms_accepted;
+    const termsAccepted = userData.terms_and_conditions?.accepted || false;
     doc.fontSize(7).fillColor(mediumText).font('Helvetica');
     t('Terms of Service', ti, tsy);
     doc.fontSize(9).fillColor(termsAccepted ? successGreen : dangerRed).font('Helvetica-Bold');
     t(termsAccepted ? 'ACCEPTED' : 'NOT ACCEPTED', ti, tsy + 12);
-    if (userData.terms_accepted_at) {
+    if (userData.terms_and_conditions?.acceptedAt) {
       doc.fontSize(6).fillColor(mediumText).font('Helvetica');
-      t(`on ${new Date(userData.terms_accepted_at).toLocaleDateString('en-US')}`, ti, tsy + 24);
+      t(`on ${new Date(userData.terms_and_conditions.acceptedAt).toLocaleDateString('en-US')}`, ti, tsy + 24);
     }
     
     // Privacy Policy

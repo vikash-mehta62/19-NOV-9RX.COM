@@ -190,19 +190,34 @@ export default function LaunchPasswordReset() {
        2️⃣ Update Profile (Single Update)
     =============================== */
     const now = new Date().toISOString();
+    const userIP = "unknown"; // Client-side doesn't have access to real IP
+    const userAgent = navigator.userAgent || "unknown";
+
+    // Prepare terms acceptance data in JSONB format
+    const termsData = {
+      accepted: true,
+      acceptedAt: now,
+      version: "1.0",
+      ipAddress: userIP,
+      userAgent: userAgent,
+      method: "launch_password_reset"
+    };
 
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        // Terms
-        terms_accepted: true,
-        terms_accepted_at: now,
-        terms_version: "1.0",
+        // Terms - JSONB column (unified storage)
+        terms_and_conditions: termsData,
+
+        // Privacy Policy (auto-accept with Terms)
+        privacy_policy_accepted: true,
+        privacy_policy_accepted_at: now,
 
         // ACH
         ach_authorization_accepted: achAuthorizationAccepted || false,
         ach_authorization_accepted_at: achAuthorizationAccepted ? now : null,
         ach_authorization_version: achAuthorizationAccepted ? "1.0" : null,
+        ach_authorization_ip_address: achAuthorizationAccepted ? userIP : null,
 
         // Password Reset Flags
         requires_password_reset: false,

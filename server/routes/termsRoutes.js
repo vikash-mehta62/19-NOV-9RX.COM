@@ -213,13 +213,10 @@ router.post("/accept", async (req, res) => {
     // Prepare update data
     const updateData = {
       terms_and_conditions: termsData,
-      terms_accepted: true,
-      terms_accepted_at: acceptanceTimestamp,
       terms_signature: termsSignature,
       privacy_policy_accepted: true,
       privacy_policy_accepted_at: acceptanceTimestamp,
       privacy_policy_signature: privacySignature,
-      terms_version: "1.0",
       updated_at: new Date().toISOString()
     };
 

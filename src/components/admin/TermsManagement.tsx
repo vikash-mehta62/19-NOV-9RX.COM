@@ -25,8 +25,13 @@ interface UserTermsStatus {
   company_name: string;
   type: string;
   status: string;
-  terms_accepted: boolean;
-  terms_accepted_at: string | null;
+  terms_and_conditions: {
+    accepted: boolean;
+    acceptedAt: string;
+    version: string;
+    ipAddress?: string;
+    userAgent?: string;
+  } | null;
   terms_signature: string | null;
   privacy_policy_accepted: boolean;
   privacy_policy_accepted_at: string | null;
@@ -145,7 +150,7 @@ export const TermsManagement = () => {
 
   const getComplianceStatus = (user: UserTermsStatus) => {
     const acceptedCount = [
-      user.terms_accepted,
+      user.terms_and_conditions?.accepted,
       user.privacy_policy_accepted,
       user.ach_authorization_accepted
     ].filter(Boolean).length;
@@ -243,7 +248,7 @@ export const TermsManagement = () => {
                       {/* Terms Status */}
                       <div className="flex items-center space-x-6">
                         <div className="flex items-center space-x-2">
-                          {user.terms_accepted ? (
+                          {user.terms_and_conditions?.accepted ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                           ) : (
                             <XCircle className="h-4 w-4 text-red-600" />
@@ -340,7 +345,7 @@ export const TermsManagement = () => {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center space-x-2">
-                      {selectedUser.profile.terms_accepted ? (
+                      {selectedUser.profile.terms_and_conditions?.accepted ? (
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                       ) : (
                         <XCircle className="h-4 w-4 text-red-600" />
@@ -350,7 +355,7 @@ export const TermsManagement = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600 mb-2">
-                      {formatDate(selectedUser.profile.terms_accepted_at)}
+                      {formatDate(selectedUser.profile.terms_and_conditions?.acceptedAt || null)}
                     </p>
                     {selectedUser.profile.terms_signature && (
                       <div className="flex items-center space-x-2 text-sm">
@@ -417,48 +422,50 @@ export const TermsManagement = () => {
               </div>
 
               {/* Acceptance History */}
-              <div>
-                <h3 className="text-lg font-semibold mb-4">Acceptance History</h3>
-                <div className="space-y-3">
-                  {selectedUser.history.map((record) => (
-                    <Card key={record.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <div className="flex items-center space-x-2 mb-2">
-                              <Badge variant="outline">
-                                {record.terms_type.replace('_', ' ').toUpperCase()}
-                              </Badge>
-                              <span className="text-sm text-gray-600">
-                                Version {record.terms_version}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-4 text-sm text-gray-600">
-                              <div className="flex items-center space-x-1">
-                                <Calendar className="h-3 w-3" />
-                                <span>{formatDate(record.accepted_at)}</span>
-                              </div>
-                              <span>IP: {record.ip_address}</span>
-                              <span>Method: {record.acceptance_method}</span>
-                            </div>
-                            {record.digital_signature && (
-                              <div className="flex items-center space-x-2 mt-2">
-                                <PenTool className="h-3 w-3 text-blue-600" />
-                                <span className="text-sm font-mono bg-blue-50 px-2 py-1 rounded">
-                                  Signature: {record.digital_signature}
-                                </span>
-                                <Badge variant="secondary" className="text-xs">
-                                  {record.signature_method}
+              {selectedUser.history && selectedUser.history.length > 0 && (
+                <div>
+                  <h3 className="text-lg font-semibold mb-4">Acceptance History</h3>
+                  <div className="space-y-3">
+                    {selectedUser.history.map((record) => (
+                      <Card key={record.id}>
+                        <CardContent className="p-4">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center space-x-2 mb-2">
+                                <Badge variant="outline">
+                                  {record.terms_type.replace('_', ' ').toUpperCase()}
                                 </Badge>
+                                <span className="text-sm text-gray-600">
+                                  Version {record.terms_version}
+                                </span>
                               </div>
-                            )}
+                              <div className="flex items-center space-x-4 text-sm text-gray-600">
+                                <div className="flex items-center space-x-1">
+                                  <Calendar className="h-3 w-3" />
+                                  <span>{formatDate(record.accepted_at)}</span>
+                                </div>
+                                <span>IP: {record.ip_address}</span>
+                                <span>Method: {record.acceptance_method}</span>
+                              </div>
+                              {record.digital_signature && (
+                                <div className="flex items-center space-x-2 mt-2">
+                                  <PenTool className="h-3 w-3 text-blue-600" />
+                                  <span className="text-sm font-mono bg-blue-50 px-2 py-1 rounded">
+                                    Signature: {record.digital_signature}
+                                  </span>
+                                  <Badge variant="secondary" className="text-xs">
+                                    {record.signature_method}
+                                  </Badge>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
