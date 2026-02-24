@@ -495,6 +495,8 @@ setOrders([])
       if (orderUpdateError) throw orderUpdateError;
 
       // Step 3: Reverse reward points if order had points awarded
+      // IMPORTANT: Only reverse EARNED points, NOT redeemed points
+      // If user redeemed points in this order, they don't get refunded
       if (orderBeforeCancel && orderBeforeCancel.payment_method !== 'credit') {
         try {
           console.log('🔄 Reversing reward points for cancelled order...');
@@ -522,9 +524,21 @@ setOrders([])
                 .single();
 
               if (customer) {
-                const newPoints = Math.max(0, (customer.reward_points || 0) - totalPointsToReverse);
+                const currentPoints = customer.reward_points || 0;
                 
-                // Update customer points
+                // Calculate new points - ALLOW NEGATIVE BALANCE
+                // This creates a "debt" that user needs to pay back
+                const newPoints = currentPoints - totalPointsToReverse;
+                
+                console.log(`💰 Current points: ${currentPoints}`);
+                console.log(`💰 Points to reverse (earned): ${totalPointsToReverse}`);
+                console.log(`💰 New points after reversal: ${newPoints}`);
+                
+                if (newPoints < 0) {
+                  console.log(`⚠️ User will have NEGATIVE balance: ${newPoints} points`);
+                }
+                
+                // Update customer points (allow negative)
                 await supabase
                   .from("profiles")
                   .update({ reward_points: newPoints })
@@ -537,15 +551,25 @@ setOrders([])
                     user_id: customerId,
                     points: -totalPointsToReverse,
                     transaction_type: "adjust",
-                    description: `Order #${orderBeforeCancel.order_number} cancelled: -${totalPointsToReverse} points reversed`,
+                    description: `Order #${orderBeforeCancel.order_number} cancelled: -${totalPointsToReverse} points reversed${newPoints < 0 ? ' (negative balance)' : ''}`,
                     reference_type: "order_cancel",
                     reference_id: orderId
                   });
 
-                console.log(`✅ Reversed ${totalPointsToReverse} reward points for cancelled order (${rewardTransactions.length} transactions)`);
+                if (newPoints < 0) {
+                  console.log(`⚠️ User now has NEGATIVE balance: ${newPoints} points. They need to earn ${Math.abs(newPoints)} points to get back to 0.`);
+                } else {
+                  console.log(`✅ Reversed ${totalPointsToReverse} reward points for cancelled order (${rewardTransactions.length} transactions)`);
+                }
               }
             }
           }
+          
+          // NOTE: We do NOT refund redeemed points
+          // If user used points in this order, those points are gone
+          // Only the earned points from this order are reversed
+          console.log('ℹ️ Redeemed points (if any) are NOT refunded - user already used them');
+          
         } catch (rewardError) {
           console.error('❌ Error reversing reward points:', rewardError);
           // Don't throw - order cancellation should still succeed

@@ -56,11 +56,12 @@ export const BirthdaySection = ({ userId, birthdayBonus, onPointsUpdate }: Birth
 
     setSaving(true)
     try {
-      const result = await updateDateOfBirth(userId, dateOfBirth)
+      // Pass true to give welcome bonus on first-time birthday save
+      const result = await updateDateOfBirth(userId, dateOfBirth, true)
       if (result.success) {
         setHasBirthday(true)
         toast({
-          title: "Birthday Saved! 🎂",
+          title: result.bonusAwarded ? "🎁 Bonus Received!" : "Birthday Saved! 🎂",
           description: result.message
         })
         

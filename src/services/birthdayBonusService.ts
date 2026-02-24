@@ -3,27 +3,135 @@ import { supabase } from "@/integrations/supabase/client"
 // Update user's date of birth
 export async function updateDateOfBirth(
   userId: string, 
-  dateOfBirth: string
-): Promise<{ success: boolean; message: string }> {
+  dateOfBirth: string,
+  giveWelcomeBonus: boolean = false
+): Promise<{ success: boolean; message: string; bonusAwarded?: boolean; points?: number }> {
   try {
+    console.log('🎂 === BIRTHDAY SAVE START ===');
+    console.log('🎂 User ID:', userId);
+    console.log('🎂 Date of Birth:', dateOfBirth);
+    console.log('🎂 Give Welcome Bonus:', giveWelcomeBonus);
+
+    // Check if user already has a birthday set
+    const { data: existingProfile, error: fetchError } = await supabase
+      .from("profiles")
+      .select("date_of_birth, birthday_bonus_year")
+      .eq("id", userId)
+      .single()
+
+    if (fetchError) {
+      console.error('❌ Error fetching existing profile:', fetchError);
+    }
+
+    console.log('🎂 Existing profile:', existingProfile);
+    const isFirstTimeSetting = !existingProfile?.date_of_birth
+    console.log('🎂 Is first time setting birthday:', isFirstTimeSetting);
+
     const { error } = await supabase
       .from("profiles")
       .update({ date_of_birth: dateOfBirth })
       .eq("id", userId)
 
-    if (error) throw error
+    if (error) {
+      console.error('❌ Error updating birthday:', error);
+      throw error
+    }
+
+    console.log('✅ Birthday updated in database');
 
     // Check if today is their birthday and award bonus
     const today = new Date()
     const dob = new Date(dateOfBirth)
     
+    console.log('🎂 Today:', today.toDateString());
+    console.log('🎂 Birthday:', dob.toDateString());
+    console.log('🎂 Is today birthday?', today.getMonth() === dob.getMonth() && today.getDate() === dob.getDate());
+    
     if (today.getMonth() === dob.getMonth() && today.getDate() === dob.getDate()) {
-      await checkAndAwardBirthdayBonus(userId)
+      console.log('🎉 Today is birthday! Awarding birthday bonus...');
+      const result = await checkAndAwardBirthdayBonus(userId)
+      console.log('🎉 Birthday bonus result:', result);
+      return { 
+        success: true, 
+        message: result.awarded ? result.message : "Birthday saved successfully!",
+        bonusAwarded: result.awarded,
+        points: result.points
+      }
     }
 
-    return { success: true, message: "Birthday saved successfully!" }
+    // If first time setting birthday and welcome bonus requested, give instant bonus
+    if (isFirstTimeSetting && giveWelcomeBonus) {
+      console.log('🎁 First time setting birthday - giving welcome bonus!');
+      
+      const { data: config } = await supabase
+        .from("rewards_config")
+        .select("birthday_bonus")
+        .maybeSingle()
+
+      const welcomeBonus = config?.birthday_bonus || 100
+      console.log('🎁 Welcome bonus amount:', welcomeBonus);
+
+      // Get current points
+      const { data: user, error: userError } = await supabase
+        .from("profiles")
+        .select("reward_points")
+        .eq("id", userId)
+        .single()
+
+      if (userError) {
+        console.error('❌ Error fetching user points:', userError);
+        throw userError
+      }
+
+      console.log('🎁 Current points:', user?.reward_points);
+      const newPoints = (user?.reward_points || 0) + welcomeBonus
+      console.log('🎁 New points:', newPoints);
+
+      // Award welcome bonus
+      const { error: updateError } = await supabase
+        .from("profiles")
+        .update({ reward_points: newPoints })
+        .eq("id", userId)
+
+      if (updateError) {
+        console.error('❌ Error updating points:', updateError);
+        throw updateError
+      }
+
+      console.log('✅ Points updated in database');
+
+      // Log transaction
+      const { error: transactionError } = await supabase
+        .from("reward_transactions")
+        .insert({
+          user_id: userId,
+          points: welcomeBonus,
+          transaction_type: "bonus",
+          description: `🎁 Welcome bonus for adding birthday! You'll receive ${welcomeBonus} more points on your birthday.`,
+          reference_type: "birthday_welcome"
+        })
+
+      if (transactionError) {
+        console.error('❌ Error creating transaction:', transactionError);
+        throw transactionError
+      }
+
+      console.log('✅ Transaction logged successfully');
+      console.log('🎂 === BIRTHDAY SAVE COMPLETE ===');
+
+      return { 
+        success: true, 
+        message: `Birthday saved! You received ${welcomeBonus} welcome bonus points! 🎁`,
+        bonusAwarded: true,
+        points: welcomeBonus
+      }
+    }
+
+    console.log('ℹ️ Not first time or welcome bonus not requested');
+    console.log('🎂 === BIRTHDAY SAVE COMPLETE ===');
+    return { success: true, message: "Birthday saved successfully! You'll receive 100 bonus points on your birthday." }
   } catch (error) {
-    console.error("Error updating date of birth:", error)
+    console.error("❌ Error updating date of birth:", error)
     return { success: false, message: "Failed to save birthday" }
   }
 }

@@ -39,55 +39,6 @@ const getSupabaseAdmin = () => {
 };
 
 /**
- * Test endpoint to verify route is working
- * GET /api/terms-management/test
- */
-router.get("/test", (req, res) => {
-  res.json({
-    success: true,
-    message: "Terms management routes are working",
-    timestamp: new Date().toISOString()
-  });
-});
-
-/**
- * Get users for testing - returns first 5 users
- * GET /api/terms-management/users
- */
-router.get("/users", async (req, res) => {
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-    
-    const { data: profiles, error } = await supabaseAdmin
-      .from("profiles")
-      .select("id, first_name, last_name, email, type")
-      .limit(5);
-
-    if (error) {
-      console.error("Error fetching users:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to fetch users",
-        error: error.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      data: profiles || []
-    });
-
-  } catch (error) {
-    console.error("Users fetch error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-});
-
-/**
  * Get user terms acceptance details for admin viewing
  * GET /api/terms-management/user-terms/:profileId
  */
@@ -127,59 +78,6 @@ router.get("/user-terms/:profileId", async (req, res) => {
 
   } catch (error) {
     console.error("Get user terms error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Internal server error",
-      error: error.message
-    });
-  }
-});
-
-/**
- * Test signature functionality - simulate ACH acceptance with signature
- * POST /api/terms-management/test-signature
- */
-router.post("/test-signature", async (req, res) => {
-  try {
-    const supabaseAdmin = getSupabaseAdmin();
-    const { profileId, signature } = req.body;
-
-    if (!profileId || !signature) {
-      return res.status(400).json({
-        success: false,
-        message: "profileId and signature are required"
-      });
-    }
-
-    // Test the record_terms_acceptance function with signature
-    const { data, error } = await supabaseAdmin.rpc('record_terms_acceptance', {
-      p_profile_id: profileId,
-      p_terms_type: 'ach_authorization',
-      p_terms_version: '1.0',
-      p_ip_address: '127.0.0.1',
-      p_user_agent: 'Test User Agent',
-      p_acceptance_method: 'test_endpoint',
-      p_digital_signature: signature,
-      p_signature_method: 'typed_name'
-    });
-
-    if (error) {
-      console.error("Error testing signature:", error);
-      return res.status(500).json({
-        success: false,
-        message: "Failed to test signature",
-        error: error.message
-      });
-    }
-
-    return res.json({
-      success: true,
-      message: "Signature test completed successfully",
-      acceptanceId: data
-    });
-
-  } catch (error) {
-    console.error("Test signature error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",

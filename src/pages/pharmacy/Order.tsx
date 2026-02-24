@@ -9,6 +9,8 @@ import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
+import { useDispatch } from "react-redux";
+import { setUserProfile } from "@/store/actions/userAction";
 
 // Invoice creation function for paid orders (when total is 0)
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -85,6 +87,7 @@ const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount:
 export default function PharmacyOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const dispatch = useDispatch();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [prefilledData, setPrefilledData] = useState<any>(null);
@@ -374,28 +377,62 @@ export default function PharmacyOrder() {
 
       // Handle applied discounts (deduct points, increment offer usage)
       console.log("📦 Applied discounts:", orderData.appliedDiscounts);
+      console.log("📦 Applied discounts type:", typeof orderData.appliedDiscounts);
+      console.log("📦 Applied discounts length:", orderData.appliedDiscounts?.length);
+      
       if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
         for (const discount of orderData.appliedDiscounts) {
           console.log("🎁 Processing discount:", discount);
+          console.log("🎁 Discount type:", discount.type);
+          console.log("🎁 Points used:", discount.pointsUsed);
           
           // Handle reward points redemption
           if (discount.type === "rewards" && discount.pointsUsed) {
+            console.log("💰 Starting reward points deduction...");
+            console.log("💰 User ID:", session.user.id);
+            console.log("💰 Points to deduct:", discount.pointsUsed);
+            
             // Deduct points from pharmacy's profile
-            const { data: currentProfile } = await supabase
+            const { data: currentProfile, error: fetchError } = await supabase
               .from("profiles")
-              .select("reward_points")
+              .select("reward_points, lifetime_reward_points, reward_tier, first_name, last_name, email, company_name, type")
               .eq("id", session.user.id)
               .single();
 
+            if (fetchError) {
+              console.error("❌ Error fetching profile:", fetchError);
+              continue;
+            }
+
             if (currentProfile) {
+              console.log("💰 Current points:", currentProfile.reward_points);
               const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discount.pointsUsed);
-              await supabase
+              console.log("💰 New points after deduction:", newPoints);
+              
+              // Update database
+              const { error: updateError } = await supabase
                 .from("profiles")
                 .update({ reward_points: newPoints })
                 .eq("id", session.user.id);
 
+              if (updateError) {
+                console.error("❌ Error updating profile:", updateError);
+                continue;
+              }
+
+              console.log("✅ Database updated successfully");
+
+              // Update Redux store immediately
+              dispatch(setUserProfile({
+                ...currentProfile,
+                id: session.user.id,
+                reward_points: newPoints,
+              }));
+
+              console.log("✅ Redux store updated");
+
               // Log reward transaction
-              await supabase
+              const { error: transactionError } = await supabase
                 .from("reward_transactions")
                 .insert({
                   user_id: session.user.id,
@@ -406,7 +443,16 @@ export default function PharmacyOrder() {
                   reference_id: insertedOrder.id,
                 });
               
+              if (transactionError) {
+                console.error("❌ Error creating transaction:", transactionError);
+              } else {
+                console.log("✅ Transaction logged successfully");
+              }
+              
               console.log(`✅ Deducted ${discount.pointsUsed} points from pharmacy ${session.user.id}`);
+              console.log(`✅ Redux store updated with new points: ${newPoints}`);
+            } else {
+              console.error("❌ No profile found for user:", session.user.id);
             }
           }
 
@@ -462,6 +508,18 @@ export default function PharmacyOrder() {
           
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
             console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+            
+            // Fetch updated profile and update Redux store
+            const { data: updatedProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", session.user.id)
+              .single();
+            
+            if (updatedProfile) {
+              dispatch(setUserProfile(updatedProfile));
+              console.log("✅ Redux store updated after awarding points");
+            }
           }
         } catch (rewardError) {
           console.error("❌ Error awarding reward points:", rewardError);
@@ -505,9 +563,7 @@ export default function PharmacyOrder() {
       }
 
       // If credit payment, update credit_used
-      // NOTE: For credit orders that need approval (credit_approval_processing), 
-      // credit will be charged when admin approves the order, not immediately
-      if (paymentMethod === "credit" && finalTotal > 0 && orderStatus !== "credit_approval_processing") {
+          if (paymentMethod === "credit" && finalTotal > 0 && orderStatus !== "credit_approval_processing") {
         const { data: customerProfile } = await supabase
           .from("profiles")
           .select("credit_used")

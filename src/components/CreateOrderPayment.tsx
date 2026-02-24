@@ -605,7 +605,9 @@ const CreateOrderPaymentForm = ({
         payment_transication: response.data.transactionId || "",
         payment_method: "card" as const,
         shippin_cost: shipping,
-        notes: newOrder.notes || null,
+        notes: response.data.authCode 
+          ? `${newOrder.notes || ''}\nAuth Code: ${response.data.authCode}`.trim()
+          : newOrder.notes || null,
         items: newOrder.items || [],
         customer_info: newOrder.customerInfo || {
           name: (newOrder.customerInfo as any)?.name,
@@ -716,8 +718,71 @@ const CreateOrderPaymentForm = ({
 
       // Mark redeemed rewards as used and apply credit memos
       const appliedDiscounts = discountDetails || data.appliedDiscounts || [];
+      console.log("📦 Applied discounts in payment:", appliedDiscounts);
+      console.log("📦 Applied discounts length:", appliedDiscounts.length);
+      
       if (appliedDiscounts.length > 0) {
         for (const discountItem of appliedDiscounts) {
+          console.log("🎁 Processing discount in payment:", discountItem);
+          
+          // Handle reward points redemption (deduct points)
+          if (discountItem.type === "rewards" && discountItem.pointsUsed) {
+            console.log("💰 Starting reward points deduction in payment...");
+            console.log("💰 User ID:", newOrder.profile_id);
+            console.log("💰 Points to deduct:", discountItem.pointsUsed);
+            
+            try {
+              // Fetch current profile
+              const { data: currentProfile, error: fetchError } = await supabase
+                .from("profiles")
+                .select("reward_points, lifetime_reward_points, reward_tier, first_name, last_name, email, company_name, type")
+                .eq("id", newOrder.profile_id)
+                .single();
+
+              if (fetchError) {
+                console.error("❌ Error fetching profile for points deduction:", fetchError);
+              } else if (currentProfile) {
+                console.log("💰 Current points:", currentProfile.reward_points);
+                const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discountItem.pointsUsed);
+                console.log("💰 New points after deduction:", newPoints);
+                
+                // Update database
+                const { error: updateError } = await supabase
+                  .from("profiles")
+                  .update({ reward_points: newPoints })
+                  .eq("id", newOrder.profile_id);
+
+                if (updateError) {
+                  console.error("❌ Error updating profile points:", updateError);
+                } else {
+                  console.log("✅ Database updated successfully with new points");
+
+                  // Log reward transaction
+                  const { error: transactionError } = await supabase
+                    .from("reward_transactions")
+                    .insert({
+                      user_id: newOrder.profile_id,
+                      points: -discountItem.pointsUsed,
+                      transaction_type: "redeem",
+                      description: `Redeemed ${discountItem.pointsUsed} points for order ${orderNumber}`,
+                      reference_type: "order",
+                      reference_id: newOrder.id,
+                    });
+                  
+                  if (transactionError) {
+                    console.error("❌ Error creating transaction:", transactionError);
+                  } else {
+                    console.log("✅ Transaction logged successfully");
+                  }
+                  
+                  console.log(`✅ Deducted ${discountItem.pointsUsed} points from user ${newOrder.profile_id}`);
+                }
+              }
+            } catch (error) {
+              console.error("❌ Error in reward points deduction:", error);
+            }
+          }
+          
           if (discountItem.type === "redeemed_reward" && discountItem.redemptionId) {
             console.log("🔄 Marking redemption as used:", discountItem.redemptionId);
             await (supabase as any)
@@ -867,6 +932,38 @@ const CreateOrderPaymentForm = ({
         performedByName: userProfileData ? `${userProfileData.first_name} ${userProfileData.last_name}`.trim() : "User",
         performedByEmail: userProfileData?.email,
       });
+
+      // Log payment transaction in payment_transactions table
+      try {
+        console.log('💳 Logging payment transaction...');
+        const { error: paymentLogError } = await supabase
+          .from("payment_transactions")
+          .insert({
+            profile_id: newOrder.profile_id,
+            order_id: newOrder.id,
+            amount: totalAmount,
+            payment_method: "card",
+            transaction_id: response.data.transactionId,
+            authorization_code: response.data.authCode,
+            status: "completed",
+            transaction_type: "charge",
+            currency: "USD",
+            metadata: {
+              order_number: orderNumber,
+              invoice_number: invoiceNumber,
+              customer_name: formDataa.customerInfo?.name,
+              items_count: formDataa.items?.length || 0
+            }
+          });
+
+        if (paymentLogError) {
+          console.error('❌ Error logging payment transaction:', paymentLogError);
+        } else {
+          console.log('✅ Payment transaction logged successfully');
+        }
+      } catch (paymentLogError) {
+        console.error('❌ Failed to log payment transaction:', paymentLogError);
+      }
 
       const logsData = {
         user_id: newOrder.profile_id,

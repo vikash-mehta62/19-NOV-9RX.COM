@@ -12,6 +12,8 @@ import { awardOrderPoints } from "@/services/rewardsService";
 import { PaymentAdjustmentService } from "@/services/paymentAdjustmentService";
 import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
+import { useDispatch } from "react-redux";
+import { setUserProfile } from "@/store/actions/userAction";
 
 // Invoice creation function for paid orders
 const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number, retryCount = 0): Promise<void> => {
@@ -109,6 +111,7 @@ const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmo
 export default function PharmacyCreateOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const dispatch = useDispatch();
   const { clearCart } = useCart();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
@@ -363,27 +366,62 @@ export default function PharmacyCreateOrder() {
 
       // Handle applied discounts (deduct points, increment offer usage)
       console.log("📦 Applied discounts:", orderData.appliedDiscounts);
+      console.log("📦 Applied discounts type:", typeof orderData.appliedDiscounts);
+      console.log("📦 Applied discounts length:", orderData.appliedDiscounts?.length);
+      
       if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
         for (const discount of orderData.appliedDiscounts) {
           console.log("🎁 Processing discount:", discount);
+          console.log("🎁 Discount type:", discount.type);
+          console.log("🎁 Points used:", discount.pointsUsed);
+          
           // Handle reward points redemption
           if (discount.type === "rewards" && discount.pointsUsed) {
+            console.log("💰 Starting reward points deduction...");
+            console.log("💰 User ID:", session.user.id);
+            console.log("💰 Points to deduct:", discount.pointsUsed);
+            
             // Deduct points from user's profile
-            const { data: currentProfile } = await supabase
+            const { data: currentProfile, error: fetchError } = await supabase
               .from("profiles")
-              .select("reward_points")
+              .select("reward_points, lifetime_reward_points, reward_tier, first_name, last_name, email, company_name, type")
               .eq("id", session.user.id)
               .single();
 
+            if (fetchError) {
+              console.error("❌ Error fetching profile:", fetchError);
+              continue;
+            }
+
             if (currentProfile) {
+              console.log("💰 Current points:", currentProfile.reward_points);
               const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discount.pointsUsed);
-              await supabase
+              console.log("💰 New points after deduction:", newPoints);
+              
+              // Update database
+              const { error: updateError } = await supabase
                 .from("profiles")
                 .update({ reward_points: newPoints })
                 .eq("id", session.user.id);
 
+              if (updateError) {
+                console.error("❌ Error updating profile:", updateError);
+                continue;
+              }
+
+              console.log("✅ Database updated successfully");
+
+              // Update Redux store immediately
+              dispatch(setUserProfile({
+                ...currentProfile,
+                id: session.user.id,
+                reward_points: newPoints,
+              }));
+
+              console.log("✅ Redux store updated");
+
               // Log reward transaction
-              await supabase
+              const { error: transactionError } = await supabase
                 .from("reward_transactions")
                 .insert({
                   user_id: session.user.id,
@@ -393,6 +431,17 @@ export default function PharmacyCreateOrder() {
                   reference_type: "order",
                   reference_id: insertedOrder.id,
                 });
+              
+              if (transactionError) {
+                console.error("❌ Error creating transaction:", transactionError);
+              } else {
+                console.log("✅ Transaction logged successfully");
+              }
+              
+              console.log(`✅ Deducted ${discount.pointsUsed} points from user ${session.user.id}`);
+              console.log(`✅ Redux store updated with new points: ${newPoints}`);
+            } else {
+              console.error("❌ No profile found for user:", session.user.id);
             }
           }
 
@@ -487,9 +536,7 @@ export default function PharmacyCreateOrder() {
       }
 
       // If credit payment, update customer's credit_used
-      // NOTE: For credit orders that need approval (credit_approval_processing), 
-      // credit will be charged when admin approves the order, not immediately
-      if (paymentMethod === "credit" && orderStatus !== "credit_approval_processing") {
+     if (paymentMethod === "credit" && orderStatus !== "credit_approval_processing") {
         const { data: customerProfile } = await supabase
           .from("profiles")
           .select("credit_used")
@@ -522,6 +569,18 @@ export default function PharmacyCreateOrder() {
           
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
             console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+            
+            // Fetch updated profile and update Redux store
+            const { data: updatedProfile } = await supabase
+              .from("profiles")
+              .select("*")
+              .eq("id", session.user.id)
+              .single();
+            
+            if (updatedProfile) {
+              dispatch(setUserProfile(updatedProfile));
+              console.log("✅ Redux store updated after awarding points");
+            }
           }
         } catch (rewardError) {
           console.error("❌ Error awarding reward points:", rewardError);

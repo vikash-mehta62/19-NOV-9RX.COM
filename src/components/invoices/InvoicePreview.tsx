@@ -78,7 +78,14 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const [companyName, setCompanyName] = useState("")
   const [paidAmount, setPaidAmount] = useState(0)
 
-  console.log("Rendering InvoicePreview with invoice:", invoice)
+  console.log("🧾 Rendering InvoicePreview with invoice:", invoice)
+  console.log("💳 Payment Details:", {
+    payment_status: invoice?.payment_status,
+    payment_method: invoice?.payment_method,
+    payment_transication: invoice?.payment_transication,
+    payment_notes: invoice?.payment_notes,
+    isPaid: invoice?.payment_status === "paid"
+  })
 
   if (!invoice) {
     return (
@@ -170,6 +177,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   })
 
   const isPaid = invoice?.payment_status === "paid"
+  const isPartialPaid = invoice?.payment_status === "partial_paid"
+  const showTransactionId = (isPaid || isPartialPaid) && invoice.payment_method === "card" && invoice?.payment_transication
+  
   // Use stored total_amount if available, otherwise calculate
   const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
   const subtotalAmount = invoice?.subtotal || 0
@@ -457,11 +467,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
 
-      if (isPaid) {
-        const transactionId = invoice?.payment_transication || ""
-        if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
-        } else if (invoice?.payment_notes) {
+      if (showTransactionId) {
+        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+      } else if (isPaid || isPartialPaid) {
+        if (invoice?.payment_notes) {
           doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
         } else {
           doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
@@ -713,11 +722,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFont("helvetica", "normal")
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
-      if (isPaid) {
-        const transactionId = invoice?.payment_transication || ""
-        if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
-        } else if (invoice?.payment_notes) {
+      if (showTransactionId) {
+        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+      } else if (isPaid || isPartialPaid) {
+        if (invoice?.payment_notes) {
           doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
         } else {
           doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
@@ -910,13 +918,24 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               <Badge className={`mb-3 sm:mb-4 px-3 sm:px-4 py-1 sm:py-1.5 text-xs sm:text-sm font-semibold ${isPaid ? "bg-emerald-100 text-emerald-700 border-emerald-200" : invoice?.payment_status === 'partial_paid' ? "bg-yellow-100 text-yellow-700 border-yellow-200" : "bg-red-100 text-red-700 border-red-200"}`}>
                 {isPaid ? <><CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Paid</> : invoice?.payment_status === 'partial_paid' ? <><CheckCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Partial Paid</> : <><XCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" /> Unpaid</>}
               </Badge>
-              {isPaid && (
+              {(() => {
+                console.log("💳 Transaction ID Display Check:", {
+                  isPaid,
+                  payment_status: invoice?.payment_status,
+                  payment_method: invoice.payment_method,
+                  payment_transication: invoice?.payment_transication,
+                  shouldShowTransactionId: (isPaid || invoice?.payment_status === 'partial_paid') && invoice.payment_method === "card",
+                  transactionIdValue: invoice?.payment_transication || "NOT FOUND"
+                });
+                return null;
+              })()}
+              {(isPaid || invoice?.payment_status === 'partial_paid') && (
                 <div className="p-2 sm:p-3 bg-gray-50 rounded-lg border border-gray-100">
                   <div className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm font-medium text-gray-700 mb-1">
                     {invoice.payment_method === "card" ? <><CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Transaction ID:</> : <><Hash className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Payment Notes:</>}
                   </div>
                   <p className="text-xs sm:text-sm text-gray-600 font-mono bg-white px-2 sm:px-3 py-1.5 sm:py-2 rounded border break-all">
-                    {invoice.payment_method === "card" ? invoice?.payment_transication : invoice?.payment_notes}
+                    {invoice.payment_method === "card" ? (invoice?.payment_transication || "N/A") : (invoice?.payment_notes || "N/A")}
                   </p>
                 </div>
               )}

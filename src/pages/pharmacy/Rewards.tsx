@@ -463,12 +463,14 @@ const Rewards = () => {
         {/* Points Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {/* Current Points */}
-          <Card className="bg-gradient-to-br from-pink-500 to-rose-600 text-white col-span-1 md:col-span-2">
+          <Card className={`bg-gradient-to-br ${currentPoints < 0 ? 'from-red-500 to-red-700' : 'from-pink-500 to-rose-600'} text-white col-span-1 md:col-span-2`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-pink-100 text-sm">Available Points</p>
+                    <p className="text-pink-100 text-sm">
+                      {currentPoints < 0 ? 'Points Balance (Negative)' : 'Available Points'}
+                    </p>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -479,10 +481,19 @@ const Rewards = () => {
                       <Zap className="h-4 w-4" />
                     </Button>
                   </div>
-                  <h2 className="text-4xl font-bold mt-1">{currentPoints.toLocaleString()}</h2>
-                  <p className="text-pink-200 text-sm mt-2">
-                    Lifetime earned: {lifetimePoints.toLocaleString()} points
-                  </p>
+                  <h2 className="text-4xl font-bold mt-1">
+                    {currentPoints < 0 && '-'}
+                    {Math.abs(currentPoints).toLocaleString()}
+                  </h2>
+                  {currentPoints < 0 ? (
+                    <p className="text-red-100 text-sm mt-2 font-semibold">
+                      ⚠️ You need to earn {Math.abs(currentPoints).toLocaleString()} points to clear your negative balance
+                    </p>
+                  ) : (
+                    <p className="text-pink-200 text-sm mt-2">
+                      Lifetime earned: {lifetimePoints.toLocaleString()} points
+                    </p>
+                  )}
                 </div>
                 <div className="text-right">
                   {currentTier && (

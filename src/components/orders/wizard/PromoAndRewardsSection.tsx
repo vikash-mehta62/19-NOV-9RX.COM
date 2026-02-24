@@ -973,42 +973,64 @@ export function PromoAndRewardsSection({
       </Card>
 
       {/* Rewards Points Section */}
-      {userRewards && userRewards.points > 0 && (
-        <Card className={useRewards ? "border-amber-200 bg-amber-50/50" : ""}>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm">
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <Gift className="h-4 w-4 text-amber-600 shrink-0" />
-                  <span>Reward Points</span>
+      {userRewards && (
+        <>
+          {/* Negative Balance Warning */}
+          {userRewards.points < 0 && (
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-red-900">Negative Points Balance</p>
+                    <p className="text-xs text-red-700 mt-1">
+                      You have a negative balance of {Math.abs(userRewards.points).toLocaleString()} points. 
+                      This happened because an order was cancelled after you used the earned points. 
+                      You need to earn {Math.abs(userRewards.points).toLocaleString()} points to clear this balance before you can redeem points again.
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {userRewards.tier && (
-                    <Badge variant="outline" className="text-xs">
-                      <Star className="h-3 w-3 mr-1 text-amber-500" />
-                      {userRewards.tier}
-                    </Badge>
-                  )}
-                  <Badge className="bg-amber-100 text-amber-800 text-xs">
-                    {userRewards.points.toLocaleString()} pts
-                  </Badge>
+              </CardContent>
+            </Card>
+          )}
+          
+          {/* Positive Balance - Show Rewards */}
+          {userRewards.points > 0 && (
+            <Card className={useRewards ? "border-amber-200 bg-amber-50/50" : ""}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <Gift className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Reward Points</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {userRewards.tier && (
+                        <Badge variant="outline" className="text-xs">
+                          <Star className="h-3 w-3 mr-1 text-amber-500" />
+                          {userRewards.tier}
+                        </Badge>
+                      )}
+                      <Badge className="bg-amber-100 text-amber-800 text-xs">
+                        {userRewards.points.toLocaleString()} pts
+                      </Badge>
+                    </div>
+                  </div>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label className="text-sm">Use Reward Points</Label>
+                    <p className="text-xs text-muted-foreground">
+                      {userRewards.points} points = ${(userRewards.points * userRewards.pointValue).toFixed(2)}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={useRewards}
+                    onCheckedChange={handleRewardsToggle}
+                  />
                 </div>
-              </div>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <Label className="text-sm">Use Reward Points</Label>
-                <p className="text-xs text-muted-foreground">
-                  {userRewards.points} points = ${(userRewards.points * userRewards.pointValue).toFixed(2)}
-                </p>
-              </div>
-              <Switch
-                checked={useRewards}
-                onCheckedChange={handleRewardsToggle}
-              />
-            </div>
 
             {useRewards && (
               <div className="space-y-2 pt-2 border-t">
@@ -1053,6 +1075,8 @@ export function PromoAndRewardsSection({
             )}
           </CardContent>
         </Card>
+          )}
+        </>
       )}
 
       {/* Available Offers Section */}
