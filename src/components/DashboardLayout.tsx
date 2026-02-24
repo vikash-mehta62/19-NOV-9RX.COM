@@ -80,6 +80,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "Catalog",
         items: [
           { icon: Package, label: "Products", path: "/admin/products" },
+          { icon: Layers, label: "Categories", path: "/admin/categories" },
           { icon: BoxIcon, label: "Inventory", path: "/admin/inventory" },
           { icon: DollarSign, label: "Special Pricing", path: "/admin/group-pricing" },
         ],

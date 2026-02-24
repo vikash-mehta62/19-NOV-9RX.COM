@@ -50,13 +50,20 @@ function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; 
   // Maximum length check - allow 13-19 digits for flexibility
   if (cleaned.length > 19) return "Card number too long"
   
-  // For Visa, allow 13 or 16 digits (Authorize.Net test cards are 13 digits)
+  // Card-type specific length validation
   if (cardType?.name === "Visa") {
     if (cleaned.length !== 13 && cleaned.length !== 16) {
       return "Visa cards must be 13 or 16 digits"
     }
-  } else if (cardType?.maxLength) {
-    // For other cards, check exact length
+  } else if (cardType?.name === "American Express") {
+    if (cleaned.length !== 15) {
+      return "American Express requires 15 digits"
+    }
+  } else if (cardType?.name === "Diners Club") {
+    if (cleaned.length !== 14) {
+      return "Diners Club requires 14 digits"
+    }
+  } else if (cardType?.maxLength && cardType.name !== "Credit Card") {
     if (cleaned.length !== cardType.maxLength) {
       return `${cardType.name} requires ${cardType.maxLength} digits`
     }
@@ -156,11 +163,9 @@ function validateNotes(notes: string) {
 function detectCardType(cardNumber: string) {
   const cleaned = cardNumber.replace(/\D/g, "")
   
-  // Visa: starts with 4 (13 or 16 digits)
+  // Visa: starts with 4 (13 or 16 digits, standard is 16)
   if (/^4/.test(cleaned)) {
-    // Authorize.Net test cards can be 13 digits
-    const maxLength = cleaned.length >= 16 ? 16 : 13
-    return { type: "visa", name: "Visa", cvvLength: 3, maxLength, format: [4, 4, 4, 4] }
+    return { type: "visa", name: "Visa", cvvLength: 3, maxLength: 16, format: [4, 4, 4, 4] }
   }
   
   // Mastercard: starts with 51-55 or 2221-2720
@@ -433,10 +438,12 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     setErrors({ ...errors, [name]: null })
 
     if (name === "cardNumber") {
+      // Strip all non-digits from the display value (which includes spaces from formatting)
       const cleaned = value.replace(/\D/g, "")
       const detected = detectCardType(cleaned)
-      const formattedValue = cleaned.slice(0, detected.maxLength)
-      setFormData({ ...formData, [name]: formattedValue })
+      // Cap at the max length for this card type
+      const trimmed = cleaned.slice(0, detected.maxLength)
+      setFormData({ ...formData, [name]: trimmed })
       setCardType(detected)
     } else if (name === "cvv") {
       const formattedValue = value.replace(/\D/g, "").slice(0, cardType.cvvLength)

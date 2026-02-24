@@ -2,16 +2,17 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { AddProductDialog } from "@/components/products/AddProductDialog";
 import { ProductHeader } from "@/components/products/ProductHeader";
 import { useProducts } from "@/hooks/use-products";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 import {
   Search, Grid3X3, List, Package, X, ArrowLeft,
-  Edit, Trash2, Eye, MoreHorizontal, Filter, CheckCircle, XCircle
+  Edit, Trash2, Eye, MoreHorizontal, Filter, CheckCircle, XCircle, Upload, Image as ImageIcon
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,6 +33,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
+import { fetchCategories, fetchCategoryConfigs } from "@/utils/categoryUtils";
 import image1 from "../../assests/home/image1.jpg";
 import image2 from "../../assests/home/image2.jpg";
 import image3 from "../../assests/home/image3.jpg";
@@ -44,6 +46,7 @@ const imageArray = [image2, image3, image6, image1, image5, image4];
 const Products = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { toast } = useToast();
   const {
     products,
     currentPage,
@@ -69,6 +72,11 @@ const Products = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
   const [categories, setCategories] = useState<string[]>([]);
+  const [categoryConfigs, setCategoryConfigs] = useState<any[]>([]);
+  const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
+  const [uploadingFor, setUploadingFor] = useState<string | null>(null);
+  const [showUploadOverlay, setShowUploadOverlay] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle product active/inactive toggle
   const handleToggleActive = async (productId: string, currentStatus: boolean) => {
@@ -109,28 +117,20 @@ const Products = () => {
 
   // Fetch categories from database
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategoriesFromDB = async () => {
       try {
-        const { data, error } = await supabase
-          .from('category_configs')
-          .select('category_name')
-          .order('category_name');
-
-        if (error) {
-          console.error('Error fetching categories:', error);
-          return;
-        }
-
-        const categoryNames = data?.map(item => item.category_name) || [];
-        // Sort categories based on the defined order
-        const sortedCategories = CATEGORY_ORDER.filter(cat => categoryNames.includes(cat));
-        setCategories(sortedCategories);
+        const cats = await fetchCategories();
+        const configs = await fetchCategoryConfigs();
+        setCategories(cats);
+        setCategoryConfigs(configs);
+        console.log('ADMIN -> Fetched categories:', cats);
+        console.log('ADMIN -> Fetched category configs:', configs);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
     };
 
-    fetchCategories();
+    fetchCategoriesFromDB();
   }, []);
 
   const handleSubmit = async (data: ProductFormValues): Promise<void> => {
@@ -156,6 +156,87 @@ const Products = () => {
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(category);
   }
+
+  // Handle category image upload
+  const handleCategoryImageUpload = async (categoryId: string, file: File) => {
+    setUploadingFor(categoryId);
+    try {
+      // Upload to Supabase storage
+      const fileExt = file.name.split('.').pop();
+      const fileName = `category-${categoryId}-${Date.now()}.${fileExt}`;
+      const filePath = `categories/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      // Update category_configs table
+      const { error: updateError } = await supabase
+        .from('category_configs')
+        .update({ image_url: filePath })
+        .eq('id', categoryId);
+
+      if (updateError) throw updateError;
+
+      // Refresh category configs
+      const configs = await fetchCategoryConfigs();
+      setCategoryConfigs(configs);
+
+      toast({
+        title: "Success",
+        description: "Category image uploaded successfully",
+      });
+    } catch (error) {
+      console.error('Error uploading category image:', error);
+      toast({
+        title: "Error",
+        description: "Failed to upload category image",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingFor(null);
+    }
+  };
+
+  // Trigger file input for specific category
+  const triggerImageUpload = (categoryId: string) => {
+    setShowUploadOverlay(categoryId);
+  };
+
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>, categoryId: string) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleCategoryImageUpload(categoryId, file);
+      setShowUploadOverlay(null);
+    }
+    // Reset input
+    event.target.value = '';
+  };
+
+  // Get category image URL
+  const getCategoryImageUrl = (categoryName: string): string => {
+    const config = categoryConfigs.find(c => c.category_name === categoryName);
+    if (!config?.image_url) return "";
+
+    if (config.image_url.startsWith("http")) {
+      return config.image_url;
+    }
+
+    const { data } = supabase.storage
+      .from("product-images")
+      .getPublicUrl(config.image_url);
+    
+    return data?.publicUrl || "";
+  };
+
+  // Get category ID by name
+  const getCategoryId = (categoryName: string): string => {
+    const config = categoryConfigs.find(c => c.category_name === categoryName);
+    return config?.id || "";
+  };
 
   const hasActiveFilters = searchQuery || selectedCategory !== "all";
 
@@ -295,37 +376,101 @@ const Products = () => {
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-6 lg:gap-8">
-                  {categories.length > 0 ? categories.map((category, index) => (
-                    <div
-                      key={category}
-                      className="group relative flex flex-col items-center justify-center"
-                    >
+                  {categories.length > 0 ? categories.map((category, index) => {
+                    const categoryId = getCategoryId(category);
+                    const customImageUrl = getCategoryImageUrl(category);
+                    const displayImage = customImageUrl || imageArray[index] || imageArray[0];
+
+                    return (
                       <div
-                        onClick={() => handleCategoryClick(category)}
-                        className="relative cursor-pointer transform transition-all duration-300 hover:scale-105 hover:-translate-y-1 flex flex-col items-center w-full"
+                        key={category}
+                        className="group relative flex flex-col items-center justify-center"
+                        onMouseEnter={() => setHoveredCategory(categoryId)}
+                        onMouseLeave={() => setHoveredCategory(null)}
                       >
-                        {/* Enhanced Image Container */}
-                        <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px]">
-                          <img
-                            src={imageArray[index] || imageArray[0]}
-                            alt={`Category ${category}`}
-                            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                          />
+                        {/* Direct "Change Image" button on hover */}
+                        {hoveredCategory === categoryId && !showUploadOverlay && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerImageUpload(categoryId);
+                            }}
+                            className="absolute top-2 right-2 z-[100] px-3 py-1.5 bg-white hover:bg-blue-50 rounded-lg shadow-lg transition-all hover:scale-105 border border-gray-200 flex items-center gap-2"
+                            type="button"
+                          >
+                            <Upload className="w-4 h-4 text-blue-600" />
+                            <span className="text-sm font-medium text-gray-700">
+                              {customImageUrl ? 'Change Image' : 'Upload'}
+                            </span>
+                          </button>
+                        )}
 
-                          {/* Overlay on hover */}
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        </div>
+                        <div className="relative flex flex-col items-center w-full">
+                          {/* Enhanced Image Container */}
+                          <div 
+                            className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 w-full aspect-square max-w-[160px] cursor-pointer transform group-hover:scale-105 group-hover:-translate-y-1"
+                            onClick={() => !showUploadOverlay && handleCategoryClick(category)}
+                          >
+                            <img
+                              src={displayImage}
+                              alt={`Category ${category}`}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                            />
 
-                        {/* Enhanced Category Label */}
-                        <div className="mt-4 text-center w-full">
-                          <span className="text-sm font-semibold text-gray-800 group-hover:text-blue-600 transition-colors duration-300 block leading-tight">
-                            {category}
-                          </span>
-                          <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
+                            {/* Overlay on hover */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+
+                            {/* Upload Overlay */}
+                            {showUploadOverlay === categoryId && (
+                              <div className="absolute inset-0 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center z-50 animate-in fade-in duration-200">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={(e) => handleFileSelect(e, categoryId)}
+                                  className="hidden"
+                                  id={`file-input-${categoryId}`}
+                                />
+                                <label
+                                  htmlFor={`file-input-${categoryId}`}
+                                  className="flex flex-col items-center justify-center cursor-pointer p-6 hover:scale-105 transition-transform"
+                                >
+                                  <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-3">
+                                    <Upload className="w-8 h-8 text-blue-600" />
+                                  </div>
+                                  <span className="text-sm font-semibold text-gray-900 mb-1">Upload Image</span>
+                                  <span className="text-xs text-gray-500">Click to browse</span>
+                                </label>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowUploadOverlay(null);
+                                  }}
+                                  className="absolute top-2 right-2 p-1.5 bg-gray-200 hover:bg-gray-300 rounded-full transition-colors"
+                                >
+                                  <X className="w-4 h-4 text-gray-700" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* Upload indicator */}
+                            {uploadingFor === categoryId && (
+                              <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-40">
+                                <div className="text-white text-sm font-medium">Uploading...</div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Enhanced Category Label */}
+                          <div className="mt-4 text-center w-full">
+                            <span className="text-sm font-semibold text-gray-800 group-hover:text-blue-600 transition-colors duration-300 block leading-tight">
+                              {category}
+                            </span>
+                            <div className="w-0 group-hover:w-8 h-0.5 bg-gradient-to-r from-blue-400 to-blue-600 transition-all duration-300 mx-auto mt-2 rounded-full"></div>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  )) : (
+                    );
+                  }) : (
                     // Loading skeleton for categories
                     Array.from({ length: 6 }).map((_, index) => (
                       <div key={index} className="flex flex-col items-center">

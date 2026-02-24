@@ -11,11 +11,24 @@ interface LowStockAlertsProps {
 }
 
 export const LowStockAlerts = ({ inventoryData }: LowStockAlertsProps) => {
-  const lowStockItems = inventoryData.filter(item => item.current_stock <= item.min_stock);
-  const criticalItems = lowStockItems.filter(item => item.current_stock <= item.min_stock / 2);
-  const warningItems = lowStockItems.filter(item => 
-    item.current_stock > item.min_stock / 2 && item.current_stock <= item.min_stock
-  );
+  // Convert stock values to numbers for proper comparison
+  const lowStockItems = inventoryData.filter(item => {
+    const currentStock = Number(item.current_stock) || 0;
+    const minStock = Number(item.min_stock) || 0;
+    return currentStock <= minStock && minStock > 0; // Only show if min_stock is set
+  });
+  
+  const criticalItems = lowStockItems.filter(item => {
+    const currentStock = Number(item.current_stock) || 0;
+    const minStock = Number(item.min_stock) || 0;
+    return currentStock <= minStock / 2;
+  });
+  
+  const warningItems = lowStockItems.filter(item => {
+    const currentStock = Number(item.current_stock) || 0;
+    const minStock = Number(item.min_stock) || 0;
+    return currentStock > minStock / 2 && currentStock <= minStock;
+  });
 
   return (
     <Card className="col-span-2 transition-all duration-200 hover:shadow-lg">
@@ -37,8 +50,10 @@ export const LowStockAlerts = ({ inventoryData }: LowStockAlertsProps) => {
         <ScrollArea className="h-[300px] pr-4">
           <div className="space-y-4">
             {lowStockItems.map((item) => {
-              const stockPercentage = (item.current_stock / item.min_stock) * 100;
-              const isCritical = item.current_stock <= item.min_stock / 2;
+              const currentStock = Number(item.current_stock) || 0;
+              const minStock = Number(item.min_stock) || 0;
+              const stockPercentage = minStock > 0 ? (currentStock / minStock) * 100 : 100;
+              const isCritical = currentStock <= minStock / 2;
               
               return (
                 <div
@@ -56,13 +71,13 @@ export const LowStockAlerts = ({ inventoryData }: LowStockAlertsProps) => {
                         )}
                       </div>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <span>Min: {item.min_stock}</span>
+                        <span>Min: {minStock}</span>
                         <span>•</span>
                         <span>Reorder at: {item.reorder_point}</span>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-2xl font-bold">{item.current_stock}</p>
+                      <p className="text-2xl font-bold">{currentStock}</p>
                       <p className="text-xs text-muted-foreground">Current Stock</p>
                     </div>
                   </div>

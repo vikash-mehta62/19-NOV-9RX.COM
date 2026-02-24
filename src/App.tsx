@@ -51,6 +51,7 @@ const ResetPasswordPage = lazy(() => import("./components/ResetPassowrdPage"));
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminUsers = lazy(() => import("./pages/admin/Users"));
 const AdminProducts = lazy(() => import("./pages/admin/Products"));
+const AdminCategoryManagement = lazy(() => import("./pages/admin/CategoryManagement"));
 const AdminInventory = lazy(() => import("./pages/admin/Inventory"));
 const AdminInventoryPhase2 = lazy(() => import("./pages/admin/InventoryPhase2"));
 const AdminOrders = lazy(() => import("./pages/admin/Orders"));
@@ -252,6 +253,11 @@ function App() {
           <Route path="/admin/products" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminProducts />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/categories" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <AdminCategoryManagement />
             </ProtectedRoute>
           } />
           <Route path="/admin/product/:productId" element={

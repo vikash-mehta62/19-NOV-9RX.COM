@@ -11,6 +11,7 @@ import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/supabaseClient"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { fetchCategories } from "@/utils/categoryUtils"
 
 interface CategoryConfig {
   id: string
@@ -54,38 +55,19 @@ export const PharmacyFilterSidebar = ({
   const [subcategories, setSubcategories] = useState<SubcategoryConfig[]>([])
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null)
 
-  // Define desired category order here
-  const CATEGORY_ORDER = [
-    "CONTAINERS & CLOSURES",
-    "RX LABELS",
-    "COMPLIANCE PACKAGING",
-    "RX PAPER BAGS",
-    "ORAL SYRINGES & ACCESSORIES",
-    "OTHER SUPPLY",
-  ];
-
   useEffect(() => {
     const fetchFilters = async () => {
       try {
-        const { data: categoryData } = await supabase
-          .from("category_configs")
-          .select("*")
-          .order("category_name", { ascending: true })
+        // Fetch categories using utility (already ordered by display_order)
+        const cats = await fetchCategories();
+        const categoryData = cats.map(name => ({ id: name, category_name: name }));
 
         const { data: subcategoryData } = await supabase
           .from("subcategory_configs")
           .select("*")
           .order("subcategory_name", { ascending: true })
 
-        // Sort categories based on predefined order
-        const sortedCategories = (categoryData || []).sort((a, b) => {
-          return (
-            CATEGORY_ORDER.indexOf(a.category_name) -
-            CATEGORY_ORDER.indexOf(b.category_name)
-          );
-        });
-
-        setCategories(sortedCategories || [])
+        setCategories(categoryData || [])
         setSubcategories(subcategoryData || [])
       } catch (error) {
         console.error("Error fetching filters:", error)

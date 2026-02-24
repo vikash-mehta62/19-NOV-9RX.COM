@@ -576,7 +576,7 @@ export const PaymentAdjustmentService = {
         .from('account_transactions')
         .insert({
           customer_id: params.customerId,
-          transaction_date: new Date().toISOString().split('T')[0],
+          transaction_date: new Date().toISOString(),
           transaction_type: params.transactionType,
           reference_type: params.referenceType,
           reference_id: params.orderId,

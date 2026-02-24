@@ -22,15 +22,7 @@ import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useScreenSize } from "@/hooks/use-mobile";
-
-const CATEGORY_ORDER = [
-  "CONTAINERS & CLOSURES",
-  "RX LABELS",
-  "COMPLIANCE PACKAGING",
-  "RX PAPER BAGS",
-  "ORAL SYRINGES & ACCESSORIES",
-  "OTHER SUPPLY",
-];
+import { fetchCategories } from "@/utils/categoryUtils";
 
 interface ProductSize {
   id: string;
@@ -166,6 +158,16 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [dbCategoryOrder, setDbCategoryOrder] = useState<string[]>([]);
+
+  // Fetch category order from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      const cats = await fetchCategories();
+      setDbCategoryOrder(cats);
+    };
+    loadCategories();
+  }, []);
 
   // Use React Query for products with caching
   const { 
@@ -220,22 +222,22 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
       } 
     });
     
-    // Sort categories based on CATEGORY_ORDER
+    // Sort categories based on database order
     return Array.from(categoryMap.values()).sort((a, b) => {
-      const indexA = CATEGORY_ORDER.indexOf(a.name.toUpperCase());
-      const indexB = CATEGORY_ORDER.indexOf(b.name.toUpperCase());
+      const indexA = dbCategoryOrder.findIndex(cat => cat.toUpperCase() === a.name.toUpperCase());
+      const indexB = dbCategoryOrder.findIndex(cat => cat.toUpperCase() === b.name.toUpperCase());
       
-      // If both are in CATEGORY_ORDER, sort by their position
+      // If both are in dbCategoryOrder, sort by their position
       if (indexA !== -1 && indexB !== -1) return indexA - indexB;
       
-      // If only one is in CATEGORY_ORDER, it comes first
+      // If only one is in dbCategoryOrder, it comes first
       if (indexA !== -1) return -1;
       if (indexB !== -1) return 1;
       
-      // If neither is in CATEGORY_ORDER, sort alphabetically
+      // If neither is in dbCategoryOrder, sort alphabetically
       return a.name.localeCompare(b.name);
     });
-  }, [products]);
+  }, [products, dbCategoryOrder]);
 
   // Filter products based on search and category selection
   const filteredProducts = useMemo(() => {

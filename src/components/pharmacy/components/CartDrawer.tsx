@@ -259,7 +259,11 @@ export const CartDrawer = () => {
                   className="flex gap-4 p-4 rounded-lg bg-gray-50 shadow-sm"
                 >
                   <img
-                    src={`https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${item.image}`}
+                    src={
+                      item.image?.startsWith('http')
+                        ? item.image.replace('asnhfgfhidhzswqkhpzz.supabase.co', 'qiaetxkxweghuoxyhvml.supabase.co')
+                        : `https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${item.image}`
+                    }
                     onError={(e) => ((e.target as HTMLImageElement).src = "/placeholder.svg")}
                     alt={item.name}
                     className="w-16 h-16 rounded object-cover border"

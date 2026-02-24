@@ -82,10 +82,18 @@ export const PharmacyProductCard = ({
 
   const getImageUrl = () => {
     const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/"
+    
+    // First check displayImage (which comes from image_url or images[0])
+    if (product.displayImage && product.displayImage !== '/placeholder.svg') {
+      return product.displayImage
+    }
+    
+    // Fallback to images array
     if (product.images && product.images.length > 0) {
       if (product.images[0].startsWith("http")) return product.images[0]
       return basePath + product.images[0]
     }
+    
     return "/placeholder.svg"
   }
 

@@ -145,7 +145,7 @@ const AdminDashboard = () => {
   const loadPendingAccessRequests = async () => {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, email, company_name, type, created_at, status, mobile_phone, work_phone, billing_address, shipping_address, license_number, dea_number, npi_number, tax_id')
+      .select('id, first_name, last_name, email, company_name, type, created_at, status, mobile_phone, work_phone, billing_address, shipping_address, tax_id')
       .eq('status', 'pending')
       .order('created_at', { ascending: false });
     
@@ -393,58 +393,6 @@ const AdminDashboard = () => {
 
         {/* Low Stock Alert - NEW! */}
         <LowStockAlert products={lowStockProducts} isLoading={isLoading} />
-
-        {/* Pending Access Requests */}
-        {pendingAccessRequests.length > 0 && (
-          <Card className="border-orange-200 bg-orange-50">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <Bell className="h-5 w-5 text-orange-600" />
-                  Pending Access Requests
-                  <Badge variant="destructive">{pendingAccessRequests.length}</Badge>
-                </CardTitle>
-                <Button
-                  variant="outline"
-                  onClick={() => window.location.href = '/admin/access-requests'}
-                  className="bg-white"
-                >
-                  View All Requests
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {pendingAccessRequests.slice(0, 5).map((request) => (
-                  <div key={request.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                    <div className="flex-1">
-                      <div className="font-medium">
-                        {request.company_name || `${request.first_name} ${request.last_name}`}
-                      </div>
-                      <div className="text-sm text-muted-foreground">{request.email}</div>
-                      <div className="text-xs text-muted-foreground mt-1">
-                        <Calendar className="inline h-3 w-3 mr-1" />
-                        {new Date(request.created_at).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline" className="capitalize">{request.type}</Badge>
-                      <Button size="sm" variant="outline" onClick={() => handleViewAccessRequest(request)}>
-                        <Eye className="h-4 w-4 mr-1" /> View
-                      </Button>
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700" onClick={() => handleApproveAccess(request.id)}>
-                        <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleRejectAccess(request.id)}>
-                        <XCircle className="h-4 w-4 mr-1" /> Reject
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Recent Orders & Best Products */}
         {isLoading ? (

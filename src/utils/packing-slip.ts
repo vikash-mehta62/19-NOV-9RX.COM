@@ -196,35 +196,52 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     const tableY = yPos + boxH + 10;
 
-    const tableHead = [["SKU", "DESCRIPTION", "SIZE", "QTY/CS", "CASES"]];
+    const tableHead = [["SKU", "DESCRIPTION", "SIZE", "QTY/CS", "CASES", "LOT/BATCH"]];
     const tableBody: string[][] = [];
 
     if (packedItems && packedItems.length > 0) {
       packedItems.forEach((item: any) => {
+        // Get batch information
+        const batches = item.batches || [];
+        let batchInfo = "-";
+        
+        if (batches.length > 0) {
+          // Show lot numbers with expiry dates
+          batchInfo = batches.map((b: any) => {
+            let info = b.lot_number;
+            if (b.expiry_date) {
+              const expDate = new Date(b.expiry_date);
+              info += ` (${expDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })})`;
+            }
+            return info;
+          }).join('\n');
+        }
+        
         tableBody.push([
           item.sku || "-",
           item.name || "-",
           item.size || "-",
           item.qtyPerCase?.toString() || "1",
-          item.masterCases?.toString() || "0",
+          item.casesOrdered?.toString() || item.masterCases?.toString() || "0",
+          batchInfo
         ]);
       });
     } else {
-      tableBody.push(["-", "RX VIALS", "9 dram", "1", "0"]);
-      tableBody.push(["-", "RX VIALS", "40 dram", "1", "0"]);
-      tableBody.push(["-", "RX VIALS", "60 dram", "1", "0"]);
+      tableBody.push(["-", "RX VIALS", "9 dram", "1", "0", "-"]);
+      tableBody.push(["-", "RX VIALS", "40 dram", "1", "0", "-"]);
+      tableBody.push(["-", "RX VIALS", "60 dram", "1", "0", "-"]);
     }
 
     const totalCases = tableBody.reduce((sum, row) => sum + parseInt(row[4] || "0"), 0);
-    tableBody.push(["", "", "", "TOTAL:", totalCases.toString()]);
+    tableBody.push(["", "", "", "TOTAL:", totalCases.toString(), ""]);
 
     (doc as any).autoTable({
       head: tableHead,
       body: tableBody,
       startY: tableY,
       styles: {
-        fontSize: 9,
-        cellPadding: 3.5,
+        fontSize: 8,
+        cellPadding: 3,
         lineColor: [220, 220, 220],
         lineWidth: 0.2,
       },
@@ -234,14 +251,15 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
         textColor: COLORS.white,
         fontStyle: "bold",
         halign: "center",
-        fontSize: 9,
+        fontSize: 8,
       },
       columnStyles: {
-        0: { cellWidth: 22, halign: "center" },
+        0: { cellWidth: 20, halign: "center" },
         1: { cellWidth: "auto" },
-        2: { cellWidth: 30, halign: "center" },
-        3: { cellWidth: 22, halign: "center" },
-        4: { cellWidth: 22, halign: "center" },
+        2: { cellWidth: 25, halign: "center" },
+        3: { cellWidth: 18, halign: "center" },
+        4: { cellWidth: 18, halign: "center" },
+        5: { cellWidth: 40, halign: "left", fontSize: 7 },
       },
       didParseCell: (data: any) => {
         if (data.row.index === tableBody.length - 1) {

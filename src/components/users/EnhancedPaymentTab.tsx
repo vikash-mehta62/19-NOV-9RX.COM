@@ -466,10 +466,17 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         .from("account_transactions")
         .select("*")
         .eq("customer_id", userId)
-        .order("transaction_date", { ascending: false });
+        .order("transaction_date", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (!error && data) {
-        setTransactions(data);
+        // Ensure descending order (newest first)
+        const sortedData = data.sort((a, b) => {
+          const dateA = new Date(a.transaction_date).getTime();
+          const dateB = new Date(b.transaction_date).getTime();
+          return dateB - dateA; // Descending order
+        });
+        setTransactions(sortedData);
       }
       setLoading(false);
     };

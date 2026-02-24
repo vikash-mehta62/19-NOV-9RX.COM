@@ -30,6 +30,7 @@ import { ErrorState } from "@/components/ui/ErrorState";
 import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
 import { SizeMatchBanner } from "@/components/search/SizeMatchBanner";
+import { fetchCategories } from "@/utils/categoryUtils";
 
 import image1 from "../assests/home/image1.jpg";
 import image2 from "../assests/home/image2.jpg";
@@ -40,15 +41,6 @@ import image6 from "../assests/home/image6.jpg";
 import logo from "../assests/home/9rx_logo.png";
 
 const imageArray = [image2, image3, image6, image1, image5, image4];
-
-const CATEGORY_ORDER = [
-  "CONTAINERS & CLOSURES",
-  "RX LABELS",
-  "COMPLIANCE PACKAGING",
-  "RX PAPER BAGS",
-  "ORAL SYRINGES & ACCESSORIES",
-  "OTHER SUPPLY",
-];
 
 interface Product {
   id: string;
@@ -420,6 +412,16 @@ const Products = () => {
   const [sortBy, setSortBy] = useState("featured");
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [dbCategories, setDbCategories] = useState<string[]>([]);
+
+  // Fetch categories from database
+  useEffect(() => {
+    const loadCategories = async () => {
+      const cats = await fetchCategories();
+      setDbCategories(cats);
+    };
+    loadCategories();
+  }, []);
 
   // Set category from navigation state (when coming back from product details)
   useEffect(() => {
@@ -477,29 +479,21 @@ const Products = () => {
   };
 
   const categories = useMemo(() => {
-    const allCategories = ["all", ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
+    // Use database categories order, add "all" at the beginning
+    const productCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean)));
     
-    // Sort categories based on CATEGORY_ORDER
-    const sorted = allCategories.sort((a, b) => {
-      if (a === "all") return -1;
-      if (b === "all") return 1;
-      
-      const indexA = CATEGORY_ORDER.indexOf(a.toUpperCase());
-      const indexB = CATEGORY_ORDER.indexOf(b.toUpperCase());
-      
-      // If both are in CATEGORY_ORDER, sort by their position
-      if (indexA !== -1 && indexB !== -1) return indexA - indexB;
-      
-      // If only one is in CATEGORY_ORDER, it comes first
-      if (indexA !== -1) return -1;
-      if (indexB !== -1) return 1;
-      
-      // If neither is in CATEGORY_ORDER, sort alphabetically
-      return a.localeCompare(b);
-    });
+    // Filter dbCategories to only include categories that have products
+    const orderedCategories = dbCategories.filter(cat => 
+      productCategories.some(pc => pc.toUpperCase() === cat.toUpperCase())
+    );
     
-    return sorted;
-  }, [products]);
+    // Add any categories from products that aren't in dbCategories (shouldn't happen, but safety)
+    const missingCategories = productCategories.filter(pc => 
+      !orderedCategories.some(oc => oc.toUpperCase() === pc.toUpperCase())
+    ).sort();
+    
+    return ["all", ...orderedCategories, ...missingCategories];
+  }, [products, dbCategories]);
 
   const filteredProducts = useMemo(() => {
     let filtered = products;

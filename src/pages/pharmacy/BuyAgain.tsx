@@ -263,7 +263,11 @@ export default function BuyAgain() {
                         {/* Product Image */}
                         <div className="w-20 h-20 bg-white rounded-lg overflow-hidden flex-shrink-0 border">
                           <img
-                            src={`https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${item.image}`}
+                            src={
+                              item.image?.startsWith('http') 
+                                ? item.image.replace('asnhfgfhidhzswqkhpzz.supabase.co', 'qiaetxkxweghuoxyhvml.supabase.co')
+                                : `https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${item.image}`
+                            }
                             alt={item.name}
                             className="w-full h-full object-contain p-1"
                             onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}

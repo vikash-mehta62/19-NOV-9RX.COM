@@ -3,27 +3,100 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BatchTrackingService, ExpiringBatch } from '@/services/batchTrackingService';
-import { format, differenceInDays } from 'date-fns';
+import { format, differenceInDays, parseISO } from 'date-fns';
 import { AlertTriangle, Calendar, Package, CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+
+interface ExpiringSizeItem {
+  id: string;
+  size_value: string;
+  size_unit: string;
+  exipry: string;
+  stock: string;
+  sku: string;
+  lotNumber?: string;
+  product_name: string;
+  category: string;
+  days_until_expiry: number;
+}
 
 export function ExpiryAlertsDashboard() {
-  const [expiringBatches, setExpiringBatches] = useState<ExpiringBatch[]>([]);
+  const [expiringItems, setExpiringItems] = useState<ExpiringSizeItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState('30');
 
   useEffect(() => {
-    loadExpiringBatches(30);
+    loadExpiringItems(30);
   }, []);
 
-  const loadExpiringBatches = async (days: number) => {
+  const loadExpiringItems = async (days: number) => {
     try {
       setLoading(true);
-      const data = await BatchTrackingService.getExpiringBatches(days);
-      setExpiringBatches(data);
+      
+      // Get all product sizes with expiry dates
+      const { data, error } = await supabase
+        .from('product_sizes')
+        .select(`
+          id,
+          size_value,
+          size_unit,
+          exipry,
+          stock,
+          sku,
+          lotNumber,
+          product:products!inner(name, category)
+        `)
+        .not('exipry', 'is', null)
+        .not('exipry', 'eq', '');
+
+      if (error) {
+        console.error('Error fetching expiring items:', error);
+        setExpiringItems([]);
+        return;
+      }
+
+      // Calculate days until expiry and filter
+      const today = new Date();
+      today.setHours(0, 0, 0, 0); // Reset time to start of day
+
+      const itemsWithDays = (data || [])
+        .map(item => {
+          try {
+            const expiryDate = parseISO(item.exipry);
+            expiryDate.setHours(0, 0, 0, 0); // Reset time to start of day
+            const daysUntilExpiry = differenceInDays(expiryDate, today);
+            
+            return {
+              id: item.id,
+              size_value: item.size_value,
+              size_unit: item.size_unit,
+              exipry: item.exipry,
+              stock: item.stock,
+              sku: item.sku || '',
+              lotNumber: item.lotNumber,
+              product_name: item.product?.name || 'Unknown Product',
+              category: item.product?.category || '',
+              days_until_expiry: daysUntilExpiry
+            };
+          } catch (e) {
+            console.error('Error parsing date:', item.exipry, e);
+            return null;
+          }
+        })
+        .filter((item): item is ExpiringSizeItem => item !== null)
+        .filter(item => {
+          // Show expired items in all tabs
+          if (item.days_until_expiry < 0) return true;
+          // Show items expiring within the selected range
+          return item.days_until_expiry <= days;
+        })
+        .sort((a, b) => a.days_until_expiry - b.days_until_expiry);
+
+      setExpiringItems(itemsWithDays);
     } catch (error) {
-      console.error('Error loading expiring batches:', error);
+      console.error('Error loading expiring items:', error);
+      setExpiringItems([]);
     } finally {
       setLoading(false);
     }
@@ -31,7 +104,7 @@ export function ExpiryAlertsDashboard() {
 
   const handleTabChange = (value: string) => {
     setSelectedTab(value);
-    loadExpiringBatches(parseInt(value));
+    loadExpiringItems(parseInt(value));
   };
 
   const getUrgencyColor = (daysUntilExpiry: number) => {
@@ -50,9 +123,9 @@ export function ExpiryAlertsDashboard() {
     return 'LOW';
   };
 
-  const expiredBatches = expiringBatches.filter(b => b.days_until_expiry < 0);
-  const criticalBatches = expiringBatches.filter(b => b.days_until_expiry >= 0 && b.days_until_expiry <= 7);
-  const highPriorityBatches = expiringBatches.filter(b => b.days_until_expiry > 7 && b.days_until_expiry <= 30);
+  const expiredItems = expiringItems.filter(b => b.days_until_expiry < 0);
+  const criticalItems = expiringItems.filter(b => b.days_until_expiry >= 0 && b.days_until_expiry <= 7);
+  const highPriorityItems = expiringItems.filter(b => b.days_until_expiry > 7 && b.days_until_expiry <= 30);
 
   if (loading) {
     return (
@@ -79,15 +152,15 @@ export function ExpiryAlertsDashboard() {
         {/* Summary Cards */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-            <div className="text-2xl font-bold text-red-600">{expiredBatches.length}</div>
+            <div className="text-2xl font-bold text-red-600">{expiredItems.length}</div>
             <div className="text-sm text-red-800 mt-1">Expired</div>
           </div>
           <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-            <div className="text-2xl font-bold text-orange-600">{criticalBatches.length}</div>
+            <div className="text-2xl font-bold text-orange-600">{criticalItems.length}</div>
             <div className="text-sm text-orange-800 mt-1">Critical (≤7 days)</div>
           </div>
           <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <div className="text-2xl font-bold text-yellow-600">{highPriorityBatches.length}</div>
+            <div className="text-2xl font-bold text-yellow-600">{highPriorityItems.length}</div>
             <div className="text-sm text-yellow-800 mt-1">High (≤30 days)</div>
           </div>
         </div>
@@ -103,59 +176,69 @@ export function ExpiryAlertsDashboard() {
 
           <TabsContent value={selectedTab} className="mt-4">
             <div className="space-y-3 max-h-96 overflow-y-auto">
-              {expiringBatches.map((batch) => (
+              {expiringItems.map((item) => (
                 <div
-                  key={batch.batch_id}
-                  className={`p-4 border rounded-lg ${getUrgencyColor(batch.days_until_expiry)}`}
+                  key={item.id}
+                  className={`p-4 border rounded-lg ${getUrgencyColor(item.days_until_expiry)}`}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-2">
-                        <Badge className={getUrgencyColor(batch.days_until_expiry)}>
-                          {getUrgencyLabel(batch.days_until_expiry)}
+                        <Badge className={getUrgencyColor(item.days_until_expiry)}>
+                          {getUrgencyLabel(item.days_until_expiry)}
                         </Badge>
-                        <span className="font-semibold">{batch.product_name}</span>
+                        <span className="font-semibold">{item.product_name}</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
                         <div>
-                          <span className="text-gray-600">Batch:</span>{' '}
-                          <span className="font-medium">{batch.batch_number}</span>
+                          <span className="text-gray-600">Size:</span>{' '}
+                          <span className="font-medium">{item.size_value} {item.size_unit}</span>
                         </div>
-                        {batch.lot_number && (
+                        {item.sku && (
+                          <div>
+                            <span className="text-gray-600">SKU:</span>{' '}
+                            <span className="font-medium">{item.sku}</span>
+                          </div>
+                        )}
+                        {item.lotNumber && (
                           <div>
                             <span className="text-gray-600">Lot:</span>{' '}
-                            <span className="font-medium">{batch.lot_number}</span>
+                            <span className="font-medium">{item.lotNumber}</span>
                           </div>
                         )}
                         <div>
-                          <span className="text-gray-600">Quantity:</span>{' '}
-                          <span className="font-medium">{batch.quantity} units</span>
+                          <span className="text-gray-600">Stock:</span>{' '}
+                          <span className="font-medium">{item.stock} units</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-600">Category:</span>{' '}
+                          <span className="font-medium">{item.category}</span>
                         </div>
                         <div>
                           <span className="text-gray-600">Expiry:</span>{' '}
                           <span className="font-medium">
-                            {format(new Date(batch.expiry_date), 'MMM dd, yyyy')}
+                            {format(parseISO(item.exipry), 'MMM dd, yyyy')}
                           </span>
                         </div>
                       </div>
                     </div>
                     <div className="text-right ml-4">
                       <div className="text-2xl font-bold">
-                        {batch.days_until_expiry < 0 ? (
+                        {item.days_until_expiry < 0 ? (
                           <span className="text-red-600">
-                            {Math.abs(batch.days_until_expiry)}d
+                            {Math.abs(item.days_until_expiry)}d
                           </span>
                         ) : (
-                          <span>{batch.days_until_expiry}d</span>
+                          <span>{item.days_until_expiry}d</span>
                         )}
                       </div>
                       <div className="text-xs text-gray-600">
-                        {batch.days_until_expiry < 0 ? 'overdue' : 'remaining'}
+                        {item.days_until_expiry < 0 ? 'overdue' : 'remaining'}
                       </div>
                     </div>
                   </div>
 
-                  {batch.days_until_expiry < 0 && (
+                  {item.days_until_expiry < 0 && (
                     <div className="mt-3 pt-3 border-t border-red-300">
                       <div className="flex items-center gap-2 text-sm text-red-800">
                         <AlertTriangle className="h-4 w-4" />
@@ -164,7 +247,7 @@ export function ExpiryAlertsDashboard() {
                     </div>
                   )}
 
-                  {batch.days_until_expiry >= 0 && batch.days_until_expiry <= 7 && (
+                  {item.days_until_expiry >= 0 && item.days_until_expiry <= 7 && (
                     <div className="mt-3 pt-3 border-t border-orange-300">
                       <div className="flex items-center gap-2 text-sm text-orange-800">
                         <AlertTriangle className="h-4 w-4" />
@@ -175,7 +258,7 @@ export function ExpiryAlertsDashboard() {
                 </div>
               ))}
 
-              {expiringBatches.length === 0 && (
+              {expiringItems.length === 0 && (
                 <div className="text-center py-12">
                   <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                   <p className="text-gray-600 font-medium">No batches expiring in the next {selectedTab} days</p>
@@ -187,7 +270,7 @@ export function ExpiryAlertsDashboard() {
         </Tabs>
 
         {/* Action Buttons */}
-        {expiringBatches.length > 0 && (
+        {expiringItems.length > 0 && (
           <div className="mt-6 pt-4 border-t flex gap-2">
             <Button variant="outline" size="sm">
               <Calendar className="h-4 w-4 mr-2" />

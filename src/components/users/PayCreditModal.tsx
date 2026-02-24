@@ -276,6 +276,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
       .from("account_transactions")
       .insert({
         customer_id: userId,
+        transaction_date: new Date().toISOString(),
         transaction_type: "credit",
         reference_type: "payment",
         credit_amount: amount,

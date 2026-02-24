@@ -43,6 +43,7 @@ import {
 import { useNavigate, useLocation } from "react-router-dom"
 import { useCart } from "@/hooks/use-cart"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { fetchCategories, fetchCategoryConfigs } from "@/utils/categoryUtils"
 
 import image1 from "../../assests/home/image1.jpg";
 import image2 from "../../assests/home/image2.jpg";
@@ -75,46 +76,49 @@ export const PharmacyProductsFullPage = () => {
   const userProfile = useSelector(selectUserProfile)
   const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
   const [categories, setCategories] = useState<string[]>([]); // Fetched categories from database
+  const [categoryConfigs, setCategoryConfigs] = useState<any[]>([]); // Full category configs with images
 
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
 
-  //All Category images array.
+  //All Category images array - fallback for categories without custom images
   const imageArray = [image2, image3, image6, image1, image5, image4];
-
-  const CATEGORY_ORDER = [
-  "CONTAINERS & CLOSURES",
-  "RX LABELS",
-  "COMPLIANCE PACKAGING",
-  "RX PAPER BAGS",
-  "ORAL SYRINGES & ACCESSORIES",
-  "OTHER SUPPLY",
-];
 
   // Fetch categories from database
   useEffect(() => {
-    const fetchCategories = async () => {
+    const fetchCategoriesFromDB = async () => {
       try {
-        const { data, error } = await supabase
-          .from('category_configs')
-          .select('category_name')
-          .order('category_name');
-
-        if (error) {
-          console.error('Error fetching categories:', error);
-          return;
-        }
-        
-        const categoryNames = data?.map(item => item.category_name) || [];
-        const sortedCategories = CATEGORY_ORDER.filter(cat => categoryNames.includes(cat));
-        setCategories(sortedCategories);
-        console.log('PHARMACY -> Fetched categories:', sortedCategories);
+        const cats = await fetchCategories();
+        const configs = await fetchCategoryConfigs();
+        setCategories(cats);
+        setCategoryConfigs(configs);
+        console.log('PHARMACY -> Fetched categories:', cats);
+        console.log('PHARMACY -> Fetched category configs:', configs);
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
     };
 
-    fetchCategories();
+    fetchCategoriesFromDB();
   }, []);
+
+  // Get category image URL
+  const getCategoryImageUrl = (categoryName: string, fallbackIndex: number): string => {
+    const config = categoryConfigs.find(c => c.category_name === categoryName);
+    
+    // If custom image exists, use it
+    if (config?.image_url) {
+      if (config.image_url.startsWith("http")) {
+        return config.image_url;
+      }
+      const { data } = supabase.storage
+        .from("product-images")
+        .getPublicUrl(config.image_url);
+      return data?.publicUrl || imageArray[fallbackIndex] || imageArray[0];
+    }
+    
+    // Fallback to hardcoded images
+    return imageArray[fallbackIndex] || imageArray[0];
+  };
 
   // Set category and product from navigation state (when coming back from product/size details)
   useEffect(() => {
@@ -839,22 +843,24 @@ export const PharmacyProductsFullPage = () => {
                 {/* Enhanced Category Grid - Only show when no specific category is selected */}
                 {selectedCategory === "all" && (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 sm:mb-12">
-                    {imageArray.map((image, index) => (
-                      <div
-                        key={index}
-                        className="group relative flex flex-col items-center"
-                      >
-                        {categories[index] ? (
+                    {categories.map((category, index) => {
+                      const categoryImage = getCategoryImageUrl(category, index);
+                      
+                      return (
+                        <div
+                          key={category}
+                          className="group relative flex flex-col items-center"
+                        >
                           <div
-                            onClick={() => handleCategorySelect(categories[index])}
+                            onClick={() => handleCategorySelect(category)}
                             className="relative cursor-pointer transform transition-all duration-500 ease-out hover:scale-105 hover:-translate-y-2 active:scale-95 w-full"
                           >
                             {/* Enhanced Image Container with Card Effect */}
                             <div className="relative overflow-hidden rounded-2xl shadow-lg group-hover:shadow-2xl transition-all duration-500 bg-white p-4 sm:p-6">
                               <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-gray-50 to-white aspect-square">
                                 <img
-                                  src={image}
-                                  alt={`Category ${categories[index]}`}
+                                  src={categoryImage}
+                                  alt={`Category ${category}`}
                                   className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-110"
                                 />
 
@@ -869,22 +875,15 @@ export const PharmacyProductsFullPage = () => {
                             {/* Enhanced Category Label */}
                             <div className="mt-4 text-center px-2">
                               <span className="text-sm sm:text-base font-bold text-gray-800 group-hover:text-blue-600 transition-all duration-300 block leading-tight line-clamp-2">
-                                {categories[index]}
+                                {category}
                               </span>
                               {/* Animated Underline */}
                               <div className="h-0.5 w-0 group-hover:w-full bg-gradient-to-r from-blue-400 to-blue-600 mx-auto mt-1.5 transition-all duration-500 rounded-full" />
                             </div>
                           </div>
-                        ) : (
-                          <div className="flex flex-col items-center opacity-40 hover:opacity-60 transition-opacity duration-300 w-full">
-                            <div className="w-full aspect-square rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50/50">
-                              <Package className="w-12 h-12 text-gray-400" />
-                            </div>
-                            <span className="text-base text-gray-400 mt-4 font-medium">No Category</span>
-                          </div>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 

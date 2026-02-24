@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -23,7 +23,9 @@ import {
   X,
   AlertCircle,
   CheckCircle,
-  Trash2
+  Trash2,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
@@ -62,10 +64,15 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     size_units: [] as string[],
     default_unit: '',
     has_rolls: false,
-    requires_case: true
+    requires_case: true,
+    image_url: '' as string
   });
   const [customUnits, setCustomUnits] = useState<string[]>([]);
   const [customUnit, setCustomUnit] = useState('');
+  const [categoryImage, setCategoryImage] = useState<File | null>(null);
+  const [categoryImagePreview, setCategoryImagePreview] = useState<string>('');
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Subcategory states
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
@@ -124,6 +131,59 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
   };
 
   // Category functions
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      setCategoryImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCategoryImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setCategoryImage(null);
+    setCategoryImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const uploadCategoryImage = async (categoryId: string): Promise<string | null> => {
+    if (!categoryImage) return null;
+
+    setUploadingImage(true);
+    try {
+      const fileExt = categoryImage.name.split('.').pop();
+      const fileName = `category-${categoryId}-${Date.now()}.${fileExt}`;
+      const filePath = `categories/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, categoryImage, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      return filePath;
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
+      return null;
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
   const handleAddCategory = async () => {
     if (!categoryForm.category_name.trim()) {
       toast.error('Please enter a category name');
@@ -143,11 +203,38 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     setLoading(true);
 
     try {
-      const { error } = await supabase
+      // First insert the category
+      const { data: newCategory, error } = await supabase
         .from('category_configs')
-        .insert([categoryForm]);
+        .insert([{
+          category_name: categoryForm.category_name,
+          size_units: categoryForm.size_units,
+          default_unit: categoryForm.default_unit,
+          has_rolls: categoryForm.has_rolls,
+          requires_case: categoryForm.requires_case
+        }])
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Upload image if provided
+      let imageUrl = null;
+      if (categoryImage && newCategory) {
+        imageUrl = await uploadCategoryImage(newCategory.id);
+        
+        // Update category with image URL
+        if (imageUrl) {
+          const { error: updateError } = await supabase
+            .from('category_configs')
+            .update({ image_url: imageUrl })
+            .eq('id', newCategory.id);
+
+          if (updateError) {
+            console.error('Error updating image URL:', updateError);
+          }
+        }
+      }
 
       toast.success('Category added successfully!');
       await fetchCategoryConfigs();
@@ -194,7 +281,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       size_units: category.size_units,
       default_unit: category.default_unit,
       has_rolls: category.has_rolls,
-      requires_case: category.requires_case
+      requires_case: category.requires_case,
+      image_url: (category as any).image_url || ''
     });
   };
 
@@ -204,10 +292,16 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       size_units: [],
       default_unit: '',
       has_rolls: false,
-      requires_case: true
+      requires_case: true,
+      image_url: ''
     });
     setCustomUnits([]);
     setEditingCategory(null);
+    setCategoryImage(null);
+    setCategoryImagePreview('');
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const toggleUnit = (unit: string) => {
@@ -328,7 +422,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
+      <DialogContent className="sm:max-w-4xl h-[90vh] p-0 flex flex-col overflow-hidden">
         <DialogHeader className="px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-600 flex-shrink-0">
           <DialogTitle className="text-xl font-bold text-white flex items-center gap-2">
             <Package className="h-5 w-5" />
@@ -339,8 +433,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
           </p>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="w-full">
-          <div className="px-6 pt-4">
+        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
+          <div className="px-6 pt-4 flex-shrink-0">
             <TabsList className="grid w-full grid-cols-2 bg-gray-100">
               <TabsTrigger value="category" className="data-[state=active]:bg-white">
                 <Package className="h-4 w-4 mr-2" />
@@ -353,14 +447,14 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
             </TabsList>
           </div>
 
-          <ScrollArea className="flex-1 overflow-visible">
+          <div className="flex-1 overflow-y-auto px-6 pb-6">
             {/* CATEGORY TAB */}
-            <TabsContent value="category" className="px-6 pb-6 space-y-6 mt-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TabsContent value="category" className="space-y-6 mt-4 m-0 h-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                 {/* Category Form */}
-                <Card className="border-2 border-purple-200">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center justify-between mb-4">
+                <Card className="border-2 border-purple-200 flex flex-col" style={{ maxHeight: 'calc(90vh - 280px)' }}>
+                  <CardContent className="p-6 flex flex-col flex-1 overflow-hidden">
+                    <div className="flex items-center justify-between mb-4 flex-shrink-0">
                       <h3 className="font-bold text-lg text-gray-900">
                         {editingCategory ? 'Edit Category' : 'Add New Category'}
                       </h3>
@@ -375,6 +469,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                       )}
                     </div>
 
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+
                     <div>
                       <Label>Category Name <span className="text-red-500">*</span></Label>
                       <Input
@@ -383,6 +479,55 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                         onChange={(e) => setCategoryForm({ ...categoryForm, category_name: e.target.value })}
                         className="mt-2"
                       />
+                    </div>
+
+                    {/* Category Image Upload */}
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Category Image
+                      </Label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageSelect}
+                        className="hidden"
+                      />
+                      
+                      {categoryImagePreview ? (
+                        <div className="mt-2 relative">
+                          <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                            <img
+                              src={categoryImagePreview}
+                              alt="Category preview"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              onClick={removeImage}
+                              className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Click X to remove image</p>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="mt-2 w-full h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all flex flex-col items-center justify-center gap-2 group"
+                        >
+                          <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center group-hover:bg-purple-200 transition-colors">
+                            <Upload className="w-6 h-6 text-purple-600" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-gray-700">Upload Category Image</p>
+                            <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
+                          </div>
+                        </button>
+                      )}
                     </div>
 
                     <div>
@@ -488,7 +633,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                     <Button
                       onClick={editingCategory ? handleEditCategory : handleAddCategory}
                       disabled={loading}
-                      className="w-full bg-purple-600 hover:bg-purple-700"
+                      className="w-full bg-purple-600 hover:bg-purple-700 mt-4 flex-shrink-0"
                     >
                       {loading ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -499,14 +644,15 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                       )}
                       {editingCategory ? 'Update Category' : 'Add Category'}
                     </Button>
+                    </div>
                   </CardContent>
                 </Card>
 
                 {/* Categories List */}
-                <Card>
-                  <CardContent className="p-6">
-                    <h3 className="font-bold text-lg text-gray-900 mb-4">All Categories</h3>
-                    <ScrollArea className="h-[500px]">
+                <Card className="flex flex-col" style={{ maxHeight: 'calc(90vh - 280px)' }}>
+                  <CardContent className="p-6 flex flex-col flex-1 overflow-hidden">
+                    <h3 className="font-bold text-lg text-gray-900 mb-4 flex-shrink-0">All Categories</h3>
+                    <div className="flex-1 overflow-y-auto pr-2">
                       <div className="space-y-2">
                         {categories.map((category) => (
                           <div
@@ -530,19 +676,19 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                           </div>
                         ))}
                       </div>
-                    </ScrollArea>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             </TabsContent>
 
             {/* SUBCATEGORY TAB */}
-            <TabsContent value="subcategory" className="px-6 pb-6 space-y-6 mt-4">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <TabsContent value="subcategory" className="space-y-6 mt-4 m-0 h-full">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
                 {/* Subcategory Form */}
-                <Card className="border-2 border-green-200">
-                  <CardContent className="p-6 space-y-4">
-                    <div className="flex items-center justify-between mb-4">
+                <Card className="border-2 border-green-200 flex flex-col" style={{ maxHeight: 'calc(90vh - 280px)' }}>
+                  <CardContent className="p-6 flex flex-col flex-1 overflow-hidden">
+                    <div className="flex items-center justify-between mb-4 flex-shrink-0">
                       <h3 className="font-bold text-lg text-gray-900">
                         {editingSubcategory ? 'Edit Subcategory' : 'Add New Subcategory'}
                       </h3>
@@ -556,6 +702,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                         </Button>
                       )}
                     </div>
+
+                    <div className="flex-1 overflow-y-auto pr-2 space-y-4">
 
                     <div>
                       <Label>Select Category <span className="text-red-500">*</span></Label>
@@ -595,7 +743,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                     <Button
                       onClick={editingSubcategory ? handleEditSubcategory : handleAddSubcategory}
                       disabled={loading || !subcategoryForm.category_name}
-                      className="w-full bg-green-600 hover:bg-green-700"
+                      className="w-full bg-green-600 hover:bg-green-700 mt-4 flex-shrink-0"
                     >
                       {loading ? (
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -606,16 +754,17 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                       )}
                       {editingSubcategory ? 'Update Subcategory' : 'Add Subcategory'}
                     </Button>
+                    </div>
                   </CardContent>
                 </Card>
 
                 {/* Subcategories List */}
-                <Card>
-                  <CardContent className="p-6">
-                    <h3 className="font-bold text-lg text-gray-900 mb-4">
+                <Card className="flex flex-col" style={{ maxHeight: 'calc(90vh - 280px)' }}>
+                  <CardContent className="p-6 flex flex-col flex-1 overflow-hidden">
+                    <h3 className="font-bold text-lg text-gray-900 mb-4 flex-shrink-0">
                       {selectedCategoryForSub ? `Subcategories for ${selectedCategoryForSub}` : 'All Subcategories'}
                     </h3>
-                    <ScrollArea className="h-[500px]">
+                    <div className="flex-1 overflow-y-auto pr-2">
                       {selectedCategoryForSub ? (
                         <div className="space-y-2">
                           {subcategories.length > 0 ? (
@@ -647,15 +796,15 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                           <p className="text-sm">Select a category to view subcategories</p>
                         </div>
                       )}
-                    </ScrollArea>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
             </TabsContent>
-          </ScrollArea>
+          </div>
         </Tabs>
 
-        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end">
+        <div className="px-6 py-4 border-t bg-gray-50 flex justify-end flex-shrink-0">
           <Button
             variant="outline"
             onClick={() => {

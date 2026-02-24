@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,9 +12,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { generateWorkOrderPDF } from "@/utils/packing-slip";
 import { useToast } from "@/hooks/use-toast";
-import { Package, Truck, MapPin, Box, Download, AlertCircle, CheckCircle2 } from "lucide-react";
+import { Package, Truck, MapPin, Box, Download, AlertCircle, CheckCircle2, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { BatchInventoryService, BatchAllocation } from "@/services/batchInventoryService";
 
 interface PackingSlipModalProps {
   open: boolean;
@@ -26,6 +27,10 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
+  const [batchAllocations, setBatchAllocations] = useState<Record<string, BatchAllocation[]>>({});
+  const [availableBatches, setAvailableBatches] = useState<Record<string, any[]>>({});
+  const [selectedBatches, setSelectedBatches] = useState<Record<string, string>>({});
+  const [loadingBatches, setLoadingBatches] = useState(false);
 
   const [packingData, setPackingData] = useState({
     shipVia: "",
@@ -51,6 +56,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
           sku: size.sku || "-",
           name: item.name,
           size: `${size.size_value} ${size.size_unit || ""}`.trim(),
+          sizeId: size.id, // Store size ID for batch lookup
           qtyPerCase,
           casesOrdered,
           totalWeight: casesOrdered * weightPerCase,
@@ -59,6 +65,81 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
     });
     return items;
   }, [orderData]);
+
+  // Fetch batch allocations for all items
+  useEffect(() => {
+    const fetchBatchAllocations = async () => {
+      if (!open || packedItems.length === 0) return;
+      
+      setLoadingBatches(true);
+      const allocations: Record<string, BatchAllocation[]> = {};
+      const available: Record<string, any[]> = {};
+      const selected: Record<string, string> = {};
+      
+      try {
+        for (const item of packedItems) {
+          if (item.sizeId) {
+            try {
+              // Fetch ALL available batches for this size
+              const allBatches = await BatchInventoryService.getAvailableBatches(item.sizeId);
+              available[item.sizeId] = allBatches;
+
+              // Calculate total units needed (cases × qty per case)
+              const totalUnits = item.casesOrdered * item.qtyPerCase;
+              
+              // Get FIFO allocation (recommended)
+              const batchAllocs = await BatchInventoryService.allocateQuantity(
+                item.sizeId,
+                totalUnits
+              );
+              allocations[item.sizeId] = batchAllocs;
+
+              // Pre-select FIFO batch (first batch in allocation)
+              if (batchAllocs.length > 0) {
+                selected[item.sizeId] = batchAllocs[0].batch_id;
+              }
+            } catch (error) {
+              console.warn(`No batches found for ${item.sku}:`, error);
+              allocations[item.sizeId] = [];
+              available[item.sizeId] = [];
+            }
+          }
+        }
+        setBatchAllocations(allocations);
+        setAvailableBatches(available);
+        setSelectedBatches(selected);
+      } catch (error) {
+        console.error('Error fetching batch allocations:', error);
+      } finally {
+        setLoadingBatches(false);
+      }
+    };
+
+    fetchBatchAllocations();
+  }, [open, packedItems]);
+
+  // Handle batch selection change
+  const handleBatchSelection = (sizeId: string, batchId: string) => {
+    setSelectedBatches(prev => ({
+      ...prev,
+      [sizeId]: batchId
+    }));
+  };
+
+  // Get selected batch info for display
+  const getSelectedBatchInfo = (sizeId: string) => {
+    const batchId = selectedBatches[sizeId];
+    if (!batchId) return null;
+
+    const batches = availableBatches[sizeId] || [];
+    return batches.find(b => b.id === batchId);
+  };
+
+  // Check if selected batch is the FIFO recommended batch
+  const isFIFOBatch = (sizeId: string, batchId: string) => {
+    const fifoAllocation = batchAllocations[sizeId];
+    return fifoAllocation && fifoAllocation.length > 0 && fifoAllocation[0].batch_id === batchId;
+  };
 
   // Totals
   const totals = useMemo(() => {
@@ -92,14 +173,56 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
   const handleDownload = async () => {
     try {
       setIsGenerating(true);
+      
+      // Prepare items with SELECTED batch information
+      const itemsWithBatches = packedItems.map(item => {
+        const selectedBatchId = selectedBatches[item.sizeId];
+        const selectedBatch = getSelectedBatchInfo(item.sizeId);
+        
+        // Create batch allocation from selected batch
+        const batches = selectedBatch ? [{
+          batch_id: selectedBatch.id,
+          lot_number: selectedBatch.lot_number,
+          quantity: item.casesOrdered * item.qtyPerCase,
+          expiry_date: selectedBatch.expiry_date
+        }] : [];
+
+        return {
+          ...item,
+          batches
+        };
+      });
+      
       const completeData = {
         ...orderData,
         packingDetails: { ...packingData, packedAt: new Date().toLocaleString() },
-        packedItems,
+        packedItems: itemsWithBatches,
         totals,
       };
+      
       await generateWorkOrderPDF(orderData, completeData);
-      toast({ title: "Success", description: "Packing slip downloaded" });
+      
+      // Deduct from SELECTED batches after successful PDF generation
+      try {
+        for (const item of itemsWithBatches) {
+          if (item.batches && item.batches.length > 0) {
+            await BatchInventoryService.deductFromBatches(
+              item.batches,
+              orderData.id,
+              'order'
+            );
+          }
+        }
+      } catch (batchError) {
+        console.error('Error deducting batches:', batchError);
+        toast({ 
+          title: "Warning", 
+          description: "Packing slip created but batch deduction failed. Please update inventory manually.",
+          variant: "destructive" 
+        });
+      }
+      
+      toast({ title: "Success", description: "Packing slip downloaded and inventory updated" });
       onOpenChange(false);
     } catch (error) {
       toast({ title: "Error", description: "Failed to generate", variant: "destructive" });
@@ -113,7 +236,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="border-b pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
@@ -161,35 +284,112 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                 <table className="w-full text-sm">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="text-left px-4 py-2">SKU</th>
-                      <th className="text-left px-4 py-2">Description</th>
-                      <th className="text-center px-4 py-2">Size</th>
-                      <th className="text-center px-4 py-2">QTY/Case</th>
-                      <th className="text-center px-4 py-2 bg-blue-100">Cases</th>
-                      <th className="text-right px-4 py-2">Weight</th>
+                      <th className="text-left px-3 py-2 w-20">SKU</th>
+                      <th className="text-left px-3 py-2">Description</th>
+                      <th className="text-center px-3 py-2 w-28">Size</th>
+                      <th className="text-center px-3 py-2 w-20">QTY/Case</th>
+                      <th className="text-center px-3 py-2 bg-blue-100 w-16">Cases</th>
+                      <th className="text-left px-3 py-2 w-80">Lot/Batch</th>
+                      <th className="text-right px-3 py-2 w-20">Weight</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
-                    {packedItems.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2 font-mono text-gray-600">{item.sku}</td>
-                        <td className="px-4 py-2 font-medium">{item.name}</td>
-                        <td className="px-4 py-2 text-center">{item.size}</td>
-                        <td className="px-4 py-2 text-center text-gray-600">{item.qtyPerCase}</td>
-                        <td className="px-4 py-2 text-center bg-blue-50">
-                          <Badge className="bg-blue-600">{item.casesOrdered}</Badge>
-                        </td>
-                        <td className="px-4 py-2 text-right">{item.totalWeight.toFixed(1)} lbs</td>
-                      </tr>
-                    ))}
+                    {packedItems.map((item, idx) => {
+                      const batches = availableBatches[item.sizeId] || [];
+                      const hasBatches = batches.length > 0;
+                      const selectedBatchId = selectedBatches[item.sizeId];
+                      const selectedBatch = getSelectedBatchInfo(item.sizeId);
+                      const totalUnitsNeeded = item.casesOrdered * item.qtyPerCase;
+                      
+                      return (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-3 py-2 font-mono text-gray-600 text-xs">{item.sku}</td>
+                          <td className="px-3 py-2 font-medium text-sm">{item.name}</td>
+                          <td className="px-3 py-2 text-center text-sm">{item.size}</td>
+                          <td className="px-3 py-2 text-center text-gray-600 text-sm">{item.qtyPerCase}</td>
+                          <td className="px-3 py-2 text-center bg-blue-50">
+                            <Badge className="bg-blue-600">{item.casesOrdered}</Badge>
+                          </td>
+                          <td className="px-3 py-2">
+                            {loadingBatches ? (
+                              <span className="text-xs text-gray-400">Loading...</span>
+                            ) : hasBatches ? (
+                              <div className="space-y-1.5">
+                                <Select
+                                  value={selectedBatchId}
+                                  onValueChange={(value) => handleBatchSelection(item.sizeId, value)}
+                                >
+                                  <SelectTrigger className="h-9 text-xs w-full">
+                                    <SelectValue placeholder="Select batch" />
+                                  </SelectTrigger>
+                                  <SelectContent className="max-w-md">
+                                    {batches.map((batch) => {
+                                      const isFIFO = isFIFOBatch(item.sizeId, batch.id);
+                                      const available = Number(batch.quantity_available);
+                                      const hasEnough = available >= totalUnitsNeeded;
+                                      
+                                      return (
+                                        <SelectItem 
+                                          key={batch.id} 
+                                          value={batch.id}
+                                          disabled={!hasEnough}
+                                          className="cursor-pointer"
+                                        >
+                                          <div className="flex items-center gap-2 py-1">
+                                            <Layers className="h-3 w-3 text-gray-400 flex-shrink-0" />
+                                            <span className="font-mono font-medium text-xs">{batch.lot_number}</span>
+                                            {isFIFO && (
+                                              <Badge className="bg-green-500 text-white text-[9px] px-1.5 py-0 h-4">
+                                                Recommended
+                                              </Badge>
+                                            )}
+                                            <span className="text-gray-500 text-xs whitespace-nowrap">
+                                              Avail: {available}
+                                            </span>
+                                            {batch.expiry_date && (
+                                              <span className="text-gray-500 text-xs whitespace-nowrap">
+                                                Exp: {new Date(batch.expiry_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                                              </span>
+                                            )}
+                                            {!hasEnough && (
+                                              <span className="text-red-500 text-[9px] font-semibold">Insufficient</span>
+                                            )}
+                                          </div>
+                                        </SelectItem>
+                                      );
+                                    })}
+                                  </SelectContent>
+                                </Select>
+                                {selectedBatch && (
+                                  <div className="text-[10px] text-gray-500 flex items-center gap-1 mt-1">
+                                    <span className="font-medium">Selected:</span>
+                                    <span className="font-mono">{selectedBatch.lot_number}</span>
+                                    {selectedBatch.expiry_date && (
+                                      <>
+                                        <span>•</span>
+                                        <span>Exp: {new Date(selectedBatch.expiry_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs text-gray-400">No batch tracking</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right text-sm">{item.totalWeight.toFixed(1)} lbs</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                   <tfoot className="bg-gray-100 font-semibold">
                     <tr>
-                      <td colSpan={4} className="px-4 py-2 text-right">Total:</td>
-                      <td className="px-4 py-2 text-center bg-blue-100">
+                      <td colSpan={4} className="px-3 py-2 text-right text-sm">Total:</td>
+                      <td className="px-3 py-2 text-center bg-blue-100">
                         <Badge className="bg-blue-700">{totals.totalCases}</Badge>
                       </td>
-                      <td className="px-4 py-2 text-right">{totals.totalWeight.toFixed(1)} lbs</td>
+                      <td className="px-3 py-2"></td>
+                      <td className="px-3 py-2 text-right text-sm">{totals.totalWeight.toFixed(1)} lbs</td>
                     </tr>
                   </tfoot>
                 </table>
