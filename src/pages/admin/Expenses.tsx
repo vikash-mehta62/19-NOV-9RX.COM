@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { Badge } from "@/components/ui/badge"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell } from "recharts"
 
 export interface Expense {
   id: string
@@ -331,6 +332,71 @@ const Expenses = () => {
         ? 100
         : 0 // If previous month was 0, and current is > 0, it's a 100% increase, else 0
       : ((currentMonthTotal - previousMonthTotal) / previousMonthTotal) * 100
+
+  // Prepare chart data - Monthly breakdown (last 6 months or filtered date range)
+  const monthlyChartData = (() => {
+    const months = []
+    
+    // If date filters are applied, use them
+    if (startDate || endDate) {
+      const start = startDate || new Date(2020, 0, 1) // Default to far past if no start
+      const end = endDate || new Date() // Default to now if no end
+      
+      // Get all months between start and end
+      const currentDate = new Date(start.getFullYear(), start.getMonth(), 1)
+      const endMonth = new Date(end.getFullYear(), end.getMonth(), 1)
+      
+      while (currentDate <= endMonth) {
+        const monthKey = format(currentDate, "MMM yyyy")
+        const monthExpenses = filteredExpenses.filter((expense) => {
+          const expenseDate = parseISO(expense.date)
+          return (
+            isValid(expenseDate) &&
+            expenseDate.getMonth() === currentDate.getMonth() &&
+            expenseDate.getFullYear() === currentDate.getFullYear()
+          )
+        })
+        const total = monthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+        months.push({ month: monthKey, amount: total })
+        
+        currentDate.setMonth(currentDate.getMonth() + 1)
+      }
+    } else {
+      // Default: last 6 months
+      const now = new Date()
+      for (let i = 5; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const monthKey = format(date, "MMM yyyy")
+        const monthExpenses = expenses.filter((expense) => {
+          const expenseDate = parseISO(expense.date)
+          return (
+            isValid(expenseDate) &&
+            expenseDate.getMonth() === date.getMonth() &&
+            expenseDate.getFullYear() === date.getFullYear()
+          )
+        })
+        const total = monthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+        months.push({ month: monthKey, amount: total })
+      }
+    }
+    
+    return months
+  })()
+
+  // Prepare pie chart data - Category breakdown (by expense name)
+  const categoryChartData = (() => {
+    const categories: Record<string, number> = {}
+    filteredExpenses.forEach((expense) => {
+      const category = expense.name || "Other"
+      categories[category] = (categories[category] || 0) + Number(expense.amount)
+    })
+    return Object.entries(categories)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8) // Top 8 categories
+  })()
+
+  const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"]
 
   return (
     <DashboardLayout role="admin">
@@ -738,30 +804,108 @@ const Expenses = () => {
             <TabsContent value="analytics">
               <Card className="shadow-lg border-gray-200 dark:border-gray-700">
                 <CardHeader>
-                  <CardTitle>Expense Analytics</CardTitle>
-                  <CardDescription>Visualize your spending patterns and trends</CardDescription>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                      <CardTitle>Expense Analytics</CardTitle>
+                      <CardDescription>Visualize your spending patterns and trends</CardDescription>
+                    </div>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm whitespace-nowrap">From:</Label>
+                        <DatePicker
+                          date={startDate}
+                          setDate={setStartDate}
+                          placeholder="Start date"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-sm whitespace-nowrap">To:</Label>
+                        <DatePicker
+                          date={endDate}
+                          setDate={setEndDate}
+                          placeholder="End date"
+                        />
+                      </div>
+                      {(startDate || endDate) && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setStartDate(undefined)
+                            setEndDate(undefined)
+                          }}
+                          className="whitespace-nowrap"
+                        >
+                          Clear Filters
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                       <h3 className="text-lg font-medium mb-4">Monthly Breakdown</h3>
-                      <div className="h-64 flex items-center justify-center">
-                        <div className="text-center text-gray-500">
-                          <BarChart3 className="h-16 w-16 mx-auto text-gray-300 mb-2" />
-                          <p>Monthly expense chart will appear here</p>
-                          <p className="text-sm mt-2">Upgrade to premium for analytics</p>
-                        </div>
+                      <div className="h-64">
+                        {monthlyChartData.length > 0 && monthlyChartData.some(d => d.amount > 0) ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={monthlyChartData}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="month" />
+                              <YAxis />
+                              <RechartsTooltip 
+                                formatter={(value: number) => `$${value.toFixed(2)}`}
+                              />
+                              <Legend />
+                              <Bar dataKey="amount" fill="#3b82f6" name="Expenses" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <div className="text-center text-gray-500">
+                              <BarChart3 className="h-16 w-16 mx-auto text-gray-300 mb-2" />
+                              <p>No expense data available</p>
+                              <p className="text-sm mt-2">Add expenses to see the chart</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                       <h3 className="text-lg font-medium mb-4">Expense Categories</h3>
-                      <div className="h-64 flex items-center justify-center">
-                        <div className="text-center text-gray-500">
-                          <PieChart className="h-16 w-16 mx-auto text-gray-300 mb-2" />
-                          <p>Category distribution chart will appear here</p>
-                          <p className="text-sm mt-2">Upgrade to premium for analytics</p>
-                        </div>
+                      <div className="h-64">
+                        {categoryChartData.length > 0 ? (
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                              <Pie
+                                data={categoryChartData}
+                                cx="50%"
+                                cy="50%"
+                                labelLine={false}
+                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                                outerRadius={80}
+                                fill="#8884d8"
+                                dataKey="value"
+                              >
+                                {categoryChartData.map((entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip 
+                                formatter={(value: number) => `$${value.toFixed(2)}`}
+                              />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <div className="text-center text-gray-500">
+                              <PieChart className="h-16 w-16 mx-auto text-gray-300 mb-2" />
+                              <p>No expense data available</p>
+                              <p className="text-sm mt-2">Add expenses to see the chart</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

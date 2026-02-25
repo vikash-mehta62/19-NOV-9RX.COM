@@ -149,164 +149,188 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
 
  
   const handlePayment = async (e: any) => {
-  e.preventDefault();
-  setIsPaying(true);
+    e.preventDefault();
+    setIsPaying(true);
 
-  try {
-    const errors: Record<string, string | null> = {};
-    let hasErrors = false;
+    try {
+      const errors: Record<string, string | null> = {};
+      let hasErrors = false;
 
-    if (paymentMethod === "card") {
-      // Card number: must be present, 13-19 digits, and pass Luhn check
-      if (!cardNumber.trim()) {
-        errors.cardNumber = "Card number is required";
-      } else if (!validateCardNumber(cardNumber)) {
-        errors.cardNumber = "Invalid card number";
+      if (paymentMethod === "card") {
+        // Card number: must be present, 13-19 digits, and pass Luhn check
+        if (!cardNumber.trim()) {
+          errors.cardNumber = "Card number is required";
+        } else if (!validateCardNumber(cardNumber)) {
+          errors.cardNumber = "Invalid card number";
+        }
+
+        // Expiry: must be valid MM/YY format and not expired
+        const rawExpiry = expiry.replace(/\//g, "");
+        if (!rawExpiry.trim()) {
+          errors.expiry = "Expiry date is required";
+        } else if (!validateExpiry(rawExpiry)) {
+          errors.expiry = "Invalid or expired date (MM/YY)";
+        }
+
+        // CVV: 3 or 4 digits
+        if (!cvv.trim()) {
+          errors.cvv = "CVV is required";
+        } else if (!/^\d{3,4}$/.test(cvv)) {
+          errors.cvv = "CVV must be 3 or 4 digits";
+        }
+
+        errors.cardHolderName = validateRequired(cardHolderName) ? "Cardholder name is required" : null;
+        errors.address = validateRequired(address) ? "Address is required" : null;
+        errors.city = validateRequired(city) ? "City is required" : null;
+        errors.state = validateRequired(state) ? "State is required" : null;
+        errors.zip = validateRequired(zip) ? "ZIP code is required" : null;
+        errors.country = validateRequired(country) ? "Country is required" : null;
+      } else if (paymentMethod === "manual") {
+        errors.notes = validateRequired(notes) ? "Notes are required" : null;
       }
 
-      // Expiry: must be valid MM/YY format and not expired
-      const rawExpiry = expiry.replace(/\//g, "");
-      if (!rawExpiry.trim()) {
-        errors.expiry = "Expiry date is required";
-      } else if (!validateExpiry(rawExpiry)) {
-        errors.expiry = "Invalid or expired date (MM/YY)";
+      for (const key in errors) if (errors[key]) hasErrors = true;
+
+      if (hasErrors) {
+        // Store field-level errors for inline display
+        const cleanErrors: Record<string, string> = {};
+        for (const key in errors) {
+          if (errors[key]) cleanErrors[key] = errors[key]!;
+        }
+        setFieldErrors(cleanErrors);
+
+        toast({
+          title: "Validation Error",
+          description: Object.values(cleanErrors)[0] || "Please fill all required fields correctly.",
+          variant: "destructive",
+        });
+        setIsPaying(false);
+        return;
       }
 
-      // CVV: 3 or 4 digits
-      if (!cvv.trim()) {
-        errors.cvv = "CVV is required";
-      } else if (!/^\d{3,4}$/.test(cvv)) {
-        errors.cvv = "CVV must be 3 or 4 digits";
+      // Initialize transactionId (only for card)
+      let transactionId: string | null = null;
+
+      // Card payment via Supabase Edge Function (same as Create Order)
+      if (paymentMethod === "card") {
+        const rawExpiry = expiry.replace(/\//g, "");
+        const nameParts = (cardHolderName || "Customer").split(" ");
+        const firstName = nameParts[0] || "Customer";
+        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer";
+
+        const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
+          "process-payment",
+          {
+            body: {
+              payment: {
+                type: "card",
+                cardNumber: cardNumber.replace(/\s/g, ""),
+                expirationDate: rawExpiry,
+                cvv,
+                cardholderName: cardHolderName,
+              },
+              amount: Number(amount),
+              invoiceNumber: `CREDIT-${Date.now()}`,
+              billing: {
+                firstName,
+                lastName,
+                address,
+                city,
+                state,
+                zip,
+                country,
+              },
+            },
+          }
+        );
+
+        if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
+        if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
+
+        // Store transactionId from response
+        transactionId = paymentResponse.transactionId;
       }
 
-      errors.cardHolderName = validateRequired(cardHolderName) ? "Cardholder name is required" : null;
-      errors.address = validateRequired(address) ? "Address is required" : null;
-      errors.city = validateRequired(city) ? "City is required" : null;
-      errors.state = validateRequired(state) ? "State is required" : null;
-      errors.zip = validateRequired(zip) ? "ZIP code is required" : null;
-      errors.country = validateRequired(country) ? "Country is required" : null;
-    } else if (paymentMethod === "manual") {
-      errors.notes = validateRequired(notes) ? "Notes are required" : null;
-    }
+      // Get oldest unpaid invoice to apply payment
+      const { data: oldestInvoice, error: invoiceError } = await supabase
+        .from("credit_invoices")
+        .select("*")
+        .eq("user_id", userId)
+        .in("status", ["pending", "partial", "overdue"])
+        .order("invoice_date", { ascending: true })
+        .limit(1)
+        .single();
 
-    for (const key in errors) if (errors[key]) hasErrors = true;
-
-    if (hasErrors) {
-      // Store field-level errors for inline display
-      const cleanErrors: Record<string, string> = {};
-      for (const key in errors) {
-        if (errors[key]) cleanErrors[key] = errors[key]!;
+      if (invoiceError || !oldestInvoice) {
+        throw new Error("No unpaid invoices found. Please contact support.");
       }
-      setFieldErrors(cleanErrors);
+
+      // Process payment through credit invoice system
+      const { data: paymentResult, error: paymentError } = await supabase.rpc("process_credit_payment", {
+        p_invoice_id: oldestInvoice.id,
+        p_amount: Number(amount),
+        p_payment_method: paymentMethod === "card" ? "card" : "manual",
+        p_transaction_id: transactionId || `MANUAL-${Date.now()}`,
+      });
+
+      if (paymentError) throw paymentError;
+
+      if (!paymentResult?.success) {
+        throw new Error(paymentResult?.error || "Payment processing failed");
+      }
+
+      // Also update old credit_used field for backward compatibility
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("credit_used, credit_limit")
+        .eq("id", userId)
+        .single();
+
+      if (profile) {
+        const prevUsed = Number(profile.credit_used || 0);
+        const newUsed = Math.max(0, prevUsed - Number(amount));
+        const newBalance = Number(profile.credit_limit || 0) - newUsed;
+
+        await supabase
+          .from("profiles")
+          .update({ credit_used: newUsed })
+          .eq("id", userId);
+
+        // Insert transaction record for backward compatibility
+        await supabase
+          .from("account_transactions")
+          .insert({
+            customer_id: userId,
+            transaction_date: new Date().toISOString(),
+            transaction_type: "credit",
+            reference_type: "payment",
+            credit_amount: amount,
+            debit_amount: 0,
+            description: `Payment (${paymentMethod}) - Invoice: ${oldestInvoice.invoice_number}`,
+            balance: newBalance,
+            created_by: userId,
+            admin_pay_notes: paymentMethod === "manual" ? notes : "",
+            transectionId: transactionId,
+          });
+      }
 
       toast({
-        title: "Validation Error",
-        description: Object.values(cleanErrors)[0] || "Please fill all required fields correctly.",
+        title: "Payment Successful",
+        description: `$${amount} applied to invoice ${oldestInvoice.invoice_number}. New balance: $${paymentResult.new_balance.toFixed(2)}`,
+      });
+
+      onPaymentSuccess();
+    } catch (err: any) {
+      console.error("Payment Error:", err);
+      toast({
+        title: "Payment Failed",
+        description: err.message || "Something went wrong",
         variant: "destructive",
       });
+    } finally {
       setIsPaying(false);
-      return;
     }
-
-    // Fetch user profile
-    const { data: profile, error: userErr } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", userId)
-      .single();
-    if (userErr || !profile) throw new Error("Failed to load user profile");
-
-    const prevUsed = Number(profile.credit_used || 0);
-    const newUsed = prevUsed - Number(amount);
-    if (newUsed < -0.01) throw new Error("Amount exceeds customer's credit due");
-    const newBalance = Number(profile.credit_limit || 0) - newUsed;
-
-    // Update profile
-    const { error: updateErr } = await supabase
-      .from("profiles")
-      .update({ credit_used: newUsed })
-      .eq("id", userId);
-    if (updateErr) throw new Error("Failed to update credit");
-
-    // Initialize transactionId (only for card)
-    let transactionId: string | null = null;
-
-    // Card payment via Supabase Edge Function (same as Create Order)
-    if (paymentMethod === "card") {
-      const rawExpiry = expiry.replace(/\//g, "");
-      const nameParts = (cardHolderName || "Customer").split(" ");
-      const firstName = nameParts[0] || "Customer";
-      const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer";
-
-      const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
-        "process-payment",
-        {
-          body: {
-            payment: {
-              type: "card",
-              cardNumber: cardNumber.replace(/\s/g, ""),
-              expirationDate: rawExpiry,
-              cvv,
-              cardholderName: cardHolderName,
-            },
-            amount: Number(amount),
-            invoiceNumber: `CREDIT-${Date.now()}`,
-            billing: {
-              firstName,
-              lastName,
-              address,
-              city,
-              state,
-              zip,
-              country,
-            },
-          },
-        }
-      );
-
-      if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
-      if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
-
-      // Store transactionId from response
-      transactionId = paymentResponse.transactionId;
-    }
-
-    // Insert transaction record
-    const { error: transErr } = await supabase
-      .from("account_transactions")
-      .insert({
-        customer_id: userId,
-        transaction_date: new Date().toISOString(),
-        transaction_type: "credit",
-        reference_type: "payment",
-        credit_amount: amount,
-        debit_amount: 0,
-        description: `Payment (${paymentMethod})`,
-        balance: newBalance,
-        created_by: userId,
-        admin_pay_notes: paymentMethod === "manual" ? notes : "",
-        transectionId: transactionId, // will be null for manual payments
-      });
-
-    if (transErr) throw new Error("Failed to record transaction");
-
-    toast({
-      title: "Payment Successful",
-      description: `$${amount} payment recorded successfully.`,
-    });
-
-    onPaymentSuccess();
-  } catch (err: any) {
-    console.error("Payment Error:", err);
-    toast({
-      title: "Payment Failed",
-      description: err.message || "Something went wrong",
-      variant: "destructive",
-    });
-  } finally {
-    setIsPaying(false);
-  }
-};
+  };
 
 
   return (
@@ -345,10 +369,10 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
 
           {/* Payment Method */}
           <div className="flex gap-4">
-            <Button variant={paymentMethod === "card" ? "default" : "outline"} onClick={() => setPaymentMethod("card")} className="flex-1">
+            <Button type="button" variant={paymentMethod === "card" ? "default" : "outline"} onClick={() => setPaymentMethod("card")} className="flex-1">
               Card Payment
             </Button>
-            <Button variant={paymentMethod === "manual" ? "default" : "outline"} onClick={() => setPaymentMethod("manual")} className="flex-1">
+            <Button type="button" variant={paymentMethod === "manual" ? "default" : "outline"} onClick={() => setPaymentMethod("manual")} className="flex-1">
               Manual Payment
             </Button>
           </div>

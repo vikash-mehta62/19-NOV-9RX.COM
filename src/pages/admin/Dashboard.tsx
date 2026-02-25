@@ -334,33 +334,50 @@ const AdminDashboard = () => {
 
   const handleApproveAccess = async (profileId: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'active', account_status: 'approved' })
-        .eq('id', profileId);
+      // Use backend API to approve (bypasses RLS with service role)
+      const response = await fetch(`/api/users/approve-access/${profileId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to approve user");
+      }
 
       toast({ title: 'Access Approved', description: 'User has been granted access.' });
       loadPendingAccessRequests();
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to approve access.', variant: 'destructive' });
+    } catch (error: any) {
+      console.error('Error approving access:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to approve access.', variant: 'destructive' });
     }
   };
 
   const handleRejectAccess = async (profileId: string) => {
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ status: 'rejected', account_status: 'rejected' })
-        .eq('id', profileId);
+      // Use backend API to reject (bypasses RLS with service role)
+      const response = await fetch(`/api/users/reject-access/${profileId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: 'Rejected by admin from dashboard' }),
+      });
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to reject user");
+      }
 
       toast({ title: 'Access Rejected', description: 'User request has been rejected.' });
       loadPendingAccessRequests();
-    } catch (error) {
-      toast({ title: 'Error', description: 'Failed to reject access.', variant: 'destructive' });
+    } catch (error: any) {
+      console.error('Error rejecting access:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to reject access.', variant: 'destructive' });
     }
   };
 

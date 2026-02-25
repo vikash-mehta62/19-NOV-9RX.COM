@@ -942,13 +942,13 @@ const CreateOrderPaymentForm = ({
             profile_id: newOrder.profile_id,
             order_id: newOrder.id,
             amount: totalAmount,
-            payment_method: "card",
+            payment_method_type: "card",
             transaction_id: response.data.transactionId,
-            authorization_code: response.data.authCode,
-            status: "completed",
+            auth_code: response.data.authCode,
+            status: "approved",
             transaction_type: "charge",
             currency: "USD",
-            metadata: {
+            raw_response: {
               order_number: orderNumber,
               invoice_number: invoiceNumber,
               customer_name: formDataa.customerInfo?.name,

@@ -649,6 +649,88 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     const cardNameParts = getNameParts(formData.cardholderName);
     const achNameParts = getNameParts(formData.nameOnAccount);
 
+    // ============================================
+    // PAY-NOW FLOW: Use server endpoint (unauthenticated)
+    // This bypasses RLS by processing everything server-side
+    // ============================================
+    if (payNow) {
+      try {
+        const payNowPayload: any = {
+          orderId,
+          paymentType,
+          address: formData.address || "N/A",
+          city: formData.city || "N/A",
+          state: formData.state || "N/A",
+          zip: formData.zip || "00000",
+          country: formData.country || "USA",
+        };
+
+        if (paymentType === "credit_card") {
+          payNowPayload.cardNumber = formData.cardNumber;
+          payNowPayload.expirationDate = formData.expirationDate.replace("/", "");
+          payNowPayload.cvv = formData.cvv;
+          payNowPayload.cardholderName = formData.cardholderName;
+        } else if (paymentType === "ach") {
+          payNowPayload.accountType = formData.accountType;
+          payNowPayload.routingNumber = formData.routingNumber;
+          payNowPayload.accountNumber = formData.accountNumber;
+          payNowPayload.nameOnAccount = formData.nameOnAccount;
+        }
+
+        const serverResponse = await axios.post("/api/pay-now-process", payNowPayload);
+        const result = serverResponse.data;
+
+        if (result.success) {
+          setPaymentSuccess(true);
+          setPaymentResult({
+            success: true,
+            transactionId: result.transactionId,
+            authCode: result.authCode,
+            amount: result.amount || formData.amount,
+            orderNumber: orders?.order_number,
+            paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+            cardType: paymentType === "credit_card" ? cardType.type : undefined,
+            cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+            accountType: paymentType === "ach" ? formData.accountType : undefined,
+            accountLastFour: paymentType === "ach" ? formData.accountNumber.slice(-4) : undefined,
+          });
+          setShowResultPopup(true);
+          setLoading(false);
+          onPaymentSuccess?.();
+        } else {
+          setPaymentResult({
+            success: false,
+            amount: formData.amount,
+            orderNumber: orders?.order_number,
+            errorMessage: result.message || "Payment failed. Please try again.",
+            errorCode: result.errorCode,
+            paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+            cardType: paymentType === "credit_card" ? cardType.type : undefined,
+            cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+          });
+          setShowResultPopup(true);
+          setLoading(false);
+        }
+      } catch (error: any) {
+        const errMsg = error?.response?.data?.message || error?.message || "Something went wrong. Please try again.";
+        setPaymentResult({
+          success: false,
+          amount: formData.amount,
+          orderNumber: orders?.order_number,
+          errorMessage: errMsg,
+          paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+          cardType: paymentType === "credit_card" ? cardType.type : undefined,
+          cardLastFour: paymentType === "credit_card" ? formData.cardNumber.slice(-4) : undefined,
+        });
+        setShowResultPopup(true);
+        setLoading(false);
+      }
+      return; // Don't continue to the authenticated flow below
+    }
+
+    // ============================================
+    // AUTHENTICATED FLOW: Use Edge Function + direct Supabase (existing logic)
+    // ============================================
     try {
       let response: PaymentResponse;
       

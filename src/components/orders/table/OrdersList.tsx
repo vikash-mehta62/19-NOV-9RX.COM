@@ -748,13 +748,36 @@ export function OrdersList({
 
       console.log("🟢 Account transaction added for credit order");
 
+      // 5️⃣ Create Credit Invoice
+      console.log("💳 Creating credit invoice...");
+      const { data: creditInvoiceResult, error: creditInvoiceError } = await supabase.rpc(
+        "create_credit_invoice",
+        {
+          p_user_id: order.customer,
+          p_order_id: order.id,
+          p_amount: totalAmount,
+        }
+      );
+
+      if (creditInvoiceError) {
+        console.error("❌ Credit invoice creation error:", creditInvoiceError);
+        throw new Error(`Failed to create credit invoice: ${creditInvoiceError.message}`);
+      }
+
+      if (!creditInvoiceResult?.success) {
+        console.error("❌ Credit invoice creation failed:", creditInvoiceResult?.error);
+        throw new Error(creditInvoiceResult?.error || "Failed to create credit invoice");
+      }
+
+      console.log("✅ Credit invoice created:", creditInvoiceResult.invoice_number);
+
       // Log credit approval activity
       try {
         const { data: { session } } = await supabase.auth.getSession();
         await OrderActivityService.logActivity({
           orderId: order.id,
           activityType: "updated",
-          description: `Credit order approved - Amount: $${totalAmount.toFixed(2)}`,
+          description: `Credit order approved - Amount: $${totalAmount.toFixed(2)} - Credit Invoice: ${creditInvoiceResult.invoice_number}`,
           performedBy: userId,
           performedByName: session?.user?.user_metadata?.first_name || "Admin",
           performedByEmail: session?.user?.email,
@@ -763,6 +786,9 @@ export function OrdersList({
             credit_amount: totalAmount,
             previous_status: "credit_approval_processing",
             new_status: "new",
+            credit_invoice_number: creditInvoiceResult.invoice_number,
+            credit_invoice_id: creditInvoiceResult.invoice_id,
+            due_date: creditInvoiceResult.due_date,
           },
         });
       } catch (activityError) {
@@ -771,7 +797,7 @@ export function OrdersList({
 
       Swal.fire({
         title: "Success",
-        text: `Credit order approved and invoice created successfully!`,
+        text: `Credit order approved! Invoice: ${creditInvoiceResult.invoice_number}`,
         icon: "success",
       });
     } catch (error: any) {

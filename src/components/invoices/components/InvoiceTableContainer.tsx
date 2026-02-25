@@ -98,36 +98,59 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
     if (!session) return;
 
     try {
-      let query = supabase
-        .from("invoices")
-        .select(`id, payment_status, amount, total_amount, due_date, void`)
-        .eq("void", false);
+      // Fetch all invoices in batches to avoid row limit
+      let allInvoices: any[] = [];
+      let from = 0;
+      const batchSize = 1000;
+      let hasMore = true;
 
-      if (role === "pharmacy") {
-        query = query.eq('profile_id', session.user.id);
-      }
+      while (hasMore) {
+        let query = supabase
+          .from("invoices")
+          .select(`id, payment_status, amount, total_amount, due_date, void`, { count: "exact" })
+          .eq("void", false)
+          .range(from, from + batchSize - 1);
 
-      if (role === "group") {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("group_id", session.user.id);
+        if (role === "pharmacy") {
+          query = query.eq('profile_id', session.user.id);
+        }
 
-        const userIds = profileData?.map(user => user.id) || [];
-        if (userIds.length > 0) {
-          query = query.in("profile_id", userIds);
+        if (role === "group") {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("group_id", session.user.id);
+
+          const userIds = profileData?.map(user => user.id) || [];
+          if (userIds.length > 0) {
+            query = query.in("profile_id", userIds);
+          }
+        }
+
+        const { data: batch, error, count } = await query;
+        
+        if (error) {
+          console.error("Error fetching invoice stats:", error);
+          return;
+        }
+
+        if (batch && batch.length > 0) {
+          allInvoices = [...allInvoices, ...batch];
+          from += batchSize;
+          
+          // Check if we've fetched all invoices
+          if (count && allInvoices.length >= count) {
+            hasMore = false;
+          } else if (batch.length < batchSize) {
+            hasMore = false;
+          }
+        } else {
+          hasMore = false;
         }
       }
-
-      const { data, error } = await query;
       
-      if (error) {
-        console.error("Error fetching invoice stats:", error);
-        return;
-      }
-      
-      console.log("Fetched invoices for stats:", data?.length);
-      setAllInvoicesForStats(data || []);
+      console.log("📊 Fetched invoices for stats:", allInvoices?.length);
+      setAllInvoicesForStats(allInvoices || []);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }

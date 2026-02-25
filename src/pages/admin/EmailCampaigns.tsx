@@ -597,7 +597,8 @@ export default function EmailCampaigns() {
 
       // Queue emails for each recipient
       const emailsToQueue = recipients.map((recipient) => ({
-        email: recipient.email,
+        to_email: recipient.email,
+        to_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || recipient.email,
         subject: selectedCampaign.subject,
         html_content: selectedCampaign.html_content || getDefaultEmailTemplate(selectedCampaign.subject),
         campaign_id: selectedCampaign.id,
@@ -1293,30 +1294,32 @@ export default function EmailCampaigns() {
                 <Send className="h-5 w-5 text-green-600" />
                 Send Campaign?
               </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>You're about to send <strong>"{selectedCampaign?.name}"</strong></p>
-                <div className="bg-muted p-4 rounded-lg space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subject:</span>
-                    <span className="font-medium">{selectedCampaign?.subject}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Recipients:</span>
-                    <span className="font-medium">{selectedCampaign?.total_recipients || recipientCount} users</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Audience:</span>
-                    <span className="font-medium">
-                      {audienceTypes.find(a => a.value === selectedCampaign?.target_audience?.type)?.label || "All Users"}
-                    </span>
-                  </div>
-                </div>
-                <p className="text-sm text-amber-600">
-                  <AlertCircle className="h-4 w-4 inline mr-1" />
-                  This action cannot be undone. Emails will be queued for immediate delivery.
-                </p>
+              <AlertDialogDescription>
+                You're about to send "{selectedCampaign?.name}" to {selectedCampaign?.total_recipients || recipientCount} users.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="space-y-3 px-6">
+              <div className="bg-muted p-4 rounded-lg space-y-2">
+                <div className="flex justify-between">
+                  <span>Subject:</span>
+                  <span className="font-medium">{selectedCampaign?.subject}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Recipients:</span>
+                  <span className="font-medium">{selectedCampaign?.total_recipients || recipientCount} users</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Audience:</span>
+                  <span className="font-medium">
+                    {audienceTypes.find(a => a.value === selectedCampaign?.target_audience?.type)?.label || "All Users"}
+                  </span>
+                </div>
+              </div>
+              <p className="text-sm text-amber-600">
+                <AlertCircle className="h-4 w-4 inline mr-1" />
+                This action cannot be undone. Emails will be queued for immediate delivery.
+              </p>
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction onClick={confirmSend} className="bg-green-600 hover:bg-green-700">
@@ -1335,16 +1338,18 @@ export default function EmailCampaigns() {
                 <Trash2 className="h-5 w-5 text-red-600" />
                 Delete Campaign?
               </AlertDialogTitle>
-              <AlertDialogDescription className="space-y-3">
-                <p>Are you sure you want to delete this campaign?</p>
-                <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-4 rounded-lg">
-                  <p className="text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
-                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                    <span>This action cannot be undone. The campaign and all its data will be permanently removed.</span>
-                  </p>
-                </div>
+              <AlertDialogDescription>
+                Are you sure you want to delete this campaign? This action cannot be undone.
               </AlertDialogDescription>
             </AlertDialogHeader>
+            <div className="px-6 pb-4">
+              <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 p-4 rounded-lg">
+                <p className="text-sm text-red-800 dark:text-red-200 flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>The campaign and all its data will be permanently removed.</span>
+                </p>
+              </div>
+            </div>
             <AlertDialogFooter>
               <AlertDialogCancel>Cancel</AlertDialogCancel>
               <AlertDialogAction 

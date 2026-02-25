@@ -33,6 +33,8 @@ export const seedDefaultBanners = async (forceReseed = false) => {
     }
 
     // Prepare banner data for insertion
+    // NOTE: Banners are created as inactive by default (is_active: false)
+    // Admin must manually activate them from the Banners management page
     const bannersToInsert = defaultBanners.map((banner) => ({
       title: banner.title,
       subtitle: banner.subtitle,
@@ -40,7 +42,7 @@ export const seedDefaultBanners = async (forceReseed = false) => {
       link_url: banner.link_url,
       link_text: banner.link_text,
       display_order: banner.display_order,
-      is_active: banner.is_active
+      is_active: banner.is_active // Should be false by default
     }));
 
     // Insert default banners

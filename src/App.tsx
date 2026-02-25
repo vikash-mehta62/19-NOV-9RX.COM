@@ -4,7 +4,6 @@ import { useToast } from "./hooks/use-toast";
 import { useAuthCheck } from "./useAuthCheck";
 import { supabase } from "./integrations/supabase/client";
 import { CartSync } from "./components/CartSync";
-import BannerSeeder from "./components/BannerSeeder";
 import MaintenanceBanner from "./components/MaintenanceBanner";
 import MaintenanceModal from "./components/MaintenanceModal";
 import { Loader2 } from "lucide-react";
@@ -29,6 +28,7 @@ const ShippingInfo = lazy(() => import("./pages/ShippingInfo"));
 const ReturnPolicy = lazy(() => import("./pages/ReturnPolicy"));
 const AboutUs = lazy(() => import("./pages/AboutUs"));
 const Blog = lazy(() => import("./pages/Blog"));
+const BlogDetail = lazy(() => import("./pages/BlogDetail"));
 const Contact = lazy(() => import("./pages/Contact"));
 const Newsletter = lazy(() => import("./pages/Newsletter"));
 const Sitemap = lazy(() => import("./pages/Sitemap"));
@@ -211,7 +211,6 @@ function App() {
       {/* <MaintenanceBanner /> */}
       {/* <MaintenanceModal /> */}
       <CartSync />
-      <BannerSeeder />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
@@ -233,6 +232,7 @@ function App() {
           <Route path="/return-policy" element={<ReturnPolicy />} />
           <Route path="/about-us" element={<AboutUs />} />
           <Route path="/blog" element={<Blog />} />
+          <Route path="/blog/:slug" element={<BlogDetail />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/newsletter" element={<Newsletter />} />
           <Route path="/sitemap" element={<Sitemap />} />

@@ -49,7 +49,7 @@ const useCounter = (end: number, duration: number = 2000) => {
   return count;
 };
 
-export const Navbar = () => {
+export const Navbar = ({ forceScrolledStyle = false }: { forceScrolledStyle?: boolean }) => {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -76,9 +76,11 @@ export const Navbar = () => {
     { name: "Contact", href: "/contact" },
   ];
 
+  const isScrolledOrForced = scrolled || forceScrolledStyle;
+
   return (
     <nav
-      className={`fixed w-full top-0 z-50 transition-all duration-500 ${scrolled || mobileMenuOpen ? "bg-white/95 backdrop-blur-xl shadow-lg" : "bg-transparent"
+      className={`fixed w-full top-0 z-50 transition-all duration-500 ${isScrolledOrForced || mobileMenuOpen ? "bg-white/95 backdrop-blur-xl shadow-lg" : "bg-transparent"
         }`}
       role="navigation"
       aria-label="Main navigation"
@@ -89,7 +91,7 @@ export const Navbar = () => {
             <img
               src={logo}
               alt="9RX Logo"
-              className={`h-18 w-auto transition-all duration-500 ${scrolled || mobileMenuOpen ? "" : "brightness-0 invert"}`}
+              className={`h-12 w-auto transition-all duration-500 ${isScrolledOrForced || mobileMenuOpen ? "" : "brightness-0 invert"}`}
             />
           </a>
 
@@ -99,7 +101,7 @@ export const Navbar = () => {
               <a
                 key={link.name}
                 href={link.href}
-                className={`font-medium transition-colors ${scrolled ? "text-slate-600 hover:text-blue-600" : "text-white/80 hover:text-white"
+                className={`font-medium transition-colors ${isScrolledOrForced ? "text-slate-600 hover:text-blue-600" : "text-white/80 hover:text-white"
                   }`}
               >
                 {link.name}
@@ -111,7 +113,7 @@ export const Navbar = () => {
             <Button
               onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
               variant="ghost"
-              className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${scrolled || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
+              className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${isScrolledOrForced || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
                 }`}
             >
               Sign Up
@@ -126,7 +128,7 @@ export const Navbar = () => {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden p-2 rounded-xl transition-colors ${scrolled || mobileMenuOpen ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10"
+              className={`lg:hidden p-2 rounded-xl transition-colors ${isScrolledOrForced || mobileMenuOpen ? "text-slate-700 hover:bg-slate-100" : "text-white hover:bg-white/10"
                 }`}
               aria-label="Toggle menu"
             >

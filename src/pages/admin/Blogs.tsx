@@ -66,6 +66,8 @@ export default function Blogs() {
   const [formData, setFormData] = useState(initialFormState);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [blogToDelete, setBlogToDelete] = useState<string | null>(null);
+  const [errorDialogOpen, setErrorDialogOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const { toast } = useToast();
 
   useEffect(() => {
@@ -99,7 +101,7 @@ export default function Blogs() {
     setFormData({
       ...formData,
       title,
-      slug: editingBlog ? formData.slug : generateSlug(title),
+      slug: generateSlug(title), // Always generate slug from title, even when editing
     });
   };
 
@@ -109,6 +111,27 @@ export default function Blogs() {
       const tagsArray = formData.tags
         ? formData.tags.split(",").map((t) => t.trim()).filter(Boolean)
         : null;
+
+      // Check if slug already exists for a different blog
+      const { data: existingBlog, error: checkError } = await supabase
+        .from("blogs")
+        .select("id, title")
+        .eq("slug", formData.slug)
+        .single();
+
+      if (checkError && checkError.code !== "PGRST116") {
+        // PGRST116 means no rows found, which is fine
+        throw checkError;
+      }
+
+      // If a blog with this slug exists and it's not the one we're editing
+      if (existingBlog && (!editingBlog || existingBlog.id !== editingBlog.id)) {
+        setErrorMessage(
+          `A blog with this title already exists: "${existingBlog.title}". Please use a different title to make it unique.`
+        );
+        setErrorDialogOpen(true);
+        return;
+      }
 
       const payload = {
         title: formData.title,
@@ -142,7 +165,25 @@ export default function Blogs() {
       setFormData(initialFormState);
       fetchBlogs();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      let userFriendlyMessage = error.message;
+      
+      // Handle specific database errors with user-friendly messages
+      if (error.code === "23505" || error.message?.includes("duplicate key")) {
+        if (error.message?.includes("blogs_slug_key")) {
+          userFriendlyMessage = "A blog with this title already exists. Please use a different title or modify the URL slug to make it unique.";
+        } else {
+          userFriendlyMessage = "This blog entry already exists. Please use a different title.";
+        }
+      } else if (error.code === "23502" || error.message?.includes("null value")) {
+        userFriendlyMessage = "Please fill in all required fields (Title and Content are required).";
+      } else if (error.code === "23503" || error.message?.includes("foreign key")) {
+        userFriendlyMessage = "Invalid reference. Please check your input and try again.";
+      } else if (error.message?.includes("JWT") || error.message?.includes("auth")) {
+        userFriendlyMessage = "Authentication error. Please log in again.";
+      }
+      
+      setErrorMessage(userFriendlyMessage);
+      setErrorDialogOpen(true);
     }
   };
 
@@ -171,7 +212,18 @@ export default function Blogs() {
       toast({ title: "Success", description: "Blog deleted successfully" });
       fetchBlogs();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      let userFriendlyMessage = error.message;
+      
+      if (error.message?.includes("JWT") || error.message?.includes("auth")) {
+        userFriendlyMessage = "Authentication error. Please log in again.";
+      } else if (error.message?.includes("permission")) {
+        userFriendlyMessage = "You don't have permission to delete this blog.";
+      } else if (error.message?.includes("foreign key") || error.message?.includes("referenced")) {
+        userFriendlyMessage = "Cannot delete this blog because it is referenced by other records.";
+      }
+      
+      setErrorMessage(userFriendlyMessage);
+      setErrorDialogOpen(true);
     } finally {
       setDeleteDialogOpen(false);
       setBlogToDelete(null);
@@ -195,7 +247,16 @@ export default function Blogs() {
       if (error) throw error;
       fetchBlogs();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      let userFriendlyMessage = error.message;
+      
+      if (error.message?.includes("JWT") || error.message?.includes("auth")) {
+        userFriendlyMessage = "Authentication error. Please log in again.";
+      } else if (error.message?.includes("permission")) {
+        userFriendlyMessage = "You don't have permission to update this blog.";
+      }
+      
+      setErrorMessage(userFriendlyMessage);
+      setErrorDialogOpen(true);
     }
   };
 
@@ -208,7 +269,16 @@ export default function Blogs() {
       if (error) throw error;
       fetchBlogs();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      let userFriendlyMessage = error.message;
+      
+      if (error.message?.includes("JWT") || error.message?.includes("auth")) {
+        userFriendlyMessage = "Authentication error. Please log in again.";
+      } else if (error.message?.includes("permission")) {
+        userFriendlyMessage = "You don't have permission to update this blog.";
+      }
+      
+      setErrorMessage(userFriendlyMessage);
+      setErrorDialogOpen(true);
     }
   };
 
@@ -242,16 +312,9 @@ export default function Blogs() {
                       required
                     />
                   </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="slug">URL Slug *</Label>
-                    <Input
-                      id="slug"
-                      value={formData.slug}
-                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                      placeholder="how-to-choose-pharmacy-supplies"
-                      required
-                    />
-                  </div>
+                  {/* URL Slug - Hidden but auto-generated from title */}
+                  <input type="hidden" name="slug" value={formData.slug} />
+                  
                   <div className="col-span-2">
                     <Label htmlFor="excerpt">Excerpt (Short Description)</Label>
                     <Textarea
@@ -273,23 +336,9 @@ export default function Blogs() {
                       required
                     />
                   </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="featured_image">Featured Image URL</Label>
-                    <Input
-                      id="featured_image"
-                      value={formData.featured_image}
-                      onChange={(e) => setFormData({ ...formData, featured_image: e.target.value })}
-                      placeholder="https://example.com/blog-image.jpg"
-                    />
-                    {formData.featured_image && (
-                      <img
-                        src={formData.featured_image}
-                        alt="Preview"
-                        className="mt-2 h-32 object-cover rounded"
-                        onError={(e) => (e.currentTarget.style.display = "none")}
-                      />
-                    )}
-                  </div>
+                  {/* Featured Image URL - Hidden as not used on public page */}
+                  <input type="hidden" name="featured_image" value={formData.featured_image} />
+                  
                   <div>
                     <Label htmlFor="category">Category</Label>
                     <Input
@@ -345,7 +394,7 @@ export default function Blogs() {
           </Dialog>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{blogs.length}</div>
@@ -366,14 +415,6 @@ export default function Blogs() {
                 {blogs.filter((b) => !b.is_published).length}
               </div>
               <p className="text-muted-foreground">Drafts</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-2xl font-bold text-blue-600">
-                {blogs.reduce((sum, b) => sum + b.view_count, 0)}
-              </div>
-              <p className="text-muted-foreground">Total Views</p>
             </CardContent>
           </Card>
         </div>
@@ -398,7 +439,6 @@ export default function Blogs() {
                     <TableHead>Post</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Author</TableHead>
-                    <TableHead>Views</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Featured</TableHead>
                     <TableHead>Actions</TableHead>
@@ -431,12 +471,6 @@ export default function Blogs() {
                         )}
                       </TableCell>
                       <TableCell>{blog.author_name || "-"}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          <Eye className="h-4 w-4 text-muted-foreground" />
-                          {blog.view_count}
-                        </div>
-                      </TableCell>
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -486,6 +520,23 @@ export default function Blogs() {
           title="Delete Blog Post"
           description="Are you sure you want to delete this blog post? This action cannot be undone."
         />
+
+        {/* Error Dialog */}
+        <Dialog open={errorDialogOpen} onOpenChange={setErrorDialogOpen}>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="text-red-600">Error</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-slate-700">{errorMessage}</p>
+            </div>
+            <div className="flex justify-end">
+              <Button onClick={() => setErrorDialogOpen(false)}>
+                OK
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );

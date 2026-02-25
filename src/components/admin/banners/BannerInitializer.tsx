@@ -98,7 +98,7 @@ export const BannerInitializer = ({ onComplete }: BannerInitializerProps) => {
         <CardContent className="relative">
           <p className="text-purple-800 mb-6 text-lg">
             Get started with professionally designed banners for your pharmacy. 
-            We'll create <strong>3 stunning banners</strong> to showcase your products and services.
+            We'll create <strong>3 stunning banners</strong> (inactive by default - you can activate them when ready).
           </p>
           <Button 
             onClick={handleSeedBanners}
@@ -205,9 +205,9 @@ export const BannerInitializer = ({ onComplete }: BannerInitializerProps) => {
               <div className="w-14 h-14 bg-green-100 rounded-xl flex items-center justify-center mx-auto mb-4">
                 <ArrowRight className="h-7 w-7 text-green-600" />
               </div>
-              <h3 className="font-semibold text-lg mb-2">Ready to Use</h3>
+              <h3 className="font-semibold text-lg mb-2">Manual Activation Required</h3>
               <p className="text-sm text-muted-foreground">
-                Banners are immediately active and visible to your customers on homepage
+                Banners are created as inactive. Activate them manually from the banner list when ready
               </p>
             </div>
           </CardContent>

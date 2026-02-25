@@ -748,6 +748,479 @@ app.post("/test-authorize", async (req, res) => {
   }
 });
 
+// ============================================
+// PAY-NOW ENDPOINTS (Unauthenticated - for payment links sent via email)
+// These bypass RLS by using supabaseAdmin (service role)
+// ============================================
+
+// Stricter rate limiter for pay-now endpoints (5 attempts per 15 minutes per IP)
+const payNowLimiter = createRateLimiter(15 * 60 * 1000, 5);
+
+// GET order details for pay-now page (unauthenticated)
+app.get("/api/pay-now-order/:orderId", payNowLimiter, async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, message: "Server configuration error" });
+    }
+
+    const { orderId } = req.params;
+
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!orderId || !uuidRegex.test(orderId)) {
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Error fetching order for pay-now:", error);
+      return res.status(500).json({ success: false, message: "Failed to fetch order" });
+    }
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // Return only necessary fields (don't expose internal data)
+    return res.json({
+      success: true,
+      order: {
+        id: order.id,
+        order_number: order.order_number,
+        items: order.items,
+        customerInfo: order.customerInfo,
+        shippingAddress: order.shippingAddress,
+        shipping_cost: order.shipping_cost,
+        tax_amount: order.tax_amount,
+        discount_amount: order.discount_amount,
+        discount_details: order.discount_details,
+        total_amount: order.total_amount,
+        paid_amount: order.paid_amount,
+        payment_status: order.payment_status,
+        poAccept: order.poAccept,
+        po_handling_charges: order.po_handling_charges,
+        po_fred_charges: order.po_fred_charges,
+        estimated_delivery: order.estimated_delivery,
+        notes: order.notes,
+        profile_id: order.profile_id,
+        customer: order.customer,
+        order_type: order.order_type,
+        purchase_number_external: order.purchase_number_external,
+        payment_method: order.payment_method,
+      }
+    });
+  } catch (error) {
+    console.error("Pay-now order fetch error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
+// POST process payment for pay-now (unauthenticated - full server-side flow)
+app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, message: "Server configuration error" });
+    }
+
+    const {
+      orderId,
+      cardNumber,
+      expirationDate,
+      cvv,
+      cardholderName,
+      address,
+      city,
+      state,
+      zip,
+      country,
+      paymentType, // "credit_card" or "ach"
+      // ACH fields
+      accountType,
+      routingNumber,
+      accountNumber,
+      nameOnAccount,
+    } = req.body;
+
+    // 1. Validate orderId format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!orderId || !uuidRegex.test(orderId)) {
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+
+    // 2. Validate payment fields
+    if (paymentType === "credit_card") {
+      if (!cardNumber || !expirationDate || !cvv || !cardholderName) {
+        return res.status(400).json({ success: false, message: "Incomplete credit card details" });
+      }
+    } else if (paymentType === "ach") {
+      if (!routingNumber || !accountNumber || !nameOnAccount) {
+        return res.status(400).json({ success: false, message: "Incomplete bank account details" });
+      }
+    } else {
+      return res.status(400).json({ success: false, message: "Invalid payment type" });
+    }
+
+    // 3. Fetch the REAL order from DB (server-side, bypasses RLS)
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    // 4. Check if order is already fully paid
+    if (order.payment_status === "paid") {
+      return res.status(400).json({ success: false, message: "This order is already paid" });
+    }
+
+    // 5. Calculate the REAL amount from DB (never trust frontend amount)
+    const itemsSubtotal = order.items?.reduce((total, item) => {
+      return total + (item.sizes?.reduce((sum, size) => sum + size.quantity * size.price, 0) || 0);
+    }, 0) || 0;
+
+    const shippingCost = parseFloat(order.shipping_cost || "0");
+    const taxAmount = parseFloat(order.tax_amount?.toString() || "0");
+    const discountAmount = parseFloat(order.discount_amount?.toString() || "0");
+    const isPurchaseOrder = order.poAccept === false;
+    const handlingCharges = isPurchaseOrder ? parseFloat(order.po_handling_charges || "0") : 0;
+    const fredCharges = isPurchaseOrder ? parseFloat(order.po_fred_charges || "0") : 0;
+
+    const totalAmount = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmount;
+    const paidAmount = Number(order.paid_amount || 0);
+    const balanceDue = Math.abs(totalAmount - paidAmount) < 0.01 ? 0 : Math.max(0, totalAmount - paidAmount);
+
+    if (balanceDue <= 0) {
+      return res.status(400).json({ success: false, message: "No balance due on this order" });
+    }
+
+    const amountToCharge = parseFloat(balanceDue.toFixed(2));
+
+    console.log(`[pay-now] Processing payment for order ${order.order_number}, amount: $${amountToCharge}`);
+
+    // 6. Fetch Authorize.Net credentials from payment_settings table (same source as Edge Function)
+    const { data: paymentSettingsData, error: settingsError } = await supabaseAdmin
+      .from("payment_settings")
+      .select("*")
+      .eq("provider", "authorize_net")
+      .limit(1)
+      .maybeSingle();
+
+    if (settingsError || !paymentSettingsData) {
+      console.error("[pay-now] Payment settings not found:", settingsError);
+      return res.status(500).json({ success: false, message: "Payment gateway not configured" });
+    }
+
+    const settings = paymentSettingsData.settings;
+    if (!settings || !settings.enabled) {
+      return res.status(400).json({ success: false, message: "Payment gateway is disabled" });
+    }
+
+    const DB_API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
+    const DB_TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
+    const IS_TEST_MODE = settings.testMode === true;
+
+    if (!DB_API_LOGIN_ID || !DB_TRANSACTION_KEY) {
+      return res.status(500).json({ success: false, message: "Payment gateway credentials not configured" });
+    }
+
+    // Use credentials from DB
+    const payNowMerchantAuth = new ApiContracts.MerchantAuthenticationType();
+    payNowMerchantAuth.setName(DB_API_LOGIN_ID);
+    payNowMerchantAuth.setTransactionKey(DB_TRANSACTION_KEY);
+
+    // Use correct environment based on DB settings
+    const payNowEnvironment = IS_TEST_MODE
+      ? SDKConstants.endpoint.sandbox
+      : SDKConstants.endpoint.production;
+
+    let paymentTypeObj;
+    if (paymentType === "credit_card") {
+      const creditCard = new ApiContracts.CreditCardType();
+      creditCard.setCardNumber(cardNumber.toString().replace(/\s/g, ""));
+      creditCard.setExpirationDate(expirationDate.toString().replace("/", ""));
+      creditCard.setCardCode(cvv.toString());
+      paymentTypeObj = new ApiContracts.PaymentType();
+      paymentTypeObj.setCreditCard(creditCard);
+    } else {
+      // ACH
+      const bankAccount = new ApiContracts.BankAccountType();
+      bankAccount.setAccountType(accountType === "savings"
+        ? ApiContracts.BankAccountTypeEnum.SAVINGS
+        : ApiContracts.BankAccountTypeEnum.CHECKING);
+      bankAccount.setRoutingNumber(routingNumber.toString());
+      bankAccount.setAccountNumber(accountNumber.toString());
+      bankAccount.setNameOnAccount(nameOnAccount);
+      bankAccount.setEcheckType(ApiContracts.EcheckTypeEnum.WEB);
+      paymentTypeObj = new ApiContracts.PaymentType();
+      paymentTypeObj.setBankAccount(bankAccount);
+    }
+
+    // Order details
+    const orderDetails = new ApiContracts.OrderType();
+    orderDetails.setInvoiceNumber(order.order_number || `ORD-${Date.now()}`);
+    orderDetails.setDescription(`Payment for order ${order.order_number}`);
+
+    // Billing info
+    const billTo = new ApiContracts.CustomerAddressType();
+    const nameForBilling = paymentType === "credit_card" ? cardholderName : nameOnAccount;
+    const nameParts = (nameForBilling || "Customer").split(" ");
+    billTo.setFirstName(nameParts[0] || "Customer");
+    billTo.setLastName(nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer");
+    billTo.setAddress(address || "");
+    billTo.setCity(city || "");
+    billTo.setState(state || "");
+    billTo.setZip(zip ? parseInt(zip, 10) : 0);
+    billTo.setCountry(country || "USA");
+
+    // Transaction request
+    const transactionRequestType = new ApiContracts.TransactionRequestType();
+    transactionRequestType.setTransactionType(ApiContracts.TransactionTypeEnum.AUTHCAPTURETRANSACTION);
+    transactionRequestType.setPayment(paymentTypeObj);
+    transactionRequestType.setAmount(amountToCharge);
+    transactionRequestType.setOrder(orderDetails);
+    transactionRequestType.setBillTo(billTo);
+
+    const createRequest = new ApiContracts.CreateTransactionRequest();
+    createRequest.setMerchantAuthentication(payNowMerchantAuth);
+    createRequest.setTransactionRequest(transactionRequestType);
+    createRequest.setRefId(Math.floor(Math.random() * 1000000).toString());
+
+    const ctrl = new ApiControllers.CreateTransactionController(createRequest.getJSON());
+    ctrl.setEnvironment(payNowEnvironment);
+
+    await ctrl.execute(async function () {
+      try {
+        const apiResponse = ctrl.getResponse();
+        const response = new ApiContracts.CreateTransactionResponse(apiResponse);
+
+        if (!response) {
+          return res.status(500).json({ success: false, message: "Invalid response from payment gateway" });
+        }
+
+        let paymentSuccess = false;
+        let transactionId = null;
+        let authCode = null;
+        let errorMessage = "Transaction Failed";
+        let errorCode = null;
+
+        if (
+          response.getMessages() &&
+          response.getMessages().getResultCode() === ApiContracts.MessageTypeEnum.OK
+        ) {
+          const transactionResponse = response.getTransactionResponse();
+          if (transactionResponse && transactionResponse.getResponseCode() === "1") {
+            paymentSuccess = true;
+            transactionId = transactionResponse.getTransId();
+            authCode = transactionResponse.getAuthCode ? transactionResponse.getAuthCode() : null;
+          } else {
+            if (transactionResponse?.getErrors?.()?.getError?.()) {
+              const errors = transactionResponse.getErrors().getError();
+              if (errors.length > 0) errorMessage = errors[0].getErrorText();
+            }
+          }
+        } else {
+          if (response.getMessages()?.getMessage?.()) {
+            const messages = response.getMessages().getMessage();
+            if (messages.length > 0) {
+              errorMessage = messages[0].getText();
+              errorCode = messages[0].code;
+            }
+          }
+        }
+
+        // 7. If payment failed, return error (don't update DB)
+        if (!paymentSuccess) {
+          // Log failed transaction
+          const profileId = order.profile_id || order.customer;
+          if (profileId) {
+            try {
+              await supabaseAdmin.from("payment_transactions").insert({
+                profile_id: profileId,
+                order_id: orderId,
+                transaction_type: "auth_capture",
+                amount: amountToCharge,
+                payment_method_type: paymentType === "credit_card" ? "card" : "ach",
+                card_last_four: paymentType === "credit_card" ? cardNumber.slice(-4) : null,
+                status: "declined",
+                response_message: errorMessage,
+                error_code: errorCode,
+                error_message: errorMessage,
+              });
+            } catch (logErr) {
+              console.error("Failed to log declined transaction:", logErr);
+            }
+          }
+
+          return res.status(400).json({
+            success: false,
+            message: errorMessage,
+            errorCode: errorCode,
+          });
+        }
+
+        // 8. Payment succeeded — update all DB records using supabaseAdmin
+        console.log(`[pay-now] Payment successful for order ${order.order_number}, txn: ${transactionId}`);
+
+        const newPaidAmount = paidAmount + amountToCharge;
+        const orderTotal = totalAmount;
+        const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid";
+
+        // 8a. Update order
+        await supabaseAdmin.from("orders").update({
+          payment_status: newPaymentStatus,
+          paid_amount: newPaidAmount,
+          updated_at: new Date().toISOString(),
+        }).eq("id", orderId);
+
+        // 8b. Log payment transaction
+        const profileId = order.profile_id || order.customer;
+        if (profileId) {
+          try {
+            await supabaseAdmin.from("payment_transactions").insert({
+              profile_id: profileId,
+              order_id: orderId,
+              transaction_id: transactionId,
+              auth_code: authCode,
+              transaction_type: "auth_capture",
+              amount: amountToCharge,
+              payment_method_type: paymentType === "credit_card" ? "card" : "ach",
+              card_last_four: paymentType === "credit_card" ? cardNumber.slice(-4) : null,
+              status: "approved",
+              response_message: "Transaction Approved",
+            });
+          } catch (logErr) {
+            console.error("Failed to log approved transaction:", logErr);
+          }
+        }
+
+        // 8c. Create or update invoice
+        try {
+          const { data: existingInvoice } = await supabaseAdmin
+            .from("invoices")
+            .select("*")
+            .eq("order_id", orderId)
+            .maybeSingle();
+
+          if (!existingInvoice) {
+            // Generate invoice number
+            const year = new Date().getFullYear();
+            const { data: inData } = await supabaseAdmin
+              .from("centerize_data")
+              .select("id, invoice_no, invoice_start")
+              .order("id", { ascending: false })
+              .limit(1);
+
+            const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
+            const invoiceStart = inData?.[0]?.invoice_start || "INV";
+
+            if (inData?.[0]?.id) {
+              await supabaseAdmin
+                .from("centerize_data")
+                .update({ invoice_no: newInvNo })
+                .eq("id", inData[0].id);
+            }
+
+            const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+            const dueDate = new Date(
+              new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000
+            ).toISOString();
+
+            const shippingCostVal = order.shipping_cost || 0;
+            const discountVal = Number(order.discount_amount || 0);
+            const subtotal = amountToCharge + discountVal - taxAmount - shippingCostVal;
+
+            await supabaseAdmin.from("invoices").insert({
+              invoice_number: invoiceNumber,
+              order_id: orderId,
+              due_date: dueDate,
+              profile_id: profileId || null,
+              status: "pending",
+              amount: subtotal,
+              tax_amount: taxAmount,
+              total_amount: amountToCharge,
+              payment_status: newPaymentStatus,
+              payment_method: paymentType === "credit_card" ? "card" : "ach",
+              notes: order.notes || null,
+              purchase_number_external: order.purchase_number_external,
+              items: order.items,
+              customer_info: order.customerInfo,
+              shipping_info: order.shippingAddress,
+              shippin_cost: shippingCostVal,
+              subtotal: subtotal,
+              discount_amount: discountVal,
+              discount_details: order.discount_details || [],
+              paid_amount: newPaidAmount,
+              payment_transication: transactionId || "",
+            });
+          } else {
+            // Update existing invoice
+            await supabaseAdmin.from("invoices").update({
+              payment_status: newPaymentStatus,
+              paid_amount: newPaidAmount,
+              updated_at: new Date().toISOString(),
+              payment_transication: transactionId || "",
+              payment_method: paymentType === "credit_card" ? "card" : "ach",
+            }).eq("order_id", orderId);
+          }
+        } catch (invErr) {
+          console.error("Failed to create/update invoice:", invErr);
+          // Don't fail the response — payment already went through
+        }
+
+        // 8d. Log order activity
+        try {
+          await supabaseAdmin.from("order_activities").insert({
+            order_id: orderId,
+            activity_type: "payment_received",
+            description: `Payment of $${amountToCharge.toFixed(2)} received via ${paymentType === "credit_card" ? "card" : "ach"} (Pay-Now link)`,
+            performed_by_name: order.customerInfo?.name || "Customer",
+            performed_by_email: order.customerInfo?.email || "",
+            metadata: {
+              order_number: order.order_number,
+              payment_amount: amountToCharge,
+              payment_method: paymentType === "credit_card" ? "card" : "ach",
+              payment_id: transactionId,
+              source: "pay_now_link",
+            },
+          });
+        } catch (actErr) {
+          console.error("Failed to log order activity:", actErr);
+        }
+
+        // 9. Return success to frontend
+        return res.json({
+          success: true,
+          message: "Payment processed successfully",
+          transactionId: transactionId,
+          authCode: authCode,
+          amount: amountToCharge,
+          paymentStatus: newPaymentStatus,
+        });
+      } catch (processError) {
+        console.error("Error processing pay-now payment response:", processError);
+        return res.status(500).json({
+          success: false,
+          message: "Error processing payment response",
+        });
+      }
+    });
+  } catch (error) {
+    console.error("Pay-now process error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+});
+
 // Apply general rate limiter to all routes
 app.use(generalLimiter);
 
@@ -759,6 +1232,7 @@ app.use("/api/launch", require("./routes/launchRoutes")) // Website launch passw
 app.use("/api/otp", require("./routes/otpRoutes")) // OTP-based authentication
 app.use("/api/terms", require("./routes/termsRoutes")) // Terms acceptance for admin-created users
 app.use("/api/terms-management", require("./routes/termsManagementRoutes")) // Terms & ACH management
+app.use("/api/cart", require("./routes/cartRoutes")) // Cart management & abandoned cart reminders
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)

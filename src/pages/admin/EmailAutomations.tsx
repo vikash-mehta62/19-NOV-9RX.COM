@@ -594,7 +594,8 @@ export default function EmailAutomations() {
 
       // Queue test email
       const { error } = await supabase.from("email_queue").insert({
-        email: testEmail,
+        to_email: testEmail,
+        to_name: testEmail.split('@')[0], // Use email prefix as name for test
         subject: `[TEST] ${template.subject}`,
         html_content: template.html_content,
         automation_id: selectedAutomation.id,

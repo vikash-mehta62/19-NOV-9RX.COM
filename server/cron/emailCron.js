@@ -204,7 +204,7 @@ async function processEmailQueue() {
         .eq("status", "pending");
 
       if (updateError) {
-        log("❌", `Update error for ${queuedEmail.email}: ${updateError.message}`);
+        log("❌", `Update error for ${queuedEmail.to_email}: ${updateError.message}`);
         continue;
       }
 
@@ -216,7 +216,7 @@ async function processEmailQueue() {
         .single();
 
       if (!verifyStatus || verifyStatus.status !== "processing") {
-        log("⏭️", `Skipping ${queuedEmail.email} - already picked by another process`);
+        log("⏭️", `Skipping ${queuedEmail.to_email} - already picked by another process`);
         continue;
       }
 
@@ -225,20 +225,20 @@ async function processEmailQueue() {
         const metadata = queuedEmail.metadata || {};
         const variables = {
           ...metadata,
-          email: queuedEmail.email,
+          email: queuedEmail.to_email,
           user_name: metadata.first_name
             ? `${metadata.first_name} ${metadata.last_name || ""}`.trim()
             : metadata.user_name || "Valued Customer",
           name: metadata.first_name || metadata.user_name || "Valued Customer",
           first_name: metadata.first_name || "",
           last_name: metadata.last_name || "",
-          unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${metadata.tracking_id || ""}&e=${encodeURIComponent(queuedEmail.email)}`,
+          unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${metadata.tracking_id || ""}&e=${encodeURIComponent(queuedEmail.to_email)}`,
           company_name: "9RX",
           current_year: new Date().getFullYear().toString(),
         };
 
         const htmlContent = replaceTemplateVariables(queuedEmail.html_content, variables);
-        const sendResult = await mailSender(queuedEmail.email, queuedEmail.subject, htmlContent);
+        const sendResult = await mailSender(queuedEmail.to_email, queuedEmail.subject, htmlContent);
 
         if (sendResult.success) {
           // CRITICAL: Update queue status to sent - MUST succeed
@@ -253,16 +253,16 @@ async function processEmailQueue() {
             .eq("id", queuedEmail.id);
 
           if (updateError) {
-            log("❌", `CRITICAL: Failed to mark email as sent for ${queuedEmail.email}: ${updateError.message}`);
+            log("❌", `CRITICAL: Failed to mark email as sent for ${queuedEmail.to_email}: ${updateError.message}`);
             // Even if update fails, email was sent - log it anyway
           } else {
-            log("✅", `Email sent & marked: ${queuedEmail.email}`);
+            log("✅", `Email sent & marked: ${queuedEmail.to_email}`);
           }
 
           // Log the email (this creates the record that prevents duplicates)
           const { error: logError } = await supabase.from("email_logs").insert({
             user_id: metadata.user_id || null,
-            email_address: queuedEmail.email,
+            email_address: queuedEmail.to_email,
             subject: queuedEmail.subject,
             email_type: queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             status: "sent",
@@ -275,7 +275,7 @@ async function processEmailQueue() {
           });
 
           if (logError) {
-            log("⚠️", `Failed to log email for ${queuedEmail.email}: ${logError.message}`);
+            log("⚠️", `Failed to log email for ${queuedEmail.to_email}: ${logError.message}`);
           }
 
           // Update campaign sent count
@@ -332,7 +332,7 @@ async function processEmailQueue() {
           .eq("id", queuedEmail.id);
 
         results.failed++;
-        log("❌", `Failed to send to ${queuedEmail.email}: ${sendError.message}`);
+        log("❌", `Failed to send to ${queuedEmail.to_email}: ${sendError.message}`);
       }
 
       // Small delay to avoid rate limiting
@@ -526,7 +526,8 @@ async function checkAbandonedCarts() {
 
         // Queue email
         const { error: queueError } = await supabase.from("email_queue").insert({
-          email: profile.email,
+          to_email: profile.email,
+          to_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email,
           subject,
           html_content: htmlContent,
           text_content: template.text_content || null,
@@ -700,7 +701,8 @@ async function checkInactiveUsers() {
 
         // Queue email
         await supabase.from("email_queue").insert({
-          email: user.email,
+          to_email: user.email,
+          to_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
           subject,
           html_content: htmlContent,
           text_content: template.text_content || null,
@@ -1077,7 +1079,8 @@ async function triggerAutomation(triggerType, eventData) {
 
         // Queue email (with delay if configured)
         const { error: queueError } = await supabase.from("email_queue").insert({
-          email: email,
+          to_email: email,
+          to_name: `${firstName || ''} ${lastName || ''}`.trim() || email,
           subject,
           html_content: htmlContent,
           text_content: template.text_content || null,

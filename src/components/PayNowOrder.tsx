@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import axios from '../../axiosconfig';
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import PaymentForm from './PaymentModal';
@@ -10,21 +10,22 @@ function PayNowOrder() {
   const [orderData, setOrderData] = useState<any>(null);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchOrder = async () => {
     if (!orderID) return;
     try {
-      const { data: order, error } = await supabase
-        .from("orders")
-        .select("*")
-        .eq("id", orderID)
-        .order("created_at", { ascending: false })
-        .maybeSingle();
-
-      if (error) throw error;
-      setOrderData(order);
-    } catch (err) {
+      setFetchError(null);
+      // Use server endpoint (bypasses RLS for unauthenticated users)
+      const response = await axios.get(`/api/pay-now-order/${orderID}`);
+      if (response.data?.success && response.data?.order) {
+        setOrderData(response.data.order);
+      } else {
+        setFetchError(response.data?.message || "Failed to fetch order");
+      }
+    } catch (err: any) {
       console.error("Error fetching order:", err);
+      setFetchError(err?.response?.data?.message || "Failed to fetch order details");
     }
   };
 
@@ -32,6 +33,7 @@ function PayNowOrder() {
     fetchOrder();
   }, [orderID, refreshTrigger]);
 
+  if (fetchError) return <p className="text-center text-red-500 p-8">{fetchError}</p>;
   if (!orderData) return <p className="text-center text-gray-500 flex items-center justify-center"><Loader className="animate-spin" size={24} /> Loading...</p>;
 
   // Calculate amounts with PO charges

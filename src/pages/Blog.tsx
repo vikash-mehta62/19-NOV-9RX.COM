@@ -1,102 +1,89 @@
 import { Navbar } from "@/components/landing/HeroSection";
 import Footer from "@/components/landing/Footer";
-import { BookOpen, Calendar, Clock, ArrowRight, Search, Tag } from "lucide-react";
+import { BookOpen, Calendar, Clock, ArrowRight, Search, User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+
+interface Blog {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt: string | null;
+  content: string;
+  category: string | null;
+  tags: string[] | null;
+  author_name: string | null;
+  is_published: boolean;
+  is_featured: boolean;
+  view_count: number;
+  published_at: string | null;
+  created_at: string;
+}
 
 const Blog = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [blogPosts, setBlogPosts] = useState<Blog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState<string[]>(["All Posts"]);
+  const [activeCategory, setActiveCategory] = useState("All Posts");
 
   useEffect(() => {
     document.title = "Blog - 9RX | Pharmacy Industry Insights & Tips";
+    fetchBlogs();
   }, []);
 
-  const categories = [
-    "All Posts",
-    "Industry News",
-    "Product Updates",
-    "Tips & Guides",
-    // "Compliance",
-    // "Business Growth"
-  ];
+  const fetchBlogs = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("blogs")
+        .select("*")
+        .eq("is_published", true)
+        .order("published_at", { ascending: false });
 
-  const [activeCategory, setActiveCategory] = useState("All Posts");
+      if (error) throw error;
 
-  const blogPosts = [
-    {
-      id: 1,
-      title: "Top 10 Pharmacy Packaging Trends for 2025",
-      excerpt: "Discover the latest trends in pharmacy packaging that are shaping the industry. From sustainable materials to smart packaging solutions.",
-      category: "Industry News",
-      date: "December 20, 2024",
-      readTime: "5 min read",
-      image: "/blog/packaging-trends.jpg",
-      slug: "pharmacy-packaging-trends-2025"
-    },
-    {
-      id: 2,
-      title: "How to Choose the Right RX Vials for Your Pharmacy",
-      excerpt: "A comprehensive guide to selecting the perfect prescription vials based on medication type, patient needs, and compliance requirements.",
-      category: "Tips & Guides",
-      date: "December 15, 2024",
-      readTime: "7 min read",
-      image: "/blog/rx-vials-guide.jpg",
-      slug: "choosing-right-rx-vials"
-    },
-    // {
-    //   id: 3,
-    //   title: "FDA Compliance: What Every Pharmacy Needs to Know",
-    //   excerpt: "Stay compliant with the latest FDA regulations for pharmacy packaging and labeling. Essential information for independent pharmacies.",
-    //   category: "Compliance",
-    //   date: "December 10, 2024",
-    //   readTime: "8 min read",
-    //   image: "/blog/fda-compliance.jpg",
-    //   slug: "fda-compliance-pharmacy-guide"
-    // },
-    {
-      id: 3,
-      title: "Custom Branding: Elevate Your Pharmacy's Image",
-      excerpt: "Learn how custom-branded packaging can help differentiate your pharmacy and build customer loyalty in a competitive market.",
-      category: "Business Growth",
-      date: "December 5, 2024",
-      readTime: "6 min read",
-      image: "/blog/custom-branding.jpg",
-      slug: "custom-branding-pharmacy"
-    },
-    {
-      id: 4,
-      title: "New Product Launch: Child-Resistant Vial Caps",
-      excerpt: "Introducing our new line of child-resistant vial caps that meet all safety standards while being easy for adults to open.",
-      category: "Product Updates",
-      date: "November 28, 2024",
-      readTime: "3 min read",
-      image: "/blog/child-resistant-caps.jpg",
-      slug: "child-resistant-vial-caps-launch"
-    },
-    {
-      id: 5,
-      title: "Reducing Costs: Smart Inventory Management Tips",
-      excerpt: "Practical strategies for managing your pharmacy supply inventory efficiently and reducing waste while maintaining stock levels.",
-      category: "Tips & Guides",
-      date: "November 20, 2024",
-      readTime: "6 min read",
-      image: "/blog/inventory-management.jpg",
-      slug: "pharmacy-inventory-management-tips"
-    },
-  ];
+      setBlogPosts(data || []);
 
-  const filteredPosts = blogPosts.filter(post => {
-    const matchesCategory = activeCategory === "All Posts" || post.category === activeCategory;
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         post.excerpt.toLowerCase().includes(searchQuery.toLowerCase());
+      // Extract unique categories
+      const uniqueCategories = Array.from(
+        new Set(data?.map((blog) => blog.category).filter(Boolean))
+      ) as string[];
+      setCategories(["All Posts", ...uniqueCategories]);
+    } catch (error) {
+      console.error("Error fetching blogs:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateReadTime = (content: string) => {
+    const wordsPerMinute = 200;
+    const wordCount = content.split(/\s+/).length;
+    const minutes = Math.ceil(wordCount / wordsPerMinute);
+    return `${minutes} min read`;
+  };
+
+  const filteredPosts = blogPosts.filter((post) => {
+    const matchesCategory =
+      activeCategory === "All Posts" || post.category === activeCategory;
+    const matchesSearch =
+      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.excerpt?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      post.content.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  // Separate featured and regular posts, then sort
+  const featuredPosts = filteredPosts.filter((post) => post.is_featured);
+  const regularPosts = filteredPosts.filter((post) => !post.is_featured);
 
   return (
     <>
       <div className="min-h-screen bg-white">
-        <Navbar />
+        <Navbar forceScrolledStyle={true} />
         
         {/* Hero Section */}
         <section className="pt-32 pb-16 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 relative overflow-hidden">
@@ -158,59 +145,155 @@ const Blog = () => {
         {/* Blog Posts Grid */}
         <section className="py-16 bg-gradient-to-b from-white to-blue-50/30">
           <div className="container mx-auto px-4">
-            {filteredPosts.length === 0 ? (
+            {loading ? (
+              <div className="text-center py-16">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="text-slate-500 mt-4">Loading blogs...</p>
+              </div>
+            ) : filteredPosts.length === 0 ? (
               <div className="text-center py-16">
                 <BookOpen className="w-16 h-16 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-xl font-semibold text-slate-700 mb-2">No articles found</h3>
                 <p className="text-slate-500">Try adjusting your search or category filter.</p>
               </div>
             ) : (
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {filteredPosts.map((post) => (
-                  <article key={post.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
-                    {/* Image Placeholder */}
-                    <div className="h-48 bg-gradient-to-br from-blue-100 to-indigo-100 relative overflow-hidden">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <BookOpen className="w-16 h-16 text-blue-300" />
-                      </div>
-                      <div className="absolute top-4 left-4">
-                        <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
-                          {post.category}
-                        </span>
-                      </div>
+              <>
+                {/* Featured Posts Section */}
+                {featuredPosts.length > 0 && (
+                  <div className="mb-12">
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="h-8 w-1 bg-gradient-to-b from-yellow-400 to-orange-500 rounded-full"></div>
+                      <h2 className="text-2xl font-bold text-slate-900">Featured Articles</h2>
                     </div>
-                    
-                    <div className="p-6">
-                      <div className="flex items-center gap-4 text-sm text-slate-500 mb-3">
-                        <span className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {post.date}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {post.readTime}
-                        </span>
-                      </div>
-                      
-                      <h2 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
-                        {post.title}
-                      </h2>
-                      
-                      <p className="text-slate-600 mb-4 line-clamp-3">
-                        {post.excerpt}
-                      </p>
-                      
-                      <Link
-                        to={`/blog/${post.slug}`}
-                        className="inline-flex items-center gap-2 text-blue-600 font-semibold hover:gap-3 transition-all"
-                      >
-                        Read More
-                        <ArrowRight className="w-4 h-4" />
-                      </Link>
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {featuredPosts.map((post) => (
+                        <article key={post.id} className="bg-gradient-to-br from-yellow-50 to-orange-50 rounded-2xl overflow-hidden shadow-md hover:shadow-2xl transition-all duration-300 border-2 border-yellow-200 group relative">
+                          {/* Featured Badge */}
+                          <div className="absolute top-4 right-4 z-10">
+                            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg flex items-center gap-1">
+                              <span className="text-base">⭐</span>
+                              FEATURED
+                            </div>
+                          </div>
+                          
+                          <div className="p-6">
+                            <div className="flex items-center justify-between mb-3">
+                              {post.category && (
+                                <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                                  {post.category}
+                                </span>
+                              )}
+                            </div>
+
+                            <h2 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
+                              {post.title}
+                            </h2>
+
+                            {post.excerpt && (
+                              <p className="text-slate-700 mb-4 line-clamp-3">
+                                {post.excerpt}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-4 text-sm text-slate-600 mb-4">
+                              {post.published_at && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  {format(new Date(post.published_at), "MMM dd, yyyy")}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {calculateReadTime(post.content)}
+                              </span>
+                            </div>
+
+                            {post.author_name && (
+                              <div className="flex items-center gap-2 text-sm text-slate-700 mb-4">
+                                <User className="w-4 h-4" />
+                                <span>{post.author_name}</span>
+                              </div>
+                            )}
+
+                            <Link
+                              to={`/blog/${post.slug}`}
+                              className="inline-flex items-center gap-2 text-blue-600 font-semibold hover:gap-3 transition-all"
+                            >
+                              Read More
+                              <ArrowRight className="w-4 h-4" />
+                            </Link>
+                          </div>
+                        </article>
+                      ))}
                     </div>
-                  </article>
-                ))}
-              </div>
+                  </div>
+                )}
+
+                {/* Regular Posts Section */}
+                {regularPosts.length > 0 && (
+                  <div>
+                    {featuredPosts.length > 0 && (
+                      <div className="flex items-center gap-2 mb-6">
+                        <div className="h-8 w-1 bg-gradient-to-b from-blue-400 to-indigo-500 rounded-full"></div>
+                        <h2 className="text-2xl font-bold text-slate-900">All Articles</h2>
+                      </div>
+                    )}
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      {regularPosts.map((post) => (
+                        <article key={post.id} className="bg-white rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 border border-slate-100 group">
+                          <div className="p-6">
+                            <div className="flex items-center justify-between mb-3">
+                              {post.category && (
+                                <span className="bg-blue-600 text-white text-xs font-semibold px-3 py-1.5 rounded-full">
+                                  {post.category}
+                                </span>
+                              )}
+                            </div>
+
+                            <h2 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-blue-600 transition-colors line-clamp-2">
+                              {post.title}
+                            </h2>
+
+                            {post.excerpt && (
+                              <p className="text-slate-600 mb-4 line-clamp-3">
+                                {post.excerpt}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-4 text-sm text-slate-500 mb-4">
+                              {post.published_at && (
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-4 h-4" />
+                                  {format(new Date(post.published_at), "MMM dd, yyyy")}
+                                </span>
+                              )}
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-4 h-4" />
+                                {calculateReadTime(post.content)}
+                              </span>
+                            </div>
+
+                            {post.author_name && (
+                              <div className="flex items-center gap-2 text-sm text-slate-600 mb-4">
+                                <User className="w-4 h-4" />
+                                <span>{post.author_name}</span>
+                              </div>
+                            )}
+
+                            <Link
+                              to={`/blog/${post.slug}`}
+                              className="inline-flex items-center gap-2 text-blue-600 font-semibold hover:gap-3 transition-all"
+                            >
+                              Read More
+                              <ArrowRight className="w-4 h-4" />
+                            </Link>
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </section>

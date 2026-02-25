@@ -384,7 +384,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   // Add product size to order
   const handleAddSize = useCallback(async (product: Product, size: ProductSize, type: "unit" | "case") => {
     const price = type === "case" ? size.price : size.price_per_case;
-    const uniqueSizeId = `${size.id}-${type}`;
+    // Use original size ID directly - no need for suffix since only one type is used
+    const sizeId = size.id;
     
     try {
       const cartItem = {
@@ -395,7 +396,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         price: price,
         quantity: 1,
         sizes: [{
-          id: uniqueSizeId,
+          id: sizeId,
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: price,

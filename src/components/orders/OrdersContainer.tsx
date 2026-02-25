@@ -225,29 +225,57 @@ export const OrdersContainer = ({
 
         const role = sessionStorage.getItem('userType');
 
-        let query = supabase
-          .from("orders")
-          .select("status, payment_status, total_amount, void")
-          .is("deleted_at", null);
+        // Fetch all orders in batches to avoid row limit
+        let allOrders: any[] = [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
 
-        // Apply role-based filters
-        if (role === "pharmacy") {
-          query = query.eq("profile_id", session.user.id);
-        } else if (role === "group") {
-          const { data: groupProfiles } = await supabase
-            .from("profiles")
-            .select("id")
-            .eq("group_id", session.user.id);
+        while (hasMore) {
+          let query = supabase
+            .from("orders")
+            .select("status, payment_status, total_amount, void", { count: "exact" })
+            .is("deleted_at", null)
+            .range(from, from + batchSize - 1);
 
-          if (groupProfiles && groupProfiles.length > 0) {
-            const userIds = groupProfiles.map(user => user.id);
-            query = query.in("profile_id", userIds);
+          // Apply role-based filters
+          if (role === "pharmacy") {
+            query = query.eq("profile_id", session.user.id);
+          } else if (role === "group") {
+            const { data: groupProfiles } = await supabase
+              .from("profiles")
+              .select("id")
+              .eq("group_id", session.user.id);
+
+            if (groupProfiles && groupProfiles.length > 0) {
+              const userIds = groupProfiles.map(user => user.id);
+              query = query.in("profile_id", userIds);
+            }
+          }
+
+          const { data: batch, error, count } = await query;
+
+          if (error) throw error;
+
+          if (batch && batch.length > 0) {
+            allOrders = [...allOrders, ...batch];
+            from += batchSize;
+            
+            // Check if we've fetched all orders
+            if (count && allOrders.length >= count) {
+              hasMore = false;
+            } else if (batch.length < batchSize) {
+              hasMore = false;
+            }
+          } else {
+            hasMore = false;
           }
         }
 
-        const { data: allOrders, error } = await query;
-
-        if (error) throw error;
+        console.log("📊 fetchStats - Total orders fetched:", allOrders?.length);
+        console.log("📊 fetchStats - Cancelled orders (raw):", allOrders?.filter((o: any) => o.status === 'cancelled').length);
+        console.log("📊 fetchStats - Cancelled orders (non-voided):", allOrders?.filter((o: any) => o.status === 'cancelled' && !o.void).length);
+        console.log("📊 fetchStats - Voided orders:", allOrders?.filter((o: any) => o.void).length);
 
         // Calculate stats from all orders
         const stats = {
@@ -295,6 +323,7 @@ export const OrdersContainer = ({
           }
         });
 
+        console.log("📊 fetchStats - Final cancelled count:", stats.cancelled);
         setDbStats(stats);
       } catch (error) {
         console.error("Error fetching order stats:", error);

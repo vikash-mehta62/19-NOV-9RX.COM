@@ -170,95 +170,26 @@ export function AccessRequestDetailDialog({
       const userId = request.id;
       console.log("Approving user with ID:", userId);
       
-      // First verify the user exists and is pending
-      const { data: existingUser, error: fetchError } = await supabase
-        .from("profiles")
-        .select("id, status, first_name, last_name")
-        .eq("id", userId)
-        .single();
+      // Use backend API to approve (bypasses RLS with service role)
+      const response = await fetch(`/api/users/approve-access/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-      if (fetchError || !existingUser) {
-        throw new Error("User not found");
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to approve user");
       }
 
-      console.log("Found user:", existingUser);
+      console.log("User approved successfully:", result);
 
-      // Update only this specific user
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({
-          status: "active",
-          account_status: "approved",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId)
-        .select();
-
-      console.log("Update result:", { data, error, userId });
-
-      if (error) throw error;
-
-      // If user was created via group invitation, update pharmacy_invitations table
-      if (request.group_id) {
-        console.log("Updating invitation status for user:", userId, "group:", request.group_id);
-        
-        const { data: invitationData, error: invitationError } = await supabase
-          .from('pharmacy_invitations')
-          .update({ 
-            status: 'accepted' // Mark as accepted when admin approves
-          })
-          .eq('accepted_by', userId)
-          .eq('status', 'pending') // Only update if currently pending
-          .select();
-
-        if (invitationError) {
-          console.error('Error updating invitation status:', invitationError);
-        } else {
-          console.log('Invitation status updated:', invitationData);
-        }
-        
-        // If no rows updated, try alternative approach (match by email)
-        if (!invitationData || invitationData.length === 0) {
-          console.log('No invitation updated by accepted_by, trying by email...');
-          
-          const { data: altData, error: altError } = await supabase
-            .from('pharmacy_invitations')
-            .update({ 
-              status: 'accepted',
-              accepted_by: userId // Also update accepted_by if it was NULL
-            })
-            .eq('group_id', request.group_id)
-            .eq('email', request.email)
-            .eq('status', 'pending')
-            .select();
-          
-          if (altError) {
-            console.error('Alternative invitation update failed:', altError);
-          } else {
-            console.log('Invitation updated via email match:', altData);
-          }
-        }
-      }
-
-      // Verify only one record was updated
-      if (data && data.length === 1) {
-        toast({
-          title: "✅ User Approved",
-          description: `${request.first_name} ${request.last_name} has been granted access. They can now log in.`,
-        });
-      } else if (data && data.length > 1) {
-        console.error("WARNING: Multiple records updated!", data);
-        toast({
-          title: "Warning",
-          description: `Multiple records were updated (${data.length}). Please check the database.`,
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "✅ User Approved",
-          description: `${request.first_name} ${request.last_name} has been granted access.`,
-        });
-      }
+      toast({
+        title: "✅ User Approved",
+        description: `${request.first_name} ${request.last_name} has been granted access. They can now log in.`,
+      });
 
       onStatusUpdate();
       onOpenChange(false);
@@ -267,7 +198,7 @@ export function AccessRequestDetailDialog({
       console.error("Error approving user:", error);
       toast({
         title: "Error",
-        description: "Failed to approve user. Please try again.",
+        description: error.message || "Failed to approve user. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -301,48 +232,22 @@ export function AccessRequestDetailDialog({
       const userId = request.id;
       console.log("Rejecting user with ID:", userId);
       
-      // First verify the user exists
-      const { data: existingUser, error: fetchError } = await supabase
-        .from("profiles")
-        .select("id, status, first_name, last_name")
-        .eq("id", userId)
-        .single();
+      // Use backend API to reject (bypasses RLS with service role)
+      const response = await fetch(`/api/users/reject-access/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ reason: feedback }),
+      });
 
-      if (fetchError || !existingUser) {
-        throw new Error("User not found");
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Failed to reject user");
       }
 
-      console.log("Found user:", existingUser);
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .update({
-          status: "rejected",
-          account_status: "rejected",
-          rejection_reason: feedback,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", userId)
-        .select();
-
-      console.log("Reject result:", { data, error, userId });
-
-      if (error) throw error;
-
-      // If user was created via group invitation, update pharmacy_invitations table
-      if (request.group_id) {
-        const { error: invitationError } = await supabase
-          .from('pharmacy_invitations')
-          .update({ 
-            status: 'cancelled' // Mark as cancelled when admin rejects
-          })
-          .eq('accepted_by', userId)
-          .eq('status', 'pending'); // Only update if currently pending
-
-        if (invitationError) {
-          console.error('Error updating invitation status:', invitationError);
-        }
-      }
+      console.log("User rejected successfully:", result);
 
       toast({
         title: "❌ User Rejected",
@@ -356,7 +261,7 @@ export function AccessRequestDetailDialog({
       console.error("Error rejecting user:", error);
       toast({
         title: "Error",
-        description: "Failed to reject user. Please try again.",
+        description: error.message || "Failed to reject user. Please try again.",
         variant: "destructive",
       });
     } finally {

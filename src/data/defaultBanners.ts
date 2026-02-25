@@ -13,7 +13,7 @@ export const defaultBanners = [
     text_color: "#ffffff",
     overlay_opacity: 0.55,
     display_order: 1,
-    is_active: true,
+    is_active: false, // Banners are inactive by default - admin must activate them
     target_user_types: ["all"],
     target_devices: ["all"],
     target_locations: [],
@@ -32,7 +32,7 @@ export const defaultBanners = [
     text_color: "#ffffff", 
     overlay_opacity: 0.5,
     display_order: 2,
-    is_active: true,
+    is_active: false, // Banners are inactive by default - admin must activate them
     target_user_types: ["pharmacy", "hospital"],
     target_devices: ["all"],
     target_locations: [],
@@ -51,7 +51,7 @@ export const defaultBanners = [
     text_color: "#ffffff",
     overlay_opacity: 0.45,
     display_order: 3,
-    is_active: true,
+    is_active: false, // Banners are inactive by default - admin must activate them
     target_user_types: ["all"],
     target_devices: ["all"],
     target_locations: [],

@@ -75,24 +75,42 @@ export default function AbandonedCarts() {
 
       if (error) throw error;
       
-      // Map carts to AbandonedCart interface
-      const mappedCarts: AbandonedCart[] = (data || []).map((cart: any) => ({
-        id: cart.id,
-        user_id: cart.user_id,
-        cart_data: { items: cart.items },
-        cart_value: cart.total,
-        item_count: cart.items?.length || 0,
-        reminder_sent_count: cart.abandoned_email_sent_at ? 1 : 0,
-        last_reminder_at: cart.abandoned_email_sent_at,
-        recovered: cart.recovery_status === 'recovered',
-        recovered_at: null,
-        created_at: cart.created_at,
-        updated_at: cart.updated_at,
-        user: cart.user ? {
-          email: cart.user.email,
-          business_name: cart.user.company_name
-        } : undefined
-      }));
+      // Map carts to AbandonedCart interface and filter out empty carts
+      const mappedCarts: AbandonedCart[] = (data || [])
+        .map((cart: any) => {
+          // Calculate correct cart total from items
+          let calculatedTotal = 0;
+          if (cart.items && Array.isArray(cart.items)) {
+            cart.items.forEach((item: any) => {
+              if (item.sizes && Array.isArray(item.sizes)) {
+                item.sizes.forEach((size: any) => {
+                  calculatedTotal += (size.quantity || 0) * (size.price || 0);
+                });
+              } else {
+                calculatedTotal += (item.quantity || 0) * (item.price || 0);
+              }
+            });
+          }
+
+          return {
+            id: cart.id,
+            user_id: cart.user_id,
+            cart_data: { items: cart.items },
+            cart_value: calculatedTotal,
+            item_count: cart.items?.length || 0,
+            reminder_sent_count: cart.reminder_sent_count || 0,
+            last_reminder_at: cart.abandoned_email_sent_at,
+            recovered: cart.recovery_status === 'recovered',
+            recovered_at: null,
+            created_at: cart.created_at,
+            updated_at: cart.updated_at,
+            user: cart.user ? {
+              email: cart.user.email,
+              business_name: cart.user.company_name
+            } : undefined
+          };
+        })
+        .filter((cart) => cart.item_count > 0); // Only show carts with items
 
       setCarts(mappedCarts);
     } catch (error: any) {
@@ -104,24 +122,32 @@ export default function AbandonedCarts() {
 
   const sendReminder = async (cart: AbandonedCart) => {
     try {
-      // Trigger automation manually via API or update status to force a check
-      // For now, we'll simulate sending by updating the timestamp
-      const { error } = await supabase
-        .from("carts")
-        .update({
-          abandoned_email_sent_at: new Date().toISOString(),
-        })
-        .eq("id", cart.id);
+      // Call server API to send email
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001';
+      const response = await fetch(`${apiBaseUrl}/api/cart/send-reminder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cartId: cart.id })
+      });
 
-      if (error) throw error;
+      const data = await response.json();
+      
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to send reminder');
+      }
 
       toast({
         title: "Reminder Sent",
-        description: `Cart recovery email marked as sent to ${cart.user?.email || "user"}`,
+        description: data.message || `Cart recovery email sent to ${cart.user?.email || "user"}`,
       });
-      fetchAbandonedCarts();
+      
+      await fetchAbandonedCarts();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to send reminder email", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -134,12 +160,20 @@ export default function AbandonedCarts() {
         })
         .eq("id", cartId);
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error marking cart as recovered:", error);
+        throw error;
+      }
 
       toast({ title: "Success", description: "Cart marked as recovered" });
-      fetchAbandonedCarts();
+      setDetailsOpen(false); // Close the dialog
+      await fetchAbandonedCarts(); // Refresh the list
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ 
+        title: "Error", 
+        description: error.message || "Failed to mark cart as recovered", 
+        variant: "destructive" 
+      });
     }
   };
 
@@ -243,15 +277,31 @@ export default function AbandonedCarts() {
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">Cart Items ({selectedCart.item_count})</p>
                   <div className="bg-muted rounded-lg p-4 max-h-[300px] overflow-y-auto">
-                    {selectedCart.cart_data?.items?.map((item: any, index: number) => (
-                      <div key={index} className="flex justify-between py-2 border-b last:border-0">
-                        <div>
-                          <p className="font-medium">{item.name || item.product_name}</p>
-                          <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
-                        </div>
-                        <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
-                      </div>
-                    )) || <p className="text-muted-foreground">No items data available</p>}
+                    {selectedCart.cart_data?.items?.map((item: any, index: number) => {
+                      if (item.sizes && Array.isArray(item.sizes)) {
+                        // Item has sizes
+                        return item.sizes.map((size: any, sizeIndex: number) => (
+                          <div key={`${index}-${sizeIndex}`} className="flex justify-between py-2 border-b last:border-0">
+                            <div>
+                              <p className="font-medium">{item.name || item.product_name} - {size.size_value || ''}</p>
+                              <p className="text-sm text-muted-foreground">Qty: {size.quantity}</p>
+                            </div>
+                            <p className="font-medium">${((size.price || 0) * (size.quantity || 0)).toFixed(2)}</p>
+                          </div>
+                        ));
+                      } else {
+                        // Simple item structure
+                        return (
+                          <div key={index} className="flex justify-between py-2 border-b last:border-0">
+                            <div>
+                              <p className="font-medium">{item.name || item.product_name}</p>
+                              <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                            </div>
+                            <p className="font-medium">${((item.price || 0) * (item.quantity || 0)).toFixed(2)}</p>
+                          </div>
+                        );
+                      }
+                    }) || <p className="text-muted-foreground">No items data available</p>}
                   </div>
                 </div>
                 <div className="flex gap-2">

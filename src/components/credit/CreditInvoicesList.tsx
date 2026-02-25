@@ -59,12 +59,12 @@ const CreditInvoicesList = () => {
 
       setCreditLine(creditLineData);
 
-      // Fetch invoices
+      // Fetch invoices - Sort by invoice_date descending (newest first)
       const { data: invoicesData, error } = await supabase
         .from("credit_invoices")
         .select("*")
         .eq("user_id", userProfile?.id)
-        .order("due_date", { ascending: true });
+        .order("invoice_date", { ascending: false });
 
       if (error) throw error;
       setInvoices(invoicesData || []);
@@ -107,7 +107,9 @@ const CreditInvoicesList = () => {
         setShowPaymentDialog(false);
         setSelectedInvoice(null);
         setPaymentAmount("");
-        fetchData();
+        
+        // Refresh data to show updated balances
+        await fetchData();
       } else {
         throw new Error(data?.error || "Payment failed");
       }
@@ -115,7 +117,7 @@ const CreditInvoicesList = () => {
       console.error("Payment error:", error);
       toast({
         title: "Payment Failed",
-        description: error.message || "Unable to process payment",
+        description: error.message || "Unable to process payment. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -269,7 +271,7 @@ const CreditInvoicesList = () => {
                           ${invoice.balance_due.toFixed(2)}
                         </p>
                       </div>
-                      {invoice.status !== "paid" && (
+                      {/* {invoice.status !== "paid" && (
                         <Button
                           onClick={() => {
                             setSelectedInvoice(invoice);
@@ -281,7 +283,7 @@ const CreditInvoicesList = () => {
                           <CreditCard className="w-4 h-4 mr-2" />
                           Pay Now
                         </Button>
-                      )}
+                      )} */}
                     </div>
                   </div>
                 </div>
