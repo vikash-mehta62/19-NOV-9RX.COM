@@ -46,14 +46,12 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   Plus, Pencil, Trash2, Image, Eye, EyeOff, GripVertical, Copy,
   Sparkles, Monitor, Smartphone, Layout, PanelTop, Square, Tag,
-  MousePointerClick, BarChart3, RefreshCw, ArrowUp, ArrowDown,
+  RefreshCw, ArrowUp, ArrowDown,
   ExternalLink, Calendar, CheckCircle2, XCircle, Clock, Upload, X, Loader2,
-  TestTube, Target, PartyPopper
+  PartyPopper
 } from "lucide-react";
 import { format } from "date-fns";
-import { BannerAnalyticsDashboard } from "@/components/admin/banners/BannerAnalyticsDashboard";
-import { ABTestManager } from "@/components/admin/banners/ABTestManager";
-import { UserTargetingEditor } from "@/components/admin/banners/UserTargetingEditor";
+
 import { BannerDesignStudio } from "@/components/admin/banners/BannerDesignStudio";
 import { BannerInitializer } from "@/components/admin/banners/BannerInitializer";
 import { FestivalThemeManager } from "@/components/admin/banners/FestivalThemeManager";
@@ -80,12 +78,6 @@ interface Banner {
   click_count: number;
   view_count: number;
   created_at: string;
-  // New targeting fields
-  target_user_types: string[];
-  target_devices: string[];
-  target_locations: string[];
-  target_time_start: string | null;
-  target_time_end: string | null;
   // A/B testing fields
   ab_test_group: string;
   ab_test_id: string | null;
@@ -206,12 +198,6 @@ const initialFormState = {
   text_color: "#FFFFFF",
   overlay_opacity: 0.3,
   target_page: "",
-  // New targeting fields
-  target_user_types: ["all"],
-  target_devices: ["all"],
-  target_locations: [] as string[],
-  target_time_start: null as string | null,
-  target_time_end: null as string | null
 };
 
 export default function Banners() {
@@ -361,12 +347,6 @@ export default function Banners() {
         text_color: formData.text_color,
         overlay_opacity: formData.overlay_opacity,
         target_page: formData.target_page || null,
-        // New targeting fields
-        target_user_types: formData.target_user_types,
-        target_devices: formData.target_devices,
-        target_locations: formData.target_locations,
-        target_time_start: formData.target_time_start,
-        target_time_end: formData.target_time_end,
       };
 
       if (editingBanner) {
@@ -409,12 +389,6 @@ export default function Banners() {
       text_color: banner.text_color || "#FFFFFF",
       overlay_opacity: banner.overlay_opacity || 0.3,
       target_page: banner.target_page || "",
-      // New targeting fields
-      target_user_types: banner.target_user_types || ["all"],
-      target_devices: banner.target_devices || ["all"],
-      target_locations: banner.target_locations || [],
-      target_time_start: banner.target_time_start,
-      target_time_end: banner.target_time_end,
     });
     setDialogOpen(true);
   };
@@ -532,8 +506,6 @@ export default function Banners() {
     total: banners.length,
     active: banners.filter(b => b.is_active && !isBannerExpired(b.end_date)).length,
     scheduled: banners.filter(b => isBannerUpcoming(b.start_date)).length,
-    totalClicks: banners.reduce((sum, b) => sum + (b.click_count || 0), 0),
-    totalViews: banners.reduce((sum, b) => sum + (b.view_count || 0), 0),
   };
 
   return (
@@ -557,7 +529,7 @@ export default function Banners() {
               "grid w-full",
               isCompact 
                 ? "grid-cols-none flex overflow-x-auto scrollbar-hide gap-1 p-1 bg-muted rounded-lg" 
-                : "grid-cols-6"
+                : "grid-cols-3"
             )}>
               <TabsTrigger 
                 value="banners" 
@@ -589,36 +561,6 @@ export default function Banners() {
                 <Sparkles className="h-4 w-4" />
                 {isCompact ? "Design" : "Design Studio"}
               </TabsTrigger>
-              <TabsTrigger 
-                value="analytics" 
-                className={cn(
-                  "flex items-center gap-2",
-                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
-                )}
-              >
-                <BarChart3 className="h-4 w-4" />
-                {isCompact ? "Analytics" : "Analytics"}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="abtests" 
-                className={cn(
-                  "flex items-center gap-2",
-                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
-                )}
-              >
-                <TestTube className="h-4 w-4" />
-                {isCompact ? "A/B Tests" : "A/B Tests"}
-              </TabsTrigger>
-              <TabsTrigger 
-                value="targeting" 
-                className={cn(
-                  "flex items-center gap-2",
-                  isCompact && "flex-shrink-0 px-4 py-3 text-sm font-medium whitespace-nowrap"
-                )}
-              >
-                <Target className="h-4 w-4" />
-                {isCompact ? "Targeting" : "Targeting"}
-              </TabsTrigger>
             </TabsList>
             {/* Scroll indicator for mobile */}
             {isCompact && (
@@ -649,10 +591,9 @@ export default function Banners() {
                   </DialogHeader>
                   <form onSubmit={handleSubmit} className="space-y-6">
                     <Tabs defaultValue="basic" className="w-full">
-                      <TabsList className="grid w-full grid-cols-3">
+                      <TabsList className="grid w-full grid-cols-2">
                         <TabsTrigger value="basic">Basic Info</TabsTrigger>
                         <TabsTrigger value="design">Design & Media</TabsTrigger>
-                        <TabsTrigger value="targeting">Targeting</TabsTrigger>
                       </TabsList>
                       
                       <TabsContent value="basic" className="space-y-4">
@@ -1007,19 +948,6 @@ export default function Banners() {
                           </div>
                         </div>
                       </TabsContent>
-
-                      <TabsContent value="targeting" className="space-y-4">
-                        <UserTargetingEditor
-                          data={{
-                            target_user_types: formData.target_user_types,
-                            target_devices: formData.target_devices,
-                            target_locations: formData.target_locations,
-                            target_time_start: formData.target_time_start,
-                            target_time_end: formData.target_time_end,
-                          }}
-                          onChange={(targetingData) => setFormData({ ...formData, ...targetingData })}
-                        />
-                      </TabsContent>
                     </Tabs>
 
                     <div className="flex justify-end gap-2 pt-4 border-t">
@@ -1068,8 +996,8 @@ export default function Banners() {
             <div className={cn(
               "grid gap-4",
               isCompact 
-                ? "grid-cols-2 sm:grid-cols-3" 
-                : "grid-cols-2 md:grid-cols-5"
+                ? "grid-cols-3" 
+                : "grid-cols-3"
             )}>
               <Card>
                 <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
@@ -1116,38 +1044,6 @@ export default function Banners() {
                     isCompact ? "text-xs" : "text-xs"
                   )}>
                     Scheduled
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className={cn(isCompact && "col-span-1")}>
-                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
-                  <div className={cn(
-                    "font-bold text-purple-600",
-                    isCompact ? "text-xl" : "text-2xl"
-                  )}>
-                    {stats.totalViews.toLocaleString()}
-                  </div>
-                  <p className={cn(
-                    "text-muted-foreground",
-                    isCompact ? "text-xs" : "text-xs"
-                  )}>
-                    Total Views
-                  </p>
-                </CardContent>
-              </Card>
-              <Card className={cn(isCompact && "col-span-1")}>
-                <CardContent className={cn("pt-6", isCompact && "pt-4 pb-4")}>
-                  <div className={cn(
-                    "font-bold text-amber-600",
-                    isCompact ? "text-xl" : "text-2xl"
-                  )}>
-                    {stats.totalClicks.toLocaleString()}
-                  </div>
-                  <p className={cn(
-                    "text-muted-foreground",
-                    isCompact ? "text-xs" : "text-xs"
-                  )}>
-                    Total Clicks
                   </p>
                 </CardContent>
               </Card>
@@ -1247,7 +1143,6 @@ export default function Banners() {
                         <TableHead>Preview</TableHead>
                         <TableHead>Details</TableHead>
                         <TableHead>Type</TableHead>
-                        <TableHead>Stats</TableHead>
                         <TableHead>Duration</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
@@ -1324,18 +1219,6 @@ export default function Banners() {
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="text-sm space-y-1">
-                                <div className="flex items-center gap-1">
-                                  <Eye className="h-3 w-3 text-muted-foreground" />
-                                  <span>{(banner.view_count || 0).toLocaleString()}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <MousePointerClick className="h-3 w-3 text-muted-foreground" />
-                                  <span>{(banner.click_count || 0).toLocaleString()}</span>
-                                </div>
-                              </div>
-                            </TableCell>
-                            <TableCell>
                               {banner.start_date || banner.end_date ? (
                                 <div className="text-sm">
                                   <div className="flex items-center gap-1">
@@ -1387,40 +1270,6 @@ export default function Banners() {
 
           <TabsContent value="design">
             <BannerDesignStudio onSave={() => fetchBanners()} />
-          </TabsContent>
-
-          <TabsContent value="analytics">
-            <BannerAnalyticsDashboard />
-          </TabsContent>
-
-          <TabsContent value="abtests">
-            <ABTestManager />
-          </TabsContent>
-
-          <TabsContent value="targeting">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5 text-purple-600" />
-                  Banner Targeting Overview
-                </CardTitle>
-                <CardDescription>
-                  View and manage targeting settings for all banners
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Target className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-medium">Targeting Management</h3>
-                  <p className="text-muted-foreground mt-1 mb-4">
-                    Configure targeting settings when creating or editing banners
-                  </p>
-                  <Button onClick={openNewDialog}>
-                    <Plus className="mr-2 h-4 w-4" /> Create Targeted Banner
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
           </TabsContent>
         </Tabs>
 

@@ -31,69 +31,8 @@ export interface FestivalTheme {
 
 export const festivalThemes: FestivalTheme[] = [
   {
-    id: "diwali",
-    name: "Diwali",
-    nameHindi: "दीपावली",
-    icon: "🪔",
-    startDate: "10-20",
-    endDate: "11-15",
-    colors: {
-      primary: "#f59e0b",
-      secondary: "#dc2626",
-      accent: "#fbbf24",
-      text: "#ffffff",
-      gradient: "from-amber-600 via-orange-500 to-red-600"
-    },
-    decorations: {
-      pattern: "diyas",
-      overlay: "sparkles",
-      border: "golden"
-    },
-    bannerDefaults: {
-      title: "Diwali Dhamaka Sale! 🪔",
-      subtitle: "Light up your health with amazing discounts up to 50% OFF",
-      badge: "Festival Special",
-      ctaText: "Shop Diwali Offers"
-    },
-    stockImages: [
-      "https://images.unsplash.com/photo-1605810230434-7631ac76ec81?w=1920&h=600&fit=crop&auto=format&q=90",
-      "https://images.unsplash.com/photo-1574265935498-e5765a6d3e5e?w=1920&h=600&fit=crop&auto=format&q=90"
-    ]
-  },
-  {
-    id: "christmas",
-    name: "Christmas",
-    nameHindi: "क्रिसमस",
-    icon: "🎄",
-    startDate: "12-15",
-    endDate: "12-31",
-    colors: {
-      primary: "#dc2626",
-      secondary: "#16a34a",
-      accent: "#fbbf24",
-      text: "#ffffff",
-      gradient: "from-red-600 via-red-500 to-green-600"
-    },
-    decorations: {
-      pattern: "snowflakes",
-      overlay: "snow",
-      border: "candy-cane"
-    },
-    bannerDefaults: {
-      title: "Christmas Health Sale! 🎄",
-      subtitle: "Gift of good health - Special discounts on wellness products",
-      badge: "Merry Savings",
-      ctaText: "Shop Christmas Deals"
-    },
-    stockImages: [
-      "https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=1920&h=600&fit=crop&auto=format&q=90",
-      "https://images.unsplash.com/photo-1543589077-47d81606c1bf?w=1920&h=600&fit=crop&auto=format&q=90"
-    ]
-  },
-  {
     id: "new-year",
     name: "New Year",
-    nameHindi: "नया साल",
     icon: "🎉",
     startDate: "12-28",
     endDate: "01-07",
@@ -121,236 +60,398 @@ export const festivalThemes: FestivalTheme[] = [
     ]
   },
   {
-    id: "holi",
-    name: "Holi",
-    nameHindi: "होली",
-    icon: "🎨",
-    startDate: "03-01",
-    endDate: "03-20",
+    id: "valentines-day",
+    name: "Valentine's Day",
+    icon: "💝",
+    startDate: "02-10",
+    endDate: "02-18",
     colors: {
       primary: "#ec4899",
-      secondary: "#8b5cf6",
-      accent: "#22c55e",
+      secondary: "#dc2626",
+      accent: "#fbbf24",
       text: "#ffffff",
-      gradient: "from-pink-500 via-purple-500 to-green-500"
+      gradient: "from-pink-500 via-red-500 to-rose-600"
     },
     decorations: {
-      pattern: "colors",
-      overlay: "splash",
-      border: "rainbow"
+      pattern: "hearts",
+      overlay: "love",
+      border: "romantic"
     },
     bannerDefaults: {
-      title: "Holi Health Bonanza! 🎨",
-      subtitle: "Colors of wellness - Splash savings on skincare & more",
-      badge: "Rang Barse",
-      ctaText: "Shop Holi Offers"
+      title: "Love Your Health! 💝",
+      subtitle: "Valentine's wellness specials - Gift health to your loved ones",
+      badge: "Love & Care",
+      ctaText: "Shop Valentine's Gifts"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1576398289164-c48dc021b4e1?w=1920&h=600&fit=crop&auto=format&q=90",
-      "https://images.unsplash.com/photo-1520962922320-2038eebab146?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1518199266791-5375a83190b7?w=1920&h=600&fit=crop&auto=format&q=90",
+      "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   },
   {
-    id: "independence-day",
-    name: "Independence Day",
-    nameHindi: "स्वतंत्रता दिवस",
-    icon: "🇮🇳",
-    startDate: "08-10",
-    endDate: "08-20",
+    id: "presidents-day",
+    name: "Presidents' Day",
+    icon: "🇺🇸",
+    startDate: "02-15",
+    endDate: "02-22",
     colors: {
-      primary: "#f97316",
-      secondary: "#16a34a",
+      primary: "#dc2626",
+      secondary: "#1e40af",
       accent: "#ffffff",
       text: "#ffffff",
-      gradient: "from-orange-500 via-white to-green-600"
+      gradient: "from-red-600 via-white to-blue-600"
     },
     decorations: {
-      pattern: "tricolor",
-      overlay: "flags",
-      border: "tricolor"
+      pattern: "stars",
+      overlay: "patriotic",
+      border: "americana"
     },
     bannerDefaults: {
-      title: "Freedom Sale! 🇮🇳",
-      subtitle: "Celebrate independence with healthy savings - Up to 40% OFF",
-      badge: "Jai Hind",
-      ctaText: "Shop Freedom Deals"
+      title: "Presidents' Day Sale! 🇺🇸",
+      subtitle: "Presidential savings on health essentials - Up to 40% OFF",
+      badge: "Patriotic Deals",
+      ctaText: "Shop Presidents' Day"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1532375810709-75b1da00537c?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1484600899469-230e8d1d59c0?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   },
   {
-    id: "republic-day",
-    name: "Republic Day",
-    nameHindi: "गणतंत्र दिवस",
-    icon: "🏛️",
-    startDate: "01-20",
-    endDate: "01-31",
-    colors: {
-      primary: "#f97316",
-      secondary: "#16a34a",
-      accent: "#1e40af",
-      text: "#ffffff",
-      gradient: "from-orange-500 via-white to-green-600"
-    },
-    decorations: {
-      pattern: "tricolor",
-      overlay: "parade",
-      border: "tricolor"
-    },
-    bannerDefaults: {
-      title: "Republic Day Sale! 🏛️",
-      subtitle: "Proud to serve your health - Special patriotic discounts",
-      badge: "Vande Mataram",
-      ctaText: "Shop Republic Deals"
-    },
-    stockImages: [
-      "https://images.unsplash.com/photo-1532375810709-75b1da00537c?w=1920&h=600&fit=crop&auto=format&q=90"
-    ]
-  },
-  {
-    id: "raksha-bandhan",
-    name: "Raksha Bandhan",
-    nameHindi: "रक्षा बंधन",
-    icon: "🎀",
-    startDate: "08-15",
-    endDate: "08-25",
-    colors: {
-      primary: "#ec4899",
-      secondary: "#f59e0b",
-      accent: "#a855f7",
-      text: "#ffffff",
-      gradient: "from-pink-500 via-amber-400 to-purple-500"
-    },
-    decorations: {
-      pattern: "rakhi",
-      overlay: "threads",
-      border: "decorative"
-    },
-    bannerDefaults: {
-      title: "Rakhi Special Offers! 🎀",
-      subtitle: "Gift health to your siblings - Special combo deals",
-      badge: "Sibling Love",
-      ctaText: "Shop Rakhi Gifts"
-    },
-    stockImages: [
-      "https://images.unsplash.com/photo-1609220136736-443140cffec6?w=1920&h=600&fit=crop&auto=format&q=90"
-    ]
-  },
-  {
-    id: "eid",
-    name: "Eid",
-    nameHindi: "ईद",
-    icon: "🌙",
-    startDate: "03-25",
-    endDate: "04-15",
+    id: "st-patricks-day",
+    name: "St. Patrick's Day",
+    icon: "☘️",
+    startDate: "03-14",
+    endDate: "03-20",
     colors: {
       primary: "#16a34a",
       secondary: "#fbbf24",
       accent: "#ffffff",
       text: "#ffffff",
-      gradient: "from-green-600 via-emerald-500 to-amber-400"
+      gradient: "from-green-600 via-emerald-500 to-lime-500"
     },
     decorations: {
-      pattern: "crescent",
-      overlay: "stars",
-      border: "islamic"
+      pattern: "shamrocks",
+      overlay: "lucky",
+      border: "irish"
     },
     bannerDefaults: {
-      title: "Eid Mubarak Sale! 🌙",
-      subtitle: "Celebrate with wellness - Special Eid discounts for you",
-      badge: "Eid Special",
-      ctaText: "Shop Eid Offers"
+      title: "Lucky Health Deals! ☘️",
+      subtitle: "Get lucky with wellness savings - Irish-inspired discounts",
+      badge: "Lucky You",
+      ctaText: "Shop St. Patrick's Deals"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1564769625905-50e93615e769?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1489549132488-d00b7eee80f1?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   },
   {
-    id: "navratri",
-    name: "Navratri",
-    nameHindi: "नवरात्रि",
-    icon: "🔱",
-    startDate: "09-25",
-    endDate: "10-15",
+    id: "easter",
+    name: "Easter",
+    icon: "🐰",
+    startDate: "03-25",
+    endDate: "04-10",
+    colors: {
+      primary: "#a855f7",
+      secondary: "#ec4899",
+      accent: "#fbbf24",
+      text: "#ffffff",
+      gradient: "from-purple-500 via-pink-400 to-yellow-400"
+    },
+    decorations: {
+      pattern: "eggs",
+      overlay: "spring",
+      border: "pastel"
+    },
+    bannerDefaults: {
+      title: "Easter Wellness Sale! 🐰",
+      subtitle: "Spring into health - Fresh deals on wellness products",
+      badge: "Spring Special",
+      ctaText: "Shop Easter Deals"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1522441815192-d9f04eb0615c?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "memorial-day",
+    name: "Memorial Day",
+    icon: "🎖️",
+    startDate: "05-22",
+    endDate: "05-31",
     colors: {
       primary: "#dc2626",
-      secondary: "#f59e0b",
-      accent: "#16a34a",
+      secondary: "#1e40af",
+      accent: "#ffffff",
       text: "#ffffff",
-      gradient: "from-red-600 via-amber-500 to-green-500"
+      gradient: "from-red-600 via-white to-blue-700"
     },
     decorations: {
-      pattern: "dandiya",
-      overlay: "garba",
-      border: "festive"
+      pattern: "stars-stripes",
+      overlay: "honor",
+      border: "patriotic"
     },
     bannerDefaults: {
-      title: "Navratri Wellness Sale! 🔱",
-      subtitle: "9 days of divine discounts - Energy & immunity boosters",
-      badge: "Jai Mata Di",
-      ctaText: "Shop Navratri Deals"
+      title: "Memorial Day Sale! 🎖️",
+      subtitle: "Honor with savings - Special discounts for heroes",
+      badge: "Thank You",
+      ctaText: "Shop Memorial Day"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1601933973783-43cf8a7d4c5f?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   },
   {
-    id: "summer-sale",
-    name: "Summer Sale",
-    nameHindi: "गर्मी सेल",
-    icon: "☀️",
-    startDate: "04-15",
-    endDate: "06-30",
+    id: "christmas",
+    name: "Christmas",
+    icon: "🎄",
+    startDate: "12-15",
+    endDate: "12-31",
+    colors: {
+      primary: "#dc2626",
+      secondary: "#16a34a",
+      accent: "#fbbf24",
+      text: "#ffffff",
+      gradient: "from-red-600 via-red-500 to-green-600"
+    },
+    decorations: {
+      pattern: "snowflakes",
+      overlay: "snow",
+      border: "candy-cane"
+    },
+    bannerDefaults: {
+      title: "Christmas Health Sale! 🎄",
+      subtitle: "Gift of good health - Special discounts on wellness products",
+      badge: "Merry Savings",
+      ctaText: "Shop Christmas Deals"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1512389142860-9c449e58a543?w=1920&h=600&fit=crop&auto=format&q=90",
+      "https://images.unsplash.com/photo-1543589077-47d81606c1bf?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "independence-day",
+    name: "Independence Day",
+    icon: "🎆",
+    startDate: "06-28",
+    endDate: "07-08",
+    colors: {
+      primary: "#dc2626",
+      secondary: "#1e40af",
+      accent: "#ffffff",
+      text: "#ffffff",
+      gradient: "from-red-600 via-white to-blue-700"
+    },
+    decorations: {
+      pattern: "fireworks",
+      overlay: "stars",
+      border: "patriotic"
+    },
+    bannerDefaults: {
+      title: "4th of July Sale! 🎆",
+      subtitle: "Celebrate freedom with explosive savings - Up to 50% OFF",
+      badge: "Independence Special",
+      ctaText: "Shop July 4th Deals"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1530982011887-3cc11cc85693?w=1920&h=600&fit=crop&auto=format&q=90",
+      "https://images.unsplash.com/photo-1467810563316-b5476525c0f9?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "labor-day",
+    name: "Labor Day",
+    icon: "⚒️",
+    startDate: "08-28",
+    endDate: "09-08",
+    colors: {
+      primary: "#0891b2",
+      secondary: "#f59e0b",
+      accent: "#ffffff",
+      text: "#ffffff",
+      gradient: "from-cyan-600 via-blue-500 to-amber-500"
+    },
+    decorations: {
+      pattern: "tools",
+      overlay: "work",
+      border: "industrial"
+    },
+    bannerDefaults: {
+      title: "Labor Day Savings! ⚒️",
+      subtitle: "Hard work deserves great deals - End of summer specials",
+      badge: "Worker's Special",
+      ctaText: "Shop Labor Day"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1504805572947-34fad45aed93?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "halloween",
+    name: "Halloween",
+    icon: "🎃",
+    startDate: "10-20",
+    endDate: "11-02",
+    colors: {
+      primary: "#f97316",
+      secondary: "#7c3aed",
+      accent: "#000000",
+      text: "#ffffff",
+      gradient: "from-orange-600 via-purple-600 to-black"
+    },
+    decorations: {
+      pattern: "pumpkins",
+      overlay: "spooky",
+      border: "haunted"
+    },
+    bannerDefaults: {
+      title: "Spooktacular Savings! 🎃",
+      subtitle: "Frighteningly good deals on wellness - Trick or treat yourself",
+      badge: "Boo-tiful Deals",
+      ctaText: "Shop Halloween Specials"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1509557965875-b88c97052f0e?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "thanksgiving",
+    name: "Thanksgiving",
+    icon: "🦃",
+    startDate: "11-18",
+    endDate: "11-30",
     colors: {
       primary: "#f59e0b",
+      secondary: "#dc2626",
+      accent: "#16a34a",
+      text: "#ffffff",
+      gradient: "from-amber-600 via-orange-500 to-red-600"
+    },
+    decorations: {
+      pattern: "autumn",
+      overlay: "harvest",
+      border: "fall"
+    },
+    bannerDefaults: {
+      title: "Thanksgiving Health Sale! 🦃",
+      subtitle: "Grateful for your health - Special holiday savings",
+      badge: "Give Thanks",
+      ctaText: "Shop Thanksgiving Deals"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1574672280600-4accfa5b6f98?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "mothers-day",
+    name: "Mother's Day",
+    icon: "💐",
+    startDate: "05-05",
+    endDate: "05-15",
+    colors: {
+      primary: "#ec4899",
+      secondary: "#a855f7",
+      accent: "#fbbf24",
+      text: "#ffffff",
+      gradient: "from-pink-500 via-purple-400 to-rose-500"
+    },
+    decorations: {
+      pattern: "flowers",
+      overlay: "love",
+      border: "floral"
+    },
+    bannerDefaults: {
+      title: "Mother's Day Special! 💐",
+      subtitle: "Show mom you care - Wellness gifts for the best mom",
+      badge: "For Mom",
+      ctaText: "Shop Mother's Day Gifts"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1522673607200-164d1b6ce486?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "fathers-day",
+    name: "Father's Day",
+    icon: "👔",
+    startDate: "06-12",
+    endDate: "06-22",
+    colors: {
+      primary: "#1e40af",
       secondary: "#0891b2",
       accent: "#fbbf24",
       text: "#ffffff",
-      gradient: "from-amber-500 via-orange-400 to-cyan-500"
+      gradient: "from-blue-700 via-cyan-600 to-blue-500"
     },
     decorations: {
-      pattern: "sun",
-      overlay: "waves",
-      border: "tropical"
+      pattern: "ties",
+      overlay: "masculine",
+      border: "classic"
     },
     bannerDefaults: {
-      title: "Summer Health Sale! ☀️",
-      subtitle: "Beat the heat with cool savings - Hydration & skincare specials",
-      badge: "Hot Deals",
-      ctaText: "Shop Summer Essentials"
+      title: "Father's Day Sale! 👔",
+      subtitle: "Celebrate dad with health - Special gifts for the best dad",
+      badge: "For Dad",
+      ctaText: "Shop Father's Day Gifts"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1560703650-6e0e5e1b9b3e?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   },
   {
-    id: "monsoon-sale",
-    name: "Monsoon Sale",
-    nameHindi: "मानसून सेल",
-    icon: "🌧️",
-    startDate: "07-01",
-    endDate: "08-31",
+    id: "back-to-school",
+    name: "Back to School",
+    icon: "🎒",
+    startDate: "08-01",
+    endDate: "09-15",
     colors: {
-      primary: "#0891b2",
+      primary: "#f59e0b",
       secondary: "#16a34a",
-      accent: "#6366f1",
+      accent: "#dc2626",
       text: "#ffffff",
-      gradient: "from-cyan-600 via-teal-500 to-green-500"
+      gradient: "from-amber-500 via-green-500 to-red-500"
     },
     decorations: {
-      pattern: "raindrops",
-      overlay: "clouds",
-      border: "water"
+      pattern: "pencils",
+      overlay: "school",
+      border: "academic"
     },
     bannerDefaults: {
-      title: "Monsoon Wellness Sale! 🌧️",
-      subtitle: "Stay healthy this rainy season - Immunity boosters & more",
-      badge: "Rainy Savings",
-      ctaText: "Shop Monsoon Deals"
+      title: "Back to School Health! 🎒",
+      subtitle: "Start the school year healthy - Vitamins & wellness essentials",
+      badge: "School Ready",
+      ctaText: "Shop School Essentials"
     },
     stockImages: [
-      "https://images.unsplash.com/photo-1534274988757-a28bf1a57c17?w=1920&h=600&fit=crop&auto=format&q=90"
+      "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?w=1920&h=600&fit=crop&auto=format&q=90"
+    ]
+  },
+  {
+    id: "black-friday",
+    name: "Black Friday",
+    icon: "🛍️",
+    startDate: "11-24",
+    endDate: "11-29",
+    colors: {
+      primary: "#000000",
+      secondary: "#dc2626",
+      accent: "#fbbf24",
+      text: "#ffffff",
+      gradient: "from-black via-gray-800 to-red-600"
+    },
+    decorations: {
+      pattern: "shopping",
+      overlay: "deals",
+      border: "sale"
+    },
+    bannerDefaults: {
+      title: "Black Friday Blowout! 🛍️",
+      subtitle: "Biggest savings of the year - Up to 70% OFF wellness products",
+      badge: "Mega Sale",
+      ctaText: "Shop Black Friday"
+    },
+    stockImages: [
+      "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?w=1920&h=600&fit=crop&auto=format&q=90"
     ]
   }
 ];
@@ -419,9 +520,6 @@ export const generateFestivalBanner = (festival: FestivalTheme) => {
     text_color: festival.colors.text,
     overlay_opacity: 0.5,
     is_active: true,
-    target_user_types: ["all"],
-    target_devices: ["all"],
-    target_locations: [],
     festival_theme: festival.id
   };
 };

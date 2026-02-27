@@ -44,7 +44,6 @@ const routeLabels: Record<string, string> = {
   "group-pricing": "Special Pricing",
   "credit-management": "Credit Management",
   "abandoned-carts": "Abandoned Carts",
-  "festival-themes": "Festival Themes",
   "email-templates": "Email Templates",
   "email-campaigns": "Email Campaigns",
   "email-automations": "Email Automations",

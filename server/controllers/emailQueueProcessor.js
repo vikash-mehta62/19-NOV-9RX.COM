@@ -65,28 +65,62 @@ exports.processQueue = async (req, res) => {
 
       try {
         // Prepare variables for substitution
+        const metadata = queuedEmail.metadata || {};
         const variables = {
-          ...queuedEmail.metadata,
+          ...metadata,
           email: queuedEmail.email,
-          user_name: queuedEmail.metadata?.first_name 
-            ? `${queuedEmail.metadata.first_name} ${queuedEmail.metadata.last_name || ''}`.trim() 
-            : (queuedEmail.metadata?.user_name || "Valued Customer"),
-          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/unsubscribe?t=${queuedEmail.metadata?.tracking_id || ''}&e=${encodeURIComponent(queuedEmail.email)}`,
+          user_name: metadata.first_name 
+            ? `${metadata.first_name} ${metadata.last_name || ''}`.trim() 
+            : (metadata.user_name || "Valued Customer"),
+          userName: metadata.first_name 
+            ? `${metadata.first_name} ${metadata.last_name || ''}`.trim() 
+            : (metadata.user_name || "Valued Customer"),
+          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/unsubscribe?t=${metadata.tracking_id || ''}&e=${encodeURIComponent(queuedEmail.email)}`,
           // Add aliases for convenience
-          name: queuedEmail.metadata?.first_name || "Valued Customer",
-          first_name: queuedEmail.metadata?.first_name || "",
-          last_name: queuedEmail.metadata?.last_name || "",
+          name: metadata.first_name || "Valued Customer",
+          first_name: metadata.first_name || "",
+          last_name: metadata.last_name || "",
           company_name: "9RX",
           current_year: new Date().getFullYear().toString(),
+          shop_url: "https://9rx.com/pharmacy/products",
+          
+          // Order-related variables
+          order_number: metadata.order_number || "",
+          order_total: metadata.order_total || "",
+          order_items: metadata.order_items || "",
+          order_url: metadata.order_url || "https://9rx.com/pharmacy/orders",
+          subtotal: metadata.subtotal || "",
+          shipping: metadata.shipping || "",
+          tracking_number: metadata.tracking_number || "",
+          tracking_url: metadata.tracking_url || "",
+          
+          // Cart-related variables
+          cart_items: metadata.cart_items || "",
+          cart_total: metadata.cart_total || "",
+          cart_url: metadata.cart_url || "https://9rx.com/pharmacy/order/create",
+          item_count: metadata.item_count || "0",
+          
+          // Promo-related variables
+          promo_title: metadata.promo_title || "",
+          promo_code: metadata.promo_code || "",
+          promo_description: metadata.promo_description || "",
+          discount_text: metadata.discount_text || "",
+          featured_products: metadata.featured_products || "",
+          expiry_date: metadata.expiry_date || "",
+          
+          // Restock variables
+          restock_items: metadata.restock_items || "",
+          reorder_url: metadata.reorder_url || "https://9rx.com/pharmacy/products",
         };
 
         // Perform variable substitution
         let htmlContent = replaceTemplateVariables(queuedEmail.html_content, variables);
+        let subject = replaceTemplateVariables(queuedEmail.subject, variables);
 
         // Send using existing mailSender
         const sendResult = await mailSender(
           queuedEmail.email,
-          queuedEmail.subject,
+          subject,
           htmlContent
         );
 
@@ -107,7 +141,7 @@ exports.processQueue = async (req, res) => {
           await supabase.from("email_logs").insert({
             user_id: queuedEmail.metadata?.user_id || null,
             email_address: queuedEmail.email,
-            subject: queuedEmail.subject,
+            subject: subject,
             email_type: queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             status: "sent",
             campaign_id: queuedEmail.campaign_id,
@@ -449,8 +483,9 @@ exports.sendTest = async (req, res) => {
 
     // Perform variable substitution
     htmlContent = replaceTemplateVariables(htmlContent, variables);
+    const processedSubject = replaceTemplateVariables(subject, variables);
 
-    const result = await mailSender(email, subject, htmlContent);
+    const result = await mailSender(email, processedSubject, htmlContent);
 
     if (result.success) {
       res.json({

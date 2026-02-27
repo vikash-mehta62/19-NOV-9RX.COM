@@ -79,10 +79,11 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
 
   if (error) throw error;
 
-  // Fetch group pricing separately but cache it
+  // Fetch group pricing separately but cache it - Only active rules
   const { data: groupData } = await supabase
     .from("group_pricing")
     .select("*")
+    .eq("status", "active") // Only fetch active pricing rules
     .in("group_ids", [userId]);
 
   // Process products with group pricing

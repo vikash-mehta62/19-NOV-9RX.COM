@@ -34,7 +34,8 @@ export async function queueEmail(email: QueuedEmail): Promise<{ success: boolean
     const { data, error } = await supabase
       .from("email_queue")
       .insert({
-        email: email.email.toLowerCase(),
+        to_email: email.email.toLowerCase(),
+        to_name: email.metadata?.user_name || email.metadata?.first_name || "",
         subject: email.subject,
         html_content: email.html_content,
         text_content: email.text_content,
@@ -73,7 +74,8 @@ export async function queueBulkEmails(
     const batch = emails.slice(i, i + batchSize);
     
     const records = batch.map(email => ({
-      email: email.email.toLowerCase(),
+      to_email: email.email.toLowerCase(),
+      to_name: email.metadata?.user_name || email.metadata?.first_name || "",
       subject: email.subject,
       html_content: email.html_content,
       text_content: email.text_content,
@@ -140,7 +142,7 @@ export async function processEmailQueue(limit: number = 50): Promise<{
       try {
         // Send the email
         const sendResult = await sendEmail({
-          to: queuedEmail.email,
+          to: queuedEmail.to_email,
           subject: queuedEmail.subject,
           html: queuedEmail.html_content,
           text: queuedEmail.text_content,
@@ -163,7 +165,7 @@ export async function processEmailQueue(limit: number = 50): Promise<{
           // Log the email
           await logEmail(
             queuedEmail.metadata?.user_id || null,
-            queuedEmail.email,
+            queuedEmail.to_email,
             queuedEmail.subject,
             queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             "sent",

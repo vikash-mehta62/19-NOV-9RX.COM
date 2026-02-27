@@ -125,9 +125,6 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
         ...design,
         display_order: editingBanner?.display_order || 1,
         is_active: editingBanner?.is_active ?? true,
-        target_user_types: editingBanner?.target_user_types || ["all"],
-        target_devices: editingBanner?.target_devices || ["all"],
-        target_locations: editingBanner?.target_locations || [],
       };
 
       if (editingBanner) {
@@ -211,9 +208,6 @@ export const BannerDesignStudio = ({ onSave, editingBanner }: BannerDesignStudio
         title: `${design.title} (Copy)`,
         display_order: (editingBanner?.display_order || 0) + 1,
         is_active: false,
-        target_user_types: ["all"],
-        target_devices: ["all"],
-        target_locations: [],
       };
 
       const { error } = await supabase.from("banners").insert([duplicateData]);

@@ -5,20 +5,18 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Trash2, XCircle, Pencil } from "lucide-react";
+import { MoreVertical, Trash2, Pencil } from "lucide-react";
 import { GroupPricing } from "../types/groupPricing.types";
 
 interface GroupPricingActionsProps {
   pricing: GroupPricing;
   onEdit: (pricing: GroupPricing) => void;
-  onDeactivate: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
 export function GroupPricingActions({ 
   pricing, 
   onEdit, 
-  onDeactivate, 
   onDelete 
 }: GroupPricingActionsProps) {
   return (
@@ -36,15 +34,6 @@ export function GroupPricingActions({
           <Pencil className="mr-2 h-4 w-4" />
           Edit
         </DropdownMenuItem>
-        {pricing.status === "active" && (
-          <DropdownMenuItem
-            onClick={() => onDeactivate(pricing.id)}
-            className="text-yellow-600 hover:bg-yellow-50"
-          >
-            <XCircle className="mr-2 h-4 w-4" />
-            Deactivate
-          </DropdownMenuItem>
-        )}
         <DropdownMenuItem
           onClick={() => onDelete(pricing.id)}
           className="text-red-600 hover:bg-red-50"

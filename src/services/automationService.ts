@@ -431,6 +431,62 @@ export async function deleteAutoReorderConfig(productId: string) {
 // =====================================================
 
 /**
+ * Get automation logs
+ */
+export async function getAutomationLogs(filters?: {
+  limit?: number;
+  status?: string;
+  trigger_type?: string;
+}) {
+  let query = supabase
+    .from('automation_logs')
+    .select(`
+      *,
+      automation_rules(name, trigger_type, action_type)
+    `)
+    .order('created_at', { ascending: false });
+
+  if (filters?.limit) {
+    query = query.limit(filters.limit);
+  }
+  if (filters?.status) {
+    query = query.eq('status', filters.status);
+  }
+  if (filters?.trigger_type) {
+    query = query.eq('trigger_type', filters.trigger_type);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data;
+}
+
+/**
+ * Get automation log statistics
+ */
+export async function getAutomationLogStats() {
+  const { data: logs, error } = await supabase
+    .from('automation_logs')
+    .select('status, trigger_type')
+    .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()); // Last 30 days
+
+  if (error) throw error;
+
+  return {
+    total: logs?.length || 0,
+    success: logs?.filter(l => l.status === 'success').length || 0,
+    failed: logs?.filter(l => l.status === 'failed').length || 0,
+    pending: logs?.filter(l => l.status === 'pending').length || 0,
+    byTriggerType: {
+      low_stock: logs?.filter(l => l.trigger_type === 'low_stock').length || 0,
+      auto_reorder: logs?.filter(l => l.trigger_type === 'auto_reorder').length || 0,
+      high_value_order: logs?.filter(l => l.trigger_type === 'high_value_order').length || 0,
+      order_status: logs?.filter(l => l.trigger_type === 'order_status').length || 0,
+    },
+  };
+}
+
+/**
  * Execute automation rules manually
  */
 export async function executeAutomationRules() {

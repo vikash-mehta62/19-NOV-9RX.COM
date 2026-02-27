@@ -543,102 +543,19 @@ export default function EmailCampaigns() {
     setConfirmSendOpen(false);
 
     try {
-      // Update status to sending
-      await supabase
-        .from("email_campaigns")
-        .update({ status: "sending" })
-        .eq("id", selectedCampaign.id);
+      // Use the proper email campaign service that handles variable replacement
+      const { sendCampaign } = await import("@/services/emailCampaignService");
+      const result = await sendCampaign(selectedCampaign.id);
 
-      // Get recipients based on audience
-      const audience = selectedCampaign.target_audience?.type || "all";
-      let recipients;
-
-      if (audience === "specific") {
-        const emails = selectedCampaign.target_audience.emails || [];
-        
-        // 1. Fetch profiles for these emails to get real user data
-        const { data: profiles } = await supabase
-            .from("profiles")
-            .select("id, email, first_name, last_name")
-            .in("email", emails);
-
-        // 2. Map emails to recipient objects, preferring profile data if found
-        recipients = emails.map((email: string) => {
-            const profile = profiles?.find((p: any) => p.email.toLowerCase() === email.toLowerCase());
-            return {
-                id: profile?.id || null,
-                email: email,
-                first_name: profile?.first_name || "",
-                last_name: profile?.last_name || ""
-            };
+      if (result.success) {
+        toast({
+          title: "Campaign Sent! 🚀",
+          description: `${result.queued} emails queued for delivery`,
         });
+        fetchCampaigns();
       } else {
-        let query = supabase.from("profiles").select("id, email, first_name, last_name");
-        
-        if (audience === "pharmacy") {
-          query = query.eq("type", "pharmacy");
-        } else if (audience === "group") {
-          query = query.eq("type", "group");
-        } else if (audience === "active") {
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          query = query.gte("last_sign_in_at", thirtyDaysAgo);
-        } else if (audience === "inactive") {
-          const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-          query = query.lt("last_sign_in_at", thirtyDaysAgo);
-        }
-
-        const { data } = await query.not("email", "is", null);
-        recipients = data;
+        throw new Error(result.errors.join(", ") || "Failed to send campaign");
       }
-
-      if (!recipients || recipients.length === 0) {
-        throw new Error("No recipients found for this audience");
-      }
-
-      // Queue emails for each recipient
-      const emailsToQueue = recipients.map((recipient) => ({
-        to_email: recipient.email,
-        to_name: `${recipient.first_name || ''} ${recipient.last_name || ''}`.trim() || recipient.email,
-        subject: selectedCampaign.subject,
-        html_content: selectedCampaign.html_content || getDefaultEmailTemplate(selectedCampaign.subject),
-        campaign_id: selectedCampaign.id,
-        status: "pending",
-        priority: 0,
-        scheduled_at: new Date().toISOString(),
-        metadata: {
-          user_id: recipient.id,
-          tracking_id: crypto.randomUUID(),
-          first_name: recipient.first_name,
-          last_name: recipient.last_name,
-        },
-      }));
-
-      // Insert in batches
-      const batchSize = 100;
-      let queued = 0;
-      for (let i = 0; i < emailsToQueue.length; i += batchSize) {
-        const batch = emailsToQueue.slice(i, i + batchSize);
-        const { error } = await supabase.from("email_queue").insert(batch);
-        if (!error) queued += batch.length;
-      }
-
-      // Update campaign with recipient count
-      await supabase
-        .from("email_campaigns")
-        .update({ 
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          total_recipients: recipients.length,
-          sent_count: queued,
-        })
-        .eq("id", selectedCampaign.id);
-
-      toast({
-        title: "Campaign Sent! 🚀",
-        description: `${queued} emails queued for delivery`,
-      });
-
-      fetchCampaigns();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
       

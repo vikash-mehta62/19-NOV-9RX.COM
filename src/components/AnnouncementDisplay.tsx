@@ -22,6 +22,8 @@ interface Announcement {
   link_text: string | null;
   is_dismissible: boolean;
   priority: number;
+  start_date: string | null;
+  end_date: string | null;
 }
 
 const typeStyles = {
@@ -63,10 +65,18 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [showPopup, setShowPopup] = useState(false);
 
+  // Don't show announcements to admin users
+  if (userRole === "admin") {
+    return null;
+  }
+
   useEffect(() => {
     // Load dismissed announcements from localStorage
     const dismissed = JSON.parse(localStorage.getItem("dismissedAnnouncements") || "[]");
     setDismissedIds(dismissed);
+    
+    // DEBUG: To test popups/toasts again, uncomment the line below to clear dismissed announcements
+    // localStorage.removeItem("dismissedAnnouncements");
     
     fetchAnnouncements();
   }, [userRole]);
@@ -76,25 +86,60 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
       const now = new Date().toISOString();
       const dismissed = JSON.parse(localStorage.getItem("dismissedAnnouncements") || "[]");
 
+      console.log("🔍 Fetching announcements for role:", userRole);
+      console.log("🔍 Current time:", now);
+      console.log("🔍 Dismissed IDs:", dismissed);
+
       const { data, error } = await supabase
         .from("announcements")
         .select("*")
         .eq("is_active", true)
         .or(`target_audience.eq.all,target_audience.eq.${userRole}`)
-        .or(`start_date.is.null,start_date.lte.${now}`)
-        .or(`end_date.is.null,end_date.gte.${now}`)
         .order("priority", { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error("❌ Supabase error:", error);
+        throw error;
+      }
 
-      const activeAnnouncements = (data || []).filter(
-        (a) => !dismissed.includes(a.id)
-      );
+      console.log("📦 Raw data from database:", data);
+
+      // Filter by date range and dismissed status
+      const activeAnnouncements = (data || []).filter((a) => {
+        // Check if dismissed
+        if (dismissed.includes(a.id)) {
+          console.log(`⏭️ Skipping dismissed: ${a.title}`);
+          return false;
+        }
+        
+        // Check start date
+        if (a.start_date && new Date(a.start_date) > new Date(now)) {
+          console.log(`⏭️ Skipping (not started yet): ${a.title}, starts: ${a.start_date}`);
+          return false;
+        }
+        
+        // Check end date
+        if (a.end_date && new Date(a.end_date) < new Date(now)) {
+          console.log(`⏭️ Skipping (expired): ${a.title}, ended: ${a.end_date}`);
+          return false;
+        }
+        
+        console.log(`✅ Active announcement: ${a.title} (${a.display_type})`);
+        return true;
+      });
 
       // Separate by display type
       const banners = activeAnnouncements.filter((a) => a.display_type === "banner");
       const popups = activeAnnouncements.filter((a) => a.display_type === "popup");
       const toasts = activeAnnouncements.filter((a) => a.display_type === "toast");
+
+      console.log("📢 Announcements loaded:", {
+        total: activeAnnouncements.length,
+        banners: banners.length,
+        popups: popups.length,
+        toasts: toasts.length,
+        dismissed: dismissed.length
+      });
 
       setBannerAnnouncements(banners);
 
@@ -102,11 +147,13 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
       if (popups.length > 0) {
         setPopupAnnouncement(popups[0]);
         setShowPopup(true);
+        console.log("🔔 Showing popup:", popups[0].title);
       }
 
       // Show toasts
       toasts.forEach((announcement, index) => {
         setTimeout(() => {
+          console.log("🍞 Showing toast:", announcement.title);
           toast({
             title: announcement.title,
             description: announcement.message,
@@ -116,7 +163,7 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
           if (announcement.is_dismissible) {
             dismissAnnouncement(announcement.id);
           }
-        }, index * 1000); // Stagger toasts
+        }, index * 1000); // Stagger toasts by 1 second each
       });
     } catch (error) {
       console.error("Error fetching announcements:", error);
@@ -138,10 +185,7 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
     }
   };
 
-  if (bannerAnnouncements.length === 0 && !popupAnnouncement) {
-    return null;
-  }
-
+  // Don't return null - toasts need to render even if no banners/popups
   return (
     <>
       {/* Banner Announcements */}

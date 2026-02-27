@@ -21,6 +21,7 @@ import {
   deleteAutomationRule,
   getAutoReorderConfigs,
   executeAutomationRules,
+  getAutomationLogs,
   AutomationRule,
 } from "@/services/automationService";
 import { useToast } from "@/hooks/use-toast";
@@ -31,6 +32,7 @@ import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 export default function Automation() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [reorderConfigs, setReorderConfigs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [reorderDialogOpen, setReorderDialogOpen] = useState(false);
@@ -48,12 +50,14 @@ export default function Automation() {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [rulesData, reorderData] = await Promise.all([
+      const [rulesData, reorderData, logsData] = await Promise.all([
         getAutomationRules(),
         getAutoReorderConfigs(),
+        getAutomationLogs({ limit: 50 }),
       ]);
       setRules(rulesData);
       setReorderConfigs(reorderData);
+      setLogs(logsData);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -225,9 +229,10 @@ export default function Automation() {
         </div>
 
         <Tabs defaultValue="rules" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="rules">Automation Rules</TabsTrigger>
             <TabsTrigger value="reorder">Auto-Reorder</TabsTrigger>
+            <TabsTrigger value="logs">Execution Logs</TabsTrigger>
           </TabsList>
 
           {/* Automation Rules Tab */}
@@ -332,6 +337,66 @@ export default function Automation() {
                             >
                               <Trash2 className="h-4 w-4" />
                             </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Execution Logs Tab */}
+          <TabsContent value="logs">
+            <Card>
+              <CardHeader>
+                <CardTitle>Execution Logs</CardTitle>
+                <CardDescription>
+                  View automation execution history and results
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loading ? (
+                  <div className="text-center py-8">Loading logs...</div>
+                ) : logs.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Zap className="h-12 w-12 mx-auto mb-2 text-gray-400" />
+                    <p>No execution logs yet</p>
+                    <p className="text-sm mt-1">Logs will appear here when automation rules execute</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.map((log) => (
+                      <div
+                        key={log.id}
+                        className="p-3 border rounded-lg hover:shadow-sm transition-shadow"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <Badge variant={
+                                log.status === 'success' ? 'default' :
+                                log.status === 'failed' ? 'destructive' :
+                                'secondary'
+                              }>
+                                {log.status}
+                              </Badge>
+                              <span className="text-sm font-medium">
+                                {log.automation_rules?.name || log.trigger_type}
+                              </span>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-1">
+                              {log.action_taken}
+                            </p>
+                            {log.error_message && (
+                              <p className="text-sm text-red-600">
+                                Error: {log.error_message}
+                              </p>
+                            )}
+                            <p className="text-xs text-gray-500">
+                              {new Date(log.created_at).toLocaleString()}
+                            </p>
                           </div>
                         </div>
                       </div>

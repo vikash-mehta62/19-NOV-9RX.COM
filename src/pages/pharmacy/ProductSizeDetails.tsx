@@ -84,7 +84,10 @@ const ProductSizeDetails = () => {
         let originalPrice = 0
 
         if (isLoggedIn && userProfile?.id) {
-          const { data: groupData } = await supabase.from("group_pricing").select("*")
+          const { data: groupData } = await supabase
+            .from("group_pricing")
+            .select("*")
+            .eq("status", "active"); // Only fetch active pricing rules
 
           if (groupData) {
             const applicableGroup = groupData.find(

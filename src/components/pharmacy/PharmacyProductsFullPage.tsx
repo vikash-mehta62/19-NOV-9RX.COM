@@ -144,10 +144,11 @@ export const PharmacyProductsFullPage = () => {
     const fetchProducts = async () => {
       setLoading(true)
 
-      // Fetch Group Pricing Data
+      // Fetch Group Pricing Data - Only active rules
       const { data: groupData, error: fetchError } = await supabase
         .from("group_pricing")
         .select("*")
+        .eq("status", "active"); // Only fetch active pricing rules
 
       if (fetchError) {
         console.error("Error fetching group pricing:", fetchError.message)

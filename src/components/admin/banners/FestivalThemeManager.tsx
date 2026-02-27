@@ -2,8 +2,6 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +31,6 @@ interface FestivalThemeManagerProps {
 export const FestivalThemeManager = ({ onBannerCreated }: FestivalThemeManagerProps) => {
   const [currentFestival, setCurrentFestival] = useState<FestivalTheme | null>(null);
   const [upcomingFestivals, setUpcomingFestivals] = useState<FestivalTheme[]>([]);
-  const [autoApplyEnabled, setAutoApplyEnabled] = useState(false);
   const [selectedFestival, setSelectedFestival] = useState<FestivalTheme | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -42,23 +39,7 @@ export const FestivalThemeManager = ({ onBannerCreated }: FestivalThemeManagerPr
   useEffect(() => {
     setCurrentFestival(getCurrentFestival());
     setUpcomingFestivals(getUpcomingFestivals(4));
-    
-    // Check localStorage for auto-apply setting
-    const autoApply = localStorage.getItem('festival_auto_apply') === 'true';
-    setAutoApplyEnabled(autoApply);
   }, []);
-
-  const handleAutoApplyToggle = (enabled: boolean) => {
-    setAutoApplyEnabled(enabled);
-    localStorage.setItem('festival_auto_apply', String(enabled));
-    
-    if (enabled && currentFestival) {
-      toast({
-        title: "Auto-Apply Enabled",
-        description: `Festival themes will be automatically applied. Current: ${currentFestival.name}`,
-      });
-    }
-  };
 
   const createFestivalBanner = async (festival: FestivalTheme) => {
     setCreating(true);
@@ -108,30 +89,14 @@ export const FestivalThemeManager = ({ onBannerCreated }: FestivalThemeManagerPr
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <PartyPopper className="h-6 w-6 text-amber-500" />
-            Festival Themes
-          </h2>
-          <p className="text-muted-foreground">
-            Apply festive themes to your banners automatically or manually
-          </p>
-        </div>
-        
-        <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg">
-          <Switch
-            id="auto-apply"
-            checked={autoApplyEnabled}
-            onCheckedChange={handleAutoApplyToggle}
-          />
-          <Label htmlFor="auto-apply" className="cursor-pointer">
-            <span className="font-medium">Auto-Apply Themes</span>
-            <p className="text-xs text-muted-foreground">
-              Automatically apply festival themes based on dates
-            </p>
-          </Label>
-        </div>
+      <div>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <PartyPopper className="h-6 w-6 text-amber-500" />
+          Festival Themes
+        </h2>
+        <p className="text-muted-foreground">
+          Apply festive themes to your banners manually
+        </p>
       </div>
 
       {/* Current Festival Alert */}

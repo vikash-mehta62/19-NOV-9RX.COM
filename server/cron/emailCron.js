@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Email Cron Service - Server-side background job processor
  * Handles: Queue processing, Automations, Abandoned carts, Inactive users, Cleanup
  * 
@@ -82,6 +82,51 @@ const log = (emoji, message, data = null) => {
   } else {
     console.log(`${emoji} [${timestamp}] ${message}`);
   }
+};
+
+/**
+ * Format cart items HTML - Handle both simple items and items with sizes
+ * @param {Array} cartItems - Array of cart items
+ * @returns {Object} - { html, total, itemCount }
+ */
+const formatCartItemsForEmail = (cartItems) => {
+  let cartItemsHtml = '';
+  let calculatedTotal = 0;
+  let totalItemCount = 0;
+  
+  if (!cartItems || !Array.isArray(cartItems)) {
+    return { html: '', total: 0, itemCount: 0 };
+  }
+  
+  cartItems.forEach((item) => {
+    if (item.sizes && Array.isArray(item.sizes)) {
+      // Item has sizes (like the cart structure we saw)
+      item.sizes.forEach(size => {
+        const sizeTotal = (size.quantity || 0) * (size.price || 0);
+        calculatedTotal += sizeTotal;
+        totalItemCount++;
+        cartItemsHtml += `
+          <div style="border-bottom:1px solid #eee; padding:10px 0;">
+            <strong>${item.name || item.product_name || "Product"} - ${size.size_value || ''}</strong>
+            <div style="color:#666; font-size:14px;">Qty: ${size.quantity} Ã— $${(size.price || 0).toFixed(2)} = $${sizeTotal.toFixed(2)}</div>
+          </div>
+        `;
+      });
+    } else {
+      // Simple item structure
+      const itemTotal = (item.quantity || 0) * (item.price || 0);
+      calculatedTotal += itemTotal;
+      totalItemCount++;
+      cartItemsHtml += `
+        <div style="border-bottom:1px solid #eee; padding:10px 0;">
+          <strong>${item.name || item.product_name || "Product"}</strong>
+          <div style="color:#666; font-size:14px;">Qty: ${item.quantity} Ã— $${(item.price || 0).toFixed(2)} = $${itemTotal.toFixed(2)}</div>
+        </div>
+      `;
+    }
+  });
+  
+  return { html: cartItemsHtml, total: calculatedTotal, itemCount: totalItemCount };
 };
 
 // ============================================
@@ -223,10 +268,15 @@ async function processEmailQueue() {
       try {
         // Prepare variables for substitution
         const metadata = queuedEmail.metadata || {};
+        
+        // Base variables from metadata
         const variables = {
           ...metadata,
           email: queuedEmail.to_email,
           user_name: metadata.first_name
+            ? `${metadata.first_name} ${metadata.last_name || ""}`.trim()
+            : metadata.user_name || "Valued Customer",
+          userName: metadata.first_name
             ? `${metadata.first_name} ${metadata.last_name || ""}`.trim()
             : metadata.user_name || "Valued Customer",
           name: metadata.first_name || metadata.user_name || "Valued Customer",
@@ -235,10 +285,40 @@ async function processEmailQueue() {
           unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${metadata.tracking_id || ""}&e=${encodeURIComponent(queuedEmail.to_email)}`,
           company_name: "9RX",
           current_year: new Date().getFullYear().toString(),
+          shop_url: "https://9rx.com/pharmacy/products",
+          
+          // Order-related variables (from metadata or empty)
+          order_number: metadata.order_number || "",
+          order_total: metadata.order_total || "",
+          order_items: metadata.order_items || "",
+          order_url: metadata.order_url || "https://9rx.com/pharmacy/orders",
+          subtotal: metadata.subtotal || "",
+          shipping: metadata.shipping || "",
+          tracking_number: metadata.tracking_number || "",
+          tracking_url: metadata.tracking_url || "",
+          
+          // Cart-related variables
+          cart_items: metadata.cart_items || "",
+          cart_total: metadata.cart_total || "",
+          cart_url: metadata.cart_url || "https://9rx.com/pharmacy/order/create",
+          item_count: metadata.item_count || "0",
+          
+          // Promo-related variables
+          promo_title: metadata.promo_title || "",
+          promo_code: metadata.promo_code || "",
+          promo_description: metadata.promo_description || "",
+          discount_text: metadata.discount_text || "",
+          featured_products: metadata.featured_products || "",
+          expiry_date: metadata.expiry_date || "",
+          
+          // Restock variables
+          restock_items: metadata.restock_items || "",
+          reorder_url: metadata.reorder_url || "https://9rx.com/pharmacy/products",
         };
 
         const htmlContent = replaceTemplateVariables(queuedEmail.html_content, variables);
-        const sendResult = await mailSender(queuedEmail.to_email, queuedEmail.subject, htmlContent);
+        const subject = replaceTemplateVariables(queuedEmail.subject, variables);
+        const sendResult = await mailSender(queuedEmail.to_email, subject, htmlContent);
 
         if (sendResult.success) {
           // CRITICAL: Update queue status to sent - MUST succeed
@@ -263,7 +343,7 @@ async function processEmailQueue() {
           const { error: logError } = await supabase.from("email_logs").insert({
             user_id: metadata.user_id || null,
             email_address: queuedEmail.to_email,
-            subject: queuedEmail.subject,
+            subject: subject,
             email_type: queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             status: "sent",
             campaign_id: queuedEmail.campaign_id || null,
@@ -476,14 +556,17 @@ async function checkAbandonedCarts() {
           continue;
         }
 
-        // Format cart items HTML
-        const cartItems = cart.items || [];
-        const cartItemsHtml = cartItems.map((item) => `
-          <div style="border-bottom:1px solid #eee; padding:10px 0;">
-            <strong>${item.name || item.product_name || "Product"}</strong>
-            <div style="color:#666; font-size:14px;">Qty: ${item.quantity} × $${(item.price || 0).toFixed(2)}</div>
-          </div>
-        `).join("");
+        // Format cart items HTML using helper function
+        const cartFormatted = formatCartItemsForEmail(cart.items);
+        
+        // Debug logging
+        log("🔍", `Cart formatting debug for cart ${cart.id}:`, {
+          itemsCount: cart.items?.length || 0,
+          formattedItemCount: cartFormatted.itemCount,
+          formattedTotal: cartFormatted.total,
+          cartTotal: cart.total,
+          hasHtml: cartFormatted.html.length > 0
+        });
 
         const userName = `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Customer";
         const trackingId = crypto.randomUUID();
@@ -493,14 +576,21 @@ async function checkAbandonedCarts() {
           first_name: profile.first_name || "",
           last_name: profile.last_name || "",
           email: profile.email,
-          item_count: cartItems.length.toString(),
-          cart_items: cartItemsHtml,
-          cart_total: (cart.total || 0).toFixed(2),
+          item_count: cartFormatted.itemCount.toString(),
+          cart_items: cartFormatted.html,
+          cart_total: cartFormatted.total > 0 ? cartFormatted.total.toFixed(2) : (cart.total || 0).toFixed(2),
           cart_url: "https://9rx.com/pharmacy/order/create",
           unsubscribe_url: `${process.env.APP_URL || "https://9rx.com"}/api/email/unsubscribe?t=${trackingId}&e=${encodeURIComponent(profile.email)}`,
           company_name: "9RX",
           current_year: new Date().getFullYear().toString(),
         };
+        
+        // Debug: Log variables being used
+        log("📝", `Template variables for ${profile.email}:`, {
+          item_count: variables.item_count,
+          cart_total: variables.cart_total,
+          has_cart_items: variables.cart_items.length > 0
+        });
 
         const subject = replaceTemplateVariables(template.subject, variables);
         const htmlContent = replaceTemplateVariables(template.html_content, variables);
@@ -543,6 +633,10 @@ async function checkAbandonedCarts() {
             last_name: profile.last_name,
             cart_id: cart.id,
             trigger_type: "abandoned_cart",
+            // Add cart data for reference
+            cart_items: cartFormatted.html,
+            cart_total: cartFormatted.total > 0 ? cartFormatted.total.toFixed(2) : (cart.total || 0).toFixed(2),
+            item_count: cartFormatted.itemCount.toString(),
           },
         });
 
@@ -559,8 +653,8 @@ async function checkAbandonedCarts() {
           executed_at: new Date().toISOString(),
           trigger_data: { 
             cart_id: cart.id, 
-            cart_total: cart.total,
-            item_count: cartItems.length,
+            cart_total: cartFormatted.total > 0 ? cartFormatted.total : cart.total,
+            item_count: cartFormatted.itemCount,
           },
         });
 

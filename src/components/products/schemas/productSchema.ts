@@ -90,7 +90,7 @@ export const customizationSchema = z.object({
 export const productFormSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   description: z.string().min(10, "Description must be at least 10 characters"),
-  sku: z.string().min(2, "Product code must be at least 2 characters"),
+  sku: z.string().optional().default(""),
   key_features: z.string().optional().default(""),
   squanence: z.any().optional(),
 

@@ -62,7 +62,6 @@ const AdminInvoices = lazy(() => import("./pages/admin/Invoices"));
 const AdminGroupPricing = lazy(() => import("./pages/admin/GroupPricing"));
 const AdminGroups = lazy(() => import("./pages/admin/Groups"));
 const AdminSettings = lazy(() => import("./pages/admin/Settings"));
-const AdminFestivalThemes = lazy(() => import("./pages/admin/FestivalThemes"));
 const AdminBanners = lazy(() => import("./pages/admin/Banners"));
 const AdminOffers = lazy(() => import("./pages/admin/Offers"));
 const AdminBlogs = lazy(() => import("./pages/admin/Blogs"));
@@ -388,11 +387,6 @@ function App() {
           <Route path="/admin/payment-transactions" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminPaymentTransactions />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/festival-themes" element={
-            <ProtectedRoute allowedRoles={['admin']}>
-              <AdminFestivalThemes />
             </ProtectedRoute>
           } />
           <Route path="/admin/banners" element={

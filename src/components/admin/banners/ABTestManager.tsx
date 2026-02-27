@@ -209,10 +209,24 @@ export const ABTestManager = () => {
           .update(payload)
           .eq("id", editingTest.id);
         if (error) throw error;
+        
+        // Update banner links
+        await linkBannersToTest(editingTest.id, formData.banner_a_id, formData.banner_b_id);
+        
         toast({ title: "Success", description: "A/B test updated successfully" });
       } else {
-        const { error } = await supabase.from("ab_tests").insert([payload]);
+        const { data: newTest, error } = await supabase
+          .from("ab_tests")
+          .insert([payload])
+          .select()
+          .single();
         if (error) throw error;
+        
+        // Link banners to the new test
+        if (newTest) {
+          await linkBannersToTest(newTest.id, formData.banner_a_id, formData.banner_b_id);
+        }
+        
         toast({ title: "Success", description: "A/B test created successfully" });
       }
 
@@ -248,6 +262,9 @@ export const ABTestManager = () => {
     if (!testToDelete) return;
     
     try {
+      // Unlink banners first
+      await unlinkBannersFromTest(testToDelete);
+      
       const { error } = await supabase.from("ab_tests").delete().eq("id", testToDelete);
       if (error) throw error;
       toast({ title: "Success", description: "A/B test deleted successfully" });
@@ -260,6 +277,37 @@ export const ABTestManager = () => {
     }
   };
 
+  // Link banners to A/B test
+  const linkBannersToTest = async (testId: string, bannerAId: string, bannerBId: string) => {
+    try {
+      // Update banner A
+      await supabase
+        .from("banners")
+        .update({ ab_test_id: testId, ab_test_group: 'A' })
+        .eq("id", bannerAId);
+      
+      // Update banner B
+      await supabase
+        .from("banners")
+        .update({ ab_test_id: testId, ab_test_group: 'B' })
+        .eq("id", bannerBId);
+    } catch (error: any) {
+      console.error("Error linking banners to test:", error);
+    }
+  };
+
+  // Unlink banners from A/B test
+  const unlinkBannersFromTest = async (testId: string) => {
+    try {
+      await supabase
+        .from("banners")
+        .update({ ab_test_id: null, ab_test_group: 'A' })
+        .eq("ab_test_id", testId);
+    } catch (error: any) {
+      console.error("Error unlinking banners from test:", error);
+    }
+  };
+
   const updateTestStatus = async (id: string, status: ABTest['status']) => {
     try {
       const { error } = await supabase
@@ -268,6 +316,11 @@ export const ABTestManager = () => {
         .eq("id", id);
       
       if (error) throw error;
+      
+      // If completing the test, unlink banners
+      if (status === 'completed') {
+        await unlinkBannersFromTest(id);
+      }
       
       const statusMessages = {
         running: "A/B test started",

@@ -33,6 +33,7 @@ import { OrderActivityService } from "@/services/orderActivityService";
 import { EmptyState, TableSkeleton } from "@/components/common/EmptyState";
 import { InventoryTransactionService } from "@/services/inventoryTransactionService";
 import { StockReservationService } from "@/services/stockReservationService";
+import { awardOrderPoints } from "@/services/rewardsService";
 
 // Import UI components for the cancel dialog
 import {
@@ -770,6 +771,26 @@ export function OrdersList({
       }
 
       console.log("✅ Credit invoice created:", creditInvoiceResult.invoice_number);
+
+      // 6️⃣ Award reward points for approved credit order
+      if (order.customer && totalAmount > 0) {
+        try {
+          console.log(`🎁 Awarding reward points for approved credit order: ${order.order_number}`);
+          const rewardResult = await awardOrderPoints(
+            order.customer,
+            order.id,
+            totalAmount,
+            order.order_number
+          );
+
+          if (rewardResult.success && rewardResult.pointsEarned > 0) {
+            console.log(`✅ Reward points awarded: ${rewardResult.pointsEarned} points to customer ${order.customer}`);
+          }
+        } catch (rewardError) {
+          console.error("⚠️ Failed to award reward points for credit order:", rewardError);
+          // Don't fail the entire approval if reward points fail
+        }
+      }
 
       // Log credit approval activity
       try {

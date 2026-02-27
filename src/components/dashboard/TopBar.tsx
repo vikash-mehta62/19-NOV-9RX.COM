@@ -43,25 +43,28 @@ export const TopBar = () => {
         const { data: userData } = await supabase.auth.getUser();
         if (!userData.user) return;
 
-        const { data, error } = await supabase
-          .from('notifications')
-          .select('*')
-          .eq('user_id', userData.user.id)
-          .order('created_at', { ascending: false })
-          .limit(10);
+        // Fetch both notifications and alerts
+        const [notificationsResult, alertsResult] = await Promise.all([
+          supabase
+            .from('notifications')
+            .select('*')
+            .eq('user_id', userData.user.id)
+            .order('created_at', { ascending: false })
+            .limit(5),
+          supabase
+            .from('alerts')
+            .select('*')
+            .eq('is_read', false)
+            .eq('is_resolved', false)
+            .order('created_at', { ascending: false })
+            .limit(5)
+        ]);
         
-        if (error) {
-          // Table might not exist or other error, silently ignore
-          if (error.code === 'PGRST116' || error.message?.includes('does not exist')) {
-            console.log('ℹ️ Notifications table not yet created. Run migration: 20260206_create_notifications_table.sql');
-          } else {
-            console.error('Error fetching notifications:', error);
-          }
-          return;
-        }
-        
-        if (data) {
-          setNotifications(data.map((n: any) => ({
+        const allNotifications: Notification[] = [];
+
+        // Add user notifications
+        if (notificationsResult.data) {
+          allNotifications.push(...notificationsResult.data.map((n: any) => ({
             id: n.id,
             title: n.title || 'Notification',
             message: n.message,
@@ -71,6 +74,30 @@ export const TopBar = () => {
             link: n.link
           })));
         }
+
+        // Add system alerts
+        if (alertsResult.data) {
+          allNotifications.push(...alertsResult.data.map((a: any) => ({
+            id: a.id,
+            title: a.title,
+            message: a.message,
+            type: a.category === 'inventory' ? 'warning' : a.category === 'system' ? 'automation' : a.severity,
+            time: formatDistanceToNow(new Date(a.created_at), { addSuffix: true }),
+            read: a.is_read,
+            link: '/admin/alerts'
+          })));
+        }
+
+        // Sort by created_at and limit to 10
+        allNotifications.sort((a, b) => {
+          const timeA = notificationsResult.data?.find((n: any) => n.id === a.id)?.created_at || 
+                        alertsResult.data?.find((al: any) => al.id === a.id)?.created_at;
+          const timeB = notificationsResult.data?.find((n: any) => n.id === b.id)?.created_at || 
+                        alertsResult.data?.find((al: any) => al.id === b.id)?.created_at;
+          return new Date(timeB).getTime() - new Date(timeA).getTime();
+        });
+
+        setNotifications(allNotifications.slice(0, 10));
       } catch (err: any) {
         // Silently ignore if table doesn't exist
         console.log('ℹ️ Notifications feature not available yet');
@@ -79,13 +106,13 @@ export const TopBar = () => {
 
     fetchNotifications();
 
-    // Subscribe to real-time notifications for current user
+    // Subscribe to real-time notifications and alerts
     const setupRealtimeSubscription = async () => {
       const { data: userData } = await supabase.auth.getUser();
       if (!userData.user) return null;
 
       const channel = supabase
-        .channel('notifications_channel')
+        .channel('notifications_alerts_channel')
         .on(
           'postgres_changes',
           { 
@@ -104,6 +131,26 @@ export const TopBar = () => {
               time: 'Just now',
               read: newNotification.read,
               link: newNotification.link
+            }, ...prev.slice(0, 9)]); // Keep only 10 notifications
+          }
+        )
+        .on(
+          'postgres_changes',
+          { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'alerts'
+          },
+          (payload) => {
+            const newAlert = payload.new as any;
+            setNotifications(prev => [{
+              id: newAlert.id,
+              title: newAlert.title,
+              message: newAlert.message,
+              type: newAlert.category === 'inventory' ? 'warning' : newAlert.category === 'system' ? 'automation' : newAlert.severity,
+              time: 'Just now',
+              read: newAlert.is_read,
+              link: '/admin/alerts'
             }, ...prev.slice(0, 9)]); // Keep only 10 notifications
           }
         )
@@ -131,13 +178,21 @@ export const TopBar = () => {
       )
     );
     
-    await supabase.from('notifications').update({ read: true }).eq('id', id).catch(() => {});
+    // Try to update in both tables
+    await Promise.all([
+      supabase.from('notifications').update({ read: true }).eq('id', id).catch(() => {}),
+      supabase.from('alerts').update({ is_read: true }).eq('id', id).catch(() => {})
+    ]);
   };
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      await deleteNotification(id);
+      // Try to delete from both tables
+      await Promise.all([
+        deleteNotification(id).catch(() => {}),
+        supabase.from('alerts').delete().eq('id', id).catch(() => {})
+      ]);
       setNotifications(notifications.filter(n => n.id !== id));
     } catch (error) {
       console.error('Error deleting notification:', error);
@@ -279,7 +334,7 @@ export const TopBar = () => {
                               className="h-6 w-6 p-0 hover:bg-green-50 dark:hover:bg-green-950"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMarkNotificationAsRead(notification.id);
+                                markAsRead(notification.id);
                               }}
                               title="Mark as read"
                             >

@@ -7,6 +7,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/supabaseClient";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
@@ -94,24 +95,26 @@ export function GroupPricingTable({ searchTerm = "", statusFilter = "all" }: Tab
     }
   };
 
-  const handleDeactivate = async (id: string) => {
+  const handleToggleStatus = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    
     try {
       const { error } = await supabase
         .from("group_pricing")
-        .update({ status: "inactive" })
+        .update({ status: newStatus })
         .eq("id", id);
 
-      if (error) throw new Error(`Failed to deactivate: ${error.message}`);
+      if (error) throw new Error(`Failed to update status: ${error.message}`);
 
       toast({
         title: "Success",
-        description: "Special pricing deactivated successfully",
+        description: `Special pricing ${newStatus === "active" ? "activated" : "deactivated"} successfully`,
       });
       fetchGroupPricings();
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to deactivate",
+        description: error.message || "Failed to update status",
         variant: "destructive",
       });
     }
@@ -169,20 +172,26 @@ export function GroupPricingTable({ searchTerm = "", statusFilter = "all" }: Tab
                   <TableCell className="text-center">{pricing.product_arrayjson?.length || 0}</TableCell>
                   <TableCell className="text-center">{pricing.group_ids?.length || 0}</TableCell>
                   <TableCell className="text-center">
-                    <Badge
-                      className={pricing.status === "active" 
-                        ? "bg-green-100 text-green-800"
-                        : "bg-gray-100 text-gray-800"}
-                    >
-                      {pricing.status}
-                    </Badge>
+                    <div className="flex items-center justify-center gap-2">
+                      <Switch
+                        checked={pricing.status === "active"}
+                        onCheckedChange={() => handleToggleStatus(pricing.id, pricing.status)}
+                        className="data-[state=checked]:bg-green-600"
+                      />
+                      <Badge
+                        className={pricing.status === "active" 
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"}
+                      >
+                        {pricing.status}
+                      </Badge>
+                    </div>
                   </TableCell>
                   <TableCell>{formatDate(pricing.created_at)}</TableCell>
                   <TableCell className="text-right">
                     <GroupPricingActions
                       pricing={pricing}
                       onEdit={setEditingPricing}
-                      onDeactivate={handleDeactivate}
                       onDelete={handleDelete}
                     />
                   </TableCell>

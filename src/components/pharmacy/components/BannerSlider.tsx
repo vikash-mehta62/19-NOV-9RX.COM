@@ -21,14 +21,6 @@ interface Banner {
   text_color: string | null;
   overlay_opacity: number | null;
   background_color: string | null;
-  target_user_types: string[];
-  target_devices: string[];
-  target_locations: string[];
-  target_time_start: string | null;
-  target_time_end: string | null;
-  ab_test_group: string;
-  ab_test_id: string | null;
-  ab_test_traffic_split: number;
 }
 
 interface BannerSliderProps {
@@ -38,9 +30,6 @@ interface BannerSliderProps {
   showControls?: boolean;
   showIndicators?: boolean;
   className?: string;
-  userType?: string;
-  deviceType?: string;
-  userLocation?: string;
 }
 
 export const BannerSlider = ({
@@ -50,9 +39,6 @@ export const BannerSlider = ({
   showControls = true,
   showIndicators = true,
   className = "",
-  userType = "guest",
-  deviceType = "desktop",
-  userLocation = "IN",
 }: BannerSliderProps) => {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -62,7 +48,7 @@ export const BannerSlider = ({
 
   useEffect(() => {
     fetchBanners();
-  }, [bannerType, userType, deviceType, userLocation]);
+  }, [bannerType]);
 
   useEffect(() => {
     if (!autoPlay || banners.length <= 1) return;
@@ -101,26 +87,7 @@ export const BannerSlider = ({
         return true;
       });
 
-      // Apply user targeting filters
-      filteredData = filteredData.filter((banner) => {
-        if (banner.target_user_types && banner.target_user_types.length > 0) {
-          if (!banner.target_user_types.includes('all') && !banner.target_user_types.includes(userType)) {
-            return false;
-          }
-        }
-        if (banner.target_devices && banner.target_devices.length > 0) {
-          if (!banner.target_devices.includes('all') && !banner.target_devices.includes(deviceType)) {
-            return false;
-          }
-        }
-        return true;
-      });
-
       setBanners(filteredData);
-
-      if (filteredData.length > 0) {
-        trackBannerView(filteredData[0].id);
-      }
     } catch (error) {
       console.error("BannerSlider: Error fetching banners:", error);
     } finally {
@@ -128,34 +95,7 @@ export const BannerSlider = ({
     }
   };
 
-  const trackBannerView = async (bannerId: string) => {
-    try {
-      await supabase.rpc("record_banner_impression", {
-        p_banner_id: bannerId,
-        p_user_type: userType,
-        p_device_type: deviceType,
-        p_action_type: 'view'
-      });
-    } catch (error) {
-      // Silently fail
-    }
-  };
-
-  const trackBannerClick = async (bannerId: string) => {
-    try {
-      await supabase.rpc("record_banner_impression", {
-        p_banner_id: bannerId,
-        p_user_type: userType,
-        p_device_type: deviceType,
-        p_action_type: 'click'
-      });
-    } catch (error) {
-      // Silently fail
-    }
-  };
-
   const handleBannerClick = (banner: Banner) => {
-    trackBannerClick(banner.id);
     if (banner.link_url) {
       if (banner.link_url.startsWith("http")) {
         window.open(banner.link_url, "_blank");

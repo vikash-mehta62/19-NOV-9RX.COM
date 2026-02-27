@@ -39,13 +39,38 @@ export async function getCampaignRecipients(
   switch (audienceType) {
     case "specific":
       if (targetAudience?.emails && Array.isArray(targetAudience.emails)) {
-        return targetAudience.emails.map((email: string) => ({
-          id: crypto.randomUUID(),
-          email: email,
-          first_name: "",
-          last_name: "",
-          user_id: undefined
-        }));
+        // Fetch actual user data for each email
+        const specificRecipients: CampaignRecipient[] = [];
+        
+        for (const email of targetAudience.emails) {
+          // Look up user in profiles table
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("id, email, first_name, last_name")
+            .eq("email", email)
+            .single();
+          
+          if (profile) {
+            specificRecipients.push({
+              id: crypto.randomUUID(),
+              email: profile.email,
+              first_name: profile.first_name || "",
+              last_name: profile.last_name || "",
+              user_id: profile.id
+            });
+          } else {
+            // If user not found in profiles, still add with email only
+            specificRecipients.push({
+              id: crypto.randomUUID(),
+              email: email,
+              first_name: "",
+              last_name: "",
+              user_id: undefined
+            });
+          }
+        }
+        
+        return specificRecipients;
       }
       return [];
     case "pharmacy":
@@ -79,6 +104,45 @@ export async function getCampaignRecipients(
   return data || [];
 }
 
+// Helper: Format cart items for email HTML (mirrors server-side formatCartItemsForEmail)
+function formatCartItemsForEmail(cartItems: any[]): { html: string; total: number; itemCount: number } {
+  let cartItemsHtml = '';
+  let calculatedTotal = 0;
+  let totalItemCount = 0;
+
+  if (!cartItems || !Array.isArray(cartItems)) {
+    return { html: '', total: 0, itemCount: 0 };
+  }
+
+  cartItems.forEach((item: any) => {
+    if (item.sizes && Array.isArray(item.sizes)) {
+      item.sizes.forEach((size: any) => {
+        const sizeTotal = (size.quantity || 0) * (size.price || 0);
+        calculatedTotal += sizeTotal;
+        totalItemCount++;
+        cartItemsHtml += `
+          <div style="border-bottom:1px solid #eee; padding:10px 0;">
+            <strong>${item.name || item.product_name || "Product"} - ${size.size_value || ''}</strong>
+            <div style="color:#666; font-size:14px;">Qty: ${size.quantity} × $${(size.price || 0).toFixed(2)} = $${sizeTotal.toFixed(2)}</div>
+          </div>
+        `;
+      });
+    } else {
+      const itemTotal = (item.quantity || 0) * (item.price || 0);
+      calculatedTotal += itemTotal;
+      totalItemCount++;
+      cartItemsHtml += `
+        <div style="border-bottom:1px solid #eee; padding:10px 0;">
+          <strong>${item.name || item.product_name || "Product"}</strong>
+          <div style="color:#666; font-size:14px;">Qty: ${item.quantity} × $${(item.price || 0).toFixed(2)} = $${itemTotal.toFixed(2)}</div>
+        </div>
+      `;
+    }
+  });
+
+  return { html: cartItemsHtml, total: calculatedTotal, itemCount: totalItemCount };
+}
+
 // Send campaign to all recipients
 export async function sendCampaign(campaignId: string): Promise<{
   success: boolean;
@@ -104,6 +168,19 @@ export async function sendCampaign(campaignId: string): Promise<{
     if (campaign.status === "sent" || campaign.status === "sending") {
       results.errors.push("Campaign already sent or sending");
       return results;
+    }
+
+    // Check if the campaign's template is abandoned_cart type
+    let isAbandonedCartTemplate = false;
+    if (campaign.template_id) {
+      const { data: templateInfo } = await supabase
+        .from("email_templates")
+        .select("template_type")
+        .eq("id", campaign.template_id)
+        .single();
+      if (templateInfo?.template_type === "abandoned_cart") {
+        isAbandonedCartTemplate = true;
+      }
     }
 
     // Update status to sending
@@ -136,10 +213,58 @@ export async function sendCampaign(campaignId: string): Promise<{
     }
 
     // Prepare emails
-    const emailsToQueue = recipients.map((recipient, index) => {
+    const emailsToQueue = [];
+    
+    for (let index = 0; index < recipients.length; index++) {
+      const recipient = recipients[index];
       const userName = [recipient.first_name, recipient.last_name]
         .filter(Boolean)
         .join(" ") || "Customer";
+
+      // Fetch additional user data if user_id is available
+      let orderData: any = null;
+      let profileData: any = null;
+      let cartData: { html: string; total: number; itemCount: number } = { html: '', total: 0, itemCount: 0 };
+      
+      if (recipient.user_id) {
+        // Fetch most recent order for this user (including items)
+        const { data: orders } = await supabase
+          .from("orders")
+          .select("order_number, total_amount, created_at, status, items, shipping_cost, tax_amount, tracking_number, shipping_method")
+          .eq("profile_id", recipient.user_id)
+          .order("created_at", { ascending: false })
+          .limit(1);
+        
+        orderData = orders && orders.length > 0 ? orders[0] : null;
+        
+        // Fetch additional profile data
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("company_name, work_phone, mobile_phone")
+          .eq("id", recipient.user_id)
+          .limit(1);
+        
+        profileData = profiles && profiles.length > 0 ? profiles[0] : null;
+
+        // If this is an abandoned cart template, fetch the user's active cart
+        if (isAbandonedCartTemplate) {
+          const { data: userCart } = await supabase
+            .from("carts")
+            .select("id, items, total, updated_at")
+            .eq("user_id", recipient.user_id)
+            .eq("status", "active")
+            .order("updated_at", { ascending: false })
+            .limit(1);
+
+          if (userCart && userCart.length > 0 && userCart[0].items && Array.isArray(userCart[0].items) && userCart[0].items.length > 0) {
+            cartData = formatCartItemsForEmail(userCart[0].items);
+            // Fallback to DB total if calculated total is 0
+            if (cartData.total === 0 && userCart[0].total > 0) {
+              cartData.total = userCart[0].total;
+            }
+          }
+        }
+      }
 
       // Determine variant for A/B test
       let subject = campaign.subject;
@@ -157,12 +282,51 @@ export async function sendCampaign(campaignId: string): Promise<{
         }
       }
 
-      // Replace variables
+      // Replace variables with comprehensive data
       const variables: Record<string, string> = {
         user_name: userName,
+        userName: userName, // Alias for compatibility
         first_name: recipient.first_name || "",
         last_name: recipient.last_name || "",
         email: recipient.email,
+        name: recipient.first_name || "Customer",
+        // Order-related variables
+        order_number: orderData?.order_number || "",
+        order_total: orderData?.total_amount ? `${parseFloat(orderData.total_amount).toFixed(2)}` : "",
+        order_status: orderData?.status || "",
+        order_date: orderData?.created_at ? new Date(orderData.created_at).toLocaleDateString() : "",
+        order_url: orderData?.order_number ? `https://9rx.com/pharmacy/orders/${orderData.order_number}` : "https://9rx.com/pharmacy/orders",
+        order_items: orderData?.items && Array.isArray(orderData.items) && orderData.items.length > 0
+          ? orderData.items.map((item: any) => `
+            <div style="border-bottom:1px solid #eee;padding:10px 0;">
+              <strong>${item.name || item.product_name || "Product"}</strong>
+              <div style="color:#666;font-size:14px;">
+                Qty: ${item.quantity || 1} × $${(item.price || 0).toFixed(2)} = $${((item.quantity || 1) * (item.price || 0)).toFixed(2)}
+              </div>
+            </div>
+          `).join("")
+          : "",
+        subtotal: orderData?.total_amount && orderData?.shipping_cost 
+          ? `${(parseFloat(orderData.total_amount) - parseFloat(orderData.shipping_cost || 0)).toFixed(2)}` 
+          : orderData?.total_amount ? `${parseFloat(orderData.total_amount).toFixed(2)}` : "",
+        shipping: orderData?.shipping_cost ? `${parseFloat(orderData.shipping_cost).toFixed(2)}` : "0.00",
+        // Tracking variables (for shipping notification templates)
+        tracking_number: orderData?.tracking_number || "",
+        tracking_url: "",
+        shipping_method: orderData?.shipping_method || "",
+        // Profile-related variables
+        company_name: profileData?.company_name || "",
+        phone: profileData?.work_phone || profileData?.mobile_phone || "",
+        // Cart variables (populated for abandoned_cart templates)
+        cart_items: cartData.html,
+        cart_total: cartData.total > 0 ? cartData.total.toFixed(2) : "",
+        item_count: cartData.itemCount > 0 ? cartData.itemCount.toString() : "",
+        // System variables
+        current_year: new Date().getFullYear().toString(),
+        company: "9RX",
+        shop_url: "https://9rx.com/pharmacy/products",
+        cart_url: "https://9rx.com/pharmacy/order/create",
+        reorder_url: "https://9rx.com/pharmacy/products",
       };
 
       const processedSubject = replaceTemplateVariables(subject, variables);
@@ -177,20 +341,34 @@ export async function sendCampaign(campaignId: string): Promise<{
         campaignId: campaign.id,
       });
 
-      return {
+      emailsToQueue.push({
         email: recipient.email,
         subject: processedSubject,
         html_content: processedHtml,
         text_content: campaign.text_content,
         campaign_id: campaign.id,
-        subscriber_id: recipient.id,
+        subscriber_id: undefined, // Don't use profile ID as subscriber_id (foreign key constraint)
         metadata: {
           user_id: recipient.user_id,
           tracking_id: trackingId,
           ab_variant: abVariant,
+          first_name: recipient.first_name,
+          last_name: recipient.last_name,
+          user_name: userName,
+          order_number: orderData?.order_number,
+          order_total: orderData?.total_amount ? `$${parseFloat(orderData.total_amount).toFixed(2)}` : "",
+          company_name: profileData?.company_name || "",
+          phone: profileData?.work_phone || profileData?.mobile_phone || "",
+          // Tracking data in metadata (for shipping notification emails)
+          tracking_number: orderData?.tracking_number || "",
+          shipping_method: orderData?.shipping_method || "",
+          // Cart data in metadata (for abandoned cart emails)
+          cart_items: cartData.html || "",
+          cart_total: cartData.total > 0 ? cartData.total.toFixed(2) : "",
+          item_count: cartData.itemCount > 0 ? cartData.itemCount.toString() : "",
         },
-      };
-    });
+      });
+    }
 
     // Queue emails in batches
     const queueResult = await queueBulkEmails(emailsToQueue);

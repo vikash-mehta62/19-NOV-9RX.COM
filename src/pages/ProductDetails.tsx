@@ -488,7 +488,8 @@ const ProductDetails = () => {
         if (isLoggedIn && userProfile?.id && mappedProduct.sizes.length > 0) {
           const { data: groupData, error: groupErr } = await supabase
             .from("group_pricing")
-            .select("*");
+            .select("*")
+            .eq("status", "active"); // Only fetch active pricing rules
 
           if (!groupErr && groupData) {
             console.log("Applying group pricing to sizes:", groupData);

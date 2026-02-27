@@ -42,6 +42,7 @@ import { TopBar } from "./dashboard/TopBar";
 import { SidebarNavigation } from "./dashboard/SidebarNavigation";
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useCart } from "@/hooks/use-cart"
+import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -101,7 +102,6 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: Image, label: "Banners", path: "/admin/banners" },
           { icon: Megaphone, label: "Announcements", path: "/admin/announcements" },
           { icon: PenSquare, label: "Blogs", path: "/admin/blogs" },
-          { icon: Sparkles, label: "Festival Themes", path: "/admin/festival-themes" },
         ],
       },
       {
@@ -237,6 +237,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           <TopBar />
           <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 overflow-y-auto">
             <div className="mx-auto max-w-7xl w-full">
+              <AnnouncementDisplay userRole={role} />
               {children}
             </div>
           </div>
