@@ -168,6 +168,8 @@ export function AccessRequestDetailDialog({
     setActionType("approve");
     try {
       const userId = request.id;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
       console.log("Approving user with ID:", userId);
       
       // Use backend API to approve (bypasses RLS with service role)
@@ -175,6 +177,7 @@ export function AccessRequestDetailDialog({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
@@ -230,6 +233,8 @@ export function AccessRequestDetailDialog({
     setActionType("reject");
     try {
       const userId = request.id;
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
       console.log("Rejecting user with ID:", userId);
       
       // Use backend API to reject (bypasses RLS with service role)
@@ -237,6 +242,7 @@ export function AccessRequestDetailDialog({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ reason: feedback }),
       });

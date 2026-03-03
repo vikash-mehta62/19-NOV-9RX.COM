@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from "@/components/ui/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import axios from "axios"
+import axios from "../../../../axiosconfig"
 
 // Define the user data schema
 const userFormSchema = z.object({

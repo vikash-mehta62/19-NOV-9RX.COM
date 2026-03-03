@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-02-27T18:17:21.578Z",
+  "baseUrl": "http://localhost:4001",
+  "startedByScript": true,
+  "score": 100,
+  "passed": 9,
+  "total": 9,
+  "steps": [
+    {
+      "name": "Backend Reachable (:4001)",
+      "pass": true,
+      "details": "Server responded"
+    },
+    {
+      "name": "Temp Admin Authenticated",
+      "pass": true,
+      "details": "Admin token ready"
+    },
+    {
+      "name": "Signup User Created",
+      "pass": true,
+      "details": "User c941d2e2-60c5-4438-970f-db3ad05b325d"
+    },
+    {
+      "name": "Pending Profile Seeded",
+      "pass": true,
+      "details": "pending/account_status pending/portal false"
+    },
+    {
+      "name": "Verification Email Endpoint",
+      "pass": true,
+      "details": "HTTP 200"
+    },
+    {
+      "name": "Generate Completion Link (Protected API)",
+      "pass": true,
+      "details": "Received token hash from link"
+    },
+    {
+      "name": "Magic Link Session Established",
+      "pass": true,
+      "details": "Magic-link session created"
+    },
+    {
+      "name": "Profile Session Verification Endpoint",
+      "pass": true,
+      "details": "HTTP 200"
+    },
+    {
+      "name": "Required Fields Enforced Server-Side",
+      "pass": true,
+      "details": "Rejected invalid payload: HTTP 400"
+    }
+  ],
+  "fatalError": "read ECONNRESET",
+  "durationMs": 12100
+}

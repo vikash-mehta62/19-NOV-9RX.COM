@@ -13,6 +13,7 @@ import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
 import { ReferralSection } from "@/components/rewards/ReferralSection";
 import { BirthdaySection } from "@/components/rewards/BirthdaySection";
+import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 
 interface RewardItem {
   id: string;
@@ -367,7 +368,7 @@ const Rewards = () => {
           user_id: userId,
           reward_item_id: reward.id,
           points_spent: reward.points_required,
-          status: "pending", // Pending until used at checkout
+          status: REWARD_REDEMPTION_STATUS.PENDING, // Pending until used at checkout
           reward_type: reward.type, // Store type for checkout
           reward_value: reward.value, // Store value for checkout
           reward_name: reward.name, // Store name for display

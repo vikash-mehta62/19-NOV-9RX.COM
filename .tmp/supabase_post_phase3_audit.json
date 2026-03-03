@@ -1,0 +1,1158 @@
+{
+  "timestamp": "2026-03-02T16:48:15.797Z",
+  "project_url": "https://qiaetxkxweghuoxyhvml.supabase.co",
+  "openapi": {
+    "anon_status": 200,
+    "service_status": 200,
+    "anon_tables_count": 113,
+    "anon_functions_count": 71,
+    "service_tables_count": 113,
+    "service_functions_count": 71,
+    "anon_tables": [
+      "abandoned_carts",
+      "account_transactions",
+      "ach_authorization_details",
+      "ach_transactions",
+      "addresses",
+      "alert_types",
+      "alerts",
+      "announcements",
+      "audit_logs",
+      "auto_reorder_config",
+      "automation_executions",
+      "automation_logs",
+      "automation_rules",
+      "banners",
+      "batch_movements",
+      "batch_transactions",
+      "blogs",
+      "carts",
+      "category_configs",
+      "centerize_data",
+      "credit_applications",
+      "credit_invoices",
+      "credit_memo_applications",
+      "credit_memos",
+      "credit_payments",
+      "credit_penalty_history",
+      "credit_terms",
+      "custom_dashboards",
+      "customer_contacts",
+      "customer_documents",
+      "customer_notes",
+      "customer_tasks",
+      "customers",
+      "cycle_count_items",
+      "cycle_counts",
+      "daily_deals",
+      "daily_deals_settings",
+      "dashboard_widgets",
+      "email_ab_tests",
+      "email_automations",
+      "email_campaigns",
+      "email_logs",
+      "email_preferences",
+      "email_queue",
+      "email_settings",
+      "email_subscribers",
+      "email_subscriptions",
+      "email_suppression_list",
+      "email_templates",
+      "email_tracking_events",
+      "email_webhook_events",
+      "expenses",
+      "expiry_alerts",
+      "festival_themes",
+      "group_analytics",
+      "group_commission_history",
+      "group_pricing",
+      "group_staff",
+      "group_status_audit",
+      "help_articles",
+      "inventory_transactions",
+      "invitation_analytics",
+      "invitation_rate_limits",
+      "invoices",
+      "launch_password_resets",
+      "location_stock",
+      "locations",
+      "newsletter_subscribers",
+      "notifications",
+      "offers",
+      "order_activities",
+      "order_items",
+      "order_status_history",
+      "orders",
+      "password_reset_requests",
+      "payment_adjustments",
+      "payment_settings",
+      "payment_transactions",
+      "pharmacy_invitation_audit",
+      "pharmacy_invitations",
+      "product_batches",
+      "product_offers",
+      "product_reviews",
+      "product_sizes",
+      "products",
+      "profiles",
+      "profiles_backup_20260227",
+      "purchase_order_items",
+      "purchase_orders",
+      "quickbooks_tokens",
+      "referrals",
+      "refunds",
+      "review_helpful",
+      "reward_items",
+      "reward_redemptions",
+      "reward_tiers",
+      "reward_transactions",
+      "rewards_config",
+      "saved_payment_methods",
+      "saved_searches",
+      "search_history",
+      "sent_credit_terms",
+      "settings",
+      "stock_adjustments",
+      "stock_reservations",
+      "stock_transfers",
+      "subcategory_configs",
+      "terms_acceptance_history",
+      "terms_documents",
+      "user_credit_lines",
+      "user_preferences",
+      "user_segments",
+      "wishlist"
+    ],
+    "anon_functions": [
+      "accept_credit_terms_update_line",
+      "apply_credit_memo",
+      "apply_promo_code",
+      "apply_referral_code",
+      "assign_pharmacy_to_group",
+      "award_review_points",
+      "bulk_update_pharmacy_groups",
+      "calculate_available_stock",
+      "calculate_credit_penalties",
+      "check_email_verification",
+      "check_high_value_orders",
+      "check_if_user_is_admin",
+      "check_invitation_rate_limit",
+      "check_low_stock_alerts",
+      "check_order_status_automation",
+      "cleanup_expired_invitations",
+      "complete_referral",
+      "create_ach_transaction",
+      "create_credit_invoice",
+      "current_user_group_id",
+      "current_user_is_admin",
+      "current_user_role",
+      "decrement_stock",
+      "deduct_batch_quantity",
+      "disable_automation_cron",
+      "enable_automation_cron",
+      "execute_automation_checks",
+      "expire_old_reservations",
+      "generate_adjustment_number",
+      "generate_credit_memo_number",
+      "generate_expiry_alerts",
+      "generate_invoice_number",
+      "generate_next_invoice_number",
+      "generate_order_number",
+      "generate_po_number",
+      "generate_purchase_order_number",
+      "generate_referral_code",
+      "generate_refund_number",
+      "get_ab_test_results",
+      "get_available_batches_fefo",
+      "get_banner_analytics",
+      "get_email_system_health",
+      "get_expiring_batches",
+      "get_group_pharmacies",
+      "get_invitation_history",
+      "get_location_available_stock",
+      "get_low_stock_products",
+      "get_order_status_counts",
+      "get_product_active_offers",
+      "get_product_effective_price",
+      "get_product_price_with_offers",
+      "get_subscriber_status",
+      "get_total_stock",
+      "has_accepted_ach",
+      "has_accepted_privacy",
+      "has_accepted_terms",
+      "increment_banner_click",
+      "increment_banner_view",
+      "is_admin",
+      "is_automation_cron_active",
+      "is_email_suppressed",
+      "issue_credit_memo",
+      "manage_automation_cron_job",
+      "migrate_terms_to_jsonb",
+      "process_credit_payment",
+      "record_banner_impression",
+      "record_terms_acceptance",
+      "trigger_auto_reorder",
+      "update_ach_transaction_status",
+      "update_batch_quantity",
+      "validate_promo_code"
+    ]
+  },
+  "runtime_anon": {
+    "tested_tables_count": 113,
+    "accessible_200_count": 5,
+    "denied_count": 108,
+    "tables_with_rows_count": 5,
+    "tables_with_rows": [
+      "blogs",
+      "category_configs",
+      "product_sizes",
+      "products",
+      "subcategory_configs"
+    ],
+    "denied_samples": [
+      {
+        "table": "abandoned_carts",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "account_transactions",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "ach_authorization_details",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "ach_transactions",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "addresses",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "alert_types",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "alerts",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "announcements",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "audit_logs",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "auto_reorder_config",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "automation_executions",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "automation_logs",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "automation_rules",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "banners",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "batch_movements",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "batch_transactions",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "carts",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "centerize_data",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_applications",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_invoices",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_memo_applications",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_memos",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_payments",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_penalty_history",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "credit_terms",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "custom_dashboards",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "customer_contacts",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "customer_documents",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "customer_notes",
+        "status": 401,
+        "code": "42501"
+      },
+      {
+        "table": "customer_tasks",
+        "status": 401,
+        "code": "42501"
+      }
+    ],
+    "full_results": [
+      {
+        "table": "abandoned_carts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table abandoned_carts"
+      },
+      {
+        "table": "account_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table account_transactions"
+      },
+      {
+        "table": "ach_authorization_details",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table ach_authorization_details"
+      },
+      {
+        "table": "ach_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table ach_transactions"
+      },
+      {
+        "table": "addresses",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table addresses"
+      },
+      {
+        "table": "alert_types",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table alert_types"
+      },
+      {
+        "table": "alerts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table alerts"
+      },
+      {
+        "table": "announcements",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table announcements"
+      },
+      {
+        "table": "audit_logs",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table audit_logs"
+      },
+      {
+        "table": "auto_reorder_config",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table auto_reorder_config"
+      },
+      {
+        "table": "automation_executions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table automation_executions"
+      },
+      {
+        "table": "automation_logs",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table automation_logs"
+      },
+      {
+        "table": "automation_rules",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table automation_rules"
+      },
+      {
+        "table": "banners",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table banners"
+      },
+      {
+        "table": "batch_movements",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table batch_movements"
+      },
+      {
+        "table": "batch_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table batch_transactions"
+      },
+      {
+        "table": "blogs",
+        "status": 200,
+        "row_count": 1,
+        "error_code": null,
+        "message": null
+      },
+      {
+        "table": "carts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table carts"
+      },
+      {
+        "table": "category_configs",
+        "status": 200,
+        "row_count": 1,
+        "error_code": null,
+        "message": null
+      },
+      {
+        "table": "centerize_data",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table centerize_data"
+      },
+      {
+        "table": "credit_applications",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_applications"
+      },
+      {
+        "table": "credit_invoices",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_invoices"
+      },
+      {
+        "table": "credit_memo_applications",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_memo_applications"
+      },
+      {
+        "table": "credit_memos",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_memos"
+      },
+      {
+        "table": "credit_payments",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_payments"
+      },
+      {
+        "table": "credit_penalty_history",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_penalty_history"
+      },
+      {
+        "table": "credit_terms",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table credit_terms"
+      },
+      {
+        "table": "custom_dashboards",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table custom_dashboards"
+      },
+      {
+        "table": "customer_contacts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table customer_contacts"
+      },
+      {
+        "table": "customer_documents",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table customer_documents"
+      },
+      {
+        "table": "customer_notes",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table customer_notes"
+      },
+      {
+        "table": "customer_tasks",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table customer_tasks"
+      },
+      {
+        "table": "customers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table customers"
+      },
+      {
+        "table": "cycle_count_items",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table cycle_count_items"
+      },
+      {
+        "table": "cycle_counts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table cycle_counts"
+      },
+      {
+        "table": "daily_deals",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table daily_deals"
+      },
+      {
+        "table": "daily_deals_settings",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table daily_deals_settings"
+      },
+      {
+        "table": "dashboard_widgets",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table dashboard_widgets"
+      },
+      {
+        "table": "email_ab_tests",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_ab_tests"
+      },
+      {
+        "table": "email_automations",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_automations"
+      },
+      {
+        "table": "email_campaigns",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_campaigns"
+      },
+      {
+        "table": "email_logs",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_logs"
+      },
+      {
+        "table": "email_preferences",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_preferences"
+      },
+      {
+        "table": "email_queue",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_queue"
+      },
+      {
+        "table": "email_settings",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_settings"
+      },
+      {
+        "table": "email_subscribers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_subscribers"
+      },
+      {
+        "table": "email_subscriptions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_subscriptions"
+      },
+      {
+        "table": "email_suppression_list",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_suppression_list"
+      },
+      {
+        "table": "email_templates",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_templates"
+      },
+      {
+        "table": "email_tracking_events",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_tracking_events"
+      },
+      {
+        "table": "email_webhook_events",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table email_webhook_events"
+      },
+      {
+        "table": "expenses",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table expenses"
+      },
+      {
+        "table": "expiry_alerts",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table expiry_alerts"
+      },
+      {
+        "table": "festival_themes",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table festival_themes"
+      },
+      {
+        "table": "group_analytics",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for view group_analytics"
+      },
+      {
+        "table": "group_commission_history",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table group_commission_history"
+      },
+      {
+        "table": "group_pricing",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table group_pricing"
+      },
+      {
+        "table": "group_staff",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table group_staff"
+      },
+      {
+        "table": "group_status_audit",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table group_status_audit"
+      },
+      {
+        "table": "help_articles",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table help_articles"
+      },
+      {
+        "table": "inventory_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table inventory_transactions"
+      },
+      {
+        "table": "invitation_analytics",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for view invitation_analytics"
+      },
+      {
+        "table": "invitation_rate_limits",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for view invitation_rate_limits"
+      },
+      {
+        "table": "invoices",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table invoices"
+      },
+      {
+        "table": "launch_password_resets",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table launch_password_resets"
+      },
+      {
+        "table": "location_stock",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table location_stock"
+      },
+      {
+        "table": "locations",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table locations"
+      },
+      {
+        "table": "newsletter_subscribers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table newsletter_subscribers"
+      },
+      {
+        "table": "notifications",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table notifications"
+      },
+      {
+        "table": "offers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table offers"
+      },
+      {
+        "table": "order_activities",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table order_activities"
+      },
+      {
+        "table": "order_items",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table order_items"
+      },
+      {
+        "table": "order_status_history",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table order_status_history"
+      },
+      {
+        "table": "orders",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table orders"
+      },
+      {
+        "table": "password_reset_requests",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table password_reset_requests"
+      },
+      {
+        "table": "payment_adjustments",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table payment_adjustments"
+      },
+      {
+        "table": "payment_settings",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table payment_settings"
+      },
+      {
+        "table": "payment_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table payment_transactions"
+      },
+      {
+        "table": "pharmacy_invitation_audit",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table pharmacy_invitation_audit"
+      },
+      {
+        "table": "pharmacy_invitations",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table pharmacy_invitations"
+      },
+      {
+        "table": "product_batches",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table product_batches"
+      },
+      {
+        "table": "product_offers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table product_offers"
+      },
+      {
+        "table": "product_reviews",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table product_reviews"
+      },
+      {
+        "table": "product_sizes",
+        "status": 200,
+        "row_count": 1,
+        "error_code": null,
+        "message": null
+      },
+      {
+        "table": "products",
+        "status": 200,
+        "row_count": 1,
+        "error_code": null,
+        "message": null
+      },
+      {
+        "table": "profiles",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table profiles"
+      },
+      {
+        "table": "profiles_backup_20260227",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table profiles_backup_20260227"
+      },
+      {
+        "table": "purchase_order_items",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table purchase_order_items"
+      },
+      {
+        "table": "purchase_orders",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table purchase_orders"
+      },
+      {
+        "table": "quickbooks_tokens",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table quickbooks_tokens"
+      },
+      {
+        "table": "referrals",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table referrals"
+      },
+      {
+        "table": "refunds",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table refunds"
+      },
+      {
+        "table": "review_helpful",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table review_helpful"
+      },
+      {
+        "table": "reward_items",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table reward_items"
+      },
+      {
+        "table": "reward_redemptions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table reward_redemptions"
+      },
+      {
+        "table": "reward_tiers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table reward_tiers"
+      },
+      {
+        "table": "reward_transactions",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table reward_transactions"
+      },
+      {
+        "table": "rewards_config",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table rewards_config"
+      },
+      {
+        "table": "saved_payment_methods",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table saved_payment_methods"
+      },
+      {
+        "table": "saved_searches",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table saved_searches"
+      },
+      {
+        "table": "search_history",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table search_history"
+      },
+      {
+        "table": "sent_credit_terms",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table sent_credit_terms"
+      },
+      {
+        "table": "settings",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table settings"
+      },
+      {
+        "table": "stock_adjustments",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table stock_adjustments"
+      },
+      {
+        "table": "stock_reservations",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table stock_reservations"
+      },
+      {
+        "table": "stock_transfers",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table stock_transfers"
+      },
+      {
+        "table": "subcategory_configs",
+        "status": 200,
+        "row_count": 1,
+        "error_code": null,
+        "message": null
+      },
+      {
+        "table": "terms_acceptance_history",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table terms_acceptance_history"
+      },
+      {
+        "table": "terms_documents",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table terms_documents"
+      },
+      {
+        "table": "user_credit_lines",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table user_credit_lines"
+      },
+      {
+        "table": "user_preferences",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table user_preferences"
+      },
+      {
+        "table": "user_segments",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table user_segments"
+      },
+      {
+        "table": "wishlist",
+        "status": 401,
+        "row_count": null,
+        "error_code": "42501",
+        "message": "permission denied for table wishlist"
+      }
+    ]
+  }
+}

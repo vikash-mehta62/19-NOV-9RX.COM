@@ -11,15 +11,173 @@ const { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate } =
 const userVerificationTemplate = require("../templates/userVerificationTemplate");
 const signupSuccessTemplate = require("../templates/signupSuccessTemplate");
 const mailSender = require("../utils/mailSender");
+const { buildPayNowUrl, generateOrderDocumentPdf } = require("../utils/orderPdfGenerator");
 const { triggerAutomation, trackConversion } = require("../cron/emailCron");
+const { createClient } = require("@supabase/supabase-js");
 
 // Admin email from environment variable with fallback
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "sppatel@9rx.com";
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+let supabaseAdmin = null;
+const getSupabaseAdmin = () => {
+  if (supabaseAdmin) return supabaseAdmin;
+  if (!supabaseUrl || !supabaseServiceKey) return null;
+
+  supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+  return supabaseAdmin;
+};
+
+const toNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getBalanceDue = (order = {}) => {
+  const total = toNumber(order.total_amount ?? order.total ?? 0);
+  const paid = toNumber(order.paid_amount ?? 0);
+  const adjustment = toNumber(order.adjustment_amount ?? 0);
+  return adjustment > 0 ? adjustment : Math.max(0, total - paid);
+};
+
+const mergeOrderData = (incoming = {}, dbOrder = {}) => {
+  const merged = {
+    ...dbOrder,
+    ...incoming,
+  };
+
+  merged.customerInfo = incoming.customerInfo || dbOrder.customerInfo || {};
+  merged.shippingAddress = incoming.shippingAddress || dbOrder.shippingAddress || {};
+  merged.items =
+    Array.isArray(incoming.items) && incoming.items.length > 0
+      ? incoming.items
+      : (dbOrder.items || []);
+
+  if (merged.total_amount == null) {
+    merged.total_amount = incoming.total ?? dbOrder.total_amount ?? dbOrder.total ?? 0;
+  }
+  if (merged.total == null) {
+    merged.total = merged.total_amount;
+  }
+
+  merged.order_number = incoming.order_number || dbOrder.order_number || incoming.orderNumber || dbOrder.orderNumber;
+  return merged;
+};
+
+const resolveOrderFromDb = async (incomingOrder = {}) => {
+  const adminClient = getSupabaseAdmin();
+  if (!adminClient) return incomingOrder;
+
+  let dbOrder = null;
+
+  if (incomingOrder?.id) {
+    const { data } = await adminClient
+      .from("orders")
+      .select("*")
+      .eq("id", incomingOrder.id)
+      .maybeSingle();
+    dbOrder = data || null;
+  }
+
+  if (!dbOrder && incomingOrder?.order_number) {
+    const { data } = await adminClient
+      .from("orders")
+      .select("*")
+      .eq("order_number", incomingOrder.order_number)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    dbOrder = data || null;
+  }
+
+  const merged = mergeOrderData(incomingOrder, dbOrder || {});
+
+  if (!merged.invoice_number && merged.id) {
+    const { data: invoiceData } = await adminClient
+      .from("invoices")
+      .select("invoice_number")
+      .eq("order_id", merged.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (invoiceData?.invoice_number) {
+      merged.invoice_number = invoiceData.invoice_number;
+    }
+  }
+
+  if (!merged?.customerInfo?.email && merged?.profile_id) {
+    const { data: profileData } = await adminClient
+      .from("profiles")
+      .select("email, first_name, last_name, mobile_phone")
+      .eq("id", merged.profile_id)
+      .maybeSingle();
+
+    if (profileData) {
+      merged.customerInfo = {
+        ...(merged.customerInfo || {}),
+        email: profileData.email || merged.customerInfo?.email || "",
+        name:
+          merged.customerInfo?.name ||
+          `${profileData.first_name || ""} ${profileData.last_name || ""}`.trim() ||
+          "Customer",
+        phone: merged.customerInfo?.phone || profileData.mobile_phone || "",
+      };
+    }
+  }
+
+  return merged;
+};
+
+const appendPaymentBlock = (html, paymentUrl, balanceDue) => {
+  if (!paymentUrl || balanceDue <= 0) return html;
+
+  const block = `
+    <div style="margin: 20px 0; padding: 16px; background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 10px;">
+      <p style="margin: 0 0 8px 0; font-size: 14px; color: #065f46; font-weight: 600;">Payment Link</p>
+      <p style="margin: 0; font-size: 13px; color: #065f46;">
+        Balance Due: $${toNumber(balanceDue).toFixed(2)}<br/>
+        <a href="${paymentUrl}" style="color: #047857; font-weight: 600;">Pay Online Securely</a>
+      </p>
+    </div>
+  `;
+
+  return html.includes("</body>") ? html.replace("</body>", `${block}</body>`) : `${html}${block}`;
+};
+
+const buildOrderDocument = async (order, options = {}) => {
+  try {
+    const paymentUrl = options.paymentUrl || buildPayNowUrl(order?.id);
+    const pdf = await generateOrderDocumentPdf(order, {
+      documentType: options.documentType,
+      paymentUrl,
+    });
+
+    return {
+      paymentUrl: pdf.paymentUrl || paymentUrl,
+      balanceDue: toNumber(pdf.balanceDue),
+      attachments: [
+        {
+          filename: pdf.filename,
+          content: pdf.buffer,
+          contentType: "application/pdf",
+        },
+      ],
+    };
+  } catch (error) {
+    console.error("Failed to generate order PDF attachment:", error.message);
+    return null;
+  }
+};
 
 
 exports.orderSatusCtrl = async (req, res) => {
   try {
-    const order = req.body;
+    const incomingOrder = req.body || {};
+    const order = await resolveOrderFromDb(incomingOrder);
 
     if (!order || !order.customerInfo || !order.customerInfo.email) {
       return res.status(400).json({
@@ -29,13 +187,19 @@ exports.orderSatusCtrl = async (req, res) => {
     }
 
     // Generate email content using the template
-    const emailContent = orderStatusTemplate(order);
+    const pdfMeta = await buildOrderDocument(order);
+    const emailContent = appendPaymentBlock(
+      orderStatusTemplate(order),
+      pdfMeta?.paymentUrl,
+      pdfMeta?.balanceDue ?? getBalanceDue(order)
+    );
 
     // Send email
     await mailSender(
       order.customerInfo.email,
       "Order Status Update",
-      emailContent
+      emailContent,
+      pdfMeta ? { attachments: pdfMeta.attachments } : undefined
     );
 
     // Trigger automation based on order status
@@ -69,7 +233,7 @@ exports.orderSatusCtrl = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -77,7 +241,8 @@ exports.orderSatusCtrl = async (req, res) => {
 
 exports.orderPlacedCtrl = async (req, res) => {
   try {
-    const order = req.body;
+    const incomingOrder = req.body || {};
+    const order = await resolveOrderFromDb(incomingOrder);
 
     console.log(order)
 
@@ -90,14 +255,20 @@ exports.orderPlacedCtrl = async (req, res) => {
     }
 
     // Generate email content using the template
-    const emailContent = orderConfirmationTemplate(order);
+    const pdfMeta = await buildOrderDocument(order);
+    const emailContent = appendPaymentBlock(
+      orderConfirmationTemplate(order),
+      pdfMeta?.paymentUrl,
+      pdfMeta?.balanceDue ?? getBalanceDue(order)
+    );
     const emailContentAdmin = adminOrderNotificationTemplate(order);
 
     // Send email to customer
     await mailSender(
       order.customerInfo.email,
       "Order Placed Successfully - 9RX",
-      emailContent
+      emailContent,
+      pdfMeta ? { attachments: pdfMeta.attachments } : undefined
     );
     // Send notification to admin
     await mailSender(
@@ -148,7 +319,7 @@ exports.orderPlacedCtrl = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -163,8 +334,52 @@ exports.userNotificationCtrl = async (req, res) => {
         message: "Missing required order details.",
       });
     }
+
+    // Generate profile completion link
+    let profileCompletionLink = null;
+    if (userId && email) {
+      try {
+        if (!supabaseUrl || !supabaseServiceKey) {
+          throw new Error("Supabase admin credentials not configured");
+        }
+
+        const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
+          auth: { autoRefreshToken: false, persistSession: false },
+        });
+
+        const { data: authUser, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
+        if (authUserError || !authUser?.user) {
+          throw new Error("Invalid userId for profile completion link");
+        }
+
+        const authEmail = (authUser.user.email || "").toLowerCase().trim();
+        const requestEmail = email.toLowerCase().trim();
+        if (!authEmail || authEmail !== requestEmail) {
+          throw new Error("Email and userId mismatch for profile completion link");
+        }
+
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const redirectUrl = `${frontendUrl}/update-profile`;
+        const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+          type: "magiclink",
+          email: email.toLowerCase().trim(),
+          options: { redirectTo: redirectUrl },
+        });
+
+        if (magicLinkError) {
+          throw magicLinkError;
+        }
+
+        profileCompletionLink = magicLinkData?.properties?.action_link || null;
+        console.log("Profile completion link generated for:", email);
+      } catch (linkError) {
+        console.error("Failed to generate profile completion link:", linkError.message);
+        // Continue without link - user can still complete profile later
+      }
+    }
+
     const emailContent = userVerificationTemplate(groupname, name, email);
-    const userEmailContent = signupSuccessTemplate(name, email);
+    const userEmailContent = signupSuccessTemplate(name, email, profileCompletionLink);
 
     // Notify Admin
     await mailSender(
@@ -199,7 +414,7 @@ exports.userNotificationCtrl = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -237,7 +452,7 @@ exports.accountActivation = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -296,7 +511,7 @@ exports.adminAccountActivation = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -364,8 +579,9 @@ exports.customization = async (req, res) => {
 
 exports.paymentLinkCtrl = async (req, res) => {
   try {
-    const order = req.body;
-console.log(order)
+    const incomingOrder = req.body || {};
+    const order = await resolveOrderFromDb(incomingOrder);
+    console.log(order)
     if (!order || !order.customerInfo || !order.customerInfo.email) {
       return res.status(400).json({
         success: false,
@@ -373,12 +589,24 @@ console.log(order)
       });
     }
 
-    const emailContent = paymentLink(order);
+    const paymentEmailOrder = {
+      ...order,
+      total: order.total ?? order.total_amount ?? 0,
+      pay_now_url: buildPayNowUrl(order?.id),
+    };
+    const pdfMeta = await buildOrderDocument(paymentEmailOrder, {
+      documentType: paymentEmailOrder?.invoice_number ? "INVOICE" : "SALES ORDER",
+    });
+    const emailContent = paymentLink({
+      ...paymentEmailOrder,
+      pay_now_url: pdfMeta?.paymentUrl || paymentEmailOrder.pay_now_url,
+    });
 
     await mailSender(
       order.customerInfo.email,
       `Complete Your Payment - Order #${order.order_number || order.orderNumber || 'N/A'} | 9RX`,
-      emailContent
+      emailContent,
+      pdfMeta ? { attachments: pdfMeta.attachments } : undefined
     );
 
     return res.status(200).json({
@@ -390,7 +618,7 @@ console.log(order)
     return res.status(500).json({
       success: false,
       message: "Something went wrong in payment link",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 }
@@ -427,7 +655,7 @@ exports.passwordConfirmationNotification = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send password confirmation email",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -463,7 +691,7 @@ exports.updateProfileNotification = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send profile update notification",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -499,7 +727,7 @@ exports.paymentSuccessFull = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send payment confirmation email",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };
@@ -558,7 +786,7 @@ exports.groupInvitationCtrl = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send invitation email",
-      error: error.message,
+      error: "Internal server error",
     });
   }
 };

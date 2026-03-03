@@ -8,7 +8,16 @@ import { supabase } from "@/integrations/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Pencil, Plus, Trash2 } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { fetchCategoryConfigs, PRODUCT_CATEGORIES } from "@/App"
+import { fetchCategoryConfigs } from "@/App"
+import {
+  canDeleteCategory,
+  canDeleteSubcategory,
+  deleteCategoryById,
+  deleteSubcategoryById,
+  fetchOrderedCategories,
+  fetchOrderedSubcategories,
+  insertSubcategorySafely
+} from "@/services/productTreeService"
 
 interface Category {
   id: number
@@ -17,13 +26,18 @@ interface Category {
   default_unit: string
   has_rolls: boolean
   requires_case: boolean
+  display_order?: number | null
 }
 
 interface Subcategory {
   id: number
   category_name: string
   subcategory_name: string
+  display_order?: number | null
 }
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback
 
 export function CategoryManagement() {
   const [categories, setCategories] = useState<Category[]>([])
@@ -61,45 +75,31 @@ export function CategoryManagement() {
   }, [selectedCategory])
 
   const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('category_configs')
-      .select('*')
-      .order('category_name')
-
-    if (error) {
+    try {
+      const data = await fetchOrderedCategories()
+      setCategories((data || []) as Category[])
+    } catch (error) {
+      console.error("Failed to fetch categories:", error)
       toast({
         title: "Error",
         description: "Failed to fetch categories",
         variant: "destructive"
       })
-      return
     }
-
-    setCategories(data || [])
   }
 
   const fetchSubcategories = async (category?: string) => {
-    let query = supabase
-      .from('subcategory_configs')
-      .select('*')
-      .order('subcategory_name')
-
-    if (category) {
-      query = query.eq('category_name', category)
-    }
-
-    const { data, error } = await query
-
-    if (error) {
+    try {
+      const data = await fetchOrderedSubcategories(category)
+      setSubcategories((data || []) as Subcategory[])
+    } catch (error) {
+      console.error("Failed to fetch subcategories:", error)
       toast({
         title: "Error",
         description: "Failed to fetch subcategories",
         variant: "destructive"
       })
-      return
     }
-
-    setSubcategories(data || [])
   }
 
   const handleAddCategory = async () => {
@@ -155,15 +155,52 @@ export function CategoryManagement() {
     resetCategoryForm()
   }
 
-  const handleAddSubcategory = async () => {
-    const { error } = await supabase
-      .from('subcategory_configs')
-      .insert([subcategoryForm])
+  const handleDeleteCategory = async (category: Category) => {
+    try {
+      const guard = await canDeleteCategory(category.category_name)
+      if (!guard.allowed) {
+        toast({
+          title: "Cannot Delete Category",
+          description: `"${category.category_name}" is used by ${guard.productCount} products and ${guard.subcategoryCount} subcategories.`,
+          variant: "destructive"
+        })
+        return
+      }
 
-    if (error) {
+      const confirmed = window.confirm(
+        `Delete category "${category.category_name}"? This action cannot be undone.`
+      )
+      if (!confirmed) return
+
+      await deleteCategoryById(category.id)
+      if (selectedCategory === category.category_name) {
+        setSelectedCategory("")
+      }
+
+      toast({
+        title: "Success",
+        description: "Category deleted successfully"
+      })
+
+      await fetchCategoryConfigs()
+      await fetchCategories()
+      await fetchSubcategories(selectedCategory || undefined)
+    } catch (error: unknown) {
       toast({
         title: "Error",
-        description: error.message,
+        description: getErrorMessage(error, "Failed to delete category"),
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleAddSubcategory = async () => {
+    try {
+      await insertSubcategorySafely(subcategoryForm)
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: getErrorMessage(error, "Failed to add subcategory"),
         variant: "destructive"
       })
       return
@@ -204,6 +241,41 @@ export function CategoryManagement() {
     fetchSubcategories(selectedCategory)
     setEditingSubcategory(null)
     resetSubcategoryForm()
+  }
+
+  const handleDeleteSubcategory = async (subcategory: Subcategory) => {
+    try {
+      const guard = await canDeleteSubcategory(
+        subcategory.category_name,
+        subcategory.subcategory_name
+      )
+      if (!guard.allowed) {
+        toast({
+          title: "Cannot Delete Subcategory",
+          description: `"${subcategory.subcategory_name}" is used by ${guard.productCount} products.`,
+          variant: "destructive"
+        })
+        return
+      }
+
+      const confirmed = window.confirm(
+        `Delete subcategory "${subcategory.subcategory_name}"? This action cannot be undone.`
+      )
+      if (!confirmed) return
+
+      await deleteSubcategoryById(subcategory.id)
+      toast({
+        title: "Success",
+        description: "Subcategory deleted successfully"
+      })
+      await fetchSubcategories(selectedCategory || undefined)
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: getErrorMessage(error, "Failed to delete subcategory"),
+        variant: "destructive"
+      })
+    }
   }
 
   const resetCategoryForm = () => {
@@ -253,23 +325,33 @@ export function CategoryManagement() {
                     className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50/50 transition-all group"
                   >
                     <span className="font-medium text-gray-900">{category.category_name}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-100 hover:text-blue-700"
-                      onClick={() => {
-                        setEditingCategory(category)
-                        setCategoryForm({
-                          category_name: category.category_name,
-                          size_units: category.size_units,
-                          default_unit: category.default_unit,
-                          has_rolls: category.has_rolls,
-                          requires_case: category.requires_case
-                        })
-                      }}
-                    >
-                      <Pencil className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-blue-100 hover:text-blue-700"
+                        onClick={() => {
+                          setEditingCategory(category)
+                          setCategoryForm({
+                            category_name: category.category_name,
+                            size_units: category.size_units,
+                            default_unit: category.default_unit,
+                            has_rolls: category.has_rolls,
+                            requires_case: category.requires_case
+                          })
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="hover:bg-red-100 hover:text-red-700"
+                        onClick={() => handleDeleteCategory(category)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))
               ) : (
@@ -320,9 +402,9 @@ export function CategoryManagement() {
                   <SelectValue placeholder="Choose a category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PRODUCT_CATEGORIES.map((cat) => (
-                    <SelectItem key={cat} value={cat} className="cursor-pointer hover:bg-green-50">
-                      {cat}
+                  {categories.map((cat) => (
+                    <SelectItem key={cat.id} value={cat.category_name} className="cursor-pointer hover:bg-green-50">
+                      {cat.category_name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -337,20 +419,30 @@ export function CategoryManagement() {
                       className="flex justify-between items-center p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50/50 transition-all group"
                     >
                       <span className="text-gray-900">{subcategory.subcategory_name}</span>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-green-100 hover:text-green-700"
-                        onClick={() => {
-                          setEditingSubcategory(subcategory)
-                          setSubcategoryForm({
-                            category_name: subcategory.category_name,
-                            subcategory_name: subcategory.subcategory_name
-                          })
-                        }}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="hover:bg-green-100 hover:text-green-700"
+                          onClick={() => {
+                            setEditingSubcategory(subcategory)
+                            setSubcategoryForm({
+                              category_name: subcategory.category_name,
+                              subcategory_name: subcategory.subcategory_name
+                            })
+                          }}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="hover:bg-red-100 hover:text-red-700"
+                          onClick={() => handleDeleteSubcategory(subcategory)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))
                 ) : (

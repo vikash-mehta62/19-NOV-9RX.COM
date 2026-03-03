@@ -9,7 +9,7 @@ const isValidEmail = (email) => {
   return EMAIL_REGEX.test(email.trim());
 };
 
-const mailSender = async (email, title, body) => {
+const mailSender = async (email, title, body, mailOptions = {}) => {
   try {
     // Validate email before sending
     if (!isValidEmail(email)) {
@@ -45,19 +45,26 @@ const mailSender = async (email, title, body) => {
 
     }); 
 
+    const normalizedOptions = (mailOptions && typeof mailOptions === "object") ? mailOptions : {};
+
     let info = await transporter.sendMail({
       // from: `"9RX.COM" <${process.env.MAIL_USER}>`,
       from: `"9RX.COM" <noreply@9rx.com>`, // ZeptoMail verified sender address
       to: email.trim(),
       subject: title,
       html: body,
+      ...(Array.isArray(normalizedOptions.attachments) && normalizedOptions.attachments.length > 0
+        ? { attachments: normalizedOptions.attachments }
+        : {}),
+      ...(normalizedOptions.cc ? { cc: normalizedOptions.cc } : {}),
+      ...(normalizedOptions.bcc ? { bcc: normalizedOptions.bcc } : {}),
     });
     
     console.log(`Email sent successfully to ${email}: ${info.messageId}`);
     return { success: true, messageId: info.messageId, response: info.response };
   } catch (error) {
     console.error(`Failed to send email to ${email}:`, error.message);
-    return { success: false, error: error.message };
+    return { success: false, error: "MAIL_SEND_FAILED" };
   }
 };
 

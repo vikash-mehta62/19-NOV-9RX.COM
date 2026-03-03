@@ -175,7 +175,7 @@ async function fallbackCompleteReferral(
     // Find pending referral for this user
     const { data: referral, error: findError } = await supabase
       .from("referrals")
-      .select("*, referrer:referrer_id(id, reward_points, email, first_name, referral_count)")
+      .select("*, referrer:referrer_id(id, reward_points, lifetime_reward_points, email, first_name, referral_count)")
       .eq("referred_id", userId)
       .eq("status", "pending")
       .maybeSingle()
@@ -199,13 +199,14 @@ async function fallbackCompleteReferral(
     const referrerData = referral.referrer as any
     if (referrerData) {
       const newPoints = (referrerData.reward_points || 0) + referralBonus
+      const newLifetimePoints = (referrerData.lifetime_reward_points || 0) + referralBonus
       const newCount = (referrerData.referral_count || 0) + 1
 
       await supabase
         .from("profiles")
         .update({ 
           reward_points: newPoints,
-          lifetime_reward_points: newPoints,
+          lifetime_reward_points: newLifetimePoints,
           referral_count: newCount
         })
         .eq("id", referrerData.id)

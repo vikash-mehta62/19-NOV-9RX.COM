@@ -1,0 +1,148 @@
+{
+  "startedAt": "2026-03-02T11:14:42.930Z",
+  "modules": {
+    "offers_promos": {
+      "checks": [
+        {
+          "check": "Create offer row",
+          "status": "pass",
+          "detail": "offer_id=6b41e90d-fb1c-4894-81dc-3b9e19c04ad8"
+        },
+        {
+          "check": "Update offer and toggle active",
+          "status": "pass",
+          "detail": "update + toggle persisted"
+        },
+        {
+          "check": "Assign product via product_offers (upsert-safe)",
+          "status": "pass",
+          "detail": "linked product_id=f63e5f5e-6c85-4c5e-8e85-dfb1ea5ea451"
+        },
+        {
+          "check": "Daily deals settings singleton health",
+          "status": "pass",
+          "detail": "single settings row verified"
+        },
+        {
+          "check": "Create daily deal + linked offer flow",
+          "status": "pass",
+          "detail": "deal_id=3977b99f-8c19-4199-b5fe-4635f4649a09 linked_offer_id=481a0468-e9b2-4801-8505-016ddb8a8397"
+        }
+      ],
+      "score": 100
+    },
+    "banners": {
+      "checks": [
+        {
+          "check": "Storage bucket product-images exists",
+          "status": "pass",
+          "detail": "bucket found"
+        },
+        {
+          "check": "Create + edit + activate banner",
+          "status": "pass",
+          "detail": "banner_id=253608a2-f2e0-4670-a888-7f07fd3f5c20"
+        },
+        {
+          "check": "Duplicate and reorder banners",
+          "status": "pass",
+          "detail": "created banner_b=8df7d820-2875-4427-861d-850a988cbf63, banner_copy=1674c057-701b-4a6e-ac24-7ab0b224c6e4"
+        },
+        {
+          "check": "Public active-banner query contract",
+          "status": "pass",
+          "detail": "active_query_rows=1"
+        }
+      ],
+      "score": 100
+    },
+    "announcements": {
+      "checks": [
+        {
+          "check": "Create announcement",
+          "status": "pass",
+          "detail": "announcement_id=799569a4-64e5-4154-ab25-d02690b33996"
+        },
+        {
+          "check": "Update + toggle announcement active",
+          "status": "pass",
+          "detail": "update persisted"
+        },
+        {
+          "check": "Target audience filter contract",
+          "status": "pass",
+          "detail": "audience_query_rows=1"
+        }
+      ],
+      "score": 100
+    },
+    "blogs": {
+      "checks": [
+        {
+          "check": "Create blog draft",
+          "status": "pass",
+          "detail": "blog_id=e4706e94-54ad-41ca-be29-11afe3103166"
+        },
+        {
+          "check": "Slug uniqueness enforced",
+          "status": "pass",
+          "detail": "duplicate blocked (23505)"
+        },
+        {
+          "check": "Publish + feature toggle",
+          "status": "pass",
+          "detail": "publish + feature persisted"
+        },
+        {
+          "check": "Public blog-list query contract",
+          "status": "pass",
+          "detail": "published_rows=4"
+        }
+      ],
+      "score": 100
+    },
+    "integration": {
+      "checks": [
+        {
+          "check": "Admin routes exist for all marketing pages",
+          "status": "pass",
+          "detail": "all routes present"
+        },
+        {
+          "check": "Admin sidebar marketing menu mapping exists",
+          "status": "pass",
+          "detail": "menu entries present"
+        },
+        {
+          "check": "Banner slider has view tracking hook reference",
+          "status": "pass",
+          "detail": "tracking function defined"
+        }
+      ],
+      "score": 100
+    }
+  },
+  "totals": {
+    "passed": 19,
+    "failed": 0,
+    "warnings": 0,
+    "score": 100
+  },
+  "cleanup": {
+    "actions": [
+      "Delete blog e4706e94-54ad-41ca-be29-11afe3103166",
+      "Delete announcement 799569a4-64e5-4154-ab25-d02690b33996",
+      "Delete banner copy 1674c057-701b-4a6e-ac24-7ab0b224c6e4",
+      "Delete banner B 8df7d820-2875-4427-861d-850a988cbf63",
+      "Delete banner A 253608a2-f2e0-4670-a888-7f07fd3f5c20",
+      "Delete linked product_offer f63e5f5e-6c85-4c5e-8e85-dfb1ea5ea451/481a0468-e9b2-4801-8505-016ddb8a8397",
+      "Delete linked offer 481a0468-e9b2-4801-8505-016ddb8a8397",
+      "Delete daily_deal 3977b99f-8c19-4199-b5fe-4635f4649a09",
+      "Restore daily_deals_settings title c2ee799c-b217-479e-afc0-44a496eac272",
+      "Delete product_offer f63e5f5e-6c85-4c5e-8e85-dfb1ea5ea451/6b41e90d-fb1c-4894-81dc-3b9e19c04ad8",
+      "Delete offer 6b41e90d-fb1c-4894-81dc-3b9e19c04ad8"
+    ],
+    "failed": []
+  },
+  "finishedAt": "2026-03-02T11:14:57.944Z"
+}

@@ -1,0 +1,107 @@
+{
+  "startedAt": "2026-03-02T17:41:43.014Z",
+  "baseUrl": "http://localhost:3000",
+  "user": {
+    "id": "a9c39156-59f1-4144-94f1-75396f1f89b2",
+    "email": "Venuspariwar@gmail.com",
+    "type": "pharmacy",
+    "status": "active"
+  },
+  "checks": [
+    {
+      "name": "Products page loads",
+      "ok": true,
+      "detail": "Products heading visible"
+    },
+    {
+      "name": "Category filter interaction",
+      "ok": true,
+      "detail": "Category selection action performed"
+    },
+    {
+      "name": "Product size details page opens",
+      "ok": true,
+      "detail": "Product detail actions visible"
+    },
+    {
+      "name": "Add item to Wishlist",
+      "ok": false,
+      "detail": "Wishlist row not inserted"
+    },
+    {
+      "name": "Add item to cart for order flow",
+      "ok": true,
+      "detail": "Cart rows=1"
+    },
+    {
+      "name": "Wishlist page opens",
+      "ok": true,
+      "detail": "Wishlist heading visible"
+    },
+    {
+      "name": "Remove item from Wishlist",
+      "ok": true,
+      "detail": "Remove action clicked"
+    },
+    {
+      "name": "Create Order page opens",
+      "ok": true,
+      "detail": "Create New Order visible"
+    },
+    {
+      "name": "Reached final payment step",
+      "ok": true,
+      "detail": "Place Order button available"
+    },
+    {
+      "name": "Place Order spinner appears",
+      "ok": true,
+      "detail": "Spinner detected after place-order click"
+    },
+    {
+      "name": "No success toast before key DB writes",
+      "ok": true,
+      "detail": "No success toast observed before completion"
+    },
+    {
+      "name": "No 403 in network during flow",
+      "ok": true,
+      "detail": "No 403 responses captured"
+    },
+    {
+      "name": "My Orders shows newly created order",
+      "ok": false,
+      "detail": "ui=false | countBefore=0 | countAfter=0"
+    },
+    {
+      "name": "Statements page opens",
+      "ok": true,
+      "detail": "Account Statements visible"
+    },
+    {
+      "name": "Statement PDF download works",
+      "ok": true,
+      "detail": "Download event captured"
+    },
+    {
+      "name": "Statement print action works",
+      "ok": true,
+      "detail": "Print popup opened"
+    }
+  ],
+  "network": {
+    "total": 1458,
+    "status403": [],
+    "status4xx5xx": [],
+    "keyWrites": []
+  },
+  "artifacts": {
+    "screenshot": ".tmp/e2e_pharmacy_ui_batch.png",
+    "json": ".tmp/e2e_pharmacy_ui_batch_result.json"
+  },
+  "summary": {
+    "passed": 14,
+    "failed": 2
+  },
+  "finishedAt": "2026-03-02T17:43:03.366Z"
+}

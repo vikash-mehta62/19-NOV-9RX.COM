@@ -489,7 +489,9 @@ const ProductDetails = () => {
           const { data: groupData, error: groupErr } = await supabase
             .from("group_pricing")
             .select("*")
-            .eq("status", "active"); // Only fetch active pricing rules
+            .eq("status", "active")
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false, nullsFirst: false }); // Only fetch active pricing rules
 
           if (!groupErr && groupData) {
             console.log("Applying group pricing to sizes:", groupData);
@@ -532,6 +534,7 @@ const ProductDetails = () => {
           console.error("Error fetching product offers:", offerError);
           // Continue without offers if there's an error
         }
+
       } catch (error) {
         console.error("Error fetching product:", error)
         toast({

@@ -84,7 +84,9 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
     .from("group_pricing")
     .select("*")
     .eq("status", "active") // Only fetch active pricing rules
-    .in("group_ids", [userId]);
+    .contains("group_ids", [userId])
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false });
 
   // Process products with group pricing
   return (data || []).map((product: any) => ({

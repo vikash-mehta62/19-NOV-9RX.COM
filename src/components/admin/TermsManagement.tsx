@@ -31,7 +31,25 @@ interface UserTermsStatus {
     version: string;
     ipAddress?: string;
     userAgent?: string;
+    signature?: string;
   } | null;
+  privacy_policy: {
+    accepted: boolean;
+    acceptedAt: string;
+    version: string;
+    ipAddress?: string;
+    userAgent?: string;
+    signature?: string;
+  } | null;
+  ach_authorization: {
+    accepted: boolean;
+    acceptedAt: string;
+    version: string;
+    ipAddress?: string;
+    userAgent?: string;
+    signature?: string;
+  } | null;
+  // OLD columns (kept for backward compatibility during transition)
   terms_signature: string | null;
   privacy_policy_accepted: boolean;
   privacy_policy_accepted_at: string | null;
@@ -151,8 +169,8 @@ export const TermsManagement = () => {
   const getComplianceStatus = (user: UserTermsStatus) => {
     const acceptedCount = [
       user.terms_and_conditions?.accepted,
-      user.privacy_policy_accepted,
-      user.ach_authorization_accepted
+      user.privacy_policy?.accepted || user.privacy_policy_accepted, // Fallback to old column
+      user.ach_authorization?.accepted || user.ach_authorization_accepted // Fallback to old column
     ].filter(Boolean).length;
     
     return {
@@ -260,7 +278,7 @@ export const TermsManagement = () => {
                         </div>
 
                         <div className="flex items-center space-x-2">
-                          {user.privacy_policy_accepted ? (
+                          {(user.privacy_policy?.accepted || user.privacy_policy_accepted) ? (
                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                           ) : (
                             <XCircle className="h-4 w-4 text-red-600" />
@@ -371,7 +389,7 @@ export const TermsManagement = () => {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-sm flex items-center space-x-2">
-                      {selectedUser.profile.privacy_policy_accepted ? (
+                      {(selectedUser.profile.privacy_policy?.accepted || selectedUser.profile.privacy_policy_accepted) ? (
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                       ) : (
                         <XCircle className="h-4 w-4 text-red-600" />
@@ -381,9 +399,9 @@ export const TermsManagement = () => {
                   </CardHeader>
                   <CardContent>
                     <p className="text-sm text-gray-600 mb-2">
-                      {formatDate(selectedUser.profile.privacy_policy_accepted_at)}
+                      {formatDate(selectedUser.profile.privacy_policy?.acceptedAt || selectedUser.profile.privacy_policy_accepted_at)}
                     </p>
-                    {selectedUser.profile.privacy_policy_signature && (
+                    {(selectedUser.profile.privacy_policy?.signature || selectedUser.profile.privacy_policy_signature) && (
                       <div className="flex items-center space-x-2 text-sm">
                         <PenTool className="h-3 w-3 text-blue-600" />
                         <span className="font-mono bg-gray-100 px-2 py-1 rounded">

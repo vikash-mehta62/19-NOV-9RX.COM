@@ -1,6 +1,68 @@
 // Product Offer Service - Get product prices with offers applied
 import { supabase } from "@/integrations/supabase/client";
 
+type OfferApplicableTo = "all" | "category" | "product" | "user_group" | "first_order" | string;
+
+interface ProductPriceOfferRpcRow {
+  original_price: number;
+  effective_price: number;
+  discount_percent: number;
+  offer_badge: string | null;
+  has_offer: boolean;
+  offer_id: string | null;
+}
+
+const CHECKOUT_ONLY_APPLICABLE_TO = new Set<OfferApplicableTo>(["user_group", "first_order"]);
+const offerApplicableToCache = new Map<string, OfferApplicableTo | null>();
+
+const isCheckoutOnlyOfferType = (applicableTo?: string | null) => {
+  if (!applicableTo) return false;
+  return CHECKOUT_ONLY_APPLICABLE_TO.has(applicableTo);
+};
+
+const getUniqueIds = (ids: Array<string | null | undefined>) =>
+  Array.from(new Set(ids.filter((id): id is string => Boolean(id))));
+
+async function getOfferApplicableToMap(
+  offerIds: string[]
+): Promise<Map<string, OfferApplicableTo | null>> {
+  const result = new Map<string, OfferApplicableTo | null>();
+  if (offerIds.length === 0) return result;
+
+  const missingIds = offerIds.filter((id) => !offerApplicableToCache.has(id));
+
+  if (missingIds.length > 0) {
+    const { data, error } = await supabase
+      .from("offers")
+      .select("id, applicable_to")
+      .in("id", missingIds);
+
+    if (error) {
+      console.error("Failed to load offer applicable_to types:", error);
+    } else {
+      const rows = (data || []) as Array<{ id: string; applicable_to: string | null }>;
+      const seen = new Set<string>();
+
+      rows.forEach((row) => {
+        seen.add(row.id);
+        offerApplicableToCache.set(row.id, row.applicable_to);
+      });
+
+      missingIds.forEach((id) => {
+        if (!seen.has(id)) {
+          offerApplicableToCache.set(id, null);
+        }
+      });
+    }
+  }
+
+  offerIds.forEach((id) => {
+    result.set(id, offerApplicableToCache.get(id) ?? null);
+  });
+
+  return result;
+}
+
 interface ProductWithOffer {
   id: string;
   name: string;
@@ -46,12 +108,31 @@ export async function getProductEffectivePrice(
       });
 
     if (!error && data && data.length > 0) {
+      const row = data[0] as ProductPriceOfferRpcRow;
+      let hasOffer = row.has_offer;
+      let effectivePrice = row.effective_price;
+      let discountPercent = row.discount_percent;
+      let offerBadge = row.offer_badge;
+
+      if (hasOffer && row.offer_id) {
+        const applicableTypeMap = await getOfferApplicableToMap([row.offer_id]);
+        const applicableTo = applicableTypeMap.get(row.offer_id);
+
+        // user_group and first_order offers should be visible only in checkout flow.
+        if (isCheckoutOnlyOfferType(applicableTo)) {
+          hasOffer = false;
+          effectivePrice = row.original_price;
+          discountPercent = 0;
+          offerBadge = null;
+        }
+      }
+
       return {
-        originalPrice: data[0].original_price,
-        effectivePrice: data[0].effective_price,
-        discountPercent: data[0].discount_percent,
-        offerBadge: data[0].offer_badge,
-        hasOffer: data[0].has_offer,
+        originalPrice: row.original_price,
+        effectivePrice,
+        discountPercent,
+        offerBadge,
+        hasOffer,
       };
     }
 
@@ -73,7 +154,12 @@ export async function getProductsWithOffers(
   offerBadge: string | null;
   hasOffer: boolean;
 }>> {
-  const results = new Map();
+  const results = new Map<string, {
+    effectivePrice: number;
+    discountPercent: number;
+    offerBadge: string | null;
+    hasOffer: boolean;
+  }>();
 
   try {
     console.log("🔍 Fetching offers for products:", productIds.length, "products");
@@ -93,7 +179,7 @@ export async function getProductsWithOffers(
       }
 
       if (data && data.length > 0) {
-        const offerData = data[0];
+        const offerData = data[0] as ProductPriceOfferRpcRow;
         if (offerData.has_offer) {
           console.log(`✅ Product ${productId} has offer:`, {
             badge: offerData.offer_badge,
@@ -103,10 +189,12 @@ export async function getProductsWithOffers(
         }
         return {
           productId,
+          originalPrice: offerData.original_price,
           effectivePrice: offerData.effective_price,
           discountPercent: offerData.discount_percent,
           offerBadge: offerData.offer_badge,
           hasOffer: offerData.has_offer,
+          offerId: offerData.offer_id,
         };
       }
 
@@ -115,15 +203,25 @@ export async function getProductsWithOffers(
     });
 
     const offerResults = await Promise.all(offerPromises);
+    const applicableTypeMap = await getOfferApplicableToMap(
+      getUniqueIds(
+        offerResults
+          .filter((result) => result?.hasOffer)
+          .map((result) => result?.offerId)
+      )
+    );
 
     // Build the results map
     offerResults.forEach((result) => {
       if (result) {
+        const applicableTo = result.offerId ? applicableTypeMap.get(result.offerId) : null;
+        const isCheckoutOnly = result.hasOffer && isCheckoutOnlyOfferType(applicableTo);
+
         results.set(result.productId, {
-          effectivePrice: result.effectivePrice,
-          discountPercent: result.discountPercent,
-          offerBadge: result.offerBadge,
-          hasOffer: result.hasOffer,
+          effectivePrice: isCheckoutOnly ? result.originalPrice : result.effectivePrice,
+          discountPercent: isCheckoutOnly ? 0 : result.discountPercent,
+          offerBadge: isCheckoutOnly ? null : result.offerBadge,
+          hasOffer: isCheckoutOnly ? false : result.hasOffer,
         });
       }
     });

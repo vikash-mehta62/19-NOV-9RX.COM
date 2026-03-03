@@ -312,8 +312,9 @@ setOrders([])
         .single(); // Get updated order
       if (orderUpdateError) throw orderUpdateError;
 
-      // Step 3: Reverse reward points if order had points awarded
-      if (orderBeforeVoid && orderBeforeVoid.payment_method !== 'credit') {
+      // Step 3: Reverse reward points if order had points awarded.
+      // Credit orders can also earn points after approval, so do not exclude by payment_method.
+      if (orderBeforeVoid) {
         try {
           console.log('🔄 Reversing reward points for voided order...');
           
@@ -497,7 +498,8 @@ setOrders([])
       // Step 3: Reverse reward points if order had points awarded
       // IMPORTANT: Only reverse EARNED points, NOT redeemed points
       // If user redeemed points in this order, they don't get refunded
-      if (orderBeforeCancel && orderBeforeCancel.payment_method !== 'credit') {
+      // Credit orders can also earn points after approval, so do not exclude by payment_method.
+      if (orderBeforeCancel) {
         try {
           console.log('🔄 Reversing reward points for cancelled order...');
           

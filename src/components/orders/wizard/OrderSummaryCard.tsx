@@ -35,6 +35,7 @@ export interface OrderSummaryCardProps {
   className?: string;
   customerId?: string;
   hasFreeShipping?: boolean;
+  disableRewards?: boolean;
   onDiscountChange?: (discounts: AppliedDiscount[], totalDiscount: number) => void;
 }
 
@@ -48,6 +49,7 @@ const OrderSummaryCardComponent = ({
   className,
   customerId,
   hasFreeShipping = false,
+  disableRewards = false,
   onDiscountChange,
 }: OrderSummaryCardProps) => {
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
@@ -62,10 +64,15 @@ const OrderSummaryCardComponent = ({
 
   // Handle discount changes from PromoAndRewardsSection
   const handleDiscountChange = useCallback((discounts: AppliedDiscount[], discount: number) => {
-    setAppliedDiscounts(discounts);
-    setTotalDiscount(discount);
-    onDiscountChange?.(discounts, discount);
-  }, [onDiscountChange]);
+    const normalizedDiscounts = disableRewards
+      ? discounts.filter((item) => item.type !== "rewards" && item.type !== "redeemed_reward")
+      : discounts;
+    const normalizedTotal = normalizedDiscounts.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+    setAppliedDiscounts(normalizedDiscounts);
+    setTotalDiscount(normalizedTotal);
+    onDiscountChange?.(normalizedDiscounts, normalizedTotal);
+  }, [onDiscountChange, disableRewards]);
 
   // Calculate final total with discounts
   const finalTotal = useMemo(() => {
@@ -292,6 +299,7 @@ const OrderSummaryCardComponent = ({
               subtotal={subtotal}
               shipping={shipping}
               hasFreeShipping={hasFreeShipping}
+              disableRewards={disableRewards}
               onDiscountChange={handleDiscountChange}
               cartItems={items}
             />

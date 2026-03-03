@@ -1,0 +1,1129 @@
+Using workdir .tmp/supabase_rls_audit_probe
+Initialising login role...
+Connecting to remote database...
+Applying migration 20260302220000_rls_probe.sql...
+NOTICE (00000): SUMMARY|tables=110|rls_enabled=108|rls_disabled=2|policies=299|public_role_policies=191|anon_role_policies=0|unconditional_policies=32|anon_table_grants=693|public_table_grants=0|anon_function_grants=107|public_function_grants=0
+NOTICE (00000): TABLE|abandoned_carts|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|account_transactions|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|ach_authorization_details|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|ach_transactions|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|addresses|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|alert_types|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|alerts|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|announcements|rls=t|force=f|policies=2|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|audit_logs|rls=f|force=f|policies=0|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|auto_reorder_config|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|automation_executions|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|automation_logs|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|automation_rules|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|banners|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|batch_movements|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|batch_transactions|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|blogs|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|carts|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|category_configs|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|centerize_data|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_applications|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_invoices|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_memo_applications|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_memos|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_payments|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_penalty_history|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|credit_terms|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|custom_dashboards|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|customer_contacts|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|customer_documents|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|customer_notes|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|customer_tasks|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|customers|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|cycle_count_items|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|cycle_counts|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|daily_deals|rls=t|force=f|policies=2|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|daily_deals_settings|rls=t|force=f|policies=2|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|dashboard_widgets|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_ab_tests|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_automations|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_campaigns|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_logs|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_preferences|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_queue|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_settings|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_subscribers|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_subscriptions|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_suppression_list|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_templates|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_tracking_events|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|email_webhook_events|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|expenses|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|expiry_alerts|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|festival_themes|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|group_commission_history|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|group_pricing|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|group_staff|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|group_status_audit|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|help_articles|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|inventory_transactions|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|invoices|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|launch_password_resets|rls=t|force=f|policies=8|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|location_stock|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|locations|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|newsletter_subscribers|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|notifications|rls=t|force=f|policies=4|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|offers|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|order_activities|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|order_items|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|order_status_history|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|orders|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|password_reset_requests|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|payment_adjustments|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|payment_settings|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|payment_transactions|rls=t|force=f|policies=4|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|pharmacy_invitation_audit|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|pharmacy_invitations|rls=t|force=f|policies=8|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|product_batches|rls=t|force=f|policies=1|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|product_offers|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|product_reviews|rls=t|force=f|policies=8|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|product_sizes|rls=t|force=f|policies=2|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|products|rls=t|force=f|policies=7|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|profiles|rls=t|force=f|policies=4|anon_grant=f|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|profiles_backup_20260227|rls=f|force=f|policies=0|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|purchase_order_items|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|purchase_orders|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|quickbooks_tokens|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|referrals|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|refunds|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|review_helpful|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|reward_items|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|reward_redemptions|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|reward_tiers|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|reward_transactions|rls=t|force=f|policies=6|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|rewards_config|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|saved_payment_methods|rls=t|force=f|policies=6|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|saved_searches|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|search_history|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|sent_credit_terms|rls=t|force=f|policies=5|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|settings|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|stock_adjustments|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|stock_reservations|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|stock_transfers|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|subcategory_configs|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|terms_acceptance_history|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|terms_documents|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|user_credit_lines|rls=t|force=f|policies=3|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|user_preferences|rls=t|force=f|policies=2|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|user_segments|rls=t|force=f|policies=1|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): TABLE|wishlist|rls=t|force=f|policies=4|anon_grant=t|public_grant=f|authenticated_grant=t
+NOTICE (00000): POLICY|abandoned_carts|Admins can manage abandoned carts|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|abandoned_carts|Service role can manage abandoned carts|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|abandoned_carts|Users can view own abandoned carts|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|account_transactions|Admins can insert any transactions|cmd=INSERT|roles={public}|qual=|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): POLICY|account_transactions|Admins can manage account transactions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|account_transactions|Users can insert own transactions|cmd=INSERT|roles={public}|qual=|check=((customer_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))
+NOTICE (00000): POLICY|account_transactions|Users can view own account transactions|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|ach_authorization_details|Admins can view all ACH authorizations|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): POLICY|ach_authorization_details|Users can manage own ACH authorization|cmd=ALL|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|ach_transactions|Users can create ACH transactions|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|ach_transactions|Users can view their own ACH transactions|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|addresses|Admins can perform all actions on addresses|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|addresses|Users can delete own addresses|cmd=DELETE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|addresses|Users can insert own addresses|cmd=INSERT|roles={public}|qual=|check=(profile_id = auth.uid())
+NOTICE (00000): POLICY|addresses|Users can update own addresses|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|addresses|Users can view own addresses|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|alert_types|Admin full access to alert_types|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|alert_types|Authenticated users can view alert_types|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|alerts|Admins can insert alerts|cmd=INSERT|roles={authenticated}|qual=|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): POLICY|alerts|Admins can update alerts|cmd=UPDATE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|alerts|Admins can view all alerts|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|announcements|announcements_admin_manage|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|announcements|announcements_read_active_authenticated|cmd=SELECT|roles={authenticated}|qual=((is_active = true) AND ((start_date IS NULL) OR (start_date <= now())) AND ((end_date IS NULL) OR (end_date >= now())) AND ((COALESCE((target_audience)::text, 'all'::text) = 'all'::text) OR (COALESCE((target_audience)::text, ''::text) = COALESCE(( SELECT (p.type)::text AS type F|check=
+NOTICE (00000): POLICY|auto_reorder_config|Admin full access to auto_reorder_config|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|auto_reorder_config|Authenticated users can view auto_reorder_config|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|automation_executions|Admins can view automation executions|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|automation_executions|Service role can manage automation executions|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|automation_logs|Admins can delete automation logs|cmd=DELETE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|automation_logs|Admins can view all automation logs|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|automation_logs|System can insert automation logs|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): POLICY|automation_rules|Admins can manage automation rules|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|banners|Users can update banner counts|cmd=UPDATE|roles={public}|qual=true|check=true
+NOTICE (00000): POLICY|banners|banners_delete_policy|cmd=DELETE|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): POLICY|banners|banners_insert_policy|cmd=INSERT|roles={public}|qual=|check=((EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text]))))) OR (auth.role() = 'service_role'::text) OR (NOT (EXISTS ( SELECT 1 FROM banners banners_1 LIMIT 1))))
+NOTICE (00000): POLICY|banners|banners_select_policy|cmd=SELECT|roles={public}|qual=((is_active = true) OR (auth.role() = 'authenticated'::text))|check=
+NOTICE (00000): POLICY|banners|banners_update_policy|cmd=UPDATE|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))
+NOTICE (00000): POLICY|batch_movements|batch_movements_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|batch_transactions|batch_transactions_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|blogs|Admins can manage blogs|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|blogs|Anyone can view published blogs|cmd=SELECT|roles={public}|qual=(is_published = true)|check=
+NOTICE (00000): POLICY|carts|Admins can update all carts|cmd=UPDATE|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|carts|Admins can view all carts|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|carts|Users can manage own cart|cmd=ALL|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|carts|Users can view own cart|cmd=SELECT|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|category_configs|Allow admin to insert category configs|cmd=INSERT|roles={authenticated}|qual=|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))
+NOTICE (00000): POLICY|category_configs|Allow admin to update category configs|cmd=UPDATE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))
+NOTICE (00000): POLICY|category_configs|Allow read for all users|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|centerize_data|Admins can manage centerize_data|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|centerize_data|Service role can manage centerize_data|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|credit_applications|Admins can manage credit applications|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_applications|Users can create own credit applications|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|credit_applications|Users can update own pending applications|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) AND ((status)::text = 'pending'::text))|check=
+NOTICE (00000): POLICY|credit_applications|Users can view own credit applications|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|credit_invoices|Admins can manage credit invoices|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_invoices|Service role can manage credit invoices|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|credit_invoices|Users can view own credit invoices|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|credit_memo_applications|Admins can manage credit memo applications|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_memo_applications|Service role can manage credit memo applications|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|credit_memos|Admins can manage credit memos|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_memos|Users can view own credit memos|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|credit_payments|Admins can manage credit payments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_payments|Users can create own credit payments|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|credit_payments|Users can view own credit payments|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|credit_penalty_history|Admins can manage credit penalty history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_penalty_history|Service role can manage credit penalty history|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|credit_penalty_history|Users can view own credit penalty history|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|credit_terms|Admins can manage credit terms|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|credit_terms|Anyone can view active credit terms|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): POLICY|credit_terms|Pharmacy users can view credit terms|cmd=SELECT|roles={authenticated}|qual=((is_active = true) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|custom_dashboards|Users can manage own dashboards|cmd=ALL|roles={authenticated}|qual=(user_id = auth.uid())|check=
+NOTICE (00000): POLICY|customer_contacts|Admins can do everything on customer_contacts|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|customer_contacts|Users can view their own contacts|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM customers WHERE ((customers.id = customer_contacts.customer_id) AND (customers.profile_id = auth.uid()))))|check=
+NOTICE (00000): POLICY|customer_documents|Admins can manage customer documents|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|customer_documents|Users can upload own documents|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = customer_id)
+NOTICE (00000): POLICY|customer_documents|Users can view own customer documents|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|customer_notes|Admins can manage customer notes|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|customer_tasks|Admins can manage customer tasks|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|customer_tasks|Assigned users can view tasks|cmd=SELECT|roles={public}|qual=((auth.uid() = assigned_to) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|customers|Admins can do everything on customers|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|customers|Users can view their own customer data|cmd=SELECT|roles={authenticated}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|cycle_count_items|Admin full access to cycle_count_items|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|cycle_count_items|Authenticated users can manage cycle_count_items|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): POLICY|cycle_count_items|Authenticated users can update cycle_count_items|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|cycle_count_items|Authenticated users can view cycle_count_items|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|cycle_counts|Admin full access to cycle_counts|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|cycle_counts|Authenticated users can create cycle_counts|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): POLICY|cycle_counts|Authenticated users can view cycle_counts|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|cycle_counts|Users can update their cycle_counts|cmd=UPDATE|roles={authenticated}|qual=((counted_by = auth.uid()) OR (approved_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|daily_deals|daily_deals_admin_manage|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|daily_deals|daily_deals_read_active_authenticated|cmd=SELECT|roles={authenticated}|qual=((is_active = true) AND ((start_date IS NULL) OR (start_date <= now())) AND ((end_date IS NULL) OR (end_date >= now())))|check=
+NOTICE (00000): POLICY|daily_deals_settings|daily_deals_settings_admin_manage|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|daily_deals_settings|daily_deals_settings_read_authenticated|cmd=SELECT|roles={authenticated}|qual=((is_enabled = true) OR current_user_is_admin())|check=
+NOTICE (00000): POLICY|dashboard_widgets|Admin full access to dashboard_widgets|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|dashboard_widgets|Authenticated users can view dashboard_widgets|cmd=SELECT|roles={authenticated}|qual=(is_active = true)|check=
+NOTICE (00000): POLICY|email_ab_tests|Admins can manage email ab tests|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_automations|email_automations_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|email_campaigns|Admins can manage email campaigns|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_logs|Admins can view email logs|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_logs|Service role can manage email logs|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|email_preferences|Users can manage own email preferences|cmd=ALL|roles={public}|qual=((EXISTS ( SELECT 1 FROM email_subscribers WHERE ((email_subscribers.id = email_preferences.subscriber_id) AND (email_subscribers.user_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|email_queue|email_queue_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|email_settings|Admins can manage email settings|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_subscribers|Admins can manage email subscribers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_subscribers|Public can subscribe with valid email|cmd=INSERT|roles={public}|qual=|check=((email IS NOT NULL) AND ((email)::text ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text) AND (length((email)::text) <= 255))
+NOTICE (00000): POLICY|email_subscribers|Users can update own subscription|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) OR ((email)::text = ( SELECT profiles.email FROM profiles WHERE (profiles.id = auth.uid()))))|check=
+NOTICE (00000): POLICY|email_subscribers|Users can view own email subscription|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|email_subscriptions|Admins can manage email subscriptions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_subscriptions|Users can manage own email subscriptions|cmd=ALL|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|email_suppression_list|Admins can manage email suppression list|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_suppression_list|Service role can manage email suppression list|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|email_templates|email_templates_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|email_tracking_events|Admins can view email tracking events|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_tracking_events|Service role can manage email tracking events|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|email_webhook_events|Admins can view email webhook events|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|email_webhook_events|Service role can manage email webhook events|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|expenses|Admins can manage expenses|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|expiry_alerts|Admin full access to expiry_alerts|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|expiry_alerts|Authenticated users can view expiry_alerts|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|expiry_alerts|Users can acknowledge expiry_alerts|cmd=UPDATE|roles={authenticated}|qual=true|check=(acknowledged_by = auth.uid())
+NOTICE (00000): POLICY|festival_themes|Admins can manage festival themes|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|festival_themes|Anyone can view active festival themes|cmd=SELECT|roles={public}|qual=((is_active = true) AND (start_date <= CURRENT_DATE) AND (end_date >= CURRENT_DATE))|check=
+NOTICE (00000): POLICY|group_commission_history|Admins can manage commission history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|group_commission_history|Groups can view own commission history|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|group_commission_history|Pharmacies can view their commission history|cmd=SELECT|roles={public}|qual=((auth.uid() = pharmacy_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|group_pricing|Admins can manage group pricing|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|group_pricing|Users can view their group pricing|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM (profiles p LEFT JOIN locations l ON ((l.profile_id = p.id))) WHERE ((p.id = auth.uid()) AND (((l.id)::text = ANY (group_pricing.group_ids)) OR ((p.id)::text = ANY (group_pricing.group_ids))))))|check=
+NOTICE (00000): POLICY|group_staff|Group admins can manage own staff|cmd=ALL|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|group_staff|Group admins can view own staff|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|group_status_audit|Groups can view own audit logs|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|group_status_audit|Only system can insert audit logs|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): POLICY|help_articles|Users can view published help articles|cmd=SELECT|roles={authenticated}|qual=((is_published = true) AND ((role IS NULL) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (help_articles.role)))))))|check=
+NOTICE (00000): POLICY|inventory_transactions|inventory_transactions_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|invoices|Admins can view all invoices|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))|check=
+NOTICE (00000): POLICY|invoices|Users can create invoices for own orders|cmd=INSERT|roles={authenticated}|qual=|check=((profile_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))) OR (EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = invoices.order_id) AND (orders.profile_id = auth.uid())))))
+NOTICE (00000): POLICY|invoices|Users can update own invoices|cmd=UPDATE|roles={authenticated}|qual=((profile_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=((profile_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))
+NOTICE (00000): POLICY|invoices|Users can view own invoices|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|invoices|Users can view their own invoices|cmd=SELECT|roles={authenticated}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|launch_password_resets|Admins can insert launch resets|cmd=INSERT|roles={authenticated}|qual=|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): POLICY|launch_password_resets|Admins can update all launch resets|cmd=UPDATE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|launch_password_resets|Admins can update launch resets|cmd=UPDATE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|launch_password_resets|Admins can view all launch resets|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|launch_password_resets|Service role full access|cmd=ALL|roles={service_role}|qual=true|check=true
+NOTICE (00000): POLICY|launch_password_resets|Users can update own launch reset|cmd=UPDATE|roles={authenticated}|qual=(profile_id = auth.uid())|check=(profile_id = auth.uid())
+NOTICE (00000): POLICY|launch_password_resets|Users can update their own launch reset|cmd=UPDATE|roles={authenticated}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|launch_password_resets|Users can view own launch reset|cmd=SELECT|roles={authenticated}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|location_stock|Admin full access to location_stock|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|location_stock|Authenticated users can insert location_stock|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): POLICY|location_stock|Authenticated users can update location_stock|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|location_stock|Authenticated users can view location_stock|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|locations|Admins can perform all actions on locations|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|locations|Users can delete own locations|cmd=DELETE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|locations|Users can insert own locations|cmd=INSERT|roles={public}|qual=|check=(profile_id = auth.uid())
+NOTICE (00000): POLICY|locations|Users can update own locations|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|locations|Users can view own locations|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|newsletter_subscribers|Admins can manage newsletter subscribers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|newsletter_subscribers|Public can subscribe to newsletter with valid email|cmd=INSERT|roles={public}|qual=|check=((email IS NOT NULL) AND ((email)::text ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text) AND (length((email)::text) <= 255))
+NOTICE (00000): POLICY|newsletter_subscribers|Users can update own newsletter subscription|cmd=UPDATE|roles={public}|qual=((email)::text = ( SELECT profiles.email FROM profiles WHERE (profiles.id = auth.uid())))|check=
+NOTICE (00000): POLICY|notifications|notifications_delete_own_or_admin|cmd=DELETE|roles={authenticated}|qual=((auth.uid() = user_id) OR current_user_is_admin())|check=
+NOTICE (00000): POLICY|notifications|notifications_insert_admin_only|cmd=INSERT|roles={authenticated}|qual=|check=current_user_is_admin()
+NOTICE (00000): POLICY|notifications|notifications_select_own_or_admin|cmd=SELECT|roles={authenticated}|qual=((auth.uid() = user_id) OR current_user_is_admin())|check=
+NOTICE (00000): POLICY|notifications|notifications_update_own_or_admin|cmd=UPDATE|roles={authenticated}|qual=((auth.uid() = user_id) OR current_user_is_admin())|check=((auth.uid() = user_id) OR current_user_is_admin())
+NOTICE (00000): POLICY|offers|Admins can manage offers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|offers|Anyone can view active offers|cmd=SELECT|roles={public}|qual=((is_active = true) AND (start_date <= now()) AND (end_date >= now()))|check=
+NOTICE (00000): POLICY|order_activities|Admins can manage order activities|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|order_activities|Service role can create order activities|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): POLICY|order_activities|Users can create activities for own orders|cmd=INSERT|roles={public}|qual=|check=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_activities.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))
+NOTICE (00000): POLICY|order_activities|Users can view activities for own orders|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_activities.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|order_items|Admins can manage order items|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|order_items|Users can insert order items|cmd=INSERT|roles={public}|qual=|check=(EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_items.order_id) AND ((orders.profile_id = auth.uid()) OR (orders.profile_id IS NOT NULL)))))
+NOTICE (00000): POLICY|order_items|Users can view own order items|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_items.order_id) AND ((orders.profile_id = auth.uid()) OR is_admin(auth.uid())))))|check=
+NOTICE (00000): POLICY|order_status_history|Admins can manage order status history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|order_status_history|Service role can create order status history|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): POLICY|order_status_history|Users can view status history for own orders|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_status_history.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|orders|Admins can update all orders|cmd=UPDATE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): POLICY|orders|Users can create orders|cmd=INSERT|roles={public}|qual=|check=((auth.uid() = profile_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'group'::user_type) AND (EXISTS ( SELECT 1 FROM profi
+NOTICE (00000): POLICY|orders|Users can delete their own orders|cmd=UPDATE|roles={authenticated}|qual=(profile_id = auth.uid())|check=(profile_id = auth.uid())
+NOTICE (00000): POLICY|orders|Users can update own orders|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|orders|Users can view orders based on role|cmd=SELECT|roles={authenticated}|qual=((EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text]))))) OR ((profile_id = auth.uid()) AND (deleted_at IS NULL)))|check=
+NOTICE (00000): POLICY|password_reset_requests|Admins can view all password reset requests|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|password_reset_requests|Authenticated users can log password reset requests|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): POLICY|payment_adjustments|Admins can manage payment adjustments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|payment_adjustments|Users can view own payment adjustments|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|payment_settings|Users can insert their own payment settings|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|payment_settings|Users can update their own payment settings|cmd=ALL|roles={authenticated}|qual=(profile_id = auth.uid())|check=(profile_id = auth.uid())
+NOTICE (00000): POLICY|payment_settings|Users can view their own payment settings|cmd=SELECT|roles={authenticated}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|payment_transactions|payment_transactions_delete_admin_only|cmd=DELETE|roles={authenticated}|qual=current_user_is_admin()|check=
+NOTICE (00000): POLICY|payment_transactions|payment_transactions_insert_own_or_admin|cmd=INSERT|roles={authenticated}|qual=|check=((auth.uid() = profile_id) OR current_user_is_admin())
+NOTICE (00000): POLICY|payment_transactions|payment_transactions_select_own_or_admin|cmd=SELECT|roles={authenticated}|qual=((auth.uid() = profile_id) OR current_user_is_admin())|check=
+NOTICE (00000): POLICY|payment_transactions|payment_transactions_update_admin_only|cmd=UPDATE|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|pharmacy_invitation_audit|Groups can view audit logs for their invitations|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM pharmacy_invitations pi WHERE ((pi.id = pharmacy_invitation_audit.invitation_id) AND (pi.group_id = auth.uid())))) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|pharmacy_invitation_audit|System can insert audit logs|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): POLICY|pharmacy_invitations|Admin can manage invitations|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|pharmacy_invitations|Anyone can view invitations by token|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|pharmacy_invitations|Groups and pharmacies can update invitations|cmd=UPDATE|roles={public}|qual=((auth.uid() = group_id) OR (email = (( SELECT users.email FROM auth.users WHERE (users.id = auth.uid())))::text) OR (accepted_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|pharmacy_invitations|Groups can create invitations|cmd=INSERT|roles={public}|qual=|check=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))
+NOTICE (00000): POLICY|pharmacy_invitations|Groups can delete own invitations|cmd=DELETE|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|pharmacy_invitations|Groups can view own invitations|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|pharmacy_invitations|Pharmacies can accept invitations|cmd=UPDATE|roles={public}|qual=((status = 'pending'::text) AND (expires_at > now()))|check=(status = ANY (ARRAY['accepted'::text, 'declined'::text]))
+NOTICE (00000): POLICY|pharmacy_invitations|Pharmacies can view invitations sent to them|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (email = (( SELECT users.email FROM auth.users WHERE (users.id = auth.uid())))::text) OR (accepted_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|product_batches|product_batches_admin_only|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|product_offers|Admins can manage product offers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|product_offers|Anyone can view active product offers|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): POLICY|product_reviews|Admins can manage all reviews|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|product_reviews|Anyone can view approved reviews|cmd=SELECT|roles={public}|qual=((is_approved = true) OR (auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|product_reviews|Users can create own product reviews|cmd=INSERT|roles={public}|qual=|check=(user_id = auth.uid())
+NOTICE (00000): POLICY|product_reviews|Users can create own reviews|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|product_reviews|Users can delete own product reviews|cmd=DELETE|roles={public}|qual=((user_id = auth.uid()) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|product_reviews|Users can read own product reviews|cmd=SELECT|roles={public}|qual=((user_id = auth.uid()) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|product_reviews|Users can update own product reviews|cmd=UPDATE|roles={public}|qual=(user_id = auth.uid())|check=(user_id = auth.uid())
+NOTICE (00000): POLICY|product_reviews|Users can update own reviews|cmd=UPDATE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|product_sizes|product_sizes_admin_manage|cmd=ALL|roles={authenticated}|qual=current_user_is_admin()|check=current_user_is_admin()
+NOTICE (00000): POLICY|product_sizes|product_sizes_read_authenticated|cmd=SELECT|roles={authenticated}|qual=((is_active = true) OR current_user_is_admin())|check=
+NOTICE (00000): POLICY|products|Admins can delete products|cmd=DELETE|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))|check=
+NOTICE (00000): POLICY|products|Admins can update products|cmd=UPDATE|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|products|Allow admins to modify products|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): POLICY|products|Allow all users to read products|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|products|Only admins can insert products|cmd=INSERT|roles={authenticated}|qual=|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|products|Products are viewable by authenticated users|cmd=SELECT|roles={public}|qual=(auth.role() = 'authenticated'::text)|check=
+NOTICE (00000): POLICY|products|Public products are viewable by everyone|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|profiles|profiles_delete_admin_only|cmd=DELETE|roles={authenticated}|qual=current_user_is_admin()|check=
+NOTICE (00000): POLICY|profiles|profiles_insert_least_privilege|cmd=INSERT|roles={authenticated}|qual=|check=((auth.role() = 'service_role'::text) OR (auth.uid() = id) OR current_user_is_admin())
+NOTICE (00000): POLICY|profiles|profiles_select_least_privilege|cmd=SELECT|roles={authenticated}|qual=((auth.uid() = id) OR current_user_is_admin() OR (group_id = auth.uid()) OR (id = current_user_group_id()))|check=
+NOTICE (00000): POLICY|profiles|profiles_update_least_privilege|cmd=UPDATE|roles={authenticated}|qual=((auth.uid() = id) OR current_user_is_admin() OR ((current_user_role() = 'group'::text) AND (group_id = auth.uid())))|check=((auth.uid() = id) OR current_user_is_admin() OR ((current_user_role() = 'group'::text) AND (group_id = auth.uid())))
+NOTICE (00000): POLICY|purchase_order_items|Allow users to create purchase order items|cmd=INSERT|roles={public}|qual=|check=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())
+NOTICE (00000): POLICY|purchase_order_items|Allow users to update their own purchase order items|cmd=UPDATE|roles={public}|qual=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())|check=
+NOTICE (00000): POLICY|purchase_order_items|Allow users to view their own purchase order items|cmd=SELECT|roles={public}|qual=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())|check=
+NOTICE (00000): POLICY|purchase_orders|Allow users to create purchase orders|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|purchase_orders|Allow users to update their own purchase orders|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|purchase_orders|Allow users to view their own purchase orders|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|quickbooks_tokens|Users can manage their own QuickBooks connection|cmd=ALL|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|quickbooks_tokens|Users can view their own QuickBooks connection|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|referrals|Admins can manage referrals|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|referrals|System can create referrals|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): POLICY|referrals|Users can view own referrals|cmd=SELECT|roles={public}|qual=((auth.uid() = referrer_id) OR (auth.uid() = referred_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|refunds|Admins can manage refunds|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|refunds|Users can view own refunds|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|review_helpful|Users can mark reviews as helpful|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|review_helpful|Users can remove own helpful marks|cmd=DELETE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|review_helpful|Users can view review helpful marks|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|reward_items|Admins can manage reward items|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|reward_items|Anyone can view active reward items|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): POLICY|reward_redemptions|Admins can manage reward redemptions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|reward_redemptions|Users can create own reward redemptions|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|reward_redemptions|Users can view own reward redemptions|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|reward_tiers|Admins can manage reward tiers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|reward_tiers|Anyone can view reward tiers|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|reward_transactions|Admins can manage reward transactions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|reward_transactions|Admins can view all reward transactions|cmd=SELECT|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|reward_transactions|Backend can create reward transactions|cmd=INSERT|roles={public}|qual=|check=((auth.uid() IS NULL) OR (auth.uid() = user_id) OR is_admin(auth.uid()) OR ((created_by IS NOT NULL) AND is_admin(created_by)))
+NOTICE (00000): POLICY|reward_transactions|Service role can create reward transactions|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): POLICY|reward_transactions|System can insert reward transactions|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): POLICY|reward_transactions|Users can view own reward transactions|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|rewards_config|Admins can manage rewards config|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|rewards_config|Anyone can view rewards config|cmd=SELECT|roles={public}|qual=(program_enabled = true)|check=
+NOTICE (00000): POLICY|rewards_config|Users can read rewards config|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|saved_payment_methods|Admin can view all payment methods|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))|check=
+NOTICE (00000): POLICY|saved_payment_methods|Service role full access payment methods|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|saved_payment_methods|Users can delete own payment methods|cmd=DELETE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|saved_payment_methods|Users can insert own payment methods|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|saved_payment_methods|Users can update own payment methods|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|saved_payment_methods|Users can view own payment methods|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|saved_searches|Users can manage own searches|cmd=ALL|roles={authenticated}|qual=(user_id = auth.uid())|check=
+NOTICE (00000): POLICY|search_history|Users can view own search history|cmd=ALL|roles={authenticated}|qual=(user_id = auth.uid())|check=
+NOTICE (00000): POLICY|sent_credit_terms|Admins can manage sent credit terms|cmd=ALL|roles={authenticated}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|sent_credit_terms|Users can respond to their sent credit terms|cmd=UPDATE|roles={authenticated}|qual=(user_id = auth.uid())|check=(user_id = auth.uid())
+NOTICE (00000): POLICY|sent_credit_terms|Users can update own sent credit terms|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) AND ((status)::text = 'pending'::text))|check=
+NOTICE (00000): POLICY|sent_credit_terms|Users can view own sent credit terms|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|sent_credit_terms|Users can view their sent credit terms|cmd=SELECT|roles={authenticated}|qual=((user_id = auth.uid()) OR (sent_by = auth.uid()) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|settings|Users can insert own settings|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|settings|Users can update own settings|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=(auth.uid() = profile_id)
+NOTICE (00000): POLICY|settings|Users can view own settings|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): POLICY|stock_adjustments|Admin full access to stock_adjustments|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|stock_adjustments|Authenticated users can create stock_adjustments|cmd=INSERT|roles={authenticated}|qual=|check=(requested_by = auth.uid())
+NOTICE (00000): POLICY|stock_adjustments|Authenticated users can view stock_adjustments|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|stock_adjustments|Users can update stock_adjustments|cmd=UPDATE|roles={authenticated}|qual=((requested_by = auth.uid()) OR (approved_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|stock_reservations|Admin full access to stock_reservations|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|stock_reservations|Authenticated users can view stock_reservations|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|stock_reservations|System can create stock_reservations|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): POLICY|stock_reservations|System can update stock_reservations|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|stock_transfers|Admin full access to stock_transfers|cmd=ALL|roles={authenticated}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): POLICY|stock_transfers|Authenticated users can create stock_transfers|cmd=INSERT|roles={authenticated}|qual=|check=(initiated_by = auth.uid())
+NOTICE (00000): POLICY|stock_transfers|Authenticated users can view stock_transfers|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): POLICY|stock_transfers|Users can update their stock_transfers|cmd=UPDATE|roles={authenticated}|qual=((initiated_by = auth.uid()) OR (received_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): POLICY|subcategory_configs|Admins can manage subcategory configs|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): POLICY|subcategory_configs|Anyone can view subcategory configs|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): POLICY|terms_acceptance_history|Admins can view all terms acceptance|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): POLICY|terms_acceptance_history|Users can view own terms acceptance|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): POLICY|terms_documents|Admins can manage terms documents|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): POLICY|terms_documents|Everyone can view active terms documents|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): POLICY|user_credit_lines|Admins can manage credit lines|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|user_credit_lines|Service role can manage credit lines|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): POLICY|user_credit_lines|Users can view own credit line|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): POLICY|user_preferences|Users can update own preferences|cmd=ALL|roles={authenticated}|qual=(user_id = auth.uid())|check=
+NOTICE (00000): POLICY|user_preferences|Users can view own preferences|cmd=SELECT|roles={authenticated}|qual=(user_id = auth.uid())|check=
+NOTICE (00000): POLICY|user_segments|Admins can manage user segments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): POLICY|wishlist|Users can delete their own wishlist items|cmd=DELETE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|wishlist|Users can insert their own wishlist items|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): POLICY|wishlist|Users can update their own wishlist items|cmd=UPDATE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): POLICY|wishlist|Users can view their own wishlist items|cmd=SELECT|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|abandoned_carts|Admins can manage abandoned carts|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|abandoned_carts|Service role can manage abandoned carts|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|abandoned_carts|Users can view own abandoned carts|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|account_transactions|Admins can insert any transactions|cmd=INSERT|roles={public}|qual=|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))
+NOTICE (00000): RISK_POLICY|account_transactions|Admins can manage account transactions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|account_transactions|Users can insert own transactions|cmd=INSERT|roles={public}|qual=|check=((customer_id = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))
+NOTICE (00000): RISK_POLICY|account_transactions|Users can view own account transactions|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|ach_authorization_details|Admins can view all ACH authorizations|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): RISK_POLICY|ach_authorization_details|Users can manage own ACH authorization|cmd=ALL|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|ach_transactions|Users can create ACH transactions|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|ach_transactions|Users can view their own ACH transactions|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|addresses|Users can delete own addresses|cmd=DELETE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|addresses|Users can insert own addresses|cmd=INSERT|roles={public}|qual=|check=(profile_id = auth.uid())
+NOTICE (00000): RISK_POLICY|addresses|Users can update own addresses|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|addresses|Users can view own addresses|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|alert_types|Authenticated users can view alert_types|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|auto_reorder_config|Authenticated users can view auto_reorder_config|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|automation_executions|Admins can view automation executions|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|automation_executions|Service role can manage automation executions|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|automation_logs|System can insert automation logs|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): RISK_POLICY|banners|Users can update banner counts|cmd=UPDATE|roles={public}|qual=true|check=true
+NOTICE (00000): RISK_POLICY|banners|banners_delete_policy|cmd=DELETE|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): RISK_POLICY|banners|banners_insert_policy|cmd=INSERT|roles={public}|qual=|check=((EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text]))))) OR (auth.role() = 'service_role'::text) 
+NOTICE (00000): RISK_POLICY|banners|banners_select_policy|cmd=SELECT|roles={public}|qual=((is_active = true) OR (auth.role() = 'authenticated'::text))|check=
+NOTICE (00000): RISK_POLICY|banners|banners_update_policy|cmd=UPDATE|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))
+NOTICE (00000): RISK_POLICY|blogs|Admins can manage blogs|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|blogs|Anyone can view published blogs|cmd=SELECT|roles={public}|qual=(is_published = true)|check=
+NOTICE (00000): RISK_POLICY|carts|Admins can update all carts|cmd=UPDATE|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): RISK_POLICY|carts|Admins can view all carts|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|carts|Users can manage own cart|cmd=ALL|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|carts|Users can view own cart|cmd=SELECT|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|category_configs|Allow read for all users|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|centerize_data|Admins can manage centerize_data|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|centerize_data|Service role can manage centerize_data|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|credit_applications|Admins can manage credit applications|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_applications|Users can create own credit applications|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|credit_applications|Users can update own pending applications|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) AND ((status)::text = 'pending'::text))|check=
+NOTICE (00000): RISK_POLICY|credit_applications|Users can view own credit applications|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|credit_invoices|Admins can manage credit invoices|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_invoices|Service role can manage credit invoices|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|credit_invoices|Users can view own credit invoices|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|credit_memo_applications|Admins can manage credit memo applications|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_memo_applications|Service role can manage credit memo applications|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|credit_memos|Admins can manage credit memos|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_memos|Users can view own credit memos|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|credit_payments|Admins can manage credit payments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_payments|Users can create own credit payments|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|credit_payments|Users can view own credit payments|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|credit_penalty_history|Admins can manage credit penalty history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_penalty_history|Service role can manage credit penalty history|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|credit_penalty_history|Users can view own credit penalty history|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|credit_terms|Admins can manage credit terms|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|credit_terms|Anyone can view active credit terms|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): RISK_POLICY|customer_documents|Admins can manage customer documents|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): RISK_POLICY|customer_documents|Users can upload own documents|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = customer_id)
+NOTICE (00000): RISK_POLICY|customer_documents|Users can view own customer documents|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|customer_notes|Admins can manage customer notes|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|customer_tasks|Admins can manage customer tasks|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|customer_tasks|Assigned users can view tasks|cmd=SELECT|roles={public}|qual=((auth.uid() = assigned_to) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|cycle_count_items|Authenticated users can manage cycle_count_items|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): RISK_POLICY|cycle_count_items|Authenticated users can update cycle_count_items|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|cycle_count_items|Authenticated users can view cycle_count_items|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|cycle_counts|Authenticated users can create cycle_counts|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): RISK_POLICY|cycle_counts|Authenticated users can view cycle_counts|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|email_ab_tests|Admins can manage email ab tests|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_campaigns|Admins can manage email campaigns|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_logs|Admins can view email logs|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_logs|Service role can manage email logs|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|email_preferences|Users can manage own email preferences|cmd=ALL|roles={public}|qual=((EXISTS ( SELECT 1 FROM email_subscribers WHERE ((email_subscribers.id = email_preferences.subscriber_id) AND (email_subscribers.user_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|email_settings|Admins can manage email settings|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_subscribers|Admins can manage email subscribers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_subscribers|Public can subscribe with valid email|cmd=INSERT|roles={public}|qual=|check=((email IS NOT NULL) AND ((email)::text ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text) AND (length((email)::text) <= 255))
+NOTICE (00000): RISK_POLICY|email_subscribers|Users can update own subscription|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) OR ((email)::text = ( SELECT profiles.email FROM profiles WHERE (profiles.id = auth.uid()))))|check=
+NOTICE (00000): RISK_POLICY|email_subscribers|Users can view own email subscription|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|email_subscriptions|Admins can manage email subscriptions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_subscriptions|Users can manage own email subscriptions|cmd=ALL|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|email_suppression_list|Admins can manage email suppression list|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_suppression_list|Service role can manage email suppression list|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|email_tracking_events|Admins can view email tracking events|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_tracking_events|Service role can manage email tracking events|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|email_webhook_events|Admins can view email webhook events|cmd=SELECT|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|email_webhook_events|Service role can manage email webhook events|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|expenses|Admins can manage expenses|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|expiry_alerts|Authenticated users can view expiry_alerts|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|expiry_alerts|Users can acknowledge expiry_alerts|cmd=UPDATE|roles={authenticated}|qual=true|check=(acknowledged_by = auth.uid())
+NOTICE (00000): RISK_POLICY|festival_themes|Admins can manage festival themes|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|festival_themes|Anyone can view active festival themes|cmd=SELECT|roles={public}|qual=((is_active = true) AND (start_date <= CURRENT_DATE) AND (end_date >= CURRENT_DATE))|check=
+NOTICE (00000): RISK_POLICY|group_commission_history|Admins can manage commission history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|group_commission_history|Groups can view own commission history|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|group_commission_history|Pharmacies can view their commission history|cmd=SELECT|roles={public}|qual=((auth.uid() = pharmacy_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|group_pricing|Users can view their group pricing|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM (profiles p LEFT JOIN locations l ON ((l.profile_id = p.id))) WHERE ((p.id = auth.uid()) AND (((l.id)::text = ANY (group_pricing.group_ids)) OR ((p.id)::tex|check=
+NOTICE (00000): RISK_POLICY|group_staff|Group admins can manage own staff|cmd=ALL|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|group_staff|Group admins can view own staff|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|group_status_audit|Groups can view own audit logs|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): RISK_POLICY|group_status_audit|Only system can insert audit logs|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): RISK_POLICY|invoices|Users can view own invoices|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|launch_password_resets|Service role full access|cmd=ALL|roles={service_role}|qual=true|check=true
+NOTICE (00000): RISK_POLICY|location_stock|Authenticated users can insert location_stock|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): RISK_POLICY|location_stock|Authenticated users can update location_stock|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|location_stock|Authenticated users can view location_stock|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|locations|Users can delete own locations|cmd=DELETE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|locations|Users can insert own locations|cmd=INSERT|roles={public}|qual=|check=(profile_id = auth.uid())
+NOTICE (00000): RISK_POLICY|locations|Users can update own locations|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|locations|Users can view own locations|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|newsletter_subscribers|Admins can manage newsletter subscribers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|newsletter_subscribers|Public can subscribe to newsletter with valid email|cmd=INSERT|roles={public}|qual=|check=((email IS NOT NULL) AND ((email)::text ~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'::text) AND (length((email)::text) <= 255))
+NOTICE (00000): RISK_POLICY|newsletter_subscribers|Users can update own newsletter subscription|cmd=UPDATE|roles={public}|qual=((email)::text = ( SELECT profiles.email FROM profiles WHERE (profiles.id = auth.uid())))|check=
+NOTICE (00000): RISK_POLICY|offers|Admins can manage offers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|offers|Anyone can view active offers|cmd=SELECT|roles={public}|qual=((is_active = true) AND (start_date <= now()) AND (end_date >= now()))|check=
+NOTICE (00000): RISK_POLICY|order_activities|Admins can manage order activities|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|order_activities|Service role can create order activities|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): RISK_POLICY|order_activities|Users can create activities for own orders|cmd=INSERT|roles={public}|qual=|check=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_activities.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))
+NOTICE (00000): RISK_POLICY|order_activities|Users can view activities for own orders|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_activities.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|order_items|Admins can manage order items|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|order_items|Users can insert order items|cmd=INSERT|roles={public}|qual=|check=(EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_items.order_id) AND ((orders.profile_id = auth.uid()) OR (orders.profile_id IS NOT NULL)))))
+NOTICE (00000): RISK_POLICY|order_items|Users can view own order items|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_items.order_id) AND ((orders.profile_id = auth.uid()) OR is_admin(auth.uid())))))|check=
+NOTICE (00000): RISK_POLICY|order_status_history|Admins can manage order status history|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|order_status_history|Service role can create order status history|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): RISK_POLICY|order_status_history|Users can view status history for own orders|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM orders WHERE ((orders.id = order_status_history.order_id) AND (orders.profile_id = auth.uid())))) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|orders|Users can create orders|cmd=INSERT|roles={public}|qual=|check=((auth.uid() = profile_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((
+NOTICE (00000): RISK_POLICY|orders|Users can update own orders|cmd=UPDATE|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|password_reset_requests|Admins can view all password reset requests|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): RISK_POLICY|password_reset_requests|Authenticated users can log password reset requests|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): RISK_POLICY|payment_adjustments|Admins can manage payment adjustments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|payment_adjustments|Users can view own payment adjustments|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|payment_settings|Users can insert their own payment settings|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|pharmacy_invitation_audit|Groups can view audit logs for their invitations|cmd=SELECT|roles={public}|qual=((EXISTS ( SELECT 1 FROM pharmacy_invitations pi WHERE ((pi.id = pharmacy_invitation_audit.invitation_id) AND (pi.group_id = auth.uid())))) OR (EXISTS ( SELECT 1 FROM profiles WHER|check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitation_audit|System can insert audit logs|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Admin can manage invitations|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text))))|check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Anyone can view invitations by token|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Groups and pharmacies can update invitations|cmd=UPDATE|roles={public}|qual=((auth.uid() = group_id) OR (email = (( SELECT users.email FROM auth.users WHERE (users.id = auth.uid())))::text) OR (accepted_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles |check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Groups can create invitations|cmd=INSERT|roles={public}|qual=|check=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Groups can delete own invitations|cmd=DELETE|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Groups can view own invitations|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = 'admin'::text)))))|check=
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Pharmacies can accept invitations|cmd=UPDATE|roles={public}|qual=((status = 'pending'::text) AND (expires_at > now()))|check=(status = ANY (ARRAY['accepted'::text, 'declined'::text]))
+NOTICE (00000): RISK_POLICY|pharmacy_invitations|Pharmacies can view invitations sent to them|cmd=SELECT|roles={public}|qual=((auth.uid() = group_id) OR (email = (( SELECT users.email FROM auth.users WHERE (users.id = auth.uid())))::text) OR (accepted_by = auth.uid()) OR (EXISTS ( SELECT 1 FROM profiles |check=
+NOTICE (00000): RISK_POLICY|product_offers|Admins can manage product offers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|product_offers|Anyone can view active product offers|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): RISK_POLICY|product_reviews|Admins can manage all reviews|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|product_reviews|Anyone can view approved reviews|cmd=SELECT|roles={public}|qual=((is_approved = true) OR (auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|product_reviews|Users can create own product reviews|cmd=INSERT|roles={public}|qual=|check=(user_id = auth.uid())
+NOTICE (00000): RISK_POLICY|product_reviews|Users can create own reviews|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|product_reviews|Users can delete own product reviews|cmd=DELETE|roles={public}|qual=((user_id = auth.uid()) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|product_reviews|Users can read own product reviews|cmd=SELECT|roles={public}|qual=((user_id = auth.uid()) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|product_reviews|Users can update own product reviews|cmd=UPDATE|roles={public}|qual=(user_id = auth.uid())|check=(user_id = auth.uid())
+NOTICE (00000): RISK_POLICY|product_reviews|Users can update own reviews|cmd=UPDATE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|products|Admins can update products|cmd=UPDATE|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): RISK_POLICY|products|Allow all users to read products|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|products|Products are viewable by authenticated users|cmd=SELECT|roles={public}|qual=(auth.role() = 'authenticated'::text)|check=
+NOTICE (00000): RISK_POLICY|products|Public products are viewable by everyone|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|purchase_order_items|Allow users to create purchase order items|cmd=INSERT|roles={public}|qual=|check=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())
+NOTICE (00000): RISK_POLICY|purchase_order_items|Allow users to update their own purchase order items|cmd=UPDATE|roles={public}|qual=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|purchase_order_items|Allow users to view their own purchase order items|cmd=SELECT|roles={public}|qual=(( SELECT purchase_orders.profile_id FROM purchase_orders WHERE (purchase_orders.id = purchase_order_items.po_id)) = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|purchase_orders|Allow users to create purchase orders|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|purchase_orders|Allow users to update their own purchase orders|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|purchase_orders|Allow users to view their own purchase orders|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|quickbooks_tokens|Users can manage their own QuickBooks connection|cmd=ALL|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|quickbooks_tokens|Users can view their own QuickBooks connection|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|referrals|Admins can manage referrals|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|referrals|System can create referrals|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): RISK_POLICY|referrals|Users can view own referrals|cmd=SELECT|roles={public}|qual=((auth.uid() = referrer_id) OR (auth.uid() = referred_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|refunds|Admins can manage refunds|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|refunds|Users can view own refunds|cmd=SELECT|roles={public}|qual=((auth.uid() = customer_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|review_helpful|Users can mark reviews as helpful|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|review_helpful|Users can remove own helpful marks|cmd=DELETE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|review_helpful|Users can view review helpful marks|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|reward_items|Admins can manage reward items|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|reward_items|Anyone can view active reward items|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): RISK_POLICY|reward_redemptions|Admins can manage reward redemptions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|reward_redemptions|Users can create own reward redemptions|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|reward_redemptions|Users can view own reward redemptions|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|reward_tiers|Admins can manage reward tiers|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|reward_tiers|Anyone can view reward tiers|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|reward_transactions|Admins can manage reward transactions|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|reward_transactions|Backend can create reward transactions|cmd=INSERT|roles={public}|qual=|check=((auth.uid() IS NULL) OR (auth.uid() = user_id) OR is_admin(auth.uid()) OR ((created_by IS NOT NULL) AND is_admin(created_by)))
+NOTICE (00000): RISK_POLICY|reward_transactions|Service role can create reward transactions|cmd=INSERT|roles={public}|qual=|check=((auth.jwt() ->> 'role'::text) = 'service_role'::text)
+NOTICE (00000): RISK_POLICY|reward_transactions|System can insert reward transactions|cmd=INSERT|roles={public}|qual=|check=true
+NOTICE (00000): RISK_POLICY|reward_transactions|Users can view own reward transactions|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|rewards_config|Admins can manage rewards config|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|rewards_config|Anyone can view rewards config|cmd=SELECT|roles={public}|qual=(program_enabled = true)|check=
+NOTICE (00000): RISK_POLICY|rewards_config|Users can read rewards config|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Admin can view all payment methods|cmd=SELECT|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.type = 'admin'::user_type))))|check=
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Service role full access payment methods|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Users can delete own payment methods|cmd=DELETE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Users can insert own payment methods|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Users can update own payment methods|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|saved_payment_methods|Users can view own payment methods|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|sent_credit_terms|Users can update own sent credit terms|cmd=UPDATE|roles={public}|qual=((auth.uid() = user_id) AND ((status)::text = 'pending'::text))|check=
+NOTICE (00000): RISK_POLICY|sent_credit_terms|Users can view own sent credit terms|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|settings|Users can insert own settings|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|settings|Users can update own settings|cmd=UPDATE|roles={public}|qual=(auth.uid() = profile_id)|check=(auth.uid() = profile_id)
+NOTICE (00000): RISK_POLICY|settings|Users can view own settings|cmd=SELECT|roles={public}|qual=(auth.uid() = profile_id)|check=
+NOTICE (00000): RISK_POLICY|stock_adjustments|Authenticated users can view stock_adjustments|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|stock_reservations|Authenticated users can view stock_reservations|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|stock_reservations|System can create stock_reservations|cmd=INSERT|roles={authenticated}|qual=|check=true
+NOTICE (00000): RISK_POLICY|stock_reservations|System can update stock_reservations|cmd=UPDATE|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|stock_transfers|Authenticated users can view stock_transfers|cmd=SELECT|roles={authenticated}|qual=true|check=
+NOTICE (00000): RISK_POLICY|subcategory_configs|Admins can manage subcategory configs|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=is_admin(auth.uid())
+NOTICE (00000): RISK_POLICY|subcategory_configs|Anyone can view subcategory configs|cmd=SELECT|roles={public}|qual=true|check=
+NOTICE (00000): RISK_POLICY|terms_acceptance_history|Admins can view all terms acceptance|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): RISK_POLICY|terms_acceptance_history|Users can view own terms acceptance|cmd=SELECT|roles={public}|qual=(profile_id = auth.uid())|check=
+NOTICE (00000): RISK_POLICY|terms_documents|Admins can manage terms documents|cmd=ALL|roles={public}|qual=(EXISTS ( SELECT 1 FROM profiles WHERE ((profiles.id = auth.uid()) AND (profiles.role = ANY (ARRAY['admin'::text, 'superadmin'::text])))))|check=
+NOTICE (00000): RISK_POLICY|terms_documents|Everyone can view active terms documents|cmd=SELECT|roles={public}|qual=(is_active = true)|check=
+NOTICE (00000): RISK_POLICY|user_credit_lines|Admins can manage credit lines|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|user_credit_lines|Service role can manage credit lines|cmd=ALL|roles={public}|qual=((auth.jwt() ->> 'role'::text) = 'service_role'::text)|check=
+NOTICE (00000): RISK_POLICY|user_credit_lines|Users can view own credit line|cmd=SELECT|roles={public}|qual=((auth.uid() = user_id) OR is_admin(auth.uid()))|check=
+NOTICE (00000): RISK_POLICY|user_segments|Admins can manage user segments|cmd=ALL|roles={public}|qual=is_admin(auth.uid())|check=
+NOTICE (00000): RISK_POLICY|wishlist|Users can delete their own wishlist items|cmd=DELETE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|wishlist|Users can insert their own wishlist items|cmd=INSERT|roles={public}|qual=|check=(auth.uid() = user_id)
+NOTICE (00000): RISK_POLICY|wishlist|Users can update their own wishlist items|cmd=UPDATE|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): RISK_POLICY|wishlist|Users can view their own wishlist items|cmd=SELECT|roles={public}|qual=(auth.uid() = user_id)|check=
+NOTICE (00000): ROUTINE_GRANT|accept_credit_terms_update_line|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|accept_credit_terms_update_line|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|apply_credit_memo|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|apply_credit_memo|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|apply_promo_code|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|apply_promo_code|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|apply_referral_code|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|assign_pharmacy_to_group|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|assign_pharmacy_to_group|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_clear_password_reset_flag|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_clear_password_reset_flag|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_complete_task|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_complete_task|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_disable_cron_on_no_rules|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_disable_cron_on_no_rules|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_enable_cron_on_rule_creation|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|auto_enable_cron_on_rule_creation|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|award_review_points|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|award_review_points|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|bulk_update_pharmacy_groups|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|bulk_update_pharmacy_groups|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_available_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_available_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_credit_penalties|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_credit_penalties|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_order_commission|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_order_commission|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_variance_percentage|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|calculate_variance_percentage|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|cascade_group_status_change|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|cascade_group_status_change|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_duplicate_invitation|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_duplicate_invitation|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_email_verification|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_email_verification|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_high_value_orders|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_high_value_orders|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_if_user_is_admin|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_if_user_is_admin|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_invitation_rate_limit|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_invitation_rate_limit|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_low_stock_alerts|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_low_stock_alerts|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_order_status_automation|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_order_status_automation|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_stock_level_trigger|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|check_stock_level_trigger|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|cleanup_expired_invitations|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|cleanup_expired_invitations|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|complete_referral|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|complete_referral|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|create_ach_transaction|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|create_ach_transaction|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|create_credit_invoice|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|create_credit_invoice|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_group_id|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_group_id|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_is_admin|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_is_admin|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_role|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|current_user_role|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|decrement_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|decrement_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|deduct_batch_quantity|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|deduct_batch_quantity|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|disable_automation_cron|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|disable_automation_cron|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|enable_automation_cron|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|enable_automation_cron|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|enforce_invitation_rate_limit|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|enforce_invitation_rate_limit|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|ensure_referral_code|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|ensure_referral_code|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|ensure_single_default_payment_method|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|ensure_single_default_payment_method|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|execute_automation_checks|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|execute_automation_checks|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|expire_old_reservations|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|expire_old_reservations|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_adjustment_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_adjustment_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_credit_memo_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_credit_memo_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_expiry_alerts|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_expiry_alerts|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_invoice_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_invoice_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_next_invoice_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_next_invoice_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_order_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_order_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_po_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_po_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_purchase_order_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_purchase_order_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_referral_code|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_referral_code|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_refund_number|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|generate_refund_number|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_ab_test_results|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_ab_test_results|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_available_batches_fefo|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_available_batches_fefo|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_banner_analytics|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_banner_analytics|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_email_system_health|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_email_system_health|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_expiring_batches|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_expiring_batches|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_group_pharmacies|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_group_pharmacies|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_invitation_history|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_invitation_history|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_location_available_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_location_available_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_low_stock_products|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_low_stock_products|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_order_status_counts|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_order_status_counts|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_order_status_counts|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_order_status_counts|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_active_offers|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_active_offers|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_effective_price|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_effective_price|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_price_with_offers|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_product_price_with_offers|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_subscriber_status|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_subscriber_status|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_total_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|get_total_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|handle_new_user|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|handle_new_user|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|handle_updated_at|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|handle_updated_at|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_ach|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_ach|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_privacy|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_privacy|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_terms|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|has_accepted_terms|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|increment_banner_click|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|increment_banner_click|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|increment_banner_view|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|increment_banner_view|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_admin|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_admin|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_automation_cron_active|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_automation_cron_active|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_email_suppressed|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|is_email_suppressed|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|issue_credit_memo|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|issue_credit_memo|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_group_status_change|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_group_status_change|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_invitation_change|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_invitation_change|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_order_creation|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_order_creation|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_order_update|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|log_order_update|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|manage_automation_cron_job|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|manage_automation_cron_job|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|migrate_terms_to_jsonb|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|migrate_terms_to_jsonb|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|notify_low_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|notify_low_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|process_credit_payment|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|process_credit_payment|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_banner_impression|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_banner_impression|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_terms_acceptance|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_terms_acceptance|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_terms_acceptance|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|record_terms_acceptance|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|sync_pharmacy_invitation_status|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|sync_pharmacy_invitation_status|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|sync_product_image_url|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|sync_product_image_url|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|trigger_auto_reorder|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|trigger_auto_reorder|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|trigger_manage_automation_cron|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|trigger_manage_automation_cron|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_ach_transaction_status|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_ach_transaction_status|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_available_credit|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_available_credit|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_average_cost|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_average_cost|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_batch_quantity|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_batch_quantity|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_case_price|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_case_price|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_group_total_commission|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_group_total_commission|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_launch_reset_updated_at|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_launch_reset_updated_at|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_newsletter_updated_at|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_newsletter_updated_at|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_notifications_updated_at|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_notifications_updated_at|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_product_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_product_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_product_total_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_product_total_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_reserved_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_reserved_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_total_stock|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_total_stock|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_updated_at_column|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_updated_at_column|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_wishlist_updated_at|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|update_wishlist_updated_at|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|validate_promo_code|grantee=anon|priv=EXECUTE
+NOTICE (00000): ROUTINE_GRANT|validate_promo_code|grantee=authenticated|priv=EXECUTE
+NOTICE (00000): FUNCTION|accept_credit_terms_update_line(p_user_id uuid, p_new_total_limit numeric, p_available_credit numeric, p_used_credit numeric, p_net_terms integer, p_interest_rate numeric )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|apply_credit_memo(p_credit_memo_id uuid, p_order_id uuid, p_amount numeric, p_applied_by uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|apply_promo_code(p_offer_id uuid, p_discount_amount numeric )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|apply_referral_code(p_new_user_id uuid, p_referral_code text )|definer=t|anon_exec=f|public_exec=f|auth_exec=t
+NOTICE (00000): FUNCTION|assign_pharmacy_to_group(p_pharmacy_id uuid, p_group_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|auto_clear_password_reset_flag( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|auto_complete_task( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|auto_disable_cron_on_no_rules( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|auto_enable_cron_on_rule_creation( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|award_review_points(p_user_id uuid, p_points integer, p_review_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|bulk_update_pharmacy_groups(pharmacy_ids uuid[], new_group_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|calculate_available_stock(product_uuid uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|calculate_credit_penalties( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|calculate_order_commission( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|calculate_variance_percentage( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|cascade_group_status_change( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_duplicate_invitation( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_email_verification(user_email text )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_high_value_orders( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_if_user_is_admin(user_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_invitation_rate_limit(p_group_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_low_stock_alerts( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_order_status_automation( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|check_stock_level_trigger( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|cleanup_expired_invitations( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|complete_referral(p_user_id uuid, p_order_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|create_ach_transaction(p_order_id uuid, p_account_type text, p_account_name text, p_routing_number text, p_account_number text, p_amount numeric )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|create_credit_invoice(p_user_id uuid, p_order_id uuid, p_amount numeric )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|current_user_group_id( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|current_user_is_admin( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|current_user_role( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|decrement_stock(product_id uuid, quantity integer )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|deduct_batch_quantity(p_batch_id uuid, p_quantity numeric )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|disable_automation_cron( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|enable_automation_cron( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|enforce_invitation_rate_limit( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|ensure_referral_code( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|ensure_single_default_payment_method( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|execute_automation_checks( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|expire_old_reservations( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_adjustment_number( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_credit_memo_number( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_expiry_alerts( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_invoice_number( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_next_invoice_number( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_order_number( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_po_number( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_purchase_order_number( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_referral_code( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|generate_refund_number( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_ab_test_results(p_test_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_available_batches_fefo(p_product_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_banner_analytics(p_banner_id uuid, p_start_date date, p_end_date date )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_email_system_health( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_expiring_batches(days_threshold integer )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_group_pharmacies(p_group_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_invitation_history(p_invitation_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_location_available_stock(p_product_id uuid, p_location_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_low_stock_products( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_order_status_counts(user_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_order_status_counts( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_product_active_offers(p_product_id uuid, p_user_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_product_effective_price(p_product_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_product_price_with_offers(p_product_id uuid, p_user_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_subscriber_status(check_email text )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|get_total_stock(p_product_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|handle_new_user( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|handle_updated_at( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|has_accepted_ach(profile_row profiles )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|has_accepted_privacy(profile_row profiles )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|has_accepted_terms(profile_row profiles )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|increment_banner_click(p_banner_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|increment_banner_view(p_banner_id uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|is_admin(user_id uuid )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|is_automation_cron_active( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|is_email_suppressed(check_email text )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|issue_credit_memo(p_customer_id uuid, p_amount numeric, p_reason text, p_order_id uuid, p_refund_id uuid, p_items jsonb, p_issued_by uuid )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|log_group_status_change( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|log_invitation_change( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|log_order_creation( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|log_order_update( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|manage_automation_cron_job( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|migrate_terms_to_jsonb( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|notify_low_stock( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|process_credit_payment(p_invoice_id uuid, p_amount numeric, p_payment_method character varying, p_transaction_id character varying )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|record_banner_impression(p_banner_id uuid, p_user_id uuid, p_session_id character varying, p_user_type character varying, p_device_type character varying, p_ip_address inet, p_user_agent text, p_page_url text, p_action_type character varying )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|record_terms_acceptance(p_profile_id uuid, p_terms_type character varying, p_terms_version character varying, p_ip_address inet, p_user_agent text, p_acceptance_method character varying, p_document_url text, p_notes text, p_digital_signature text, p_signature_method character varying )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|record_terms_acceptance(p_profile_id uuid, p_terms_type character varying, p_terms_version character varying, p_ip_address inet, p_user_agent text, p_acceptance_method character varying, p_document_url text, p_notes text )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|sync_pharmacy_invitation_status( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|sync_product_image_url( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|trigger_auto_reorder( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|trigger_manage_automation_cron( )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_ach_transaction_status(p_transaction_id uuid, p_status payment_status, p_error_message text )|definer=t|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_available_credit( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_average_cost( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_batch_quantity(p_batch_id uuid, p_quantity_change numeric )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_case_price( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_group_total_commission( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_launch_reset_updated_at( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_newsletter_updated_at( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_notifications_updated_at( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_product_stock( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_product_total_stock( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_reserved_stock( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_total_stock( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_updated_at_column( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|update_wishlist_updated_at( )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+NOTICE (00000): FUNCTION|validate_promo_code(p_code character varying, p_user_id uuid, p_order_amount numeric )|definer=f|anon_exec=t|public_exec=t|auth_exec=t
+ERROR: RLS_AUDIT_COMPLETE (SQLSTATE P0001)                                                                                                                                                                                               
+At statement: 0                                                                                                                                                                                                                          
+DO $$                                                                                                                                                                                                                                    
+DECLARE                                                                                                                                                                                                                                  
+  r RECORD;                                                                                                                                                                                                                              
+  v_total_tables INT;                                                                                                                                                                                                                    
+  v_rls_enabled INT;                                                                                                                                                                                                                     
+  v_rls_disabled INT;                                                                                                                                                                                                                    
+  v_policy_count INT;                                                                                                                                                                                                                    
+  v_public_role_policies INT;                                                                                                                                                                                                            
+  v_anon_role_policies INT;                                                                                                                                                                                                              
+  v_unconditional_policies INT;                                                                                                                                                                                                          
+  v_anon_table_grants INT;                                                                                                                                                                                                               
+  v_public_table_grants INT;                                                                                                                                                                                                             
+  v_anon_function_grants INT;                                                                                                                                                                                                            
+  v_public_function_grants INT;                                                                                                                                                                                                          
+BEGIN                                                                                                                                                                                                                                    
+  SELECT COUNT(*) INTO v_total_tables                                                                                                                                                                                                    
+  FROM pg_class c                                                                                                                                                                                                                        
+  JOIN pg_namespace n ON n.oid = c.relnamespace                                                                                                                                                                                          
+  WHERE n.nspname = 'public' AND c.relkind = 'r';                                                                                                                                                                                        
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_rls_enabled                                                                                                                                                                                                     
+  FROM pg_class c                                                                                                                                                                                                                        
+  JOIN pg_namespace n ON n.oid = c.relnamespace                                                                                                                                                                                          
+  WHERE n.nspname = 'public' AND c.relkind = 'r' AND c.relrowsecurity;                                                                                                                                                                   
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_rls_disabled                                                                                                                                                                                                    
+  FROM pg_class c                                                                                                                                                                                                                        
+  JOIN pg_namespace n ON n.oid = c.relnamespace                                                                                                                                                                                          
+  WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity;                                                                                                                                                               
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_policy_count                                                                                                                                                                                                    
+  FROM pg_policies                                                                                                                                                                                                                       
+  WHERE schemaname = 'public';                                                                                                                                                                                                           
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_public_role_policies                                                                                                                                                                                            
+  FROM pg_policies                                                                                                                                                                                                                       
+  WHERE schemaname = 'public'                                                                                                                                                                                                            
+    AND roles::text ILIKE '%public%';                                                                                                                                                                                                    
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_anon_role_policies                                                                                                                                                                                              
+  FROM pg_policies                                                                                                                                                                                                                       
+  WHERE schemaname = 'public'                                                                                                                                                                                                            
+    AND roles::text ILIKE '%anon%';                                                                                                                                                                                                      
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_unconditional_policies                                                                                                                                                                                          
+  FROM pg_policies                                                                                                                                                                                                                       
+  WHERE schemaname = 'public'                                                                                                                                                                                                            
+    AND (                                                                                                                                                                                                                                
+      lower(trim(COALESCE(qual, ''))) IN ('true', '(true)')                                                                                                                                                                              
+      OR lower(trim(COALESCE(with_check, ''))) IN ('true', '(true)')                                                                                                                                                                     
+    );                                                                                                                                                                                                                                   
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_anon_table_grants                                                                                                                                                                                               
+  FROM information_schema.table_privileges                                                                                                                                                                                               
+  WHERE table_schema = 'public'                                                                                                                                                                                                          
+    AND grantee = 'anon';                                                                                                                                                                                                                
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_public_table_grants                                                                                                                                                                                             
+  FROM information_schema.table_privileges                                                                                                                                                                                               
+  WHERE table_schema = 'public'                                                                                                                                                                                                          
+    AND grantee = 'public';                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_anon_function_grants                                                                                                                                                                                            
+  FROM information_schema.role_routine_grants                                                                                                                                                                                            
+  WHERE specific_schema = 'public'                                                                                                                                                                                                       
+    AND grantee = 'anon';                                                                                                                                                                                                                
+                                                                                                                                                                                                                                         
+  SELECT COUNT(*) INTO v_public_function_grants                                                                                                                                                                                          
+  FROM information_schema.role_routine_grants                                                                                                                                                                                            
+  WHERE specific_schema = 'public'                                                                                                                                                                                                       
+    AND grantee = 'public';                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  RAISE NOTICE 'SUMMARY|tables=%|rls_enabled=%|rls_disabled=%|policies=%|public_role_policies=%|anon_role_policies=%|unconditional_policies=%|anon_table_grants=%|public_table_grants=%|anon_function_grants=%|public_function_grants=%',
+    v_total_tables, v_rls_enabled, v_rls_disabled, v_policy_count,                                                                                                                                                                       
+    v_public_role_policies, v_anon_role_policies, v_unconditional_policies,                                                                                                                                                              
+    v_anon_table_grants, v_public_table_grants, v_anon_function_grants, v_public_function_grants;                                                                                                                                        
+                                                                                                                                                                                                                                         
+  FOR r IN                                                                                                                                                                                                                               
+    WITH policy_counts AS (                                                                                                                                                                                                              
+      SELECT tablename, COUNT(*) AS cnt                                                                                                                                                                                                  
+      FROM pg_policies                                                                                                                                                                                                                   
+      WHERE schemaname = 'public'                                                                                                                                                                                                        
+      GROUP BY tablename                                                                                                                                                                                                                 
+    ),                                                                                                                                                                                                                                   
+    grants AS (                                                                                                                                                                                                                          
+      SELECT table_name,                                                                                                                                                                                                                 
+             BOOL_OR(grantee = 'anon') AS anon_grant,                                                                                                                                                                                    
+             BOOL_OR(grantee = 'public') AS public_grant,                                                                                                                                                                                
+             BOOL_OR(grantee = 'authenticated') AS authenticated_grant                                                                                                                                                                   
+      FROM information_schema.table_privileges                                                                                                                                                                                           
+      WHERE table_schema = 'public'                                                                                                                                                                                                      
+      GROUP BY table_name                                                                                                                                                                                                                
+    )                                                                                                                                                                                                                                    
+    SELECT c.relname AS table_name,                                                                                                                                                                                                      
+           c.relrowsecurity AS rls_enabled,                                                                                                                                                                                              
+           c.relforcerowsecurity AS force_rls,                                                                                                                                                                                           
+           COALESCE(pc.cnt, 0) AS policy_count,                                                                                                                                                                                          
+           COALESCE(g.anon_grant, FALSE) AS anon_grant,                                                                                                                                                                                  
+           COALESCE(g.public_grant, FALSE) AS public_grant,                                                                                                                                                                              
+           COALESCE(g.authenticated_grant, FALSE) AS authenticated_grant                                                                                                                                                                 
+    FROM pg_class c                                                                                                                                                                                                                      
+    JOIN pg_namespace n ON n.oid = c.relnamespace                                                                                                                                                                                        
+    LEFT JOIN policy_counts pc ON pc.tablename = c.relname                                                                                                                                                                               
+    LEFT JOIN grants g ON g.table_name = c.relname                                                                                                                                                                                       
+    WHERE n.nspname = 'public' AND c.relkind = 'r'                                                                                                                                                                                       
+    ORDER BY c.relname                                                                                                                                                                                                                   
+  LOOP                                                                                                                                                                                                                                   
+    RAISE NOTICE 'TABLE|%|rls=%|force=%|policies=%|anon_grant=%|public_grant=%|authenticated_grant=%',                                                                                                                                   
+      r.table_name, r.rls_enabled, r.force_rls, r.policy_count,                                                                                                                                                                          
+      r.anon_grant, r.public_grant, r.authenticated_grant;                                                                                                                                                                               
+  END LOOP;                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  FOR r IN                                                                                                                                                                                                                               
+    SELECT tablename,                                                                                                                                                                                                                    
+           policyname,                                                                                                                                                                                                                   
+           cmd,                                                                                                                                                                                                                          
+           roles::text AS roles_text,                                                                                                                                                                                                    
+           LEFT(REPLACE(regexp_replace(COALESCE(qual, ''), '\s+', ' ', 'g'), '|', '/'), 280) AS qual_text,                                                                                                                               
+           LEFT(REPLACE(regexp_replace(COALESCE(with_check, ''), '\s+', ' ', 'g'), '|', '/'), 280) AS check_text                                                                                                                         
+    FROM pg_policies                                                                                                                                                                                                                     
+    WHERE schemaname = 'public'                                                                                                                                                                                                          
+    ORDER BY tablename, policyname                                                                                                                                                                                                       
+  LOOP                                                                                                                                                                                                                                   
+    RAISE NOTICE 'POLICY|%|%|cmd=%|roles=%|qual=%|check=%',                                                                                                                                                                              
+      r.tablename, r.policyname, r.cmd, r.roles_text, r.qual_text, r.check_text;                                                                                                                                                         
+  END LOOP;                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  FOR r IN                                                                                                                                                                                                                               
+    SELECT tablename,                                                                                                                                                                                                                    
+           policyname,                                                                                                                                                                                                                   
+           cmd,                                                                                                                                                                                                                          
+           roles::text AS roles_text,                                                                                                                                                                                                    
+           LEFT(REPLACE(regexp_replace(COALESCE(qual, ''), '\s+', ' ', 'g'), '|', '/'), 180) AS qual_text,                                                                                                                               
+           LEFT(REPLACE(regexp_replace(COALESCE(with_check, ''), '\s+', ' ', 'g'), '|', '/'), 180) AS check_text                                                                                                                         
+    FROM pg_policies                                                                                                                                                                                                                     
+    WHERE schemaname = 'public'                                                                                                                                                                                                          
+      AND (                                                                                                                                                                                                                              
+        roles::text ILIKE '%public%'                                                                                                                                                                                                     
+        OR roles::text ILIKE '%anon%'                                                                                                                                                                                                    
+        OR lower(trim(COALESCE(qual, ''))) IN ('true', '(true)')                                                                                                                                                                         
+        OR lower(trim(COALESCE(with_check, ''))) IN ('true', '(true)')                                                                                                                                                                   
+      )                                                                                                                                                                                                                                  
+    ORDER BY tablename, policyname                                                                                                                                                                                                       
+  LOOP                                                                                                                                                                                                                                   
+    RAISE NOTICE 'RISK_POLICY|%|%|cmd=%|roles=%|qual=%|check=%',                                                                                                                                                                         
+      r.tablename, r.policyname, r.cmd, r.roles_text, r.qual_text, r.check_text;                                                                                                                                                         
+  END LOOP;                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  FOR r IN                                                                                                                                                                                                                               
+    SELECT routine_name,                                                                                                                                                                                                                 
+           grantee,                                                                                                                                                                                                                      
+           privilege_type                                                                                                                                                                                                                
+    FROM information_schema.role_routine_grants                                                                                                                                                                                          
+    WHERE specific_schema = 'public'                                                                                                                                                                                                     
+      AND grantee IN ('anon', 'public', 'authenticated')                                                                                                                                                                                 
+    ORDER BY routine_name, grantee                                                                                                                                                                                                       
+  LOOP                                                                                                                                                                                                                                   
+    RAISE NOTICE 'ROUTINE_GRANT|%|grantee=%|priv=%', r.routine_name, r.grantee, r.privilege_type;                                                                                                                                        
+  END LOOP;                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  FOR r IN                                                                                                                                                                                                                               
+    SELECT p.proname,                                                                                                                                                                                                                    
+           pg_get_function_identity_arguments(p.oid) AS args,                                                                                                                                                                            
+           p.prosecdef AS is_security_definer,                                                                                                                                                                                           
+           has_function_privilege('anon', p.oid, 'EXECUTE') AS anon_exec,                                                                                                                                                                
+           has_function_privilege('public', p.oid, 'EXECUTE') AS public_exec,                                                                                                                                                            
+           has_function_privilege('authenticated', p.oid, 'EXECUTE') AS auth_exec                                                                                                                                                        
+    FROM pg_proc p                                                                                                                                                                                                                       
+    JOIN pg_namespace n ON n.oid = p.pronamespace                                                                                                                                                                                        
+    WHERE n.nspname = 'public'                                                                                                                                                                                                           
+    ORDER BY p.proname                                                                                                                                                                                                                   
+  LOOP                                                                                                                                                                                                                                   
+    RAISE NOTICE 'FUNCTION|%(% )|definer=%|anon_exec=%|public_exec=%|auth_exec=%',                                                                                                                                                       
+      r.proname, r.args, r.is_security_definer, r.anon_exec, r.public_exec, r.auth_exec;                                                                                                                                                 
+  END LOOP;                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                         
+  RAISE EXCEPTION 'RLS_AUDIT_COMPLETE';                                                                                                                                                                                                  
+END $$                                                                                                                                                                                                                                   
+Try rerunning the command with --debug to troubleshoot the error.

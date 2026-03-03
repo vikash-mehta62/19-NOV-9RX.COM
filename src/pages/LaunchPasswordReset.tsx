@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { buildTermsObject, buildPrivacyObject, buildAchObject } from "@/utils/termsHelper";
 import logo from "../assests/home/9rx_logo.png";
 
 interface PasswordResetFormValues {
@@ -187,33 +188,25 @@ export default function LaunchPasswordReset() {
     console.log("✅ Password updated successfully");
 
     /* ===============================
-       2️⃣ Update Profile (Single Update)
+       2️⃣ Update Profile (Single Update with JSONB)
     =============================== */
     const now = new Date().toISOString();
     const userIP = "unknown"; // Client-side doesn't have access to real IP
     const userAgent = navigator.userAgent || "unknown";
 
-    // Prepare terms acceptance data in JSONB format
-    const termsData = {
-      accepted: true,
-      acceptedAt: now,
-      version: "1.0",
-      ipAddress: userIP,
-      userAgent: userAgent,
-      method: "launch_password_reset"
-    };
-
     const { error: profileError } = await supabase
       .from("profiles")
       .update({
-        // Terms - JSONB column (unified storage)
-        terms_and_conditions: termsData,
+        // NEW: JSONB columns (single source of truth)
+        terms_and_conditions: buildTermsObject(true, null, 'launch_password_reset'),
+        privacy_policy: buildPrivacyObject(true, null, 'launch_password_reset'),
+        ach_authorization: achAuthorizationAccepted 
+          ? buildAchObject(true, null, 'launch_password_reset')
+          : null,
 
-        // Privacy Policy (auto-accept with Terms)
+        // DUAL-WRITE: Keep old columns during transition (backward compatibility)
         privacy_policy_accepted: true,
         privacy_policy_accepted_at: now,
-
-        // ACH
         ach_authorization_accepted: achAuthorizationAccepted || false,
         ach_authorization_accepted_at: achAuthorizationAccepted ? now : null,
         ach_authorization_version: achAuthorizationAccepted ? "1.0" : null,
@@ -249,6 +242,7 @@ export default function LaunchPasswordReset() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "Authorization": `Bearer ${session.access_token}`,
           },
           body: JSON.stringify({
             email,

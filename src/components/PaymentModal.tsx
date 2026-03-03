@@ -274,26 +274,6 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
     customerProfile = data
   }
 
-  const year = new Date().getFullYear()
-  const { data: inData, error: fetchError } = await supabase
-    .from("centerize_data")
-    .select("id, invoice_no, invoice_start")
-    .order("id", { ascending: false })
-    .limit(1)
-  if (fetchError) throw new Error(fetchError.message)
-
-  const newInvNo = (inData?.[0]?.invoice_no || 0) + 1
-  const invoiceStart = inData?.[0]?.invoice_start || "INV"
-
-  if (inData?.[0]?.id) {
-    const { error: updateError } = await supabase
-      .from("centerize_data")
-      .update({ invoice_no: newInvNo })
-      .eq("id", inData[0].id)
-    if (updateError) throw new Error(updateError.message)
-  }
-
-  const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`
   const dueDate = new Date(new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
 
   // Calculate subtotal (total - tax - shipping)
@@ -302,31 +282,59 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
   // Subtotal should be original amount before discount
   const subtotal = totalAmount + discountAmount - newTax - shippingCost
 
-  const invoiceData = {
-    invoice_number: invoiceNumber,
-    order_id: order.id,
-    due_date: dueDate,
-    profile_id: profileId || null,
-    status: "pending" as const,
-    amount: subtotal,
-    tax_amount: newTax,
-    total_amount: totalAmount,
-    payment_status: order.payment_status || "paid",
-    payment_method: order.paymentMethod || order.payment_method || "card",
-    notes: order.notes || null,
-    purchase_number_external: order.purchase_number_external,
-    items: order.items,
-    customer_info: order.customerInfo,
-    shipping_info: order.shippingAddress,
-    shippin_cost: shippingCost,
-    subtotal: subtotal,
-    // Add discount information
-    discount_amount: discountAmount,
-    discount_details: order.discount_details || [],
+  const MAX_INVOICE_RETRIES = 5
+  let lastInvoiceError: any = null
+
+  for (let attempt = 1; attempt <= MAX_INVOICE_RETRIES; attempt++) {
+    const { data: generatedInvoiceNumber, error: invoiceNumberError } = await supabase.rpc("generate_invoice_number")
+
+    // Keep payment flow resilient even if RPC fails unexpectedly.
+    const invoiceNumber =
+      !invoiceNumberError && generatedInvoiceNumber
+        ? generatedInvoiceNumber
+        : `INV-${new Date().getFullYear()}${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 1000)
+            .toString()
+            .padStart(3, "0")}`
+
+    const invoiceData = {
+      invoice_number: invoiceNumber,
+      order_id: order.id,
+      due_date: dueDate,
+      profile_id: profileId || null,
+      status: "pending" as const,
+      amount: subtotal,
+      tax_amount: newTax,
+      total_amount: totalAmount,
+      payment_status: order.payment_status || "paid",
+      payment_method: order.paymentMethod || order.payment_method || "card",
+      notes: order.notes || null,
+      purchase_number_external: order.purchase_number_external,
+      items: order.items,
+      customer_info: order.customerInfo,
+      shipping_info: order.shippingAddress,
+      shippin_cost: shippingCost,
+      subtotal: subtotal,
+      // Add discount information
+      discount_amount: discountAmount,
+      discount_details: order.discount_details || [],
+    }
+
+    const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
+    if (!invoiceError) return
+
+    lastInvoiceError = invoiceError
+    const isDuplicateInvoiceNumber =
+      invoiceError.code === "23505" &&
+      String(invoiceError.message || "").includes("invoices_invoice_number_key")
+
+    if (!isDuplicateInvoiceNumber) {
+      throw new Error(invoiceError.message)
+    }
   }
 
-  const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
-  if (invoiceError) throw new Error(invoiceError.message)
+  throw new Error(
+    lastInvoiceError?.message || "Failed to create invoice after retrying invoice number generation"
+  )
 }
 
 interface PaymentFormProps {

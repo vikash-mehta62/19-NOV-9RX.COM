@@ -1,6 +1,7 @@
 const paymentLink = (order) => {
-    const { id, customerInfo, order_number, status, items, total, date, tax_amount, shipping_cost, paid_amount, adjustment_amount } = order;
+    const { id, customerInfo, order_number, status, items, total, date, tax_amount, shipping_cost, paid_amount, adjustment_amount, pay_now_url } = order;
     console.log(order)
+    const payNowUrl = pay_now_url || `https://9rx.com/pay-now?orderid=${id}`;
     // Calculate subtotal
     const subtotal = items?.reduce((sum, item) => {
         if (item.sizes && item.sizes.length > 0) {
@@ -216,7 +217,7 @@ const paymentLink = (order) => {
 
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
-                                <a href="https://9rx.com/pay-now?orderid=${id}" 
+                                <a href="${payNowUrl}" 
                                    style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 18px 50px; border-radius: 12px; font-size: 18px; font-weight: 700; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);">
                                     💳 ${isPartialPayment ? `Pay Balance - ${formatCurrency(balanceDue)}` : `Pay Now - ${formatCurrency(total)}`}
                                 </a>

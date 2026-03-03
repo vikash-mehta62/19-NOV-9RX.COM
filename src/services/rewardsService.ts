@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client"
 import { completeReferral } from "./referralService"
 import { checkAndAwardBirthdayBonus } from "./birthdayBonusService"
+import { normalizePointsPerDollar } from "@/lib/rewards"
 
 interface RewardsConfig {
   program_enabled: boolean
@@ -8,6 +9,7 @@ interface RewardsConfig {
   referral_bonus: number
   review_bonus: number
   birthday_bonus: number
+  point_redemption_value?: number
 }
 
 interface RewardTier {
@@ -17,6 +19,10 @@ interface RewardTier {
   color: string
   benefits: string[]
   multiplier: number
+}
+
+function isGroupType(userType: string | null | undefined): boolean {
+  return String(userType || "").toLowerCase() === "group"
 }
 
 // Get rewards configuration
@@ -59,10 +65,20 @@ export async function calculateOrderPoints(orderTotal: number, userId: string): 
   const config = await getRewardsConfig()
   if (!config?.program_enabled) return 0
 
-  // Simple calculation: 1$ = 1 point (no tier multiplier)
-  const basePoints = Math.floor(orderTotal * config.points_per_dollar)
-  
-  return basePoints
+  const { data: user } = await supabase
+    .from("profiles")
+    .select("reward_points, type")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (!user || isGroupType(user.type)) return 0
+
+  const tiers = await getRewardTiers()
+  const currentPoints = user.reward_points || 0
+  const currentTier = getUserTier(currentPoints, tiers)
+  const basePointsPerDollar = normalizePointsPerDollar(config.points_per_dollar)
+
+  return Math.floor(orderTotal * basePointsPerDollar * currentTier.multiplier)
 }
 
 // Award points to user after order completion
@@ -136,17 +152,29 @@ export async function awardOrderPoints(
     // Get user's current points
     const { data: user } = await supabase
       .from("profiles")
-      .select("reward_points, lifetime_reward_points, email, first_name, last_name, company_name")
+      .select("reward_points, lifetime_reward_points, email, first_name, last_name, company_name, type")
       .eq("id", userId)
       .single()
 
     if (!user) throw new Error("User not found")
+    if (isGroupType(user.type)) {
+      return {
+        success: false,
+        pointsEarned: 0,
+        newTotal: user.reward_points || 0,
+        oldTier: { id: "1", name: "Bronze", min_points: 0, color: "bg-amber-600", benefits: [], multiplier: 1 },
+        newTier: { id: "1", name: "Bronze", min_points: 0, color: "bg-amber-600", benefits: [], multiplier: 1 },
+        nextTier: null,
+        pointsToNextTier: 0,
+        tierUpgrade: false
+      }
+    }
 
     const currentPoints = user.reward_points || 0
     const oldTier = getUserTier(currentPoints, tiers)
     
-    // Calculate points earned - Simple: 1$ = 1 point (no tier multiplier)
-    const pointsEarned = Math.floor(orderTotal * config.points_per_dollar)
+    const basePointsPerDollar = normalizePointsPerDollar(config.points_per_dollar)
+    const pointsEarned = Math.floor(orderTotal * basePointsPerDollar * oldTier.multiplier)
     
     const newTotal = currentPoints + pointsEarned
     const newTier = getUserTier(newTotal, tiers)
@@ -205,7 +233,8 @@ export async function awardOrderPoints(
       nextTier,
       pointsToNextTier,
       tierUpgrade,
-      multiplier: oldTier.multiplier
+      multiplier: oldTier.multiplier,
+      pointsPerDollar: basePointsPerDollar
     })
 
     return {
@@ -249,6 +278,7 @@ async function queueRewardEmail(userId: string, data: {
   pointsToNextTier: number
   tierUpgrade: boolean
   multiplier: number
+  pointsPerDollar: number
 }) {
   const customerName = data.firstName || data.companyName || "Valued Customer"
   
@@ -323,7 +353,7 @@ async function queueRewardEmail(userId: string, data: {
             <p style="margin: 0 0 5px 0; color: #065f46; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Points Earned</p>
             <p style="margin: 0; color: #047857; font-size: 48px; font-weight: bold;">+${data.pointsEarned.toLocaleString()}</p>
             <p style="margin: 10px 0 0 0; color: #059669; font-size: 14px;">
-              (${data.multiplier}x multiplier applied)
+              Base ${data.pointsPerDollar} pt/$ × ${data.multiplier}x tier multiplier
             </p>
           </div>
 

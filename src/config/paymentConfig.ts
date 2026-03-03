@@ -82,12 +82,9 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
 function getEnvPaymentConfig(): PaymentConfig {
   const achProcessor = (import.meta.env.VITE_ACH_PAYMENT_PROCESSOR || "authorize_net") as PaymentProcessor;
 
-  const fortisPayEnabled = !!(
-    import.meta.env.VITE_FORTIS_USER_ID &&
-    import.meta.env.VITE_FORTIS_USER_API_KEY &&
-    import.meta.env.VITE_FORTIS_LOCATION_ID &&
-    import.meta.env.VITE_FORTIS_PRODUCT_TRANSACTION_ID_ACH
-  );
+  // Frontend must not depend on payment provider secrets.
+  // Use an explicit non-secret feature flag for Fortis availability.
+  const fortisPayEnabled = import.meta.env.VITE_FORTISPAY_ENABLED === "true";
 
   const authorizeNetEnabled = true; // Assuming it's configured via Supabase
 

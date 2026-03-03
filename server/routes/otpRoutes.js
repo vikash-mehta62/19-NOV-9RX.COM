@@ -11,14 +11,141 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
+const getSupabasePublicClient = () => {
+  const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+  if (!supabaseAnonKey) {
+    throw new Error("SUPABASE_ANON_KEY is not configured");
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
+};
+
+const buildEligibilityError = (message, extra = {}) => ({
+  success: false,
+  message,
+  ...extra,
+});
+
+const isAdminRole = (role) => role === "admin" || role === "superadmin";
+
+const validateLoginEligibility = async (profile) => {
+  if (!profile) {
+    return { ok: false, status: 404, body: buildEligibilityError("User profile not found") };
+  }
+
+  if (profile.requires_password_reset === true && !isAdminRole(profile.role)) {
+    return {
+      ok: false,
+      status: 403,
+      body: buildEligibilityError("PASSWORD_RESET_REQUIRED", { requiresPasswordReset: true }),
+    };
+  }
+
+  if (profile.status !== "active") {
+    if (profile.status === "pending") {
+      return {
+        ok: false,
+        status: 403,
+        body: buildEligibilityError("Your account is pending admin approval."),
+      };
+    }
+    if (profile.status === "rejected") {
+      return {
+        ok: false,
+        status: 403,
+        body: buildEligibilityError("Your account request was rejected. Please contact support."),
+      };
+    }
+    return {
+      ok: false,
+      status: 403,
+      body: buildEligibilityError("Account is not active. Please contact support."),
+    };
+  }
+
+  if (profile.group_id) {
+    const { data: groupProfile, error: groupError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, status, type")
+      .eq("id", profile.group_id)
+      .single();
+
+    if (groupError || !groupProfile) {
+      return {
+        ok: false,
+        status: 403,
+        body: buildEligibilityError("Your group account no longer exists. Please contact support."),
+      };
+    }
+
+    if (groupProfile.status !== "active") {
+      return {
+        ok: false,
+        status: 403,
+        body: buildEligibilityError("Your group account is not active. Please contact your group administrator."),
+      };
+    }
+
+    if (groupProfile.type !== "group") {
+      return {
+        ok: false,
+        status: 403,
+        body: buildEligibilityError("Invalid group configuration. Please contact support."),
+      };
+    }
+  }
+
+  // Non-admin users need explicit portal access.
+  if (profile.type !== "admin" && !isAdminRole(profile.role) && !profile.portal_access) {
+    return {
+      ok: false,
+      status: 403,
+      body: buildEligibilityError("Portal access is disabled for your account."),
+    };
+  }
+
+  return { ok: true };
+};
+
 // In-memory OTP storage (use Redis in production)
 const otpStore = new Map();
+const otpSendRateStore = new Map();
 const OTP_EXPIRY = 10 * 60 * 1000; // 10 minutes
 const MAX_ATTEMPTS = 3;
+const OTP_SEND_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const OTP_SEND_MAX = parseInt(process.env.OTP_SEND_MAX || "5", 10);
 
 // Generate 6-digit OTP
 const generateOTP = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+const maskEmail = (email = "") => {
+  const [name, domain] = String(email).toLowerCase().split("@");
+  if (!name || !domain) return "unknown";
+  if (name.length <= 2) return `**@${domain}`;
+  return `${name.slice(0, 2)}***@${domain}`;
+};
+
+const isOtpSendRateLimited = (email, ip) => {
+  const key = `${String(email).toLowerCase().trim()}|${ip || "unknown"}`;
+  const now = Date.now();
+  const record = otpSendRateStore.get(key);
+
+  if (!record || now > record.resetAt) {
+    otpSendRateStore.set(key, { count: 1, resetAt: now + OTP_SEND_WINDOW_MS });
+    return false;
+  }
+
+  if (record.count >= OTP_SEND_MAX) {
+    return true;
+  }
+
+  record.count += 1;
+  otpSendRateStore.set(key, record);
+  return false;
 };
 
 /**
@@ -28,6 +155,7 @@ const generateOTP = () => {
 router.post("/send", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const requestIp = req.headers["x-forwarded-for"] || req.ip || req.connection?.remoteAddress;
 
     if (!email || !password) {
       return res.status(400).json({ 
@@ -36,12 +164,15 @@ router.post("/send", async (req, res) => {
       });
     }
 
+    if (isOtpSendRateLimited(email, requestIp)) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many OTP requests. Please try again later.",
+      });
+    }
+
     // Step 1: Authenticate user with Supabase
-    const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = getSupabasePublicClient();
 
     // Verify email and password with Supabase
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -71,6 +202,13 @@ router.post("/send", async (req, res) => {
       });
     }
 
+    if (!authData.session) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to establish login session. Please try again.",
+      });
+    }
+
     // Step 2: Check if user profile exists and is active
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
@@ -85,72 +223,28 @@ router.post("/send", async (req, res) => {
       });
     }
 
-    // Check if user requires password reset (exclude admin role)
-    if (profile.requires_password_reset === true && profile.role !== "admin") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "PASSWORD_RESET_REQUIRED",
-        requiresPasswordReset: true
-      });
-    }
-
-    // Check if user is active
-    if (profile.status !== "active") {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Account is not active. Please contact support." 
-      });
-    }
-
-    // Check if user belongs to a group and validate group status
-    if (profile.group_id) {
-      const { data: groupProfile, error: groupError } = await supabaseAdmin
-        .from("profiles")
-        .select("id, status, type")
-        .eq("id", profile.group_id)
-        .single();
-
-      if (groupError || !groupProfile) {
-        return res.status(403).json({ 
-          success: false, 
-          message: "Your group account no longer exists. Please contact support." 
-        });
-      }
-
-      if (groupProfile.status !== "active") {
-        return res.status(403).json({ 
-          success: false, 
-          message: "Your group account is not active. Please contact your group administrator." 
-        });
-      }
-
-      if (groupProfile.type !== "group") {
-        return res.status(403).json({ 
-          success: false, 
-          message: "Invalid group configuration. Please contact support." 
-        });
-      }
-    }
-
-    // Check portal access for non-admin users
-    if (profile.type !== "admin" && !profile.portal_access) {
-      return res.status(403).json({ 
-        success: false, 
-        message: "Portal access is disabled for your account." 
-      });
+    const eligibility = await validateLoginEligibility(profile);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json(eligibility.body);
     }
 
     // Step 3: Generate OTP
     const otp = generateOTP();
     const expiresAt = Date.now() + OTP_EXPIRY;
 
-    // Store OTP with metadata (including password for later authentication)
+    // Store OTP with an already-validated short-lived session.
+    // Never store plaintext passwords in memory.
     otpStore.set(email.toLowerCase(), {
       otp,
       expiresAt,
       attempts: 0,
       userId: profile.id,
-      password: password, // Store password temporarily for Supabase auth after OTP verification
+      session: {
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+        expires_at: authData.session.expires_at,
+        expires_in: authData.session.expires_in,
+      },
       createdAt: Date.now()
     });
 
@@ -169,7 +263,7 @@ router.post("/send", async (req, res) => {
       });
     }
 
-    console.log(`OTP sent to ${email} after password verification: ${otp} (expires in 10 minutes)`);
+    console.log(`OTP sent for ${maskEmail(email)} after password verification`);
 
     return res.json({
       success: true,
@@ -241,24 +335,13 @@ router.post("/verify", async (req, res) => {
       });
     }
 
-    // OTP verified successfully - Now authenticate with Supabase to create session
-    const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-    // Authenticate with Supabase using stored password
-    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-      email: email.trim().toLowerCase(),
-      password: storedData.password,
-    });
-
-    if (authError || !authData.session) {
-      console.error("Supabase auth error after OTP verification:", authError);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Failed to create session. Please try logging in again." 
+    const session = storedData.session;
+    const nowEpoch = Math.floor(Date.now() / 1000);
+    if (!session?.access_token || !session?.refresh_token || (session.expires_at && session.expires_at <= nowEpoch)) {
+      otpStore.delete(emailKey);
+      return res.status(401).json({
+        success: false,
+        message: "Session expired. Please log in again.",
       });
     }
 
@@ -276,6 +359,12 @@ router.post("/verify", async (req, res) => {
       });
     }
 
+    const eligibility = await validateLoginEligibility(profile);
+    if (!eligibility.ok) {
+      otpStore.delete(emailKey);
+      return res.status(eligibility.status).json(eligibility.body);
+    }
+
     // Update last login
     await supabaseAdmin
       .from("profiles")
@@ -291,10 +380,10 @@ router.post("/verify", async (req, res) => {
       success: true,
       message: "Login successful",
       session: {
-        access_token: authData.session.access_token,
-        refresh_token: authData.session.refresh_token,
-        expires_at: authData.session.expires_at,
-        expires_in: authData.session.expires_in,
+        access_token: session.access_token,
+        refresh_token: session.refresh_token,
+        expires_at: session.expires_at,
+        expires_in: session.expires_in,
       },
       user: {
         id: profile.id,
@@ -330,6 +419,7 @@ router.post("/verify", async (req, res) => {
 router.post("/resend", async (req, res) => {
   try {
     const { email, password } = req.body;
+    const requestIp = req.headers["x-forwarded-for"] || req.ip || req.connection?.remoteAddress;
 
     if (!email || !password) {
       return res.status(400).json({ 
@@ -338,16 +428,19 @@ router.post("/resend", async (req, res) => {
       });
     }
 
+    if (isOtpSendRateLimited(email, requestIp)) {
+      return res.status(429).json({
+        success: false,
+        message: "Too many OTP requests. Please try again later.",
+      });
+    }
+
     // Clear existing OTP
     otpStore.delete(email.toLowerCase());
 
     // Re-verify credentials and send new OTP
     // Reuse the send endpoint logic
-    const { createClient } = require("@supabase/supabase-js");
-    const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
-    const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFzbmhmZ2ZoaWRoenN3cWtocHp6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODEzMDIsImV4cCI6MjA4NTM1NzMwMn0.cZs_jInY7UYWMay0VKGJVwpu9J8ApW_pCCY7yZF2utQ";
-    
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = getSupabasePublicClient();
 
     // Verify credentials again
     const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
@@ -362,10 +455,17 @@ router.post("/resend", async (req, res) => {
       });
     }
 
+    if (!authData.session) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to establish login session. Please try again.",
+      });
+    }
+
     // Get profile
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, first_name, last_name, status, portal_access, type")
+      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset")
       .eq("id", authData.user.id)
       .single();
 
@@ -374,6 +474,11 @@ router.post("/resend", async (req, res) => {
         success: false, 
         message: "User profile not found" 
       });
+    }
+
+    const eligibility = await validateLoginEligibility(profile);
+    if (!eligibility.ok) {
+      return res.status(eligibility.status).json(eligibility.body);
     }
 
     // Generate new OTP
@@ -385,7 +490,12 @@ router.post("/resend", async (req, res) => {
       expiresAt,
       attempts: 0,
       userId: profile.id,
-      password: password, // Store password for later authentication
+      session: {
+        access_token: authData.session.access_token,
+        refresh_token: authData.session.refresh_token,
+        expires_at: authData.session.expires_at,
+        expires_in: authData.session.expires_in,
+      },
       createdAt: Date.now()
     });
 
@@ -404,7 +514,7 @@ router.post("/resend", async (req, res) => {
       });
     }
 
-    console.log(`OTP resent to ${email}: ${otp}`);
+    console.log(`OTP resent for ${maskEmail(email)}`);
 
     return res.json({
       success: true,
@@ -427,7 +537,13 @@ setInterval(() => {
   for (const [email, data] of otpStore.entries()) {
     if (now > data.expiresAt) {
       otpStore.delete(email);
-      console.log(`Cleaned up expired OTP for ${email}`);
+      console.log(`Cleaned up expired OTP for ${maskEmail(email)}`);
+    }
+  }
+
+  for (const [key, data] of otpSendRateStore.entries()) {
+    if (now > data.resetAt) {
+      otpSendRateStore.delete(key);
     }
   }
 }, 5 * 60 * 1000);

@@ -506,6 +506,7 @@ export default function Offers() {
         end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       });
       fetchDailyDeals();
+      fetchOffers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
@@ -556,11 +557,13 @@ export default function Offers() {
 
         toast({ title: "Success", description: "Deal and discount removed successfully" });
         fetchDailyDeals();
+        fetchOffers();
       } else {
         const { error } = await supabase.from("offers").delete().eq("id", itemToDelete.id);
         if (error) throw error;
         toast({ title: "Success", description: "Offer deleted successfully" });
         fetchOffers();
+        fetchDailyDeals();
       }
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -578,6 +581,7 @@ export default function Offers() {
         .eq("id", id);
       if (error) throw error;
       fetchDailyDeals();
+      fetchOffers();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
@@ -803,6 +807,7 @@ export default function Offers() {
       setEditingOffer(null);
       setFormData(initialFormState);
       fetchOffers();
+      fetchDailyDeals();
     } catch (error: any) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     }
@@ -870,6 +875,7 @@ export default function Offers() {
         .eq("id", id);
       if (error) throw error;
       fetchOffers();
+      fetchDailyDeals();
       toast({
         title: currentStatus ? "Offer Deactivated" : "Offer Activated",
         description: currentStatus ? "Offer is now inactive" : "Offer is now live",

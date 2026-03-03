@@ -16,7 +16,7 @@ import {
   calculateItemDiscounts,
   type CartItem 
 } from "@/services/promoCodeService";
-import {
+import { 
   Tag,
   Gift,
   Percent,
@@ -33,6 +33,12 @@ import {
   Clock,
   Wallet,
 } from "lucide-react";
+import {
+  REWARD_REDEMPTION_STATUS,
+  formatPointsRedemptionRule,
+  normalizePointRedemptionValue,
+  normalizePointsPerDollar,
+} from "@/lib/rewards";
 
 interface Offer {
   id: string;
@@ -107,6 +113,7 @@ interface PromoAndRewardsSectionProps {
   subtotal: number;
   shipping?: number; // Shipping cost to include in credit memo calculation
   hasFreeShipping?: boolean; // User already has free shipping from profile
+  disableRewards?: boolean;
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
   cartItems?: { productId: string; categoryId?: string; price: number; quantity: number; name?: string }[];
 }
@@ -116,6 +123,7 @@ export function PromoAndRewardsSection({
   subtotal,
   shipping = 0,
   hasFreeShipping = false,
+  disableRewards = false,
   onDiscountChange,
   cartItems = [],
 }: PromoAndRewardsSectionProps) {
@@ -134,6 +142,7 @@ export function PromoAndRewardsSection({
   } | null>(null);
   const [useRewards, setUseRewards] = useState(false);
   const [pointsToUse, setPointsToUse] = useState(0);
+  const [isGroupCustomer, setIsGroupCustomer] = useState(false);
 
   // Available offers state
   const [availableOffers, setAvailableOffers] = useState<Offer[]>([]);
@@ -155,7 +164,10 @@ export function PromoAndRewardsSection({
   // Fetch redeemed rewards that are pending and not expired
   useEffect(() => {
     const fetchRedeemedRewards = async () => {
-      if (!customerId) return;
+      if (!customerId || disableRewards || isGroupCustomer) {
+        setRedeemedRewards([]);
+        return;
+      }
 
       setLoadingRedeemed(true);
       try {
@@ -164,7 +176,7 @@ export function PromoAndRewardsSection({
           .from("reward_redemptions")
           .select("id, reward_name, reward_type, reward_value, points_spent, expires_at, status")
           .eq("user_id", customerId)
-          .eq("status", "pending")
+          .eq("status", REWARD_REDEMPTION_STATUS.PENDING)
           .gt("expires_at", now)
           .order("created_at", { ascending: false });
 
@@ -192,7 +204,7 @@ export function PromoAndRewardsSection({
     };
 
     fetchRedeemedRewards();
-  }, [customerId, hasFreeShipping]);
+  }, [customerId, hasFreeShipping, disableRewards, isGroupCustomer]);
 
   // Fetch available credit memos
   useEffect(() => {
@@ -232,36 +244,53 @@ export function PromoAndRewardsSection({
   // Fetch user rewards
   useEffect(() => {
     const fetchUserRewards = async () => {
-      if (!customerId) return;
+      if (!customerId || disableRewards) {
+        setIsGroupCustomer(false);
+        setUserRewards(null);
+        setUseRewards(false);
+        setPointsToUse(0);
+        return;
+      }
 
       try {
         const { data, error } = await supabase
           .from("profiles")
-          .select("reward_points, reward_tier")
+          .select("reward_points, reward_tier, type")
           .eq("id", customerId)
           .single();
 
         if (error) throw error;
 
         if (data) {
+          const isGroupType = String(data.type || "").toLowerCase() === "group";
+          setIsGroupCustomer(isGroupType);
+          if (isGroupType) {
+            setUserRewards(null);
+            setUseRewards(false);
+            setPointsToUse(0);
+            return;
+          }
+
           // Get point value from rewards_config
           // points_per_dollar = how many points earned per $1
           // For redemption: if you earn 1 point per $1, then 100 points = $1 (point value = $0.01)
           const { data: config } = await (supabase as any)
             .from("rewards_config")
-            .select("points_per_dollar, point_redemption_value")
+            .select("program_enabled, points_per_dollar, point_redemption_value")
             .limit(1)
             .maybeSingle();
 
-          // Use point_redemption_value if set, otherwise calculate from points_per_dollar
-          // Default: 100 points = $1, so 1 point = $0.01
-          let pointValue = 0.01;
-          if (config?.point_redemption_value) {
-            pointValue = Number(config.point_redemption_value);
-          } else if (config?.points_per_dollar) {
-            // If earning 1 point per $1, redemption value = $0.01 per point (100 points = $1)
-            pointValue = 1 / (Number(config.points_per_dollar) * 100);
+          if (config?.program_enabled === false) {
+            setUserRewards(null);
+            setUseRewards(false);
+            setPointsToUse(0);
+            return;
           }
+
+          const pointsPerDollar = normalizePointsPerDollar(Number(config?.points_per_dollar));
+          const pointValue = config?.point_redemption_value
+            ? normalizePointRedemptionValue(Number(config.point_redemption_value))
+            : normalizePointRedemptionValue(1 / (pointsPerDollar * 100));
 
           setUserRewards({
             points: data.reward_points || 0,
@@ -275,7 +304,7 @@ export function PromoAndRewardsSection({
     };
 
     fetchUserRewards();
-  }, [customerId]);
+  }, [customerId, disableRewards]);
 
   // Fetch available offers
   useEffect(() => {
@@ -397,7 +426,7 @@ export function PromoAndRewardsSection({
     }
 
     // Add redeemed reward discount
-    if (appliedRedeemedReward) {
+    if (!disableRewards && appliedRedeemedReward) {
       let rewardDiscount = 0;
       const rewardType = appliedRedeemedReward.reward_type;
       const rewardValue = Number(appliedRedeemedReward.reward_value) || 0;
@@ -434,7 +463,7 @@ export function PromoAndRewardsSection({
     }
 
     // Add rewards discount (points)
-    if (useRewards && pointsToUse > 0 && userRewards) {
+    if (!disableRewards && useRewards && pointsToUse > 0 && userRewards) {
       const rewardsDiscount = pointsToUse * userRewards.pointValue;
       discounts.push({
         type: "rewards",
@@ -450,7 +479,7 @@ export function PromoAndRewardsSection({
     console.log('totalDiscount:', totalDiscount);
     
     onDiscountChange(discounts, totalDiscount);
-  }, [appliedPromo, appliedCreditMemo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange]);
+  }, [appliedPromo, appliedCreditMemo, appliedRedeemedReward, useRewards, pointsToUse, userRewards, subtotal, onDiscountChange, disableRewards]);
 
   // Validate promo code
   const handleApplyPromo = async () => {
@@ -888,7 +917,7 @@ export function PromoAndRewardsSection({
     return `Expires ${date.toLocaleDateString()}`;
   };
 
-  const maxRewardsDiscount = userRewards
+  const maxRewardsDiscount = !disableRewards && userRewards
     ? Math.min(
         userRewards.points * userRewards.pointValue,
         subtotal - (appliedPromo?.amount || 0)
@@ -896,7 +925,7 @@ export function PromoAndRewardsSection({
     : 0;
 
   // Calculate max points that can be used (use Math.round to avoid floating point issues)
-  const maxPointsCanUse = userRewards
+  const maxPointsCanUse = !disableRewards && userRewards
     ? Math.min(
         userRewards.points,
         Math.round(maxRewardsDiscount / userRewards.pointValue)
@@ -973,7 +1002,7 @@ export function PromoAndRewardsSection({
       </Card>
 
       {/* Rewards Points Section */}
-      {userRewards && (
+      {!disableRewards && userRewards && (
         <>
           {/* Negative Balance Warning */}
           {userRewards.points < 0 && (
@@ -1023,7 +1052,7 @@ export function PromoAndRewardsSection({
                   <div className="space-y-0.5">
                     <Label className="text-sm">Use Reward Points</Label>
                     <p className="text-xs text-muted-foreground">
-                      {userRewards.points} points = ${(userRewards.points * userRewards.pointValue).toFixed(2)}
+                      {formatPointsRedemptionRule(userRewards.pointValue)} (available: {userRewards.points} pts)
                     </p>
                   </div>
                   <Switch
@@ -1144,7 +1173,7 @@ export function PromoAndRewardsSection({
       )}
 
       {/* Redeemed Rewards Section - Show rewards user has already redeemed */}
-      {redeemedRewards.length > 0 && (
+      {!disableRewards && redeemedRewards.length > 0 && (
         <Card className={appliedRedeemedReward ? "border-pink-200 bg-pink-50/50" : ""}>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm">

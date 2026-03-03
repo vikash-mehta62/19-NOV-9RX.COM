@@ -161,6 +161,7 @@ export default function GroupSettings() {
             navigate("/group/settings");
           }}
           self={true}
+          isProfileCompletion={false}
         />
       )}
     </DashboardLayout>

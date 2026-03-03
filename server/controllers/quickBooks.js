@@ -207,7 +207,7 @@ exports.invoicesCtrl = async (req, res) => {
       res.status(200).json({ success: true, data: invoiceRes.data });
     } catch (error) {
       console.error("Error creating invoice:", error.response?.data || error.message);
-      res.status(500).json({ success: false, message: error.response?.data || error.message });
+      res.status(500).json({ success: false, message: "Failed to create invoice" });
     }
   };
   

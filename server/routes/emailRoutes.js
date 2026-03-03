@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
+const { requireAdmin } = require("../middleware/auth");
 const { resendWebhook, sendgridWebhook, sesWebhook } = require("../controllers/emailWebhooks");
 const { processQueue, retryFailed, getStats, sendTest } = require("../controllers/emailQueueProcessor");
 const { 
@@ -23,6 +24,11 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+// Protect privileged email operations; public tracking/unsubscribe endpoints remain open.
+router.use("/queue", requireAdmin);
+router.use("/cron", requireAdmin);
+router.use("/trigger", requireAdmin);
+
 // ============================================
 // QUEUE PROCESSING ENDPOINTS (Uses Node.js mailSender)
 // ============================================
@@ -38,7 +44,7 @@ router.post("/queue/retry", retryFailed);
 router.get("/queue/stats", getStats);
 
 // Send a test email directly
-router.post("/send-test", sendTest);
+router.post("/send-test", requireAdmin, sendTest);
 
 // ============================================
 // CRON TRIGGER ENDPOINTS (Manual triggers)
@@ -55,7 +61,7 @@ router.post("/cron/run-all", async (req, res) => {
     };
     res.json({ success: true, message: "All cron jobs executed", results });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -65,7 +71,7 @@ router.post("/cron/queue", async (req, res) => {
     const result = await processEmailQueue();
     res.json({ success: true, message: "Queue processed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -74,7 +80,7 @@ router.post("/cron/abandoned-carts", async (req, res) => {
     const result = await checkAbandonedCarts();
     res.json({ success: true, message: "Abandoned carts checked", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -83,7 +89,7 @@ router.post("/cron/inactive-users", async (req, res) => {
     const result = await checkInactiveUsers();
     res.json({ success: true, message: "Inactive users checked", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -92,7 +98,7 @@ router.post("/cron/automations", async (req, res) => {
     const result = await processScheduledAutomations();
     res.json({ success: true, message: "Scheduled automations processed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -101,7 +107,7 @@ router.post("/cron/cleanup", async (req, res) => {
     const result = await cleanupOldData();
     res.json({ success: true, message: "Cleanup completed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -138,12 +144,12 @@ router.post("/trigger/:triggerType", async (req, res) => {
       result 
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
 // Track conversion (call when user makes a purchase)
-router.post("/track-conversion", async (req, res) => {
+router.post("/track-conversion", requireAdmin, async (req, res) => {
   try {
     const { userId, orderId, orderTotal } = req.body;
 
@@ -154,7 +160,7 @@ router.post("/track-conversion", async (req, res) => {
     await trackConversion(userId, orderId, orderTotal);
     res.json({ success: true, message: "Conversion tracked" });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -164,7 +170,7 @@ router.post("/cron/birthdays", async (req, res) => {
     const result = await checkBirthdayEmails();
     res.json({ success: true, message: "Birthday check completed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -174,7 +180,7 @@ router.post("/cron/anniversaries", async (req, res) => {
     const result = await checkSignupAnniversary();
     res.json({ success: true, message: "Anniversary check completed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 
@@ -184,7 +190,7 @@ router.post("/cron/restock", async (req, res) => {
     const result = await checkRestockReminders();
     res.json({ success: true, message: "Restock reminder check completed", result });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 });
 

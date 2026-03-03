@@ -1,0 +1,187 @@
+[
+  {
+    "fn": "apply_referral_code",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function apply_referral_code"
+    }
+  },
+  {
+    "fn": "complete_referral",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function complete_referral"
+    }
+  },
+  {
+    "fn": "issue_credit_memo",
+    "status": 404,
+    "body": {
+      "code": "PGRST202",
+      "details": "Searched for the function public.issue_credit_memo without parameters or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+      "hint": null,
+      "message": "Could not find the function public.issue_credit_memo without parameters in the schema cache"
+    }
+  },
+  {
+    "fn": "apply_credit_memo",
+    "status": 404,
+    "body": {
+      "code": "PGRST202",
+      "details": "Searched for the function public.apply_credit_memo without parameters or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+      "hint": null,
+      "message": "Could not find the function public.apply_credit_memo without parameters in the schema cache"
+    }
+  },
+  {
+    "fn": "process_credit_payment",
+    "status": 404,
+    "body": {
+      "code": "PGRST202",
+      "details": "Searched for the function public.process_credit_payment without parameters or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+      "hint": null,
+      "message": "Could not find the function public.process_credit_payment without parameters in the schema cache"
+    }
+  },
+  {
+    "fn": "generate_order_number",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function generate_order_number"
+    }
+  },
+  {
+    "fn": "generate_purchase_order_number",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function generate_purchase_order_number"
+    }
+  },
+  {
+    "fn": "generate_invoice_number",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function generate_invoice_number"
+    }
+  },
+  {
+    "fn": "check_email_verification",
+    "status": 200,
+    "body": []
+  },
+  {
+    "fn": "current_user_is_admin",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function current_user_is_admin"
+    }
+  },
+  {
+    "fn": "current_user_role",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function current_user_role"
+    }
+  },
+  {
+    "fn": "current_user_group_id",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function current_user_group_id"
+    }
+  },
+  {
+    "fn": "get_order_status_counts",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function get_order_status_counts"
+    }
+  },
+  {
+    "fn": "get_low_stock_products",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function get_low_stock_products"
+    }
+  },
+  {
+    "fn": "decrement_stock",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function decrement_stock"
+    }
+  },
+  {
+    "fn": "update_batch_quantity",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function update_batch_quantity"
+    }
+  },
+  {
+    "fn": "deduct_batch_quantity",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function deduct_batch_quantity"
+    }
+  },
+  {
+    "fn": "record_terms_acceptance",
+    "status": 404,
+    "body": {
+      "code": "PGRST202",
+      "details": "Searched for the function public.record_terms_acceptance without parameters or with a single unnamed json/jsonb parameter, but no matches were found in the schema cache.",
+      "hint": null,
+      "message": "Could not find the function public.record_terms_acceptance without parameters in the schema cache"
+    }
+  },
+  {
+    "fn": "validate_promo_code",
+    "status": 401,
+    "body": {
+      "code": "42501",
+      "details": null,
+      "hint": null,
+      "message": "permission denied for function validate_promo_code"
+    }
+  }
+]

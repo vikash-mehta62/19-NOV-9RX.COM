@@ -5,7 +5,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Bell, Gift, Mail, LogIn, ShieldAlert } from "lucide-react";
+import { Loader2, Save, Bell, Gift, LogIn, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface SettingsTabProps {
@@ -40,6 +40,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
     setLoading(true);
     try {
       const updates: any = {
+        active_notification: true,
         email_notifaction: settings.email_notifaction,
         order_updates: settings.order_updates,
         portal_access: settings.portal_access,

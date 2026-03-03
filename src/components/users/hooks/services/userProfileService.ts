@@ -1,7 +1,8 @@
 import { supabase } from "@/supabaseClient";
 import { BaseUserFormData } from "../../schemas/sharedFormSchema";
 import { toast } from "@/hooks/use-toast";
-import axios from '../../../../../axiosconfig'
+import axios from '../../../../../axiosconfig';
+import { buildTermsObject, buildPrivacyObject } from "@/utils/termsHelper";
 
 export const fetchUserProfile = async (userId: string) => {
   console.log("Fetching user data for ID:", userId);
@@ -39,13 +40,24 @@ export const fetchUserProfile = async (userId: string) => {
 
 // Fetch profile without authentication (for self-update flow)
 export const fetchUserProfilePublic = async (userId: string) => {
-  console.log("Fetching user data (public) for ID:", userId);
+  console.log("Fetching user data (self flow) for ID:", userId);
 
   try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const requesterId = sessionData?.session?.user?.id;
+
+    if (!requesterId) {
+      throw new Error("No active session found");
+    }
+
+    if (requesterId !== userId) {
+      throw new Error("Unauthorized profile access");
+    }
+
     const { data, error } = await supabase
       .from("profiles")
       .select("*")
-      .eq("id", userId)
+      .eq("id", requesterId)
       .maybeSingle();
 
     if (error) {
@@ -71,9 +83,20 @@ export const updateUserProfilePublic = async (
   userId: string,
   values: BaseUserFormData
 ) => {
-  console.log("Starting profile update (public) with values:", values);
+  console.log("Starting profile update (self flow) with values:", values);
 
   try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const requesterId = sessionData?.session?.user?.id;
+
+    if (!requesterId) {
+      throw new Error("No active session found");
+    }
+
+    if (requesterId !== userId) {
+      throw new Error("Unauthorized profile update");
+    }
+
     const profileData = {
       id: userId,
       first_name: values.firstName?.trim(),
@@ -84,12 +107,15 @@ export const updateUserProfilePublic = async (
       contact_person: values.contactPerson,
       company_name: values.companyName?.trim() || null,
       pharmacy_license: values.pharmacyLicense?.trim() || null,
+      group_station: values.groupStation?.trim() || null,
+      group_type: values.groupType?.trim() || null,
       display_name: values.displayName?.trim() || `${values.firstName} ${values.lastName}`,
       work_phone: values.workPhone?.trim() || null,
       mobile_phone: values.mobilePhone?.trim() || null,
       billing_address: values.billingAddress || {},
       shipping_address: values.shippingAddress || {},
       same_as_shipping: values.sameAsShipping || false,
+      locations: Array.isArray(values.locations) ? values.locations : [],
       tax_preference: values.taxPreference || "Taxable",
       currency: values.currency || "USD",
       payment_terms: values.paymentTerms || "DueOnReceipt",
@@ -97,10 +123,23 @@ export const updateUserProfilePublic = async (
       tax_id: values.taxId?.trim() || null,
       state_id: values.stateId?.trim() || null,
       alternative_email: values.alternativeEmail?.trim() || null,
+      website: values.website?.trim() || null,
       fax_number: values.faxNumber?.trim() || null,
       department: values.department?.trim() || null,
+      notes: values.notes?.trim() || null,
+      preferred_contact_method: values.preferredContactMethod || null,
+      language_preference: values.languagePreference || null,
+      payment_method: values.paymentMethod || null,
       terms_and_conditions: values.terms_and_conditions || null,
-      // Add Privacy Policy and ACH Authorization
+      
+      // NEW: JSONB columns (single source of truth)
+      privacy_policy: (values as any).privacy_policy || buildPrivacyObject(
+        (values as any).privacy_policy_accepted || false,
+        null,
+        'web_form'
+      ),
+      
+      // DUAL-WRITE: Keep old columns during transition (backward compatibility)
       privacy_policy_accepted: (values as any).privacy_policy_accepted || false,
       privacy_policy_accepted_at: (values as any).privacy_policy_accepted_at || null,
       ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
@@ -112,7 +151,11 @@ export const updateUserProfilePublic = async (
     console.log("Prepared profile data for update (public):", profileData);
 
     // Use backend API to update profile (bypasses RLS)
-    const response = await axios.post("/update-user-profile", profileData);
+    const response = await axios.post("/update-user-profile", profileData, {
+      headers: {
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+    });
     
     if (response.data && response.data.success) {
       console.log("Profile updated successfully (public):", response.data);
@@ -168,12 +211,13 @@ export const updateUserProfile = async (
       contact_person: values.contactPerson,
       company_name: values.companyName?.trim() || null,
       pharmacy_license: values.pharmacyLicense?.trim() || null,
+      group_type: values.groupType?.trim() || null,
       display_name: values.displayName?.trim() || null,
       work_phone: values.workPhone?.trim() || null,
       mobile_phone: values.mobilePhone?.trim() || null,
       billing_address: values.billingAddress || {},
       shipping_address: values.shippingAddress || {},
-      locations: values.locations || [{}],
+      locations: Array.isArray(values.locations) ? values.locations : [],
       same_as_shipping: values.sameAsShipping || false,
       freeShipping: values.freeShipping || false,
       order_pay: values.order_pay || false,
@@ -192,9 +236,15 @@ export const updateUserProfile = async (
       fax_number: values.faxNumber?.trim() || null,
       department: values.department?.trim() || null,
       terms_and_conditions: values.terms_and_conditions || null,
-      // Add Privacy Policy and ACH Authorization
-      privacy_policy_accepted: (values as any).privacy_policy_accepted || false,
-      privacy_policy_accepted_at: (values as any).privacy_policy_accepted_at || null,
+      
+      // NEW: JSONB columns (single source of truth)
+      privacy_policy: (values as any).privacy_policy || null,
+      
+      // DUAL-WRITE: Keep old columns during transition (backward compatibility)
+      terms_accepted: (values as any).terms_and_conditions?.accepted || (values as any).terms_accepted || false,
+      terms_accepted_at: (values as any).terms_and_conditions?.acceptedAt || (values as any).terms_accepted_at || null,
+      privacy_policy_accepted: (values as any).privacy_policy?.accepted || (values as any).privacy_policy_accepted || false,
+      privacy_policy_accepted_at: (values as any).privacy_policy?.acceptedAt || (values as any).privacy_policy_accepted_at || null,
       ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
       ach_authorization_accepted_at: (values as any).ach_authorization_accepted_at || null,
       ach_authorization_version: (values as any).ach_authorization_version || null,
@@ -238,18 +288,12 @@ if(profileData.status==="active" && sessionStorage.getItem('userType') === "admi
   try {
 
     console.log("enter the aactive")
-    // const response = await axios.post("/active", {
-    //   name: `${data.first_name} ${data.last_name}`,
-    //   email: data.email,
-    // });
-    
-    if(data.email_notifaction){
-      const response = await axios.post("/active", {
-        name: `${data.first_name} ${data.last_name}`,
-        email: data.email,
-        admin: true
-          });
-      }
+    await axios.post("/active", {
+      name: `${data.first_name} ${data.last_name}`,
+      email: data.email,
+      admin: true
+    });
+
     const { data: update, error } = await supabase
     .from("profiles")
     .update({ email_notifaction: true })

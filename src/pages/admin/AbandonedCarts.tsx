@@ -122,11 +122,17 @@ export default function AbandonedCarts() {
 
   const sendReminder = async (cart: AbandonedCart) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
+
       // Call server API to send email
       const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4001';
       const response = await fetch(`${apiBaseUrl}/api/cart/send-reminder`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
         body: JSON.stringify({ cartId: cart.id })
       });
 

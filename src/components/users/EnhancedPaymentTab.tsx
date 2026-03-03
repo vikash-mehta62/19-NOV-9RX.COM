@@ -68,6 +68,7 @@ interface Transaction {
   description: string;
   transectionId?: string;
   admin_pay_notes?: string;
+  created_at?: string;
 }
 
 export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPaymentTabProps) {
@@ -460,29 +461,135 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
     : 0;
 
   useEffect(() => {
+    type FallbackInvoice = {
+      id: string;
+      invoice_number: string;
+      invoice_date: string | null;
+      original_amount: number | null;
+      total_amount: number | null;
+      status: string;
+      created_at: string;
+    };
+
+    type FallbackPayment = {
+      id: string;
+      amount: number | null;
+      payment_method: string | null;
+      transaction_id: string | null;
+      created_at: string;
+    };
+
+    const buildFallbackHistory = async (): Promise<Transaction[]> => {
+      const [invoiceRes, paymentRes] = await Promise.all([
+        supabase
+          .from("credit_invoices")
+          .select("id, invoice_number, invoice_date, original_amount, total_amount, status, created_at")
+          .eq("user_id", userId),
+        supabase
+          .from("credit_payments")
+          .select("id, amount, payment_method, transaction_id, created_at")
+          .eq("user_id", userId),
+      ]);
+
+      if (invoiceRes.error) {
+        console.error("Credit history fallback invoice error:", invoiceRes.error);
+      }
+      if (paymentRes.error) {
+        console.error("Credit history fallback payment error:", paymentRes.error);
+      }
+
+      const invoices = (invoiceRes.data || []) as FallbackInvoice[];
+      const payments = (paymentRes.data || []) as FallbackPayment[];
+
+      const invoiceTransactions: Transaction[] = invoices.map((invoice) => ({
+        id: `invoice-${invoice.id}`,
+        transaction_date: invoice.invoice_date || invoice.created_at,
+        created_at: invoice.created_at,
+        transaction_type: "debit",
+        debit_amount: Number(invoice.original_amount ?? invoice.total_amount ?? 0),
+        credit_amount: 0,
+        balance: 0,
+        description: `Credit invoice ${invoice.invoice_number} (${invoice.status})`,
+      }));
+
+      const paymentTransactions: Transaction[] = payments.map((payment) => ({
+        id: `payment-${payment.id}`,
+        transaction_date: payment.created_at,
+        created_at: payment.created_at,
+        transaction_type: "credit",
+        debit_amount: 0,
+        credit_amount: Number(payment.amount || 0),
+        balance: 0,
+        description: `Credit payment (${payment.payment_method || "payment"})`,
+        transectionId: payment.transaction_id || undefined,
+      }));
+
+      const combined = [...invoiceTransactions, ...paymentTransactions];
+      if (combined.length === 0) return [];
+
+      // Compute a best-effort running balance so history remains readable even if
+      // account_transactions rows are missing for older credit flows.
+      const asc = [...combined].sort((a, b) => {
+        const dA = new Date(a.transaction_date || a.created_at || 0).getTime();
+        const dB = new Date(b.transaction_date || b.created_at || 0).getTime();
+        return dA - dB;
+      });
+
+      const creditLimit = Number(creditSettings?.credit_limit || 0);
+      let runningUsed = 0;
+      for (const tx of asc) {
+        runningUsed += Number(tx.debit_amount || 0) - Number(tx.credit_amount || 0);
+        tx.balance = Math.max(0, creditLimit - runningUsed);
+      }
+
+      return asc.sort((a, b) => {
+        const dA = new Date(a.transaction_date || a.created_at || 0).getTime();
+        const dB = new Date(b.transaction_date || b.created_at || 0).getTime();
+        return dB - dA;
+      });
+    };
+
     const fetchTransactions = async () => {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("account_transactions")
-        .select("*")
-        .eq("customer_id", userId)
-        .order("transaction_date", { ascending: false })
-        .order("created_at", { ascending: false });
+      try {
+        const { data, error } = await supabase
+          .from("account_transactions")
+          .select("*")
+          .eq("customer_id", userId)
+          .order("transaction_date", { ascending: false })
+          .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        // Ensure descending order (newest first)
-        const sortedData = data.sort((a, b) => {
-          const dateA = new Date(a.transaction_date).getTime();
-          const dateB = new Date(b.transaction_date).getTime();
-          return dateB - dateA; // Descending order
-        });
-        setTransactions(sortedData);
+        if (error) {
+          console.error("Credit history account_transactions error:", error);
+          const fallback = await buildFallbackHistory();
+          setTransactions(fallback);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          // Ensure descending order (newest first)
+          const sortedData = data.sort((a, b) => {
+            const dateA = new Date(a.transaction_date).getTime();
+            const dateB = new Date(b.transaction_date).getTime();
+            return dateB - dateA;
+          });
+          setTransactions(sortedData as Transaction[]);
+          return;
+        }
+
+        // If transactional ledger rows are empty, still show invoice/payment history.
+        const fallback = await buildFallbackHistory();
+        setTransactions(fallback);
+      } catch (err) {
+        console.error("Credit history fetch failed:", err);
+        setTransactions([]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchTransactions();
-  }, [userId]);
+  }, [userId, creditSettings?.credit_limit]);
 
   if (loading) {
     return (
@@ -680,7 +787,6 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                     creditUsed={creditSettings.credit_used}
                     onPaymentSuccess={loadCreditSettings} 
                     userId={userId}
-                    allowManual={!readOnly}
                   />
                 </div>
               </div>

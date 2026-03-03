@@ -175,6 +175,8 @@ export default function EmailSettings() {
     try {
       // First, save settings to make sure latest config is used
       await handleSave();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
       
       // Call the backend API directly to send test email immediately
       const baseUrl = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
@@ -182,6 +184,7 @@ export default function EmailSettings() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           email: testEmail,

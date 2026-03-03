@@ -1,6 +1,67 @@
-const signupSuccessTemplate = (name, email) => {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3002';
-    const updateProfileUrl = `${frontendUrl}/update-profile?email=${encodeURIComponent(email)}`;
+/**
+ * ============================================================================
+ * SIGNUP SUCCESS EMAIL TEMPLATE - SELF-REGISTRATION FLOW
+ * ============================================================================
+ * 
+ * This template is sent to users who create their own account through the
+ * signup page (self-registration). It welcomes them and provides a secure
+ * link to complete their profile information.
+ * 
+ * PURPOSE:
+ * - Welcome new self-registered users
+ * - Inform them their account is under review
+ * - Provide secure link to complete remaining profile details
+ * - Guide them through the profile completion process
+ * 
+ * ============================================================================
+ * PARAMETERS:
+ * ============================================================================
+ * @param {string} name - User's full name (first + last)
+ * @param {string} email - User's email address
+ * @param {string|null} profileCompletionLink - Secure magic link with session token
+ * 
+ * ============================================================================
+ * LINK BEHAVIOR:
+ * ============================================================================
+ * - If profileCompletionLink provided: Uses secure magic link (NEW FLOW)
+ *   Format: https://9rx.com/update-profile#access_token=xxx
+ *   Security: Session token authentication, time-limited (24 hours)
+ * 
+ * - If profileCompletionLink is null: Falls back to login page
+ *   Format: https://9rx.com/login
+ *   Security: Avoids exposing profile access by email query parameter
+ * 
+ * ============================================================================
+ * USAGE EXAMPLE:
+ * ============================================================================
+ * 
+ * // With secure magic link (recommended):
+ * signupSuccessTemplate('John Doe', 'john@example.com', 
+ *   'https://9rx.com/update-profile#access_token=xxx')
+ * 
+ * // Fallback mode (no link generated):
+ * signupSuccessTemplate('John Doe', 'john@example.com', null)
+ * 
+ * ============================================================================
+ * WORKFLOW:
+ * ============================================================================
+ * 1. User fills signup form on website
+ * 2. Backend creates auth user + basic profile
+ * 3. Backend generates secure magic link
+ * 4. This email is sent with the magic link
+ * 5. User clicks "Complete Your Profile" button
+ * 6. User is authenticated via session token
+ * 7. User completes 4-step profile form
+ * 8. Account is ready for admin review/approval
+ * 
+ * ============================================================================
+ */
+
+const signupSuccessTemplate = (name, email, profileCompletionLink = null) => {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    // Use secure magic link if provided, otherwise fall back to login page.
+    const updateProfileUrl = profileCompletionLink || `${frontendUrl}/login`;
+    const ctaText = profileCompletionLink ? "Complete Your Profile" : "Go to Login";
     
     return `<!DOCTYPE html>
     <html>
@@ -157,7 +218,7 @@ const signupSuccessTemplate = (name, email) => {
                     <p>Our team is currently reviewing your account details. You will receive another email once your account is verified and active.</p>
                 </div>
                 <div class="button-container">
-                    <a href="${updateProfileUrl}" class="button">Complete Your Profile</a>
+                    <a href="${updateProfileUrl}" class="button">${ctaText}</a>
                 </div>
                 <p style="text-align: center; color: #64748B; font-size: 14px;">
                     Click the button above to complete your profile information while we review your account.

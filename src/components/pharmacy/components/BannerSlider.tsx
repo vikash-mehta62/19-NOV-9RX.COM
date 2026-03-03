@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,23 +44,10 @@ export const BannerSlider = ({
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const viewedBannerIdsRef = useRef<Set<string>>(new Set());
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchBanners();
-  }, [bannerType]);
-
-  useEffect(() => {
-    if (!autoPlay || banners.length <= 1) return;
-
-    const interval = setInterval(() => {
-      goToNext();
-    }, autoPlayInterval);
-
-    return () => clearInterval(interval);
-  }, [autoPlay, autoPlayInterval, banners.length, currentIndex]);
-
-  const fetchBanners = async () => {
+  const fetchBanners = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("banners")
@@ -88,14 +75,84 @@ export const BannerSlider = ({
       });
 
       setBanners(filteredData);
+      viewedBannerIdsRef.current.clear();
     } catch (error) {
       console.error("BannerSlider: Error fetching banners:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [bannerType]);
+
+  const trackBannerView = useCallback(async (bannerId: string) => {
+    try {
+      const banner = banners.find((b) => b.id === bannerId);
+      const current = banner?.view_count ?? 0;
+      const { error } = await supabase
+        .from("banners")
+        .update({ view_count: current + 1 })
+        .eq("id", bannerId);
+
+      if (error) {
+        throw error;
+      }
+
+      setBanners((prev) =>
+        prev.map((b) => (b.id === bannerId ? { ...b, view_count: (b.view_count || 0) + 1 } : b))
+      );
+    } catch (error) {
+      console.error("BannerSlider: Error tracking banner view:", error);
+    }
+  }, [banners]);
+
+  const trackBannerClick = useCallback(async (bannerId: string) => {
+    try {
+      const banner = banners.find((b) => b.id === bannerId);
+      const current = banner?.click_count ?? 0;
+      const { error } = await supabase
+        .from("banners")
+        .update({ click_count: current + 1 })
+        .eq("id", bannerId);
+
+      if (error) {
+        throw error;
+      }
+
+      setBanners((prev) =>
+        prev.map((b) => (b.id === bannerId ? { ...b, click_count: (b.click_count || 0) + 1 } : b))
+      );
+    } catch (error) {
+      console.error("BannerSlider: Error tracking banner click:", error);
+    }
+  }, [banners]);
+
+  useEffect(() => {
+    fetchBanners();
+  }, [fetchBanners]);
+
+  useEffect(() => {
+    if (!autoPlay || banners.length <= 1) return;
+
+    const interval = setInterval(() => {
+      goToNext();
+    }, autoPlayInterval);
+
+    return () => clearInterval(interval);
+  }, [autoPlay, autoPlayInterval, banners.length, currentIndex]);
+
+  useEffect(() => {
+    const activeBanner = banners[currentIndex];
+    if (!activeBanner) return;
+
+    if (viewedBannerIdsRef.current.has(activeBanner.id)) {
+      return;
+    }
+
+    viewedBannerIdsRef.current.add(activeBanner.id);
+    trackBannerView(activeBanner.id);
+  }, [banners, currentIndex, trackBannerView]);
 
   const handleBannerClick = (banner: Banner) => {
+    trackBannerClick(banner.id);
     if (banner.link_url) {
       if (banner.link_url.startsWith("http")) {
         window.open(banner.link_url, "_blank");
@@ -123,9 +180,6 @@ export const BannerSlider = ({
     if (isTransitioning || index === currentIndex) return;
     setIsTransitioning(true);
     setCurrentIndex(index);
-    if (banners[index]) {
-      trackBannerView(banners[index].id);
-    }
     setTimeout(() => setIsTransitioning(false), 500);
   };
 

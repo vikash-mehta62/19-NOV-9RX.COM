@@ -11,10 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { CATEGORY_CONFIGS } from "@/App";
 import type { NewSizeState } from "../../types/size.types"
 import { Card, CardContent } from "@/components/ui/card"
-import { useEffect } from "react"
+
+type CategorySizingConfig = {
+  sizeUnits: string[];
+  defaultUnit: string;
+  hasRolls: boolean;
+  requiresCase: boolean;
+};
 
 interface AddSizeFormProps {
   newSize: NewSizeState
@@ -22,6 +27,7 @@ interface AddSizeFormProps {
   onAddSize: () => void
   setNewSize: (boolean) => void
   category: string
+  categoryConfig: CategorySizingConfig
 }
 
 export const AddSizeForm = ({
@@ -29,10 +35,8 @@ export const AddSizeForm = ({
   onSizeChange,
   onAddSize,
   category,
+  categoryConfig,
 }: AddSizeFormProps) => {
-  const categoryConfig =
-    CATEGORY_CONFIGS[category as keyof typeof CATEGORY_CONFIGS] ||
-    CATEGORY_CONFIGS.OTHER
 
   // 🔥 Auto-calculate price per unit when related fields change
   const handleFieldChange = (field: string, value: string | boolean) => {

@@ -16,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreVertical, UserCheck, UserMinus, UserPen, X, Eye, Loader2, Trash2, FileText } from "lucide-react";
+import { MoreVertical, UserCheck, UserMinus, UserPen, X, Eye, Loader2, Trash2, FileText, Mail } from "lucide-react";
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { EditUserModal } from "./EditUserModal";
@@ -25,6 +25,8 @@ import { activateUser } from "./actions/activateUser";
 import { deactivateUser } from "./actions/deactivateUser";
 import { deleteUser } from "./actions/deleteUser";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import axios from "../../../axiosconfig";
 
 interface UserActionsProps {
   userId: string;
@@ -157,10 +159,17 @@ const UserActions = ({
       
       const pdfUrl = `${API_BASE_URL}/api/terms-management/generate-pdf/${userId}`;
       console.log(`Making request to: ${pdfUrl}`);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error("Please log in again");
+      }
       
       const response = await fetch(pdfUrl, {
         method: 'GET',
-        credentials: 'include', // Include cookies for authentication
+        credentials: 'include',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       console.log(`Response status: ${response.status}`);
@@ -204,6 +213,44 @@ const UserActions = ({
       toast({
         title: "Error", 
         description: error.message || "Failed to generate PDF report",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleResendTermsEmail = async () => {
+    try {
+      if (!userId || userId.trim() === '') {
+        throw new Error('Invalid user ID');
+      }
+
+      console.log(`Resending terms acceptance email to user ID: ${userId}, user name: ${userName}`);
+      
+      const response = await axios.post("/api/terms/resend-acceptance-email", {
+        userId: userId
+      });
+
+      if (response.data.success) {
+        const pending = response.data.pendingAcceptances;
+        const pendingList = [];
+        if (pending.terms) pendingList.push('Terms of Service');
+        if (pending.privacy) pendingList.push('Privacy Policy');
+        if (pending.ach) pendingList.push('ACH Authorization');
+
+        toast({
+          title: "Email Sent Successfully",
+          description: pendingList.length > 0 
+            ? `Terms acceptance email sent to ${userName}. Pending: ${pendingList.join(', ')}`
+            : `Terms acceptance email sent to ${userName}`,
+        });
+      } else {
+        throw new Error(response.data.message || 'Failed to send email');
+      }
+    } catch (error) {
+      console.error('Resend terms email error:', error);
+      toast({
+        title: "Error", 
+        description: error.response?.data?.message || error.message || "Failed to send terms acceptance email",
         variant: "destructive"
       });
     }

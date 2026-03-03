@@ -1,5 +1,7 @@
 import { supabase } from '@/integrations/supabase/client';
 
+const DEFAULT_BATCH_EXPIRY_DATE = '2099-12-31';
+
 export interface ProductBatch {
   id?: string;
   product_id: string;
@@ -46,6 +48,8 @@ export class BatchTrackingService {
    */
   static async createBatch(batch: ProductBatch): Promise<string> {
     try {
+      const expiryDate = batch.expiry_date || DEFAULT_BATCH_EXPIRY_DATE;
+
       const { data, error } = await supabase
         .from('product_batches')
         .insert({
@@ -53,7 +57,7 @@ export class BatchTrackingService {
           batch_number: batch.batch_number,
           lot_number: batch.lot_number,
           manufacturing_date: batch.manufacturing_date,
-          expiry_date: batch.expiry_date,
+          expiry_date: expiryDate,
           quantity: batch.quantity,
           cost_per_unit: batch.cost_per_unit,
           supplier_id: batch.supplier_id,

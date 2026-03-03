@@ -16,6 +16,7 @@ import { Package, Truck, MapPin, Box, Download, AlertCircle, CheckCircle2, Layer
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BatchInventoryService, BatchAllocation } from "@/services/batchInventoryService";
+import { hasOrderBatchDeductions } from "@/services/orderBatchDeductionService";
 
 interface PackingSlipModalProps {
   open: boolean;
@@ -202,16 +203,25 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
       
       await generateWorkOrderPDF(orderData, completeData);
       
-      // Deduct from SELECTED batches after successful PDF generation
+      // Deduct from SELECTED batches after successful PDF generation.
+      // Skip deduction when already consumed earlier in order flow.
       try {
-        for (const item of itemsWithBatches) {
-          if (item.batches && item.batches.length > 0) {
-            await BatchInventoryService.deductFromBatches(
-              item.batches,
-              orderData.id,
-              'order'
-            );
+        const alreadyDeducted = orderData?.id
+          ? await hasOrderBatchDeductions(orderData.id)
+          : false;
+
+        if (!alreadyDeducted) {
+          for (const item of itemsWithBatches) {
+            if (item.batches && item.batches.length > 0) {
+              await BatchInventoryService.deductFromBatches(
+                item.batches,
+                orderData.id,
+                'order'
+              );
+            }
           }
+        } else {
+          console.log(`Batch stock already deducted for order ${orderData.id}, skipping deduction in packing slip.`);
         }
       } catch (batchError) {
         console.error('Error deducting batches:', batchError);

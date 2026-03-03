@@ -22,7 +22,8 @@ interface EditUserModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onUserUpdated: () => void;
-  self?:boolean
+  self?:boolean;
+  isProfileCompletion?: boolean; // NEW: Flag to indicate if this is magic link profile completion
 }
 
 export function EditUserModal({
@@ -30,10 +31,20 @@ export function EditUserModal({
   open,
   onOpenChange,
   onUserUpdated,
-  self
+  self,
+  isProfileCompletion = false
 }: EditUserModalProps) {
   const queryClient = useQueryClient(); // ✅ Query Client
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 EditUserModal Props:', {
+      isProfileCompletion,
+      self,
+      userId: user.id
+    });
+  }, [isProfileCompletion, self, user.id]);
 
   // Check if current user is admin
   useEffect(() => {
@@ -140,6 +151,7 @@ export function EditUserModal({
                 isSubmitting={formState.isSaving}
                 hideSteps={true}
                 userId={user.id}
+                isProfileCompletion={isProfileCompletion}
               />
             ) : (
               <TabbedUserForm

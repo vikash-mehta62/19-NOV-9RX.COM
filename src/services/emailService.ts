@@ -115,10 +115,12 @@ async function sendViaNodeAPI(
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   try {
     const baseUrl = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in/";
+    const { data: { session } } = await supabase.auth.getSession();
     const response = await fetch(`${baseUrl}/api/email/send-test`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
       },
       body: JSON.stringify({
         email: Array.isArray(payload.to) ? payload.to[0] : payload.to,
@@ -144,9 +146,11 @@ export async function sendEmail(
   payload: EmailPayload
 ): Promise<{ success: boolean; messageId?: string; error?: string }> {
   const settings = await getEmailSettings();
+  const recipients = Array.isArray(payload.to) ? payload.to : [payload.to];
 
   const emailPayload: EmailPayload = {
     ...payload,
+    to: recipients,
     from: payload.from || `${settings?.from_name || "9RX"} <${settings?.from_email || "noreply@9rx.com"}>`,
     replyTo: payload.replyTo || settings?.reply_to,
   };

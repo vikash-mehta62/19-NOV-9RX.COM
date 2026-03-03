@@ -1,13 +1,12 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { StatementData, StatementTransaction } from "@/services/statementService";
 import { DownloadManager, DownloadOptions, DownloadResult } from "./download-manager";
 import Logo from "../assests/home/9rx_logo.png"
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => void;
-  lastAutoTable: {
+  lastAutoTable?: {
     finalY: number;
   };
 }
@@ -381,7 +380,7 @@ export class StatementPDFGenerator {
     }
 
     // Create table
-    doc.autoTable({
+    autoTable(doc as any, {
       head: tableHead,
       body: tableBody,
       startY: tableStartY + 5,
@@ -441,7 +440,7 @@ export class StatementPDFGenerator {
     pageWidth: number
   ): void {
     const pageHeight = doc.internal.pageSize.getHeight();
-    let finalY = doc.lastAutoTable.finalY + 10;
+    let finalY = (doc.lastAutoTable?.finalY || 140) + 10;
     const totalsWidth = 90;
     const totalsX = pageWidth - this.margin - totalsWidth;
     const totalsHeight = 55; // Total height needed for the totals section + badge

@@ -12,8 +12,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { CategorySubcategoryManager } from "./CategorySubcategoryManager"
-import { PRODUCT_CATEGORIES } from "@/App"
-import { supabase } from "@/integrations/supabase/client"
+import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService"
 
 interface BasicInfoSectionProps {
   form: UseFormReturn<ProductFormValues>
@@ -28,8 +27,23 @@ interface Subcategory {
 
 export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) => {
   const [openDialog, setOpenDialog] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>(form.getValues("category") || "");
+
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const categoryData = await fetchOrderedCategories();
+        setCategories(categoryData.map((item) => item.category_name));
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        setCategories([]);
+      }
+    };
+
+    loadCategories();
+  }, []);
 
   // Set initial category from form when component mounts or form values change
   useEffect(() => {
@@ -42,20 +56,18 @@ export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) =
   // Fetch subcategories when category changes
   useEffect(() => {
     const fetchSubcategories = async () => {
-      if (!selectedCategory) return;
-      
-      const { data, error } = await supabase
-        .from('subcategory_configs')
-        .select('*')
-        .eq('category_name', selectedCategory)
-        .order('subcategory_name');
-
-      if (error) {
-        console.error('Error fetching subcategories:', error);
+      if (!selectedCategory) {
+        setSubcategories([]);
         return;
       }
 
-      setSubcategories(data || []);
+      try {
+        const data = await fetchOrderedSubcategories(selectedCategory);
+        setSubcategories(data || []);
+      } catch (error) {
+        console.error('Error fetching subcategories:', error);
+        setSubcategories([]);
+      }
     };
 
     fetchSubcategories();
@@ -110,7 +122,7 @@ export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) =
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent className="max-h-[300px]">
-                      {PRODUCT_CATEGORIES.map((category) => (
+                      {categories.map((category) => (
                         <SelectItem 
                           key={category} 
                           value={category}

@@ -628,6 +628,9 @@ export default function EmailAutomations() {
   const handleRunCron = async () => {
     setRunningCron(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
+
       // Check if server is running by making the request
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
@@ -637,6 +640,7 @@ export default function EmailAutomations() {
         signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
       

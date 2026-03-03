@@ -82,28 +82,36 @@ export const SignupForm = () => {
 
       console.log("Auth user created successfully:", authData.user.id);
 
-      // Step 2: Create or update profile via server endpoint
-      // Note: Uses admin client on server to bypass RLS, since user is not authenticated yet
-      //   - If DB trigger already created a minimal profile, server upserts with full details
-      //   - If trigger is disabled, server creates the profile from scratch
-      console.log("Creating/updating profile entry via server...");
-      const profileResponse = await axios.post("/create-signup-profile", {
-        userId: authData.user.id,
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        phone: formData.phone,
-        termsAccepted: formData.termsAccepted,
-        termsAcceptedAt: new Date().toISOString(),
-        termsVersion: "1.0",
-      });
+      // Step 2: Create or update profile via authenticated server endpoint
+      const sessionToken = authData.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token;
 
-      if (!profileResponse.data?.success) {
-        console.error("Profile creation error:", profileResponse.data);
-        throw new Error(profileResponse.data?.message || "Failed to create profile");
+      if (sessionToken) {
+        console.log("Creating/updating profile entry via server...");
+        const profileResponse = await axios.post("/create-signup-profile", {
+          userId: authData.user.id,
+          email: formData.email,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          termsAccepted: formData.termsAccepted,
+          termsAcceptedAt: new Date().toISOString(),
+          termsVersion: "1.0",
+        }, {
+          headers: {
+            Authorization: `Bearer ${sessionToken}`,
+          },
+        });
+
+        if (!profileResponse.data?.success) {
+          console.error("Profile creation error:", profileResponse.data);
+          throw new Error(profileResponse.data?.message || "Failed to create profile");
+        }
+
+        console.log("Profile created successfully");
+      } else {
+        // If signup flow returns no immediate session, avoid unauthenticated profile writes.
+        console.warn("No active session after signup; skipping create-signup-profile call.");
       }
-
-      console.log("Profile created successfully");
 
       // Apply referral code if provided
       if (formData.referralCode && formData.referralCode.trim()) {
@@ -122,6 +130,7 @@ export const SignupForm = () => {
         const response = await axios.post("/user-verification", {
           name: `${formData.firstName} ${formData.lastName}`,
           email: formData.email,
+          userId: authData.user.id,
         });
       
         console.log("Verification Successful:", response.data);
@@ -150,13 +159,14 @@ export const SignupForm = () => {
       navigate("/login", { state: { defaultTab: "login" } });
       
       window.location.reload();
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { message?: string; stack?: string };
       // console.error("Detailed signup error:", error);
       // console.error("Error stack trace:", error.stack);
       toast({
         title: "Error",
         description:
-          error.message || "Failed to create account. Please try again.",
+          err.message || "Failed to create account. Please try again.",
         variant: "destructive",
       });
     } finally {

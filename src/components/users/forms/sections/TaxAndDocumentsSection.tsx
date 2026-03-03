@@ -29,9 +29,10 @@ interface TaxAndDocumentsSectionProps {
   form: UseFormReturn<BaseUserFormData>;
   isAdmin?: boolean;
   userId?: string;
+  isProfileCompletion?: boolean; // NEW: Flag to indicate if this is initial profile completion
 }
 
-export function TaxAndDocumentsSection({ form, isAdmin = false, userId }: TaxAndDocumentsSectionProps) {
+export function TaxAndDocumentsSection({ form, isAdmin = false, userId, isProfileCompletion = false }: TaxAndDocumentsSectionProps) {
   const { toast } = useToast();
   const [isUploading, setIsUploading] = useState(false);
   const [documents, setDocuments] = useState<DocumentInfo[]>([]);
@@ -81,9 +82,9 @@ export function TaxAndDocumentsSection({ form, isAdmin = false, userId }: TaxAnd
 
     if (!userId) {
       toast({ 
-        title: "Cannot Upload Yet", 
-        description: "Please save the customer first, then you can upload documents from the edit screen.", 
-        variant: "destructive" 
+        title: "Upload Not Available", 
+        description: "Document upload will be available after your account is verified and approved. Please complete your profile for now.", 
+        variant: "default" 
       });
       e.target.value = ''; // Reset file input
       return;
@@ -300,70 +301,99 @@ export function TaxAndDocumentsSection({ form, isAdmin = false, userId }: TaxAnd
         />
 
         <div className="space-y-2">
-          <FormLabel>Documents</FormLabel>
-          {!userId && (
-            <p className="text-sm text-muted-foreground bg-muted/50 p-3 rounded-md border">
-              💡 Documents can be uploaded after creating the customer. Save this form first, then edit the customer to add documents.
-            </p>
-          )}
-          {userId && (
-            <div className="flex items-center gap-2">
-              <Input
-                type="file"
-                className="hidden"
-                id="document-upload"
-                onChange={handleFileUpload}
-                disabled={isUploading}
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
-              />
-              <Button asChild variant="outline" disabled={isUploading}>
-                <label htmlFor="document-upload" className="cursor-pointer">
-                  {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                  {isUploading ? "Uploading..." : "Upload Document"}
-                </label>
-              </Button>
-            </div>
-          )}
-
-          {isLoading && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading documents...
-            </div>
-          )}
-
-          {!isLoading && documents.length > 0 && (
-            <div className="mt-4 space-y-2">
-              <p className="text-sm text-muted-foreground">Uploaded Documents ({documents.length}):</p>
-              {documents.map((doc) => (
-                <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">{doc.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {doc.file_type} {formatFileSize(doc.file_size) && `• ${formatFileSize(doc.file_size)}`}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => handleDownload(doc)}>
-                      <Download className="h-4 w-4" />
-                    </Button>
-                    <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(doc)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
+          <FormLabel>Documents (Optional)</FormLabel>
+          
+          {/* CASE 1: Magic link users (profile completion) - Show info message */}
+          {isProfileCompletion && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-blue-600" />
                 </div>
-              ))}
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900 mb-1">
+                    📄 Document Upload Available After Verification
+                  </p>
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    You can upload documents (licenses, certifications, etc.) after your account is verified and approved by our team. 
+                    For now, please complete the rest of your profile information.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
+          
+          {/* CASE 2: Admin creating NEW customer (no userId) - Show info message */}
+          {!isProfileCompletion && !userId && isAdmin && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+              <p className="text-xs text-amber-800">
+                📄 Documents can be uploaded after the customer is created and saved.
+              </p>
+            </div>
+          )}
+          
+          {/* CASE 3: Admin editing existing customer OR logged-in user - Show upload functionality */}
+          {!isProfileCompletion && userId && (
+            <>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="file"
+                  className="hidden"
+                  id="document-upload"
+                  onChange={handleFileUpload}
+                  disabled={isUploading}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.gif"
+                />
+                <Button asChild variant="outline" disabled={isUploading}>
+                  <label htmlFor="document-upload" className="cursor-pointer">
+                    {isUploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
+                    {isUploading ? "Uploading..." : "Upload Document"}
+                  </label>
+                </Button>
+              </div>
 
-          {!isLoading && documents.length === 0 && (
-            <p className="text-sm text-muted-foreground mt-2">No documents uploaded yet.</p>
+              {isLoading && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading documents...
+                </div>
+              )}
+
+              {!isLoading && documents.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  <p className="text-sm text-muted-foreground">Uploaded Documents ({documents.length}):</p>
+                  {documents.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{doc.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {doc.file_type} {formatFileSize(doc.file_size) && `• ${formatFileSize(doc.file_size)}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <Button type="button" variant="ghost" size="sm" onClick={() => handleDownload(doc)}>
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button type="button" variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => handleDelete(doc)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {!isLoading && documents.length === 0 && (
+                <p className="text-sm text-muted-foreground mt-2">Upload your business documents (licenses, certifications, etc.)</p>
+              )}
+            </>
           )}
         </div>
       </CardContent>
     </Card>
   );
 }
+

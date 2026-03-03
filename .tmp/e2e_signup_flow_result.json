@@ -1,0 +1,65 @@
+{
+  "timestamp": "2026-02-27T17:41:27.967Z",
+  "baseUrl": "http://localhost:4001",
+  "startedByScript": true,
+  "score": 100,
+  "passed": 10,
+  "total": 10,
+  "steps": [
+    {
+      "name": "Backend Reachable on :4001",
+      "pass": true,
+      "details": "Server responded successfully"
+    },
+    {
+      "name": "Temp Admin Setup",
+      "pass": true,
+      "details": "Admin created and authenticated"
+    },
+    {
+      "name": "Signup Auth User Created",
+      "pass": true,
+      "details": "Auth user created (be52820a-e6dd-460c-b7ef-5debd8d6e1b7)"
+    },
+    {
+      "name": "Signup Profile Pending State",
+      "pass": true,
+      "details": "Profile is pending with portal_access=false"
+    },
+    {
+      "name": "Verification Email Trigger",
+      "pass": true,
+      "details": "Endpoint returned success"
+    },
+    {
+      "name": "Pre-Approval Login Blocked",
+      "pass": true,
+      "details": "HTTP 403 - Email not confirmed. Please contact admin for account verification."
+    },
+    {
+      "name": "Admin Approval Action",
+      "pass": true,
+      "details": "Approve endpoint success"
+    },
+    {
+      "name": "Post-Approval Profile State",
+      "pass": true,
+      "details": "Profile active + portal_access=true"
+    },
+    {
+      "name": "Post-Approval OTP Send",
+      "pass": true,
+      "details": "OTP send succeeded"
+    },
+    {
+      "name": "OTP Verify Login Success",
+      "pass": true,
+      "details": "OTP verify returned session token"
+    }
+  ],
+  "durationMs": 22107,
+  "testData": {
+    "signupEmail": "e2e.signup.1772214065862@example.com",
+    "adminEmail": "e2e.admin.1772214065862@example.com"
+  }
+}

@@ -3,21 +3,68 @@
 
 import { FormField, FormItem, FormMessage } from "@/components/ui/form";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "@/hooks/use-toast";
 import { AddSizeForm } from "./components/AddSizeForm";
 import { SizeList } from "./components/SizeList";
 import type { SizeOptionsFieldProps, NewSizeState } from "../types/size.types";
-import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Ruler } from "lucide-react";
-import Swal from "sweetalert2";
 import { ConfirmDialog } from "./components/ConfirmDeleteSize";
-import { CATEGORY_CONFIGS } from "@/App";
+import { fetchOrderedCategories } from "@/services/productTreeService";
 
-export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => {
+type CategorySizingConfig = {
+  sizeUnits: string[];
+  defaultUnit: string;
+  hasRolls: boolean;
+  requiresCase: boolean;
+};
+
+const FALLBACK_CATEGORY_CONFIG: CategorySizingConfig = {
+  sizeUnits: ["unit", "OZ", "mm", "mL", "cc", "inch", "gram", "dram", "ROLL"],
+  defaultUnit: "unit",
+  hasRolls: false,
+  requiresCase: false,
+};
+
+export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
   const category = form.watch("category");
-  const categoryConfig = CATEGORY_CONFIGS[category as keyof typeof CATEGORY_CONFIGS] || CATEGORY_CONFIGS.OTHER;
+  const [categoryConfigMap, setCategoryConfigMap] = useState<Record<string, CategorySizingConfig>>({});
+
+  useEffect(() => {
+    const loadCategoryConfigs = async () => {
+      try {
+        const categories = await fetchOrderedCategories();
+        const configMap = categories.reduce<Record<string, CategorySizingConfig>>((acc, item) => {
+          acc[item.category_name] = {
+            sizeUnits: (item.size_units && item.size_units.length > 0)
+              ? item.size_units
+              : FALLBACK_CATEGORY_CONFIG.sizeUnits,
+            defaultUnit: item.default_unit || FALLBACK_CATEGORY_CONFIG.defaultUnit,
+            hasRolls: Boolean(item.has_rolls),
+            requiresCase: Boolean(item.requires_case),
+          };
+          return acc;
+        }, {});
+
+        if (!configMap.OTHER) {
+          configMap.OTHER = FALLBACK_CATEGORY_CONFIG;
+        }
+
+        setCategoryConfigMap(configMap);
+      } catch (error) {
+        console.error("Failed to fetch category configs for size form:", error);
+        setCategoryConfigMap({ OTHER: FALLBACK_CATEGORY_CONFIG });
+      }
+    };
+
+    loadCategoryConfigs();
+  }, []);
+
+  const categoryConfig = useMemo(
+    () => categoryConfigMap[category] || categoryConfigMap.OTHER || FALLBACK_CATEGORY_CONFIG,
+    [category, categoryConfigMap]
+  );
 
   const [newSize, setNewSize] = useState<NewSizeState>({
     size_value: "",
@@ -41,6 +88,14 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
     lotNumber: "",
     exipry: "",
   });
+
+  useEffect(() => {
+    setNewSize((prev) => ({
+      ...prev,
+      size_unit: prev.size_unit || categoryConfig.defaultUnit,
+      rolls_per_case: categoryConfig.hasRolls ? (prev.rolls_per_case || "1") : "",
+    }));
+  }, [categoryConfig.defaultUnit, categoryConfig.hasRolls]);
 
   const handleAddSize = () => {
     if (!newSize.size_value || !newSize.price) {
@@ -147,7 +202,6 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
 
     const currentSizes = form.getValues("sizes") || [];
     const newSizes = [...currentSizes];
-    const removedSize = newSizes[confirmIndex];
 
     newSizes.splice(confirmIndex, 1);
     form.setValue("sizes", newSizes, {
@@ -155,25 +209,9 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
       shouldDirty: true,
     });
 
-    if (isEditing && removedSize?.id) {
-      const { error: deleteError } = await supabase
-        .from("product_sizes")
-        .delete()
-        .eq("id", removedSize.id);
-
-      if (deleteError) {
-        toast({
-          title: "Error",
-          description: "Failed to remove size.",
-        });
-        setConfirmIndex(null);
-        return;
-      }
-    }
-
     toast({
       title: "Size Removed",
-      description: "Size variation has been removed.",
+      description: "Size variation removed from form. Changes apply after product update.",
     });
     setConfirmIndex(null);
   };
@@ -192,7 +230,7 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
     const sizeItem = { ...updatedSizes[index] };
 
     // helper: safe number parsing
-    const toNumber = (v: any) => {
+    const toNumber = (v: unknown) => {
       if (typeof v === "number") return v;
       if (typeof v === "string") {
         const t = v.trim();
@@ -227,7 +265,7 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
     }
     // Everything else - treat as string (size_value, size_unit, sku, image, ndcCode, upcCode, lotNumber, exipry, etc.)
     else {
-      sizeItem[field] = value as any;
+      sizeItem[field] = String(value ?? "");
     }
 
     // Recalculate price_per_case (price per unit) based on categoryConfig.hasRolls
@@ -274,6 +312,7 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
           onSizeChange={setNewSize}
           onAddSize={handleAddSize}
           category={category}
+          categoryConfig={categoryConfig}
           setNewSize={setNewSize}
         // You might need to pass `groups` and `loadingGroups` to `AddSizeForm` if it also needs to display the group dropdown
         />
@@ -298,6 +337,7 @@ export const SizeOptionsField = ({ form, isEditing }: SizeOptionsFieldProps) => 
                 onRemoveSize={handleRemoveSize}
                 onUpdateSize={handleUpdateSize}
                 category={category}
+                categoryConfig={categoryConfig}
                 setNewSize={setNewSize}
                 form={form}
               />

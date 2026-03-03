@@ -121,6 +121,8 @@ export function AddUserModal({
         mobile_phone: values.mobilePhone,
         pharmacy_license: values.pharmacyLicense,
         group_station: values.groupStation,
+        group_type: values.groupType || null,
+        locations: Array.isArray(values.locations) ? values.locations : [],
         tax_id: values.taxId,
         documents: Array.isArray(values.documents) ? values.documents : [],
         billing_address: values.billingAddress || {},
@@ -149,6 +151,7 @@ export function AddUserModal({
         credit_limit: values.creditLimit || 0,
         payment_method: values.paymentMethod || null,
         account_status: "active",
+        active_notification: true,
         email_notifaction: values.email_notifaction || false,
         referral_name: values.referralName || null, // Admin-only field
         state_id: values.stateId || null, // State ID field

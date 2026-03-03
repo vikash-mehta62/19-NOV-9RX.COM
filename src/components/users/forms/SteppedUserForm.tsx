@@ -10,6 +10,7 @@ import { TaxAndDocumentsSection } from "./sections/TaxAndDocumentsSection";
 import { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
+import { buildTermsObject, buildPrivacyObject } from "@/utils/termsHelper";
 
 // Helper to extract readable error messages from validation errors
 const getErrorMessages = (errors: FieldErrors<BaseUserFormData>): string[] => {
@@ -48,6 +49,7 @@ interface SteppedUserFormProps {
   isSubmitting?: boolean;
   hideSteps?: boolean;
   userId?: string;
+  isProfileCompletion?: boolean; // NEW: Flag to indicate if this is magic link profile completion
 }
 
 export function SteppedUserForm({
@@ -57,11 +59,21 @@ export function SteppedUserForm({
   isSubmitting = false,
   hideSteps = false,
   userId,
+  isProfileCompletion = false,
 }: SteppedUserFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [stepError, setStepError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [termsAccepted, setTermsAccepted] = useState(false);
+
+  // Debug logging
+  useEffect(() => {
+    console.log('🔍 SteppedUserForm Props:', {
+      isProfileCompletion,
+      userId,
+      hideSteps
+    });
+  }, [isProfileCompletion, userId, hideSteps]);
 
   // Watch for form errors and update validation errors display
   useEffect(() => {
@@ -178,14 +190,10 @@ export function SteppedUserForm({
         preferredContactMethod: values.preferredContactMethod || "email",
         languagePreference: values.languagePreference || "English",
         creditLimit: values.creditLimit ? Number(values.creditLimit) : 0,
-        terms_and_conditions: termsAndConditions as any,
-        // Add Privacy Policy acceptance
-        privacy_policy_accepted: true,
-        privacy_policy_accepted_at: new Date().toISOString(),
-        // Add ACH Authorization acceptance (if checkbox was checked)
-        ach_authorization_accepted: values.achAuthorizationAccepted || false,
-        ach_authorization_accepted_at: values.achAuthorizationAccepted ? new Date().toISOString() : null,
-        ach_authorization_version: values.achAuthorizationAccepted ? "1.0" : null,
+        
+        // NEW: JSONB columns (single source of truth) - auto-accept during signup, no signature
+        terms_and_conditions: buildTermsObject(true, null, 'web_form'),
+        // Note: privacy_policy and ach_authorization are handled by backend
       };
       await onSubmit(formattedValues);
     } catch (error: any) {
@@ -239,7 +247,7 @@ export function SteppedUserForm({
                 <h3 className="text-xs font-semibold text-gray-900">Business Documents</h3>
               </div>
             </div>
-            <TaxAndDocumentsSection form={form} isAdmin={false} userId={userId} />
+            <TaxAndDocumentsSection form={form} isAdmin={false} userId={userId} isProfileCompletion={isProfileCompletion} />
           </div>
         );
       case 4:

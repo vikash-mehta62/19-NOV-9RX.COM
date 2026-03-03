@@ -7,7 +7,9 @@ import {
   HelpCircle, Search, MessageCircle, Phone, Mail, 
   FileText, ChevronRight, ExternalLink, Clock
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { formatPointsRedemptionRule, normalizePointRedemptionValue, normalizePointsPerDollar } from "@/lib/rewards";
 import {
   Accordion,
   AccordionContent,
@@ -17,13 +19,41 @@ import {
 
 const Help = () => {
   const [searchQuery, setSearchQuery] = useState("");
+  const [rewardsConfig, setRewardsConfig] = useState({
+    pointsPerDollar: 1,
+    pointValue: 0.01,
+  });
+
+  useEffect(() => {
+    const fetchRewardsConfig = async () => {
+      try {
+        const { data } = await supabase
+          .from("rewards_config")
+          .select("points_per_dollar, point_redemption_value")
+          .limit(1)
+          .maybeSingle();
+
+        setRewardsConfig({
+          pointsPerDollar: normalizePointsPerDollar(Number(data?.points_per_dollar)),
+          pointValue: normalizePointRedemptionValue(Number(data?.point_redemption_value)),
+        });
+      } catch (error) {
+        console.error("Failed to fetch rewards config:", error);
+      }
+    };
+
+    fetchRewardsConfig();
+  }, []);
 
   const faqs = [
     { q: "How do I track my order?", a: "Go to 'My Orders' from your profile menu. Click on any order to see real-time tracking information and delivery status." },
     { q: "What payment methods do you accept?", a: "We accept all major credit cards, ACH bank transfers, and offer Net 30 credit terms for qualified accounts." },
     { q: "How do I return a product?", a: "Contact our support team within 30 days of delivery. We'll provide a return label and process your refund once received." },
     { q: "Can I modify my order after placing it?", a: "Orders can be modified within 2 hours of placement. Contact support immediately for any changes needed." },
-    { q: "How does the rewards program work?", a: "Earn 1 point per $1 spent. Points can be redeemed for discounts, free shipping, and store credit." },
+    {
+      q: "How does the rewards program work?",
+      a: `Earn ${rewardsConfig.pointsPerDollar} point${rewardsConfig.pointsPerDollar > 1 ? "s" : ""} per $1 spent. Points can be redeemed for discounts, free shipping, and store credit (${formatPointsRedemptionRule(rewardsConfig.pointValue)} at checkout).`,
+    },
   ];
 
   const quickLinks = [

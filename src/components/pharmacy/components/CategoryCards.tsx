@@ -1,8 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { supabase } from "@/supabaseClient"
 import { Package, Pill, Droplet, FileText, Syringe, Box, MoreHorizontal } from "lucide-react"
+import { fetchCategoryConfigs } from "@/utils/categoryUtils"
 
 interface Category {
   id: string
@@ -41,10 +41,7 @@ export const CategoryCards = ({ onCategorySelect, selectedCategory }: CategoryCa
 
   useEffect(() => {
     const fetchCategories = async () => {
-      const { data } = await supabase
-        .from("category_configs")
-        .select("*")
-        .order("category_name")
+      const data = await fetchCategoryConfigs();
       setCategories(data || [])
     }
     fetchCategories()

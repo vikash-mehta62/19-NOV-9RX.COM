@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const cors = require("cors");
+const helmet = require("helmet");
 const ApiContracts = require("authorizenet").APIContracts;
 const ApiControllers = require("authorizenet").APIControllers;
 const SDKConstants = require("authorizenet").Constants;
@@ -36,9 +37,14 @@ app.use(compression({
 // Simple in-memory rate limiter (no extra dependency needed)
 const rateLimitStore = new Map();
 
-const createRateLimiter = (windowMs, maxRequests) => {
+const createRateLimiter = (windowMs, maxRequests, bucket = "default") => {
   return (req, res, next) => {
-    const key = req.ip;
+    const forwardedFor = req.headers["x-forwarded-for"];
+    const forwardedIp = Array.isArray(forwardedFor)
+      ? forwardedFor[0]
+      : (forwardedFor || "").split(",")[0].trim();
+    const clientIp = forwardedIp || req.ip || "unknown";
+    const key = `${bucket}:${clientIp}`;
     const now = Date.now();
     
     if (!rateLimitStore.has(key)) {
@@ -68,13 +74,15 @@ const createRateLimiter = (windowMs, maxRequests) => {
 
 // Rate limiters
 const generalLimiter = createRateLimiter(
-  parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15 minutes
-  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100
+  parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 45 * 60 * 1000, // 15 minutes
+  parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100,
+  "general"
 );
 
 const emailLimiter = createRateLimiter(
   15 * 60 * 1000, // 15 minutes
-  parseInt(process.env.EMAIL_RATE_LIMIT_MAX) || 10 // 10 emails per 15 min
+  parseInt(process.env.EMAIL_RATE_LIMIT_MAX) || 40, // 10 emails per 15 min
+  "email"
 );
 
 // Clean up old rate limit entries every 30 minutes
@@ -88,8 +96,17 @@ setInterval(() => {
 }, 30 * 60 * 1000);
 
 // body parser
-app.use(express.json({ limit: "500mb" }));
-app.use(express.urlencoded({ limit: "500mb", extended: true }));
+const requestBodyLimit = process.env.REQUEST_BODY_LIMIT || "10mb";
+app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(
+  helmet({
+    // API server response hardening; frontend CSP should be set at CDN/web tier.
+    contentSecurityPolicy: false,
+  })
+);
+app.use(express.json({ limit: requestBodyLimit }));
+app.use(express.urlencoded({ limit: requestBodyLimit, extended: true }));
 const cookieParser = require("cookie-parser");
 
 const logger = require("morgan");
@@ -97,6 +114,7 @@ const logger = require("morgan");
 
 const { orderSatusCtrl, orderPlacedCtrl, userNotificationCtrl, contactCtrl, customization, accountActivation, paymentLink, paymentLinkCtrl, adminAccountActivation, updateProfileNotification, paymentSuccessFull, groupInvitationCtrl } = require("./controllers/orderStatus");
 const { invoicesCtrl } = require("./controllers/quickBooks");
+const { requireAuth, requireAdmin } = require("./middleware/auth");
 
 app.use(logger("dev"));
 
@@ -123,6 +141,9 @@ app.use(
   })
 );
 
+// Apply general rate limiter before sensitive routes.
+app.use(generalLimiter);
+
 const API_LOGIN_ID = process.env.AUTHORIZE_NET_API_LOGIN_ID;
 const TRANSACTION_KEY = process.env.AUTHORIZE_NET_TRANSACTION_KEY;
 // const ENVIRONMENT = SDKConstants.endpoint.production; 
@@ -141,7 +162,7 @@ function createMerchantAuthenticationType() {
   return merchantAuthenticationType;
 }
 
-app.post("/pay", async (req, res) => {
+app.post("/pay", requireAuth, async (req, res) => {
   try {
 
     // Destructure request body
@@ -165,26 +186,6 @@ app.post("/pay", async (req, res) => {
     const formattedExpirationDate = expirationDate.toString().padStart(4, '0');
 
     // Ensure cardNumber, expirationDate, and cvv remain strings
-    const parsedData = {
-
-      amount,
-      cardNumber: cardNumber.toString(),
-      expirationDate: expirationDate.toString(),
-      cvv: cvv.toString(),
-      cardholderName,
-      address,
-      city,
-      state,
-      zip,
-      country
-    };
-
-    console.log("parsse", parsedData);
-
-
-
-
-
   
     // Validate required fields
     if (!amount) {
@@ -261,7 +262,6 @@ app.post("/pay", async (req, res) => {
     await ctrl.execute(function () {
       try {
         const apiResponse = ctrl.getResponse();
-        console.log(apiResponse)
         const response = new ApiContracts.CreateTransactionResponse(
           apiResponse
         );
@@ -278,12 +278,6 @@ app.post("/pay", async (req, res) => {
           ApiContracts.MessageTypeEnum.OK
         ) {
           const transactionResponse = response.getTransactionResponse();
-
-
-          if (transactionResponse && transactionResponse) {
-            console.error("Payment API Error:", JSON.stringify(transactionResponse));
-          }
-
 
 
           if (
@@ -338,7 +332,6 @@ app.post("/pay", async (req, res) => {
           .status(500)
           .json({
             error: "Error processing payment response",
-            details: error.message,
           });
       }
     });
@@ -346,12 +339,12 @@ app.post("/pay", async (req, res) => {
     console.error("Unexpected Server Error:", error);
     res
       .status(500)
-      .json({ error: "Internal Server Error", details: error.message });
+      .json({ error: "Internal Server Error" });
   }
 });
 
 // FortisPay ACH Payment Endpoint
-app.post("/pay-ach-fortispay", async (req, res) => {
+app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
   try {
     const {
       invoiceNumber,
@@ -388,11 +381,11 @@ app.post("/pay-ach-fortispay", async (req, res) => {
     }
 
     // Validate FortisPay credentials
-    const FORTIS_API_URL = process.env.VITE_FORTIS_API_URL || "https://api.fortispay.com/v2";
-    const FORTIS_USER_ID = process.env.VITE_FORTIS_USER_ID;
-    const FORTIS_USER_API_KEY = process.env.VITE_FORTIS_USER_API_KEY;
-    const FORTIS_LOCATION_ID = process.env.VITE_FORTIS_LOCATION_ID;
-    const FORTIS_PRODUCT_TRANSACTION_ID = process.env.VITE_FORTIS_PRODUCT_TRANSACTION_ID_ACH;
+    const FORTIS_API_URL = process.env.FORTIS_API_URL || process.env.VITE_FORTIS_API_URL || "https://api.fortispay.com/v2";
+    const FORTIS_USER_ID = process.env.FORTIS_USER_ID || process.env.VITE_FORTIS_USER_ID;
+    const FORTIS_USER_API_KEY = process.env.FORTIS_USER_API_KEY || process.env.VITE_FORTIS_USER_API_KEY;
+    const FORTIS_LOCATION_ID = process.env.FORTIS_LOCATION_ID || process.env.VITE_FORTIS_LOCATION_ID;
+    const FORTIS_PRODUCT_TRANSACTION_ID = process.env.FORTIS_PRODUCT_TRANSACTION_ID_ACH || process.env.VITE_FORTIS_PRODUCT_TRANSACTION_ID_ACH;
 
     if (!FORTIS_USER_ID || !FORTIS_USER_API_KEY || !FORTIS_LOCATION_ID || !FORTIS_PRODUCT_TRANSACTION_ID) {
       return res.status(500).json({ 
@@ -443,8 +436,6 @@ app.post("/pay-ach-fortispay", async (req, res) => {
       },
     };
 
-    console.log("FortisPay ACH Request:", JSON.stringify(transactionRequest, null, 2));
-
     // Make API request to FortisPay
     const axios = require("axios");
     const response = await axios.post(`${FORTIS_API_URL}/transactions`, transactionRequest, {
@@ -456,7 +447,6 @@ app.post("/pay-ach-fortispay", async (req, res) => {
     });
 
     const result = response.data;
-    console.log("FortisPay ACH Response:", JSON.stringify(result, null, 2));
 
     // Parse FortisPay response
     const transaction = result.transaction;
@@ -495,24 +485,25 @@ app.post("/pay-ach-fortispay", async (req, res) => {
     
     // Handle axios errors
     if (error.response) {
-      const errorData = error.response.data;
-      return res.status(error.response.status).json({
+      console.error("FortisPay API response error:", {
+        status: error.response.status,
+        code: error.response.data?.code,
+      });
+      return res.status(502).json({
         success: false,
-        error: errorData.message || errorData.error || "FortisPay API error",
-        errorCode: errorData.code,
+        error: "Payment processing failed",
       });
     }
     
     return res.status(500).json({ 
       success: false,
-      error: "Internal Server Error", 
-      details: error.message 
+      error: "Internal Server Error"
     });
   }
 });
 
 // ACH/eCheck Payment Endpoint
-app.post("/pay-ach", async (req, res) => {
+app.post("/pay-ach", requireAuth, async (req, res) => {
   try {
     const {
       invoiceNumber,
@@ -663,18 +654,17 @@ app.post("/pay-ach", async (req, res) => {
         console.error("Error processing ACH response:", error);
         return res.status(500).json({
           error: "Error processing ACH payment response",
-          details: error.message,
         });
       }
     });
   } catch (error) {
     console.error("ACH Payment Error:", error);
-    res.status(500).json({ error: "Internal Server Error", details: error.message });
+    res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
 // Test Authorize.net Connection
-app.post("/test-authorize", async (req, res) => {
+app.post("/test-authorize", requireAdmin, async (req, res) => {
   try {
     const { apiLoginId, transactionKey, testMode } = req.body;
 
@@ -734,16 +724,14 @@ app.post("/test-authorize", async (req, res) => {
         return res.status(500).json({
           success: false,
           message: "Error testing connection",
-          details: error.message,
         });
       }
     });
   } catch (error) {
     console.error("Test Connection Error:", error);
     res.status(500).json({ 
-      success: false, 
-      message: "Internal Server Error", 
-      details: error.message 
+      success: false,
+      message: "Internal Server Error"
     });
   }
 });
@@ -753,8 +741,13 @@ app.post("/test-authorize", async (req, res) => {
 // These bypass RLS by using supabaseAdmin (service role)
 // ============================================
 
-// Stricter rate limiter for pay-now endpoints (5 attempts per 15 minutes per IP)
-const payNowLimiter = createRateLimiter(15 * 60 * 1000, 5);
+// Dedicated limiter for pay-now endpoints (kept separate from general/email counters).
+// Use env values so QA/testing can increase without code edits.
+const payNowLimiter = createRateLimiter(
+  parseInt(process.env.PAY_NOW_RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000,
+  parseInt(process.env.PAY_NOW_RATE_LIMIT_MAX_REQUESTS) || 60,
+  "pay_now"
+);
 
 // GET order details for pay-now page (unauthenticated)
 app.get("/api/pay-now-order/:orderId", payNowLimiter, async (req, res) => {
@@ -965,7 +958,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
 
     // Order details
     const orderDetails = new ApiContracts.OrderType();
-    orderDetails.setInvoiceNumber(order.order_number || `ORD-${Date.now()}`);
+    orderDetails.setInvoiceNumber(order.order_number || `9RX${Date.now().toString().slice(-8)}`);
     orderDetails.setDescription(`Payment for order ${order.order_number}`);
 
     // Billing info
@@ -1110,25 +1103,6 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
             .maybeSingle();
 
           if (!existingInvoice) {
-            // Generate invoice number
-            const year = new Date().getFullYear();
-            const { data: inData } = await supabaseAdmin
-              .from("centerize_data")
-              .select("id, invoice_no, invoice_start")
-              .order("id", { ascending: false })
-              .limit(1);
-
-            const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-            const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-            if (inData?.[0]?.id) {
-              await supabaseAdmin
-                .from("centerize_data")
-                .update({ invoice_no: newInvNo })
-                .eq("id", inData[0].id);
-            }
-
-            const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
             const dueDate = new Date(
               new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000
             ).toISOString();
@@ -1137,29 +1111,62 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
             const discountVal = Number(order.discount_amount || 0);
             const subtotal = amountToCharge + discountVal - taxAmount - shippingCostVal;
 
-            await supabaseAdmin.from("invoices").insert({
-              invoice_number: invoiceNumber,
-              order_id: orderId,
-              due_date: dueDate,
-              profile_id: profileId || null,
-              status: "pending",
-              amount: subtotal,
-              tax_amount: taxAmount,
-              total_amount: amountToCharge,
-              payment_status: newPaymentStatus,
-              payment_method: paymentType === "credit_card" ? "card" : "ach",
-              notes: order.notes || null,
-              purchase_number_external: order.purchase_number_external,
-              items: order.items,
-              customer_info: order.customerInfo,
-              shipping_info: order.shippingAddress,
-              shippin_cost: shippingCostVal,
-              subtotal: subtotal,
-              discount_amount: discountVal,
-              discount_details: order.discount_details || [],
-              paid_amount: newPaidAmount,
-              payment_transication: transactionId || "",
-            });
+            const MAX_INVOICE_RETRIES = 5;
+            let insertedInvoice = false;
+            let lastInvoiceError = null;
+
+            for (let attempt = 1; attempt <= MAX_INVOICE_RETRIES; attempt++) {
+              const { data: generatedInvoiceNumber, error: invoiceNumberError } = await supabaseAdmin.rpc("generate_invoice_number");
+
+              const invoiceNumber =
+                !invoiceNumberError && generatedInvoiceNumber
+                  ? generatedInvoiceNumber
+                  : `INV-${new Date().getFullYear()}${Date.now().toString().slice(-8)}${Math.floor(Math.random() * 1000)
+                      .toString()
+                      .padStart(3, "0")}`;
+
+              const { error: invoiceInsertError } = await supabaseAdmin.from("invoices").insert({
+                invoice_number: invoiceNumber,
+                order_id: orderId,
+                due_date: dueDate,
+                profile_id: profileId || null,
+                status: "pending",
+                amount: subtotal,
+                tax_amount: taxAmount,
+                total_amount: amountToCharge,
+                payment_status: newPaymentStatus,
+                payment_method: paymentType === "credit_card" ? "card" : "ach",
+                notes: order.notes || null,
+                purchase_number_external: order.purchase_number_external,
+                items: order.items,
+                customer_info: order.customerInfo,
+                shipping_info: order.shippingAddress,
+                shippin_cost: shippingCostVal,
+                subtotal: subtotal,
+                discount_amount: discountVal,
+                discount_details: order.discount_details || [],
+                paid_amount: newPaidAmount,
+                payment_transication: transactionId || "",
+              });
+
+              if (!invoiceInsertError) {
+                insertedInvoice = true;
+                break;
+              }
+
+              lastInvoiceError = invoiceInsertError;
+              const isDuplicateInvoiceNumber =
+                invoiceInsertError.code === "23505" &&
+                String(invoiceInsertError.message || "").includes("invoices_invoice_number_key");
+
+              if (!isDuplicateInvoiceNumber) {
+                throw invoiceInsertError;
+              }
+            }
+
+            if (!insertedInvoice) {
+              throw new Error(lastInvoiceError?.message || "Failed to create invoice after retries");
+            }
           } else {
             // Update existing invoice
             await supabaseAdmin.from("invoices").update({
@@ -1221,9 +1228,6 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
   }
 });
 
-// Apply general rate limiter to all routes
-app.use(generalLimiter);
-
 // Routes
 app.use("/logs", require("./routes/logsRoute"))
 app.use("/api/email", require("./routes/emailRoutes")) // Email tracking, webhooks, unsubscribe
@@ -1233,6 +1237,7 @@ app.use("/api/otp", require("./routes/otpRoutes")) // OTP-based authentication
 app.use("/api/terms", require("./routes/termsRoutes")) // Terms acceptance for admin-created users
 app.use("/api/terms-management", require("./routes/termsManagementRoutes")) // Terms & ACH management
 app.use("/api/cart", require("./routes/cartRoutes")) // Cart management & abandoned cart reminders
+app.use("/api/profile", require("./routes/profileRoutes")) // Profile completion with secure magic links
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)
@@ -1251,8 +1256,8 @@ app.post("/paynow-user", emailLimiter, paymentLinkCtrl)
 app.post("/group-invitation", emailLimiter, groupInvitationCtrl)
 app.post("/invoice-quickbook", invoicesCtrl)
 
-// Create signup profile (bypasses RLS - used during signup when user is not yet authenticated)
-app.post("/create-signup-profile", async (req, res) => {
+// Create signup profile for the authenticated signup user.
+app.post("/create-signup-profile", requireAuth, async (req, res) => {
   try {
     if (!supabaseAdmin) {
       return res.status(500).json({
@@ -1270,12 +1275,21 @@ app.post("/create-signup-profile", async (req, res) => {
       });
     }
 
-    // Verify this userId actually exists in auth.users
-    const { data: authUser, error: authCheckError } = await supabaseAdmin.auth.admin.getUserById(userId);
-    if (authCheckError || !authUser?.user) {
+    const authUserId = req.auth?.user?.id;
+    const authEmail = (req.auth?.user?.email || "").toLowerCase().trim();
+    const requestEmail = String(email || "").toLowerCase().trim();
+
+    if (!authUserId || authUserId !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: "Forbidden - user mismatch"
+      });
+    }
+
+    if (!authEmail || authEmail !== requestEmail) {
       return res.status(400).json({
         success: false,
-        message: "Invalid user ID - user does not exist in auth"
+        message: "Email does not match authenticated user"
       });
     }
 
@@ -1285,7 +1299,22 @@ app.post("/create-signup-profile", async (req, res) => {
       acceptedAt: termsAcceptedAt || new Date().toISOString(),
       version: termsVersion || "1.0",
       ipAddress: req.ip || req.connection.remoteAddress,
-      userAgent: req.get('User-Agent')
+      userAgent: req.get('User-Agent'),
+      method: 'web_form',
+      signature: null,
+      signatureMethod: null
+    } : null;
+
+    // Prepare privacy policy data (same as terms during signup)
+    const privacyData = termsAccepted ? {
+      accepted: true,
+      acceptedAt: termsAcceptedAt || new Date().toISOString(),
+      version: termsVersion || "1.0",
+      ipAddress: req.ip || req.connection.remoteAddress,
+      userAgent: req.get('User-Agent'),
+      method: 'web_form',
+      signature: null,
+      signatureMethod: null
     } : null;
 
     // Upsert profile using admin client (bypasses RLS)
@@ -1302,9 +1331,22 @@ app.post("/create-signup-profile", async (req, res) => {
           display_name: `${firstName || ""} ${lastName || ""}`.trim(),
           type: "pharmacy",
           status: "pending",
+          account_status: "pending",
           role: "user",
+          active_notification: true,
+          portal_access: false,
+          email_notifaction: true,
           requires_password_reset: false,
+          
+          // NEW: JSONB columns (single source of truth)
           terms_and_conditions: termsData,
+          privacy_policy: privacyData,
+          
+          // DUAL-WRITE: Keep old columns during transition (backward compatibility)
+          terms_accepted: termsAccepted || false,
+          terms_accepted_at: termsAccepted ? (termsAcceptedAt || new Date().toISOString()) : null,
+          privacy_policy_accepted: termsAccepted || false,
+          privacy_policy_accepted_at: termsAccepted ? (termsAcceptedAt || new Date().toISOString()) : null,
         },
         { onConflict: "id" }
       )
@@ -1315,7 +1357,7 @@ app.post("/create-signup-profile", async (req, res) => {
       console.error("Signup profile creation error:", error);
       return res.status(400).json({
         success: false,
-        message: error.message || "Failed to create profile"
+        message: "Failed to create profile"
       });
     }
 
@@ -1329,13 +1371,13 @@ app.post("/create-signup-profile", async (req, res) => {
     console.error("Create signup profile error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error"
+      message: "Internal server error"
     });
   }
 });
 
-// Update user profile (bypasses RLS for self-update flow)
-app.post("/update-user-profile", async (req, res) => {
+// Update user profile (uses admin client, but requires authenticated caller)
+app.post("/update-user-profile", requireAuth, async (req, res) => {
   try {
     if (!supabaseAdmin) {
       return res.status(500).json({
@@ -1344,7 +1386,8 @@ app.post("/update-user-profile", async (req, res) => {
       });
     }
 
-    const profileData = req.body;
+    const profileData = req.body || {};
+    delete profileData.parent_group;
     
     if (!profileData.id) {
       return res.status(400).json({
@@ -1354,6 +1397,104 @@ app.post("/update-user-profile", async (req, res) => {
     }
 
     const userId = profileData.id;
+    const callerId = req.auth?.user?.id;
+    const callerRole = req.auth?.profile?.role;
+    const isAdmin = ["admin", "superadmin"].includes(callerRole);
+    const isGroup = callerRole === "group";
+    const isSelfUpdate = callerId === userId;
+
+    if (!callerId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized"
+      });
+    }
+
+    if (!isAdmin && !isSelfUpdate) {
+      if (!isGroup) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden - you can only update your own profile"
+        });
+      }
+
+      // Group users can update only users within their own group.
+      const { data: targetProfile, error: targetProfileError } = await supabaseAdmin
+        .from("profiles")
+        .select("id, group_id")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (targetProfileError || !targetProfile) {
+        return res.status(404).json({
+          success: false,
+          message: "Target profile not found"
+        });
+      }
+
+      if (targetProfile.group_id !== callerId) {
+        return res.status(403).json({
+          success: false,
+          message: "Forbidden - group scope mismatch"
+        });
+      }
+    }
+
+    // Non-admin callers cannot mutate privileged flags.
+    if (!isAdmin) {
+      const restrictedKeys = [
+        "role",
+        "status",
+        "account_status",
+        "portal_access",
+        "requires_password_reset",
+        "group_id",
+        "type",
+      ];
+      restrictedKeys.forEach((key) => delete profileData[key]);
+
+      if (isSelfUpdate) {
+        profileData.email = req.auth?.user?.email || profileData.email;
+      } else if (isGroup) {
+        delete profileData.email;
+      }
+    }
+
+    // Enforce required fields for self-service profile completion/update flow.
+    if (isSelfUpdate) {
+      const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+      const missingFields = [];
+
+      if (!isNonEmptyString(profileData.first_name)) missingFields.push("first_name");
+      if (!isNonEmptyString(profileData.last_name)) missingFields.push("last_name");
+      if (!isNonEmptyString(profileData.company_name)) missingFields.push("company_name");
+      if (!isNonEmptyString(profileData.contact_person)) missingFields.push("contact_person");
+
+      const workPhoneDigits = String(profileData.work_phone || "").replace(/\D/g, "");
+      if (workPhoneDigits.length < 10) {
+        return res.status(400).json({
+          success: false,
+          message: "work_phone must contain at least 10 digits",
+        });
+      }
+
+      const billingAddress = profileData.billing_address || {};
+      if (!isNonEmptyString(billingAddress.street1)) missingFields.push("billing_address.street1");
+      if (!isNonEmptyString(billingAddress.city)) missingFields.push("billing_address.city");
+      if (!isNonEmptyString(billingAddress.state)) missingFields.push("billing_address.state");
+      if (!isNonEmptyString(billingAddress.zip_code)) missingFields.push("billing_address.zip_code");
+
+      const billingCountry = billingAddress.countryRegion || billingAddress.country;
+      if (!isNonEmptyString(billingCountry)) missingFields.push("billing_address.countryRegion");
+
+      if (missingFields.length > 0) {
+        return res.status(400).json({
+          success: false,
+          message: `Missing required profile fields: ${missingFields.join(", ")}`,
+        });
+      }
+    }
+
     const userName = `${profileData.first_name || ''} ${profileData.last_name || ''}`.trim();
     const userEmail = profileData.email;
     
@@ -1371,7 +1512,7 @@ app.post("/update-user-profile", async (req, res) => {
       console.error("Profile update error:", error);
       return res.status(400).json({
         success: false,
-        message: error.message || "Failed to update profile"
+        message: "Failed to update profile"
       });
     }
 
@@ -1398,7 +1539,7 @@ app.post("/update-user-profile", async (req, res) => {
     console.error("Update profile error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error"
+      message: "Internal server error"
     });
   }
 })

@@ -83,8 +83,8 @@ const accountActiveTemplate = (name, email, admin) => {
             </div>
             <br>
             
-            <a href="${admin ? 'https://www.9rx.com/login' : `https://www.9rx.com/update-profile?email=${email}`}" class="login-button">
-                ${admin ? "Login Account" : "Update Profile"}
+            <a href="${admin ? 'https://www.9rx.com/login' : 'https://www.9rx.com/contact'}" class="login-button">
+                ${admin ? "Login Account" : "Contact Support"}
             </a>
 
             <div class="footer">If you have any questions, feel free to contact our support team.</div>

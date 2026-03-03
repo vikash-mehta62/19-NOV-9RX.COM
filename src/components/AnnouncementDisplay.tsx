@@ -65,11 +65,6 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
   const [showPopup, setShowPopup] = useState(false);
 
-  // Don't show announcements to admin users
-  if (userRole === "admin") {
-    return null;
-  }
-
   useEffect(() => {
     // Load dismissed announcements from localStorage
     const dismissed = JSON.parse(localStorage.getItem("dismissedAnnouncements") || "[]");
@@ -184,6 +179,11 @@ export function AnnouncementDisplay({ userRole = "pharmacy" }: AnnouncementDispl
       setPopupAnnouncement(null);
     }
   };
+
+  // Keep this return after hooks to preserve hook ordering.
+  if (userRole === "admin") {
+    return null;
+  }
 
   // Don't return null - toasts need to render even if no banners/popups
   return (

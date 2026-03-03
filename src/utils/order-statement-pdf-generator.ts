@@ -1,12 +1,11 @@
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import { OrderStatementData, OrderStatementRecord } from "@/types/orderStatement";
 import Logo from "../assests/home/9rx_logo.png";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
-  autoTable: (options: any) => void;
-  lastAutoTable: {
+  lastAutoTable?: {
     finalY: number;
   };
 }
@@ -404,7 +403,7 @@ export class OrderPDFGenerator {
     }
 
     // Create table
-    doc.autoTable({
+    autoTable(doc as any, {
       head: tableHead,
       body: tableBody,
       startY: tableStartY,
@@ -482,7 +481,7 @@ export class OrderPDFGenerator {
     statementData: OrderStatementData,
     pageWidth: number
   ): void {
-    const finalY = doc.lastAutoTable.finalY + 8;
+    const finalY = (doc.lastAutoTable?.finalY || 140) + 8;
     const totals = (doc as any)._statementTotals || {
       totalOriginal: statementData.summary.totalAmount,
       totalPaid: statementData.summary.totalPaid,

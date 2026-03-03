@@ -639,42 +639,34 @@ const OrderCreationWizardComponent = ({
           });
 
           // Call onComplete with payment redirect flag
-          onComplete?.({
-            ...orderData,
-            requiresPayment: true,
-            paymentMethod: "card"
-          });
+          if (onComplete) {
+            await Promise.resolve(
+              onComplete({
+                ...orderData,
+                requiresPayment: true,
+                paymentMethod: "card",
+              })
+            );
+          }
           
         } else if (paymentMethod === "credit" || paymentMethod === "manual") {
           // For credit account or manual payment, create order directly
           console.log(`${paymentMethod} payment selected - creating order directly`);
-          
-          // Note: Actual order submission is handled by the parent component (CreateOrder.tsx)
-          // This simulates processing time for better UX
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          
-          // Mark final step as complete
-          wizardState.markStepComplete(totalSteps);
-          
-          toast({
-            title: "Order Placed Successfully",
-            description: `Your order has been submitted with ${paymentMethod} payment`,
-          });
 
-          onComplete?.(orderData);
+          if (onComplete) {
+            await Promise.resolve(onComplete(orderData));
+          }
+
+          // Mark completion only after all parent async processing has finished.
+          wizardState.markStepComplete(totalSteps);
         } else {
           // Default case - create order directly
-          await new Promise((resolve) => setTimeout(resolve, 1000));
-          
-          // Mark final step as complete
-          wizardState.markStepComplete(totalSteps);
-          
-          toast({
-            title: "Order Placed Successfully",
-            description: "Your order has been submitted and is being processed",
-          });
+          if (onComplete) {
+            await Promise.resolve(onComplete(orderData));
+          }
 
-          onComplete?.(orderData);
+          // Mark completion only after all parent async processing has finished.
+          wizardState.markStepComplete(totalSteps);
         }
       } catch (error) {
         console.error("Order submission error:", error);
@@ -882,18 +874,12 @@ const OrderCreationWizardComponent = ({
         status: "pending", // Order status without payment
       };
 
-      // Simulate processing
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      
-      // Mark final step as complete
-      wizardState.markStepComplete(totalSteps);
-      
-      toast({
-        title: "Order Created Successfully",
-        description: "Order has been created without payment processing",
-      });
+      if (onComplete) {
+        await Promise.resolve(onComplete(orderData));
+      }
 
-      onComplete?.(orderData);
+      // Mark completion only after all parent async processing has finished.
+      wizardState.markStepComplete(totalSteps);
     } catch (error) {
       console.error("Order creation error:", error);
       toast({
@@ -1159,6 +1145,7 @@ const OrderCreationWizardComponent = ({
               onEditItems={handleEditItems}
               customerId={selectedCustomer?.id || initialData?.customerId}
               hasFreeShipping={customerHasFreeShipping}
+              disableRewards={userType === "group"}
               onDiscountChange={handleDiscountChange}
             />
           </aside>

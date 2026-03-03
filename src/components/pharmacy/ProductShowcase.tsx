@@ -39,7 +39,9 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
       const { data: groupData, error: fetchError } = await supabase
         .from("group_pricing")
         .select("*")
-        .eq("status", "active"); // Only fetch active pricing rules
+        .eq("status", "active")
+        .order("updated_at", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false, nullsFirst: false }); // Only fetch active pricing rules
 
       if (fetchError) {
         console.error("Error fetching group pricing:", fetchError.message);

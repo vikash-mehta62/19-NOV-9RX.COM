@@ -90,7 +90,9 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "Customers",
         items: [
           { icon: Users, label: "Users", path: "/admin/users" },
-          { icon: Users, label: "Groups", path: "/admin/groups" },
+          
+          //Hidden for now since we are not perfectly clear about this
+          // { icon: Users, label: "Groups", path: "/admin/groups" },    
           { icon: ShoppingBag, label: "Abandoned Carts", path: "/admin/abandoned-carts" },
           { icon: Gift, label: "Rewards Program", path: "/admin/rewards" },
         ],
@@ -110,7 +112,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: Mail, label: "Templates", path: "/admin/email-templates" },
           { icon: Send, label: "Campaigns", path: "/admin/email-campaigns" },
           { icon: Zap, label: "Automations", path: "/admin/email-automations" },
-          { icon: Settings, label: "Settings", path: "/admin/email-settings" },
+          // { icon: Settings, label: "Settings", path: "/admin/email-settings" },
         ],
       },
       {

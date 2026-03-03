@@ -7,11 +7,10 @@ import {
   ChevronDown, ChevronRight, X, Search, Layers,
   Package, FolderOpen, Folder
 } from "lucide-react"
-import { useState, useEffect, useMemo } from "react"
-import { supabase } from "@/supabaseClient"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { fetchCategories } from "@/utils/categoryUtils"
+import { fetchCategories, fetchSubcategoryConfigs } from "@/utils/categoryUtils"
 
 interface CategoryConfig {
   id: string
@@ -24,6 +23,12 @@ interface SubcategoryConfig {
   category_name: string
 }
 
+interface ProductFilterItem {
+  category?: string
+  subcategory?: string
+  sizes?: unknown[]
+}
+
 interface PharmacyFilterSidebarProps {
   searchQuery: string
   setSearchQuery: (query: string) => void
@@ -33,9 +38,9 @@ interface PharmacyFilterSidebarProps {
   setSelectedSubcategory: (subcategory: string) => void
   priceRange: string
   setPriceRange: (range: string) => void
-  products?: any[]
-  allProducts?: any[]
-  onProductSelect?: (product: any) => void
+  products?: ProductFilterItem[]
+  allProducts?: ProductFilterItem[]
+  onProductSelect?: (product: ProductFilterItem) => void
 }
 
 export const PharmacyFilterSidebar = ({
@@ -61,11 +66,7 @@ export const PharmacyFilterSidebar = ({
         // Fetch categories using utility (already ordered by display_order)
         const cats = await fetchCategories();
         const categoryData = cats.map(name => ({ id: name, category_name: name }));
-
-        const { data: subcategoryData } = await supabase
-          .from("subcategory_configs")
-          .select("*")
-          .order("subcategory_name", { ascending: true })
+        const subcategoryData = await fetchSubcategoryConfigs();
 
         setCategories(categoryData || [])
         setSubcategories(subcategoryData || [])

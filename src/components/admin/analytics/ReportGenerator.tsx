@@ -13,7 +13,6 @@ import {
   Loader2,
   CheckCircle2
 } from "lucide-react";
-import * as XLSX from 'xlsx';
 
 interface ReportGeneratorProps {
   dateRange: { from: Date; to: Date };
@@ -691,7 +690,7 @@ export function ReportGenerator({ dateRange }: ReportGeneratorProps) {
 
       // Export based on format
       if (format === "excel") {
-        exportToExcel(reportData, reportName);
+        await exportToExcel(reportData, reportName);
       } else {
         exportToCSV(reportData, reportName);
       }
@@ -714,29 +713,42 @@ export function ReportGenerator({ dateRange }: ReportGeneratorProps) {
     }
   };
 
-  const exportToExcel = (data: any[], filename: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Report");
+  const exportToExcel = async (data: any[], filename: string) => {
+    const { default: writeXlsxFile } = await import("write-excel-file/browser");
+    const headers = Object.keys(data[0] || {});
+    const rows = [
+      headers.map((header) => ({ type: String, value: header, fontWeight: "bold" })),
+      ...data.map((row) => headers.map((header) => ({ type: String, value: String(row[header] ?? "") }))),
+    ];
 
-    // Auto-size columns
-    const maxWidth = 50;
-    const colWidths = Object.keys(data[0] || {}).map(key => ({
-      wch: Math.min(maxWidth, Math.max(key.length, ...data.map(row => String(row[key] || '').length)))
-    }));
-    worksheet['!cols'] = colWidths;
-
-    XLSX.writeFile(workbook, `${filename}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    await writeXlsxFile(rows, {
+      fileName: `${filename}_${new Date().toISOString().split("T")[0]}.xlsx`,
+      columns: headers.map(() => ({ width: 28 })),
+      sheet: "Report",
+      stickyRowsCount: 1,
+      fontFamily: "Calibri",
+      fontSize: 11,
+      dateFormat: "mm/dd/yyyy",
+    });
   };
 
   const exportToCSV = (data: any[], filename: string) => {
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const csv = XLSX.utils.sheet_to_csv(worksheet);
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const headers = Object.keys(data[0] || {});
+    const escapeCsv = (value: unknown) => {
+      const serialized = String(value ?? "");
+      return `"${serialized.replace(/"/g, '""')}"`;
+    };
+    const csv = [
+      headers.map(escapeCsv).join(","),
+      ...data.map((row) => headers.map((header) => escapeCsv(row[header])).join(",")),
+    ].join("\n");
+
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
     link.download = `${filename}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+    URL.revokeObjectURL(link.href);
   };
 
   return (

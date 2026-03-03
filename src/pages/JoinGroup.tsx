@@ -227,11 +227,13 @@ const JoinGroup = () => {
       console.log("Creating/updating profile via backend API with group_id:", invitation!.group_id);
 
       const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const accessToken = authData.session?.access_token;
 
       const response = await fetch(`${BASE_URL}/api/users/update-pharmacy-profile/${authData.user.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
         body: JSON.stringify({
           firstName: form.first_name,
@@ -239,6 +241,7 @@ const JoinGroup = () => {
           companyName: form.company_name,
           phone: form.phone,
           groupId: invitation!.group_id,
+          invitationToken: token,
         }),
       });
 

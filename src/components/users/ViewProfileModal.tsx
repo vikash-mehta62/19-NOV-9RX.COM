@@ -89,7 +89,7 @@ import {
 } from "@/components/ui/popover";
 import { orderStatementService } from "@/services/orderStatementService";
 import { orderStatementDownloadService } from "@/services/orderStatementDownloadService";
-import axios from "axios";
+import axios from "../../../axiosconfig";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -248,6 +248,11 @@ export function ViewProfileModal({
   const [downloadStartDate, setDownloadStartDate] = useState<Date | undefined>(undefined);
   const [downloadEndDate, setDownloadEndDate] = useState<Date | undefined>(new Date());
   const [isDownloading, setIsDownloading] = useState(false);
+
+  // Resend terms email state
+  const [isResendingTerms, setIsResendingTerms] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isUpdatingCreditStatus, setIsUpdatingCreditStatus] = useState(false);
 
   // Edit profile modal state (uses existing EditUserModal)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -440,6 +445,7 @@ export function ViewProfileModal({
   // Toggle account status (suspend/activate)
   const handleToggleAccountStatus = async () => {
     const newStatus = profile?.status === "active" ? "inactive" : "active";
+    setIsUpdatingStatus(true);
     try {
       const { error } = await supabase
         .from("profiles")
@@ -451,9 +457,8 @@ export function ViewProfileModal({
       // Send activation email if user has email_notifaction enabled and status is being set to active
       if (newStatus === "active" && profile?.email_notifaction && profile?.email) {
         const userName = profile.first_name || profile.company_name || 'User';
-        const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
         try {
-          await axios.post(`${BASE_URL}/active`, {
+          await axios.post("/active", {
             name: userName,
             email: profile.email,
             admin: true // true means account is active
@@ -471,11 +476,14 @@ export function ViewProfileModal({
       fetchAllData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
   // Change credit status
   const handleChangeCreditStatus = async (newStatus: string) => {
+    setIsUpdatingCreditStatus(true);
     try {
       const { error } = await supabase
         .from("profiles")
@@ -488,6 +496,8 @@ export function ViewProfileModal({
       fetchAllData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setIsUpdatingCreditStatus(false);
     }
   };
 
@@ -537,8 +547,59 @@ export function ViewProfileModal({
 
   // NEW: Send email to customer
   const handleSendEmail = () => {
+    if (profile?.active_notification === false) {
+      toast({
+        title: "Emails Disabled",
+        description: "No emails are allowed for this user.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (profile?.email) {
       window.location.href = `mailto:${profile.email}`;
+      return;
+    }
+    toast({
+      title: "Email Missing",
+      description: "No email is available for this customer.",
+      variant: "destructive",
+    });
+  };
+
+  // NEW: Resend terms acceptance email
+  const handleResendTermsEmail = async () => {
+    try {
+      setIsResendingTerms(true);
+
+      const response = await axios.post("/api/terms/resend-acceptance-email", {
+        userId: userId
+      });
+
+      if (response.data.success) {
+        const pending = response.data.pendingAcceptances;
+        const pendingList = [];
+        if (pending.terms) pendingList.push('Terms of Service');
+        if (pending.privacy) pendingList.push('Privacy Policy');
+        if (pending.ach) pendingList.push('ACH Authorization');
+
+        toast({
+          title: "Email Sent Successfully",
+          description: pendingList.length > 0 
+            ? `Terms acceptance email sent. Pending: ${pendingList.join(', ')}`
+            : `Terms acceptance email sent successfully`,
+        });
+      } else {
+        throw new Error(response.data.message || 'Failed to send email');
+      }
+    } catch (error: any) {
+      console.error('Resend terms email error:', error);
+      toast({
+        title: "Error", 
+        description: error.response?.data?.message || error.message || "Failed to send terms acceptance email",
+        variant: "destructive"
+      });
+    } finally {
+      setIsResendingTerms(false);
     }
   };
 
@@ -1228,7 +1289,7 @@ export function ViewProfileModal({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getTaskStatusColor = (status: string) => {
     switch (status) {
       case "completed":
         return "bg-green-500";
@@ -1462,7 +1523,13 @@ export function ViewProfileModal({
 
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Button size={isCompact ? "default" : "sm"} variant="outline" onClick={handleSendEmail} className={isCompact ? "w-full" : ""}>
+                    <Button
+                      size={isCompact ? "default" : "sm"}
+                      variant="outline"
+                      onClick={handleSendEmail}
+                      disabled={!profile?.email || profile?.active_notification === false}
+                      className={isCompact ? "w-full" : ""}
+                    >
                       <Send className="h-4 w-4 mr-1" />
                       Email
                     </Button>
@@ -1472,9 +1539,14 @@ export function ViewProfileModal({
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button size={isCompact ? "default" : "sm"} variant="outline" className={isCompact ? "w-full" : ""}>
+                    <Button
+                      size={isCompact ? "default" : "sm"}
+                      variant="outline"
+                      disabled={isUpdatingCreditStatus}
+                      className={isCompact ? "w-full" : ""}
+                    >
                       <Shield className="h-4 w-4 mr-1" />
-                      Credit Status
+                      {isUpdatingCreditStatus ? "Updating..." : "Credit Status"}
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
@@ -1503,9 +1575,15 @@ export function ViewProfileModal({
                       size={isCompact ? "default" : "sm"}
                       variant={profile.status === "active" ? "destructive" : "default"}
                       onClick={handleToggleAccountStatus}
+                      disabled={isUpdatingStatus}
                       className={isCompact ? "w-full" : ""}
                     >
-                      {profile.status === "active" ? (
+                      {isUpdatingStatus ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          Updating...
+                        </>
+                      ) : profile.status === "active" ? (
                         <>
                           <UserX className="h-4 w-4 mr-1" />
                           Suspend
@@ -1990,6 +2068,16 @@ export function ViewProfileModal({
                     </Badge>
                   </div>
                   <div>
+                    <p className="text-sm text-muted-foreground">
+                      No Emails At All
+                    </p>
+                    <Badge
+                      variant={profile.active_notification === false ? "destructive" : "secondary"}
+                    >
+                      {profile.active_notification === false ? "Enabled" : "Disabled"}
+                    </Badge>
+                  </div>
+                  <div>
                     <p className="text-sm text-muted-foreground">Last Login</p>
                     <p className="font-medium">
                       {profile.last_login
@@ -2169,78 +2257,318 @@ export function ViewProfileModal({
 
               {/* Terms and Conditions Acceptance */}
               <Card>
-                <CardHeader>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
                   <CardTitle className="flex items-center gap-2">
                     <FileText className="h-5 w-5" />
                     Terms & Conditions
                   </CardTitle>
+                  {isAdmin && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResendTermsEmail}
+                      disabled={isResendingTerms}
+                      className="gap-2"
+                    >
+                      {isResendingTerms ? (
+                        <>
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Sending...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="h-4 w-4" />
+                          Resend Terms Email
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </CardHeader>
                 <CardContent>
-                  {profile.terms_and_conditions?.accepted ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                          <Check className="h-4 w-4 text-green-600" />
+                  {(() => {
+                    // Check JSONB first, then fallback to old columns
+                    const termsAccepted = profile.terms_and_conditions?.accepted || profile.terms_accepted;
+                    const acceptedAt = profile.terms_and_conditions?.acceptedAt || 
+                                      profile.terms_and_conditions?.accepted_at || 
+                                      profile.terms_accepted_at;
+                    const version = profile.terms_and_conditions?.version || "1.0";
+                    const ipAddress = profile.terms_and_conditions?.ipAddress || 
+                                     profile.terms_and_conditions?.ip_address;
+                    const signature = profile.terms_and_conditions?.signature || 
+                                     profile.terms_signature;
+
+                    return termsAccepted ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <Check className="h-4 w-4 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-green-700">Terms Accepted</p>
+                            <p className="text-sm text-muted-foreground">
+                              User has agreed to Terms & Conditions
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-medium text-green-700">Terms Accepted</p>
-                          <p className="text-sm text-muted-foreground">
-                            User has agreed to Terms & Conditions
-                          </p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-4 mt-4 p-3 bg-gray-50 rounded-lg">
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Accepted On</p>
-                          <p className="font-medium text-sm">
-                            {profile.terms_and_conditions.accepted_at 
-                              ? new Date(profile.terms_and_conditions.accepted_at).toLocaleDateString('en-US', {
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })
-                              : "-"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
-                          <p className="font-medium text-sm">
-                            {profile.terms_and_conditions.accepted_at 
-                              ? new Date(profile.terms_and_conditions.accepted_at).toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
-                                })
-                              : "-"}
-                          </p>
-                        </div>
-                        {profile.terms_and_conditions.version && (
+                        <div className="grid grid-cols-2 gap-4 mt-4 p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Accepted On</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
                           <div>
                             <p className="text-xs text-muted-foreground uppercase tracking-wide">Version</p>
-                            <p className="font-medium text-sm">v{profile.terms_and_conditions.version}</p>
+                            <p className="font-medium text-sm">v{version}</p>
                           </div>
-                        )}
-                        {profile.terms_and_conditions.ip_address && (
+                          {ipAddress && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">IP Address</p>
+                              <p className="font-medium text-sm">{ipAddress}</p>
+                            </div>
+                          )}
+                          {signature && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Signature</p>
+                              <p className="font-medium text-sm">{signature}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-amber-700">Not Accepted</p>
+                          <p className="text-sm text-muted-foreground">
+                            User has not yet accepted Terms & Conditions
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
+              {/* Privacy Policy Acceptance */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Privacy Policy
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    // Check JSONB first, then fallback to old columns
+                    const privacyAccepted = profile.privacy_policy?.accepted || profile.privacy_policy_accepted;
+                    const acceptedAt = profile.privacy_policy?.acceptedAt || 
+                                      profile.privacy_policy?.accepted_at || 
+                                      profile.privacy_policy_accepted_at;
+                    const version = profile.privacy_policy?.version || "1.0";
+                    const ipAddress = profile.privacy_policy?.ipAddress || 
+                                     profile.privacy_policy?.ip_address;
+                    const signature = profile.privacy_policy?.signature || 
+                                     profile.privacy_policy_signature;
+
+                    return privacyAccepted ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <Check className="h-4 w-4 text-green-600" />
+                          </div>
                           <div>
-                            <p className="text-xs text-muted-foreground uppercase tracking-wide">IP Address</p>
-                            <p className="font-medium text-sm">{profile.terms_and_conditions.ip_address}</p>
+                            <p className="font-medium text-green-700">Privacy Policy Accepted</p>
+                            <p className="text-sm text-muted-foreground">
+                              User has agreed to Privacy Policy
+                            </p>
                           </div>
-                        )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-4 p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Accepted On</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Version</p>
+                            <p className="font-medium text-sm">v{version}</p>
+                          </div>
+                          {ipAddress && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">IP Address</p>
+                              <p className="font-medium text-sm">{ipAddress}</p>
+                            </div>
+                          )}
+                          {signature && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Signature</p>
+                              <p className="font-medium text-sm">{signature}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-amber-700">Not Accepted</p>
+                          <p className="text-sm text-muted-foreground">
+                            User has not yet accepted Privacy Policy
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-amber-700">Not Accepted</p>
-                        <p className="text-sm text-muted-foreground">
-                          User has not yet accepted Terms & Conditions
-                        </p>
+                    );
+                  })()}
+                </CardContent>
+              </Card>
+
+              {/* ACH Authorization Acceptance */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <CreditCard className="h-5 w-5" />
+                    ACH Authorization
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    // Check JSONB first, then fallback to old columns
+                    const achAccepted = profile.ach_authorization?.accepted || profile.ach_authorization_accepted;
+                    const acceptedAt = profile.ach_authorization?.acceptedAt || 
+                                      profile.ach_authorization?.accepted_at || 
+                                      profile.ach_authorization_accepted_at;
+                    const version = profile.ach_authorization?.version || profile.ach_authorization_version || "1.0";
+                    const ipAddress = profile.ach_authorization?.ipAddress || 
+                                     profile.ach_authorization?.ip_address;
+                    const signature = profile.ach_authorization?.signature || 
+                                     profile.ach_authorization_signature;
+                    const bankVerified = profile.ach_authorization?.bankVerified;
+                    const nachaCompliance = profile.ach_authorization?.nachaCompliance;
+
+                    return achAccepted ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
+                            <Check className="h-4 w-4 text-green-600" />
+                          </div>
+                          <div>
+                            <p className="font-medium text-green-700">ACH Authorization Accepted</p>
+                            <p className="text-sm text-muted-foreground">
+                              User has authorized ACH payments
+                            </p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 mt-4 p-3 bg-gray-50 rounded-lg">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Accepted On</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleDateString('en-US', {
+                                    year: 'numeric',
+                                    month: 'long',
+                                    day: 'numeric'
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Time</p>
+                            <p className="font-medium text-sm">
+                              {acceptedAt 
+                                ? new Date(acceptedAt).toLocaleTimeString('en-US', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })
+                                : "-"}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Version</p>
+                            <p className="font-medium text-sm">v{version}</p>
+                          </div>
+                          {ipAddress && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">IP Address</p>
+                              <p className="font-medium text-sm">{ipAddress}</p>
+                            </div>
+                          )}
+                          {bankVerified !== undefined && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Bank Verified</p>
+                              <p className="font-medium text-sm">{bankVerified ? "Yes" : "No"}</p>
+                            </div>
+                          )}
+                          {nachaCompliance !== undefined && (
+                            <div>
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">NACHA Compliant</p>
+                              <p className="font-medium text-sm">{nachaCompliance ? "Yes" : "No"}</p>
+                            </div>
+                          )}
+                          {signature && (
+                            <div className="col-span-2">
+                              <p className="text-xs text-muted-foreground uppercase tracking-wide">Signature</p>
+                              <p className="font-medium text-sm">{signature}</p>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-amber-100 flex items-center justify-center">
+                          <AlertTriangle className="h-4 w-4 text-amber-600" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-amber-700">Not Accepted</p>
+                          <p className="text-sm text-muted-foreground">
+                            User has not yet authorized ACH payments
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </CardContent>
               </Card>
 
@@ -2733,7 +3061,7 @@ export function ViewProfileModal({
                         <div className="flex items-center gap-2">
                           <CardTitle className={cn("text-base", task.status === "completed" && "line-through")}>{task.title}</CardTitle>
                           <Badge className={getPriorityColor(task.priority)}>{task.priority}</Badge>
-                          <Badge className={getStatusColor(task.status)}>{task.status.replace("_", " ")}</Badge>
+                          <Badge className={getTaskStatusColor(task.status)}>{task.status.replace("_", " ")}</Badge>
                         </div>
                         <div className="flex items-center gap-1">
                           <Select value={task.status} onValueChange={(value) => updateTaskStatus(task.id, value)}>

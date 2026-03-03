@@ -63,6 +63,7 @@ export interface OrderSummaryCardProps {
   total: number;
   onEditItems?: () => void;
   className?: string;
+  disableRewards?: boolean;
 }
 
 export interface Customer {

@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 import {
   Select,
   SelectContent,
@@ -271,14 +272,10 @@ export const AddressInformationStep = ({
   const handleBillingStreetChange = (value: string) => {
     setBillingForm({ ...billingForm, street: value });
     
-    if (value.length > 2 && window.google) {
-      const service = new window.google.maps.places.AutocompleteService();
-      service.getPlacePredictions(
-        { input: value, types: ["geocode", "establishment"] },
-        (predictions: any[]) => {
-          setBillingSuggestions(predictions || []);
-        }
-      );
+    if (value.length > 2) {
+      getAddressPredictions(value, (predictions: any[]) => {
+        setBillingSuggestions(predictions || []);
+      });
     } else {
       setBillingSuggestions([]);
     }
@@ -288,14 +285,10 @@ export const AddressInformationStep = ({
   const handleShippingStreetChange = (value: string) => {
     setShippingForm({ ...shippingForm, street: value });
     
-    if (value.length > 2 && window.google) {
-      const service = new window.google.maps.places.AutocompleteService();
-      service.getPlacePredictions(
-        { input: value, types: ["geocode", "establishment"] },
-        (predictions: any[]) => {
-          setShippingSuggestions(predictions || []);
-        }
-      );
+    if (value.length > 2) {
+      getAddressPredictions(value, (predictions: any[]) => {
+        setShippingSuggestions(predictions || []);
+      });
     } else {
       setShippingSuggestions([]);
     }
@@ -303,62 +296,30 @@ export const AddressInformationStep = ({
 
   // Google Address API - Handle billing suggestion click
   const handleBillingSuggestionClick = (suggestion: any) => {
-    const placesService = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
-    placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
-      if (place && place.address_components) {
-        let city = "", state = "", zipCode = "";
-        const street = place.formatted_address?.split(",")[0] || "";
-        
-        place.address_components.forEach((component: any) => {
-          if (component.types.includes("locality")) 
-            city = component.long_name;
-          if (component.types.includes("administrative_area_level_1")) 
-            state = component.short_name;
-          if (component.types.includes("postal_code")) 
-            zipCode = component.long_name;
-        });
-        
-        setBillingForm({
-          ...billingForm,
-          street,
-          city,
-          state,
-          zip_code: zipCode,
-        });
-      }
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (!address) return;
+      setBillingForm((prev) => ({
+        ...prev,
+        street: address.street,
+        city: address.city,
+        state: address.state,
+        zip_code: address.zip_code,
+      }));
     });
     setBillingSuggestions([]);
   };
 
   // Google Address API - Handle shipping suggestion click
   const handleShippingSuggestionClick = (suggestion: any) => {
-    const placesService = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
-    placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
-      if (place && place.address_components) {
-        let city = "", state = "", zipCode = "";
-        const street = place.formatted_address?.split(",")[0] || "";
-        
-        place.address_components.forEach((component: any) => {
-          if (component.types.includes("locality")) 
-            city = component.long_name;
-          if (component.types.includes("administrative_area_level_1")) 
-            state = component.short_name;
-          if (component.types.includes("postal_code")) 
-            zipCode = component.long_name;
-        });
-        
-        setShippingForm({
-          ...shippingForm,
-          street,
-          city,
-          state,
-          zip_code: zipCode,
-        });
-      }
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (!address) return;
+      setShippingForm((prev) => ({
+        ...prev,
+        street: address.street,
+        city: address.city,
+        state: address.state,
+        zip_code: address.zip_code,
+      }));
     });
     setShippingSuggestions([]);
   };

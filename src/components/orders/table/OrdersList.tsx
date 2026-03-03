@@ -477,7 +477,16 @@ export function OrdersList({
   }
 
   const handleApproveCredit = async (order) => {
-    // Confirm first
+    const orderId = order?.id;
+    if (!orderId) {
+      toast({
+        title: "Error",
+        description: "Order ID is missing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     const result = await Swal.fire({
       title: "Confirm Credit Order?",
       text: "Do you want to confirm this credit order?",
@@ -490,7 +499,6 @@ export function OrdersList({
     if (!result.isConfirmed) return;
 
     try {
-      // Show loading inside Swal
       Swal.fire({
         title: "Processing...",
         text: "Approving credit order and creating invoice...",
@@ -500,332 +508,82 @@ export function OrdersList({
         },
       });
 
-      // Credit verification + approval
-      await verifyCreditLimit(order);
-
-      // Close loading Swal
-      Swal.close();
-
-      // Show success alert, then reload after 2s
-      await Swal.fire({
-        title: "Success",
-        text: "Credit order approved and invoice created successfully!",
-        icon: "success",
-        timer: 2000,
-        showConfirmButton: false,
-      });
-
-      // Reload page after 2 seconds
-      // window.location.reload();
-    } catch (err: any) {
-      Swal.close();
-      Swal.fire({
-        title: "Error",
-        text: `Failed to approve credit order: ${err.message}`,
-        icon: "error",
-      });
-    }
-  };
-
-  const verifyCreditLimit = async (order) => {
-    const profileId = order.customer;
-
-    // Fetch customer credit info
-    const { data: profile, error: profileErr } = await supabase
-      .from("profiles")
-      .select("credit_used, credit_limit")
-      .eq("id", profileId)
-      .single();
-
-    if (profileErr) {
-      toast({
-        title: "Error",
-        description: "Failed to load customer credit info.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const creditUsed = Number(profile.credit_used || 0);
-    const creditLimit = Number(profile.credit_limit || 0);
-    const availableCredit = creditLimit - creditUsed;
-    const total = Number(order.total);
-
-    if (availableCredit < total) {
-      toast({
-        title: "Credit Limit Exceeded",
-        description: `Available credit $${availableCredit} is less than order amount $${total}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // If eligible -> update order
-    await approveCreditOrder(
-      order,
-      Number(order.total),
-      Number(order.tax_amount || 0),
-      order.customer
-    );
-  };
-
-  const createInvoice = async (
-    order: any,
-    totalAmount: number,
-    newTax: number
-  ) => {
-    try {
-      console.log(`🧾 Creating invoice for order: ${order.id}`);
-
-      // --------------------------------------------
-      //  STEP 1: Fetch centerize invoice number
-      // --------------------------------------------
-      const year = new Date().getFullYear();
-
-      const { data: inData, error: fetchError } = await supabase
-        .from("centerize_data")
-        .select("id, invoice_no, invoice_start")
-        .order("id", { ascending: false })
-        .limit(1);
-
-      if (fetchError) throw new Error(fetchError.message);
-
-      const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-      const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-      // Update invoice_no to next
-      if (inData?.[0]?.id) {
-        const { error: updateError } = await supabase
-          .from("centerize_data")
-          .update({ invoice_no: newInvNo })
-          .eq("id", inData[0].id);
-
-        if (updateError) throw new Error(updateError.message);
-      }
-
-      // Create full invoice number
-      const invoiceNumber = `${invoiceStart}-${year}${newInvNo
-        .toString()
-        .padStart(6, "0")}`;
-
-      // --------------------------------------------
-      //  STEP 2: Create invoice object
-      // --------------------------------------------
-      const estimatedDeliveryStr =
-        order.shipping?.estimatedDelivery ||
-        order.estimated_delivery ||
-        new Date().toISOString();
-      let estimatedDeliveryDate = new Date(estimatedDeliveryStr);
-
-      if (isNaN(estimatedDeliveryDate.getTime())) {
-        console.warn("Invalid estimated delivery date, using today instead");
-        estimatedDeliveryDate = new Date();
-      }
-
-      const dueDate = new Date(
-        estimatedDeliveryDate.getTime() + 30 * 24 * 60 * 60 * 1000
-      ).toISOString();
-
-      // Calculate discount amount
-      const discountAmount = Number(order.discount_amount || 0);
-      // Subtotal should be original amount before discount
-      const subtotalAmount = totalAmount + discountAmount;
-
-      const invoiceData = {
-        invoice_number: invoiceNumber,
-        order_id: order.id,
-        profile_id: order.customer,
-        due_date: dueDate,
-        status: "pending",
-        amount: subtotalAmount,
-        tax_amount: newTax,
-        total_amount: totalAmount,
-        payment_status: "paid",
-        payment_method: order.payment_method,
-        notes: order.notes || null,
-        purchase_number_external: order.purchase_number_external,
-        items: order.items,
-        customer_info: order.customerInfo,
-        shipping_info: order.shippingAddress,
-        shippin_cost: order.shipping_cost,
-        subtotal: subtotalAmount,
-        // Add discount information
-        discount_amount: discountAmount,
-        discount_details: order.discount_details || [],
-      };
-
-      // Insert invoice
-      const { error: invoiceError } = await supabase
-        .from("invoices")
-        .insert(invoiceData);
-
-      if (invoiceError) throw new Error(invoiceError.message);
-
-      console.log(`✅ Invoice Created Successfully: ${invoiceNumber}`);
-
-      // --------------------------------------------
-      // STEP 3: Update order to set invoice_created = true
-      // --------------------------------------------
-      const { error: orderUpdateError } = await supabase
-        .from("orders")
-        .update({
-          invoice_created: true,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", order.id);
-
-      if (orderUpdateError) throw new Error(orderUpdateError.message);
-
-      console.log("🟢 Order updated with invoice_created = true");
-    } catch (err: any) {
-      console.error("❌ Invoice create error:", err.message);
-      throw new Error(err.message);
-    }
-  };
-
-  const approveCreditOrder = async (
-    order: any,
-    totalAmount: number,
-    newTax: number,
-    userId: string
-  ) => {
-    try {
-      // 1️⃣ Confirm via SweetAlert
-
-      // 2️⃣ Update order status to "new" + mark credit_approval_processing -> new
-      const { data: updatedOrder, error: orderUpdateError } = await supabase
-        .from("orders")
-        .update({
-          status: "new",
-          updated_at: new Date().toISOString(),
-          payment_status: "paid",
-        })
-        .eq("id", order.id)
-        .select()
-        .single();
-
-      if (orderUpdateError) throw new Error(orderUpdateError.message);
-
-      console.log("✅ Order status updated to NEW:", updatedOrder.id);
-
-      // 3️⃣ Create Invoice using existing order data
-      await createInvoice(order, totalAmount, newTax);
-
-      // 4️⃣ Optional: Add entry in account_transactions history
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("credit_used, credit_limit")
-        .eq("id", order.customer)
-        .single();
-
-      if (profileError) throw new Error(profileError.message);
-
-      const newBalance = (profileData.credit_used || 0) + totalAmount;
-
-      await supabase.from("account_transactions").insert({
-        customer_id: order.customer,
-        transaction_date: new Date().toISOString(),
-        transaction_type: "debit",
-        reference_type: "order",
-        reference_id: order.id,
-        description: "Credit order approved",
-        debit_amount: totalAmount,
-        credit_amount: 0,
-        balance: profileData.credit_limit - newBalance,
-        created_by: userId,
-      });
-
-      // Update profiles.credit_used
-      const { error: profileUpdateError } = await supabase
-        .from("profiles")
-        .update({ credit_used: newBalance })
-        .eq("id", order.customer);
-
-      if (profileUpdateError) {
-        throw new Error(
-          `Failed to update credit used: ${profileUpdateError.message}`
-        );
-      }
-
-      console.log("🟢 Account transaction added for credit order");
-
-      // 5️⃣ Create Credit Invoice
-      console.log("💳 Creating credit invoice...");
-      const { data: creditInvoiceResult, error: creditInvoiceError } = await supabase.rpc(
-        "create_credit_invoice",
-        {
-          p_user_id: order.customer,
-          p_order_id: order.id,
-          p_amount: totalAmount,
-        }
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "approve_credit_order_atomic",
+        { p_order_id: orderId }
       );
 
-      if (creditInvoiceError) {
-        console.error("❌ Credit invoice creation error:", creditInvoiceError);
-        throw new Error(`Failed to create credit invoice: ${creditInvoiceError.message}`);
+      if (rpcError) throw new Error(rpcError.message);
+      if (!rpcResult?.success) {
+        throw new Error(rpcResult?.message || "Credit approval failed");
       }
 
-      if (!creditInvoiceResult?.success) {
-        console.error("❌ Credit invoice creation failed:", creditInvoiceResult?.error);
-        throw new Error(creditInvoiceResult?.error || "Failed to create credit invoice");
-      }
+      const profileId = (order as any)?.customer || order?.profile_id;
+      const totalAmount = Number((order as any)?.total_amount ?? (order as any)?.total ?? 0);
 
-      console.log("✅ Credit invoice created:", creditInvoiceResult.invoice_number);
-
-      // 6️⃣ Award reward points for approved credit order
-      if (order.customer && totalAmount > 0) {
+      if (rpcResult.status === "approved" && profileId && totalAmount > 0) {
         try {
-          console.log(`🎁 Awarding reward points for approved credit order: ${order.order_number}`);
           const rewardResult = await awardOrderPoints(
-            order.customer,
-            order.id,
+            profileId,
+            orderId,
             totalAmount,
             order.order_number
           );
-
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
-            console.log(`✅ Reward points awarded: ${rewardResult.pointsEarned} points to customer ${order.customer}`);
+            console.log(
+              `Reward points awarded: ${rewardResult.pointsEarned} points to customer ${profileId}`
+            );
           }
         } catch (rewardError) {
-          console.error("⚠️ Failed to award reward points for credit order:", rewardError);
-          // Don't fail the entire approval if reward points fail
+          console.error("Failed to award reward points for credit order:", rewardError);
         }
       }
 
-      // Log credit approval activity
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        const adminUserId = session?.user?.id || profileId || "system";
         await OrderActivityService.logActivity({
-          orderId: order.id,
+          orderId,
           activityType: "updated",
-          description: `Credit order approved - Amount: $${totalAmount.toFixed(2)} - Credit Invoice: ${creditInvoiceResult.invoice_number}`,
-          performedBy: userId,
+          description:
+            rpcResult.status === "already_processed"
+              ? `Credit order already processed - Invoice: ${rpcResult.invoice_number || "N/A"}`
+              : `Credit order approved - Amount: $${totalAmount.toFixed(2)} - Credit Invoice: ${rpcResult.credit_invoice_number || "N/A"}`,
+          performedBy: adminUserId,
           performedByName: session?.user?.user_metadata?.first_name || "Admin",
           performedByEmail: session?.user?.email,
           metadata: {
             order_number: order.order_number,
             credit_amount: totalAmount,
-            previous_status: "credit_approval_processing",
-            new_status: "new",
-            credit_invoice_number: creditInvoiceResult.invoice_number,
-            credit_invoice_id: creditInvoiceResult.invoice_id,
-            due_date: creditInvoiceResult.due_date,
+            previous_status: order.status || "credit_approval_processing",
+            new_status: rpcResult.order_status || "new",
+            invoice_number: rpcResult.invoice_number,
+            credit_invoice_number: rpcResult.credit_invoice_number,
           },
         });
       } catch (activityError) {
         console.error("Failed to log credit approval activity:", activityError);
       }
 
-      Swal.fire({
-        title: "Success",
-        text: `Credit order approved! Invoice: ${creditInvoiceResult.invoice_number}`,
+      Swal.close();
+      await Swal.fire({
+        title: rpcResult.status === "already_processed" ? "Already Processed" : "Success",
+        text:
+          rpcResult.message ||
+          (rpcResult.status === "already_processed"
+            ? "This credit order is already approved."
+            : "Credit order approved and invoice created successfully."),
         icon: "success",
+        timer: 2200,
+        showConfirmButton: false,
       });
-    } catch (error: any) {
-      console.error("❌ Error approving credit order:", error.message);
+    } catch (err: any) {
+      Swal.close();
       Swal.fire({
         title: "Error",
-        text: `Failed to approve credit order: ${error.message}`,
+        text: `Failed to approve credit order: ${err?.message || "Unknown error"}`,
         icon: "error",
       });
     }

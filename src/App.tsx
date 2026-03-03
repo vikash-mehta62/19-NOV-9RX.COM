@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useToast } from "./hooks/use-toast";
 import { useAuthCheck } from "./useAuthCheck";
 import { supabase } from "./integrations/supabase/client";
@@ -169,14 +169,77 @@ export async function fetchCategoryConfigs() {
 // Protected route wrapper component
 const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
   const location = useLocation();
-  const userType = sessionStorage.getItem('userType');
-  const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
+  const allowedRolesKey = allowedRoles.join("|");
+  const allowedRolesSet = useMemo(
+    () => new Set(allowedRolesKey.split("|").filter(Boolean).map((role) => role.toLowerCase())),
+    [allowedRolesKey]
+  );
+  const [isChecking, setIsChecking] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isAllowed, setIsAllowed] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkAccess = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          if (!isMounted) return;
+          setIsLoggedIn(false);
+          setIsAllowed(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role,type")
+          .eq("id", session.user.id)
+          .maybeSingle();
+
+        const roleCandidates = new Set<string>();
+        if (profile?.type) roleCandidates.add(String(profile.type).toLowerCase());
+        if (profile?.role) {
+          const normalizedRole = String(profile.role).toLowerCase();
+          roleCandidates.add(normalizedRole);
+          if (normalizedRole === "superadmin") {
+            roleCandidates.add("admin");
+          }
+        }
+
+        const allowed = [...roleCandidates].some((role) => allowedRolesSet.has(role));
+
+        if (!isMounted) return;
+        setIsLoggedIn(true);
+        setIsAllowed(allowed);
+      } catch (error) {
+        if (!isMounted) return;
+        setIsLoggedIn(false);
+        setIsAllowed(false);
+      } finally {
+        if (isMounted) {
+          setIsChecking(false);
+        }
+      }
+    };
+
+    checkAccess();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [allowedRolesKey, allowedRolesSet]);
+
+  if (isChecking) {
+    return <PageLoader />;
+  }
 
   if (!isLoggedIn) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!allowedRoles.includes(userType || '')) {
+  if (!isAllowed) {
     return <Navigate to="/" replace />;
   }
 
@@ -187,6 +250,73 @@ function App() {
   const { toast } = useToast();
   const location = useLocation();
   useAuthCheck();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const clearAuthSessionStorage = () => {
+      sessionStorage.removeItem("isLoggedIn");
+      sessionStorage.removeItem("userType");
+      sessionStorage.removeItem("userRole");
+      sessionStorage.removeItem("userEmail");
+      sessionStorage.removeItem("userId");
+      sessionStorage.removeItem("shipping");
+      sessionStorage.removeItem("taxper");
+      sessionStorage.removeItem("order_pay");
+    };
+
+    const syncTrustedAuthState = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          clearAuthSessionStorage();
+          return;
+        }
+
+        const userId = session.user.id;
+        const userEmail = session.user.email || "";
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("type, role, email, freeShipping, taxPercantage, order_pay")
+          .eq("id", userId)
+          .maybeSingle();
+
+        if (!isMounted) return;
+
+        // sessionStorage is a cache for UI convenience only.
+        // Security decisions must rely on Supabase session/profile validation.
+        sessionStorage.setItem("isLoggedIn", "true");
+        sessionStorage.setItem("userId", userId);
+        sessionStorage.setItem("userEmail", profile?.email || userEmail);
+        if (profile?.type) sessionStorage.setItem("userType", String(profile.type));
+        if (profile?.role) sessionStorage.setItem("userRole", String(profile.role));
+        if (profile?.freeShipping !== undefined && profile?.freeShipping !== null) {
+          sessionStorage.setItem("shipping", String(profile.freeShipping));
+        }
+        if (profile?.taxPercantage !== undefined && profile?.taxPercantage !== null) {
+          sessionStorage.setItem("taxper", String(profile.taxPercantage));
+        }
+        if (profile?.order_pay !== undefined && profile?.order_pay !== null) {
+          sessionStorage.setItem("order_pay", String(profile.order_pay));
+        }
+      } catch (error) {
+        clearAuthSessionStorage();
+      }
+    };
+
+    void syncTrustedAuthState();
+    const { data: authListener } = supabase.auth.onAuthStateChange(() => {
+      void syncTrustedAuthState();
+    });
+
+    return () => {
+      isMounted = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     fetchCategoryConfigs();

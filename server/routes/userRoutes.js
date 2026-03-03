@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
+const { requireAdmin, requireRoles, extractBearerToken } = require("../middleware/auth");
 
 // Initialize Supabase Admin Client with service role key
 const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
@@ -19,8 +20,10 @@ const getSupabaseAdmin = () => {
   });
 };
 
+const requireAdminOrGroup = requireRoles(["admin", "superadmin", "group"]);
+
 // Create user endpoint (generic - for customers, groups, vendors)
-router.post("/create-user", async (req, res) => {
+router.post("/create-user", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { email, password, firstName, lastName, userMetadata, profileData } = req.body;
@@ -38,7 +41,7 @@ router.post("/create-user", async (req, res) => {
       // Generate a secure random password if not provided
       const crypto = require('crypto');
       userPassword = crypto.randomBytes(16).toString('base64').slice(0, 16);
-      console.log(`Generated secure password for ${email}: ${userPassword}`);
+      console.log(`Generated secure password for ${email}`);
     }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -56,15 +59,19 @@ router.post("/create-user", async (req, res) => {
       console.error("Auth Error:", authError);
       return res.status(400).json({
         success: false,
-        message: authError.message || "Failed to create user account",
+        message: "Failed to create user account",
       });
     }
 
     // If profileData is provided, create/upsert the profile using admin client (bypasses RLS)
     let profileResult = null;
     if (profileData && typeof profileData === 'object') {
+      const { parent_group, ...sanitizedProfileData } = profileData;
       const fullProfileData = {
-        ...profileData,
+        ...sanitizedProfileData,
+        active_notification: typeof sanitizedProfileData.active_notification === "boolean"
+          ? sanitizedProfileData.active_notification
+          : true,
         id: authData.user.id,
         email: email.toLowerCase().trim(),
       };
@@ -78,7 +85,7 @@ router.post("/create-user", async (req, res) => {
       if (profileError) {
         console.error("Profile creation error (admin create-user):", profileError);
         // Don't fail the whole request - auth user was created successfully
-        profileResult = { success: false, error: profileError.message };
+        profileResult = { success: false, error: "Profile creation failed" };
       } else {
         profileResult = { success: true, data: profile };
       }
@@ -95,13 +102,13 @@ router.post("/create-user", async (req, res) => {
     console.error("Create User Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error",
+      message: "Internal server error",
     });
   }
 });
 
 // Delete user endpoint
-router.delete("/delete-user/:userId", async (req, res) => {
+router.delete("/delete-user/:userId", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { userId } = req.params;
@@ -157,13 +164,7 @@ router.delete("/delete-user/:userId", async (req, res) => {
       // Return detailed error information for other errors
       return res.status(400).json({
         success: false,
-        message: error.message || "Failed to delete user",
-        error: {
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-          status: error.status
-        }
+        message: "Failed to delete user",
       });
     }
 
@@ -175,14 +176,13 @@ router.delete("/delete-user/:userId", async (req, res) => {
     console.error("Delete User Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error",
-      details: error.toString()
+      message: "Internal server error",
     });
   }
 });
 
 // Create pharmacy user endpoint
-router.post("/create-pharmacy-user", async (req, res) => {
+router.post("/create-pharmacy-user", requireAdminOrGroup, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
 
@@ -211,7 +211,7 @@ router.post("/create-pharmacy-user", async (req, res) => {
       // Generate a secure random password if not provided
       const crypto = require('crypto');
       userPassword = crypto.randomBytes(16).toString('base64').slice(0, 16);
-      console.log(`Generated secure password for ${email}: ${userPassword}`);
+      console.log(`Generated secure password for ${email}`);
     }
 
     // Create user in Supabase Auth
@@ -229,7 +229,7 @@ router.post("/create-pharmacy-user", async (req, res) => {
       console.error("Auth Error:", authError);
       return res.status(400).json({
         success: false,
-        message: authError.message || "Failed to create user account",
+        message: "Failed to create user account",
       });
     }
 
@@ -248,6 +248,7 @@ router.post("/create-pharmacy-user", async (req, res) => {
       status: "pending",
       type: "pharmacy",
       role: "user",
+      active_notification: true,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -256,16 +257,16 @@ router.post("/create-pharmacy-user", async (req, res) => {
       .from("profiles")
       .upsert([profileData]);
 
-    if (profileError) {
-      console.error("Profile Error:", profileError);
-      // Try to clean up the auth user if profile creation fails
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      
-      return res.status(400).json({
-        success: false,
-        message: profileError.message || "Failed to create user profile",
-      });
-    }
+      if (profileError) {
+        console.error("Profile Error:", profileError);
+        // Try to clean up the auth user if profile creation fails
+        await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+        
+        return res.status(400).json({
+          success: false,
+          message: "Failed to create user profile",
+        });
+      }
 
     return res.json({
       success: true,
@@ -277,7 +278,6 @@ router.post("/create-pharmacy-user", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      details: error.message,
     });
   }
 });
@@ -293,6 +293,7 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
       companyName,
       phone,
       groupId,
+      invitationToken,
     } = req.body;
 
     // Validate required fields
@@ -301,6 +302,81 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
         success: false,
         message: "Missing required fields: userId, groupId",
       });
+    }
+
+    // Allow privileged callers (admin/group) OR enforce invitation-token validation.
+    let isPrivilegedCaller = false;
+    const bearerToken = extractBearerToken(req);
+    if (bearerToken) {
+      const { data: authData } = await supabaseAdmin.auth.getUser(bearerToken);
+      if (authData?.user?.id) {
+        const { data: callerProfile } = await supabaseAdmin
+          .from("profiles")
+          .select("role")
+          .eq("id", authData.user.id)
+          .maybeSingle();
+        if (["admin", "superadmin", "group"].includes(callerProfile?.role)) {
+          isPrivilegedCaller = true;
+        }
+      }
+    }
+
+    if (!isPrivilegedCaller) {
+      if (!invitationToken) {
+        return res.status(401).json({
+          success: false,
+          message: "Invitation token is required",
+        });
+      }
+
+      const { data: invitation, error: invitationError } = await supabaseAdmin
+        .from("pharmacy_invitations")
+        .select("id, email, status, expires_at, group_id")
+        .eq("token", invitationToken)
+        .maybeSingle();
+
+      if (invitationError || !invitation) {
+        return res.status(401).json({
+          success: false,
+          message: "Invalid invitation token",
+        });
+      }
+
+      if (invitation.status !== "pending") {
+        return res.status(400).json({
+          success: false,
+          message: "Invitation is no longer valid",
+        });
+      }
+
+      if (invitation.group_id !== groupId) {
+        return res.status(400).json({
+          success: false,
+          message: "Invitation group mismatch",
+        });
+      }
+
+      if (invitation.expires_at && new Date(invitation.expires_at) < new Date()) {
+        return res.status(400).json({
+          success: false,
+          message: "Invitation has expired",
+        });
+      }
+
+      const { data: targetUser, error: userLookupError } = await supabaseAdmin.auth.admin.getUserById(userId);
+      if (userLookupError || !targetUser?.user?.email) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid user",
+        });
+      }
+
+      if (targetUser.user.email.toLowerCase().trim() !== invitation.email.toLowerCase().trim()) {
+        return res.status(403).json({
+          success: false,
+          message: "User does not match invitation",
+        });
+      }
     }
 
     // Wait for trigger to complete (with retries)
@@ -336,6 +412,7 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
         status: "pending",
         account_status: "pending",
         role: "user",
+        active_notification: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -350,7 +427,7 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
         console.error("Profile Upsert Error:", upsertError);
         return res.status(400).json({
           success: false,
-          message: upsertError.message || "Failed to create user profile",
+          message: "Failed to create user profile",
         });
       }
 
@@ -383,7 +460,7 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
       console.error("Profile Update Error:", profileError);
       return res.status(400).json({
         success: false,
-        message: profileError.message || "Failed to update user profile",
+        message: "Failed to update user profile",
       });
     }
 
@@ -398,15 +475,12 @@ router.put("/update-pharmacy-profile/:userId", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      details: error.message,
     });
   }
 });
 
-module.exports = router;
-
 // Approve user access request
-router.post("/approve-access/:userId", async (req, res) => {
+router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { userId } = req.params;
@@ -429,7 +503,7 @@ router.post("/approve-access/:userId", async (req, res) => {
       console.error("Error fetching user:", userError);
       return res.status(400).json({
         success: false,
-        message: userError.message || "Failed to fetch user details",
+        message: "Failed to fetch user details",
       });
     }
 
@@ -449,7 +523,8 @@ router.post("/approve-access/:userId", async (req, res) => {
       .from("profiles")
       .update({ 
         status: "active", 
-        account_status: "approved" 
+        account_status: "approved",
+        portal_access: true,
       })
       .eq("id", userId);
 
@@ -457,7 +532,7 @@ router.post("/approve-access/:userId", async (req, res) => {
       console.error("Error updating profile:", updateError);
       return res.status(400).json({
         success: false,
-        message: updateError.message || "Failed to approve user",
+        message: "Failed to approve user",
       });
     }
 
@@ -501,13 +576,13 @@ router.post("/approve-access/:userId", async (req, res) => {
     console.error("Approve Access Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error",
+      message: "Internal server error",
     });
   }
 });
 
 // Reject user access request
-router.post("/reject-access/:userId", async (req, res) => {
+router.post("/reject-access/:userId", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { userId } = req.params;
@@ -531,7 +606,7 @@ router.post("/reject-access/:userId", async (req, res) => {
       console.error("Error fetching user:", userError);
       return res.status(400).json({
         success: false,
-        message: userError.message || "Failed to fetch user details",
+        message: "Failed to fetch user details",
       });
     }
 
@@ -541,7 +616,8 @@ router.post("/reject-access/:userId", async (req, res) => {
       .update({ 
         status: "rejected", 
         account_status: "rejected",
-        rejection_reason: reason || null
+        rejection_reason: reason || null,
+        portal_access: false,
       })
       .eq("id", userId);
 
@@ -549,7 +625,7 @@ router.post("/reject-access/:userId", async (req, res) => {
       console.error("Error updating profile:", updateError);
       return res.status(400).json({
         success: false,
-        message: updateError.message || "Failed to reject user",
+        message: "Failed to reject user",
       });
     }
 
@@ -574,7 +650,9 @@ router.post("/reject-access/:userId", async (req, res) => {
     console.error("Reject Access Error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message || "Internal server error",
+      message: "Internal server error",
     });
   }
 });
+
+module.exports = router;

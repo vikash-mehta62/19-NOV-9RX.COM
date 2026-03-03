@@ -44,6 +44,7 @@ import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
 import { PharmacyProductCard } from "@/components/pharmacy/components/product-showcase/PharmacyProductCard"
 import { canUserReview } from "@/services/reviewService"
 import { getProductEffectivePrice } from "@/services/productOfferService"
+import { formatPointsRedemptionRule, normalizePointRedemptionValue, normalizePointsPerDollar } from "@/lib/rewards"
 import logo from "../../assests/home/9rx_logo.png"
 
 export default function SizeDetail() {
@@ -73,6 +74,10 @@ export default function SizeDetail() {
     offerBadge: string | null;
     hasOffer: boolean;
   } | null>(null)
+  const [rewardsConfig, setRewardsConfig] = useState({
+    pointsPerDollar: 1,
+    pointValue: 0.01,
+  })
 
   const totalCartItems = useMemo(() =>
     cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0),
@@ -145,6 +150,27 @@ export default function SizeDetail() {
 
     return () => { isMounted = false }
   }, [productId, sizeId])
+
+  useEffect(() => {
+    const fetchRewardsConfig = async () => {
+      try {
+        const { data } = await supabase
+          .from("rewards_config")
+          .select("points_per_dollar, point_redemption_value")
+          .limit(1)
+          .maybeSingle()
+
+        setRewardsConfig({
+          pointsPerDollar: normalizePointsPerDollar(Number(data?.points_per_dollar)),
+          pointValue: normalizePointRedemptionValue(Number(data?.point_redemption_value)),
+        })
+      } catch (error) {
+        console.error("Failed to fetch rewards config:", error)
+      }
+    }
+
+    fetchRewardsConfig()
+  }, [])
 
   const normalizeName = (s: string) =>
     s
@@ -223,15 +249,20 @@ export default function SizeDetail() {
 
   // Pricing calculations
   const casePrice = size.price || 0
+  const hasOfferDiscount = Boolean(productOffer?.hasOffer && productOffer.discountPercent > 0)
+  const effectiveCasePrice = hasOfferDiscount
+    ? casePrice * (1 - productOffer.discountPercent / 100)
+    : casePrice
   const unitsPerCase = size.quantity_per_case || 0
-  const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
+  const unitPrice = unitsPerCase > 0 ? effectiveCasePrice / unitsPerCase : 0
   const customizationPrice = customization.enabled && product.customization?.allowed
     ? (product.customization.price || 0) * quantity
     : 0
-  const totalPrice = (casePrice * quantity) + customizationPrice
+  const originalTotalPrice = casePrice * quantity
+  const discountedTotalPrice = effectiveCasePrice * quantity
+  const totalPrice = discountedTotalPrice + customizationPrice
 
-  // Reward points calculation (1 point = $1)
-  const rewardPoints = Math.round(totalPrice)
+  const rewardPoints = Math.floor(totalPrice * rewardsConfig.pointsPerDollar)
 
   const isOutOfStock = size.stock <= 0
   const isInCart = cartItems.some(item => item.productId === productId && item.sizes?.some((s: any) => s.id === sizeId))
@@ -256,7 +287,7 @@ export default function SizeDetail() {
           id: size.id,
           size_value: size.size_value,
           size_unit: size.size_unit,
-          price: casePrice,
+          price: effectiveCasePrice,
           quantity,
           sku: size.sku,
           total_price: totalPrice,
@@ -390,7 +421,7 @@ export default function SizeDetail() {
                         {otherSizes.map((s) => {
                           const sUnitsPerCase = s.quantity_per_case || 0
                           const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
-                          const sRewardPoints = Math.round(s.price)
+                          const sRewardPoints = Math.floor((Number(s.price) || 0) * rewardsConfig.pointsPerDollar)
                           return (
                             <button
                               key={s.id}
@@ -488,25 +519,23 @@ export default function SizeDetail() {
                 
                 <div className="flex items-baseline gap-2">
                   {/* Show original price crossed out if there's a discount */}
-                  {productOffer?.hasOffer && productOffer.discountPercent > 0 && (
+                  {hasOfferDiscount && (
                     <span className="text-xl text-gray-400 line-through">${casePrice.toFixed(2)}</span>
                   )}
                   {/* Show discounted or regular price */}
-                  <span className={`text-3xl font-bold ${productOffer?.hasOffer ? 'text-green-600' : 'text-gray-900'}`}>
-                    ${productOffer?.hasOffer && productOffer.discountPercent > 0 
-                      ? (casePrice * (1 - productOffer.discountPercent / 100)).toFixed(2)
-                      : casePrice.toFixed(2)}
+                  <span className={`text-3xl font-bold ${hasOfferDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                    ${effectiveCasePrice.toFixed(2)}
                   </span>
                   <span className="text-gray-500">/ case</span>
                 </div>
                 
                 {/* Show savings text */}
-                {productOffer?.hasOffer && productOffer.discountPercent > 0 && (
+                {hasOfferDiscount && (
                   <p className="text-sm text-red-600 font-semibold mt-1">
-                    Save {productOffer.discountPercent}% • ${(casePrice * productOffer.discountPercent / 100).toFixed(2)} off
+                    Save {productOffer?.discountPercent}% - ${(casePrice - effectiveCasePrice).toFixed(2)} off
                   </p>
                 )}
-                
+
                 {unitsPerCase > 0 && (
                   <p className="text-sm text-gray-600 mt-1 flex items-center gap-1">
                     <Package className="w-4 h-4 text-gray-400" />
@@ -518,14 +547,16 @@ export default function SizeDetail() {
                   <div className="flex items-center gap-1.5 mt-2">
                     <Gift className="w-4 h-4 text-blue-600" />
                     <span className="text-sm text-blue-700 font-medium">
-                      Earn {Math.round(casePrice)} Reward Points
+                      Earn {Math.floor(effectiveCasePrice * rewardsConfig.pointsPerDollar)} Reward Points
                     </span>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
                       </TooltipTrigger>
                       <TooltipContent className="max-w-[200px]">
-                        <p className="text-xs">Reward points can be redeemed on future orders. 1 point = $1 discount.</p>
+                        <p className="text-xs">
+                          Reward points can be redeemed on future orders. {formatPointsRedemptionRule(rewardsConfig.pointValue)} at checkout.
+                        </p>
                       </TooltipContent>
                     </Tooltip>
                   </div>
@@ -592,6 +623,12 @@ export default function SizeDetail() {
 
                   {/* Total */}
                   <div className="py-3 border-t space-y-1">
+                    {hasOfferDiscount && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Original total</span>
+                        <span className="text-gray-400 line-through">${(originalTotalPrice + customizationPrice).toFixed(2)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="font-medium text-gray-700">Total</span>
                       <span className="text-2xl font-bold text-blue-600">${totalPrice.toFixed(2)}</span>
@@ -722,3 +759,4 @@ export default function SizeDetail() {
     </div>
   )
 }
+

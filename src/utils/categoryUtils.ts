@@ -7,23 +7,51 @@ export interface CategoryConfig {
   image_url?: string;
 }
 
+export interface SubcategoryConfig {
+  id: string;
+  category_name: string;
+  subcategory_name: string;
+  display_order?: number | null;
+}
+
+type QueryError = { code?: string; message?: string } | null;
+
+const isMissingDisplayOrderColumn = (error: QueryError) =>
+  !!error &&
+  (error.code === "42703" ||
+    (typeof error.message === "string" && error.message.includes("display_order")));
+
 /**
  * Fetch categories from database ordered by display_order
  * New categories will appear at the end (display_order = 999)
  */
 export const fetchCategories = async (): Promise<string[]> => {
   try {
-    const { data, error } = await supabase
+    const ordered = await supabase
       .from('category_configs')
       .select('category_name, display_order')
       .order('display_order', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching categories:', error);
+    if (!ordered.error) {
+      return ordered.data?.map(item => item.category_name) || [];
+    }
+
+    if (!isMissingDisplayOrderColumn(ordered.error)) {
+      console.error('Error fetching categories:', ordered.error);
       return [];
     }
 
-    return data?.map(item => item.category_name) || [];
+    const fallback = await supabase
+      .from('category_configs')
+      .select('category_name')
+      .order('category_name', { ascending: true });
+
+    if (fallback.error) {
+      console.error('Error fetching categories:', fallback.error);
+      return [];
+    }
+
+    return fallback.data?.map(item => item.category_name) || [];
   } catch (error) {
     console.error('Error fetching categories:', error);
     return [];
@@ -35,19 +63,80 @@ export const fetchCategories = async (): Promise<string[]> => {
  */
 export const fetchCategoryConfigs = async (): Promise<CategoryConfig[]> => {
   try {
-    const { data, error } = await supabase
+    const ordered = await supabase
       .from('category_configs')
       .select('*')
       .order('display_order', { ascending: true });
 
-    if (error) {
-      console.error('Error fetching category configs:', error);
+    if (!ordered.error) {
+      return ordered.data || [];
+    }
+
+    if (!isMissingDisplayOrderColumn(ordered.error)) {
+      console.error('Error fetching category configs:', ordered.error);
       return [];
     }
 
-    return data || [];
+    const fallback = await supabase
+      .from('category_configs')
+      .select('*')
+      .order('category_name', { ascending: true });
+
+    if (fallback.error) {
+      console.error('Error fetching category configs:', fallback.error);
+      return [];
+    }
+
+    return fallback.data || [];
   } catch (error) {
     console.error('Error fetching category configs:', error);
+    return [];
+  }
+};
+
+/**
+ * Fetch subcategories ordered by display_order (and name fallback).
+ */
+export const fetchSubcategoryConfigs = async (
+  categoryName?: string
+): Promise<SubcategoryConfig[]> => {
+  try {
+    const orderedQuery = supabase
+      .from("subcategory_configs")
+      .select("*")
+      .order("display_order", { ascending: true })
+      .order("subcategory_name", { ascending: true });
+
+    const ordered = categoryName
+      ? await orderedQuery.eq("category_name", categoryName)
+      : await orderedQuery;
+
+    if (!ordered.error) {
+      return (ordered.data || []) as SubcategoryConfig[];
+    }
+
+    if (!isMissingDisplayOrderColumn(ordered.error)) {
+      console.error("Error fetching subcategories:", ordered.error);
+      return [];
+    }
+
+    const fallbackQuery = supabase
+      .from("subcategory_configs")
+      .select("*")
+      .order("subcategory_name", { ascending: true });
+
+    const fallback = categoryName
+      ? await fallbackQuery.eq("category_name", categoryName)
+      : await fallbackQuery;
+
+    if (fallback.error) {
+      console.error("Error fetching subcategories:", fallback.error);
+      return [];
+    }
+
+    return (fallback.data || []) as SubcategoryConfig[];
+  } catch (error) {
+    console.error("Error fetching subcategories:", error);
     return [];
   }
 };

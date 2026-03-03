@@ -56,6 +56,7 @@ exports.processQueue = async (req, res) => {
 
     for (const queuedEmail of pendingEmails) {
       results.processed++;
+      const recipientEmail = queuedEmail.to_email || queuedEmail.email;
 
       // Mark as processing
       await supabase
@@ -68,14 +69,14 @@ exports.processQueue = async (req, res) => {
         const metadata = queuedEmail.metadata || {};
         const variables = {
           ...metadata,
-          email: queuedEmail.email,
+          email: recipientEmail,
           user_name: metadata.first_name 
             ? `${metadata.first_name} ${metadata.last_name || ''}`.trim() 
             : (metadata.user_name || "Valued Customer"),
           userName: metadata.first_name 
             ? `${metadata.first_name} ${metadata.last_name || ''}`.trim() 
             : (metadata.user_name || "Valued Customer"),
-          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/unsubscribe?t=${metadata.tracking_id || ''}&e=${encodeURIComponent(queuedEmail.email)}`,
+          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/unsubscribe?t=${metadata.tracking_id || ''}&e=${encodeURIComponent(recipientEmail || '')}`,
           // Add aliases for convenience
           name: metadata.first_name || "Valued Customer",
           first_name: metadata.first_name || "",
@@ -119,7 +120,7 @@ exports.processQueue = async (req, res) => {
 
         // Send using existing mailSender
         const sendResult = await mailSender(
-          queuedEmail.email,
+          recipientEmail,
           subject,
           htmlContent
         );
@@ -140,7 +141,7 @@ exports.processQueue = async (req, res) => {
           // Log the email
           await supabase.from("email_logs").insert({
             user_id: queuedEmail.metadata?.user_id || null,
-            email_address: queuedEmail.email,
+            email_address: recipientEmail,
             subject: subject,
             email_type: queuedEmail.campaign_id ? "campaign" : queuedEmail.automation_id ? "automation" : "transactional",
             status: "sent",
@@ -206,7 +207,7 @@ exports.processQueue = async (req, res) => {
           .eq("id", queuedEmail.id);
 
         results.failed++;
-        results.errors.push(`${queuedEmail.email}: ${sendError.message}`);
+        results.errors.push(`${recipientEmail || "unknown-recipient"}: ${sendError.message}`);
       }
 
       // Small delay between emails to avoid rate limiting
@@ -220,7 +221,7 @@ exports.processQueue = async (req, res) => {
     });
   } catch (error) {
     console.error("Queue processing error:", error);
-    res.status(500).json({ success: false, error: error.message, ...results });
+    res.status(500).json({ success: false, error: "Internal server error", ...results });
   }
 };
 
@@ -243,7 +244,7 @@ exports.retryFailed = async (req, res) => {
       retried: data?.length || 0,
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
 
@@ -267,7 +268,7 @@ exports.getStats = async (req, res) => {
 
     res.json({ success: true, stats });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 };
 
@@ -494,9 +495,9 @@ exports.sendTest = async (req, res) => {
         messageId: result.messageId,
       });
     } else {
-      res.status(500).json({ success: false, error: result.error });
+      res.status(500).json({ success: false, error: "Failed to send test email" });
     }
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: "Internal server error" });
   }
 };

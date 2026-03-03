@@ -59,6 +59,29 @@ interface FortisPaySettings {
   testMode: boolean;
 }
 
+const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
+  const {
+    authorize_net_enabled,
+    authorize_net_api_login_id,
+    authorize_net_transaction_key,
+    authorize_net_test_mode,
+    fortispay_enabled,
+    fortispay_user_id,
+    fortispay_user_api_key,
+    fortispay_location_id,
+    fortispay_product_transaction_id_ach,
+    fortispay_test_mode,
+    current_password,
+    new_password,
+    ...generalSettings
+  } = values;
+
+  return {
+    ...generalSettings,
+    store_hours: JSON.parse(JSON.stringify(generalSettings.store_hours)) as Json,
+  };
+};
+
 export default function Settings() {
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
@@ -90,10 +113,10 @@ export default function Settings() {
       }
 
       if (!settingsData) {
+        const generalSettingsPayload = buildGeneralSettingsPayload(defaultValues);
         const { error: insertError } = await supabase.from("settings").insert({
           profile_id: userProfile.id,
-          ...defaultValues,
-          store_hours: JSON.parse(JSON.stringify(defaultValues.store_hours)) as Json,
+          ...generalSettingsPayload,
         });
 
         if (insertError) {
@@ -193,27 +216,12 @@ export default function Settings() {
         testMode: data.fortispay_test_mode,
       };
 
-      const {
-        authorize_net_enabled,
-        authorize_net_api_login_id,
-        authorize_net_transaction_key,
-        authorize_net_test_mode,
-        fortispay_enabled,
-        fortispay_user_id,
-        fortispay_user_api_key,
-        fortispay_location_id,
-        fortispay_product_transaction_id_ach,
-        fortispay_test_mode,
-        current_password,
-        new_password,
-        ...generalSettings
-      } = data;
+      const generalSettingsPayload = buildGeneralSettingsPayload(data);
 
       // Save general settings
       const { error: settingsError } = await supabase.from("settings").upsert({
         profile_id: userProfile.id,
-        ...generalSettings,
-        store_hours: JSON.parse(JSON.stringify(generalSettings.store_hours)) as Json,
+        ...generalSettingsPayload,
         updated_at: new Date().toISOString(),
       });
 
@@ -333,7 +341,7 @@ export default function Settings() {
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
               <div className="space-y-2">
-                <TabsList className="grid grid-cols-3 md:grid-cols-5 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>
@@ -354,34 +362,38 @@ export default function Settings() {
                     <FileText className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Invoices</span>
                   </TabsTrigger>
+                  <TabsTrigger value="security" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <Shield className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Security</span>
+                  </TabsTrigger>
                   {/* <TabsTrigger value="email" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Mail className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Email</span>
                   </TabsTrigger> */}
                 </TabsList>
 
-                <TabsList className="grid grid-cols-3 md:grid-cols-4 gap-1 h-auto p-1 w-full">
-                  <TabsTrigger value="hours" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                {/* <TabsList className="grid grid-cols-3 md:grid-cols-4 gap-1 h-auto p-1 w-full"> */}
+                  {/* <TabsTrigger value="hours" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Clock className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Hours</span>
                   </TabsTrigger>
                   <TabsTrigger value="social" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Share2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Social</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="security" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                  </TabsTrigger> */}
+                  {/* <TabsTrigger value="security" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Shield className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Security</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="categories" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                  </TabsTrigger> */}
+                  {/* <TabsTrigger value="categories" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <FolderTree className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Categories</span>
-                  </TabsTrigger>
+                  </TabsTrigger> */}
                   {/* <TabsTrigger value="appearance" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Palette className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Appearance</span>
                   </TabsTrigger> */}
-                </TabsList>
+                {/* </TabsList> */}
               </div>
 
               {/* Business Tab */}

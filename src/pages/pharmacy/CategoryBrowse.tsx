@@ -13,6 +13,15 @@ interface CategoryWithCount {
   productCount: number;
 }
 
+interface ProductSizeStatus {
+  is_active?: boolean | null;
+}
+
+interface ProductCategoryCountRow {
+  category?: string | null;
+  product_sizes?: ProductSizeStatus[] | null;
+}
+
 export default function CategoryBrowse() {
   const [categories, setCategories] = useState<CategoryWithCount[]>([]);
   const [loading, setLoading] = useState(true);
@@ -25,13 +34,24 @@ export default function CategoryBrowse() {
         setLoading(true);
 
         // Fetch all categories from category_configs
-        const { data: categoryData, error: categoryError } = await supabase
+        const orderedCategoryQuery = await supabase
           .from("category_configs")
           .select("id, category_name")
-          .order("category_name");
+          .order("display_order", { ascending: true })
+          .order("category_name", { ascending: true });
 
-        if (categoryError) {
-          throw categoryError;
+        let categoryData = orderedCategoryQuery.data;
+        if (orderedCategoryQuery.error) {
+          const fallbackCategoryQuery = await supabase
+            .from("category_configs")
+            .select("id, category_name")
+            .order("category_name", { ascending: true });
+
+          if (fallbackCategoryQuery.error) {
+            throw fallbackCategoryQuery.error;
+          }
+
+          categoryData = fallbackCategoryQuery.data;
         }
 
         if (!categoryData || categoryData.length === 0) {
@@ -54,11 +74,11 @@ export default function CategoryBrowse() {
         // Calculate product count per category (case-insensitive)
         // Only count products that have at least one active size
         const productCountMap = new Map<string, number>();
-        products?.forEach((product: any) => {
+        (products as ProductCategoryCountRow[] | null)?.forEach((product) => {
           if (product.category && product.product_sizes) {
             // Check if product has at least one active size
             const hasActiveSizes = product.product_sizes.some(
-              (size: any) => size.is_active !== false
+              (size) => size.is_active !== false
             );
             if (hasActiveSizes) {
               const categoryLower = product.category.toLowerCase();

@@ -53,7 +53,7 @@ exports.resendWebhook = async (req, res) => {
     res.status(200).json({ received: true });
   } catch (error) {
     console.error("Resend webhook error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -106,7 +106,7 @@ exports.sendgridWebhook = async (req, res) => {
     res.status(200).json({ received: true });
   } catch (error) {
     console.error("SendGrid webhook error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -184,7 +184,7 @@ exports.sesWebhook = async (req, res) => {
     res.status(200).json({ received: true });
   } catch (error) {
     console.error("SES webhook error:", error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 

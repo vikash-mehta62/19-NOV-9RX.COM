@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { fetchCategoryConfigs, PRODUCT_CATEGORIES } from '@/App';
+import { fetchCategoryConfigs } from '@/App';
 import {
   Plus,
   Pencil,
@@ -21,13 +21,20 @@ import {
   Ruler,
   Settings,
   X,
-  AlertCircle,
   CheckCircle,
   Trash2,
   Upload,
   Image as ImageIcon
 } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  canDeleteCategory,
+  canDeleteSubcategory,
+  deleteCategoryById,
+  deleteSubcategoryById,
+  fetchOrderedCategories,
+  fetchOrderedSubcategories,
+  insertSubcategorySafely
+} from '@/services/productTreeService';
 
 interface Props {
   open: boolean;
@@ -42,15 +49,20 @@ interface Category {
   default_unit: string;
   has_rolls: boolean;
   requires_case: boolean;
+  display_order?: number | null;
+  image_url?: string;
 }
 
 interface Subcategory {
   id: number;
   category_name: string;
   subcategory_name: string;
+  display_order?: number | null;
 }
 
 const DEFAULT_UNITS = ["unit", "OZ", "mm", "mL", "cc", "inch", "gram", "dram", "ROLL"];
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
 
 export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange, onSuccess }) => {
   const [activeTab, setActiveTab] = useState<'category' | 'subcategory'>('category');
@@ -97,37 +109,23 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
   }, [selectedCategoryForSub]);
 
   const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('category_configs')
-      .select('*')
-      .order('category_name');
-
-    if (error) {
+    try {
+      const data = await fetchOrderedCategories();
+      setCategories((data || []) as Category[]);
+    } catch (error) {
+      console.error("Failed to fetch categories:", error);
       toast.error('Failed to fetch categories');
-      return;
     }
-
-    setCategories(data || []);
   };
 
   const fetchSubcategories = async (category?: string) => {
-    let query = supabase
-      .from('subcategory_configs')
-      .select('*')
-      .order('subcategory_name');
-
-    if (category) {
-      query = query.eq('category_name', category);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
+    try {
+      const data = await fetchOrderedSubcategories(category);
+      setSubcategories((data || []) as Subcategory[]);
+    } catch (error) {
+      console.error("Failed to fetch subcategories:", error);
       toast.error('Failed to fetch subcategories');
-      return;
     }
-
-    setSubcategories(data || []);
   };
 
   // Category functions
@@ -175,7 +173,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       if (uploadError) throw uploadError;
 
       return filePath;
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error uploading image:', error);
       toast.error('Failed to upload image');
       return null;
@@ -241,8 +239,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       await fetchCategories();
       resetCategoryForm();
       onSuccess?.(); // Notify parent to refresh categories
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to add category');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to add category'));
     } finally {
       setLoading(false);
     }
@@ -267,8 +265,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       setEditingCategory(null);
       resetCategoryForm();
       onSuccess?.(); // Notify parent to refresh categories
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update category');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to update category'));
     } finally {
       setLoading(false);
     }
@@ -282,7 +280,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       default_unit: category.default_unit,
       has_rolls: category.has_rolls,
       requires_case: category.requires_case,
-      image_url: (category as any).image_url || ''
+      image_url: category.image_url || ''
     });
   };
 
@@ -364,17 +362,13 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     setLoading(true);
 
     try {
-      const { error } = await supabase
-        .from('subcategory_configs')
-        .insert([subcategoryForm]);
-
-      if (error) throw error;
+      await insertSubcategorySafely(subcategoryForm);
 
       toast.success('Subcategory added successfully!');
       await fetchSubcategories(selectedCategoryForSub);
       resetSubcategoryForm();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to add subcategory');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to add subcategory'));
     } finally {
       setLoading(false);
     }
@@ -397,8 +391,8 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       await fetchSubcategories(selectedCategoryForSub);
       setEditingSubcategory(null);
       resetSubcategoryForm();
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update subcategory');
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to update subcategory'));
     } finally {
       setLoading(false);
     }
@@ -420,6 +414,80 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     setEditingSubcategory(null);
   };
 
+  const handleDeleteCategory = async (category: Category) => {
+    try {
+      const guard = await canDeleteCategory(category.category_name);
+      if (!guard.allowed) {
+        toast.error(
+          `Cannot delete "${category.category_name}". In use by ${guard.productCount} products and ${guard.subcategoryCount} subcategories.`
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete category "${category.category_name}"? This action cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      setLoading(true);
+      await deleteCategoryById(category.id);
+
+      if (selectedCategoryForSub === category.category_name) {
+        setSelectedCategoryForSub('');
+        setSubcategories([]);
+        resetSubcategoryForm();
+      }
+
+      if (editingCategory?.id === category.id) {
+        resetCategoryForm();
+      }
+
+      toast.success('Category deleted successfully!');
+      await fetchCategoryConfigs();
+      await fetchCategories();
+      onSuccess?.();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to delete category'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSubcategory = async (subcategory: Subcategory) => {
+    try {
+      const guard = await canDeleteSubcategory(
+        subcategory.category_name,
+        subcategory.subcategory_name
+      );
+      if (!guard.allowed) {
+        toast.error(
+          `Cannot delete "${subcategory.subcategory_name}". In use by ${guard.productCount} products.`
+        );
+        return;
+      }
+
+      const confirmed = window.confirm(
+        `Delete subcategory "${subcategory.subcategory_name}"? This action cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      setLoading(true);
+      await deleteSubcategoryById(subcategory.id);
+
+      if (editingSubcategory?.id === subcategory.id) {
+        resetSubcategoryForm();
+      }
+
+      toast.success('Subcategory deleted successfully!');
+      await fetchSubcategories(selectedCategoryForSub || undefined);
+      onSuccess?.();
+    } catch (error: unknown) {
+      toast.error(getErrorMessage(error, 'Failed to delete subcategory'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-4xl h-[90vh] p-0 flex flex-col overflow-hidden">
@@ -433,7 +501,11 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
           </p>
         </DialogHeader>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="flex-1 flex flex-col overflow-hidden">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as 'category' | 'subcategory')}
+          className="flex-1 flex flex-col overflow-hidden"
+        >
           <div className="px-6 pt-4 flex-shrink-0">
             <TabsList className="grid w-full grid-cols-2 bg-gray-100">
               <TabsTrigger value="category" className="data-[state=active]:bg-white">
@@ -665,14 +737,24 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                                 Units: {category.size_units.join(', ')}
                               </p>
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => startEditCategory(category)}
-                              className="opacity-0 group-hover:opacity-100"
-                            >
-                              <Pencil className="h-4 w-4" />
-                            </Button>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => startEditCategory(category)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteCategory(category)}
+                                disabled={loading}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -719,9 +801,9 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                           <SelectValue placeholder="Choose a category" />
                         </SelectTrigger>
                         <SelectContent position="popper" className="z-[9999]">
-                          {PRODUCT_CATEGORIES.map((cat) => (
-                            <SelectItem key={cat} value={cat}>
-                              {cat}
+                          {categories.map((cat) => (
+                            <SelectItem key={cat.id} value={cat.category_name}>
+                              {cat.category_name}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -774,14 +856,24 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                                 className="flex justify-between items-center p-4 border rounded-lg hover:border-green-300 hover:bg-green-50 transition-all group"
                               >
                                 <p className="font-medium">{sub.subcategory_name}</p>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => startEditSubcategory(sub)}
-                                  className="opacity-0 group-hover:opacity-100"
-                                >
-                                  <Pencil className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEditSubcategory(sub)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteSubcategory(sub)}
+                                    disabled={loading}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </div>
                             ))
                           ) : (

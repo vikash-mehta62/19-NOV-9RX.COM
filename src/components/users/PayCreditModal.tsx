@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -21,8 +21,41 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { formatCardNumber, validateCardNumber, validateExpiry } from "@/services/paymentService";
 
-// Simple validation function
 const validateRequired = (value: string) => (value.trim() === "" ? "Required" : null);
+const getErrorMessage = (err: unknown) => {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "object" && err !== null && "message" in err) {
+    const message = (err as { message?: unknown }).message;
+    if (typeof message === "string") return message;
+  }
+  return "Something went wrong";
+};
+
+interface CreditInvoiceOption {
+  id: string;
+  invoice_number: string;
+  balance_due: number;
+  due_date: string | null;
+  invoice_date: string | null;
+}
+
+interface CreditInvoiceRow {
+  id: string;
+  invoice_number: string;
+  balance_due: number | string | null;
+  due_date: string | null;
+  invoice_date: string | null;
+}
+
+interface AllocationRpcResult {
+  success?: boolean;
+  status?: string;
+  message?: string;
+  error?: string;
+  applied_amount?: number;
+  allocation_count?: number;
+  remaining_outstanding?: number;
+}
 
 interface PayCreditModalProps {
   creditUsed: number;
@@ -32,87 +65,141 @@ interface PayCreditModalProps {
 }
 
 export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManual = true }: PayCreditModalProps) {
+  const [isOpen, setIsOpen] = useState(false);
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [amount, setAmount] = useState(Number(creditUsed.toFixed(2)));
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"card" | "manual">("card");
 
-  // Card fields
   const [cardNumber, setCardNumber] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvv, setCvv] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
 
-  // Address fields
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zip, setZip] = useState("");
   const [country, setCountry] = useState("");
 
-  // Manual payment notes
   const [notes, setNotes] = useState("");
-
-  // Field-level errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  const [openInvoices, setOpenInvoices] = useState<CreditInvoiceOption[]>([]);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState("");
+  const [outstandingCredit, setOutstandingCredit] = useState(Number(creditUsed.toFixed(2)));
 
   const { toast } = useToast();
 
-  // Update amount when creditUsed prop changes
+  const selectedInvoice = useMemo(
+    () => openInvoices.find((invoice) => invoice.id === selectedInvoiceId) || null,
+    [openInvoices, selectedInvoiceId]
+  );
+
+  useEffect(() => {
+    if (paymentMethod === "manual" && !allowManual) {
+      setPaymentMethod("card");
+    }
+  }, [allowManual, paymentMethod]);
+
   useEffect(() => {
     if (paymentType === "full") {
-      setAmount(Number(creditUsed.toFixed(2)));
+      setAmount(Number(outstandingCredit.toFixed(2)));
     }
-  }, [creditUsed, paymentType]);
+  }, [outstandingCredit, paymentType]);
 
-  // -------------------------------
-  // Fetch user profile and auto-fill
-  // -------------------------------
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!userId) return;
-      const { data: profile, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", userId)
-        .single();
-      if (error || !profile) return;
+    if (paymentType !== "partial") {
+      return;
+    }
 
-      setCardHolderName(profile.display_name || "");
+    if (!selectedInvoiceId && openInvoices.length > 0) {
+      setSelectedInvoiceId(openInvoices[0].id);
+      setAmount(Number(openInvoices[0].balance_due.toFixed(2)));
+      return;
+    }
 
-      const addr = profile.billing_address || profile.shipping_address || {};
-      setAddress(addr.street1 || "");
-      setCity(addr.city || "");
-      setState(addr.state || "");
-      setZip(addr.zip_code || "");
-      setCountry(addr.countryRegion || "");
-    };
+    if (selectedInvoice && amount > selectedInvoice.balance_due) {
+      setAmount(Number(selectedInvoice.balance_due.toFixed(2)));
+    }
+  }, [paymentType, selectedInvoiceId, selectedInvoice, openInvoices, amount]);
 
-    fetchProfile();
+  const fetchProfile = useCallback(async () => {
+    if (!userId) return;
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", userId)
+      .single();
+
+    if (error || !profile) return;
+
+    setCardHolderName(profile.display_name || "");
+
+    const addr = profile.billing_address || profile.shipping_address || {};
+    setAddress(addr.street1 || "");
+    setCity(addr.city || "");
+    setState(addr.state || "");
+    setZip(addr.zip_code || "");
+    setCountry(addr.countryRegion || "");
   }, [userId]);
 
-  // -------------------------------
-  // Handle Cancel - resets fields and closes modal
-  // -------------------------------
+  const fetchOutstandingInvoices = useCallback(async () => {
+    if (!userId) return;
+
+    const { data, error } = await supabase
+      .from("credit_invoices")
+      .select("id, invoice_number, balance_due, due_date, invoice_date, status")
+      .eq("user_id", userId)
+      .in("status", ["pending", "partial", "overdue"])
+      .gt("balance_due", 0)
+      .order("due_date", { ascending: true })
+      .order("invoice_date", { ascending: true });
+
+    if (error) {
+      throw error;
+    }
+
+    const invoices: CreditInvoiceOption[] = ((data || []) as CreditInvoiceRow[]).map((invoice) => ({
+      id: invoice.id,
+      invoice_number: invoice.invoice_number,
+      balance_due: Number(invoice.balance_due || 0),
+      due_date: invoice.due_date,
+      invoice_date: invoice.invoice_date,
+    }));
+
+    const totalOutstanding = Number(
+      invoices.reduce((sum, invoice) => sum + Number(invoice.balance_due || 0), 0).toFixed(2)
+    );
+
+    setOpenInvoices(invoices);
+    setOutstandingCredit(totalOutstanding);
+
+    if (paymentType === "partial") {
+      if (!invoices.some((inv) => inv.id === selectedInvoiceId)) {
+        setSelectedInvoiceId(invoices[0]?.id || "");
+      }
+    }
+  }, [paymentType, selectedInvoiceId, userId]);
+
+  useEffect(() => {
+    if (!userId) return;
+    fetchProfile();
+  }, [fetchProfile, userId]);
+
   const handleCancel = () => {
-    setAmount(Number(creditUsed.toFixed(2)));
+    setPaymentType("full");
+    setAmount(Number(outstandingCredit.toFixed(2)));
     setPaymentMethod("card");
+    setSelectedInvoiceId("");
     setCardNumber("");
     setExpiry("");
     setCvv("");
-    setCardHolderName("");
-    setAddress("");
-    setCity("");
-    setState("");
-    setZip("");
-    setCountry("");
     setNotes("");
     setFieldErrors({});
   };
 
-  // -------------------------------
-  // Handle Card Number input with formatting
-  // -------------------------------
   const handleCardNumberChange = (val: string) => {
     const formatted = formatCardNumber(val);
     setCardNumber(formatted);
@@ -121,11 +208,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     }
   };
 
-  // -------------------------------
-  // Handle Expiry input MM/YY
-  // -------------------------------
   const handleExpiryChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, "").slice(0, 4); // max 4 digits
+    const numericVal = val.replace(/\D/g, "").slice(0, 4);
     if (numericVal.length > 2) {
       setExpiry(`${numericVal.slice(0, 2)}/${numericVal.slice(2)}`);
     } else {
@@ -136,9 +220,6 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     }
   };
 
-  // -------------------------------
-  // Handle CVV input (digits only, 3-4 chars)
-  // -------------------------------
   const handleCvvChange = (val: string) => {
     const numericVal = val.replace(/\D/g, "").slice(0, 4);
     setCvv(numericVal);
@@ -147,24 +228,42 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     }
   };
 
- 
-  const handlePayment = async (e: any) => {
+  const handlePayment = async (e: FormEvent) => {
     e.preventDefault();
+    if (!userId) {
+      toast({
+        title: "Payment Failed",
+        description: "User is required to process credit payment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsPaying(true);
 
     try {
       const errors: Record<string, string | null> = {};
       let hasErrors = false;
 
+      const amountToPay = Number((paymentType === "full" ? outstandingCredit : amount).toFixed(2));
+
+      if (paymentType === "partial") {
+        if (!selectedInvoice) {
+          errors.selectedInvoice = "Please select an invoice for partial payment";
+        } else if (amountToPay <= 0 || amountToPay > selectedInvoice.balance_due) {
+          errors.amount = `Amount must be between $0.01 and $${selectedInvoice.balance_due.toFixed(2)}`;
+        }
+      } else if (amountToPay <= 0) {
+        errors.amount = "No outstanding credit to pay.";
+      }
+
       if (paymentMethod === "card") {
-        // Card number: must be present, 13-19 digits, and pass Luhn check
         if (!cardNumber.trim()) {
           errors.cardNumber = "Card number is required";
         } else if (!validateCardNumber(cardNumber)) {
           errors.cardNumber = "Invalid card number";
         }
 
-        // Expiry: must be valid MM/YY format and not expired
         const rawExpiry = expiry.replace(/\//g, "");
         if (!rawExpiry.trim()) {
           errors.expiry = "Expiry date is required";
@@ -172,7 +271,6 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           errors.expiry = "Invalid or expired date (MM/YY)";
         }
 
-        // CVV: 3 or 4 digits
         if (!cvv.trim()) {
           errors.cvv = "CVV is required";
         } else if (!/^\d{3,4}$/.test(cvv)) {
@@ -189,10 +287,11 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
         errors.notes = validateRequired(notes) ? "Notes are required" : null;
       }
 
-      for (const key in errors) if (errors[key]) hasErrors = true;
+      for (const key in errors) {
+        if (errors[key]) hasErrors = true;
+      }
 
       if (hasErrors) {
-        // Store field-level errors for inline display
         const cleanErrors: Record<string, string> = {};
         for (const key in errors) {
           if (errors[key]) cleanErrors[key] = errors[key]!;
@@ -208,10 +307,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
         return;
       }
 
-      // Initialize transactionId (only for card)
       let transactionId: string | null = null;
 
-      // Card payment via Supabase Edge Function (same as Create Order)
       if (paymentMethod === "card") {
         const rawExpiry = expiry.replace(/\//g, "");
         const nameParts = (cardHolderName || "Customer").split(" ");
@@ -229,7 +326,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
                 cvv,
                 cardholderName: cardHolderName,
               },
-              amount: Number(amount),
+              amount: amountToPay,
               invoiceNumber: `CREDIT-${Date.now()}`,
               billing: {
                 firstName,
@@ -247,84 +344,52 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
         if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
         if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
 
-        // Store transactionId from response
         transactionId = paymentResponse.transactionId;
       }
 
-      // Get oldest unpaid invoice to apply payment
-      const { data: oldestInvoice, error: invoiceError } = await supabase
-        .from("credit_invoices")
-        .select("*")
-        .eq("user_id", userId)
-        .in("status", ["pending", "partial", "overdue"])
-        .order("invoice_date", { ascending: true })
-        .limit(1)
-        .single();
+      const rpcClient = supabase as unknown as {
+        rpc: (
+          fn: string,
+          params: Record<string, unknown>
+        ) => Promise<{ data: AllocationRpcResult | null; error: { message?: string } | null }>;
+      };
 
-      if (invoiceError || !oldestInvoice) {
-        throw new Error("No unpaid invoices found. Please contact support.");
-      }
-
-      // Process payment through credit invoice system
-      const { data: paymentResult, error: paymentError } = await supabase.rpc("process_credit_payment", {
-        p_invoice_id: oldestInvoice.id,
-        p_amount: Number(amount),
+      const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
+        p_user_id: userId,
+        p_amount: amountToPay,
         p_payment_method: paymentMethod === "card" ? "card" : "manual",
         p_transaction_id: transactionId || `MANUAL-${Date.now()}`,
+        p_payment_mode: paymentType,
+        p_target_invoice_id: paymentType === "partial" ? selectedInvoice?.id || null : null,
+        p_notes: paymentMethod === "manual" ? notes : null,
       });
 
       if (paymentError) throw paymentError;
-
       if (!paymentResult?.success) {
-        throw new Error(paymentResult?.error || "Payment processing failed");
+        throw new Error(paymentResult?.message || paymentResult?.error || "Payment processing failed");
       }
 
-      // Also update old credit_used field for backward compatibility
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("credit_used, credit_limit")
-        .eq("id", userId)
-        .single();
-
-      if (profile) {
-        const prevUsed = Number(profile.credit_used || 0);
-        const newUsed = Math.max(0, prevUsed - Number(amount));
-        const newBalance = Number(profile.credit_limit || 0) - newUsed;
-
-        await supabase
-          .from("profiles")
-          .update({ credit_used: newUsed })
-          .eq("id", userId);
-
-        // Insert transaction record for backward compatibility
-        await supabase
-          .from("account_transactions")
-          .insert({
-            customer_id: userId,
-            transaction_date: new Date().toISOString(),
-            transaction_type: "credit",
-            reference_type: "payment",
-            credit_amount: amount,
-            debit_amount: 0,
-            description: `Payment (${paymentMethod}) - Invoice: ${oldestInvoice.invoice_number}`,
-            balance: newBalance,
-            created_by: userId,
-            admin_pay_notes: paymentMethod === "manual" ? notes : "",
-            transectionId: transactionId,
-          });
-      }
+      const appliedAmount = Number(paymentResult.applied_amount || amountToPay);
+      const allocationCount = Number(paymentResult.allocation_count || 0);
+      const remainingOutstanding = Number(paymentResult.remaining_outstanding || 0);
 
       toast({
         title: "Payment Successful",
-        description: `$${amount} applied to invoice ${oldestInvoice.invoice_number}. New balance: $${paymentResult.new_balance.toFixed(2)}`,
+        description:
+          allocationCount > 1
+            ? `$${appliedAmount.toFixed(2)} allocated to ${allocationCount} invoices. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`
+            : `$${appliedAmount.toFixed(2)} payment applied successfully. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`,
       });
 
+      await fetchOutstandingInvoices();
       onPaymentSuccess();
-    } catch (err: any) {
+      setIsOpen(false);
+      handleCancel();
+    } catch (err: unknown) {
       console.error("Payment Error:", err);
       toast({
         title: "Payment Failed",
-        description: err.message || "Something went wrong",
+        description: getErrorMessage(err),
         variant: "destructive",
       });
     } finally {
@@ -332,9 +397,24 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     }
   };
 
+  const amountMax = paymentType === "partial" ? selectedInvoice?.balance_due || 0 : outstandingCredit;
 
   return (
-    <Dialog>
+    <Dialog
+      open={isOpen}
+      onOpenChange={async (open) => {
+        setIsOpen(open);
+        if (open) {
+          try {
+            await fetchOutstandingInvoices();
+          } catch (err) {
+            console.error("Failed to fetch open credit invoices:", err);
+          }
+        } else {
+          handleCancel();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button className="bg-green-500">Pay Credit</Button>
       </DialogTrigger>
@@ -343,10 +423,9 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           <DialogTitle>Pay Credit</DialogTitle>
         </DialogHeader>
         <form className="space-y-4 mt-2" onSubmit={handlePayment}>
-          <p>Outstanding Credit: ${creditUsed.toFixed(2)}</p>
+          <p>Outstanding Credit: ${outstandingCredit.toFixed(2)}</p>
 
-          {/* Payment Type */}
-          <Select value={paymentType} onValueChange={(val) => setPaymentType(val as "full" | "partial")}>
+          <Select value={paymentType} onValueChange={(val) => setPaymentType(val as "full" | "partial")}> 
             <SelectTrigger>
               <SelectValue placeholder="Select Payment Type" />
             </SelectTrigger>
@@ -356,28 +435,55 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             </SelectContent>
           </Select>
 
-          {/* Amount */}
-          <Input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            min={1}
-            max={creditUsed}
-            placeholder="Enter amount to pay"
-            disabled={paymentType === "full"}
-          />
+          {paymentType === "partial" && (
+            <div className="space-y-2">
+              <Select value={selectedInvoiceId} onValueChange={setSelectedInvoiceId}>
+                <SelectTrigger className={fieldErrors.selectedInvoice ? "border-red-500" : ""}>
+                  <SelectValue placeholder="Select invoice to pay" />
+                </SelectTrigger>
+                <SelectContent>
+                  {openInvoices.map((invoice) => (
+                    <SelectItem key={invoice.id} value={invoice.id}>
+                      {invoice.invoice_number} - ${invoice.balance_due.toFixed(2)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {fieldErrors.selectedInvoice && <p className="text-xs text-red-500">{fieldErrors.selectedInvoice}</p>}
+              {selectedInvoice && (
+                <p className="text-xs text-gray-500">
+                  Invoice balance due: ${selectedInvoice.balance_due.toFixed(2)}
+                </p>
+              )}
+            </div>
+          )}
 
-          {/* Payment Method */}
+          <div>
+            <Input
+              type="number"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(Number(e.target.value))}
+              min={0.01}
+              max={amountMax}
+              placeholder={paymentType === "full" ? "Auto-calculated" : "Enter amount to pay"}
+              disabled={paymentType === "full" || (paymentType === "partial" && !selectedInvoice)}
+              className={fieldErrors.amount ? "border-red-500" : ""}
+            />
+            {fieldErrors.amount && <p className="text-xs text-red-500 mt-1">{fieldErrors.amount}</p>}
+          </div>
+
           <div className="flex gap-4">
             <Button type="button" variant={paymentMethod === "card" ? "default" : "outline"} onClick={() => setPaymentMethod("card")} className="flex-1">
               Card Payment
             </Button>
-            <Button type="button" variant={paymentMethod === "manual" ? "default" : "outline"} onClick={() => setPaymentMethod("manual")} className="flex-1">
-              Manual Payment
-            </Button>
+            {allowManual && (
+              <Button type="button" variant={paymentMethod === "manual" ? "default" : "outline"} onClick={() => setPaymentMethod("manual")} className="flex-1">
+                Manual Payment
+              </Button>
+            )}
           </div>
 
-          {/* Card Fields */}
           {paymentMethod === "card" && (
             <div className="space-y-2">
               <div>
@@ -431,7 +537,6 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             </div>
           )}
 
-          {/* Manual Payment Notes */}
           {paymentMethod === "manual" && (
             <div>
               <Textarea placeholder="Enter notes for manual payment" value={notes} onChange={(e) => setNotes(e.target.value)} className={fieldErrors.notes ? "border-red-500" : ""} />
@@ -439,14 +544,17 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             </div>
           )}
 
-          {/* Action Buttons */}
           <div className="flex justify-end gap-2 pt-2">
             <DialogClose asChild>
               <Button variant="outline" type="button" onClick={handleCancel}>
                 Cancel
               </Button>
             </DialogClose>
-            <Button type="submit" disabled={isPaying} className="bg-green-600 hover:bg-green-700 text-white">
+            <Button
+              type="submit"
+              disabled={isPaying || outstandingCredit <= 0 || (paymentType === "partial" && !selectedInvoice)}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
               {isPaying ? "Processing..." : "Pay"}
             </Button>
           </div>

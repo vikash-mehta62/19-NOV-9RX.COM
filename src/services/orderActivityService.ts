@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/supabaseClient";
 import { OrderActivity, OrderActivityType } from "@/types/orderActivity";
 
 export class OrderActivityService {
@@ -16,13 +16,18 @@ export class OrderActivityService {
     try {
       console.log("🔵 Logging activity:", params);
       
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const actorId = params.performedBy || session?.user?.id || null;
+
       const { error } = await supabase.from("order_activities").insert({
         order_id: params.orderId,
         activity_type: params.activityType,
         description: params.description,
-        performed_by: params.performedBy,
-        performed_by_name: params.performedByName,
-        performed_by_email: params.performedByEmail,
+        performed_by: actorId,
+        performed_by_name: params.performedByName || session?.user?.user_metadata?.first_name || null,
+        performed_by_email: params.performedByEmail || session?.user?.email || null,
         old_data: params.oldData,
         new_data: params.newData,
         metadata: params.metadata,

@@ -2,6 +2,7 @@ import { UseFormReturn } from "react-hook-form";
 import { useState, useEffect } from "react";
 import { AddressInput } from "./address/AddressInput";
 import { StateSelect } from "./address/StateSelect";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 declare global {
   interface Window {
@@ -16,53 +17,21 @@ interface AddressFieldsProps {
 }
 
 export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
-  const fieldName = (field: string) =>
-    `${prefix ? `${prefix}.` : ""}${type}Address.${field}`;
+  const fieldName = (field: string) => {
+    const basePrefix = prefix ? `${prefix}.` : "";
+    const addressRoot = type === "billing" || type === "shipping" ? `${type}Address.` : "";
+    return `${basePrefix}${addressRoot}${field}`;
+  };
 
   const [street1Suggestions, setStreet1Suggestions] = useState<any[]>([]);
 
   useEffect(() => {
-    if (!window.google) {
-      console.error("Google Maps API not loaded");
-    }
-    
     // Set default country to USA if not already set
     const currentCountry = form.getValues(fieldName("countryRegion"));
     if (!currentCountry) {
       form.setValue(fieldName("countryRegion"), "USA");
     }
   }, []);
-
-  // Extract address details from Google Places API
-  const onPlaceSelected = (place: any) => {
-    if (!place || !place.address_components) return;
-  
-    let city = "";
-    let state = "";
-    let country = "";
-    let zipCode = "";
-  
-    place.address_components.forEach((component: any) => {
-      if (component.types.includes("locality")) {
-        city = component.short_name;
-      } else if (component.types.includes("administrative_area_level_1")) {
-        state = component.short_name;
-      } else if (component.types.includes("country")) {
-        country = component.short_name; // Changed to short_name
-      } else if (component.types.includes("postal_code")) {
-        zipCode = component.short_name; // Changed to short_name
-      }
-    });
-  
-    // Extract only the first part of street1 (before the first comma)
-    const street1 = place.formatted_address.split(",")[0];
-  
-    form.setValue(fieldName("street1"), street1);
-    if (city) form.setValue(fieldName("city"), city);
-    if (state) form.setValue(fieldName("state"), state);
-    if (country) form.setValue(fieldName("country"), country);
-    if (zipCode) form.setValue(fieldName("zip_code"), zipCode);
-  };
   
 
   return (
@@ -77,10 +46,7 @@ export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
           label="Street Address 1 *"
           {...form.register(fieldName("street1"), {
             onChange: (e) => {
-              const service = new window.google.maps.places.AutocompleteService();
-              service.getPlacePredictions({ input: e.target.value }, (predictions: any) => {
-                setStreet1Suggestions(predictions || []);
-              });
+              getAddressPredictions(e.target.value, setStreet1Suggestions);
             },
           })}
         />
@@ -91,11 +57,13 @@ export function AddressFields({ form, type, prefix = "" }: AddressFieldsProps) {
                 key={suggestion.place_id}
                 className="cursor-pointer hover:bg-gray-100 px-4 py-2 text-lg"
                 onClick={() => {
-                  const placesService = new window.google.maps.places.PlacesService(document.createElement("div"));
-                  placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
-                    if (place) {
-                      onPlaceSelected(place);
-                    }
+                  getPlaceDetails(suggestion.place_id, (address) => {
+                    if (!address) return;
+                    form.setValue(fieldName("street1"), address.street);
+                    if (address.city) form.setValue(fieldName("city"), address.city);
+                    if (address.state) form.setValue(fieldName("state"), address.state);
+                    if (address.country) form.setValue(fieldName("countryRegion"), address.country);
+                    if (address.zip_code) form.setValue(fieldName("zip_code"), address.zip_code);
                   });
                   setStreet1Suggestions([]);
                 }}

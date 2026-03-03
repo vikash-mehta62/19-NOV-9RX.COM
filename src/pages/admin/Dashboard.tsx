@@ -334,11 +334,15 @@ const AdminDashboard = () => {
 
   const handleApproveAccess = async (profileId: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
+
       // Use backend API to approve (bypasses RLS with service role)
       const response = await fetch(`/api/users/approve-access/${profileId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
@@ -358,11 +362,15 @@ const AdminDashboard = () => {
 
   const handleRejectAccess = async (profileId: string) => {
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
+
       // Use backend API to reject (bypasses RLS with service role)
       const response = await fetch(`/api/users/reject-access/${profileId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ reason: 'Rejected by admin from dashboard' }),
       });

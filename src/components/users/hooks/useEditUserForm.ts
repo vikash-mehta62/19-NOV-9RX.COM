@@ -65,6 +65,7 @@ export const useEditUserForm = ({
       sameAsShipping: false,
       contactPerson: '',
       freeShipping: false,
+      order_pay: false,
       taxPercantage: "",
       taxId: "",
       taxPreference: "Taxable",
@@ -75,6 +76,17 @@ export const useEditUserForm = ({
       email_notifaction: false,
       referralName: "",
       stateId: "",
+      pharmacyLicense: "",
+      groupStation: "",
+      groupType: "",
+      parentGroup: "",
+      locations: [],
+      website: "",
+      notes: "",
+      preferredContactMethod: "email",
+      languagePreference: "English",
+      paymentMethod: "",
+      documents: [],
     },
   });
 
@@ -108,6 +120,8 @@ export const useEditUserForm = ({
           faxNumber: data.fax_number || "",
           alternativeEmail: data.alternative_email || "",
           department: data.department || "",
+          website: data.website || "",
+          notes: data.notes || "",
           billingAddress: data.billing_address || {
             street1: "",
             city: "",
@@ -136,6 +150,15 @@ export const useEditUserForm = ({
           email_notifaction: data.email_notifaction,
           referralName: data.referral_name || "",
           stateId: data.state_id || "",
+          pharmacyLicense: data.pharmacy_license || "",
+          groupStation: data.group_station || "",
+          groupType: data.group_type || "",
+          parentGroup: "",
+          locations: Array.isArray(data.locations) ? data.locations : [],
+          preferredContactMethod: data.preferred_contact_method || "email",
+          languagePreference: data.language_preference || "English",
+          paymentMethod: data.payment_method || "",
+          documents: Array.isArray(data.documents) ? data.documents : [],
         });
       }
     } catch (error: any) {

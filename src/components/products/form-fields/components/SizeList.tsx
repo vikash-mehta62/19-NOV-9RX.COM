@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { X, Edit3, Package, DollarSign, Warehouse, BarChart3, Printer } from "lucide-react";
-import { CATEGORY_CONFIGS } from "@/App";
 import { SizeImageUploader } from "../SizeImageUploader";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEffect, useState } from "react";
@@ -13,12 +12,19 @@ import { supabase } from "@/integrations/supabase/client";
 import Select from "react-select";
 import { Switch } from "@/components/ui/switch";
 
+type CategorySizingConfig = {
+  sizeUnits: string[];
+  defaultUnit: string;
+  hasRolls: boolean;
+  requiresCase: boolean;
+};
+
 interface Size {
   size_value: string;
   size_unit: string;
   price: number;
   sku?: string;
-  pricePerCase?: any;
+  pricePerCase?: number | string | null;
   price_per_case?: number;
   stock: number;
   quantity_per_case: number;
@@ -35,13 +41,20 @@ interface Size {
   exipry?: string;
 }
 
+interface ProductFormAdapter {
+  getValues: (field?: string) => unknown;
+  watch: (field: string) => unknown;
+  setValue: (field: string, value: unknown) => void;
+}
+
 interface SizeListProps {
   sizes: Size[];
   onRemoveSize: (index: number) => void;
   setNewSize: (boolean: boolean) => void;
   onUpdateSize: (index: number, field: string, value: string | number | boolean | string[]) => void;
   category: string;
-  form?: any;
+  categoryConfig: CategorySizingConfig;
+  form?: ProductFormAdapter;
 }
 
 export const SizeList = ({
@@ -49,12 +62,10 @@ export const SizeList = ({
   onRemoveSize,
   onUpdateSize,
   category,
+  categoryConfig,
   setNewSize,
   form
 }: SizeListProps) => {
-
-  // ⚠️ IMPORTANT: Declare all hooks at TOP, before any conditions!
-  const categoryConfig = CATEGORY_CONFIGS[category as keyof typeof CATEGORY_CONFIGS] || CATEGORY_CONFIGS.OTHER;
 
   // State hooks - ALWAYS keep at top
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -62,11 +73,12 @@ export const SizeList = ({
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   
   // Form values - ye bhi top pe
-  const productName = form?.getValues("name") || "Product";
-  const productUPCcode = form?.getValues("upcCode") || "";
-  const productNdcCode = form?.getValues("ndcCode") || "";
-  const productExpiry = form?.getValues("unitToggle") || "";
-  const productLotNumber = form?.getValues("lotNumber") || "";
+  const productName = String(form?.getValues("name") || "Product");
+  const productUPCcode = String(form?.getValues("upcCode") || "");
+  const productNdcCode = String(form?.getValues("ndcCode") || "");
+  const productExpiry = String(form?.getValues("unitToggle") || "");
+  const productLotNumber = String(form?.getValues("lotNumber") || "");
+  const isUnitToggle = Boolean(form?.watch("unitToggle"));
 
   // ⚠️ useEffect MUST be before any return statement
   useEffect(() => {
@@ -116,7 +128,7 @@ export const SizeList = ({
       <div className="flex items-center gap-1">
   <span className="text-xs text-gray-500">Unit</span>
   <Switch
-    checked={form?.watch("unitToggle") ?? false}
+    checked={isUnitToggle}
     onCheckedChange={(val) => form?.setValue("unitToggle", val)}
   />
 </div>
@@ -136,7 +148,7 @@ export const SizeList = ({
                 <div className="flex items-center gap-4 flex-1">
                   {/* Size Badge */}
                   <Badge className="bg-gradient-to-r text-white px-3 py-1 text-sm font-medium text-black">
-                    {size.size_value} {form?.getValues("unitToggle") ? size.size_unit : ""}
+                    {size.size_value} {isUnitToggle ? size.size_unit : ""}
                   </Badge>
 
                   {/* SKU Badge */}
@@ -184,8 +196,8 @@ export const SizeList = ({
                         try {
                           await generateSingleProductLabelPDF(
                             productName,
-                            { ...size, isUnit: form?.getValues("unitToggle") },
-                            form?.getValues("unitToggle")
+                            { ...size, isUnit: isUnitToggle },
+                            isUnitToggle
                           );
                           console.log(`Label for ${size} downloaded!`);
                         } catch (error) {
@@ -496,3 +508,4 @@ export const SizeList = ({
     </div>
   );
 };
+

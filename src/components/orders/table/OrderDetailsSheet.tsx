@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import axios from "../../../../axiosconfig";
 import { useCart } from "@/hooks/use-cart";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import JsBarcode from "jsbarcode";
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
@@ -661,7 +661,7 @@ export const OrderDetailsSheet = ({
       });
 
       // Draw table
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
@@ -730,7 +730,7 @@ export const OrderDetailsSheet = ({
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
       }
 
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
         theme: "plain",
@@ -1111,7 +1111,7 @@ export const OrderDetailsSheet = ({
         });
       });
 
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
@@ -1182,7 +1182,7 @@ export const OrderDetailsSheet = ({
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
       }
 
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
         theme: "plain",

@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const mailSender = require("../utils/mailSender");
 const launchPasswordResetTemplate = require("../templates/launchPasswordResetTemplate");
+const { requireAdmin, requireAuth } = require("../middleware/auth");
 
 // Initialize Supabase Admin Client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -32,7 +33,7 @@ router.get("/health", (req, res) => {
  * Send password reset + T&C acceptance emails to all users
  * POST /api/launch/send-reset-emails
  */
-router.post("/send-reset-emails", async (req, res) => {
+router.post("/send-reset-emails", requireAdmin, async (req, res) => {
   try {
     const { testMode = false, testEmail = null, selectedUserIds = null, sendToAll = false } = req.body;
 
@@ -56,7 +57,7 @@ router.post("/send-reset-emails", async (req, res) => {
       .eq("id", user.id)
       .single();
 
-    if (!profile || profile.role !== "admin") {
+    if (!profile || !["admin", "superadmin"].includes(profile.role)) {
       return res.status(403).json({ error: "Admin access required" });
     }
 
@@ -103,7 +104,7 @@ router.post("/send-reset-emails", async (req, res) => {
       await Promise.all(batch.map(async (user) => {
         try {
           // Generate password reset token with redirect to launch password reset page
-          const redirectUrl = `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/launch-password-reset?launch=true`;
+          const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/launch-password-reset?launch=true`;
           
           const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
@@ -116,7 +117,7 @@ router.post("/send-reset-emails", async (req, res) => {
           if (resetError) {
             console.error(`Error generating reset link for ${user.email}:`, resetError);
             results.failed++;
-            results.errors.push({ email: user.email, error: resetError.message });
+            results.errors.push({ email: user.email, error: "Failed to generate reset link" });
             return;
           }
 
@@ -126,7 +127,7 @@ router.post("/send-reset-emails", async (req, res) => {
           // Use the actual Supabase recovery link which creates a proper session
           // This link will automatically authenticate the user and redirect to our page
           const resetLink = resetData.properties.action_link;
-          const termsLink = `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/terms-and-conditions`;
+          const termsLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/terms-and-conditions`;
 
           // Send email
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';
@@ -157,7 +158,7 @@ router.post("/send-reset-emails", async (req, res) => {
         } catch (error) {
           console.error(`Error processing ${user.email}:`, error);
           results.failed++;
-          results.errors.push({ email: user.email, error: error.message });
+          results.errors.push({ email: user.email, error: "Failed to process user launch email" });
         }
       }));
 
@@ -177,9 +178,8 @@ router.post("/send-reset-emails", async (req, res) => {
     });
   } catch (error) {
     console.error("Send reset emails error:", error);
-    return res.status(500).json({ 
-      error: "Internal server error", 
-      details: error.message 
+    return res.status(500).json({
+      error: "Internal server error",
     });
   }
 });
@@ -188,7 +188,7 @@ router.post("/send-reset-emails", async (req, res) => {
  * Get launch password reset statistics
  * GET /api/launch/reset-stats
  */
-router.get("/reset-stats", async (req, res) => {
+router.get("/reset-stats", requireAdmin, async (req, res) => {
   try {
     // Verify admin access
     const authHeader = req.headers.authorization;
@@ -234,9 +234,8 @@ router.get("/reset-stats", async (req, res) => {
     });
   } catch (error) {
     console.error("Get reset stats error:", error);
-    return res.status(500).json({ 
-      error: "Internal server error", 
-      details: error.message 
+    return res.status(500).json({
+      error: "Internal server error",
     });
   }
 });
@@ -244,9 +243,9 @@ router.get("/reset-stats", async (req, res) => {
 /**
  * Mark user as completed (password reset + terms accepted)
  * POST /api/launch/mark-completed
- * NO AUTHENTICATION REQUIRED - Public endpoint for password reset flow
+ * Requires authenticated recovery/user session.
  */
-router.post("/mark-completed", async (req, res) => {
+router.post("/mark-completed", requireAuth, async (req, res) => {
   try {
     const { email, action } = req.body; // action: 'password_reset' or 'terms_accepted' or 'both'
 
@@ -264,15 +263,24 @@ router.post("/mark-completed", async (req, res) => {
       return res.status(400).json({ error: "Invalid action. Must be 'password_reset', 'terms_accepted', or 'both'" });
     }
 
+    const normalizedEmail = email.toLowerCase().trim();
+    const requesterEmail = req.auth?.user?.email?.toLowerCase().trim();
+    const requesterRole = req.auth?.profile?.role;
+    const isPrivileged = requesterRole === "admin" || requesterRole === "superadmin";
+
+    if (!isPrivileged && requesterEmail !== normalizedEmail) {
+      return res.status(403).json({ error: "Forbidden: cannot update another user" });
+    }
+
     // Get user profile by email
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
       .select("id, email")
-      .eq("email", email)
+      .eq("email", normalizedEmail)
       .single();
 
     if (profileError || !profile) {
-      console.error("❌ Profile not found for email:", email);
+      console.error("❌ Profile not found for email:", normalizedEmail);
       return res.status(404).json({ error: "User not found" });
     }
 
@@ -287,7 +295,7 @@ router.post("/mark-completed", async (req, res) => {
 
     if (checkError) {
       console.error("❌ Error checking for existing record:", checkError);
-      return res.status(500).json({ error: "Failed to check existing record", details: checkError.message });
+      return res.status(500).json({ error: "Failed to check existing record" });
     }
 
     console.log("📋 Existing records found:", existingResets?.length || 0);
@@ -324,7 +332,7 @@ router.post("/mark-completed", async (req, res) => {
 
       if (insertError) {
         console.error("❌ Error creating record:", insertError);
-        return res.status(500).json({ error: "Failed to create tracking record", details: insertError.message });
+        return res.status(500).json({ error: "Failed to create tracking record" });
       }
       console.log("✅ New record created");
     }
@@ -359,7 +367,7 @@ router.post("/mark-completed", async (req, res) => {
 
     if (updateError) {
       console.error("❌ Update error:", updateError);
-      return res.status(500).json({ error: "Failed to update status", details: updateError.message });
+      return res.status(500).json({ error: "Failed to update status" });
     }
 
     console.log("✅ Record updated successfully");
@@ -434,9 +442,8 @@ router.post("/mark-completed", async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Mark completed error:", error);
-    return res.status(500).json({ 
-      error: "Internal server error", 
-      details: error.message 
+    return res.status(500).json({
+      error: "Internal server error",
     });
   }
 });

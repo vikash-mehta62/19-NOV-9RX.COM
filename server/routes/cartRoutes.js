@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const mailSender = require("../utils/mailSender");
+const { requireAdmin } = require("../middleware/auth");
 
 // Initialize Supabase client
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -12,7 +13,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * POST /api/cart/send-reminder
  * Send abandoned cart reminder email
  */
-router.post("/send-reminder", async (req, res) => {
+router.post("/send-reminder", requireAdmin, async (req, res) => {
   try {
     const { cartId } = req.body;
 
@@ -184,7 +185,7 @@ router.post("/send-reminder", async (req, res) => {
     console.error("Error sending cart reminder:", error);
     res.status(500).json({ 
       success: false, 
-      error: error.message || "Internal server error" 
+      error: "Internal server error" 
     });
   }
 });

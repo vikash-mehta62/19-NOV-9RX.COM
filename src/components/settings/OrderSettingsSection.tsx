@@ -43,10 +43,10 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
               <FormItem>
                 <FormLabel>Order Number Prefix</FormLabel>
                 <FormControl>
-                  <Input placeholder="ORD" {...field} />
+                  <Input placeholder="9RX" {...field} />
                 </FormControl>
                 <FormDescription>
-                  Prefix for order numbers (e.g., ORD-1001)
+                  Prefix for order numbers (e.g., 9RX001001)
                 </FormDescription>
               </FormItem>
             )}

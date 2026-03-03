@@ -20,7 +20,7 @@ console.log(req.body)
     });
   } catch (err) {
     console.log(err)
-    res.status(500).json({ success: false, message: "Failed to create log", error: err.message });
+    res.status(500).json({ success: false, message: "Failed to create log", error: "Internal server error" });
   }
 };
 
@@ -83,7 +83,7 @@ const getAllLogs = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch logs",
-      error: err.message,
+      error: "Internal server error",
     });
   }
 };
@@ -111,7 +111,7 @@ const filterLogs = async (req, res) => {
       logs,
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Failed to filter logs", error: err.message });
+    res.status(500).json({ success: false, message: "Failed to filter logs", error: "Internal server error" });
   }
 };
 

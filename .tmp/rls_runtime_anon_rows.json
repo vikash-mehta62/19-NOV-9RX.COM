@@ -1,0 +1,552 @@
+[
+    {
+        "table":  "abandoned_carts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "account_transactions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "ach_authorization_details",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "ach_transactions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "addresses",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "alert_types",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "alerts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "announcements",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "audit_logs",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "auto_reorder_config",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "automation_executions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "automation_logs",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "automation_rules",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "banners",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "batch_movements",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "batch_transactions",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "blogs",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "carts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "category_configs",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "centerize_data",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_applications",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_invoices",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_memo_applications",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_memos",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_payments",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_penalty_history",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "credit_terms",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "custom_dashboards",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "customer_contacts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "customer_documents",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "customer_notes",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "customer_tasks",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "customers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "cycle_count_items",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "cycle_counts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "daily_deals",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "daily_deals_settings",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "dashboard_widgets",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_ab_tests",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_automations",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "email_campaigns",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_logs",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_preferences",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_queue",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "email_settings",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_subscribers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_subscriptions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_suppression_list",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_templates",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "email_tracking_events",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "email_webhook_events",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "expenses",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "expiry_alerts",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "festival_themes",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "group_commission_history",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "group_pricing",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "group_staff",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "group_status_audit",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "help_articles",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "inventory_transactions",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "invoices",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "launch_password_resets",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "location_stock",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "locations",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "newsletter_subscribers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "notifications",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "offers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "order_activities",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "order_items",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "order_status_history",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "orders",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "password_reset_requests",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "payment_adjustments",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "payment_settings",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "payment_transactions",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "pharmacy_invitation_audit",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "pharmacy_invitations",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "product_batches",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "product_offers",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "product_reviews",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "product_sizes",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "products",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "profiles",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "profiles_backup_20260227",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "purchase_order_items",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "purchase_orders",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "quickbooks_tokens",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "referrals",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "refunds",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "review_helpful",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "reward_items",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "reward_redemptions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "reward_tiers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "reward_transactions",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "rewards_config",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "saved_payment_methods",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "saved_searches",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "search_history",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "sent_credit_terms",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "settings",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "stock_adjustments",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "stock_reservations",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "stock_transfers",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "subcategory_configs",
+        "status":  "200",
+        "rowsReturned":  1
+    },
+    {
+        "table":  "terms_acceptance_history",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "terms_documents",
+        "status":  "401",
+        "rowsReturned":  null
+    },
+    {
+        "table":  "user_credit_lines",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "user_preferences",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "user_segments",
+        "status":  "200",
+        "rowsReturned":  0
+    },
+    {
+        "table":  "wishlist",
+        "status":  "200",
+        "rowsReturned":  0
+    }
+]

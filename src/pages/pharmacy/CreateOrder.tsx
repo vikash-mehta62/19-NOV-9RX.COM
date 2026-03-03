@@ -14,6 +14,7 @@ import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "@/store/actions/userAction";
+import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 
 // Invoice creation function for paid orders
 const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmount: number, retryCount = 0): Promise<void> => {
@@ -465,17 +466,22 @@ export default function PharmacyCreateOrder() {
           // Handle redeemed reward usage - mark as used
           if (discount.type === "redeemed_reward" && discount.redemptionId) {
             console.log("🔄 Marking redemption as used:", discount.redemptionId);
-            const { error: updateError } = await (supabase as any)
+            const { data: updatedRedemption, error: updateError } = await (supabase as any)
               .from("reward_redemptions")
               .update({ 
-                status: "used",
+                status: REWARD_REDEMPTION_STATUS.USED,
                 used_at: new Date().toISOString(),
                 used_in_order_id: insertedOrder.id
               })
-              .eq("id", discount.redemptionId);
+              .eq("id", discount.redemptionId)
+              .eq("status", REWARD_REDEMPTION_STATUS.PENDING)
+              .select("id")
+              .maybeSingle();
             
             if (updateError) {
               console.error("❌ Error marking redemption as used:", updateError);
+            } else if (!updatedRedemption) {
+              console.warn("⚠️ Reward redemption already consumed:", discount.redemptionId);
             } else {
               console.log("✅ Marked reward redemption as used:", discount.redemptionId);
             }

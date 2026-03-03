@@ -222,7 +222,7 @@ export const defaultValues: SettingsFormValues = {
 
   // Order Settings
   minimum_order_amount: 0,
-  order_number_prefix: "ORD",
+  order_number_prefix: "9RX",
   next_order_number: 1000,
   allow_guest_checkout: false,
   require_phone_number: true,

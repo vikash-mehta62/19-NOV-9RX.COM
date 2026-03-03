@@ -30,25 +30,31 @@ const log = {
   test: (msg) => console.log(`${colors.magenta}🧪 ${msg}${colors.reset}`),
 };
 
+// Generate a future expiry (MM/YY) to avoid false failures from expired test cards.
+const now = new Date();
+const futureMonth = String(now.getMonth() + 1).padStart(2, '0');
+const futureYearShort = String((now.getFullYear() + 2) % 100).padStart(2, '0');
+const futureExpiry = `${futureMonth}/${futureYearShort}`;
+
 // Test card data
 const testCards = {
   visa: {
     number: '4111111111111111',
     type: 'Visa',
     cvv: '123',
-    expiry: '12/25'
+    expiry: futureExpiry
   },
   mastercard: {
     number: '5424000000000015',
     type: 'Mastercard',
     cvv: '123',
-    expiry: '12/25'
+    expiry: futureExpiry
   },
   amex: {
     number: '378282246310005',
     type: 'American Express',
     cvv: '1234',
-    expiry: '12/25'
+    expiry: futureExpiry
   }
 };
 

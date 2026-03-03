@@ -116,11 +116,14 @@ export default function AccessRequests() {
   const handleApprove = async (profileId: string) => {
     try {
       const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
 
       const response = await fetch(`${BASE_URL}/api/users/approve-access/${profileId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
       });
 
@@ -168,11 +171,14 @@ export default function AccessRequests() {
   const handleReject = async (profileId: string) => {
     try {
       const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Please log in again");
 
       const response = await fetch(`${BASE_URL}/api/users/reject-access/${profileId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
           reason: 'Rejected by admin' // You can add a reason field to the UI if needed

@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { UseFormReturn } from "react-hook-form";
 import { User, Mail, Phone, MapPin, Building2, Package } from "lucide-react";
+import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper";
 
 declare global {
   interface Window {
@@ -38,42 +39,6 @@ export function CustomerInfoFields({
   const [shippingSuggestions, setShippingSuggestions] = useState<any[]>([]);
   const customerAddressInputRef = useRef<HTMLInputElement | null>(null);
   const shippingAddressInputRef = useRef<HTMLInputElement | null>(null);
-
-  const handlePlaceSelected = (place: any, addressType: string) => {
-    if (!place || !place.address_components) return;
-
-    let city = "";
-    let state = "";
-    let zipCode = "";
-    const street = place.formatted_address?.split(",")[0] || "";
-    const companyName = place.name || "";
-
-    place.address_components.forEach((component: any) => {
-      const types = component.types;
-      if (types.includes("locality")) city = component.long_name;
-      if (types.includes("administrative_area_level_1"))
-        state = component.short_name;
-      if (types.includes("postal_code")) zipCode = component.long_name;
-    });
-
-    const addressField =
-      addressType === "customer" ? "customerInfo" : "shippingAddress";
-    form.setValue(`${addressField}.address.street`, street, {
-      shouldValidate: true,
-    });
-    form.setValue(`${addressField}.address.city`, city, {
-      shouldValidate: true,
-    });
-    form.setValue(`${addressField}.address.state`, state, {
-      shouldValidate: true,
-    });
-    form.setValue(`${addressField}.address.zip_code`, zipCode, {
-      shouldValidate: true,
-    });
-    form.setValue(`${addressField}.address.companyName`, companyName, {
-      shouldValidate: true,
-    });
-  };
 
   const syncShippingWithCustomer = useCallback(() => {
     const info = form.getValues("customerInfo");
@@ -134,34 +99,41 @@ export function CustomerInfoFields({
       addressType === "customer" ? "customerInfo" : "shippingAddress";
     form.setValue(`${field}.address.street`, value, { shouldValidate: true });
 
-    if (value.length > 2 && window.google) {
-      const service = new window.google.maps.places.AutocompleteService();
-      service.getPlacePredictions(
-        {
-          input: value,
-          types: ["geocode", "establishment"],
-        },
-        (predictions: any[]) => {
-          if (addressType === "customer") {
-            setCustomerSuggestions(predictions || []);
-          } else {
-            setShippingSuggestions(predictions || []);
-          }
+    if (value.length > 2) {
+      getAddressPredictions(value, (predictions: any[]) => {
+        if (addressType === "customer") {
+          setCustomerSuggestions(predictions || []);
+        } else {
+          setShippingSuggestions(predictions || []);
         }
-      );
+      });
     } else {
-      addressType === "customer"
-        ? setCustomerSuggestions([])
-        : setShippingSuggestions([]);
+      if (addressType === "customer") {
+        setCustomerSuggestions([]);
+      } else {
+        setShippingSuggestions([]);
+      }
     }
   };
 
   const handleSuggestionClick = (suggestion: any, addressType: string) => {
-    const placesService = new window.google.maps.places.PlacesService(
-      document.createElement("div")
-    );
-    placesService.getDetails({ placeId: suggestion.place_id }, (place: any) => {
-      if (place) handlePlaceSelected(place, addressType);
+    getPlaceDetails(suggestion.place_id, (address) => {
+      if (!address) return;
+
+      const addressField =
+        addressType === "customer" ? "customerInfo" : "shippingAddress";
+      form.setValue(`${addressField}.address.street`, address.street, {
+        shouldValidate: true,
+      });
+      form.setValue(`${addressField}.address.city`, address.city, {
+        shouldValidate: true,
+      });
+      form.setValue(`${addressField}.address.state`, address.state, {
+        shouldValidate: true,
+      });
+      form.setValue(`${addressField}.address.zip_code`, address.zip_code, {
+        shouldValidate: true,
+      });
     });
 
     if (addressType === "customer") {

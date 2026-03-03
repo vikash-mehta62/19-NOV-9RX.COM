@@ -248,9 +248,24 @@ export default function Banners() {
   const fetchCategories = async () => {
     try {
       // Use category_configs table instead of categories
-      const { data } = await supabase.from("category_configs").select("id, category_name").order("category_name");
+      const ordered = await supabase
+        .from("category_configs")
+        .select("id, category_name")
+        .order("display_order", { ascending: true })
+        .order("category_name", { ascending: true });
+
+      if (ordered.error) {
+        const fallback = await supabase
+          .from("category_configs")
+          .select("id, category_name")
+          .order("category_name", { ascending: true });
+        if (fallback.error) throw fallback.error;
+        setCategories((fallback.data || []).map(c => ({ id: c.id, name: c.category_name })));
+        return;
+      }
+
       // Map to expected format
-      setCategories((data || []).map(c => ({ id: c.id, name: c.category_name })));
+      setCategories((ordered.data || []).map(c => ({ id: c.id, name: c.category_name })));
     } catch (error) {
       console.error("Error fetching categories:", error);
     }

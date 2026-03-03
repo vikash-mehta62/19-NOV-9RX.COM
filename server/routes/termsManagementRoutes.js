@@ -2,41 +2,27 @@ const express = require("express");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const PDFDocument = require("pdfkit");
+const { requireAdmin } = require("../middleware/auth");
 
 // Initialize Supabase Admin Client
 const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 const getSupabaseAdmin = () => {
-  try {
-    // Try service role key first, fallback to anon key
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    const anonKey = process.env.SUPABASE_ANON_KEY;
-    
-    console.log('Environment check:', {
-      hasServiceKey: !!serviceKey,
-      hasAnonKey: !!anonKey,
-      supabaseUrl: supabaseUrl
-    });
-    
-    if (!serviceKey && !anonKey) {
-      throw new Error("No Supabase keys configured");
-    }
-    
-    const keyToUse = serviceKey || anonKey;
-    console.log(`Using Supabase key type: ${serviceKey ? 'service_role' : 'anon'}`);
-    
-    return createClient(supabaseUrl, keyToUse, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
-    });
-  } catch (error) {
-    console.error('Error creating Supabase client:', error);
-    throw error;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
   }
+
+  return createClient(supabaseUrl, serviceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 };
+
+router.use(requireAdmin);
 
 /**
  * Get user terms acceptance details for admin viewing
@@ -52,7 +38,10 @@ router.get("/user-terms/:profileId", async (req, res) => {
       .from("profiles")
       .select(`
         id, first_name, last_name, email, company_name,
-        terms_and_conditions, terms_signature,
+        terms_and_conditions,
+        privacy_policy,
+        ach_authorization,
+        terms_signature,
         privacy_policy_accepted, privacy_policy_accepted_at, privacy_policy_signature,
         ach_authorization_accepted, ach_authorization_accepted_at, ach_authorization_signature,
         ach_authorization_version, ach_authorization_ip_address,
@@ -81,7 +70,7 @@ router.get("/user-terms/:profileId", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message
+      error: "Internal server error"
     });
   }
 });
@@ -98,7 +87,10 @@ router.get("/users-terms-status", async (req, res) => {
       .from("profiles")
       .select(`
         id, first_name, last_name, email, company_name, type, status,
-        terms_and_conditions, terms_signature,
+        terms_and_conditions, 
+        privacy_policy,
+        ach_authorization,
+        terms_signature,
         privacy_policy_accepted, privacy_policy_accepted_at, privacy_policy_signature,
         ach_authorization_accepted, ach_authorization_accepted_at, ach_authorization_signature,
         created_at
@@ -111,7 +103,7 @@ router.get("/users-terms-status", async (req, res) => {
       return res.status(500).json({
         success: false,
         message: "Failed to fetch users terms status",
-        error: error.message
+        error: "Internal server error"
       });
     }
 
@@ -125,7 +117,7 @@ router.get("/users-terms-status", async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Internal server error",
-      error: error.message
+      error: "Internal server error"
     });
   }
 });
@@ -345,30 +337,33 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
     }
     
     // Privacy Policy
-    const privacyAccepted = userData.privacy_policy_accepted;
+    const privacyAccepted = userData.privacy_policy?.accepted || userData.privacy_policy_accepted || false;
     doc.fontSize(7).fillColor(mediumText).font('Helvetica');
     t('Privacy Policy', ti + colW, tsy);
     doc.fontSize(9).fillColor(privacyAccepted ? successGreen : dangerRed).font('Helvetica-Bold');
     t(privacyAccepted ? 'ACCEPTED' : 'NOT ACCEPTED', ti + colW, tsy + 12);
-    if (userData.privacy_policy_accepted_at) {
+    const privacyDate = userData.privacy_policy?.acceptedAt || userData.privacy_policy_accepted_at;
+    if (privacyDate) {
       doc.fontSize(6).fillColor(mediumText).font('Helvetica');
-      t(`on ${new Date(userData.privacy_policy_accepted_at).toLocaleDateString('en-US')}`, ti + colW, tsy + 24);
+      t(`on ${new Date(privacyDate).toLocaleDateString('en-US')}`, ti + colW, tsy + 24);
     }
     
     // ACH Authorization
-    const achAccepted = userData.ach_authorization_accepted;
+    const achAccepted = userData.ach_authorization?.accepted || userData.ach_authorization_accepted || false;
     doc.fontSize(7).fillColor(mediumText).font('Helvetica');
     t('ACH Authorization', ti + colW * 2, tsy);
     doc.fontSize(9).fillColor(achAccepted ? successGreen : dangerRed).font('Helvetica-Bold');
     t(achAccepted ? 'AUTHORIZED' : 'NOT AUTHORIZED', ti + colW * 2, tsy + 12);
-    if (userData.ach_authorization_accepted_at) {
+    const achDate = userData.ach_authorization?.acceptedAt || userData.ach_authorization_accepted_at;
+    if (achDate) {
       doc.fontSize(6).fillColor(mediumText).font('Helvetica');
-      t(`on ${new Date(userData.ach_authorization_accepted_at).toLocaleDateString('en-US')}`, ti + colW * 2, tsy + 24);
+      t(`on ${new Date(achDate).toLocaleDateString('en-US')}`, ti + colW * 2, tsy + 24);
     }
     // Show signature if available
-    if (userData.ach_authorization_signature) {
+    const achSignature = userData.ach_authorization?.signature || userData.ach_authorization_signature;
+    if (achSignature) {
       doc.fontSize(6).fillColor(primaryBlue).font('Helvetica-Oblique');
-      t(`Signed: ${userData.ach_authorization_signature}`, ti + colW * 2, tsy + 32);
+      t(`Signed: ${achSignature}`, ti + colW * 2, tsy + 32);
     }
     
     // Divider line
@@ -474,8 +469,7 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
       return res.status(500).json({
         success: false,
         message: "Failed to generate PDF",
-        error: error.message,
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: "Internal server error",
       });
     } else {
       console.error("Headers already sent, cannot send error response");

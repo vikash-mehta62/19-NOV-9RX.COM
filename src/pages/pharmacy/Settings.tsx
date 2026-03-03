@@ -162,6 +162,7 @@ export default function PharmacySettings() {
             navigate("/pharmacy/settings");
           }}
           self={true}
+          isProfileCompletion={false}
         />
       )}
     </DashboardLayout>

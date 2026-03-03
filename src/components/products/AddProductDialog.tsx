@@ -17,14 +17,13 @@ import {
   Loader2, Package, Save, X, ChevronDown, ChevronUp,
   Image, Ruler, Settings, Sparkles, Info, CheckCircle2, Plus
 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { PRODUCT_CATEGORIES } from "@/types/product"
-import { supabase } from "@/integrations/supabase/client"
 import { cn } from "@/lib/utils"
+import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService"
 
 interface AddProductDialogProps {
   open: boolean
@@ -119,6 +118,7 @@ export function AddProductDialog({
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false)
   const [categories, setCategories] = useState<string[]>([])
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([])
+  const previousCategoryRef = useRef<string | null>(null)
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -163,16 +163,12 @@ export function AddProductDialog({
 
   // Fetch categories from database
   const fetchCategories = async () => {
-    const { data, error } = await supabase
-      .from('category_configs')
-      .select('category_name')
-      .order('category_name')
-
-    if (!error && data) {
-      const dbCategories = data.map(c => c.category_name)
-      // Merge with default categories
-      const allCategories = dbCategories
-      setCategories(allCategories)
+    try {
+      const data = await fetchOrderedCategories()
+      setCategories(data.map((c) => c.category_name))
+    } catch (error) {
+      console.error("Failed to fetch categories:", error)
+      setCategories([])
     }
   }
 
@@ -182,19 +178,33 @@ export function AddProductDialog({
     }
   }, [open])
 
+  useEffect(() => {
+    if (!open) {
+      previousCategoryRef.current = null
+    }
+  }, [open])
+
   // Fetch subcategories when category changes
   useEffect(() => {
+    const previousCategory = previousCategoryRef.current
+    if (previousCategory !== null && previousCategory !== selectedCategory) {
+      form.setValue("subcategory", "", { shouldDirty: true, shouldValidate: true })
+    }
+
+    previousCategoryRef.current = selectedCategory || ""
+
     const fetchSubcategories = async () => {
-      if (!selectedCategory) return
+      if (!selectedCategory) {
+        setSubcategories([])
+        return
+      }
 
-      const { data, error } = await supabase
-        .from('subcategory_configs')
-        .select('*')
-        .eq('category_name', selectedCategory)
-        .order('subcategory_name')
-
-      if (!error && data) {
+      try {
+        const data = await fetchOrderedSubcategories(selectedCategory)
         setSubcategories(data)
+      } catch (error) {
+        console.error("Failed to fetch subcategories:", error)
+        setSubcategories([])
       }
     }
     fetchSubcategories()
@@ -203,17 +213,17 @@ export function AddProductDialog({
     if (selectedCategory && !productName) {
       form.setValue("name", selectedCategory)
     }
-  }, [selectedCategory])
+  }, [selectedCategory, form, productName])
 
   // Fetch All subcategories on mount
   useEffect(() => {
     const fetchAllSubcategories = async () => {
-      const { data, error } = await supabase
-        .from('subcategory_configs')
-        .select('*')
-        .order('subcategory_name')
-      if (!error && data) {
+      try {
+        const data = await fetchOrderedSubcategories()
         setAllSubcategories(data)
+      } catch (error) {
+        console.error("Failed to fetch all subcategories:", error)
+        setAllSubcategories([])
       }
     }
     fetchAllSubcategories()

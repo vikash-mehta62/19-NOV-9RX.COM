@@ -46,6 +46,7 @@ export function TransactionHistory({ productId, limit = 50 }: TransactionHistory
   const getTransactionBadge = (type: string) => {
     const colors: Record<string, string> = {
       sale: 'bg-blue-100 text-blue-800',
+      purchase: 'bg-green-100 text-green-800',
       receipt: 'bg-green-100 text-green-800',
       adjustment: 'bg-yellow-100 text-yellow-800',
       return: 'bg-purple-100 text-purple-800',

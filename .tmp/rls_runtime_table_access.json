@@ -1,0 +1,552 @@
+[
+    {
+        "table":  "abandoned_carts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "account_transactions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "ach_authorization_details",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "ach_transactions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "addresses",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "alert_types",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "alerts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "announcements",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "audit_logs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "auto_reorder_config",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "automation_executions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "automation_logs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "automation_rules",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "banners",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "batch_movements",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "batch_transactions",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "blogs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "carts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "category_configs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "centerize_data",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_applications",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_invoices",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_memo_applications",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_memos",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_payments",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_penalty_history",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "credit_terms",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "custom_dashboards",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "customer_contacts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "customer_documents",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "customer_notes",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "customer_tasks",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "customers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "cycle_count_items",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "cycle_counts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "daily_deals",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "daily_deals_settings",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "dashboard_widgets",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_ab_tests",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_automations",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "email_campaigns",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_logs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_preferences",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_queue",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "email_settings",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_subscribers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_subscriptions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_suppression_list",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_templates",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "email_tracking_events",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "email_webhook_events",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "expenses",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "expiry_alerts",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "festival_themes",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "group_commission_history",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "group_pricing",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "group_staff",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "group_status_audit",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "help_articles",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "inventory_transactions",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "invoices",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "launch_password_resets",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "location_stock",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "locations",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "newsletter_subscribers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "notifications",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "offers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "order_activities",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "order_items",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "order_status_history",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "orders",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "password_reset_requests",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "payment_adjustments",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "payment_settings",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "payment_transactions",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "pharmacy_invitation_audit",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "pharmacy_invitations",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "product_batches",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "product_offers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "product_reviews",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "product_sizes",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "products",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "profiles",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "profiles_backup_20260227",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "purchase_order_items",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "purchase_orders",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "quickbooks_tokens",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "referrals",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "refunds",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "review_helpful",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "reward_items",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "reward_redemptions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "reward_tiers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "reward_transactions",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "rewards_config",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "saved_payment_methods",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "saved_searches",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "search_history",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "sent_credit_terms",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "settings",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "stock_adjustments",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "stock_reservations",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "stock_transfers",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "subcategory_configs",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "terms_acceptance_history",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "terms_documents",
+        "anon":  "401",
+        "service":  "200"
+    },
+    {
+        "table":  "user_credit_lines",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "user_preferences",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "user_segments",
+        "anon":  "200",
+        "service":  "200"
+    },
+    {
+        "table":  "wishlist",
+        "anon":  "200",
+        "service":  "200"
+    }
+]

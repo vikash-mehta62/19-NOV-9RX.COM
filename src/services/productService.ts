@@ -2,6 +2,73 @@ import { supabase } from "@/integrations/supabase/client";
 import { Product } from "@/types/product";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
 
+type ProductSizeInput = ProductFormValues["sizes"][number];
+
+const normalizeText = (value?: string | null) =>
+  typeof value === "string" ? value.trim() : "";
+
+const validateCategorySubcategoryPair = async (
+  category?: string,
+  subcategory?: string | null
+) => {
+  const normalizedCategory = normalizeText(category);
+  const normalizedSubcategory = normalizeText(subcategory);
+
+  if (!normalizedSubcategory) {
+    return;
+  }
+
+  if (!normalizedCategory) {
+    throw new Error("Category is required when subcategory is selected.");
+  }
+
+  const { data, error } = await supabase
+    .from("subcategory_configs")
+    .select("id")
+    .eq("category_name", normalizedCategory)
+    .eq("subcategory_name", normalizedSubcategory)
+    .limit(1);
+
+  if (error) {
+    console.error("Error validating category/subcategory:", error);
+    throw new Error("Unable to validate selected subcategory.");
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error(
+      `Subcategory "${normalizedSubcategory}" does not belong to category "${normalizedCategory}".`
+    );
+  }
+};
+
+const toNumber = (value: unknown, fallback = 0) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+const buildSizeWritePayload = (size: ProductSizeInput) => ({
+  size_value: size.size_value || "0",
+  size_unit: size.size_unit || "unit",
+  price: toNumber(size.price, 0),
+  stock: toNumber(size.stock, 0),
+  price_per_case: toNumber(size.price_per_case, 0),
+  sku: size.sku || "",
+  image: size.image || "",
+  quantity_per_case: toNumber(size.quantity_per_case, 1),
+  rolls_per_case: toNumber(size.rolls_per_case, 1),
+  sizeSquanence: toNumber(size.sizeSquanence, 0),
+  shipping_cost: toNumber(size.shipping_cost, 15),
+  case: size.case,
+  groupIds: size.groupIds,
+  disAllogroupIds: size.disAllogroupIds,
+  unit: size.unit,
+  ndcCode: size.ndcCode || "",
+  upcCode: size.upcCode || "",
+  lotNumber: size.lotNumber || "",
+  exipry: size.exipry || "",
+  is_active: true,
+});
+
 export const fetchProductsService = async (
   page: number,
   pageSize: number,
@@ -212,19 +279,22 @@ const fetchProductsBySizeSearch = async (
 };
 
 export const addProductService = async (data: ProductFormValues) => {
+  const normalizedSubcategory = normalizeText(data.subcategory);
+  await validateCategorySubcategoryPair(data.category, normalizedSubcategory);
+
   const productData = {
     ...(data.ndcCode && { ndcCode: data.ndcCode }),
     ...(data.upcCode && { upcCode: data.upcCode }),
     ...(data.lotNumber && { lotNumber: data.lotNumber }),
     ...(data.exipry && { exipry: data.exipry }),
-    ...(data.unitToggle && { exipry: data.unitToggle }),
+    ...(typeof data.unitToggle === "boolean" && { unitToggle: data.unitToggle }),
     sku: data.sku,
     key_features: data.key_features,
     squanence: data.squanence,
     name: data.name,
     description: data.description || "",
     category: data.category,
-    subcategory: data.subcategory || null,
+    subcategory: normalizedSubcategory || null,
     base_price: data.base_price || 0,
     current_stock: data.current_stock || 0,
     min_stock: data.min_stock || 0,
@@ -256,26 +326,7 @@ export const addProductService = async (data: ProductFormValues) => {
   if (data.sizes && data.sizes.length > 0 && newProduct) {
     const sizesData = data.sizes.map((size) => ({
       product_id: newProduct.id,
-      size_value: size.size_value || "0",
-      size_unit: size.size_unit || "unit",
-      price: size.price || 0,
-      sku: size.sku || "",
-      price_per_case: Number(size.price_per_case) || 0,
-
-      stock: size.stock || 0,
-      rolls_per_case: Number(size.rolls_per_case) || 0,
-      sizeSquanence: Number(size.sizeSquanence) || 0,
-      shipping_cost: Number(size.shipping_cost) || 15,
-      quantity_per_case: size.quantity_per_case,
-      case: size.case,
-      unit: size.unit,
-      groupIds: size.groupIds,
-      disAllogroupIds: size.disAllogroupIds,
-
-      ndcCode: size.ndcCode || "",
-      upcCode: size.upcCode || "",
-      lotNumber: size.lotNumber || "",
-      exipry: size.exipry || "",
+      ...buildSizeWritePayload(size),
     }));
 
     const { error: sizesError } = await supabase
@@ -298,6 +349,9 @@ export const updateProductService = async (
   console.log("Updating product with data:", data);
 
   try {
+    const normalizedSubcategory = normalizeText(data.subcategory);
+    await validateCategorySubcategoryPair(data.category, normalizedSubcategory);
+
     const { error: productError } = await supabase
       .from("products")
       .update({
@@ -307,7 +361,7 @@ export const updateProductService = async (
         name: data.name,
         description: data.description || "",
         category: data.category,
-        subcategory: data.subcategory || null,
+        subcategory: normalizedSubcategory || null,
         base_price: data.base_price || 0,
         current_stock: data.current_stock || 0,
         min_stock: data.min_stock || 0,
@@ -336,14 +390,56 @@ export const updateProductService = async (
       throw productError;
     }
 
-    // Delete existing sizes
-
     console.log(data.sizes);
-
     console.log("Sizes data:", data.sizes);
 
     const sizesToInsert = data.sizes.filter((size) => !size.id); // New sizes
     const sizesToUpdate = data.sizes.filter((size) => size.id); // Existing sizes
+
+    // Reconcile removals in one service path: deactivate sizes removed from form.
+    const { data: existingSizes, error: existingSizesError } = await supabase
+      .from("product_sizes")
+      .select("id")
+      .eq("product_id", productId);
+
+    if (existingSizesError) {
+      console.error("Error fetching existing sizes:", existingSizesError);
+      throw existingSizesError;
+    }
+
+    const submittedExistingIds = new Set(
+      sizesToUpdate
+        .map((size) => size.id)
+        .filter((id): id is string => typeof id === "string" && id.length > 0)
+    );
+
+    const removedSizeIds = (existingSizes || [])
+      .map((size) => size.id as string)
+      .filter((id) => !submittedExistingIds.has(id));
+
+    if (removedSizeIds.length > 0) {
+      const { error: deactivateError } = await supabase
+        .from("product_sizes")
+        .update({ is_active: false })
+        .eq("product_id", productId)
+        .in("id", removedSizeIds);
+
+      if (deactivateError) {
+        // Fallback for environments where is_active is unavailable.
+        console.error("Error deactivating removed sizes, trying delete fallback:", deactivateError);
+
+        const { error: deleteError } = await supabase
+          .from("product_sizes")
+          .delete()
+          .eq("product_id", productId)
+          .in("id", removedSizeIds);
+
+        if (deleteError) {
+          console.error("Error deleting removed sizes:", deleteError);
+          throw deleteError;
+        }
+      }
+    }
 
     // First, insert new sizes
     if (sizesToInsert.length > 0) {
@@ -352,26 +448,7 @@ export const updateProductService = async (
         .insert(
           sizesToInsert.map((size) => ({
             product_id: productId,
-            size_value: size.size_value || "0",
-            size_unit: size.size_unit || "unit",
-            price: Number(size.price) || 0,
-            stock: Number(size.stock) || 0,
-            price_per_case: Number(size.price_per_case) || 0,
-            sku: size.sku || "",
-            image: size.image || "",
-            quantity_per_case: Number(size.quantity_per_case) || 1,
-            rolls_per_case: Number(size.rolls_per_case) || 1,
-            sizeSquanence: Number(size.sizeSquanence) || 0,
-            shipping_cost: size.shipping_cost,
-            case: size.case,
-            groupIds: size.groupIds,
-            disAllogroupIds: size.disAllogroupIds,
-            unit: size.unit,
-
-            ndcCode: size.ndcCode || "",
-            upcCode: size.upcCode || "",
-            lotNumber: size.lotNumber || "",
-            exipry: size.exipry || "",
+            ...buildSizeWritePayload(size),
           }))
         );
 
@@ -385,28 +462,9 @@ export const updateProductService = async (
     for (const size of sizesToUpdate) {
       const { error: updateError } = await supabase
         .from("product_sizes")
-        .update({
-          size_value: size.size_value || "0",
-          size_unit: size.size_unit || "unit",
-          price: Number(size.price) || 0,
-          stock: Number(size.stock) || 0,
-          price_per_case: Number(size.price_per_case) || 0,
-          sku: size.sku || "",
-          image: size.image || "",
-          quantity_per_case: Number(size.quantity_per_case) || 1,
-          rolls_per_case: Number(size.rolls_per_case) || 1,
-          sizeSquanence: Number(size.sizeSquanence) || 0,
-          shipping_cost: size.shipping_cost,
-          case: size.case,
-          groupIds: size.groupIds,
-          disAllogroupIds: size.disAllogroupIds,
-          unit: size.unit,
-          ndcCode: size.ndcCode || "", // New field
-          upcCode: size.upcCode || "", // New field
-          lotNumber: size.lotNumber || "", // New field
-          exipry: size.exipry || "", // New field
-        })
-        .eq("id", size.id);
+        .update(buildSizeWritePayload(size))
+        .eq("id", size.id)
+        .eq("product_id", productId);
 
       if (updateError) {
         console.error("Error updating size:", updateError);

@@ -19,7 +19,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
-import { awardOrderPoints } from "@/services/rewardsService";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
@@ -107,6 +106,10 @@ const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount:
     console.error("❌ Invoice create error:", err.message);
     throw new Error(err.message);
   }
+};
+
+const sanitizeGroupDiscounts = (discounts: any[] = []) => {
+  return discounts.filter((discount) => discount?.type !== "rewards" && discount?.type !== "redeemed_reward");
 };
 
 // Fetch customer locations for group users - Using original logic
@@ -352,9 +355,14 @@ export default function GroupOrder() {
 
       // Check payment method - Same logic as pharmacy
       const paymentMethod = orderData.paymentMethod;
+      const sanitizedDiscounts = sanitizeGroupDiscounts(orderData.appliedDiscounts || []);
+      const sanitizedTotalDiscount = sanitizedDiscounts.reduce(
+        (sum, discount) => sum + Number(discount?.amount || 0),
+        0
+      );
       
       // Calculate final total after discounts
-      const finalTotal = Math.max(0, (orderData.total || 0) - (orderData.totalDiscount || 0));
+      const finalTotal = Math.max(0, (orderData.total || 0) - sanitizedTotalDiscount);
       
       console.log("🔵 Payment method:", paymentMethod);
       console.log("🔵 Final total for payment check:", finalTotal);
@@ -363,7 +371,11 @@ export default function GroupOrder() {
       // BUT if total is 0, skip payment modal and create order directly (same as pharmacy)
       if (paymentMethod === "card" && finalTotal > 0) {
         console.log("✅ Credit card payment - opening payment page");
-        setPendingOrderData(orderData);
+        setPendingOrderData({
+          ...orderData,
+          appliedDiscounts: sanitizedDiscounts,
+          totalDiscount: sanitizedTotalDiscount,
+        });
         setIsPaymentModalOpen(true);
         return;
       }
@@ -401,7 +413,14 @@ export default function GroupOrder() {
       }
 
       // Continue with order creation for non-card payments, zero total, or credit payments
-      await createGroupOrder(orderData, selectedPharmacyData);
+      await createGroupOrder(
+        {
+          ...orderData,
+          appliedDiscounts: sanitizedDiscounts,
+          totalDiscount: sanitizedTotalDiscount,
+        },
+        selectedPharmacyData
+      );
 
     } catch (error) {
       console.error("Group order completion error:", error);
@@ -425,8 +444,14 @@ export default function GroupOrder() {
         throw new Error("Failed to generate order ID");
       }
 
+      const sanitizedDiscounts = sanitizeGroupDiscounts(orderData.appliedDiscounts || []);
+      const sanitizedTotalDiscount = sanitizedDiscounts.reduce(
+        (sum, discount) => sum + Number(discount?.amount || 0),
+        0
+      );
+
       // Calculate final total after discounts
-      const finalTotal = Math.max(0, (orderData.total || 0) - (orderData.totalDiscount || 0));
+      const finalTotal = Math.max(0, (orderData.total || 0) - sanitizedTotalDiscount);
       
       // Determine payment status based on total and payment method
       let paymentStatus = "pending";
@@ -487,8 +512,8 @@ export default function GroupOrder() {
         customization: false,
         void: false,
         // Store discount information
-        discount_amount: orderData.totalDiscount || 0,
-        discount_details: orderData.appliedDiscounts || [],
+        discount_amount: sanitizedTotalDiscount,
+        discount_details: sanitizedDiscounts,
       };
 
       console.log("Final order data for group:", orderToSubmit);
@@ -517,7 +542,7 @@ export default function GroupOrder() {
         await createInvoiceForOrder(insertedOrder, originalSubtotal, orderData.tax || 0);
         
         // Apply credit memo if used
-        const appliedDiscounts = orderData.appliedDiscounts || [];
+        const appliedDiscounts = sanitizedDiscounts;
         for (const discount of appliedDiscounts) {
           if (discount.type === "credit_memo" && discount.creditMemoId) {
             console.log("💳 Applying credit memo:", discount.creditMemoId, "Amount:", discount.amount);
@@ -538,42 +563,10 @@ export default function GroupOrder() {
       }
 
       // Handle applied discounts (deduct points, increment offer usage) - Same as pharmacy
-      console.log("📦 Applied discounts:", orderData.appliedDiscounts);
-      if (orderData.appliedDiscounts && orderData.appliedDiscounts.length > 0) {
-        for (const discount of orderData.appliedDiscounts) {
+      console.log("📦 Applied discounts:", sanitizedDiscounts);
+      if (sanitizedDiscounts.length > 0) {
+        for (const discount of sanitizedDiscounts) {
           console.log("🎁 Processing discount:", discount);
-          
-          // Handle reward points redemption
-          if (discount.type === "rewards" && discount.pointsUsed) {
-            // Deduct points from pharmacy's profile
-            const { data: currentProfile } = await supabase
-              .from("profiles")
-              .select("reward_points")
-              .eq("id", selectedPharmacyData.id)
-              .single();
-
-            if (currentProfile) {
-              const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discount.pointsUsed);
-              await supabase
-                .from("profiles")
-                .update({ reward_points: newPoints })
-                .eq("id", selectedPharmacyData.id);
-
-              // Log reward transaction
-              await supabase
-                .from("reward_transactions")
-                .insert({
-                  user_id: selectedPharmacyData.id,
-                  points: -discount.pointsUsed,
-                  transaction_type: "redeem",
-                  description: `Redeemed ${discount.pointsUsed} points for order ${newOrderId}`,
-                  reference_type: "order",
-                  reference_id: insertedOrder.id,
-                });
-              
-              console.log(`✅ Deducted ${discount.pointsUsed} points from pharmacy ${selectedPharmacyData.id}`);
-            }
-          }
 
           // Handle promo code / offer usage
           if ((discount.type === "promo" || discount.type === "offer") && discount.offerId) {
@@ -593,43 +586,6 @@ export default function GroupOrder() {
               console.log(`✅ Incremented offer usage for offer ${discount.offerId}`);
             }
           }
-
-          // Handle redeemed reward usage - mark as used
-          if (discount.type === "redeemed_reward" && discount.redemptionId) {
-            console.log("🔄 Marking redemption as used:", discount.redemptionId);
-            const { error: updateError } = await supabase
-              .from("reward_redemptions")
-              .update({ 
-                status: "used",
-                used_at: new Date().toISOString(),
-                used_in_order_id: insertedOrder.id
-              })
-              .eq("id", discount.redemptionId);
-            
-            if (updateError) {
-              console.error("❌ Error marking redemption as used:", updateError);
-            } else {
-              console.log("✅ Marked reward redemption as used:", discount.redemptionId);
-            }
-          }
-        }
-      }
-
-      // Award reward points for the order (only for non-credit orders and if total > 0)
-      if (orderData.paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0) {
-        try {
-          const rewardResult = await awardOrderPoints(
-            selectedPharmacyData.id,
-            insertedOrder.id,
-            finalTotal,
-            newOrderId
-          );
-          
-          if (rewardResult.success && rewardResult.pointsEarned > 0) {
-            console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
-          }
-        } catch (rewardError) {
-          console.error("❌ Error awarding reward points:", rewardError);
         }
       }
 

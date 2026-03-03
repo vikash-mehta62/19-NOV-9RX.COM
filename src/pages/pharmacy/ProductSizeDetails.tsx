@@ -87,7 +87,9 @@ const ProductSizeDetails = () => {
           const { data: groupData } = await supabase
             .from("group_pricing")
             .select("*")
-            .eq("status", "active"); // Only fetch active pricing rules
+            .eq("status", "active")
+            .order("updated_at", { ascending: false, nullsFirst: false })
+            .order("created_at", { ascending: false, nullsFirst: false }); // Only fetch active pricing rules
 
           if (groupData) {
             const applicableGroup = groupData.find(

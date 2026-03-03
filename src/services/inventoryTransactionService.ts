@@ -2,6 +2,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export type TransactionType = 
   | 'sale'           // Order placed
+  | 'purchase'       // Stock received (canonical)
   | 'receipt'        // Stock received
   | 'adjustment'     // Manual adjustment
   | 'return'         // Customer return
@@ -10,6 +11,34 @@ export type TransactionType =
   | 'damage'         // Damaged goods
   | 'expired'        // Expired products
   | 'theft';         // Theft/loss
+
+const normalizeTransactionType = (type: TransactionType) => {
+  if (type === 'receipt') return 'purchase';
+  return type;
+};
+
+const toLegacyCompatibleType = (type: TransactionType) => {
+  switch (type) {
+    case 'receipt':
+      return 'purchase';
+    case 'transfer':
+      return 'adjustment';
+    case 'restoration':
+      return 'return';
+    case 'damage':
+    case 'expired':
+    case 'theft':
+      return 'sale';
+    default:
+      return type;
+  }
+};
+
+const isInventoryTypeConstraintError = (error: { code?: string; message?: string } | null) =>
+  !!error &&
+  (error.code === '23514' ||
+    (typeof error.message === 'string' &&
+      error.message.includes('inventory_transactions_type_check')));
 
 export interface InventoryTransaction {
   id?: string;
@@ -23,6 +52,22 @@ export interface InventoryTransaction {
   created_by?: string;
   created_at?: string;
 }
+
+type InventoryTransactionWithProduct = InventoryTransaction & {
+  products?: {
+    name?: string;
+  } | null;
+};
+
+type StockMovementRow = {
+  product_id: string;
+  product_name: string;
+  sold: number;
+  received: number;
+  adjusted: number;
+  returned: number;
+  net_change: number;
+};
 
 export class InventoryTransactionService {
   /**
@@ -55,11 +100,13 @@ export class InventoryTransactionService {
       }
 
       // Record transaction
-      const { error: transactionError } = await supabase
+      const normalizedType = normalizeTransactionType(type);
+      let writeType: TransactionType = normalizedType;
+      let { error: transactionError } = await supabase
         .from('inventory_transactions')
         .insert({
           product_id: productId,
-          type,
+          type: writeType,
           quantity,
           previous_stock: previousStock,
           new_stock: newStock,
@@ -67,6 +114,24 @@ export class InventoryTransactionService {
           notes,
           created_by: userId
         });
+
+      if (transactionError && isInventoryTypeConstraintError(transactionError)) {
+        const fallbackType = toLegacyCompatibleType(normalizedType);
+        if (fallbackType !== writeType) {
+          writeType = fallbackType;
+          const retry = await supabase.from('inventory_transactions').insert({
+            product_id: productId,
+            type: writeType,
+            quantity,
+            previous_stock: previousStock,
+            new_stock: newStock,
+            reference_id: referenceId,
+            notes,
+            created_by: userId
+          });
+          transactionError = retry.error;
+        }
+      }
 
       if (transactionError) throw transactionError;
 
@@ -177,22 +242,17 @@ export class InventoryTransactionService {
   static async getStockMovementReport(
     startDate: Date,
     endDate: Date
-  ): Promise<Array<{
-    product_id: string;
-    product_name: string;
-    sold: number;
-    received: number;
-    adjusted: number;
-    returned: number;
-    net_change: number;
-  }>> {
-    const transactions = await this.getTransactionsByDateRange(startDate, endDate);
+  ): Promise<StockMovementRow[]> {
+    const transactions = (await this.getTransactionsByDateRange(
+      startDate,
+      endDate
+    )) as InventoryTransactionWithProduct[];
     
-    const productMap = new Map<string, any>();
+    const productMap = new Map<string, StockMovementRow>();
 
     transactions.forEach(t => {
-      const product = (t as any).products;
-      if (!product) return;
+      const product = t.products;
+      if (!product?.name) return;
 
       if (!productMap.has(t.product_id)) {
         productMap.set(t.product_id, {
@@ -207,11 +267,13 @@ export class InventoryTransactionService {
       }
 
       const data = productMap.get(t.product_id);
+      if (!data) return;
       
       switch (t.type) {
         case 'sale':
           data.sold += Math.abs(t.quantity);
           break;
+        case 'purchase':
         case 'receipt':
           data.received += Math.abs(t.quantity);
           break;

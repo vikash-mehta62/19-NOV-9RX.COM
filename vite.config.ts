@@ -83,5 +83,8 @@ export default defineConfig(({ mode }) => ({
       'react-router-dom',
       '@supabase/supabase-js',
     ],
+    // Avoid stale pre-bundle failures for optional Excel export dependency.
+    // It is dynamically imported only when export is triggered.
+    exclude: ['write-excel-file', 'write-excel-file/browser'],
   },
 }));

@@ -11,6 +11,7 @@ import { awardOrderPoints } from "@/services/rewardsService";
 import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
+import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -627,17 +628,22 @@ const profileID =
           // Handle redeemed reward usage - mark as used
           if (discount.type === "redeemed_reward" && discount.redemptionId) {
             console.log("🔄 Marking redemption as used:", discount.redemptionId);
-            const { error: updateError } = await supabase
+            const { data: updatedRedemption, error: updateError } = await supabase
               .from("reward_redemptions")
               .update({ 
-                status: "used",
+                status: REWARD_REDEMPTION_STATUS.USED,
                 used_at: new Date().toISOString(),
                 used_in_order_id: insertedOrder.id
               })
-              .eq("id", discount.redemptionId);
+              .eq("id", discount.redemptionId)
+              .eq("status", REWARD_REDEMPTION_STATUS.PENDING)
+              .select("id")
+              .maybeSingle();
             
             if (updateError) {
               console.error("❌ Error marking redemption as used:", updateError);
+            } else if (!updatedRedemption) {
+              console.warn("⚠️ Reward redemption already consumed:", discount.redemptionId);
             } else {
               console.log("✅ Marked reward redemption as used:", discount.redemptionId);
             }

@@ -32,6 +32,7 @@ import CustomProductForm from "./Customitems";
 import ProductShowcase from "../pharmacy/ProductShowcase";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
+import { deductOrderBatchesWithFallback } from "@/services/orderBatchDeductionService";
 
 export interface CreateOrderFormProps {
   initialData?: Partial<OrderFormValues>;
@@ -753,7 +754,7 @@ export function CreateOrderForm({
         // Parallel operations
         await Promise.all([
           createInvoice(orderResponse, totalAmount, newTax),
-          updateStock(data.items),
+          updateStock(data.items, orderResponse.id),
           handlePostOrderProcessing(
             orderResponse,
             cleanedCartItems,
@@ -906,7 +907,21 @@ export function CreateOrderForm({
     }
   };
 
-  const updateStock = async (items: any[]) => {
+  const updateStock = async (items: any[], orderId?: string) => {
+    let batchManagedSizeIds = new Set<string>();
+    if (orderId) {
+      try {
+        const result = await deductOrderBatchesWithFallback(orderId, items);
+        if (result.alreadyDeducted) {
+          console.log(`Batch stock already deducted for order ${orderId}, skipping duplicate deduction.`);
+          return;
+        }
+        batchManagedSizeIds = result.batchManagedSizeIds;
+      } catch (error) {
+        console.warn(`Batch deduction failed for order ${orderId}, using fallback stock deduction.`, error);
+      }
+    }
+
     // Batch product updates
     const productUpdates = items.map((item) =>
       supabase.rpc("decrement_stock", {
@@ -927,6 +942,9 @@ export function CreateOrderForm({
             .then(({ data, error }) => {
               if (error || !data)
                 throw new Error(`Size not found for ID: ${size.id}`);
+              if (size.id && batchManagedSizeIds.has(size.id)) {
+                return null;
+              }
               return supabase
                 .from("product_sizes")
                 .update({ stock: data.stock - size.quantity })
@@ -936,7 +954,7 @@ export function CreateOrderForm({
     );
 
     // Execute all updates in parallel
-    const updatePromises = [...productUpdates, ...sizeUpdates];
+    const updatePromises = [...productUpdates, ...sizeUpdates.filter(Boolean)];
     const results = await Promise.allSettled(updatePromises);
 
     // Check for errors

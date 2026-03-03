@@ -11,34 +11,21 @@ import { awardOrderPoints } from "@/services/rewardsService";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "@/store/actions/userAction";
+import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 
 // Invoice creation function for paid orders (when total is 0)
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
   try {
     console.log(`🧾 Creating invoice for paid order: ${order.id}`);
-
-    const year = new Date().getFullYear();
-    const { data: inData, error: fetchError } = await supabase
-      .from("centerize_data")
-      .select("id, invoice_no, invoice_start")
-      .order("id", { ascending: false })
-      .limit(1);
-
-    if (fetchError) throw new Error(fetchError.message);
-
-    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-    const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-    if (inData?.[0]?.id) {
-      const { error: updateError } = await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0].id);
-
-      if (updateError) throw new Error(updateError.message);
+    // Prefer DB-side generator; fallback keeps order flow alive if RPC permissions
+    // are temporarily restricted by RLS hardening.
+    const { data: generatedInvoiceNumber, error: invoiceNumberError } = await supabase.rpc("generate_invoice_number");
+    if (invoiceNumberError) {
+      console.warn("generate_invoice_number RPC failed, using fallback invoice number", invoiceNumberError.message);
     }
 
-    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+    const invoiceNumber =
+      generatedInvoiceNumber || `INV-${new Date().getFullYear()}${Date.now().toString().slice(-6)}`;
     const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
 
     const invoiceData = {
@@ -478,17 +465,22 @@ export default function PharmacyOrder() {
           // Handle redeemed reward usage - mark as used
           if (discount.type === "redeemed_reward" && discount.redemptionId) {
             console.log("🔄 Marking redemption as used:", discount.redemptionId);
-            const { error: updateError } = await supabase
+            const { data: updatedRedemption, error: updateError } = await supabase
               .from("reward_redemptions")
               .update({ 
-                status: "used",
+                status: REWARD_REDEMPTION_STATUS.USED,
                 used_at: new Date().toISOString(),
                 used_in_order_id: insertedOrder.id
               })
-              .eq("id", discount.redemptionId);
+              .eq("id", discount.redemptionId)
+              .eq("status", REWARD_REDEMPTION_STATUS.PENDING)
+              .select("id")
+              .maybeSingle();
             
             if (updateError) {
               console.error("❌ Error marking redemption as used:", updateError);
+            } else if (!updatedRedemption) {
+              console.warn("⚠️ Reward redemption already consumed:", discount.redemptionId);
             } else {
               console.log("✅ Marked reward redemption as used:", discount.redemptionId);
             }

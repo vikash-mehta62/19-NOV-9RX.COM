@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
+const { buildTermsObject, buildPrivacyObject, buildAchObject } = require("../utils/termsHelper");
+const { requireAdmin } = require("../middleware/auth");
 
 // Initialize Supabase Admin Client
 const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
@@ -19,10 +21,106 @@ const getSupabaseAdmin = () => {
 };
 
 /**
+ * Resend terms acceptance email to user (Admin only)
+ * POST /api/terms/resend-acceptance-email
+ */
+router.post("/resend-acceptance-email", requireAdmin, async (req, res) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const { userId } = req.body;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId is required"
+      });
+    }
+
+    // Get user profile
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, email, first_name, last_name, terms_and_conditions, privacy_policy, ach_authorization")
+      .eq("id", userId)
+      .single();
+
+    if (profileError || !profile) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found"
+      });
+    }
+
+    // Check which terms are not accepted
+    const termsAccepted = profile.terms_and_conditions?.accepted || false;
+    const privacyAccepted = profile.privacy_policy?.accepted || false;
+    const achAccepted = profile.ach_authorization?.accepted || false;
+
+    // Generate recovery link
+    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: profile.email,
+      options: {
+        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-terms`
+      }
+    });
+
+    if (error) {
+      console.error("Error generating terms recovery link:", error);
+      return res.status(500).json({
+        success: false,
+        message: "Failed to generate terms acceptance link"
+      });
+    }
+
+    // Send email with the link
+    const mailSender = require("../utils/mailSender");
+    const adminCreateAccountTemplate = require("../templates/adminCreateAccount");
+
+    const emailHtml = adminCreateAccountTemplate(
+      profile.first_name,
+      profile.last_name,
+      profile.email,
+      null, // No password for resend
+      data.properties.action_link,
+      {
+        termsAccepted,
+        privacyAccepted,
+        achAccepted
+      }
+    );
+
+    await mailSender(
+      profile.email,
+      `Action Required: Accept Terms & Conditions - 9RX`,
+      emailHtml
+    );
+
+    console.log(`✅ Terms acceptance email resent to: ${profile.email}`);
+
+    return res.json({
+      success: true,
+      message: "Terms acceptance email sent successfully",
+      pendingAcceptances: {
+        terms: !termsAccepted,
+        privacy: !privacyAccepted,
+        ach: !achAccepted
+      }
+    });
+
+  } catch (error) {
+    console.error("Resend terms email error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error"
+    });
+  }
+});
+
+/**
  * Generate terms acceptance token using Supabase's recovery system (same as password reset)
  * POST /api/terms/generate-token
  */
-router.post("/generate-token", async (req, res) => {
+router.post("/generate-token", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { userId, email } = req.body;
@@ -196,37 +294,27 @@ router.post("/accept", async (req, res) => {
       });
     }
 
-    const acceptanceTimestamp = acceptedAt || new Date().toISOString();
     const userIP = req.ip || req.connection?.remoteAddress || 'unknown';
     const userAgent = req.get('User-Agent') || 'unknown';
     
-    // Prepare terms acceptance data
-    const termsData = {
-      accepted: true,
-      acceptedAt: acceptanceTimestamp,
-      version: "1.0",
-      ipAddress: userIP,
-      userAgent: userAgent,
-      method: "email_link"
-    };
-
-    // Prepare update data
+    // Prepare update data using JSONB helper functions (SINGLE SOURCE OF TRUTH)
     const updateData = {
-      terms_and_conditions: termsData,
+      terms_and_conditions: buildTermsObject(true, termsSignature, userIP, userAgent, 'email_link'),
+      privacy_policy: buildPrivacyObject(true, privacySignature, userIP, userAgent, 'email_link'),
+      ach_authorization: achAccepted 
+        ? buildAchObject(true, achSignature, userIP, userAgent, 'email_link')
+        : null,
+      
+      // DUAL-WRITE: Keep old columns during transition period for backward compatibility
       terms_signature: termsSignature,
       privacy_policy_accepted: true,
-      privacy_policy_accepted_at: acceptanceTimestamp,
+      privacy_policy_accepted_at: new Date().toISOString(),
       privacy_policy_signature: privacySignature,
+      ach_authorization_accepted: achAccepted || false,
+      ach_authorization_accepted_at: achAccepted ? new Date().toISOString() : null,
+      ach_authorization_signature: achSignature || null,
+      
       updated_at: new Date().toISOString()
-    };
-
-    // Add ACH authorization data if accepted
-    if (achAccepted) {
-      updateData.ach_authorization_accepted = true;
-      updateData.ach_authorization_accepted_at = acceptanceTimestamp;
-      updateData.ach_authorization_signature = achSignature;
-      updateData.ach_authorization_version = "1.0";
-      updateData.ach_authorization_ip_address = userIP;
     }
 
     // Update user profile with terms acceptance
