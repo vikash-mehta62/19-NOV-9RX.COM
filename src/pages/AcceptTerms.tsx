@@ -28,6 +28,29 @@ export const AcceptTerms = () => {
   const [success, setSuccess] = useState(false);
   const [session, setSession] = useState<any>(null);
 
+  const clearClientSession = async () => {
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutError) {
+      console.warn("Sign out warning:", signOutError);
+    }
+
+    setSession(null);
+    sessionStorage.removeItem("isLoggedIn");
+    sessionStorage.removeItem("userType");
+    sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userEmail");
+    sessionStorage.removeItem("userId");
+    sessionStorage.removeItem("shipping");
+    sessionStorage.removeItem("taxper");
+    sessionStorage.removeItem("order_pay");
+  };
+
+  const goToLogin = async () => {
+    await clearClientSession();
+    navigate("/login");
+  };
+
   useEffect(() => {
     const checkSession = async () => {
       try {
@@ -151,6 +174,7 @@ export const AcceptTerms = () => {
       });
 
       if (response.data.success) {
+        await clearClientSession();
         setSuccess(true);
         toast({
           title: "Success",
@@ -205,7 +229,7 @@ export const AcceptTerms = () => {
               <AlertDescription>{error}</AlertDescription>
             </Alert>
             <Button 
-              onClick={() => navigate("/login")} 
+              onClick={goToLogin} 
               className="w-full mt-4"
               variant="outline"
             >
@@ -239,7 +263,7 @@ export const AcceptTerms = () => {
               </AlertDescription>
             </Alert>
             <Button 
-              onClick={() => navigate("/login")} 
+              onClick={goToLogin} 
               className="w-full mt-4"
             >
               Go to Login Now
