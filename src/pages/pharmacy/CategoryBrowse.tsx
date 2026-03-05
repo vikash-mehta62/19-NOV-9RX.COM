@@ -36,7 +36,7 @@ export default function CategoryBrowse() {
         // Fetch all categories from category_configs
         const orderedCategoryQuery = await supabase
           .from("category_configs")
-          .select("id, category_name")
+          .select("id, category_name, image_url")
           .order("display_order", { ascending: true })
           .order("category_name", { ascending: true });
 
@@ -44,7 +44,7 @@ export default function CategoryBrowse() {
         if (orderedCategoryQuery.error) {
           const fallbackCategoryQuery = await supabase
             .from("category_configs")
-            .select("id, category_name")
+            .select("id, category_name, image_url")
             .order("category_name", { ascending: true });
 
           if (fallbackCategoryQuery.error) {
@@ -91,14 +91,16 @@ export default function CategoryBrowse() {
         });
 
         // Combine categories with their product counts
-        const categoriesWithCounts: CategoryWithCount[] = categoryData.map(
-          (cat) => ({
+        // Filter out categories with 0 products (all products inactive)
+        const categoriesWithCounts: CategoryWithCount[] = categoryData
+          .map((cat) => ({
             id: cat.id,
             category_name: cat.category_name,
+            image_url: cat.image_url,
             productCount:
               productCountMap.get(cat.category_name.toLowerCase()) || 0,
-          })
-        );
+          }))
+          .filter((cat) => cat.productCount > 0);
 
         setCategories(categoriesWithCounts);
       } catch (error) {

@@ -22,6 +22,7 @@ import {
   getAutoReorderConfigs,
   executeAutomationRules,
   getAutomationLogs,
+  getAutomationRuleRunCounts,
   AutomationRule,
 } from "@/services/automationService";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,7 @@ export default function Automation() {
   const [rules, setRules] = useState<AutomationRule[]>([]);
   const [reorderConfigs, setReorderConfigs] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [ruleRunCounts, setRuleRunCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [ruleDialogOpen, setRuleDialogOpen] = useState(false);
   const [reorderDialogOpen, setReorderDialogOpen] = useState(false);
@@ -55,9 +57,11 @@ export default function Automation() {
         getAutoReorderConfigs(),
         getAutomationLogs({ limit: 50 }),
       ]);
+      const perRuleCounts = await getAutomationRuleRunCounts(rulesData.map((rule) => rule.id));
       setRules(rulesData);
       setReorderConfigs(reorderData);
       setLogs(logsData);
+      setRuleRunCounts(perRuleCounts);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -139,11 +143,21 @@ export default function Automation() {
   const handleExecuteRules = async () => {
     try {
       setExecuting(true);
-      await executeAutomationRules();
-      toast({
-        title: "Success",
-        description: "Automation rules executed",
-      });
+      const result = await executeAutomationRules();
+      await loadData();
+
+      if (result.failed.length === 0) {
+        toast({
+          title: "Success",
+          description: "All automation checks executed successfully",
+        });
+      } else {
+        toast({
+          title: "Partially Completed",
+          description: `${result.succeeded.length} succeeded, ${result.failed.length} failed`,
+          variant: "destructive",
+        });
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -201,6 +215,25 @@ export default function Automation() {
       update_status: "Update Status",
     };
     return labels[type] || type;
+  };
+
+  const getLogTriggerLabel = (type: string) => {
+    const labels: Record<string, string> = {
+      cron_cycle: "Scheduled Cron Run",
+      auto_reorder: "Auto-Reorder",
+      low_stock: "Low Stock",
+      high_value_order: "High Value Order",
+      order_status: "Order Status Change",
+    };
+    return labels[type] || type;
+  };
+
+  const getLogSourceLabel = (log: any) => {
+    const source = log?.trigger_data?.source;
+    if (source === "manual") return "Manual Run";
+    if (source === "cron") return "Scheduled Run";
+    if (source === "pg_cron") return "Scheduled Run";
+    return null;
   };
 
   return (
@@ -264,7 +297,10 @@ export default function Automation() {
                     <p>No automation rules configured</p>
                     <Button 
                       className="mt-4" 
-                      onClick={() => setRuleDialogOpen(true)}
+                      onClick={() => {
+                        setSelectedRule(null);
+                        setRuleDialogOpen(true);
+                      }}
                     >
                       Create Your First Rule
                     </Button>
@@ -311,7 +347,10 @@ export default function Automation() {
                                 </span>
                               )}
                               <span className="text-gray-500">
-                                Triggered {rule.trigger_count} times
+                                Matched {rule.trigger_count} times
+                              </span>
+                              <span className="text-gray-500">
+                                Checked in {ruleRunCounts[rule.id] || 0} runs
                               </span>
                             </div>
                           </div>
@@ -383,12 +422,22 @@ export default function Automation() {
                                 {log.status}
                               </Badge>
                               <span className="text-sm font-medium">
-                                {log.automation_rules?.name || log.trigger_type}
+                                {log.automation_rules?.name || getLogTriggerLabel(log.trigger_type)}
                               </span>
+                              {getLogSourceLabel(log) && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  {getLogSourceLabel(log)}
+                                </Badge>
+                              )}
                             </div>
                             <p className="text-sm text-gray-600 mb-1">
                               {log.action_taken}
                             </p>
+                            {log.trigger_type === "cron_cycle" && Array.isArray(log?.trigger_data?.active_rule_names) && log.trigger_data.active_rule_names.length > 0 && (
+                              <p className="text-xs text-gray-500 mb-1">
+                                Active rules: {log.trigger_data.active_rule_names.join(", ")}
+                              </p>
+                            )}
                             {log.error_message && (
                               <p className="text-sm text-red-600">
                                 Error: {log.error_message}
@@ -418,7 +467,10 @@ export default function Automation() {
                       Automatically reorder products when stock is low
                     </CardDescription>
                   </div>
-                  <Button onClick={() => setReorderDialogOpen(true)}>
+                  <Button onClick={() => {
+                    setSelectedReorder(null);
+                    setReorderDialogOpen(true);
+                  }}>
                     <Plus className="h-4 w-4 mr-2" />
                     Configure Product
                   </Button>
@@ -433,7 +485,10 @@ export default function Automation() {
                     <p>No auto-reorder configurations</p>
                     <Button 
                       className="mt-4" 
-                      onClick={() => setReorderDialogOpen(true)}
+                      onClick={() => {
+                        setSelectedReorder(null);
+                        setReorderDialogOpen(true);
+                      }}
                     >
                       Configure First Product
                     </Button>

@@ -448,6 +448,21 @@ export const PharmacyProductsFullPage = () => {
     return sortedProducts;
   }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange, sortBy])
 
+  // Filter categories to only show those with active products
+  const visibleCategories = useMemo(() => {
+    if (products.length === 0) return categories;
+    
+    // Create a set of categories that have at least one product
+    const categoriesWithProducts = new Set(
+      products.map(p => p.category?.toLowerCase()).filter(Boolean)
+    );
+    
+    // Filter the categories list to only include those with products
+    return categories.filter(cat => 
+      categoriesWithProducts.has(cat.toLowerCase())
+    );
+  }, [categories, products]);
+
   // Memoized handlers to prevent child re-renders
   const handleCategorySelect = useCallback((category: string) => {
     setSelectedCategory(category)
@@ -846,7 +861,7 @@ export const PharmacyProductsFullPage = () => {
                 {/* Enhanced Category Grid - Only show when no specific category is selected */}
                 {selectedCategory === "all" && (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 sm:mb-12">
-                    {categories.map((category, index) => {
+                    {visibleCategories.map((category, index) => {
                       const categoryImage = getCategoryImageUrl(category, index);
                       
                       return (

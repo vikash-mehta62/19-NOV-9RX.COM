@@ -406,6 +406,8 @@ export async function upsertAutoReorderConfig(config: {
     .upsert({
       ...config,
       updated_at: new Date().toISOString(),
+    }, {
+      onConflict: 'product_id',
     })
     .select()
     .single();
@@ -462,6 +464,44 @@ export async function getAutomationLogs(filters?: {
 }
 
 /**
+ * Get total scheduled/manual run count from cron cycle logs
+ */
+export async function getAutomationRunCount() {
+  const { count, error } = await supabase
+    .from('automation_logs')
+    .select('*', { count: 'exact', head: true })
+    .eq('trigger_type', 'cron_cycle');
+
+  if (error) throw error;
+  return count || 0;
+}
+
+/**
+ * Get per-rule execution count from automation logs.
+ * This returns only each rule's own log count (rule_id-based),
+ * so values can differ per rule.
+ */
+export async function getAutomationRuleRunCounts(ruleIds: string[]) {
+  if (!ruleIds.length) return {} as Record<string, number>;
+
+  const { data, error } = await supabase
+    .from('automation_logs')
+    .select('rule_id')
+    .in('rule_id', ruleIds);
+
+  if (error) throw error;
+
+  const counts: Record<string, number> = {};
+  for (const row of data || []) {
+    const ruleId = row?.rule_id as string | null;
+    if (!ruleId) continue;
+    counts[ruleId] = (counts[ruleId] || 0) + 1;
+  }
+
+  return counts;
+}
+
+/**
  * Get automation log statistics
  */
 export async function getAutomationLogStats() {
@@ -490,20 +530,35 @@ export async function getAutomationLogStats() {
  * Execute automation rules manually
  */
 export async function executeAutomationRules() {
-  // Trigger low stock check
-  const { error: stockError } = await supabase.rpc('check_low_stock_alerts');
-  if (stockError) console.error('Stock check error:', stockError);
+  const startedAt = new Date().toISOString();
+  let { error } = await supabase.rpc('execute_automation_checks', { p_source: 'manual' });
+  if (error && (error.code === 'PGRST202' || error.code === '42883')) {
+    // Backward compatibility if DB function signature is still no-arg.
+    const retry = await supabase.rpc('execute_automation_checks');
+    error = retry.error;
+  }
+  if (error) throw error;
 
-  // Trigger high value order check
-  const { error: orderError } = await supabase.rpc('check_high_value_orders');
-  if (orderError) {
-    // Only log if it's not a "function not found" error
-    if (orderError.code !== 'PGRST202') {
-      console.error('Order check error:', orderError);
-    }
+  const { data: lastRun, error: logError } = await supabase
+    .from('automation_logs')
+    .select('status, error_message')
+    .eq('trigger_type', 'cron_cycle')
+    .gte('created_at', startedAt)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (logError) throw logError;
+
+  if (lastRun?.status === 'failed') {
+    return {
+      succeeded: [] as string[],
+      failed: [{ task: 'Automation checks', message: lastRun.error_message || 'Failed' }],
+    };
   }
 
-  // Trigger auto-reorder
-  const { error: reorderError } = await supabase.rpc('trigger_auto_reorder');
-  if (reorderError) console.error('Reorder error:', reorderError);
+  return {
+    succeeded: ['Automation checks'],
+    failed: [] as Array<{ task: string; message: string; code?: string }>,
+  };
 }

@@ -27,6 +27,10 @@ export function AutomationRuleDialog({ open, onOpenChange, rule, onSuccess }: Au
     priority: 0,
   });
   const { toast } = useToast();
+  const toSafeInt = (value: string, fallback: number) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
 
   useEffect(() => {
     if (rule) {
@@ -58,13 +62,13 @@ export function AutomationRuleDialog({ open, onOpenChange, rule, onSuccess }: Au
 
     try {
       if (rule) {
-        await updateAutomationRule(rule.id, formData);
+        await updateAutomationRule(rule.id, { ...formData, action_type: "send_alert" });
         toast({
           title: "✅ Rule Updated",
           description: `"${formData.name}" has been updated successfully`,
         });
       } else {
-        await createAutomationRule(formData);
+        await createAutomationRule({ ...formData, action_type: "send_alert" });
         toast({
           title: "🤖 Automation Rule Created",
           description: `"${formData.name}" is now active. System will monitor and execute automatically.`,
@@ -178,7 +182,7 @@ export function AutomationRuleDialog({ open, onOpenChange, rule, onSuccess }: Au
                   value={formData.trigger_conditions.threshold || 10}
                   onChange={(e) => setFormData({
                     ...formData,
-                    trigger_conditions: { threshold: parseInt(e.target.value) }
+                    trigger_conditions: { threshold: toSafeInt(e.target.value, 10) }
                   })}
                   placeholder="10"
                 />
@@ -241,7 +245,10 @@ export function AutomationRuleDialog({ open, onOpenChange, rule, onSuccess }: Au
               min="0"
               max="10"
               value={formData.priority}
-              onChange={(e) => setFormData({ ...formData, priority: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({
+                ...formData,
+                priority: toSafeInt(e.target.value, 0)
+              })}
             />
             <p className="text-xs text-gray-500 mt-1">
               Higher priority rules execute first

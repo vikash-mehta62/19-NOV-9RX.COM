@@ -206,7 +206,8 @@ export default function SizeDetail() {
             ? Math.min(...p.sizes.map((s: any) => Number(s.price) || 0))
             : Number(p.base_price || 0)
           const totalStock = (p.sizes || []).reduce((sum: number, s: any) => sum + (Number(s.stock) || 0), 0)
-          const displayImage = (p.images && p.images[0]) || p.image_url || "/placeholder.svg"
+          // Prioritize image_url (full URL) over images array (filename only)
+          const displayImage = p.image_url || (p.images && p.images[0]) || "/placeholder.svg"
           return { ...p, displayPrice, totalStock, displayImage }
         })
         setSimilarProducts(enhanced)
@@ -388,35 +389,34 @@ export default function SizeDetail() {
               )}
             </div>
 
-            {/* Items List (Collapsible) */}
-            <div className="px-4">
-              <Button
-                variant="ghost"
-                className="w-full justify-between p-0 h-auto hover:bg-transparent min-h-[44px]"
-                onClick={() => setIsItemsExpanded(!isItemsExpanded)}
-                aria-expanded={isItemsExpanded}
-                aria-controls="order-items-list"
-                aria-label={isItemsExpanded ? "Collapse items list" : "Expand items list"}
-              >
-                <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
-                  <Package className="w-4 h-4 text-blue-600" />
-                  Other Sizes ({otherSizes.length})
-                </h3>
-                {isItemsExpanded ? (
-                  <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
-                ) : (
-                  <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
-                )}
-              </Button>
-            </div>
-
-            {/* Other Sizes */}
-            {isItemsExpanded && (
+            {/* Items List (Collapsible) - Only show if there are other sizes */}
+            {otherSizes.length > 0 && (
               <>
-                {otherSizes.length > 0 && (
+                <div className="px-4">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-0 h-auto hover:bg-transparent min-h-[44px]"
+                    onClick={() => setIsItemsExpanded(!isItemsExpanded)}
+                    aria-expanded={isItemsExpanded}
+                    aria-controls="order-items-list"
+                    aria-label={isItemsExpanded ? "Collapse items list" : "Expand items list"}
+                  >
+                    <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                      <Package className="w-4 h-4 text-blue-600" />
+                      Other Sizes ({otherSizes.length})
+                    </h3>
+                    {isItemsExpanded ? (
+                      <ChevronUp className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3 sm:h-4 sm:w-4 text-gray-500" aria-hidden="true" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* Other Sizes */}
+                {isItemsExpanded && (
                   <Card>
                     <CardContent className="p-4">
-
                       <div className="space-y-2 max-h-[240px] overflow-y-auto">
                         {otherSizes.map((s) => {
                           const sUnitsPerCase = s.quantity_per_case || 0
@@ -452,34 +452,37 @@ export default function SizeDetail() {
                 )}
               </>
             )}
-          {/* Similar Products */}
-          <div className="p-4">
-            <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
-              <Package className="w-4 h-4 text-blue-600" />
-              Similar Products
-              {similarProducts.length > 0 && (
-                <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700">
-                  {similarProducts.length}
-                </Badge>
-              )}
-            </h3>
 
-            {similarLoading && (
-              <div className="text-sm text-gray-500">Loading suggestions...</div>
-            )}
+            {/* Similar Products */}
+            <Card>
+              <CardContent className="p-4">
+                <h3 className="font-semibold mb-3 flex items-center gap-2 text-gray-900">
+                  <Package className="w-4 h-4 text-blue-600" />
+                  Similar Products
+                  {similarProducts.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 bg-blue-100 text-blue-700">
+                      {similarProducts.length}
+                    </Badge>
+                  )}
+                </h3>
 
-            {!similarLoading && similarProducts.length === 0 && (
-              <div className="text-sm text-gray-500">No similar products available.</div>
-            )}
+                {similarLoading && (
+                  <div className="text-sm text-gray-500">Loading suggestions...</div>
+                )}
 
-            {!similarLoading && similarProducts.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4">
-                {similarProducts.map((sp: any) => (
-                  <PharmacyProductCard key={sp.id} product={sp} />
-                ))}
-              </div>
-            )}
-          </div>
+                {!similarLoading && similarProducts.length === 0 && (
+                  <div className="text-sm text-gray-500">No similar products available.</div>
+                )}
+
+                {!similarLoading && similarProducts.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4">
+                    {similarProducts.map((sp: any) => (
+                      <PharmacyProductCard key={sp.id} product={sp} />
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
 
 

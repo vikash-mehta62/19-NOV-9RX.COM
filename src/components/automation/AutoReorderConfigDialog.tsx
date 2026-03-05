@@ -28,6 +28,11 @@ export function AutoReorderConfigDialog({ open, onOpenChange, config, configId, 
   });
   const { toast } = useToast();
 
+  const toSafeInt = (value: string, fallback: number) => {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+  };
+
   useEffect(() => {
     if (open) {
       loadProducts();
@@ -53,13 +58,26 @@ export function AutoReorderConfigDialog({ open, onOpenChange, config, configId, 
 
   const loadProducts = async () => {
     try {
-      const { data, error } = await supabase
-        .from('products')
-        .select('id, name, current_stock')
-        .order('name');
-      
-      if (error) throw error;
-      setProducts(data || []);
+      const [{ data: productsData, error: productsError }, { data: configData, error: configError }] = await Promise.all([
+        supabase
+          .from('products')
+          .select('id, name, current_stock')
+          .order('name'),
+        supabase
+          .from('auto_reorder_config')
+          .select('product_id'),
+      ]);
+
+      if (productsError) throw productsError;
+      if (configError) throw configError;
+
+      const configuredIds = new Set((configData || []).map((c) => c.product_id));
+      const filteredProducts = (productsData || []).filter((product) => {
+        if (config?.product_id && product.id === config.product_id) return true;
+        return !configuredIds.has(product.id);
+      });
+
+      setProducts(filteredProducts);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -178,7 +196,10 @@ export function AutoReorderConfigDialog({ open, onOpenChange, config, configId, 
               type="number"
               min="1"
               value={formData.reorder_point}
-              onChange={(e) => setFormData({ ...formData, reorder_point: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({
+                ...formData,
+                reorder_point: toSafeInt(e.target.value, 1),
+              })}
               required
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -193,7 +214,10 @@ export function AutoReorderConfigDialog({ open, onOpenChange, config, configId, 
               type="number"
               min="1"
               value={formData.reorder_quantity}
-              onChange={(e) => setFormData({ ...formData, reorder_quantity: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({
+                ...formData,
+                reorder_quantity: toSafeInt(e.target.value, 1),
+              })}
               required
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -208,7 +232,10 @@ export function AutoReorderConfigDialog({ open, onOpenChange, config, configId, 
               type="number"
               min="1"
               value={formData.lead_time_days}
-              onChange={(e) => setFormData({ ...formData, lead_time_days: parseInt(e.target.value) })}
+              onChange={(e) => setFormData({
+                ...formData,
+                lead_time_days: toSafeInt(e.target.value, 1),
+              })}
               required
             />
             <p className="text-xs text-gray-500 mt-1">

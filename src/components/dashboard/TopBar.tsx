@@ -26,6 +26,8 @@ interface Notification {
   time: string;
   read: boolean;
   link?: string;
+  source: "notification" | "alert";
+  createdAt: string;
 }
 
 export const TopBar = () => {
@@ -64,14 +66,19 @@ export const TopBar = () => {
 
         // Add user notifications
         if (notificationsResult.data) {
-          allNotifications.push(...notificationsResult.data.map((n: any) => ({
+          const directNotifications = notificationsResult.data.filter(
+            (n: any) => n?.metadata?.source !== "alert"
+          );
+          allNotifications.push(...directNotifications.map((n: any) => ({
             id: n.id,
             title: n.title || 'Notification',
             message: n.message,
             type: n.type || 'info',
             time: formatDistanceToNow(new Date(n.created_at), { addSuffix: true }),
             read: n.read,
-            link: n.link
+            link: n.link,
+            source: "notification" as const,
+            createdAt: n.created_at,
           })));
         }
 
@@ -84,17 +91,15 @@ export const TopBar = () => {
             type: a.category === 'inventory' ? 'warning' : a.category === 'system' ? 'automation' : a.severity,
             time: formatDistanceToNow(new Date(a.created_at), { addSuffix: true }),
             read: a.is_read,
-            link: '/admin/alerts'
+            link: '/admin/alerts',
+            source: "alert" as const,
+            createdAt: a.created_at,
           })));
         }
 
         // Sort by created_at and limit to 10
         allNotifications.sort((a, b) => {
-          const timeA = notificationsResult.data?.find((n: any) => n.id === a.id)?.created_at || 
-                        alertsResult.data?.find((al: any) => al.id === a.id)?.created_at;
-          const timeB = notificationsResult.data?.find((n: any) => n.id === b.id)?.created_at || 
-                        alertsResult.data?.find((al: any) => al.id === b.id)?.created_at;
-          return new Date(timeB).getTime() - new Date(timeA).getTime();
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
         });
 
         setNotifications(allNotifications.slice(0, 10));
@@ -123,6 +128,9 @@ export const TopBar = () => {
           },
           (payload) => {
             const newNotification = payload.new as any;
+            if (newNotification?.metadata?.source === "alert") {
+              return;
+            }
             setNotifications(prev => [{
               id: newNotification.id,
               title: newNotification.title || 'Notification',
@@ -130,7 +138,9 @@ export const TopBar = () => {
               type: newNotification.type || 'info',
               time: 'Just now',
               read: newNotification.read,
-              link: newNotification.link
+              link: newNotification.link,
+              source: "notification",
+              createdAt: newNotification.created_at || new Date().toISOString(),
             }, ...prev.slice(0, 9)]); // Keep only 10 notifications
           }
         )
@@ -150,7 +160,9 @@ export const TopBar = () => {
               type: newAlert.category === 'inventory' ? 'warning' : newAlert.category === 'system' ? 'automation' : newAlert.severity,
               time: 'Just now',
               read: newAlert.is_read,
-              link: '/admin/alerts'
+              link: '/admin/alerts',
+              source: "alert",
+              createdAt: newAlert.created_at || new Date().toISOString(),
             }, ...prev.slice(0, 9)]); // Keep only 10 notifications
           }
         )
@@ -171,36 +183,75 @@ export const TopBar = () => {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  const markAsRead = async (id: string) => {
-    setNotifications(
-      notifications.map((notification) =>
-        notification.id === id ? { ...notification, read: true } : notification
+  const markAsRead = async (id: string, source: Notification["source"]) => {
+    setNotifications((prev) =>
+      prev.map((notification) =>
+        notification.id === id && notification.source === source
+          ? { ...notification, read: true }
+          : notification
       )
     );
-    
-    // Try to update in both tables
-    await Promise.all([
-      supabase.from('notifications').update({ read: true }).eq('id', id).catch(() => {}),
-      supabase.from('alerts').update({ is_read: true }).eq('id', id).catch(() => {})
-    ]);
+
+    if (source === "notification") {
+      await supabase.from('notifications').update({ read: true }).eq('id', id).catch(() => {});
+      return;
+    }
+
+    await supabase.from('alerts').update({ is_read: true }).eq('id', id).catch(() => {});
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const handleDelete = async (notification: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      // Try to delete from both tables
-      await Promise.all([
-        deleteNotification(id).catch(() => {}),
-        supabase.from('alerts').delete().eq('id', id).catch(() => {})
-      ]);
-      setNotifications(notifications.filter(n => n.id !== id));
+      if (notification.source === "notification") {
+        await deleteNotification(notification.id);
+      } else {
+        // Alerts table may not allow DELETE in all environments, so dismiss via update.
+        await supabase
+          .from('alerts')
+          .update({ is_read: true, is_resolved: true })
+          .eq('id', notification.id);
+      }
+
+      setNotifications((prev) =>
+        prev.filter((n) => !(n.id === notification.id && n.source === notification.source))
+      );
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
   };
 
+  const handleClearAll = async () => {
+    if (notifications.length === 0) return;
+
+    const notificationIds = notifications
+      .filter((n) => n.source === "notification")
+      .map((n) => n.id);
+    const alertIds = notifications
+      .filter((n) => n.source === "alert")
+      .map((n) => n.id);
+
+    try {
+      await Promise.all([
+        notificationIds.length > 0
+          ? supabase.from('notifications').delete().in('id', notificationIds)
+          : Promise.resolve(),
+        alertIds.length > 0
+          ? supabase
+              .from('alerts')
+              .update({ is_read: true, is_resolved: true })
+              .in('id', alertIds)
+          : Promise.resolve(),
+      ]);
+
+      setNotifications([]);
+    } catch (error) {
+      console.error('Error clearing notifications:', error);
+    }
+  };
+
   const handleNotificationClick = (notification: Notification) => {
-    markAsRead(notification.id);
+    markAsRead(notification.id, notification.source);
     if (notification.link) {
       navigate(notification.link);
     }
@@ -268,11 +319,26 @@ export const TopBar = () => {
                   <Bell className="h-4 w-4" />
                   Notifications
                 </h3>
-                {unreadCount > 0 && (
-                  <Badge className="bg-red-500 text-white text-xs">
-                    {unreadCount} New
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {unreadCount > 0 && (
+                    <Badge className="bg-red-500 text-white text-xs">
+                      {unreadCount} New
+                    </Badge>
+                  )}
+                  {notifications.length > 0 && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleClearAll();
+                      }}
+                    >
+                      Clear All
+                    </Button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -282,7 +348,7 @@ export const TopBar = () => {
                 <div className="divide-y">
                   {notifications.map((notification) => (
                     <div
-                      key={notification.id}
+                      key={`${notification.source}-${notification.id}`}
                       className={`group relative p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors cursor-pointer ${
                         !notification.read ? "bg-blue-50 dark:bg-blue-950/20" : ""
                       }`}
@@ -334,7 +400,7 @@ export const TopBar = () => {
                               className="h-6 w-6 p-0 hover:bg-green-50 dark:hover:bg-green-950"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                markAsRead(notification.id);
+                                markAsRead(notification.id, notification.source);
                               }}
                               title="Mark as read"
                             >
@@ -345,7 +411,7 @@ export const TopBar = () => {
                             variant="ghost"
                             size="sm"
                             className="h-6 w-6 p-0 hover:bg-red-50 dark:hover:bg-red-950"
-                            onClick={(e) => handleDelete(notification.id, e)}
+                            onClick={(e) => handleDelete(notification, e)}
                             title="Delete"
                           >
                             <Trash2 className="h-3 w-3 text-red-600" />
