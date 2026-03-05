@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import jsPDF from "jspdf"
-import "jspdf-autotable"
+import autoTable from "jspdf-autotable"
 import { SheetContent, SheetTitle, SheetClose } from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { Card, CardContent } from "@/components/ui/card"
@@ -365,7 +365,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         })
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead, body: tableBody, startY: tableStartY,
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
@@ -407,7 +407,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         invoiceSummaryBody.push([discountName, `-$${invoiceDiscountAmount.toFixed(2)}`])
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         body: invoiceSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
@@ -626,7 +626,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         })
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead, body: tableBody, startY: tableStartY,
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
@@ -664,7 +664,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35 } },
@@ -834,7 +834,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             <div className="space-y-1 text-[11px] sm:text-sm text-gray-600 pt-3 border-t sm:border-t-0 sm:pt-0">
               <div className="flex items-center gap-1.5"><Building className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>Tax ID: 99-0540972</span></div>
               <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>936 Broad River Ln, Charlotte, NC 28211</span></div>
-              <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>+1 (800) 969-6295</span></div>
+              <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>+1 (800) 940-9619</span></div>
               <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>info@9rx.com</span></div>
               <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>www.9rx.com</span></div>
             </div>

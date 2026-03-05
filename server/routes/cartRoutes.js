@@ -145,7 +145,7 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
             <strong>The 9RX Team</strong>
           </p>
           <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
-            📧 support@9rx.com | 📞 +1 (800) 969-6295
+            📧 info@9rx.com | 📞 +1 (800) 940-9619
           </p>
         </div>
       </div>

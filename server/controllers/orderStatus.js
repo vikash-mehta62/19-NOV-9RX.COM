@@ -358,7 +358,7 @@ exports.userNotificationCtrl = async (req, res) => {
           throw new Error("Email and userId mismatch for profile completion link");
         }
 
-        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const frontendUrl = process.env.FRONTEND_URL || "https://9rx.vercel.app";
         const redirectUrl = `${frontendUrl}/update-profile`;
         const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",

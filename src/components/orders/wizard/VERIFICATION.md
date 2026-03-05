@@ -18,7 +18,7 @@ import { WizardDemo } from "@/components/orders/wizard";
 
 2. **Navigate to the demo page**:
    - Start the dev server: `npm run dev`
-   - Open browser to: `http://localhost:3000/wizard-demo`
+   - Open browser to: `https://9rx.vercel.app/wizard-demo`
 
 3. **Verify the following**:
 

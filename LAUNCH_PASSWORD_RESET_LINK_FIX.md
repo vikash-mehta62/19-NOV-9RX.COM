@@ -179,7 +179,7 @@ If `ACTUAL_LINK_HERE` is:
 - Verify redirect URLs are whitelisted:
   - `https://9rx.com/launch-password-reset`
   - `https://9rx.vercel.app/launch-password-reset`
-  - `http://localhost:3000/launch-password-reset` (for testing)
+  - `https://9rx.vercel.app/launch-password-reset` (for testing)
 
 #### 4. Check Environment Variables:
 ```bash

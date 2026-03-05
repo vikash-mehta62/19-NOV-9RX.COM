@@ -58,7 +58,7 @@ router.post("/generate-completion-link", requireRoles(["admin", "superadmin", "g
       }
     }
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://9rx.vercel.app';
     const redirectUrl = `${frontendUrl}/update-profile`;
 
     // Generate magic link using Supabase

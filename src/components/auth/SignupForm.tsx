@@ -57,6 +57,8 @@ export const SignupForm = () => {
         throw new Error("An account with this email already exists. Please sign in instead.");
       }
 
+      const acceptanceTimestamp = new Date().toISOString();
+
       // Step 1: Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
@@ -66,6 +68,10 @@ export const SignupForm = () => {
             first_name: formData.firstName,
             last_name: formData.lastName,
             phone: formData.phone,
+            terms_accepted: formData.termsAccepted,
+            terms_accepted_at: acceptanceTimestamp,
+            terms_version: "1.0",
+            signup_source: "login_signup",
           },
         },
       });
@@ -87,6 +93,17 @@ export const SignupForm = () => {
 
       if (sessionToken) {
         console.log("Creating/updating profile entry via server...");
+        console.log("Sending data:", {
+          userId: authData.user.id,
+          email: formData.email,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          phone: formData.phone,
+          termsAccepted: formData.termsAccepted,
+          termsAcceptedAt: acceptanceTimestamp,
+          termsVersion: "1.0",
+        });
+        
         const profileResponse = await axios.post("/create-signup-profile", {
           userId: authData.user.id,
           email: formData.email,
@@ -94,7 +111,7 @@ export const SignupForm = () => {
           lastName: formData.lastName,
           phone: formData.phone,
           termsAccepted: formData.termsAccepted,
-          termsAcceptedAt: new Date().toISOString(),
+          termsAcceptedAt: acceptanceTimestamp,
           termsVersion: "1.0",
         }, {
           headers: {

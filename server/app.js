@@ -123,7 +123,7 @@ app.use(cookieParser());
 // CORS setup
 const allowedOrigins = [
   "http://localhost:8080",
-  "http://localhost:3000",
+  "https://9rx.vercel.app",
   "http://localhost:3001",
   "http://localhost:3002",
   "https://www.9rx.com",
@@ -741,6 +741,165 @@ app.post("/test-authorize", requireAdmin, async (req, res) => {
 // These bypass RLS by using supabaseAdmin (service role)
 // ============================================
 
+const normalizePointsPerDollar = (value) => {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue) || numericValue <= 0) return 1;
+  return Math.floor(numericValue);
+};
+
+async function awardPayNowOrderPoints({ order, orderId, orderTotal, newPaymentStatus }) {
+  try {
+    const previousStatus = String(order?.payment_status || "").toLowerCase();
+    const wasUnpaidOrPending =
+      previousStatus === "unpaid" ||
+      previousStatus === "pending" ||
+      previousStatus === "partial_paid";
+    const paymentMethod = String(order?.payment_method || "").toLowerCase();
+
+    if (newPaymentStatus !== "paid" || !wasUnpaidOrPending || paymentMethod === "credit") {
+      return;
+    }
+
+    const rewardUserId = order?.profile_id || order?.location_id || order?.customer;
+    if (!rewardUserId || !(Number(orderTotal) > 0)) {
+      console.log(`[pay-now] Reward points skipped for order ${orderId}: missing user or invalid total`);
+      return;
+    }
+
+    // Prevent duplicate awards for the same order.
+    const { data: existingRewardTx, error: rewardCheckError } = await supabaseAdmin
+      .from("reward_transactions")
+      .select("id")
+      .eq("reference_id", orderId)
+      .eq("reference_type", "order")
+      .eq("transaction_type", "earn")
+      .maybeSingle();
+
+    if (rewardCheckError) {
+      console.error(`[pay-now] Failed reward duplicate-check for order ${orderId}:`, rewardCheckError);
+      return;
+    }
+    if (existingRewardTx) {
+      console.log(`[pay-now] Reward points already awarded for order ${orderId}, skipping`);
+      return;
+    }
+
+    const { data: rewardsConfig, error: configError } = await supabaseAdmin
+      .from("rewards_config")
+      .select("program_enabled, points_per_dollar")
+      .limit(1)
+      .maybeSingle();
+
+    if (configError) {
+      console.error(`[pay-now] Failed to load rewards config for order ${orderId}:`, configError);
+      return;
+    }
+    if (!rewardsConfig?.program_enabled) {
+      console.log(`[pay-now] Rewards program disabled; skipping points for order ${orderId}`);
+      return;
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id, type, reward_points, lifetime_reward_points, reward_tier")
+      .eq("id", rewardUserId)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      console.error(`[pay-now] Failed to load reward profile ${rewardUserId} for order ${orderId}:`, profileError);
+      return;
+    }
+    if (String(profile.type || "").toLowerCase() === "group") {
+      console.log(`[pay-now] Group profile ${rewardUserId}; reward points skipped for order ${orderId}`);
+      return;
+    }
+
+    const { data: tiers, error: tiersError } = await supabaseAdmin
+      .from("reward_tiers")
+      .select("name, min_points, multiplier")
+      .order("min_points", { ascending: true });
+
+    const currentPoints = Number(profile.reward_points || 0);
+    let tierMultiplier = 1;
+    let newTierName = profile.reward_tier || "Bronze";
+
+    if (!tiersError && Array.isArray(tiers) && tiers.length > 0) {
+      let currentTier = tiers[0];
+      for (const tier of tiers) {
+        if (currentPoints >= Number(tier.min_points || 0)) {
+          currentTier = tier;
+        }
+      }
+
+      const currentMultiplier = Number(currentTier.multiplier || 1);
+      if (Number.isFinite(currentMultiplier) && currentMultiplier > 0) {
+        tierMultiplier = currentMultiplier;
+      }
+    } else if (tiersError) {
+      console.error(`[pay-now] Failed to load reward tiers for order ${orderId}:`, tiersError);
+    }
+
+    const pointsPerDollar = normalizePointsPerDollar(rewardsConfig.points_per_dollar);
+    const pointsEarned = Math.floor(Number(orderTotal) * pointsPerDollar * tierMultiplier);
+
+    if (!(pointsEarned > 0)) {
+      console.log(`[pay-now] Calculated 0 reward points for order ${orderId}, skipping`);
+      return;
+    }
+
+    const newPointsTotal = currentPoints + pointsEarned;
+    if (Array.isArray(tiers) && tiers.length > 0) {
+      let resolvedTier = tiers[0];
+      for (const tier of tiers) {
+        if (newPointsTotal >= Number(tier.min_points || 0)) {
+          resolvedTier = tier;
+        }
+      }
+      if (resolvedTier?.name) {
+        newTierName = resolvedTier.name;
+      }
+    }
+
+    const newLifetimeTotal = Number(profile.lifetime_reward_points || 0) + pointsEarned;
+
+    const { error: updateProfileError } = await supabaseAdmin
+      .from("profiles")
+      .update({
+        reward_points: newPointsTotal,
+        lifetime_reward_points: newLifetimeTotal,
+        reward_tier: newTierName,
+      })
+      .eq("id", rewardUserId);
+
+    if (updateProfileError) {
+      console.error(`[pay-now] Failed to update reward points for user ${rewardUserId}:`, updateProfileError);
+      return;
+    }
+
+    const { error: insertRewardTxError } = await supabaseAdmin
+      .from("reward_transactions")
+      .insert({
+        user_id: rewardUserId,
+        points: pointsEarned,
+        transaction_type: "earn",
+        description: `Earned from order #${order.order_number || orderId}`,
+        reference_type: "order",
+        reference_id: orderId,
+      });
+
+    if (insertRewardTxError) {
+      console.error(`[pay-now] Failed to insert reward transaction for order ${orderId}:`, insertRewardTxError);
+      return;
+    }
+
+    console.log(
+      `[pay-now] Reward points awarded for order ${order.order_number || orderId}: +${pointsEarned} points to ${rewardUserId}`
+    );
+  } catch (rewardError) {
+    console.error(`[pay-now] Unexpected reward points error for order ${orderId}:`, rewardError);
+  }
+}
+
 // Dedicated limiter for pay-now endpoints (kept separate from general/email counters).
 // Use env values so QA/testing can increase without code edits.
 const payNowLimiter = createRateLimiter(
@@ -1073,6 +1232,14 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           updated_at: new Date().toISOString(),
         }).eq("id", orderId);
 
+        // Keep pay-now reward behavior aligned with other paid flows.
+        await awardPayNowOrderPoints({
+          order,
+          orderId,
+          orderTotal,
+          newPaymentStatus,
+        });
+
         // 8b. Log payment transaction
         const profileId = order.profile_id || order.customer;
         if (profileId) {
@@ -1268,6 +1435,19 @@ app.post("/create-signup-profile", requireAuth, async (req, res) => {
 
     const { userId, email, firstName, lastName, phone, termsAccepted, termsAcceptedAt, termsVersion } = req.body;
 
+    // DEBUG: Log received data
+    console.log("=== CREATE SIGNUP PROFILE DEBUG ===");
+    console.log("Received data:", {
+      userId,
+      email,
+      firstName,
+      lastName,
+      phone,
+      termsAccepted,
+      termsAcceptedAt,
+      termsVersion
+    });
+
     if (!userId || !email) {
       return res.status(400).json({
         success: false,
@@ -1317,6 +1497,11 @@ app.post("/create-signup-profile", requireAuth, async (req, res) => {
       signatureMethod: null
     } : null;
 
+    // DEBUG: Log prepared JSONB data
+    console.log("Prepared JSONB data:");
+    console.log("termsData:", JSON.stringify(termsData, null, 2));
+    console.log("privacyData:", JSON.stringify(privacyData, null, 2));
+
     // Upsert profile using admin client (bypasses RLS)
     const { data, error } = await supabaseAdmin
       .from("profiles")
@@ -1355,13 +1540,23 @@ app.post("/create-signup-profile", requireAuth, async (req, res) => {
 
     if (error) {
       console.error("Signup profile creation error:", error);
+      console.error("Error details:", JSON.stringify(error, null, 2));
       return res.status(400).json({
         success: false,
         message: "Failed to create profile"
       });
     }
 
+    // DEBUG: Log created profile data
     console.log("Signup profile created/updated for:", email);
+    console.log("Profile data:", {
+      id: data.id,
+      email: data.email,
+      terms_accepted: data.terms_accepted,
+      privacy_policy_accepted: data.privacy_policy_accepted,
+      terms_and_conditions: data.terms_and_conditions,
+      privacy_policy: data.privacy_policy
+    });
     return res.json({
       success: true,
       message: "Profile created successfully",

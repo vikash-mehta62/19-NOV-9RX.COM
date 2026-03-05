@@ -60,7 +60,7 @@ router.post("/resend-acceptance-email", requireAdmin, async (req, res) => {
       type: 'recovery',
       email: profile.email,
       options: {
-        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-terms`
+        redirectTo: `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/accept-terms`
       }
     });
 
@@ -138,7 +138,7 @@ router.post("/generate-token", requireAdmin, async (req, res) => {
       type: 'recovery',
       email: email,
       options: {
-        redirectTo: `${process.env.FRONTEND_URL || 'http://localhost:3000'}/accept-terms`
+        redirectTo: `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/accept-terms`
       }
     });
 

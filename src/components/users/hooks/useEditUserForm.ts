@@ -153,6 +153,12 @@ export const useEditUserForm = ({
           pharmacyLicense: data.pharmacy_license || "",
           groupStation: data.group_station || "",
           groupType: data.group_type || "",
+          terms_and_conditions: data.terms_and_conditions || undefined,
+          privacy_policy: data.privacy_policy || undefined,
+          ach_authorization: data.ach_authorization || undefined,
+          achAuthorizationAccepted: Boolean(
+            data.ach_authorization?.accepted ?? data.ach_authorization_accepted ?? false
+          ),
           parentGroup: "",
           locations: Array.isArray(data.locations) ? data.locations : [],
           preferredContactMethod: data.preferred_contact_method || "email",

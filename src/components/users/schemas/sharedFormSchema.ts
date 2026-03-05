@@ -35,12 +35,23 @@ const locationSchema = z.object({
   contactPhone: z.string().optional(),
 });
 
-// Terms and Conditions schema
+// Terms and Conditions / Privacy Policy JSONB schema
 const termsAndConditionsSchema = z.object({
   accepted: z.boolean(),
-  accepted_at: z.string(),
+  acceptedAt: z.string().optional(),
+  accepted_at: z.string().optional(),
+  ipAddress: z.string().nullable().optional(),
   ip_address: z.string().nullable().optional(),
   version: z.string().optional(),
+  method: z.string().optional(),
+  signature: z.string().nullable().optional(),
+  signatureMethod: z.string().nullable().optional(),
+});
+
+// ACH Authorization JSONB schema
+const achAuthorizationSchema = termsAndConditionsSchema.extend({
+  bankVerified: z.boolean().optional(),
+  nachaCompliance: z.boolean().optional(),
 });
 
 export const baseUserSchema = z.object({
@@ -86,6 +97,8 @@ export const baseUserSchema = z.object({
   referralName: z.string().optional(), // Admin-only field
   stateId: z.string().optional(), // State ID field
   terms_and_conditions: termsAndConditionsSchema.optional(), // Terms acceptance with timestamp
+  privacy_policy: termsAndConditionsSchema.optional(), // Privacy policy acceptance JSONB
+  ach_authorization: achAuthorizationSchema.optional(), // ACH authorization JSONB
   achAuthorizationAccepted: z.boolean().optional(), // ACH Authorization checkbox
 });
 

@@ -99,7 +99,7 @@ export class StatementPDFGenerator {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-        doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pdfWidth / 2, footerY + 5, { align: "center" });
+        doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 940-9619 | info@9rx.com", pdfWidth / 2, footerY + 5, { align: "center" });
 
         // Generated timestamp
         doc.setFontSize(7);

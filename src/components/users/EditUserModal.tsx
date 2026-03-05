@@ -37,6 +37,17 @@ export function EditUserModal({
   const queryClient = useQueryClient(); // ✅ Query Client
   const [isAdmin, setIsAdmin] = useState(false);
 
+  const clearAuthSessionCache = () => {
+    sessionStorage.removeItem("isLoggedIn");
+    sessionStorage.removeItem("userType");
+    sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userEmail");
+    sessionStorage.removeItem("userId");
+    sessionStorage.removeItem("shipping");
+    sessionStorage.removeItem("taxper");
+    sessionStorage.removeItem("order_pay");
+  };
+
   // Debug logging
   useEffect(() => {
     console.log('🔍 EditUserModal Props:', {
@@ -71,6 +82,12 @@ export function EditUserModal({
     self: self,
     onSuccess: () => {
       console.log('EditUserModal: onSuccess callback triggered');
+
+      if (self && isProfileCompletion) {
+        clearAuthSessionCache();
+        void supabase.auth.signOut();
+      }
+
       onUserUpdated();
       queryClient.invalidateQueries({ queryKey: ["users"] });
 

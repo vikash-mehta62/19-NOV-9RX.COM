@@ -2,7 +2,7 @@ import { supabase } from "@/supabaseClient";
 import { BaseUserFormData } from "../../schemas/sharedFormSchema";
 import { toast } from "@/hooks/use-toast";
 import axios from '../../../../../axiosconfig';
-import { buildTermsObject, buildPrivacyObject } from "@/utils/termsHelper";
+import { buildAchObject, buildPrivacyObject } from "@/utils/termsHelper";
 
 export const fetchUserProfile = async (userId: string) => {
   console.log("Fetching user data for ID:", userId);
@@ -97,6 +97,13 @@ export const updateUserProfilePublic = async (
       throw new Error("Unauthorized profile update");
     }
 
+    const termsJson = values.terms_and_conditions || null;
+    const privacyJson =
+      (values as any).privacy_policy ||
+      buildPrivacyObject(Boolean((termsJson as any)?.accepted), null, "profile_completion");
+    const achAccepted = (values as any).achAuthorizationAccepted === true;
+    const achJson = (values as any).ach_authorization || buildAchObject(achAccepted, null, "profile_completion");
+
     const profileData = {
       id: userId,
       first_name: values.firstName?.trim(),
@@ -130,21 +137,9 @@ export const updateUserProfilePublic = async (
       preferred_contact_method: values.preferredContactMethod || null,
       language_preference: values.languagePreference || null,
       payment_method: values.paymentMethod || null,
-      terms_and_conditions: values.terms_and_conditions || null,
-      
-      // NEW: JSONB columns (single source of truth)
-      privacy_policy: (values as any).privacy_policy || buildPrivacyObject(
-        (values as any).privacy_policy_accepted || false,
-        null,
-        'web_form'
-      ),
-      
-      // DUAL-WRITE: Keep old columns during transition (backward compatibility)
-      privacy_policy_accepted: (values as any).privacy_policy_accepted || false,
-      privacy_policy_accepted_at: (values as any).privacy_policy_accepted_at || null,
-      ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
-      ach_authorization_accepted_at: (values as any).ach_authorization_accepted_at || null,
-      ach_authorization_version: (values as any).ach_authorization_version || null,
+      terms_and_conditions: termsJson,
+      privacy_policy: privacyJson,
+      ach_authorization: achJson,
       updated_at: new Date().toISOString(),
     };
 
@@ -201,7 +196,7 @@ export const updateUserProfile = async (
     }
 
     // Map form values to profile data structure
-    const profileData = {
+    const profileData: Record<string, any> = {
       first_name: values.firstName?.trim(),
       last_name: values.lastName?.trim(),
       email: values.email?.trim(),
@@ -235,19 +230,6 @@ export const updateUserProfile = async (
       alternative_email: values.alternativeEmail?.trim() || null,
       fax_number: values.faxNumber?.trim() || null,
       department: values.department?.trim() || null,
-      terms_and_conditions: values.terms_and_conditions || null,
-      
-      // NEW: JSONB columns (single source of truth)
-      privacy_policy: (values as any).privacy_policy || null,
-      
-      // DUAL-WRITE: Keep old columns during transition (backward compatibility)
-      terms_accepted: (values as any).terms_and_conditions?.accepted || (values as any).terms_accepted || false,
-      terms_accepted_at: (values as any).terms_and_conditions?.acceptedAt || (values as any).terms_accepted_at || null,
-      privacy_policy_accepted: (values as any).privacy_policy?.accepted || (values as any).privacy_policy_accepted || false,
-      privacy_policy_accepted_at: (values as any).privacy_policy?.acceptedAt || (values as any).privacy_policy_accepted_at || null,
-      ach_authorization_accepted: (values as any).ach_authorization_accepted || false,
-      ach_authorization_accepted_at: (values as any).ach_authorization_accepted_at || null,
-      ach_authorization_version: (values as any).ach_authorization_version || null,
       notes: values.notes?.trim() || null,
       website: values.website?.trim() || null,
       preferred_contact_method: values.preferredContactMethod || null,
@@ -256,6 +238,20 @@ export const updateUserProfile = async (
       group_station: values.groupStation?.trim() || null,
       updated_at: new Date().toISOString(),
     };
+
+    if (values.terms_and_conditions !== undefined) {
+      profileData.terms_and_conditions = values.terms_and_conditions;
+    }
+
+    if ((values as any).privacy_policy !== undefined) {
+      profileData.privacy_policy = (values as any).privacy_policy;
+    }
+
+    if ((values as any).ach_authorization !== undefined || typeof (values as any).achAuthorizationAccepted === "boolean") {
+      profileData.ach_authorization =
+        (values as any).ach_authorization ||
+        buildAchObject((values as any).achAuthorizationAccepted === true, null, "web_form");
+    }
 
     console.log("Prepared profile data for update:", profileData);
 
@@ -310,7 +306,7 @@ if(profileData.status==="active" && sessionStorage.getItem('userType') === "admi
 
     // async function sendResetPasswordLink(email) {
     //   const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-    //     redirectTo: `http://localhost:3000/reset-password?email=${email}`,
+    //     redirectTo: `https://9rx.vercel.app/reset-password?email=${email}`,
     //   });
     
     //   if (error) {

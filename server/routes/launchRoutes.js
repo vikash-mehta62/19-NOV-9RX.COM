@@ -104,7 +104,7 @@ router.post("/send-reset-emails", requireAdmin, async (req, res) => {
       await Promise.all(batch.map(async (user) => {
         try {
           // Generate password reset token with redirect to launch password reset page
-          const redirectUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/launch-password-reset?launch=true`;
+          const redirectUrl = `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/launch-password-reset?launch=true`;
           
           const { data: resetData, error: resetError } = await supabaseAdmin.auth.admin.generateLink({
             type: 'recovery',
@@ -127,7 +127,7 @@ router.post("/send-reset-emails", requireAdmin, async (req, res) => {
           // Use the actual Supabase recovery link which creates a proper session
           // This link will automatically authenticate the user and redirect to our page
           const resetLink = resetData.properties.action_link;
-          const termsLink = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/terms-and-conditions`;
+          const termsLink = `${process.env.FRONTEND_URL || 'https://9rx.vercel.app'}/terms-and-conditions`;
 
           // Send email
           const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Valued Customer';

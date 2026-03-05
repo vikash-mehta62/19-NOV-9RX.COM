@@ -58,7 +58,7 @@
  */
 
 const signupSuccessTemplate = (name, email, profileCompletionLink = null) => {
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://9rx.vercel.app';
     // Use secure magic link if provided, otherwise fall back to login page.
     const updateProfileUrl = profileCompletionLink || `${frontendUrl}/login`;
     const ctaText = profileCompletionLink ? "Complete Your Profile" : "Go to Login";

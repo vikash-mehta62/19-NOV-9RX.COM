@@ -10,7 +10,7 @@ import { TaxAndDocumentsSection } from "./sections/TaxAndDocumentsSection";
 import { useState, useEffect } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
-import { buildTermsObject, buildPrivacyObject } from "@/utils/termsHelper";
+import { buildTermsObject, buildPrivacyObject, buildAchObject } from "@/utils/termsHelper";
 
 // Helper to extract readable error messages from validation errors
 const getErrorMessages = (errors: FieldErrors<BaseUserFormData>): string[] => {
@@ -161,13 +161,8 @@ export function SteppedUserForm({
         return validRoles.includes(role.toLowerCase() as any) ? (role.toLowerCase() as any) : "user";
       };
 
-      // Create terms_and_conditions JSON with timestamp
-      const termsAndConditions = {
-        accepted: true,
-        accepted_at: new Date().toISOString(),
-        ip_address: null, // Can be captured server-side if needed
-        version: "1.0"
-      };
+      const consentMethod = isProfileCompletion ? "profile_completion" : "web_form";
+      const achAccepted = values.achAuthorizationAccepted === true;
 
       const formattedValues: BaseUserFormData = {
         ...values,
@@ -191,9 +186,11 @@ export function SteppedUserForm({
         languagePreference: values.languagePreference || "English",
         creditLimit: values.creditLimit ? Number(values.creditLimit) : 0,
         
-        // NEW: JSONB columns (single source of truth) - auto-accept during signup, no signature
-        terms_and_conditions: buildTermsObject(true, null, 'web_form'),
-        // Note: privacy_policy and ach_authorization are handled by backend
+        // JSONB columns (single source of truth)
+        terms_and_conditions: buildTermsObject(true, null, consentMethod),
+        privacy_policy: buildPrivacyObject(true, null, consentMethod),
+        ach_authorization: buildAchObject(achAccepted, null, consentMethod),
+        achAuthorizationAccepted: achAccepted,
       };
       await onSubmit(formattedValues);
     } catch (error: any) {

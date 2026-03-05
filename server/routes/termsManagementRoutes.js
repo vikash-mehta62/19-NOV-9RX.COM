@@ -433,7 +433,7 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
     
     // Company info (centered)
     doc.fontSize(7).fillColor(mediumText).font('Helvetica');
-    tCenter('9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com', footerY + 6);
+    tCenter('9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 940-9619 | info@9rx.com', footerY + 6);
     
     // Timestamp
     doc.fontSize(6).fillColor(mediumText).font('Helvetica');

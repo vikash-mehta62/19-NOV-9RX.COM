@@ -162,7 +162,7 @@ timeout: 30000                                   // ✅ 30 second timeout
 allowedOrigins = [
   "https://9rx.vercel.app",     // ✅ Vercel frontend
   "https://9rx.com",            // ✅ Production domain
-  "http://localhost:3000"       // ✅ Local development
+  "https://9rx.vercel.app"       // ✅ Local development
 ]
 ```
 

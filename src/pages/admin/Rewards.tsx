@@ -266,14 +266,29 @@ export default function AdminRewards() {
 
   const handleToggleReward = async (id: string, currentStatus: boolean) => {
     try {
-      await supabase
+      const nextStatus = !currentStatus
+      const { data, error } = await supabase
         .from("reward_items")
-        .update({ is_active: !currentStatus, updated_at: new Date().toISOString() })
+        .update({ is_active: nextStatus, updated_at: new Date().toISOString() })
         .eq("id", id)
-      
-      setRewards(rewards.map(r => r.id === id ? { ...r, is_active: !currentStatus } : r))
-    } catch (error) {
-      toast({ title: "Error updating reward", variant: "destructive" })
+        .select("id, is_active")
+        .single()
+
+      if (error) throw error
+
+      setRewards(prev => prev.map(r => r.id === id ? { ...r, is_active: data.is_active } : r))
+      setStats(prev => ({
+        ...prev,
+        activeRewards: Math.max(0, prev.activeRewards + (data.is_active ? 1 : -1))
+      }))
+      toast({ title: `Reward ${data.is_active ? "activated" : "deactivated"} successfully` })
+    } catch (error: any) {
+      console.error("Error updating reward:", error)
+      toast({
+        title: "Error updating reward",
+        description: error?.message || "Update was blocked. Please check permissions.",
+        variant: "destructive"
+      })
     }
   }
 

@@ -135,7 +135,7 @@ NOT:
 3. Add to "Redirect URLs":
    - `https://9rx.com/*`
    - `https://9rx.vercel.app/*`
-   - `http://localhost:3000/*` (for testing)
+   - `https://9rx.vercel.app/*` (for testing)
 
 ---
 
@@ -269,7 +269,7 @@ If issue persists after trying all above:
    - Supabase project ID
 
 3. **Contact:**
-   - Email: support@9rx.com
+   - Email: info@9rx.com
    - Include all above information
 
 ---

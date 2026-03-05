@@ -26,7 +26,7 @@ npm run dev
 
 Open your browser to:
 ```
-http://localhost:3000/wizard-demo
+https://9rx.vercel.app/wizard-demo
 ```
 
 ## What You Should See

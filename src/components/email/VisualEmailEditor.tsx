@@ -88,7 +88,7 @@ const blockDefaults: Record<string, any> = {
   footer: { 
     companyName: "9RX LLC", 
     address: "936 Broad River Ln, Charlotte, NC 28211", 
-    phone: "+1 (800) 969-6295", 
+    phone: "+1 (800) 940-9619", 
     email: "info@9rx.com", 
     website: "www.9rx.com",
     bgColor: "#1f2937", 
@@ -188,7 +188,7 @@ function generateHtml(rows: EmailRow[], globalStyle: any): string {
               <div style="margin-bottom:20px;">
                 <h3 style="color:${content.linkColor || "#10b981"};font-size:18px;font-weight:bold;margin:0 0 10px;">${content.companyName || "9RX LLC"}</h3>
                 <p style="margin:0 0 8px;">${content.address || "936 Broad River Ln, Charlotte, NC 28211"}</p>
-                <p style="margin:0 0 8px;">Phone: <a href="tel:${content.phone || "+18009696295"}" style="color:${content.linkColor || "#10b981"};text-decoration:none;">${content.phone || "+1 (800) 969-6295"}</a></p>
+                <p style="margin:0 0 8px;">Phone: <a href="tel:${content.phone || "+18009696295"}" style="color:${content.linkColor || "#10b981"};text-decoration:none;">${content.phone || "+1 (800) 940-9619"}</a></p>
                 <p style="margin:0 0 8px;">Email: <a href="mailto:${content.email || "info@9rx.com"}" style="color:${content.linkColor || "#10b981"};text-decoration:none;">${content.email || "info@9rx.com"}</a></p>
                 <p style="margin:0;">Website: <a href="https://${content.website || "www.9rx.com"}" style="color:${content.linkColor || "#10b981"};text-decoration:none;">${content.website || "www.9rx.com"}</a></p>
               </div>
@@ -2133,7 +2133,7 @@ function BlockPreview({ block, onReplace }: { block: EmailBlock, onReplace?: (ty
       <div style={{ marginBottom: "20px" }}>
         <h3 style={{ color: content.linkColor || "#10b981", fontSize: "18px", fontWeight: "bold", margin: "0 0 10px" }}>{content.companyName || "9RX LLC"}</h3>
         <p style={{ margin: "0 0 8px" }}>{content.address || "936 Broad River Ln, Charlotte, NC 28211"}</p>
-        <p style={{ margin: "0 0 8px" }}>Phone: {content.phone || "+1 (800) 969-6295"}</p>
+        <p style={{ margin: "0 0 8px" }}>Phone: {content.phone || "+1 (800) 940-9619"}</p>
         <p style={{ margin: "0 0 8px" }}>Email: {content.email || "info@9rx.com"}</p>
         <p style={{ margin: "0" }}>Website: {content.website || "www.9rx.com"}</p>
       </div>
@@ -2710,7 +2710,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
         <div className="grid grid-cols-2 gap-2">
           <div>
             <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Phone</Label>
-            <Input value={content.phone || "+1 (800) 969-6295"} onChange={(e) => { e.stopPropagation(); onUpdate({ phone: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+            <Input value={content.phone || "+1 (800) 940-9619"} onChange={(e) => { e.stopPropagation(); onUpdate({ phone: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
           </div>
           <div>
             <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Email</Label>

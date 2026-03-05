@@ -131,6 +131,11 @@ setOrders([])
       const formattedOrders: OrderFormValues[] = (data as any[]).map(
         (order) => {
           const profileData = order.profiles || {};
+          const rawPaymentMethod = String(order.payment_method || "").toLowerCase();
+          const allowedPaymentMethods = ["card", "bank_transfer", "manual", "ach", "credit"];
+          const normalizedPaymentMethod = allowedPaymentMethods.includes(rawPaymentMethod)
+            ? (rawPaymentMethod as OrderFormValues["payment"]["method"])
+            : "manual";
 
           return {
             id: order.id || "",
@@ -139,6 +144,8 @@ setOrders([])
             total: (order.total_amount || 0).toString(),
             status: order.status || "pending",
             payment_status: order.payment_status || "unpaid",
+            payment_method: order.payment_method || "",
+            payment_transication: order.payment_transication || "",
             customization: order.customization || false,
             poAccept: order.poAccept,
             shipping_cost: order.shipping_cost,
@@ -178,8 +185,8 @@ setOrders([])
               estimatedDelivery: order.estimated_delivery || "",
             },
             payment: {
-              method: "manual",
-              notes: "",
+              method: normalizedPaymentMethod,
+              notes: order.payment_notes || "",
             },
             specialInstructions: order.notes || "",
             purchase_number_external: order.purchase_number_external || "",

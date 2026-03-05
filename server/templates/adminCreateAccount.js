@@ -318,7 +318,7 @@ const adminAccountActiveTemplate = (firstName, lastName, email, password = null,
                     Need help? Our support team is here to assist you.
                 </p>
                 <p class="support-info">
-                    📞 +1 (800) 969-6295 &nbsp;|&nbsp; 📧 support@9rx.com &nbsp;|&nbsp; 🌐 www.9rx.com
+                    📞 +1 (800) 940-9619 &nbsp;|&nbsp; 📧 info@9rx.com &nbsp;|&nbsp; 🌐 www.9rx.com
                 </p>
             </div>
         </div>

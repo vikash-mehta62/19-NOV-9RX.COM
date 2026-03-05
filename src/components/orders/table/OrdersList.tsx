@@ -114,6 +114,28 @@ export function OrdersList({
   const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
 
+  const getPaymentMethodLabel = (method?: string | null) => {
+    const normalized = String(method || "").toLowerCase();
+    const labels: Record<string, string> = {
+      card: "Credit Card",
+      ach: "ACH Transfer",
+      manual: "Manual Payment",
+      bank_transfer: "Bank Transfer",
+      credit: "Credit Line",
+      credit_memo: "Credit Memo",
+    };
+
+    return labels[normalized] || (method ? String(method) : "N/A");
+  };
+
+  const getOrderPaymentMethod = (order: OrderFormValues) => {
+    const typedOrder = order as OrderFormValues & {
+      payment_method?: string | null;
+      payment?: { method?: string | null };
+    };
+    return typedOrder.payment_method || typedOrder.payment?.method || "";
+  };
+
   const createInvoiceForOrder = async (
     orderId: string,
     orderData: OrderFormValues
@@ -837,10 +859,12 @@ export function OrdersList({
                         </div>
                       )}
                       
-                      {/* Paid via Credit Memo Indicator */}
+                      {/* Paid method indicator for $0 paid_amount cases */}
                       {order?.payment_status?.toLowerCase() === "paid" && (order?.paid_amount || 0) === 0 && (
                         <div className="text-xs text-blue-600">
-                          <span>💳 Credit Memo</span>
+                          <span>
+                            {getPaymentMethodLabel(getOrderPaymentMethod(order))}
+                          </span>
                         </div>
                       )}
                       

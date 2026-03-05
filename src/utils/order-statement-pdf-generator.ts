@@ -247,7 +247,7 @@ export class OrderPDFGenerator {
     doc.text("9RX Pharmacy Solutions", contactBoxX + 4, sectionY + 13);
     doc.setFontSize(8);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("Phone: +1 (800) 969-6295", contactBoxX + 4, sectionY + 18);
+    doc.text("Phone: +1 (800) 940-9619", contactBoxX + 4, sectionY + 18);
   }
 
   /**
@@ -558,7 +558,7 @@ export class OrderPDFGenerator {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 969-6295 | info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" });
+    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 940-9619 | info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" });
 
     // Generated timestamp (removed - will be replaced by page numbers)
   }

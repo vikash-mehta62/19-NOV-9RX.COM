@@ -90,7 +90,7 @@ const supabaseAdmin = createClient(
 router.post("/generate-completion-link", async (req, res) => {
   const { userId, email } = req.body;
   
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = process.env.FRONTEND_URL || 'https://9rx.vercel.app';
   const redirectUrl = `${frontendUrl}/update-profile`;
   
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({

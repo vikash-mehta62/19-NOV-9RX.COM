@@ -9,7 +9,7 @@
 
 The launch password reset link is redirecting to:
 ```
-redirect_to=http://localhost:3000
+redirect_to=https://9rx.vercel.app
 ```
 
 Instead of:
@@ -121,7 +121,7 @@ console.log('VITE_APP_BASE_URL:', process.env.VITE_APP_BASE_URL);
 - Never use `localhost` in production
 
 ### For Development:
-- Use `http://localhost:3000` for local testing
+- Use `https://9rx.vercel.app` for local testing
 - Set different values for different environments
 
 ### For Vercel:
@@ -135,7 +135,7 @@ console.log('VITE_APP_BASE_URL:', process.env.VITE_APP_BASE_URL);
 
 ### Before Fix:
 ```
-Full Reset Link: ...&redirect_to=http://localhost:3000
+Full Reset Link: ...&redirect_to=https://9rx.vercel.app
 ❌ Link doesn't work for users
 ```
 
