@@ -591,8 +591,19 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       try {
         // Calculate new paid_amount for manual payment
         const newPaidAmount = previousPaidAmount + formData.amount
-        const orderTotal = Number(orders.total_amount || 0)
+        const orderTotal = Number(orders.total_amount || orders.total || 0)
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
+        
+        // Get current order status before updating
+        const { data: currentOrderData } = await supabase
+          .from("orders")
+          .select("payment_status, payment_method, profile_id, location_id")
+          .eq("id", orderId)
+          .single();
+        
+        const wasUnpaidOrPending = currentOrderData?.payment_status === "unpaid" || 
+                                   currentOrderData?.payment_status === "pending" ||
+                                   currentOrderData?.payment_status === "partial_paid";
         
         await supabase.from("orders").update({
           payment_status: newPaymentStatus,
@@ -600,6 +611,53 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           notes: formData.notes,
           updated_at: new Date().toISOString(),
         }).eq("id", orderId)
+
+        // Award reward points if order is now fully paid and was unpaid/pending before
+        // Only award for non-credit orders
+        console.log("🔍 Checking reward points eligibility (Manual Payment):");
+        console.log("  - New payment status:", newPaymentStatus);
+        console.log("  - Was unpaid/pending:", wasUnpaidOrPending);
+        console.log("  - Previous status:", currentOrderData?.payment_status);
+        console.log("  - Payment method:", currentOrderData?.payment_method);
+        console.log("  - Order total:", orderTotal);
+        
+        if (newPaymentStatus === "paid" && wasUnpaidOrPending && currentOrderData?.payment_method !== "credit") {
+          try {
+            console.log("✅ ELIGIBLE for reward points!");
+            console.log("🎁 Awarding reward points for newly paid order (manual payment)...");
+            const customerId = currentOrderData?.profile_id || currentOrderData?.location_id || orders.profile_id || orders.location_id || orders.customer;
+            console.log("  - Customer ID:", customerId);
+            
+            if (customerId && orderTotal > 0) {
+              const { awardOrderPoints } = await import("@/services/rewardsService");
+              console.log("  - Calling awardOrderPoints...");
+              const rewardResult = await awardOrderPoints(
+                customerId,
+                orderId,
+                orderTotal,
+                orders.order_number
+              );
+              
+              console.log("  - Reward result:", rewardResult);
+              
+              if (rewardResult.success && rewardResult.pointsEarned > 0) {
+                console.log(`✅ SUCCESS! Reward points awarded: ${rewardResult.pointsEarned} points`);
+              } else {
+                console.log("⚠️ Reward points NOT awarded:", rewardResult.error || "Unknown reason");
+              }
+            } else {
+              console.log("❌ Missing customer ID or order total is 0");
+            }
+          } catch (rewardError) {
+            console.error("❌ Error awarding reward points:", rewardError);
+            // Don't throw - payment was successful
+          }
+        } else {
+          console.log("❌ NOT ELIGIBLE for reward points:");
+          console.log("  - Is paid?", newPaymentStatus === "paid");
+          console.log("  - Was unpaid/pending?", wasUnpaidOrPending);
+          console.log("  - Not credit?", currentOrderData?.payment_method !== "credit");
+        }
 
         const { data: existingInvoice } = await supabase.from("invoices").select("*").eq("order_id", orderId).maybeSingle()
 
@@ -826,14 +884,72 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         
         // Calculate new paid_amount - add current payment to previous paid amount
         const newPaidAmount = previousPaidAmount + formData.amount
-        const orderTotal = Number(orders.total_amount || 0)
+        const orderTotal = Number(orders.total_amount || orders.total || 0)
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
+        
+        // Get current order status before updating
+        const { data: currentOrderData } = await supabase
+          .from("orders")
+          .select("payment_status, payment_method, profile_id, location_id")
+          .eq("id", orderId)
+          .single();
+        
+        const wasUnpaidOrPending = currentOrderData?.payment_status === "unpaid" || 
+                                   currentOrderData?.payment_status === "pending" ||
+                                   currentOrderData?.payment_status === "partial_paid";
         
         await supabase.from("orders").update({ 
           payment_status: newPaymentStatus, 
           paid_amount: newPaidAmount,
           updated_at: new Date().toISOString() 
         }).eq("id", orderId)
+
+        // Award reward points if order is now fully paid and was unpaid/pending before
+        // Only award for non-credit orders
+        console.log("🔍 Checking reward points eligibility:");
+        console.log("  - New payment status:", newPaymentStatus);
+        console.log("  - Was unpaid/pending:", wasUnpaidOrPending);
+        console.log("  - Previous status:", currentOrderData?.payment_status);
+        console.log("  - Payment method:", currentOrderData?.payment_method);
+        console.log("  - Order total:", orderTotal);
+        
+        if (newPaymentStatus === "paid" && wasUnpaidOrPending && currentOrderData?.payment_method !== "credit") {
+          try {
+            console.log("✅ ELIGIBLE for reward points!");
+            console.log("🎁 Awarding reward points for newly paid order...");
+            const customerId = currentOrderData?.profile_id || currentOrderData?.location_id || orders.profile_id || orders.location_id || orders.customer;
+            console.log("  - Customer ID:", customerId);
+            
+            if (customerId && orderTotal > 0) {
+              const { awardOrderPoints } = await import("@/services/rewardsService");
+              console.log("  - Calling awardOrderPoints...");
+              const rewardResult = await awardOrderPoints(
+                customerId,
+                orderId,
+                orderTotal,
+                orders.order_number
+              );
+              
+              console.log("  - Reward result:", rewardResult);
+              
+              if (rewardResult.success && rewardResult.pointsEarned > 0) {
+                console.log(`✅ SUCCESS! Reward points awarded: ${rewardResult.pointsEarned} points`);
+              } else {
+                console.log("⚠️ Reward points NOT awarded:", rewardResult.error || "Unknown reason");
+              }
+            } else {
+              console.log("❌ Missing customer ID or order total is 0");
+            }
+          } catch (rewardError) {
+            console.error("❌ Error awarding reward points:", rewardError);
+            // Don't throw - payment was successful
+          }
+        } else {
+          console.log("❌ NOT ELIGIBLE for reward points:");
+          console.log("  - Is paid?", newPaymentStatus === "paid");
+          console.log("  - Was unpaid/pending?", wasUnpaidOrPending);
+          console.log("  - Not credit?", currentOrderData?.payment_method !== "credit");
+        }
 
         // Use maybeSingle() instead of single() to avoid error when invoice doesn't exist
         const { data: invoiceData } = await supabase.from("invoices").select("*").eq("order_id", orderId).maybeSingle()

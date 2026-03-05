@@ -21,31 +21,14 @@ const createInvoiceForPaidOrder = async (order: any, totalAmount: number, taxAmo
   try {
     console.log(`🧾 Creating invoice for paid order: ${order.id} (attempt ${retryCount + 1})`);
 
-    // Get invoice number
-    const year = new Date().getFullYear();
-    const { data: inData, error: fetchError } = await supabase
-      .from("centerize_data")
-      .select("id, invoice_no, invoice_start")
-      .order("id", { ascending: false })
-      .limit(1);
+    // Use atomic RPC function to generate invoice number (prevents race conditions)
+    const { data: invoiceNumber, error: invoiceGenError } = await supabase.rpc('generate_invoice_number');
 
-    if (fetchError) throw new Error(fetchError.message);
-
-    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-    const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-    // Update invoice_no to next
-    if (inData?.[0]?.id) {
-      const { error: updateError } = await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0].id);
-
-      if (updateError) throw new Error(updateError.message);
+    if (invoiceGenError || !invoiceNumber) {
+      throw new Error(invoiceGenError?.message || 'Failed to generate invoice number');
     }
 
-    // Create invoice number
-    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+    console.log(`📋 Generated invoice number: ${invoiceNumber}`);
 
     // Calculate due date
     const estimatedDeliveryDate = new Date(order.estimated_delivery || new Date());
@@ -363,6 +346,46 @@ export default function PharmacyCreateOrder() {
             updated_at: new Date().toISOString() 
           })
           .eq("id", insertedOrder.id);
+
+        // Award reward points for paid order (original subtotal before discount)
+        // Only award if payment method is NOT credit
+        if (paymentMethod !== "credit") {
+          console.log("🎁 Awarding reward points for paid order...");
+          try {
+            const rewardResult = await awardOrderPoints(
+              session.user.id,
+              insertedOrder.id,
+              originalSubtotal, // Use original subtotal for points calculation
+              newOrderId
+            );
+            
+            if (rewardResult.success && rewardResult.pointsEarned > 0) {
+              console.log("✅ Reward points awarded:", rewardResult.pointsEarned);
+              
+              // Fetch updated profile and update Redux store
+              const { data: updatedProfile } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", session.user.id)
+                .single();
+              
+              if (updatedProfile) {
+                dispatch(setUserProfile(updatedProfile));
+                console.log("✅ Redux store updated after awarding points");
+              }
+
+              // Show success popup with points earned
+              toast({
+                title: "🎉 Order Placed & Points Earned!",
+                description: `You earned ${rewardResult.pointsEarned} reward points! ${rewardResult.tierUpgrade ? `🎊 Tier upgraded to ${rewardResult.newTier.name}!` : ''}`,
+                duration: 5000,
+              });
+            }
+          } catch (rewardError) {
+            console.error("❌ Error awarding reward points:", rewardError);
+            // Don't throw - order was created successfully
+          }
+        }
       }
 
       // Handle applied discounts (deduct points, increment offer usage)
@@ -562,10 +585,14 @@ export default function PharmacyCreateOrder() {
 
       console.log("Order created successfully:", insertedOrder);
 
-      // Award reward points for the order (only for non-credit orders)
-      // Use final total for points calculation
-      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0) {
+      // Award reward points for the order
+      // Only award points if:
+      // 1. Payment method is NOT credit
+      // 2. Order total > 0
+      // 3. Payment status is 'paid' (not pending/unpaid)
+      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0 && initialPaymentStatus === "paid") {
         try {
+          console.log("🎁 Awarding reward points for paid order...");
           const rewardResult = await awardOrderPoints(
             session.user.id,
             insertedOrder.id,
@@ -587,6 +614,13 @@ export default function PharmacyCreateOrder() {
               dispatch(setUserProfile(updatedProfile));
               console.log("✅ Redux store updated after awarding points");
             }
+
+            // Show success popup with points earned
+            toast({
+              title: "🎉 Points Earned!",
+              description: `You earned ${rewardResult.pointsEarned} reward points! ${rewardResult.tierUpgrade ? `🎊 Tier upgraded to ${rewardResult.newTier.name}!` : ''}`,
+              duration: 5000,
+            });
           }
         } catch (rewardError) {
           console.error("❌ Error awarding reward points:", rewardError);

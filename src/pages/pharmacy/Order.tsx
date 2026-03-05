@@ -488,9 +488,14 @@ export default function PharmacyOrder() {
         }
       }
 
-      // Award reward points for the order (only for non-credit orders and if total > 0)
-      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0) {
+      // Award reward points for the order
+      // Only award points if:
+      // 1. Payment method is NOT credit
+      // 2. Order total > 0
+      // 3. Payment status is 'paid' (not pending/unpaid)
+      if (paymentMethod !== "credit" && insertedOrder.id && finalTotal > 0 && paymentStatus === "paid") {
         try {
+          console.log("🎁 Awarding reward points for paid order...");
           const rewardResult = await awardOrderPoints(
             session.user.id,
             insertedOrder.id,

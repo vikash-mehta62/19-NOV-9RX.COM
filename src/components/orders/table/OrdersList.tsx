@@ -319,41 +319,15 @@ export function OrdersList({
 
       const newOrder = updatedOrder;
 
-      const year = new Date().getFullYear();
+      // Use atomic RPC function to generate invoice number (prevents race conditions)
+      const { data: invoiceNumber, error: invoiceGenError } = await supabase.rpc('generate_invoice_number');
 
-      const { data: inData, error: erroIn } = await supabase
-        .from("centerize_data")
-        .select("id, invoice_no, invoice_start")
-        .order("id", { ascending: false })
-        .limit(1);
-
-      if (erroIn) {
-        console.error("🚨 Supabase Fetch Error:", erroIn);
-        return null;
+      if (invoiceGenError || !invoiceNumber) {
+        console.error("🚨 Failed to generate invoice number:", invoiceGenError);
+        throw new Error(invoiceGenError?.message || 'Failed to generate invoice number');
       }
 
-      let newInvNo = 1;
-      let invoiceStart = "INV";
-
-      if (inData && inData.length > 0) {
-        newInvNo = (inData[0].invoice_no || 0) + 1;
-        invoiceStart = inData[0].invoice_start || "INV";
-      }
-
-      const invoiceNumber = `${invoiceStart}-${year}${newInvNo
-        .toString()
-        .padStart(6, "0")}`;
-
-      const { error: updateError } = await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0]?.id);
-
-      if (updateError) {
-        console.error("🚨 Supabase Update Error:", updateError);
-      } else {
-        console.log("✅ Order No Updated to:", newInvNo);
-      }
+      console.log("✅ Generated invoice number:", invoiceNumber);
 
       const estimatedDeliveryDate = new Date(newOrder.estimated_delivery);
 
@@ -856,11 +830,24 @@ export function OrdersList({
                         {order?.payment_status?.toUpperCase() || "UNPAID"}
                       </Badge>
                       
-                      {/* Balance Due Indicator for Paid Orders with Modified Amounts */}
-                      {order?.payment_status?.toLowerCase() === "paid" && (
+                      {/* Balance Due Indicator for Partial Paid Orders */}
+                      {order?.payment_status?.toLowerCase() === "partial_paid" && (
+                        <div className="text-xs text-amber-600 font-medium">
+                          Balance Due: ${((order?.total_amount || 0) - (order?.paid_amount || 0)).toFixed(2)}
+                        </div>
+                      )}
+                      
+                      {/* Paid via Credit Memo Indicator */}
+                      {order?.payment_status?.toLowerCase() === "paid" && (order?.paid_amount || 0) === 0 && (
+                        <div className="text-xs text-blue-600">
+                          <span>💳 Credit Memo</span>
+                        </div>
+                      )}
+                      
+                      {/* Regular Paid Indicator */}
+                      {order?.payment_status?.toLowerCase() === "paid" && (order?.paid_amount || 0) > 0 && (
                         <div className="text-xs text-gray-600">
                           <span className="text-green-600">✓ Paid</span>
-                          {/* Note: Real-time balance calculation would require additional API call */}
                         </div>
                       )}
                       

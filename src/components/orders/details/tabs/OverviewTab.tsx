@@ -143,6 +143,9 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
   const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
   const isUnpaid = !isPaid && !isPartiallyPaid;
   
+  // Special case: Order paid via credit memo (paid_amount = 0 but payment_status = paid)
+  const isPaidViaCreditMemo = isPaid && paidAmount === 0 && total > 0;
+  
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;
   const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
@@ -428,6 +431,17 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
                     <span className="text-green-600 font-medium">Fully Paid</span>
                   </div>
                   <span className="text-sm text-green-600">No balance due</span>
+                </div>
+              )}
+              
+              {/* Credit Memo Paid Message - Show when paid via credit memo (paid_amount = 0) */}
+              {isPaidViaCreditMemo && (
+                <div className="flex justify-between items-center mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-blue-500" />
+                    <span className="text-blue-600 font-medium">Paid via Credit Memo</span>
+                  </div>
+                  <span className="text-sm text-blue-600">No balance due</span>
                 </div>
               )}
               

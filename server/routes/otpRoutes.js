@@ -230,6 +230,7 @@ router.post("/send", async (req, res) => {
 
     // Step 3: Generate OTP
     const otp = generateOTP();
+    console.log(otp,"OTP")
     const expiresAt = Date.now() + OTP_EXPIRY;
 
     // Store OTP with an already-validated short-lived session.

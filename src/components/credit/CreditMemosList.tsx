@@ -49,6 +49,42 @@ const CreditMemosList = () => {
 
   useEffect(() => {
     fetchCreditMemos();
+
+    // Set up real-time subscription for credit memo updates
+    const channel = supabase
+      .channel('credit_memos_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_memos',
+        },
+        (payload) => {
+          console.log('Credit memo changed:', payload);
+          // Refetch data when any credit memo changes
+          fetchCreditMemos();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'credit_memo_applications',
+        },
+        (payload) => {
+          console.log('Credit memo application changed:', payload);
+          // Refetch data when applications change
+          fetchCreditMemos();
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const fetchCreditMemos = async () => {

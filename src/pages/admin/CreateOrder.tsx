@@ -18,31 +18,14 @@ const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount:
   try {
     console.log(`🧾 Creating invoice for paid order: ${order.id}`);
 
-    // Get invoice number
-    const year = new Date().getFullYear();
-    const { data: inData, error: fetchError } = await supabase
-      .from("centerize_data")
-      .select("id, invoice_no, invoice_start")
-      .order("id", { ascending: false })
-      .limit(1);
+    // Use atomic RPC function to generate invoice number (prevents race conditions)
+    const { data: invoiceNumber, error: invoiceGenError } = await supabase.rpc('generate_invoice_number');
 
-    if (fetchError) throw new Error(fetchError.message);
-
-    const newInvNo = (inData?.[0]?.invoice_no || 0) + 1;
-    const invoiceStart = inData?.[0]?.invoice_start || "INV";
-
-    // Update invoice_no to next
-    if (inData?.[0]?.id) {
-      const { error: updateError } = await supabase
-        .from("centerize_data")
-        .update({ invoice_no: newInvNo })
-        .eq("id", inData[0].id);
-
-      if (updateError) throw new Error(updateError.message);
+    if (invoiceGenError || !invoiceNumber) {
+      throw new Error(invoiceGenError?.message || 'Failed to generate invoice number');
     }
 
-    // Create invoice number
-    const invoiceNumber = `${invoiceStart}-${year}${newInvNo.toString().padStart(6, "0")}`;
+    console.log(`📋 Generated invoice number: ${invoiceNumber}`);
 
     // Calculate due date
     const estimatedDeliveryDate = new Date();
@@ -705,9 +688,14 @@ const profileID =
 
       console.log("Order created successfully:", insertedOrder);
 
-      // Award reward points for the order (only for non-credit orders)
-      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0 && orderData.customerId) {
+      // Award reward points for the order
+      // Only award points if:
+      // 1. Payment method is NOT credit
+      // 2. Order total > 0
+      // 3. Payment status is 'paid' (not pending/unpaid)
+      if (paymentMethod !== "credit" && insertedOrder.id && orderData.total > 0 && orderData.customerId && initialPaymentStatus === "paid") {
         try {
+          console.log("🎁 Awarding reward points for paid order...");
           const rewardResult = await awardOrderPoints(
             orderData.customerId,
             insertedOrder.id,
@@ -721,6 +709,13 @@ const profileID =
         } catch (rewardError) {
           console.error("❌ Error awarding reward points:", rewardError);
           // Don't throw - order was created successfully
+        }
+      } else if (orderData.customerId && orderData.total > 0) {
+        // Log why reward points were not awarded
+        if (paymentMethod === "credit") {
+          console.log("ℹ️ Reward points NOT awarded: Credit payment method");
+        } else if (initialPaymentStatus !== "paid") {
+          console.log(`ℹ️ Reward points NOT awarded: Payment status is "${initialPaymentStatus}" (must be paid)`);
         }
       }
 

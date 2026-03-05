@@ -302,8 +302,50 @@ export const ItemsTab = ({
 
       // Determine if payment status should change
       let updatePaymentStatus = newPaymentStatus;
-      if (!updatePaymentStatus && paidAmount > 0 && newTotal > paidAmount) {
-        updatePaymentStatus = 'partial_paid';
+      
+      // If no explicit payment status provided, calculate based on paid amount
+      if (!updatePaymentStatus) {
+        // Special case: If new total is $0.00, always mark as paid (fully covered by credit memo)
+        if (Math.abs(newTotal) < 0.01) {
+          updatePaymentStatus = 'paid';
+          console.log(`💰 Payment status: paid (total is $0.00 - fully covered by credit memo)`);
+        }
+        // For paid orders, check if new total exceeds paid amount
+        else if (currentOrderData?.payment_status === 'paid') {
+          // Special case: If paid_amount is 0, it means order was paid via credit memo
+          // In this case, if total changes, it should become unpaid (balance due)
+          if (paidAmount === 0) {
+            if (Math.abs(newTotal - oldTotal) < 0.01) {
+              // Total hasn't changed - keep as paid (credit memo still covers it)
+              updatePaymentStatus = 'paid';
+            } else if (newTotal > 0) {
+              // Total increased and is now > 0 - there's a balance due
+              updatePaymentStatus = 'unpaid';
+              console.log(`💰 Payment status changed to unpaid: order was paid via credit memo, new balance due=${newTotal}`);
+            } else {
+              // Total is 0 or negative - still fully covered by credit memo
+              updatePaymentStatus = 'paid';
+            }
+          } else {
+            // Normal case: paid_amount > 0 (paid via card/cash/etc)
+            const actualPaidAmount = paidAmount;
+            
+            if (newTotal > actualPaidAmount) {
+              // New total is higher than what was paid - mark as partial paid
+              updatePaymentStatus = 'partial_paid';
+              console.log(`💰 Payment status changed to partial_paid: paid=${actualPaidAmount}, new total=${newTotal}`);
+            } else if (Math.abs(newTotal - actualPaidAmount) < 0.01) {
+              // Amounts match (within rounding tolerance) - keep as paid
+              updatePaymentStatus = 'paid';
+            } else {
+              // New total is less than paid amount - keep as paid (overpaid scenario)
+              updatePaymentStatus = 'paid';
+            }
+          }
+        } else if (paidAmount > 0 && newTotal > paidAmount) {
+          // For partial paid orders, check if balance increased
+          updatePaymentStatus = 'partial_paid';
+        }
       }
 
       // Build update object
@@ -348,10 +390,21 @@ export const ItemsTab = ({
           .eq("id", invoiceData.id);
       }
 
-      // Adjust reward points if order total changed (only for non-credit orders)
-      if (oldTotal !== newTotal && currentOrderData?.payment_method !== 'credit' && customerIdForPoints) {
+      // Adjust reward points if order total changed
+      // Only adjust for:
+      // 1. Non-credit payment method orders
+      // 2. Orders that are paid or partial_paid (NOT unpaid/pending)
+      const shouldAdjustRewardPoints = 
+        oldTotal !== newTotal && 
+        currentOrderData?.payment_method !== 'credit' && 
+        customerIdForPoints &&
+        (currentOrderData?.payment_status === 'paid' || currentOrderData?.payment_status === 'partial_paid');
+      
+      if (shouldAdjustRewardPoints) {
         try {
           console.log('🎁 Adjusting reward points for order edit...');
+          console.log(`📊 Payment Status: ${currentOrderData?.payment_status}, Payment Method: ${currentOrderData?.payment_method}`);
+          
           const { adjustRewardPointsForOrderEdit } = await import("@/services/rewardPointsAdjustmentService");
           
           const adjustmentResult = await adjustRewardPointsForOrderEdit(
@@ -380,6 +433,13 @@ export const ItemsTab = ({
         } catch (rewardError) {
           console.error('❌ Error adjusting reward points:', rewardError);
           // Don't throw - order update was successful
+        }
+      } else if (oldTotal !== newTotal && customerIdForPoints) {
+        // Log why reward points were not adjusted
+        if (currentOrderData?.payment_method === 'credit') {
+          console.log('ℹ️ Reward points NOT adjusted: Credit payment method');
+        } else if (currentOrderData?.payment_status !== 'paid' && currentOrderData?.payment_status !== 'partial_paid') {
+          console.log(`ℹ️ Reward points NOT adjusted: Payment status is "${currentOrderData?.payment_status}" (must be paid or partial_paid)`);
         }
       }
 
