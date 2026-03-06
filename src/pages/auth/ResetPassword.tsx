@@ -20,6 +20,17 @@ export const ResetPassword = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+  const clearLocalAuthCache = () => {
+    sessionStorage.removeItem("isLoggedIn");
+    sessionStorage.removeItem("userType");
+    sessionStorage.removeItem("userRole");
+    sessionStorage.removeItem("userEmail");
+    sessionStorage.removeItem("userId");
+    sessionStorage.removeItem("shipping");
+    sessionStorage.removeItem("taxper");
+    sessionStorage.removeItem("order_pay");
+  };
+
   useEffect(() => {
     // Check if user has a valid session from the reset link
     const checkSession = async () => {
@@ -90,10 +101,15 @@ export const ResetPassword = () => {
           .eq("id", user.id);
       }
 
+      // Important: recovery flow must end with a clean sign-out.
+      // Otherwise user remains auto-authenticated after password reset.
+      await supabase.auth.signOut();
+      clearLocalAuthCache();
+
       setSuccess(true);
       toast({
         title: "Password Reset Successful",
-        description: "Your password has been updated successfully",
+        description: "Password updated. Please log in again.",
       });
 
       // Redirect to login after 3 seconds
