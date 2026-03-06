@@ -132,7 +132,7 @@ export const generateWorkOrderPDF = async (
     // Phone number (left aligned, vertically center of logo)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
-    doc.text("+1 800 969 6295", margin, margin + 10);
+    doc.text("+1 (800) 940-9619", margin, margin + 10);
 
     // PACKING SLIP TITLE (right side)
     doc.setFont("helvetica", "bold");

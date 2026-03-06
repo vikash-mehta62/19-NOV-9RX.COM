@@ -42,6 +42,26 @@ export interface BatchAllocation {
 
 export class BatchInventoryService {
   /**
+   * Get batches for manual selection (includes consumed/depleted history)
+   */
+  static async getBatchesForSelection(productSizeId: string): Promise<ProductBatch[]> {
+    const { data, error } = await supabase
+      .from('product_batches')
+      .select('*')
+      .eq('product_size_id', productSizeId)
+      .in('status', ['active', 'depleted', 'expired'])
+      .order('expiry_date', { ascending: true, nullsFirst: false })
+      .order('received_date', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching batches for selection:', error);
+      throw error;
+    }
+
+    return data || [];
+  }
+
+  /**
    * Get all batches for a specific product size
    */
   static async getBatchesBySize(productSizeId: string): Promise<ProductBatch[]> {
@@ -49,7 +69,7 @@ export class BatchInventoryService {
       .from('product_batches')
       .select('*')
       .eq('product_size_id', productSizeId)
-      .eq('status', 'active')
+      .in('status', ['active', 'depleted', 'expired'])
       .order('expiry_date', { ascending: true, nullsFirst: false })
       .order('received_date', { ascending: true });
 

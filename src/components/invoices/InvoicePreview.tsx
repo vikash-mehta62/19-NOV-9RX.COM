@@ -76,7 +76,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const invoiceRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [companyName, setCompanyName] = useState("")
-  const [paidAmount, setPaidAmount] = useState(0)
+  const [paidAmount, setPaidAmount] = useState(
+    Number(invoice?.paid_amount || (invoice?.payment_status === "paid" ? (invoice?.total || invoice?.total_amount || 0) : 0))
+  )
 
   console.log("🧾 Rendering InvoicePreview with invoice:", invoice)
   console.log("💳 Payment Details:", {
@@ -113,9 +115,18 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     } catch (error) { console.error("Error fetching user:", error) }
   }
 
-  const fetchPaidAmount = async () => {
+  const fetchPaidAmount = async (): Promise<number> => {
+    const fallbackTotalAmount = Number(invoice?.total || invoice?.total_amount || 0)
+    let amount = Number(invoice?.paid_amount || 0)
+    if (amount === 0 && invoice?.payment_status === "paid") {
+      amount = fallbackTotalAmount
+    }
+
     try {
-      if (!invoice?.id) return
+      if (!invoice?.id) {
+        setPaidAmount(amount)
+        return amount
+      }
       
       // First try to get from invoice table
       const invoiceRes = await supabase
@@ -123,9 +134,16 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         .select("paid_amount, total_amount, payment_status, order_id")
         .eq("id", invoice.id)
         .maybeSingle()
+
+      if (invoiceRes.error) {
+        console.error("Error fetching invoice paid amount:", invoiceRes.error)
+        setPaidAmount(amount)
+        return amount
+      }
+
       const invoiceData = invoiceRes.data as { paid_amount?: number; total_amount?: number; payment_status?: string; order_id?: string } | null
       
-      let amount = Number(invoiceData?.paid_amount || 0)
+      amount = Number(invoiceData?.paid_amount || 0)
       
       // Always try to get latest from linked order (source of truth)
       if (invoiceData?.order_id) {
@@ -134,6 +152,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
           .select("paid_amount, total_amount, payment_status")
           .eq("id", invoiceData.order_id)
           .maybeSingle()
+
+        if (orderRes.error) {
+          console.error("Error fetching order paid amount:", orderRes.error)
+        }
+
         const orderData = orderRes.data as { paid_amount?: number; total_amount?: number; payment_status?: string } | null
         
         const orderPaidAmount = Number(orderData?.paid_amount || 0)
@@ -164,12 +187,20 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       }
       
       setPaidAmount(amount)
-    } catch (error) { console.error("Error fetching paid amount:", error) }
+      return amount
+    } catch (error) {
+      console.error("Error fetching paid amount:", error)
+      setPaidAmount(amount)
+      return amount
+    }
   }
 
   useEffect(() => { 
+    setPaidAmount(
+      Number(invoice?.paid_amount || (invoice?.payment_status === "paid" ? (invoice?.total || invoice?.total_amount || 0) : 0))
+    )
     fetchUser()
-    fetchPaidAmount()
+    void fetchPaidAmount()
   }, [invoice])
 
   const formattedDate = new Date(invoice.created_at).toLocaleDateString("en-US", {
@@ -213,6 +244,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true)
     try {
+      const resolvedPaidAmount = await fetchPaidAmount()
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
@@ -252,7 +284,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
       doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
+      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
       doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
@@ -425,18 +457,18 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       // Add Paid Amount and Balance Due
       let paidAmountY = summaryFinalY + 14
-      if (paidAmount > 0) {
+      if (resolvedPaidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
         doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
         doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
         doc.text("PAID AMOUNT", pageWidth - margin - 80, paidAmountY + 7)
-        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
+        doc.text(`$${resolvedPaidAmount.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
         paidAmountY += 12
       }
       
-      const balanceDue = Math.max(0, pdfTotalAmount - paidAmount)
+      const balanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
       if (balanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
@@ -445,7 +477,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.setTextColor(255, 255, 255)
         doc.text("BALANCE DUE", pageWidth - margin - 80, paidAmountY + 7)
         doc.text(`$${balanceDue.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
-      } else if (paidAmount > 0) {
+      } else if (resolvedPaidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
         doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
@@ -504,6 +536,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const handlePrint = async () => {
     setIsGeneratingPDF(true)
     try {
+      const resolvedPaidAmount = await fetchPaidAmount()
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
@@ -539,7 +572,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
       doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
+      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
       doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
 
       doc.setFont("helvetica", "bold")
@@ -682,18 +715,18 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       // Add Paid Amount and Balance Due for Print
       let printPaidAmountY = summaryFinalY + 14
-      if (paidAmount > 0) {
+      if (resolvedPaidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")
         doc.setFontSize(10)
         doc.setTextColor(255, 255, 255)
         doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
-        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        doc.text(`$${resolvedPaidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
         printPaidAmountY += 12
       }
       
-      const printBalanceDue = Math.max(0, pdfTotalAmount - paidAmount)
+      const printBalanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
@@ -702,7 +735,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.setTextColor(255, 255, 255)
         doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7)
         doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
-      } else if (paidAmount > 0) {
+      } else if (resolvedPaidAmount > 0) {
         doc.setFillColor(34, 197, 94) // Green
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
         doc.setFont("helvetica", "bold")

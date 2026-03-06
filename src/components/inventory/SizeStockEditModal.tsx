@@ -285,7 +285,9 @@ export const SizeStockEditModal = ({ size, onClose, onUpdate }: SizeStockEditMod
     return { label: 'Active', color: 'bg-green-500' };
   };
 
-  const totalBatchQuantity = batches.reduce((sum, b) => sum + Number(b.quantity_available), 0);
+  const availableBatchQuantity = batches.reduce((sum, b) => sum + Number(b.quantity_available), 0);
+  const trackedBatchCount = batches.length;
+  const activeBatchCount = batches.filter((b) => b.status === 'active').length;
 
   const newStock = adjustmentData.type === 'increase' 
     ? formData.stock + adjustmentData.quantity
@@ -444,12 +446,16 @@ export const SizeStockEditModal = ({ size, onClose, onUpdate }: SizeStockEditMod
             <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border-2 border-blue-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-blue-600">Total Batch Quantity</p>
-                  <p className="text-3xl font-bold text-blue-900">{totalBatchQuantity}</p>
+                  <p className="text-sm font-medium text-blue-600">Available Qty</p>
+                  <p className="text-3xl font-bold text-blue-900">{availableBatchQuantity}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-blue-600">Tracked Batches</p>
+                  <p className="text-3xl font-bold text-blue-900">{trackedBatchCount}</p>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-blue-600">Active Batches</p>
-                  <p className="text-3xl font-bold text-blue-900">{batches.filter(b => b.status === 'active').length}</p>
+                  <p className="text-3xl font-bold text-blue-900">{activeBatchCount}</p>
                 </div>
                 <Layers className="h-12 w-12 text-blue-400" />
               </div>

@@ -178,7 +178,7 @@ export class SalesOrderPDFGenerator {
     doc.setFontSize(9);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text("936 Broad River Ln, Charlotte, NC 28211", this.margin, 38);
-    doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", this.margin, 43);
+    doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", this.margin, 43);
     doc.text("Tax ID: 99-0540972  |  www.9rx.com", this.margin, 48);
 
     // Sales Order title (right side)

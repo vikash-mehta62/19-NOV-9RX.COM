@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Package, Truck, MapPin, Box, Download, AlertCircle, CheckCircle2, Layers } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { BatchInventoryService, BatchAllocation } from "@/services/batchInventoryService";
+import { BatchInventoryService, BatchAllocation, ProductBatch } from "@/services/batchInventoryService";
 import { hasOrderBatchDeductions } from "@/services/orderBatchDeductionService";
 
 interface PackingSlipModalProps {
@@ -29,7 +29,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
   const [batchAllocations, setBatchAllocations] = useState<Record<string, BatchAllocation[]>>({});
-  const [availableBatches, setAvailableBatches] = useState<Record<string, any[]>>({});
+  const [availableBatches, setAvailableBatches] = useState<Record<string, ProductBatch[]>>({});
   const [selectedBatches, setSelectedBatches] = useState<Record<string, string>>({});
   const [loadingBatches, setLoadingBatches] = useState(false);
 
@@ -74,7 +74,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
       
       setLoadingBatches(true);
       const allocations: Record<string, BatchAllocation[]> = {};
-      const available: Record<string, any[]> = {};
+      const available: Record<string, ProductBatch[]> = {};
       const selected: Record<string, string> = {};
       
       try {
@@ -89,15 +89,22 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
               const totalUnits = item.casesOrdered * item.qtyPerCase;
               
               // Get FIFO allocation (recommended)
-              const batchAllocs = await BatchInventoryService.allocateQuantity(
-                item.sizeId,
-                totalUnits
-              );
+              let batchAllocs: BatchAllocation[] = [];
+              try {
+                batchAllocs = await BatchInventoryService.allocateQuantity(
+                  item.sizeId,
+                  totalUnits
+                );
+              } catch (allocationError) {
+                console.warn(`No valid FIFO allocation for ${item.sku}:`, allocationError);
+              }
               allocations[item.sizeId] = batchAllocs;
 
               // Pre-select FIFO batch (first batch in allocation)
               if (batchAllocs.length > 0) {
                 selected[item.sizeId] = batchAllocs[0].batch_id;
+              } else if (allBatches.length > 0) {
+                selected[item.sizeId] = allBatches[0].id;
               }
             } catch (error) {
               console.warn(`No batches found for ${item.sku}:`, error);
@@ -163,6 +170,34 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
     if (packingData.packedBy.trim().toLowerCase() === packingData.checkedBy.trim().toLowerCase()) {
       errors.push("Packer and Checker must be different");
     }
+
+    for (const item of packedItems) {
+      const itemBatches = availableBatches[item.sizeId] || [];
+      if (itemBatches.length === 0) {
+        continue;
+      }
+
+      const selectedBatchId = selectedBatches[item.sizeId];
+      if (!selectedBatchId) {
+        errors.push(`Please select a batch for ${item.sku || item.name}`);
+        continue;
+      }
+
+      const selectedBatch = itemBatches.find((b) => b.id === selectedBatchId);
+      if (!selectedBatch) {
+        errors.push(`Invalid batch selected for ${item.sku || item.name}`);
+        continue;
+      }
+
+      const requiredUnits = item.casesOrdered * item.qtyPerCase;
+      const availableUnits = Number(selectedBatch.quantity_available || 0);
+      if (availableUnits < requiredUnits) {
+        errors.push(
+          `Insufficient stock in ${selectedBatch.lot_number} for ${item.sku || item.name} (need ${requiredUnits}, available ${availableUnits})`
+        );
+      }
+    }
+
     setValidationErrors(errors);
     return errors.length === 0;
   };
@@ -173,6 +208,11 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
 
   const handleDownload = async () => {
     try {
+      if (!validate()) {
+        setCurrentStep(1);
+        return;
+      }
+
       setIsGenerating(true);
       
       // Prepare items with SELECTED batch information
@@ -337,12 +377,13 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                                       const isFIFO = isFIFOBatch(item.sizeId, batch.id);
                                       const available = Number(batch.quantity_available);
                                       const hasEnough = available >= totalUnitsNeeded;
+                                      const isDepleted = String(batch.status || "").toLowerCase() === "depleted";
                                       
                                       return (
                                         <SelectItem 
                                           key={batch.id} 
                                           value={batch.id}
-                                          disabled={!hasEnough}
+                                          disabled={isDepleted || !hasEnough}
                                           className="cursor-pointer"
                                         >
                                           <div className="flex items-center gap-2 py-1">
@@ -356,6 +397,11 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                                             <span className="text-gray-500 text-xs whitespace-nowrap">
                                               Avail: {available}
                                             </span>
+                                            {batch.status && String(batch.status).toLowerCase() !== "active" && (
+                                              <span className="text-amber-600 text-[9px] font-semibold uppercase">
+                                                {batch.status}
+                                              </span>
+                                            )}
                                             {batch.expiry_date && (
                                               <span className="text-gray-500 text-xs whitespace-nowrap">
                                                 Exp: {new Date(batch.expiry_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}

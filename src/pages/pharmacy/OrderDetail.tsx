@@ -220,7 +220,7 @@ export default function OrderDetail() {
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, companyTextY + 6);
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, companyTextY + 11);
+      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, companyTextY + 11);
 
       // Document title
       const invoiceNumber = order.invoice_number;

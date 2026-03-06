@@ -1,9 +1,23 @@
+const fs = require("fs");
+const https = require("https");
+const path = require("path");
 const PDFDocument = require("pdfkit");
 
 const DEFAULT_FRONTEND_URL = "https://9rx.com";
 const PAGE_MARGIN = 50;
 const FOOTER_TOP_OFFSET = 104;
 const TABLE_BREAK_Y = 705;
+const HEADER_SEPARATOR_Y = 168;
+const BODY_SECTION_START_Y = 184;
+const BODY_TABLE_START_Y = 264;
+const REMOTE_HEADER_LOGO_URL = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png";
+const HEADER_LOGO_PATHS = [
+  path.resolve(__dirname, "../../public/logo.png"),
+  path.resolve(__dirname, "../../public/logolook.png"),
+  path.resolve(__dirname, "../../public/logoFul.png"),
+];
+let cachedHeaderLogoBuffer = null;
+let pendingHeaderLogoFetch = null;
 
 const toNumber = (value) => {
   const parsed = Number(value);
@@ -61,12 +75,13 @@ const inferDocumentType = (order, explicitType) => {
   }
 
   if (order?.invoice_number) return "INVOICE";
-  if (String(order?.payment_status || "").toLowerCase() === "paid") return "INVOICE";
   return "SALES ORDER";
 };
 
-const inferDocumentNumber = (order) =>
-  order?.invoice_number || order?.order_number || order?.orderNumber || order?.id || "N/A";
+const inferDocumentNumber = (order, documentType) =>
+  documentType === "SALES ORDER"
+    ? (order?.order_number || order?.orderNumber || order?.id || "N/A")
+    : (order?.invoice_number || order?.order_number || order?.orderNumber || order?.id || "N/A");
 
 const getShippingAddressLines = (order) => {
   const shipping = order?.shippingAddress || {};
@@ -80,6 +95,54 @@ const getShippingAddressLines = (order) => {
     .replace(", ,", ",");
 
   return [name, line1, cityStateZip].filter(Boolean);
+};
+
+const fetchBufferFromUrl = (url) =>
+  new Promise((resolve, reject) => {
+    https
+      .get(url, (response) => {
+        if (response.statusCode !== 200) {
+          response.resume();
+          reject(new Error(`Logo fetch failed: ${response.statusCode}`));
+          return;
+        }
+
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks)));
+      })
+      .on("error", reject);
+  });
+
+const resolveLocalLogoBuffer = () => {
+  const logoPath = HEADER_LOGO_PATHS.find((candidate) => fs.existsSync(candidate)) || null;
+  if (!logoPath) return null;
+  try {
+    return fs.readFileSync(logoPath);
+  } catch (_error) {
+    return null;
+  }
+};
+
+const getHeaderLogoBuffer = async () => {
+  if (cachedHeaderLogoBuffer) return cachedHeaderLogoBuffer;
+  if (pendingHeaderLogoFetch) return pendingHeaderLogoFetch;
+
+  pendingHeaderLogoFetch = (async () => {
+    try {
+      const remoteBuffer = await fetchBufferFromUrl(REMOTE_HEADER_LOGO_URL);
+      cachedHeaderLogoBuffer = remoteBuffer;
+      return remoteBuffer;
+    } catch (_error) {
+      const localBuffer = resolveLocalLogoBuffer();
+      cachedHeaderLogoBuffer = localBuffer;
+      return localBuffer;
+    } finally {
+      pendingHeaderLogoFetch = null;
+    }
+  })();
+
+  return pendingHeaderLogoFetch;
 };
 
 const drawTableHeader = (doc, y) => {
@@ -140,66 +203,93 @@ const drawPageFooter = (doc, meta) => {
 const addPageWithHeader = (doc, headerMeta) => {
   doc.addPage();
   const pageWidth = doc.page.width;
+  const margin = PAGE_MARGIN;
+  const rightEdge = pageWidth - margin;
   const primaryBlue = "#3B82F6";
-  const darkText = "#111827";
-  const mediumText = "#4b5563";
+  const mediumText = "#6b7280";
+  const badgeGreen = "#22c55e";
+  const badgeRed = "#ef4444";
+  const titleText = headerMeta.documentType === "SALES ORDER" ? "SALES ORDER" : "INVOICE";
+  const tRight = (value, y, font, size, color) => {
+    const text = String(value || "");
+    doc.font(font).fontSize(size).fillColor(color);
+    const x = rightEdge - doc.widthOfString(text);
+    doc.text(text, x, y, { lineBreak: false });
+  };
 
   doc.rect(0, 0, pageWidth, 9).fill(primaryBlue);
 
+  if (headerMeta.logoBuffer) {
+    doc.image(headerMeta.logoBuffer, 50, 20, { fit: [92, 74] });
+  } else {
+    doc
+      .font("Helvetica-Bold")
+      .fontSize(30)
+      .fillColor("#3349a6")
+      .text("9rx", 50, 35)
+      .text(".com", 50, 63);
+  }
+
+  tRight(titleText, 22, "Helvetica-Bold", 20, primaryBlue);
+  tRight(`# ${headerMeta.referenceNumber}`, 60, "Helvetica-Bold", 10, "#374151");
+  tRight(`Date: ${headerMeta.dateText}`, 78, "Helvetica", 8, mediumText);
+
+  doc
+    .roundedRect(rightEdge - 90, 104, 90, 24, 8)
+    .fill(headerMeta.isPaid ? badgeGreen : badgeRed);
+
   doc
     .font("Helvetica-Bold")
-    .fontSize(20)
-    .fillColor(darkText)
-    .text("9RX", 50, 45);
+    .fontSize(10.5)
+    .fillColor("#ffffff")
+    .text(headerMeta.isPaid ? "PAID" : "UNPAID", rightEdge - 90, 112, {
+      align: "center",
+      width: 90,
+      lineBreak: false,
+    });
+
+  doc
+    .font("Helvetica-Bold")
+    .fontSize(17)
+    .fillColor("#374151")
+    .text("9RX LLC", 50, 95);
+
+  doc
+    .font("Helvetica")
+    .fontSize(11)
+    .fillColor(mediumText)
+    .text("936 Broad River Ln, Charlotte, NC 28211", 50, 116);
 
   doc
     .font("Helvetica")
     .fontSize(10)
     .fillColor(mediumText)
-    .text(`Document #: ${headerMeta.documentNumber}`, 50, 94)
-    .text(`Order #: ${headerMeta.orderNumber}`, 50, 108)
-    .text(`Date: ${headerMeta.dateText}`, 50, 122);
+    .text("Phone: +1 (800) 940-9619", 50, 133)
+    .text("|", 188, 133)
+    .text("Email: info@9rx.com", 198, 133)
+    .text("Tax ID: 99-0540972", 50, 149)
+    .text("|", 156, 149)
+    .text("www.9rx.com", 166, 149);
 
   doc
-    .font("Helvetica")
-    .fontSize(8)
-    .fillColor(mediumText)
-    .text("Your Trusted Pharmacy Partner", 50, 66);
-
-  const rightTitleY = 48;
-  doc
-    .font("Helvetica-Bold")
-    .fontSize(20)
-    .fillColor(primaryBlue)
-    .text(headerMeta.documentType, PAGE_MARGIN, rightTitleY, {
-      align: "right",
-      width: pageWidth - PAGE_MARGIN * 2,
-    });
-
-  doc
-    .font("Helvetica")
-    .fontSize(8)
-    .fillColor(mediumText)
-    .text(`Ref: ${String(headerMeta.documentNumber).slice(0, 24)}`, PAGE_MARGIN, 72, {
-      align: "right",
-      width: pageWidth - PAGE_MARGIN * 2,
-    });
-
-  doc
-    .strokeColor("#e5e7eb")
-    .lineWidth(0.5)
-    .moveTo(PAGE_MARGIN, 136)
-    .lineTo(pageWidth - PAGE_MARGIN, 136)
+    .strokeColor("#d1d5db")
+    .lineWidth(1)
+    .moveTo(PAGE_MARGIN, HEADER_SEPARATOR_Y)
+    .lineTo(pageWidth - PAGE_MARGIN, HEADER_SEPARATOR_Y)
     .stroke();
 };
 
 const generateOrderDocumentPdf = async (order = {}, options = {}) =>
   new Promise((resolve, reject) => {
-    try {
+    (async () => {
       const documentType = inferDocumentType(order, options.documentType);
-      const documentNumber = inferDocumentNumber(order);
+      const documentNumber = inferDocumentNumber(order, documentType);
       const orderNumber = order?.order_number || order?.orderNumber || "N/A";
+      const referenceNumber = documentType === "SALES ORDER"
+        ? orderNumber
+        : (order?.invoice_number || documentNumber);
       const paymentUrl = options.paymentUrl || buildPayNowUrl(order?.id);
+      const logoBuffer = await getHeaderLogoBuffer();
 
       const rows = extractItemRows(order?.items || []);
       const computedSubtotal = rows.reduce((sum, row) => sum + toNumber(row.lineTotal), 0);
@@ -209,7 +299,11 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       const tax = toNumber(order?.tax_amount || 0);
       const discount = toNumber(order?.discount_amount || 0);
       const total = toNumber(order?.total_amount || order?.total || subtotal + shipping + tax - discount);
-      const paid = toNumber(order?.paid_amount || 0);
+      const paymentStatus = String(order?.payment_status || "").toLowerCase();
+      const paidAmountRaw = toNumber(order?.paid_amount || 0);
+      // Credit/manual paid flows can have payment_status=paid with paid_amount left as 0.
+      // In those cases, display as fully paid to avoid incorrect "Balance Due" in PDF.
+      const paid = paidAmountRaw > 0 ? paidAmountRaw : (paymentStatus === "paid" ? total : 0);
       const adjustmentAmount = toNumber(order?.adjustment_amount || 0);
       const balanceDue = adjustmentAmount > 0 ? adjustmentAmount : Math.max(0, total - paid);
 
@@ -234,40 +328,52 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       });
       doc.on("error", reject);
 
-      const dateText = new Date(order?.date || order?.created_at || Date.now()).toLocaleDateString("en-US");
-      const headerMeta = { documentType, documentNumber, orderNumber, dateText };
+      const dateText = new Date(order?.date || order?.created_at || Date.now()).toLocaleDateString("en-US", {
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      });
+      const headerMeta = {
+        documentType,
+        documentNumber,
+        orderNumber,
+        referenceNumber,
+        dateText,
+        isPaid: paymentStatus === "paid",
+        logoBuffer,
+      };
       addPageWithHeader(doc, headerMeta);
 
       doc
         .font("Helvetica-Bold")
         .fontSize(11)
         .fillColor("#111827")
-        .text("Bill To", 50, 150);
+        .text("Bill To", 50, BODY_SECTION_START_Y);
       doc
         .font("Helvetica")
         .fontSize(10)
         .fillColor("#374151")
-        .text(order?.customerInfo?.name || "Customer", 50, 166)
-        .text(order?.customerInfo?.email || "", 50, 180)
-        .text(order?.customerInfo?.phone || "", 50, 194);
+        .text(order?.customerInfo?.name || "Customer", 50, BODY_SECTION_START_Y + 16)
+        .text(order?.customerInfo?.email || "", 50, BODY_SECTION_START_Y + 30)
+        .text(order?.customerInfo?.phone || "", 50, BODY_SECTION_START_Y + 44);
 
       const shippingLines = getShippingAddressLines(order);
       doc
         .font("Helvetica-Bold")
         .fontSize(11)
         .fillColor("#111827")
-        .text("Ship To", 320, 150);
+        .text("Ship To", 320, BODY_SECTION_START_Y);
       doc
         .font("Helvetica")
         .fontSize(10)
         .fillColor("#374151");
-      let shipY = 166;
+      let shipY = BODY_SECTION_START_Y + 16;
       for (const line of shippingLines) {
         doc.text(line, 320, shipY, { width: 220 });
         shipY += 14;
       }
 
-      let y = Math.max(230, shipY + 18);
+      let y = Math.max(BODY_TABLE_START_Y, shipY + 18);
       drawTableHeader(doc, y);
       y += 22;
 
@@ -281,7 +387,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
 
         if (y + rowHeight > TABLE_BREAK_Y) {
           addPageWithHeader(doc, headerMeta);
-          y = 150;
+          y = BODY_SECTION_START_Y;
           drawTableHeader(doc, y);
           y += 22;
         }
@@ -303,7 +409,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       const requiredPostTableHeight = 12 + summaryRows * 16 + paymentBlockHeight + 20;
       if (y + requiredPostTableHeight > 730) {
         addPageWithHeader(doc, headerMeta);
-        y = 150;
+        y = BODY_SECTION_START_Y;
       }
 
       const summaryX = 330;
@@ -337,7 +443,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
         y += 10;
         if (y > TABLE_BREAK_Y) {
           addPageWithHeader(doc, headerMeta);
-          y = 150;
+          y = BODY_SECTION_START_Y;
         }
 
         doc
@@ -369,9 +475,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       }
 
       doc.end();
-    } catch (error) {
-      reject(error);
-    }
+    })().catch(reject);
   });
 
 module.exports = {

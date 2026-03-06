@@ -426,7 +426,7 @@ export const OrderDetailsSheet = ({
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
+      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
       doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
@@ -550,7 +550,7 @@ export const OrderDetailsSheet = ({
           "9RX LLC",
           "936 Broad River Ln",
           "Charlotte, NC 28211",
-          "+1 800 969 6295",
+          "+1 (800) 940-9619",
           "info@9rx.com"
         ]);
       } else {
@@ -922,7 +922,7 @@ export const OrderDetailsSheet = ({
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
       doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
-      doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
+      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
       doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
@@ -1039,7 +1039,7 @@ export const OrderDetailsSheet = ({
           "9RX LLC",
           "936 Broad River Ln",
           "Charlotte, NC 28211",
-          "+1 800 969 6295",
+          "+1 (800) 940-9619",
           "info@9rx.com"
         ]);
       } else {

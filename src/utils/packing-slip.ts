@@ -104,7 +104,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.medium);
     doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, yPos + 6);
-    doc.text("Phone: +1 800 969 6295  |  Email: info@9rx.com", margin, yPos + 11);
+    doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, yPos + 11);
     doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, yPos + 16);
 
     // Right side - Order Info
@@ -235,7 +235,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const totalCases = tableBody.reduce((sum, row) => sum + parseInt(row[4] || "0"), 0);
     tableBody.push(["", "", "", "TOTAL:", totalCases.toString(), ""]);
 
-    (doc as any).autoTable({
+    autoTable(doc as any, {
       head: tableHead,
       body: tableBody,
       startY: tableY,

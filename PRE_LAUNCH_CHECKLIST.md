@@ -25,7 +25,7 @@
 - ✅ FAQ section
 - ✅ Newsletter subscription
 - ✅ Footer with contact info
-- ✅ Floating contact button (+1 800 969 6295)
+- ✅ Floating contact button (+1 (800) 940-9619)
 - ✅ Quick inquiry form
 
 ### Public Products Page (`/products`)
@@ -236,9 +236,9 @@ const { error } = await supabase
 
 | Location | Phone | Status |
 |----------|-------|--------|
-| Landing Page (floating) | +1 800 969 6295 | ✅ Real |
+| Landing Page (floating) | +1 (800) 940-9619 | ✅ Real |
 | Products Page Header | +1 (800) 555-1234 | ⚠️ Placeholder |
-| Footer | +1 800 969 6295 | ✅ Real |
+| Footer | +1 (800) 940-9619 | ✅ Real |
 
 **Action:** Update Products.tsx phone number to real number.
 

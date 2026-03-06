@@ -359,6 +359,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         subtotal: invoice.subtotal,
         tax: invoice.tax_amount,
         total: invoice.total_amount,
+        paid_amount: (invoice as any).paid_amount || 0,
         // Add discount fields
         discount_amount: (invoice as any).discount_amount || 0,
         discount_details: (invoice as any).discount_details || [],

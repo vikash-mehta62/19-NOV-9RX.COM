@@ -117,7 +117,7 @@ const Index = () => {
             </div>
             <div className="hidden xl:block">
               <p className="text-[10px] text-slate-500 font-medium">Call Us</p>
-              <p className="text-xs font-bold text-slate-800">+1 800 969 6295</p>
+              <p className="text-xs font-bold text-slate-800">+1 (800) 940-9619</p>
             </div>
           </div>
         </a>

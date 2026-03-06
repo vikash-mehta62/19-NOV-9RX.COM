@@ -38,7 +38,7 @@ const handleDownloadPDF = async () => {
     doc.text("Tax ID : 99-0540972", margin, margin + 5);
     doc.text("936 Broad River Ln,", margin, margin + 10);
     doc.text("Charlotte, NC 28211", margin, margin + 15);
-    doc.text("+1 800 969 6295", margin, margin + 20);
+    doc.text("+1 (800) 940-9619", margin, margin + 20);
     doc.text("info@9rx.com", margin, margin + 25);
     doc.text("www.9rx.com", margin, margin + 30);
 
@@ -215,7 +215,7 @@ currentOrder.items.forEach((item) => {
     doc.text("Tax ID : 99-0540972", margin, margin + 5);
     doc.text("936 Broad River Ln,", margin, margin + 10);
     doc.text("Charlotte, NC 28211", margin, margin + 15);
-    doc.text("+1 800 969 6295", margin, margin + 20);
+    doc.text("+1 (800) 940-9619", margin, margin + 20);
     doc.text("info@9rx.com", margin, margin + 25);
     doc.text("www.9rx.com", margin, margin + 30);
 
@@ -388,7 +388,7 @@ currentOrder.items.forEach((item) => {
 
       // Centered Phone Number (under logo)
       doc.setFontSize(10);
-      doc.text("+1 800 969 6295", pageWidth / 2, margin + logoHeight / 2 + 5, { align: "center" });
+      doc.text("+1 (800) 940-9619", pageWidth / 2, margin + logoHeight / 2 + 5, { align: "center" });
 
       // PURCHASE ORDER TITLE (right side)
       doc.setFont("helvetica", "bold");
