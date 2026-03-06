@@ -244,6 +244,96 @@ setOrders([])
     setIsSheetOpen(true);
   };
 
+  const restoreBatchStockForOrder = async (
+    orderId: string,
+    restoreReferenceType: "order_void_restore" | "order_cancel_restore"
+  ): Promise<void> => {
+    const { count: alreadyRestoredCount, error: restoredCheckError } = await supabase
+      .from("batch_transactions")
+      .select("id", { head: true, count: "exact" })
+      .eq("reference_id", orderId)
+      .in("reference_type", ["order_void_restore", "order_cancel_restore"])
+      .eq("transaction_type", "return");
+
+    if (restoredCheckError) {
+      throw restoredCheckError;
+    }
+
+    if ((alreadyRestoredCount || 0) > 0) {
+      console.log(
+        `Batch stock already restored for order ${orderId} (${restoreReferenceType}), skipping duplicate restore`
+      );
+      return;
+    }
+
+    const { data: batchSales, error: batchSalesError } = await supabase
+      .from("batch_transactions")
+      .select("batch_id, quantity")
+      .eq("reference_id", orderId)
+      .eq("reference_type", "order")
+      .eq("transaction_type", "sale");
+
+    if (batchSalesError) {
+      throw batchSalesError;
+    }
+
+    if (!batchSales || batchSales.length === 0) {
+      return;
+    }
+
+    for (const sale of batchSales) {
+      const restoreQty = Math.max(0, Number(sale.quantity || 0));
+      if (!sale.batch_id || restoreQty <= 0) {
+        continue;
+      }
+
+      const { data: batchRow, error: batchFetchError } = await supabase
+        .from("product_batches")
+        .select("id, quantity_available")
+        .eq("id", sale.batch_id)
+        .single();
+
+      if (batchFetchError || !batchRow) {
+        console.warn(
+          `Batch restore skipped: missing batch ${sale.batch_id} for order ${orderId}`
+        );
+        continue;
+      }
+
+      const newAvailableQty =
+        Number(batchRow.quantity_available || 0) + restoreQty;
+
+      const { error: batchUpdateError } = await supabase
+        .from("product_batches")
+        .update({
+          quantity_available: newAvailableQty,
+          status: "active",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", sale.batch_id);
+
+      if (batchUpdateError) {
+        throw batchUpdateError;
+      }
+
+      const { error: txInsertError } = await supabase.from("batch_transactions").insert({
+        batch_id: sale.batch_id,
+        transaction_type: "return",
+        quantity: restoreQty,
+        reference_id: orderId,
+        reference_type: restoreReferenceType,
+        notes: `Stock restored for ${restoreReferenceType.replace(
+          "_restore",
+          ""
+        )}`,
+      });
+
+      if (txInsertError) {
+        throw txInsertError;
+      }
+    }
+  };
+
   // const handleDeleteOrder = async (orderId: string,reason: string): Promise<void> => {
   //   try {
   //     console.log(reason)
@@ -379,6 +469,9 @@ setOrders([])
       }
 
       // Step 4: Reverse stock for order items
+      await restoreBatchStockForOrder(orderId, "order_void_restore");
+
+      // Step 5: Reverse stock for order items
       const { data: orderItems, error: itemsError } = await supabase
         .from("order_items")
         .select("product_id, quantity")
@@ -401,7 +494,7 @@ setOrders([])
         }
       }
 
-      // Step 5: Reverse stock for size-level if needed
+      // Step 6: Reverse stock for size-level if needed
       const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
       for (const size of sizes) {
         const { data: currentSize, error: fetchError } = await supabase
@@ -427,7 +520,7 @@ setOrders([])
         }
       }
 
-      // Step 6: Log void activity
+      // Step 7: Log void activity
       try {
         const { data: { session } } = await supabase.auth.getSession();
         await OrderActivityService.logOrderVoid({
@@ -442,7 +535,7 @@ setOrders([])
         console.error("Failed to log void activity:", activityError);
       }
 
-      // Step 5: Update UI
+      // Step 8: Update UI
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
           order.id === orderId
@@ -585,7 +678,9 @@ setOrders([])
         }
       }
 
-      // Step 4: Restore product-level stock
+      await restoreBatchStockForOrder(orderId, "order_cancel_restore");
+
+      // Step 5: Restore product-level stock
       const { data: orderItems, error: itemsError } = await supabase
         .from("order_items")
         .select("product_id, quantity")
@@ -608,7 +703,7 @@ setOrders([])
         }
       }
 
-      // Step 5: Restore size-level stock (if applicable)
+      // Step 6: Restore size-level stock (if applicable)
       const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
       for (const size of sizes) {
         const { data: currentSize, error: fetchError } = await supabase
@@ -634,7 +729,7 @@ setOrders([])
         }
       }
 
-      // Step 5: Log cancel activity
+      // Step 7: Log cancel activity
       try {
         const { data: { session } } = await supabase.auth.getSession();
         await OrderActivityService.logOrderCancel({
@@ -649,7 +744,7 @@ setOrders([])
         console.error("Failed to log cancel activity:", activityError);
       }
 
-      // Step 6: Update UI
+      // Step 8: Update UI
       setOrders((prevOrders) =>
         prevOrders.map((order) =>
           order.id === orderId

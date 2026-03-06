@@ -122,6 +122,7 @@ app.use(cookieParser());
 
 // CORS setup
 const allowedOrigins = [
+  "http://localhost:3000",
   "http://localhost:8080",
   "https://9rx.vercel.app",
   "http://localhost:3001",
@@ -900,6 +901,246 @@ async function awardPayNowOrderPoints({ order, orderId, orderTotal, newPaymentSt
   }
 }
 
+const isQuickOrder = (order = {}) =>
+  String(order?.order_type || "").toLowerCase() === "quick_order";
+
+async function hasOrderBatchDeductions(orderId) {
+  const { count, error } = await supabaseAdmin
+    .from("batch_transactions")
+    .select("id", { head: true, count: "exact" })
+    .eq("reference_id", orderId)
+    .eq("reference_type", "order")
+    .eq("transaction_type", "sale");
+
+  if (error) {
+    throw error;
+  }
+
+  return (count || 0) > 0;
+}
+
+async function hasPayNowStockDeductionMarker(orderId) {
+  const { data, error } = await supabaseAdmin
+    .from("order_activities")
+    .select("id")
+    .eq("order_id", orderId)
+    .eq("activity_type", "updated")
+    .contains("metadata", {
+      stock_deducted_after_payment: true,
+      source: "pay_now_link",
+    })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return !!data;
+}
+
+async function markPayNowStockDeducted(order) {
+  if (!order?.id) return;
+
+  await supabaseAdmin.from("order_activities").insert({
+    order_id: order.id,
+    activity_type: "updated",
+    description: "Stock deducted after successful payment",
+    performed_by_name: order.customerInfo?.name || "System",
+    performed_by_email: order.customerInfo?.email || null,
+    metadata: {
+      order_number: order.order_number,
+      stock_deducted_after_payment: true,
+      source: "pay_now_link",
+    },
+  });
+}
+
+async function deductQuickOrderStockAfterPayment(order) {
+  if (!order?.id || !isQuickOrder(order)) {
+    return;
+  }
+
+  const alreadyMarked = await hasPayNowStockDeductionMarker(order.id);
+  if (alreadyMarked) {
+    console.log(`[pay-now] Stock already deducted for order ${order.order_number || order.id}, skipping`);
+    return;
+  }
+
+  const items = Array.isArray(order.items) ? order.items : [];
+  if (items.length === 0) {
+    await markPayNowStockDeducted(order);
+    return;
+  }
+
+  const batchManagedUnitsBySize = new Map();
+  let batchDeductionAlreadyExists = false;
+
+  try {
+    batchDeductionAlreadyExists = await hasOrderBatchDeductions(order.id);
+  } catch (batchCheckError) {
+    console.warn(`[pay-now] Unable to check existing batch deductions for order ${order.id}:`, batchCheckError);
+  }
+
+  if (!batchDeductionAlreadyExists) {
+    for (const item of items) {
+      for (const size of item?.sizes || []) {
+        const sizeId = size?.id;
+        const caseQty = Number(size?.quantity || 0);
+        if (!sizeId || !(caseQty > 0)) continue;
+
+        const quantityPerCase = Math.max(1, Number(size?.quantity_per_case || 1));
+        const requestedUnits = caseQty * quantityPerCase;
+
+        try {
+          const { data: availableBatches, error: batchFetchError } = await supabaseAdmin
+            .from("product_batches")
+            .select("id, lot_number, quantity_available")
+            .eq("product_size_id", sizeId)
+            .eq("status", "active")
+            .gt("quantity_available", 0)
+            .order("expiry_date", { ascending: true, nullsFirst: false })
+            .order("received_date", { ascending: true });
+
+          if (batchFetchError) {
+            throw batchFetchError;
+          }
+
+          if (!availableBatches || availableBatches.length === 0) {
+            continue;
+          }
+
+          let remaining = requestedUnits;
+          const allocations = [];
+
+          for (const batch of availableBatches) {
+            if (remaining <= 0) break;
+            const availableQty = Number(batch.quantity_available || 0);
+            const allocateQty = Math.min(availableQty, remaining);
+            if (allocateQty <= 0) continue;
+
+            allocations.push({
+              batch_id: batch.id,
+              lot_number: batch.lot_number,
+              quantity: allocateQty,
+            });
+            remaining -= allocateQty;
+          }
+
+          if (allocations.length === 0) {
+            continue;
+          }
+
+          if (remaining > 0) {
+            throw new Error(`Insufficient batch stock. Missing ${remaining} units`);
+          }
+
+          for (const allocation of allocations) {
+            const { error: batchDeductError } = await supabaseAdmin.rpc("deduct_batch_quantity", {
+              p_batch_id: allocation.batch_id,
+              p_quantity: allocation.quantity,
+            });
+
+            if (batchDeductError) {
+              const { data: batchData, error: batchRowFetchError } = await supabaseAdmin
+                .from("product_batches")
+                .select("quantity_available")
+                .eq("id", allocation.batch_id)
+                .single();
+
+              if (batchRowFetchError) throw batchRowFetchError;
+
+              const newQuantityAvailable = Math.max(
+                0,
+                Number(batchData?.quantity_available || 0) - allocation.quantity
+              );
+
+              const { error: batchRowUpdateError } = await supabaseAdmin
+                .from("product_batches")
+                .update({
+                  quantity_available: newQuantityAvailable,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", allocation.batch_id);
+
+              if (batchRowUpdateError) throw batchRowUpdateError;
+            }
+
+            const { error: txError } = await supabaseAdmin
+              .from("batch_transactions")
+              .insert({
+                batch_id: allocation.batch_id,
+                transaction_type: "sale",
+                quantity: allocation.quantity,
+                reference_id: order.id,
+                reference_type: "order",
+                notes: `Pay-now sale from lot ${allocation.lot_number || ""}`.trim(),
+              });
+
+            if (txError) throw txError;
+          }
+
+          const previouslyDeducted = Number(batchManagedUnitsBySize.get(sizeId) || 0);
+          const totalAllocatedUnits = allocations.reduce(
+            (sum, allocation) => sum + Number(allocation.quantity || 0),
+            0
+          );
+          batchManagedUnitsBySize.set(sizeId, previouslyDeducted + totalAllocatedUnits);
+        } catch (batchError) {
+          throw new Error(`[pay-now] Batch deduction failed for size ${sizeId}: ${batchError?.message || batchError}`);
+        }
+      }
+    }
+  } else {
+    // Batch already deducted previously: avoid double stock decrement.
+    console.log(`[pay-now] Batch stock already deducted for order ${order.order_number || order.id}, skipping duplicate stock update`);
+    await markPayNowStockDeducted(order);
+    return;
+  }
+
+  // Mandatory: every ordered size must be batch deducted first.
+  for (const item of items) {
+    for (const size of item?.sizes || []) {
+      const sizeId = size?.id;
+      if (!sizeId) continue;
+      if (!batchManagedUnitsBySize.has(sizeId)) {
+        throw new Error(`[pay-now] Batch deduction is mandatory but missing for size ${sizeId}`);
+      }
+    }
+  }
+
+  // Mandatory second step: always reduce product_sizes.stock after batch deduction.
+  for (const [sizeId, deductedUnits] of batchManagedUnitsBySize.entries()) {
+    if (!(Number(deductedUnits) > 0)) continue;
+
+    const { data: currentSize, error: sizeFetchError } = await supabaseAdmin
+      .from("product_sizes")
+      .select("stock")
+      .eq("id", sizeId)
+      .single();
+
+    if (sizeFetchError || !currentSize) {
+      throw new Error(`[pay-now] Failed to fetch stock for batch-managed size ${sizeId}`);
+    }
+
+    const newQuantity = Math.max(0, Number(currentSize.stock || 0) - Number(deductedUnits));
+    const { error: sizeUpdateError } = await supabaseAdmin
+      .from("product_sizes")
+      .update({
+        stock: newQuantity,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", sizeId);
+
+    if (sizeUpdateError) {
+      throw new Error(`[pay-now] Failed to update stock for batch-managed size ${sizeId}`);
+    }
+  }
+
+  await markPayNowStockDeducted(order);
+  console.log(`[pay-now] Stock deduction completed for order ${order.order_number || order.id}`);
+}
+
 // Dedicated limiter for pay-now endpoints (kept separate from general/email counters).
 // Use env values so QA/testing can increase without code edits.
 const payNowLimiter = createRateLimiter(
@@ -1223,6 +1464,11 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
 
         const newPaidAmount = paidAmount + amountToCharge;
         const orderTotal = totalAmount;
+        const previousPaymentStatus = String(order.payment_status || "").toLowerCase();
+        const wasUnpaidOrPending =
+          previousPaymentStatus === "unpaid" ||
+          previousPaymentStatus === "pending" ||
+          previousPaymentStatus === "partial_paid";
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid";
 
         // 8a. Update order
@@ -1231,6 +1477,15 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           paid_amount: newPaidAmount,
           updated_at: new Date().toISOString(),
         }).eq("id", orderId);
+
+        // Quick-order stock deduction must happen only after successful payment.
+        if (newPaymentStatus === "paid" && wasUnpaidOrPending && isQuickOrder(order)) {
+          try {
+            await deductQuickOrderStockAfterPayment(order);
+          } catch (stockError) {
+            console.error(`[pay-now] Stock deduction failed for quick order ${orderId}:`, stockError);
+          }
+        }
 
         // Keep pay-now reward behavior aligned with other paid flows.
         await awardPayNowOrderPoints({

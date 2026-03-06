@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils"
 import { OrderActivityService } from "@/services/orderActivityService"
 import { PaymentResultPopup, PaymentResultData } from "@/components/payment/PaymentResultPopup"
 import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper"
+import { deductOrderBatchesWithFallback } from "@/services/orderBatchDeductionService"
 
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
@@ -337,6 +338,54 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
   )
 }
 
+async function updateProductStock(orderItems: any[], orderId: string) {
+  const items = Array.isArray(orderItems) ? orderItems : []
+
+  const result = await deductOrderBatchesWithFallback(orderId, items)
+  if (result.alreadyDeducted) {
+    console.log(`Batch stock already deducted for order ${orderId}, skipping duplicate deduction.`)
+    return
+  }
+
+  // Mandatory: every ordered size must be batch deducted first.
+  for (const item of items) {
+    for (const size of item?.sizes || []) {
+      if (!size?.id) continue
+      if (!result.batchManagedSizeIds.has(size.id)) {
+        throw new Error(`Batch deduction is mandatory but missing for size ${size.id}`)
+      }
+    }
+  }
+
+  // Mandatory second step: always reduce product_sizes.stock after batch deduction.
+  for (const item of items) {
+    if (item.sizes && item.sizes.length > 0) {
+      for (const size of item.sizes) {
+        const { data: currentSize, error: fetchError } = await supabase
+          .from("product_sizes")
+          .select("stock")
+          .eq("id", size.id)
+          .single()
+
+        if (fetchError || !currentSize) {
+          throw new Error(`Failed to fetch product size stock for ${size.id}`)
+        }
+
+        const newQuantity = Number(currentSize.stock || 0) - Number(size.quantity || 0)
+
+        const { error: updateError } = await supabase
+          .from("product_sizes")
+          .update({ stock: newQuantity })
+          .eq("id", size.id)
+
+        if (updateError) {
+          throw new Error(`Failed to update product size stock for ${size.id}`)
+        }
+      }
+    }
+  }
+}
+
 interface PaymentFormProps {
   modalIsOpen: boolean
   setModalIsOpen: (open: boolean) => void
@@ -611,6 +660,16 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           notes: formData.notes,
           updated_at: new Date().toISOString(),
         }).eq("id", orderId)
+
+        // Deduct stock only when order transitions to fully paid (exclude Purchase Orders).
+        if (newPaymentStatus === "paid" && wasUnpaidOrPending && !isPurchaseOrder) {
+          try {
+            await updateProductStock(orders.items || [], orderId)
+          } catch (stockError) {
+            console.error("Stock deduction failed (manual payment):", stockError)
+            // Don't throw - payment succeeded
+          }
+        }
 
         // Award reward points if order is now fully paid and was unpaid/pending before
         // Only award for non-credit orders
@@ -903,6 +962,16 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           paid_amount: newPaidAmount,
           updated_at: new Date().toISOString() 
         }).eq("id", orderId)
+
+        // Deduct stock only when order transitions to fully paid (exclude Purchase Orders).
+        if (newPaymentStatus === "paid" && wasUnpaidOrPending && !isPurchaseOrder) {
+          try {
+            await updateProductStock(orders.items || [], orderId)
+          } catch (stockError) {
+            console.error("Stock deduction failed (card/ach payment):", stockError)
+            // Don't throw - payment succeeded
+          }
+        }
 
         // Award reward points if order is now fully paid and was unpaid/pending before
         // Only award for non-credit orders

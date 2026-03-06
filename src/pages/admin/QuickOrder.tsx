@@ -6,6 +6,7 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
+import axios from "../../../axiosconfig";
 
 export default function QuickOrder() {
   const navigate = useNavigate();
@@ -69,6 +70,7 @@ export default function QuickOrder() {
         order_number: orderId,
         profile_id: orderData.customerId,
         location_id: orderData.customerId,
+        order_type: "quick_order",
         customerInfo: customerInfo,
         shippingAddress: shippingAddressData,
         items: items,
@@ -113,6 +115,25 @@ export default function QuickOrder() {
         });
       } catch (activityError) {
         console.error("Failed to log order creation activity:", activityError);
+      }
+
+      // Send order confirmation email (same behavior as create-order flow)
+      try {
+        const { data: customerProfileData } = await supabase
+          .from("profiles")
+          .select("email_notifaction, order_updates")
+          .eq("id", orderData.customerId)
+          .single();
+
+        if (customerProfileData?.email_notifaction || customerProfileData?.order_updates) {
+          await axios.post("/order-place", insertedOrder);
+          console.log("Quick order confirmation email sent");
+        } else {
+          console.log("Quick order email notification disabled for this customer");
+        }
+      } catch (emailError) {
+        console.error("Failed to send quick order confirmation email:", emailError);
+        // Don't throw - order creation succeeded
       }
 
       // Clear cart

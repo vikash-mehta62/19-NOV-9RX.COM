@@ -290,8 +290,8 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         createdAt: new Date().toISOString(),
       };
 
-      toast({ title: "Order Created", description: "Order has been created successfully" });
-      onComplete?.(orderData);
+      // Wait for parent completion so loading state remains until all async work is done.
+      await Promise.resolve(onComplete?.(orderData));
     } catch (error) {
       console.error("Order creation error:", error);
       toast({ title: "Error", description: "Failed to create order", variant: "destructive" });
