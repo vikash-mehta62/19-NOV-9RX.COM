@@ -170,7 +170,9 @@ export function AccessRequestDetailDialog({
       const userId = request.id;
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error("Please log in again");
-      console.log("Approving user with ID:", userId);
+      
+      console.log("🔵 Approving user with ID:", userId);
+      console.log("🔑 Using token:", session.access_token ? "Token present" : "No token");
       
       // Use backend API to approve (bypasses RLS with service role)
       const response = await fetch(`/api/users/approve-access/${userId}`, {
@@ -181,13 +183,15 @@ export function AccessRequestDetailDialog({
         },
       });
 
+      console.log("📡 Response status:", response.status);
       const result = await response.json();
+      console.log("📦 Response data:", result);
 
       if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to approve user");
+        throw new Error(result.message || result.error || "Failed to approve user");
       }
 
-      console.log("User approved successfully:", result);
+      console.log("✅ User approved successfully:", result);
 
       toast({
         title: "✅ User Approved",
@@ -198,7 +202,7 @@ export function AccessRequestDetailDialog({
       onOpenChange(false);
       setFeedback("");
     } catch (error: any) {
-      console.error("Error approving user:", error);
+      console.error("💥 Error approving user:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to approve user. Please try again.",

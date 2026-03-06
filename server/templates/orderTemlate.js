@@ -8,15 +8,23 @@ const orderStatusTemplate = (order) => {
         estimated_delivery, 
         payment_status = 'pending', 
         shipping_method = '', 
-        total_amount = 0, 
+        total_amount = 0,
+        tax_amount = 0,
+        shipping_cost = 0,
         tracking_number = '', 
         paid_amount = 0 
     } = order;
   
     const paidAmt = parseFloat(paid_amount) || 0;
     const totalAmt = parseFloat(total_amount) || 0;
-    const balanceDue = Math.max(0, totalAmt - paidAmt);
-    const isPartialPaid = payment_status === 'partial_paid' || (paidAmt > 0 && balanceDue > 0);
+    const taxAmt = parseFloat(tax_amount) || 0;
+    const shippingAmt = parseFloat(shipping_cost) || 0;
+    const subtotal = items.reduce((s, i) => s + ((i.price || i.unit_price || 0) * (i.quantity || 1)), 0);
+    
+    // If payment_status is 'paid' but paid_amount is 0, assume full payment
+    const actualPaidAmount = (payment_status?.toLowerCase() === 'paid' && paidAmt === 0) ? totalAmt : paidAmt;
+    const balanceDue = Math.max(0, totalAmt - actualPaidAmount);
+    const isPartialPaid = payment_status === 'partial_paid' || (actualPaidAmount > 0 && balanceDue > 0);
 
     const formatCurrency = (amount) => {
         const num = parseFloat(amount) || 0;
@@ -164,19 +172,41 @@ const orderStatusTemplate = (order) => {
                                 <h4 style="margin: 0 0 15px 0; font-size: 14px; font-weight: 600; color: #374151;">💰 Payment Summary</h4>
                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                     <tr>
-                                        <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Total Amount:</td>
-                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right;">${formatCurrency(totalAmt)}</td>
+                                        <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Subtotal:</td>
+                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right;">${formatCurrency(subtotal)}</td>
+                                    </tr>
+                                    ${taxAmt > 0 ? `
+                                    <tr>
+                                        <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Tax:</td>
+                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right;">${formatCurrency(taxAmt)}</td>
+                                    </tr>
+                                    ` : ''}
+                                    <tr>
+                                        <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Shipping:</td>
+                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #1f2937; text-align: right;">${shippingAmt > 0 ? formatCurrency(shippingAmt) : 'FREE'}</td>
+                                    </tr>
+                                    <tr style="border-top: 2px solid ${payment_status === 'paid' ? '#bbf7d0' : (isPartialPaid ? '#fde68a' : '#fecaca')};">
+                                        <td style="padding: 12px 0 8px 0; font-size: 16px; font-weight: 700; color: #1f2937;">Total Amount:</td>
+                                        <td style="padding: 12px 0 8px 0; font-size: 16px; font-weight: 700; color: #059669; text-align: right;">${formatCurrency(totalAmt)}</td>
                                     </tr>
                                     <tr>
                                         <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Paid Amount:</td>
-                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #059669; text-align: right;">${formatCurrency(paidAmt)}</td>
+                                        <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #059669; text-align: right;">${formatCurrency(actualPaidAmount)}</td>
                                     </tr>
                                     ${balanceDue > 0 ? `
                                     <tr>
                                         <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Balance Due:</td>
                                         <td style="padding: 8px 0; font-size: 14px; font-weight: 600; color: #dc2626; text-align: right;">${formatCurrency(balanceDue)}</td>
                                     </tr>
-                                    ` : ''}
+                                    ` : `
+                                    <tr>
+                                        <td colspan="2" style="padding: 12px 0 0 0;">
+                                            <div style="background-color: #d1fae5; border: 1px solid #059669; border-radius: 8px; padding: 10px; text-align: center;">
+                                                <span style="color: #065f46; font-weight: 600; font-size: 14px;">✓ Fully Paid - No balance due</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    `}
                                     <tr>
                                         <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Payment Status:</td>
                                         <td style="padding: 8px 0; text-align: right;">${getPaymentStatusBadge()}</td>

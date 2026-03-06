@@ -63,6 +63,19 @@ const mergeOrderData = (incoming = {}, dbOrder = {}) => {
     merged.total = merged.total_amount;
   }
 
+  // Ensure tax_amount and shipping_cost are properly merged
+  if (merged.tax_amount == null) {
+    merged.tax_amount = incoming.tax_amount ?? dbOrder.tax_amount ?? 0;
+  }
+  if (merged.shipping_cost == null) {
+    merged.shipping_cost = incoming.shipping_cost ?? dbOrder.shipping_cost ?? 0;
+  }
+  
+  // Ensure paid_amount is properly merged
+  if (merged.paid_amount == null) {
+    merged.paid_amount = incoming.paid_amount ?? dbOrder.paid_amount ?? 0;
+  }
+
   merged.order_number = incoming.order_number || dbOrder.order_number || incoming.orderNumber || dbOrder.orderNumber;
   return merged;
 };
@@ -179,6 +192,17 @@ exports.orderSatusCtrl = async (req, res) => {
     const incomingOrder = req.body || {};
     const order = await resolveOrderFromDb(incomingOrder);
 
+    console.log("📧 Order status update email data:", {
+      order_number: order.order_number,
+      total_amount: order.total_amount,
+      paid_amount: order.paid_amount,
+      payment_status: order.payment_status,
+      tax_amount: order.tax_amount,
+      shipping_cost: order.shipping_cost,
+      status: order.status,
+      customer_email: order.customerInfo?.email
+    });
+
     if (!order || !order.customerInfo || !order.customerInfo.email) {
       return res.status(400).json({
         success: false,
@@ -244,7 +268,14 @@ exports.orderPlacedCtrl = async (req, res) => {
     const incomingOrder = req.body || {};
     const order = await resolveOrderFromDb(incomingOrder);
 
-    console.log(order)
+    console.log("📧 Order data for email:", {
+      order_number: order.order_number,
+      total_amount: order.total_amount,
+      tax_amount: order.tax_amount,
+      shipping_cost: order.shipping_cost,
+      items_count: order.items?.length,
+      customer_email: order.customerInfo?.email
+    });
 
     // Ensure required fields are present
     if (!order || !order.customerInfo || !order.customerInfo.email) {
@@ -391,7 +422,7 @@ exports.userNotificationCtrl = async (req, res) => {
     // Notify User
     await mailSender(
       email,
-      "Welcome to 9RX - Registration Received",
+      "Welcome to 9RX",
       userEmailContent
     );
 

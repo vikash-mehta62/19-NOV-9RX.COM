@@ -485,7 +485,10 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
     const supabaseAdmin = getSupabaseAdmin();
     const { userId } = req.params;
 
+    console.log("🔵 Approve access request received for userId:", userId);
+
     if (!userId) {
+      console.log("❌ No userId provided");
       return res.status(400).json({
         success: false,
         message: "User ID is required",
@@ -493,6 +496,7 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
     }
 
     // Get user details first
+    console.log("📋 Fetching user details...");
     const { data: userData, error: userError } = await supabaseAdmin
       .from("profiles")
       .select("email, first_name, last_name, company_name, email_notifaction, group_id")
@@ -500,25 +504,36 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
       .single();
 
     if (userError) {
-      console.error("Error fetching user:", userError);
+      console.error("❌ Error fetching user:", userError);
       return res.status(400).json({
         success: false,
         message: "Failed to fetch user details",
+        error: userError.message,
       });
     }
 
+    console.log("✅ User details fetched:", {
+      email: userData.email,
+      name: `${userData.first_name} ${userData.last_name}`,
+      group_id: userData.group_id
+    });
+
     // IMPORTANT: Update auth.users to confirm email
+    console.log("🔐 Confirming email in auth.users...");
     const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
       { email_confirm: true }
     );
 
     if (authUpdateError) {
-      console.error("Error confirming email in auth.users:", authUpdateError);
+      console.error("⚠️ Error confirming email in auth.users:", authUpdateError);
       // Don't fail the request, just log the error
+    } else {
+      console.log("✅ Email confirmed in auth.users");
     }
 
     // Update profile status
+    console.log("📝 Updating profile status to active...");
     const { error: updateError } = await supabaseAdmin
       .from("profiles")
       .update({ 
@@ -529,16 +544,19 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
       .eq("id", userId);
 
     if (updateError) {
-      console.error("Error updating profile:", updateError);
+      console.error("❌ Error updating profile:", updateError);
       return res.status(400).json({
         success: false,
         message: "Failed to approve user",
+        error: updateError.message,
       });
     }
 
+    console.log("✅ Profile status updated to active");
+
     // If user was created via group invitation, update pharmacy_invitations table
     if (userData.group_id) {
-      console.log("Updating invitation status for user:", userId, "group:", userData.group_id);
+      console.log("👥 Updating invitation status for user:", userId, "group:", userData.group_id);
       
       // Try by accepted_by first
       const { error: invitationError } = await supabaseAdmin
@@ -548,7 +566,7 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
         .in("status", ["pending", "accepted"]);
 
       if (invitationError) {
-        console.error("Error updating invitation (by accepted_by):", invitationError);
+        console.error("⚠️ Error updating invitation (by accepted_by):", invitationError);
         
         // Fallback: try by email
         const { error: altError } = await supabaseAdmin
@@ -562,10 +580,16 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
           .in("status", ["pending", "accepted"]);
         
         if (altError) {
-          console.error("Error updating invitation (by email):", altError);
+          console.error("⚠️ Error updating invitation (by email):", altError);
+        } else {
+          console.log("✅ Invitation updated via email fallback");
         }
+      } else {
+        console.log("✅ Invitation updated successfully");
       }
     }
+
+    console.log("🎉 User approval completed successfully");
 
     return res.json({
       success: true,
@@ -573,10 +597,11 @@ router.post("/approve-access/:userId", requireAdmin, async (req, res) => {
       user: userData,
     });
   } catch (error) {
-    console.error("Approve Access Error:", error);
+    console.error("💥 Approve Access Error:", error);
     return res.status(500).json({
       success: false,
       message: "Internal server error",
+      error: error.message,
     });
   }
 });
