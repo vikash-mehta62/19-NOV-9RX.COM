@@ -264,82 +264,31 @@ export function PaymentAdjustmentModal({
             throw new Error(`Insufficient credit. Available: $${availableCredit.toFixed(2)}, Required: $${absoluteDifference.toFixed(2)}`);
           }
 
-          // Update credit_used in profiles table
-          const { data: currentProfile, error: profileFetchError } = await supabase
-            .from('profiles')
-            .select('credit_used')
-            .eq('id', customerId)
-            .single();
+          const { data: rpcResult, error: rpcError } = await supabase.rpc(
+            "apply_credit_line_order_adjustment",
+            {
+              p_order_id: orderId,
+              p_customer_id: customerId,
+              p_adjustment_amount: absoluteDifference,
+              p_original_amount: originalAmount,
+              p_new_amount: newAmount,
+              p_reason: reason || `Order ${orderNumber} modified - charged to credit line`,
+            }
+          );
 
-          if (profileFetchError) throw profileFetchError;
-
-          const currentCreditUsed = Number(currentProfile?.credit_used || 0);
-          const newCreditUsed = currentCreditUsed + absoluteDifference;
-
-          const { error: updateError } = await supabase
-            .from('profiles')
-            .update({ credit_used: newCreditUsed })
-            .eq('id', customerId);
-
-          if (updateError) throw updateError;
-
-          // Update order payment_status to 'paid' and paid_amount to newAmount
-          const { error: orderUpdateError } = await supabase
-            .from('orders')
-            .update({ 
-              payment_status: 'paid',
-              paid_amount: newAmount 
-            })
-            .eq('id', orderId);
-
-          if (orderUpdateError) {
-            console.error('Error updating order payment status:', orderUpdateError);
+          if (rpcError) {
+            throw rpcError;
           }
 
-          // Also update invoice if exists
-          const { data: invoiceData } = await supabase
-            .from('invoices')
-            .select('id')
-            .eq('order_id', orderId)
-            .maybeSingle();
-
-          if (invoiceData) {
-            await supabase
-              .from('invoices')
-              .update({ 
-                payment_status: 'paid',
-                paid_amount: newAmount 
-              })
-              .eq('id', invoiceData.id);
+          if (!rpcResult?.success) {
+            throw new Error(rpcResult?.message || 'Failed to apply credit line adjustment');
           }
 
-          // Record account transaction for credit history
-          await PaymentAdjustmentService.recordAccountTransaction({
-            customerId,
-            orderId,
-            transactionType: 'debit',
-            referenceType: 'order',
-            description: `Credit order approved - Order ${orderNumber}`,
-            amount: absoluteDifference,
-            processedBy: customerId,
-          });
-
-          // Create adjustment record
-          result = await PaymentAdjustmentService.createAdjustment({
-            orderId,
-            customerId,
-            adjustmentType: 'additional_payment',
-            originalAmount,
-            newAmount,
-            differenceAmount: absoluteDifference,
-            paymentMethod: 'credit',
-            paymentStatus: 'completed',
-            reason: reason || `Order ${orderNumber} modified - charged to credit line`,
-          });
+          result = { success: true, data: rpcResult };
 
           toast({
             title: "Credit Applied",
-            description: `$${absoluteDifference.toFixed(2)} charged to credit line. New credit used: $${newCreditUsed.toFixed(2)}`,
+            description: `$${absoluteDifference.toFixed(2)} charged to credit line. Credit Invoice: ${rpcResult.credit_invoice_number || 'Created'}`,
           });
         } else {
           throw new Error('Invalid action selected');

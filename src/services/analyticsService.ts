@@ -8,9 +8,7 @@ import { supabase } from '@/integrations/supabase/client';
 const COMPLETED_ORDER_STATUSES = [
   'shipped',
   'delivered',
-  'completed',
-  'processing',
-  'new'
+  'completed'
 ];
 
 // Statuses to exclude from analytics (cancelled, cart, etc.)
@@ -389,7 +387,7 @@ export async function generateFunnelAnalysis(
       o.status === 'credit_approval_processing'
     ).length || 0;
     
-    // Completed orders (shipped, delivered, completed, processing, new)
+    // Completed orders (strict final fulfillment states only)
     const completed = orders?.filter(o => 
       COMPLETED_ORDER_STATUSES.includes(o.status)
     ).length || 0;
@@ -586,7 +584,7 @@ export async function calculateKPIs(): Promise<KPIData> {
       supabase.from('orders').select('*').or('void.eq.false,void.is.null').is('deleted_at', null),
       supabase.from('products').select('*'),
       supabase.from('profiles').select('id, created_at'),
-      supabase.from('order_items').select('quantity, unit_price, orders!inner(status, void, deleted_at)'),
+      supabase.from('order_items').select('quantity, unit_price, product_size_id, orders!inner(status, void, deleted_at)'),
       supabase.from('expenses').select('amount, date')
     ]);
 
@@ -631,14 +629,26 @@ export async function calculateKPIs(): Promise<KPIData> {
     });
     
     // ===== GROSS MARGIN =====
-    // Calculate Gross Margin: ((Revenue - COGS) / Revenue) * 100
-    // For now, estimate COGS as 60% of revenue (typical 40% margin)
-    // This provides a calculated value instead of hardcoded
-    // In production, this should use actual cost_price from product_sizes table
-    const estimatedCOGS = totalRevenue * 0.6;
-    const grossMargin = totalRevenue > 0 
-      ? ((totalRevenue - estimatedCOGS) / totalRevenue) * 100 
-      : 40; // Fallback to 40% if no data
+    // Calculate COGS from product size cost_price for sold items.
+    // If a size has no cost_price, fall back to unit_price to avoid overstatement.
+    const sizeIds = Array.from(
+      new Set(
+        completedOrderItems
+          .map((item: any) => item.product_size_id)
+          .filter(Boolean)
+      )
+    );
+    const sizeCostMap = await fetchSizeCostMap(sizeIds as string[]);
+    const totalCOGS = completedOrderItems.reduce((sum, item: any) => {
+      const quantity = Number(item.quantity) || 0;
+      const fallbackUnitPrice = Number(item.unit_price) || 0;
+      const sizeCost = item.product_size_id ? sizeCostMap.get(item.product_size_id) : undefined;
+      const unitCost = typeof sizeCost === 'number' && sizeCost > 0 ? sizeCost : fallbackUnitPrice;
+      return sum + (quantity * unitCost);
+    }, 0);
+    const grossMargin = totalRevenue > 0
+      ? ((totalRevenue - totalCOGS) / totalRevenue) * 100
+      : 0;
     
     // ===== INVENTORY TURNOVER =====
     // Calculate total stock
@@ -682,6 +692,32 @@ export async function calculateKPIs(): Promise<KPIData> {
     console.error('Error calculating KPIs:', error);
     throw error;
   }
+}
+
+async function fetchSizeCostMap(sizeIds: string[]): Promise<Map<string, number>> {
+  const map = new Map<string, number>();
+  if (!sizeIds.length) return map;
+
+  // Chunk IDs to avoid oversized IN queries
+  const chunkSize = 500;
+  for (let i = 0; i < sizeIds.length; i += chunkSize) {
+    const chunk = sizeIds.slice(i, i + chunkSize);
+    const { data, error } = await supabase
+      .from('product_sizes')
+      .select('id, cost_price')
+      .in('id', chunk);
+
+    if (error) {
+      console.error('Error fetching product size costs:', error);
+      continue;
+    }
+
+    (data || []).forEach((size: any) => {
+      map.set(size.id, Number(size.cost_price) || 0);
+    });
+  }
+
+  return map;
 }
 
 // =====================================================

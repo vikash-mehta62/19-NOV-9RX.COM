@@ -33,6 +33,11 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+const API_BASE_URL =
+  import.meta.env.VITE_APP_BASE_URL ||
+  import.meta.env.VITE_API_BASE_URL ||
+  "https://9rx.mahitechnocrafts.in";
+
 interface AccessRequest {
   id: string;
   first_name: string;
@@ -154,6 +159,16 @@ export function AccessRequestDetailDialog({
     return parts.length > 0 ? parts.join(", ") : null;
   };
 
+  const readResponsePayload = async (response: Response) => {
+    const rawText = await response.text();
+    if (!rawText) return null;
+    try {
+      return JSON.parse(rawText);
+    } catch {
+      return { message: rawText };
+    }
+  };
+
   const handleApprove = async () => {
     if (!request?.id) {
       toast({
@@ -175,7 +190,7 @@ export function AccessRequestDetailDialog({
       console.log("🔑 Using token:", session.access_token ? "Token present" : "No token");
       
       // Use backend API to approve (bypasses RLS with service role)
-      const response = await fetch(`/api/users/approve-access/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/approve-access/${userId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -184,11 +199,11 @@ export function AccessRequestDetailDialog({
       });
 
       console.log("📡 Response status:", response.status);
-      const result = await response.json();
+      const result = await readResponsePayload(response);
       console.log("📦 Response data:", result);
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || result.error || "Failed to approve user");
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || result?.error || `Failed to approve user (HTTP ${response.status})`);
       }
 
       console.log("✅ User approved successfully:", result);
@@ -242,7 +257,7 @@ export function AccessRequestDetailDialog({
       console.log("Rejecting user with ID:", userId);
       
       // Use backend API to reject (bypasses RLS with service role)
-      const response = await fetch(`/api/users/reject-access/${userId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/users/reject-access/${userId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -251,10 +266,10 @@ export function AccessRequestDetailDialog({
         body: JSON.stringify({ reason: feedback }),
       });
 
-      const result = await response.json();
+      const result = await readResponsePayload(response);
 
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to reject user");
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || result?.error || `Failed to reject user (HTTP ${response.status})`);
       }
 
       console.log("User rejected successfully:", result);

@@ -6,7 +6,11 @@ const adminOrderNotificationTemplate = (order) => {
         estimated_delivery, 
         payment_status = 'pending', 
         shipping_method = '', 
-        total_amount = 0 
+        total_amount = 0,
+        tax_amount = 0,
+        shipping_cost = 0,
+        discount_details = [],
+        adjustment_amount = 0
     } = order;
 
     const formatCurrency = (amount) => {
@@ -37,6 +41,38 @@ const adminOrderNotificationTemplate = (order) => {
         return `<span style="display: inline-block; padding: 4px 12px; background-color: ${bgColor}; color: ${textColor}; border-radius: 20px; font-size: 12px; font-weight: 600;">${label}</span>`;
     };
 
+    const getItemLineTotal = (item = {}) => {
+        if (Array.isArray(item.sizes) && item.sizes.length > 0) {
+            const fromSizes = item.sizes.reduce((sum, size) => {
+                const sizeQty = parseFloat(size?.quantity) || 0;
+                const sizePrice = parseFloat(size?.price) || 0;
+                return sum + (sizeQty * sizePrice);
+            }, 0);
+            if (fromSizes > 0) return fromSizes;
+        }
+
+        if (item.total_price != null) return parseFloat(item.total_price) || 0;
+
+        const qty = parseFloat(item.quantity) || 1;
+        if (item.unit_price != null) return (parseFloat(item.unit_price) || 0) * qty;
+        return (parseFloat(item.price) || 0) * qty;
+    };
+
+    const subtotal = items.reduce((sum, item) => sum + getItemLineTotal(item), 0);
+
+    const creditMemoApplied = (() => {
+        const fromDiscountDetails = Array.isArray(discount_details)
+            ? discount_details.reduce((sum, discount) => {
+                const type = String(discount?.type || '').toLowerCase();
+                const amount = parseFloat(discount?.amount) || 0;
+                return type === 'credit_memo' ? sum + amount : sum;
+            }, 0)
+            : 0;
+
+        if (fromDiscountDetails > 0) return fromDiscountDetails;
+        return Math.max(0, parseFloat(adjustment_amount) || 0);
+    })();
+
     const generateItemsHtml = () => {
         if (!items || items.length === 0) {
             return `
@@ -47,14 +83,16 @@ const adminOrderNotificationTemplate = (order) => {
         
         return items.map(item => {
             const sizeText = item.sizes?.map(size => `${size.size_value} ${size.size_unit}`).join(", ") || '-';
+            const qty = item.quantity || 1;
+            const lineTotal = getItemLineTotal(item);
             return `
                 <tr>
                     <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
                         <p style="margin: 0; font-weight: 600; color: #1f2937; font-size: 14px;">${item.name || 'Product'}</p>
                     </td>
                     <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; color: #4b5563; font-size: 13px;">${sizeText}</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: #4b5563; font-size: 14px;">${item.quantity || 1}</td>
-                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #1f2937; font-size: 14px;">${formatCurrency(item.price || 0)}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: center; color: #4b5563; font-size: 14px;">${qty}</td>
+                    <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right; font-weight: 600; color: #1f2937; font-size: 14px;">${formatCurrency(lineTotal)}</td>
                 </tr>`;
         }).join('');
     };
@@ -139,12 +177,50 @@ const adminOrderNotificationTemplate = (order) => {
                                             <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Product</th>
                                             <th style="padding: 12px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Size</th>
                                             <th style="padding: 12px; text-align: center; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Qty</th>
-                                            <th style="padding: 12px; text-align: right; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Price</th>
+                                            <th style="padding: 12px; text-align: right; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase;">Line Total</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         ${generateItemsHtml()}
                                     </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Order Summary -->
+                            <div style="margin: 0 30px 25px; background-color: #f9fafb; border-radius: 12px; padding: 20px;">
+                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Subtotal</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(subtotal)}</td>
+                                    </tr>
+                                    ${tax_amount ? `
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Tax</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(tax_amount)}</td>
+                                    </tr>
+                                    ` : ''}
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Shipping</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${shipping_cost ? formatCurrency(shipping_cost) : 'FREE'}</td>
+                                    </tr>
+                                    ${creditMemoApplied > 0 ? `
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Credit Memo Applied</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; text-align: right;">-${formatCurrency(creditMemoApplied)}</td>
+                                    </tr>
+                                    ` : ''}
+                                    <tr>
+                                        <td colspan="2" style="padding-top: 12px;">
+                                            <div style="border-top: 2px solid #e5e7eb; padding-top: 12px;">
+                                                <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
+                                                    <tr>
+                                                        <td style="font-size: 16px; font-weight: 700; color: #1f2937;">Total</td>
+                                                        <td style="font-size: 18px; font-weight: 700; color: #1f2937; text-align: right;">${formatCurrency(total_amount)}</td>
+                                                    </tr>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
                                 </table>
                             </div>
 

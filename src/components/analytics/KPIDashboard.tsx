@@ -10,7 +10,8 @@ import {
   RotateCcw, 
   CheckCircle, 
   XCircle, 
-  Target 
+  Target,
+  AlertTriangle
 } from "lucide-react";
 
 export function KPIDashboard() {
@@ -74,6 +75,25 @@ export function KPIDashboard() {
         <h2 className="text-2xl font-bold mb-2">Key Performance Indicators</h2>
         <p className="text-gray-600">Track your business health with these critical metrics</p>
       </div>
+
+      <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-900">
+        <p>
+          KPI notes: completion-based metrics now count only strict final statuses (
+          <strong>shipped, delivered, completed</strong>). Gross Margin now uses real COGS from
+          <strong> product size cost price</strong> data.
+        </p>
+      </div>
+
+      {kpis.grossMargin < 0 && (
+        <div className="p-4 rounded-lg border border-red-300 bg-red-50">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+            <p className="text-sm text-red-900">
+              <strong>Gross Margin Note:</strong> You are currently spending more to supply products than you are earning from sales for these orders. Please review product costs and selling prices.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Customer Metrics */}
       <div>

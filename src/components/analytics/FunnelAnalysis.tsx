@@ -227,6 +227,10 @@ export function FunnelAnalysis() {
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-green-600 mt-0.5">•</span>
+                <span><strong>Completed means:</strong> shipped, delivered, and completed statuses only</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">•</span>
                 <span><strong>Bottleneck:</strong> {funnel.biggestDropoff} needs attention</span>
               </li>
               {funnel.creditApprovalPending !== undefined && funnel.creditApprovalPending > 0 && (
@@ -270,10 +274,12 @@ export function FunnelAnalysis() {
         <div className="p-4 bg-blue-50 rounded-xl border border-blue-200">
           <p className="text-sm text-gray-700">
             <strong className="text-blue-700">📝 Note:</strong> This funnel tracks order completion from creation to fulfillment. 
-            To see the full customer journey (product views → cart → checkout), implement product view and cart tracking analytics.
+            Purchase completion now uses strict final fulfillment statuses only (shipped/delivered/completed). To see the full customer journey (product views → cart → checkout), implement product view and cart tracking analytics.
           </p>
         </div>
       </CardContent>
     </Card>
   );
 }
+
+

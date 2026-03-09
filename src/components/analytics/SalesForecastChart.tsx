@@ -301,6 +301,7 @@ export function SalesForecastChart() {
               {forecast.trend === 'down' && <li>• Review marketing and sales strategies</li>}
               <li>• Use 30-day forecast for operational planning</li>
               <li>• Monitor actual vs predicted weekly</li>
+              <li>• Historical baseline uses strict completed orders (shipped/delivered/completed)</li>
               {confidenceLevel < 10 && <li>• Consider external factors affecting sales</li>}
             </ul>
           </div>

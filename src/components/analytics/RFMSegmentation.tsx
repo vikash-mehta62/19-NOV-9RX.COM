@@ -77,6 +77,11 @@ export function RFMSegmentation() {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
+        <div className="p-4 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-900">
+          Customer tab note: RFM values now use strict completed orders only
+          (<strong>shipped, delivered, completed</strong>).
+        </div>
+
         {/* Summary Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="p-4 rounded-lg bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200">

@@ -18,7 +18,7 @@ import { supabase } from "@/supabaseClient"
 import { OrderFormValues, ShippingAddressData } from "@/components/orders/schemas/orderSchema"
 import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline"
 import jsPDF from "jspdf"
-import "jspdf-autotable"
+import autoTable from "jspdf-autotable"
 import JsBarcode from "jsbarcode"
 import Logo from "../../assests/home/9rx_logo.png"
 
@@ -353,7 +353,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         })
       })
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
@@ -406,7 +406,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         summaryBody.push([discountName, `-$${pdfDiscountAmount.toFixed(2)}`])
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
         theme: "plain",
@@ -661,7 +661,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         })
       })
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead, body: tableBody, startY: tableStartY,
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
@@ -694,7 +694,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
       }
 
-      ;(doc as any).autoTable({
+      autoTable(doc as any, {
         body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
