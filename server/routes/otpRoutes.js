@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const mailSender = require("../utils/mailSender");
 const otpEmailTemplate = require("../templates/otpEmailTemplate");
+const { logSuccessfulLogin, logFailedLogin } = require("../utils/loginLogger");
 
 // Initialize Supabase Admin Client
 const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
@@ -181,6 +182,12 @@ router.post("/send", async (req, res) => {
     });
 
     if (authError || !authData.user) {
+      // Log failed login attempt
+      const reason = authError?.message?.toLowerCase().includes('email not confirmed') 
+        ? "Email not confirmed" 
+        : "Invalid credentials";
+      await logFailedLogin(req, email, reason);
+
       // Check if error is due to unconfirmed email
       if (authError && authError.message && authError.message.toLowerCase().includes('email not confirmed')) {
         return res.status(403).json({ 
@@ -196,6 +203,8 @@ router.post("/send", async (req, res) => {
 
     // Additional check: Verify email is confirmed
     if (!authData.user.email_confirmed_at) {
+      await logFailedLogin(req, email, "Email not confirmed");
+
       return res.status(403).json({ 
         success: false, 
         message: "Email not confirmed. Please contact admin for account verification." 
@@ -217,6 +226,8 @@ router.post("/send", async (req, res) => {
       .single();
 
     if (profileError || !profile) {
+      await logFailedLogin(req, email, "User profile not found");
+
       return res.status(404).json({ 
         success: false, 
         message: "User profile not found" 
@@ -225,6 +236,8 @@ router.post("/send", async (req, res) => {
 
     const eligibility = await validateLoginEligibility(profile);
     if (!eligibility.ok) {
+      await logFailedLogin(req, email, eligibility.body.message || "Account not eligible");
+
       return res.status(eligibility.status).json(eligibility.body);
     }
 
@@ -300,6 +313,8 @@ router.post("/verify", async (req, res) => {
     const storedData = otpStore.get(emailKey);
 
     if (!storedData) {
+      await logFailedLogin(req, email, "OTP not found or expired");
+
       return res.status(400).json({ 
         success: false, 
         message: "OTP not found or expired. Please request a new OTP." 
@@ -309,6 +324,9 @@ router.post("/verify", async (req, res) => {
     // Check expiry
     if (Date.now() > storedData.expiresAt) {
       otpStore.delete(emailKey);
+      
+      await logFailedLogin(req, email, "OTP expired");
+
       return res.status(400).json({ 
         success: false, 
         message: "OTP has expired. Please request a new OTP." 
@@ -318,6 +336,9 @@ router.post("/verify", async (req, res) => {
     // Check max attempts
     if (storedData.attempts >= MAX_ATTEMPTS) {
       otpStore.delete(emailKey);
+      
+      await logFailedLogin(req, email, "Maximum OTP attempts exceeded");
+
       return res.status(429).json({ 
         success: false, 
         message: "Maximum verification attempts exceeded. Please request a new OTP." 
@@ -329,6 +350,8 @@ router.post("/verify", async (req, res) => {
       storedData.attempts += 1;
       otpStore.set(emailKey, storedData);
       
+      await logFailedLogin(req, email, "Invalid OTP code");
+
       const remainingAttempts = MAX_ATTEMPTS - storedData.attempts;
       return res.status(400).json({ 
         success: false, 
@@ -363,6 +386,9 @@ router.post("/verify", async (req, res) => {
     const eligibility = await validateLoginEligibility(profile);
     if (!eligibility.ok) {
       otpStore.delete(emailKey);
+      
+      await logFailedLogin(req, email, eligibility.body.message || "Account not eligible");
+
       return res.status(eligibility.status).json(eligibility.body);
     }
 
@@ -371,6 +397,9 @@ router.post("/verify", async (req, res) => {
       .from("profiles")
       .update({ last_login: new Date().toISOString() })
       .eq("id", profile.id);
+
+    // Log successful login to MongoDB
+    await logSuccessfulLogin(req, profile.id, profile.email);
 
     // Clear OTP from store
     otpStore.delete(emailKey);
@@ -479,6 +508,7 @@ router.post("/resend", async (req, res) => {
 
     const eligibility = await validateLoginEligibility(profile);
     if (!eligibility.ok) {
+      await logFailedLogin(req, email, eligibility.body.message || "Account not eligible");
       return res.status(eligibility.status).json(eligibility.body);
     }
 

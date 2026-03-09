@@ -84,6 +84,7 @@ const AdminPaymentTransactions = lazy(() => import("./pages/admin/PaymentTransac
 const AdminTermsManagement = lazy(() => import("./pages/admin/TermsManagement"));
 const Expenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
+const LoginLogsPage = lazy(() => import("./pages/admin/LoginLogsPage"));
 const AdminLaunchPasswordReset = lazy(() => import("./pages/admin/LaunchPasswordReset"));
 
 // Lazy loaded Pharmacy pages
@@ -482,6 +483,11 @@ function App() {
           <Route path="/admin/logs" element={
             <ProtectedRoute allowedRoles={['admin']}>
               <AdminLogs />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/login-logs" element={
+            <ProtectedRoute allowedRoles={['admin']}>
+              <LoginLogsPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/po" element={

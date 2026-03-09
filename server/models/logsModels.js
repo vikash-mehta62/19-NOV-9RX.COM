@@ -10,7 +10,9 @@ const logSchema = new mongoose.Schema({
       'order_edited',
       'payment_success',
       'payment_failed',
-      'order_and_payment_success'
+      'order_and_payment_success',
+      'login',
+      'login_failed'
     ]
   },
   timestamp: { type: Date, default: Date.now },

@@ -1660,6 +1660,7 @@ app.use("/api/terms", require("./routes/termsRoutes")) // Terms acceptance for a
 app.use("/api/terms-management", require("./routes/termsManagementRoutes")) // Terms & ACH management
 app.use("/api/cart", require("./routes/cartRoutes")) // Cart management & abandoned cart reminders
 app.use("/api/profile", require("./routes/profileRoutes")) // Profile completion with secure magic links
+app.use("/api/login-logs", require("./routes/loginLogsRoutes")) // Login logs and security monitoring
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)

@@ -9,6 +9,8 @@ const orderConfirmationTemplate = (order) => {
     total_amount = 0,
     tax_amount = 0,
     shipping_cost = 0,
+    discount_amount = 0,
+    discount_details = [],
     status = "new"
   } = order;
 
@@ -192,6 +194,28 @@ const orderConfirmationTemplate = (order) => {
                                         <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Shipping</td>
                                         <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${shipping_cost ? formatCurrency(shipping_cost) : 'FREE'}</td>
                                     </tr>
+                                    ${discount_amount > 0 ? `
+                                    <tr>
+                                        <td colspan="2" style="padding-top: 8px; padding-bottom: 4px;">
+                                            <div style="border-top: 1px solid #e5e7eb;"></div>
+                                        </td>
+                                    </tr>
+                                    ${discount_details.map(discount => `
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600;">${discount.name || 'Discount'}</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600; text-align: right;">-${formatCurrency(discount.amount || 0)}</td>
+                                    </tr>
+                                    `).join('')}
+                                    ` : ''}
+                                    ${discount_amount > 0 ? `
+                                    <tr>
+                                        <td colspan="2" style="padding: 4px 0;">
+                                            <div style="text-align: right; font-size: 13px; color: #059669; font-weight: 600;">
+                                                You saved: ${formatCurrency(discount_amount)}
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    ` : ''}
                                     <tr>
                                         <td colspan="2" style="padding-top: 12px;">
                                             <div style="border-top: 2px solid #e5e7eb; padding-top: 12px;">

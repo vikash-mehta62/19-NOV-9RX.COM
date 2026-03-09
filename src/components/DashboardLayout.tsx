@@ -35,6 +35,7 @@ import {
   Brain,
   Bell,
   Layers,
+  LogIn,
 } from "lucide-react"
 import { SidebarHeader } from "./dashboard/SidebarHeader";
 import { SidebarProfile } from "./dashboard/SidebarProfile";
@@ -127,6 +128,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: CreditCard, label: "Payments", path: "/admin/payment-transactions" },
           { icon: Users, label: "Store Approval", path: "/admin/access-requests" },
           { icon: Logs, label: "Activity Logs", path: "/admin/logs" },
+          { icon: LogIn, label: "Login Logs", path: "/admin/login-logs" },
         ],
       },
     ],

@@ -41,6 +41,7 @@ const routeLabels: Record<string, string> = {
   blogs: "Blogs",
   expenses: "Expenses",
   logs: "Activity Logs",
+  "login-logs": "Login Logs",
   "group-pricing": "Special Pricing",
   "credit-management": "Credit Management",
   "abandoned-carts": "Abandoned Carts",

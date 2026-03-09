@@ -12,6 +12,7 @@ const userVerificationTemplate = require("../templates/userVerificationTemplate"
 const signupSuccessTemplate = require("../templates/signupSuccessTemplate");
 const mailSender = require("../utils/mailSender");
 const { buildPayNowUrl, generateOrderDocumentPdf } = require("../utils/orderPdfGenerator");
+const { generateFrontendStylePdf } = require("../utils/frontendStylePdfGenerator");
 const { triggerAutomation, trackConversion } = require("../cron/emailCron");
 const { createClient } = require("@supabase/supabase-js");
 
@@ -81,34 +82,72 @@ const mergeOrderData = (incoming = {}, dbOrder = {}) => {
 };
 
 const resolveOrderFromDb = async (incomingOrder = {}) => {
+  console.log("📥 Incoming order data:", {
+    has_id: !!incomingOrder?.id,
+    has_order_number: !!incomingOrder?.order_number,
+    has_items: !!incomingOrder?.items,
+    has_customerInfo: !!incomingOrder?.customerInfo,
+    has_shippingAddress: !!incomingOrder?.shippingAddress,
+    has_subtotal: !!incomingOrder?.subtotal,
+    has_tax: !!incomingOrder?.tax_amount,
+    has_shipping: !!incomingOrder?.shipping_cost,
+    has_total: !!incomingOrder?.total_amount,
+    has_discount_amount: !!incomingOrder?.discount_amount,
+    has_discount_details: !!incomingOrder?.discount_details,
+    has_paid_amount: !!incomingOrder?.paid_amount,
+    has_payment_status: !!incomingOrder?.payment_status,
+    has_invoice_number: !!incomingOrder?.invoice_number,
+    discount_amount_value: incomingOrder?.discount_amount,
+    discount_details_value: incomingOrder?.discount_details,
+    keys: Object.keys(incomingOrder || {})
+  });
+
   const adminClient = getSupabaseAdmin();
-  if (!adminClient) return incomingOrder;
-
-  let dbOrder = null;
-
-  if (incomingOrder?.id) {
-    const { data } = await adminClient
-      .from("orders")
-      .select("*")
-      .eq("id", incomingOrder.id)
-      .maybeSingle();
-    dbOrder = data || null;
+  
+  // If incoming order has all necessary data, use it directly
+  const hasCompleteData = incomingOrder?.items && 
+                          incomingOrder?.customerInfo?.email && 
+                          incomingOrder?.total_amount;
+  
+  if (hasCompleteData && !adminClient) {
+    console.log("✅ Using incoming order data directly (no admin client)");
+    return incomingOrder;
   }
 
-  if (!dbOrder && incomingOrder?.order_number) {
-    const { data } = await adminClient
-      .from("orders")
-      .select("*")
-      .eq("order_number", incomingOrder.order_number)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    dbOrder = data || null;
+  let dbOrder = null;
+  let needsDbFetch = false;
+
+  // Only fetch from DB if we're missing critical data
+  if (!hasCompleteData && adminClient) {
+    needsDbFetch = true;
+    
+    if (incomingOrder?.id) {
+      const { data } = await adminClient
+        .from("orders")
+        .select("*")
+        .eq("id", incomingOrder.id)
+        .maybeSingle();
+      dbOrder = data || null;
+      console.log("🔍 Fetched order from DB by ID:", !!dbOrder);
+    }
+
+    if (!dbOrder && incomingOrder?.order_number) {
+      const { data } = await adminClient
+        .from("orders")
+        .select("*")
+        .eq("order_number", incomingOrder.order_number)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      dbOrder = data || null;
+      console.log("🔍 Fetched order from DB by order_number:", !!dbOrder);
+    }
   }
 
   const merged = mergeOrderData(incomingOrder, dbOrder || {});
 
-  if (!merged.invoice_number && merged.id) {
+  // Only fetch invoice number if not already present
+  if (!merged.invoice_number && merged.id && adminClient) {
     const { data: invoiceData } = await adminClient
       .from("invoices")
       .select("invoice_number")
@@ -119,10 +158,12 @@ const resolveOrderFromDb = async (incomingOrder = {}) => {
 
     if (invoiceData?.invoice_number) {
       merged.invoice_number = invoiceData.invoice_number;
+      console.log("📄 Fetched invoice number:", merged.invoice_number);
     }
   }
 
-  if (!merged?.customerInfo?.email && merged?.profile_id) {
+  // Only fetch customer info if email is missing
+  if (!merged?.customerInfo?.email && merged?.profile_id && adminClient) {
     const { data: profileData } = await adminClient
       .from("profiles")
       .select("email, first_name, last_name, mobile_phone")
@@ -139,8 +180,25 @@ const resolveOrderFromDb = async (incomingOrder = {}) => {
           "Customer",
         phone: merged.customerInfo?.phone || profileData.mobile_phone || "",
       };
+      console.log("👤 Fetched customer info from profiles");
     }
   }
+
+  console.log("📦 Final resolved order data:", {
+    order_number: merged.order_number,
+    invoice_number: merged.invoice_number,
+    subtotal: merged.subtotal,
+    tax_amount: merged.tax_amount,
+    shipping_cost: merged.shipping_cost,
+    discount_amount: merged.discount_amount,
+    discount_details: merged.discount_details,
+    total_amount: merged.total_amount,
+    paid_amount: merged.paid_amount,
+    payment_status: merged.payment_status,
+    items_count: merged.items?.length,
+    has_customer_email: !!merged.customerInfo?.email,
+    db_fetch_needed: needsDbFetch
+  });
 
   return merged;
 };
@@ -164,7 +222,15 @@ const appendPaymentBlock = (html, paymentUrl, balanceDue) => {
 const buildOrderDocument = async (order, options = {}) => {
   try {
     const paymentUrl = options.paymentUrl || buildPayNowUrl(order?.id);
-    const pdf = await generateOrderDocumentPdf(order, {
+    
+    console.log("🎨 Using frontend-style PDF generator:", {
+      documentType: options.documentType,
+      payment_status: order.payment_status,
+      order_number: order.order_number
+    });
+ 
+    // Use the new frontend-style PDF generator
+    const pdf = await generateFrontendStylePdf(order, {
       documentType: options.documentType,
       paymentUrl,
     });
@@ -210,8 +276,18 @@ exports.orderSatusCtrl = async (req, res) => {
       });
     }
 
+    // Determine document type based on payment status
+    // If paid → INVOICE, otherwise → SALES ORDER
+    const isPaid = order.payment_status?.toLowerCase() === 'paid';
+    const documentType = isPaid ? 'INVOICE' : 'SALES ORDER';
+    
+    console.log("📄 Document type for status update email:", {
+      payment_status: order.payment_status,
+      documentType: documentType
+    });
+
     // Generate email content using the template
-    const pdfMeta = await buildOrderDocument(order);
+    const pdfMeta = await buildOrderDocument(order, { documentType });
     const emailContent = appendPaymentBlock(
       orderStatusTemplate(order),
       pdfMeta?.paymentUrl,
@@ -285,8 +361,19 @@ exports.orderPlacedCtrl = async (req, res) => {
       });
     }
 
+    // Determine document type based on payment status
+    // If paid → INVOICE, otherwise → SALES ORDER
+    const isPaid = order.payment_status?.toLowerCase() === 'paid';
+    const documentType = isPaid ? 'INVOICE' : 'SALES ORDER';
+    
+    console.log("📄 Document type for email:", {
+      payment_status: order.payment_status,
+      invoice_number: order.invoice_number,
+      documentType: documentType
+    });
+
     // Generate email content using the template
-    const pdfMeta = await buildOrderDocument(order);
+    const pdfMeta = await buildOrderDocument(order, { documentType });
     const emailContent = appendPaymentBlock(
       orderConfirmationTemplate(order),
       pdfMeta?.paymentUrl,
