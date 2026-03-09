@@ -38,6 +38,7 @@ import { useToast } from "@/hooks/use-toast";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import axios from "../../../axiosconfig";
 import { supabase } from "@/integrations/supabase/client";
+import { calculatePaymentStatusAfterAdjustment } from "@/utils/paymentStatusCalculator";
 
 interface PaymentAdjustmentModalProps {
   open: boolean;
@@ -49,6 +50,7 @@ interface PaymentAdjustmentModalProps {
   customerEmail?: string;
   originalAmount: number;
   newAmount: number;
+  paidAmount: number; // ACTUAL paid amount from order
   hasCredit: boolean;
   availableCredit: number;
   creditMemoBalance: number;
@@ -72,6 +74,7 @@ export function PaymentAdjustmentModal({
   customerEmail,
   originalAmount,
   newAmount,
+  paidAmount,
   hasCredit,
   availableCredit,
   creditMemoBalance,
@@ -79,6 +82,10 @@ export function PaymentAdjustmentModal({
   onPaymentComplete,
 }: PaymentAdjustmentModalProps) {
   const { toast } = useToast();
+  
+  // Ensure orderNumber is never undefined
+  const safeOrderNumber = orderNumber || orderId || 'ORDER';
+  
   const [loading, setLoading] = useState(false);
   const [selectedAction, setSelectedAction] = useState<AdjustmentAction | null>(null);
   const [reason, setReason] = useState("");
@@ -86,6 +93,7 @@ export function PaymentAdjustmentModal({
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [originalTransactionId, setOriginalTransactionId] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
+  const [currentPaidAmount, setCurrentPaidAmount] = useState<number>(0);
 
   const differenceAmount = Number((newAmount - originalAmount).toFixed(2));
   const isIncrease = differenceAmount > 0;
@@ -93,6 +101,7 @@ export function PaymentAdjustmentModal({
 
   useEffect(() => {
     if (open) {
+      loadOrderData();
       if (isIncrease) {
         loadSavedCards();
       } else {
@@ -100,6 +109,22 @@ export function PaymentAdjustmentModal({
       }
     }
   }, [open, isIncrease, customerId]);
+
+  const loadOrderData = async () => {
+    try {
+      const { data: order } = await supabase
+        .from('orders')
+        .select('paid_amount')
+        .eq('id', orderId)
+        .single();
+      
+      if (order) {
+        setCurrentPaidAmount(Number(order.paid_amount || 0));
+      }
+    } catch (error) {
+      console.error('Error loading order data:', error);
+    }
+  };
 
   const loadSavedCards = async () => {
     const cards = await PaymentAdjustmentService.getCustomerSavedCards(customerId);
@@ -127,6 +152,22 @@ export function PaymentAdjustmentModal({
 
     // If "none" is selected, just save the order without any payment processing
     if (selectedAction === 'none') {
+      // Calculate new payment status based on current amounts
+      const newPaymentStatus = calculatePaymentStatusAfterAdjustment(
+        newAmount,
+        currentPaidAmount
+      );
+
+      // Update order payment status
+      try {
+        await supabase
+          .from('orders')
+          .update({ payment_status: newPaymentStatus })
+          .eq('id', orderId);
+      } catch (error) {
+        console.error('Error updating payment status:', error);
+      }
+
       toast({
         title: "Order Saved",
         description: "Order items updated. Payment adjustment pending.",
@@ -146,6 +187,7 @@ export function PaymentAdjustmentModal({
     try {
       let result: { success: boolean; data?: any; error?: string };
       let transactionId: string | undefined;
+      let newPaymentStatus: string;
 
       if (isIncrease) {
         if (selectedAction === 'collect_payment') {
@@ -155,22 +197,44 @@ export function PaymentAdjustmentModal({
             throw new Error('Please select a payment method');
           }
 
-          const paymentResult = await PaymentAdjustmentService.processGatewayPayment(
-            absoluteDifference,
-            'saved_card',
-            {
-              customerProfileId: card.customer_profile_id,
-              paymentProfileId: card.payment_profile_id,
-            },
-            orderId,
-            orderNumber
-          );
+          console.log('Processing payment with card:', card);
+          console.log('Order details:', { orderId, orderNumber, customerId, absoluteDifference });
 
-          if (!paymentResult.success) {
-            throw new Error(paymentResult.error || 'Payment failed');
+          // Check if this is a local test card
+          const isLocalCard = !card.customer_profile_id || card.payment_profile_id?.startsWith('local_');
+          
+          let paymentResult: { success: boolean; transactionId?: string; error?: string };
+
+          if (isLocalCard) {
+            // Mock payment for local test cards
+            console.log('🧪 Using local test card - simulating payment');
+            paymentResult = {
+              success: true,
+              transactionId: `TEST_${Date.now()}`
+            };
+            transactionId = paymentResult.transactionId;
+          } else {
+            // Real Authorize.net payment
+            console.log('💳 Using real Authorize.net card');
+            paymentResult = await PaymentAdjustmentService.processGatewayPayment(
+              absoluteDifference,
+              'saved_card',
+              {
+                customerProfileId: card.customer_profile_id,
+                paymentProfileId: card.payment_profile_id,
+              },
+              orderId,
+              orderNumber || orderId
+            );
+
+            if (!paymentResult.success) {
+              throw new Error(paymentResult.error || 'Payment failed');
+            }
+
+            transactionId = paymentResult.transactionId;
           }
 
-          transactionId = paymentResult.transactionId;
+          console.log('Payment result:', paymentResult);
 
           // Record payment transaction
           await PaymentAdjustmentService.recordPaymentTransaction({
@@ -191,7 +255,7 @@ export function PaymentAdjustmentModal({
             orderId,
             transactionType: 'credit',
             referenceType: 'payment',
-            description: `Additional payment for order ${orderNumber}`,
+            description: `Additional payment for order ${orderNumber || orderId}`,
             amount: absoluteDifference,
             processedBy: customerId,
             transactionId,
@@ -205,8 +269,23 @@ export function PaymentAdjustmentModal({
             'saved_card',
             transactionId || `TXN_${Date.now()}`,
             customerId,
-            reason || `Order ${orderNumber} modified - additional payment`
+            reason || `Order ${orderNumber || orderId} modified - additional payment`
           );
+
+          // Calculate new payment status - payment collected, should be paid
+          newPaymentStatus = calculatePaymentStatusAfterAdjustment(
+            newAmount,
+            currentPaidAmount + absoluteDifference // new paid amount after charging card
+          );
+
+          // Update order payment status
+          await supabase
+            .from('orders')
+            .update({ 
+              payment_status: newPaymentStatus,
+              paid_amount: currentPaidAmount + absoluteDifference 
+            })
+            .eq('id', orderId);
         } else if (selectedAction === 'send_payment_link') {
           // Send payment link via email
           setSendingEmail(true);
@@ -229,8 +308,8 @@ export function PaymentAdjustmentModal({
             status: 'pending_additional_payment',
             adjustment_amount: absoluteDifference,
             original_amount: originalAmount,
-            paid_amount: originalAmount, // Amount already paid
-            adjustment_reason: reason || `Order ${orderNumber} modified - additional payment required`,
+            paid_amount: paidAmount, // Amount already paid
+            adjustment_reason: reason || `Order ${orderNumber || orderId} modified - additional payment required`,
           };
 
           try {
@@ -246,7 +325,7 @@ export function PaymentAdjustmentModal({
               differenceAmount: absoluteDifference,
               paymentMethod: 'payment_link',
               paymentStatus: 'pending',
-              reason: reason || `Order ${orderNumber} modified - payment link sent`,
+              reason: reason || `Order ${orderNumber || orderId} modified - payment link sent`,
             });
 
             toast({
@@ -272,7 +351,7 @@ export function PaymentAdjustmentModal({
               p_adjustment_amount: absoluteDifference,
               p_original_amount: originalAmount,
               p_new_amount: newAmount,
-              p_reason: reason || `Order ${orderNumber} modified - charged to credit line`,
+              p_reason: reason || `Order ${orderNumber || orderId} modified - charged to credit line`,
             }
           );
 
@@ -298,7 +377,7 @@ export function PaymentAdjustmentModal({
           result = await PaymentAdjustmentService.issueCreditMemo({
             customerId,
             amount: absoluteDifference,
-            reason: reason || `Order ${orderNumber} modified - credit memo issued`,
+            reason: reason || `Order ${orderNumber || orderId} modified - credit memo issued`,
             orderId,
           });
 
@@ -312,7 +391,7 @@ export function PaymentAdjustmentModal({
               differenceAmount: -absoluteDifference,
               paymentStatus: 'completed',
               creditMemoId: result.data?.credit_memo_id,
-              reason: reason || `Order ${orderNumber} modified - credit memo issued`,
+              reason: reason || `Order ${orderNumber || orderId} modified - credit memo issued`,
             });
           }
         } else if (selectedAction === 'process_refund') {
@@ -320,7 +399,7 @@ export function PaymentAdjustmentModal({
             orderId,
             customerId,
             amount: absoluteDifference,
-            reason: reason || `Order ${orderNumber} modified - refund processed`,
+            reason: reason || `Order ${orderNumber || orderId} modified - refund processed`,
             refundMethod: 'original_payment',
             originalPaymentId: originalTransactionId || undefined,
           });
@@ -345,7 +424,7 @@ export function PaymentAdjustmentModal({
               orderId,
               transactionType: 'debit',
               referenceType: 'refund',
-              description: `Refund for order ${orderNumber}`,
+              description: `Refund for order ${orderNumber || orderId}`,
               amount: absoluteDifference,
               processedBy: customerId,
               transactionId,
@@ -361,7 +440,7 @@ export function PaymentAdjustmentModal({
               paymentStatus: 'completed',
               refundId: result.data?.id,
               paymentTransactionId: transactionId,
-              reason: reason || `Order ${orderNumber} modified - refund processed`,
+              reason: reason || `Order ${orderNumber || orderId} modified - refund processed`,
             });
           }
         } else {

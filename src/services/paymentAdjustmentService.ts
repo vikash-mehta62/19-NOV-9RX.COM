@@ -137,8 +137,8 @@ export const PaymentAdjustmentService = {
           customerProfileId: paymentDetails.customerProfileId,
           paymentProfileId: paymentDetails.paymentProfileId,
           amount,
-          orderId,
-          invoiceNumber,
+          orderId: orderId || '',
+          invoiceNumber: invoiceNumber || orderId || '',
         };
       } else {
         // Direct card payment
@@ -162,11 +162,11 @@ export const PaymentAdjustmentService = {
 
       if (error) {
         console.error('Edge function error:', error);
-        return { success: false, error: error.message };
+        return { success: false, error: error.message || String(error) };
       }
 
-      if (!data.success) {
-        return { success: false, error: data.error || 'Payment failed' };
+      if (!data || !data.success) {
+        return { success: false, error: data?.error || 'Payment failed' };
       }
 
       return { 
@@ -175,7 +175,7 @@ export const PaymentAdjustmentService = {
       };
     } catch (error: any) {
       console.error('Error processing gateway payment:', error);
-      return { success: false, error: error.message };
+      return { success: false, error: error?.message || String(error) };
     }
   },
 

@@ -17,6 +17,7 @@ import { ProductSelectionStep } from "@/components/orders/wizard/steps/ProductSe
 import { useCart } from "@/hooks/use-cart";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
+import { recalculateOrderPaymentStatus, calculateBalanceDue } from "@/utils/paymentStatusCalculator";
 
 interface ItemsTabProps {
   items: OrderFormValues["items"];
@@ -250,7 +251,7 @@ export const ItemsTab = ({
 
       setPaymentAdjustmentData({
         orderId,
-        orderNumber: orderNumber || currentOrder?.order_number || '',
+        orderNumber: orderNumber || currentOrder?.order_number || orderId,
         customerId: customerIdToUse,
         customerName,
         customerEmail: customerEmail || customerProfile?.email,
@@ -300,52 +301,18 @@ export const ItemsTab = ({
       const paidAmount = Number(currentOrderData?.paid_amount || 0);
       const customerIdForPoints = currentOrderData?.location_id || currentOrderData?.profile_id;
 
-      // Determine if payment status should change
+      // Determine if payment status should change using simple calculator
       let updatePaymentStatus = newPaymentStatus;
       
       // If no explicit payment status provided, calculate based on paid amount
       if (!updatePaymentStatus) {
-        // Special case: If new total is $0.00, always mark as paid (fully covered by credit memo)
-        if (Math.abs(newTotal) < 0.01) {
-          updatePaymentStatus = 'paid';
-          console.log(`💰 Payment status: paid (total is $0.00 - fully covered by credit memo)`);
-        }
-        // For paid orders, check if new total exceeds paid amount
-        else if (currentOrderData?.payment_status === 'paid') {
-          // Special case: If paid_amount is 0, it means order was paid via credit memo
-          // In this case, if total changes, it should become unpaid (balance due)
-          if (paidAmount === 0) {
-            if (Math.abs(newTotal - oldTotal) < 0.01) {
-              // Total hasn't changed - keep as paid (credit memo still covers it)
-              updatePaymentStatus = 'paid';
-            } else if (newTotal > 0) {
-              // Total increased and is now > 0 - there's a balance due
-              updatePaymentStatus = 'unpaid';
-              console.log(`💰 Payment status changed to unpaid: order was paid via credit memo, new balance due=${newTotal}`);
-            } else {
-              // Total is 0 or negative - still fully covered by credit memo
-              updatePaymentStatus = 'paid';
-            }
-          } else {
-            // Normal case: paid_amount > 0 (paid via card/cash/etc)
-            const actualPaidAmount = paidAmount;
-            
-            if (newTotal > actualPaidAmount) {
-              // New total is higher than what was paid - mark as partial paid
-              updatePaymentStatus = 'partial_paid';
-              console.log(`💰 Payment status changed to partial_paid: paid=${actualPaidAmount}, new total=${newTotal}`);
-            } else if (Math.abs(newTotal - actualPaidAmount) < 0.01) {
-              // Amounts match (within rounding tolerance) - keep as paid
-              updatePaymentStatus = 'paid';
-            } else {
-              // New total is less than paid amount - keep as paid (overpaid scenario)
-              updatePaymentStatus = 'paid';
-            }
-          }
-        } else if (paidAmount > 0 && newTotal > paidAmount) {
-          // For partial paid orders, check if balance increased
-          updatePaymentStatus = 'partial_paid';
-        }
+        updatePaymentStatus = recalculateOrderPaymentStatus({
+          total_amount: newTotal,
+          paid_amount: paidAmount,
+        });
+        
+        console.log(`💰 Payment status recalculated: ${updatePaymentStatus}`);
+        console.log(`   Total: $${newTotal.toFixed(2)}, Paid: $${paidAmount.toFixed(2)}`);
       }
 
       // Build update object
