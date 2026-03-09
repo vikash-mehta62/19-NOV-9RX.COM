@@ -118,11 +118,11 @@ export function PaymentAdjustmentModal({
         .eq('id', orderId)
         .single();
       
-      if (order) {
-        setCurrentPaidAmount(Number(order.paid_amount || 0));
-      }
+      const paidFromDb = Number(order?.paid_amount || 0);
+      setCurrentPaidAmount(paidFromDb > 0 ? paidFromDb : Number(paidAmount || 0));
     } catch (error) {
       console.error('Error loading order data:', error);
+      setCurrentPaidAmount(Number(paidAmount || 0));
     }
   };
 
@@ -188,6 +188,35 @@ export function PaymentAdjustmentModal({
       let result: { success: boolean; data?: any; error?: string };
       let transactionId: string | undefined;
       let newPaymentStatus: string;
+
+      // Guard against accidental double-processing of the exact same adjustment.
+      if (selectedAction === "issue_credit_memo" || selectedAction === "process_refund") {
+        const adjustmentType = selectedAction === "issue_credit_memo" ? "credit_memo_issued" : "partial_refund";
+        const signedDifference = -absoluteDifference;
+
+        const alreadyProcessed = await PaymentAdjustmentService.hasEquivalentCompletedAdjustment({
+          orderId,
+          adjustmentType,
+          originalAmount,
+          newAmount,
+          differenceAmount: signedDifference,
+        });
+
+        if (alreadyProcessed) {
+          toast({
+            title: "Adjustment already processed",
+            description: "This same adjustment was already completed and will not be applied again.",
+          });
+
+          onPaymentComplete({
+            success: true,
+            adjustmentType: "none",
+          });
+
+          onOpenChange(false);
+          return;
+        }
+      }
 
       if (isIncrease) {
         if (selectedAction === 'collect_payment') {
@@ -504,7 +533,7 @@ export function PaymentAdjustmentModal({
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">Paid Amount:</span>
-              <span className="font-medium text-green-600">${originalAmount.toFixed(2)}</span>
+              <span className="font-medium text-green-600">${(currentPaidAmount || paidAmount || 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between text-sm">
               <span className="text-gray-600">New Amount:</span>

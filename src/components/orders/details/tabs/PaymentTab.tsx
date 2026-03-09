@@ -118,11 +118,15 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
     paymentStatus: order.payment_status
   });
 
-  // Fix: Check if order is fully paid based on actual amounts, not just status field
-  // An order is fully paid if paid amount >= total OR if payment_status is 'paid' and amounts match within $0.01
-  const amountDifference = Math.abs(total - paidAmount);
-  const isPaid = order.payment_status === "paid" && amountDifference < 0.01;
-  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && balanceDue > 0.01 && !isPaid);
+  // Paid if total is effectively zero, or paid amount fully covers/overpays total.
+  // This keeps reduced-price edits from incorrectly showing "Unpaid".
+  const isPaid =
+    total <= 0.01 ||
+    paidAmount >= total - 0.01 ||
+    (order.payment_status === "paid" && balanceDue === 0);
+  const isPartiallyPaid =
+    !isPaid &&
+    (order.payment_status === "partial_paid" || (paidAmount > 0.01 && balanceDue > 0.01));
 
   // Get payment method display name
   const getPaymentMethodDisplay = (method: string) => {

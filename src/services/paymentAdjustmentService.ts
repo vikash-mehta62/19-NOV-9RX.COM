@@ -700,6 +700,45 @@ export const PaymentAdjustmentService = {
   },
 
   /**
+   * Check if an equivalent completed adjustment already exists.
+   * This prevents accidental double-processing of the same adjustment.
+   */
+  async hasEquivalentCompletedAdjustment(params: {
+    orderId: string;
+    adjustmentType: PaymentAdjustment["adjustmentType"];
+    originalAmount: number;
+    newAmount: number;
+    differenceAmount: number;
+  }): Promise<boolean> {
+    try {
+      const original = Number(params.originalAmount.toFixed(2));
+      const next = Number(params.newAmount.toFixed(2));
+      const diff = Number(params.differenceAmount.toFixed(2));
+
+      const { data, error } = await supabase
+        .from("payment_adjustments")
+        .select("id")
+        .eq("order_id", params.orderId)
+        .eq("adjustment_type", params.adjustmentType)
+        .eq("payment_status", "completed")
+        .eq("original_amount", original)
+        .eq("new_amount", next)
+        .eq("difference_amount", diff)
+        .limit(1);
+
+      if (error) {
+        console.error("Error checking duplicate payment adjustment:", error);
+        return false;
+      }
+
+      return !!(data && data.length > 0);
+    } catch (error) {
+      console.error("Error checking equivalent completed adjustment:", error);
+      return false;
+    }
+  },
+
+  /**
    * Process additional payment for order modification
    */
   async processAdditionalPayment(

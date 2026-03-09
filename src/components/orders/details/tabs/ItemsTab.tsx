@@ -255,8 +255,11 @@ export const ItemsTab = ({
         customerId: customerIdToUse,
         customerName,
         customerEmail: customerEmail || customerProfile?.email,
-        originalAmount: paidAmount > 0 ? paidAmount : originalAmount, // Use paid_amount if available
+        // Use current order total as the adjustment baseline.
+        // Using paid amount here can cause duplicate credit/refund prompts.
+        originalAmount,
         newAmount: newTotal,
+        paidAmount,
         hasCredit,
         availableCredit,
         creditMemoBalance,
@@ -298,7 +301,13 @@ export const ItemsTab = ({
       const oldTotal = Number(currentOrderData?.total_amount || 0);
       const oldItemCount = currentOrderData?.items?.length || 0;
       const newItemCount = itemsToSave.length;
-      const paidAmount = Number(currentOrderData?.paid_amount || 0);
+      const paidAmountFromDb = Number(currentOrderData?.paid_amount || 0);
+      const paidAmount =
+        paidAmountFromDb > 0
+          ? paidAmountFromDb
+          : currentOrderData?.payment_status === "paid"
+            ? oldTotal
+            : 0;
       const customerIdForPoints = currentOrderData?.location_id || currentOrderData?.profile_id;
 
       // Determine if payment status should change using simple calculator
@@ -932,6 +941,7 @@ export const ItemsTab = ({
           customerEmail={paymentAdjustmentData.customerEmail || customerEmail}
           originalAmount={paymentAdjustmentData.originalAmount}
           newAmount={paymentAdjustmentData.newAmount}
+          paidAmount={paymentAdjustmentData.paidAmount}
           hasCredit={paymentAdjustmentData.hasCredit}
           availableCredit={paymentAdjustmentData.availableCredit}
           creditMemoBalance={paymentAdjustmentData.creditMemoBalance}
