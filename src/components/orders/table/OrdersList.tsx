@@ -509,7 +509,12 @@ export function OrdersList({
         { p_order_id: orderId }
       );
 
-      if (rpcError) throw new Error(rpcError.message);
+      if (rpcError) {
+        const detailedMessage = [rpcError.message, rpcError.details, rpcError.hint]
+          .filter(Boolean)
+          .join(" | ");
+        throw new Error(detailedMessage || "Credit approval failed");
+      }
       if (!rpcResult?.success) {
         throw new Error(rpcResult?.message || "Credit approval failed");
       }

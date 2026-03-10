@@ -387,7 +387,7 @@ setOrders([])
       // Get order data before voiding (for reward points reversal)
       const { data: orderBeforeVoid, error: fetchOrderError } = await supabase
         .from("orders")
-        .select("id, order_number, total_amount, profile_id, location_id, payment_method")
+        .select("id, order_number, total_amount, profile_id, location_id, payment_method, payment_status, status")
         .eq("id", orderId)
         .single();
 
@@ -468,56 +468,63 @@ setOrders([])
         }
       }
 
-      // Step 4: Reverse stock for order items
-      await restoreBatchStockForOrder(orderId, "order_void_restore");
+      const paymentMethod = String(orderBeforeVoid?.payment_method || "").toLowerCase();
+      const paymentStatus = String(orderBeforeVoid?.payment_status || "").toLowerCase();
+      const shouldRestoreStock = paymentMethod !== "credit" || paymentStatus === "paid" || paymentStatus === "partial_paid";
 
-      // Step 5: Reverse stock for order items
-      const { data: orderItems, error: itemsError } = await supabase
-        .from("order_items")
-        .select("product_id, quantity")
-        .eq("order_id", orderId);
-      if (itemsError) throw itemsError;
+      // Step 4-6: Reverse stock only if stock was previously deducted.
+      // Credit orders in approval-pending state should not restore stock.
+      if (shouldRestoreStock) {
+        await restoreBatchStockForOrder(orderId, "order_void_restore");
 
-      for (const item of orderItems) {
-        const { error: stockRestoreError } = await supabase.rpc(
-          "increment_stock",
-          {
-            product_id: item.product_id,
-            quantity: item.quantity,
+        const { data: orderItems, error: itemsError } = await supabase
+          .from("order_items")
+          .select("product_id, quantity")
+          .eq("order_id", orderId);
+        if (itemsError) throw itemsError;
+
+        for (const item of orderItems) {
+          const { error: stockRestoreError } = await supabase.rpc(
+            "increment_stock",
+            {
+              product_id: item.product_id,
+              quantity: item.quantity,
+            }
+          );
+          if (stockRestoreError) {
+            console.error(
+              `❌ Error restoring stock for product ${item.product_id}:`,
+              stockRestoreError
+            );
           }
-        );
-        if (stockRestoreError) {
-          console.error(
-            `❌ Error restoring stock for product ${item.product_id}:`,
-            stockRestoreError
-          );
-        }
-      }
-
-      // Step 6: Reverse stock for size-level if needed
-      const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
-      for (const size of sizes) {
-        const { data: currentSize, error: fetchError } = await supabase
-          .from("product_sizes")
-          .select("stock")
-          .eq("id", size.id)
-          .single();
-        if (fetchError || !currentSize) {
-          console.warn(`⚠️ Size not found for ID: ${size.id}`);
-          continue;
         }
 
-        const newQuantity = currentSize.stock + size.quantity;
-        const { error: updateError } = await supabase
-          .from("product_sizes")
-          .update({ stock: newQuantity })
-          .eq("id", size.id);
-        if (updateError) {
-          console.error(
-            `❌ Failed to restore stock for size ID: ${size.id}`,
-            updateError
-          );
+        const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
+        for (const size of sizes) {
+          const { data: currentSize, error: fetchError } = await supabase
+            .from("product_sizes")
+            .select("stock")
+            .eq("id", size.id)
+            .single();
+          if (fetchError || !currentSize) {
+            console.warn(`⚠️ Size not found for ID: ${size.id}`);
+            continue;
+          }
+
+          const newQuantity = currentSize.stock + size.quantity;
+          const { error: updateError } = await supabase
+            .from("product_sizes")
+            .update({ stock: newQuantity })
+            .eq("id", size.id);
+          if (updateError) {
+            console.error(
+              `❌ Failed to restore stock for size ID: ${size.id}`,
+              updateError
+            );
+          }
         }
+      } else {
+        console.log(`ℹ️ Skipping stock restore for credit order ${orderId} (not yet approved/paid).`);
       }
 
       // Step 7: Log void activity
@@ -573,7 +580,7 @@ setOrders([])
       // Get order data before cancelling (for reward points reversal)
       const { data: orderBeforeCancel, error: fetchOrderError } = await supabase
         .from("orders")
-        .select("id, order_number, total_amount, profile_id, location_id, payment_method")
+        .select("id, order_number, total_amount, profile_id, location_id, payment_method, payment_status, status")
         .eq("id", orderId)
         .single();
 
@@ -678,55 +685,63 @@ setOrders([])
         }
       }
 
-      await restoreBatchStockForOrder(orderId, "order_cancel_restore");
+      const paymentMethod = String(orderBeforeCancel?.payment_method || "").toLowerCase();
+      const paymentStatus = String(orderBeforeCancel?.payment_status || "").toLowerCase();
+      const shouldRestoreStock = paymentMethod !== "credit" || paymentStatus === "paid" || paymentStatus === "partial_paid";
 
-      // Step 5: Restore product-level stock
-      const { data: orderItems, error: itemsError } = await supabase
-        .from("order_items")
-        .select("product_id, quantity")
-        .eq("order_id", orderId);
-      if (itemsError) throw itemsError;
+      if (shouldRestoreStock) {
+        await restoreBatchStockForOrder(orderId, "order_cancel_restore");
 
-      for (const item of orderItems) {
-        const { error: stockRestoreError } = await supabase.rpc(
-          "increment_stock",
-          {
-            product_id: item.product_id,
-            quantity: item.quantity,
+        // Step 5: Restore product-level stock
+        const { data: orderItems, error: itemsError } = await supabase
+          .from("order_items")
+          .select("product_id, quantity")
+          .eq("order_id", orderId);
+        if (itemsError) throw itemsError;
+
+        for (const item of orderItems) {
+          const { error: stockRestoreError } = await supabase.rpc(
+            "increment_stock",
+            {
+              product_id: item.product_id,
+              quantity: item.quantity,
+            }
+          );
+          if (stockRestoreError) {
+            console.error(
+              `❌ Error restoring stock for product ${item.product_id}:`,
+              stockRestoreError
+            );
           }
-        );
-        if (stockRestoreError) {
-          console.error(
-            `❌ Error restoring stock for product ${item.product_id}:`,
-            stockRestoreError
-          );
-        }
-      }
-
-      // Step 6: Restore size-level stock (if applicable)
-      const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
-      for (const size of sizes) {
-        const { data: currentSize, error: fetchError } = await supabase
-          .from("product_sizes")
-          .select("stock")
-          .eq("id", size.id)
-          .single();
-        if (fetchError || !currentSize) {
-          console.warn(`⚠️ Size not found for ID: ${size.id}`);
-          continue;
         }
 
-        const newQuantity = currentSize.stock + size.quantity;
-        const { error: updateError } = await supabase
-          .from("product_sizes")
-          .update({ stock: newQuantity })
-          .eq("id", size.id);
-        if (updateError) {
-          console.error(
-            `❌ Failed to restore stock for size ID: ${size.id}`,
-            updateError
-          );
+        // Step 6: Restore size-level stock (if applicable)
+        const sizes = orderData.items?.flatMap((item) => item.sizes || []) || [];
+        for (const size of sizes) {
+          const { data: currentSize, error: fetchError } = await supabase
+            .from("product_sizes")
+            .select("stock")
+            .eq("id", size.id)
+            .single();
+          if (fetchError || !currentSize) {
+            console.warn(`⚠️ Size not found for ID: ${size.id}`);
+            continue;
+          }
+
+          const newQuantity = currentSize.stock + size.quantity;
+          const { error: updateError } = await supabase
+            .from("product_sizes")
+            .update({ stock: newQuantity })
+            .eq("id", size.id);
+          if (updateError) {
+            console.error(
+              `❌ Failed to restore stock for size ID: ${size.id}`,
+              updateError
+            );
+          }
         }
+      } else {
+        console.log(`ℹ️ Skipping stock restore for credit order ${orderId} (not yet approved/paid).`);
       }
 
       // Step 7: Log cancel activity

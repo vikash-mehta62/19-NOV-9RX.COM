@@ -347,20 +347,17 @@ async function updateProductStock(orderItems: any[], orderId: string) {
     return
   }
 
-  // Mandatory: every ordered size must be batch deducted first.
-  for (const item of items) {
-    for (const size of item?.sizes || []) {
-      if (!size?.id) continue
-      if (!result.batchManagedSizeIds.has(size.id)) {
-        throw new Error(`Batch deduction is mandatory but missing for size ${size.id}`)
-      }
-    }
-  }
-
-  // Mandatory second step: always reduce product_sizes.stock after batch deduction.
+  // Batch deduction is preferred, but legacy product_sizes fallback remains valid
+  // for sizes that do not have active/allocatable batches.
   for (const item of items) {
     if (item.sizes && item.sizes.length > 0) {
       for (const size of item.sizes) {
+        if (!size?.id) continue
+        if (result.batchManagedSizeIds.has(size.id)) {
+          // Batch flow already adjusts product_sizes; skip to avoid double decrement.
+          continue
+        }
+
         const { data: currentSize, error: fetchError } = await supabase
           .from("product_sizes")
           .select("stock")

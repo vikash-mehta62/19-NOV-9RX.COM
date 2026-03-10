@@ -35,9 +35,7 @@ import { InvoiceStatus } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints, calculateOrderPoints } from "@/services/rewardsService";
-import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 import { getSavedPaymentMethods, SavedPaymentMethod, chargeSavedCard, saveCardToProfile, canChargeDirectly } from "@/services/paymentService";
-import { deductOrderBatchesWithFallback } from "@/services/orderBatchDeductionService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -134,8 +132,6 @@ const CreateOrderPaymentForm = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const currentUserType = (sessionStorage.getItem("userType") || "").toLowerCase();
-  const disableRewardsForGroup = currentUserType === "group";
 
   const totalShippingCost =
     sessionStorage.getItem("shipping") == "true"
@@ -199,10 +195,7 @@ const CreateOrderPaymentForm = ({
     const calculatePoints = async () => {
       // Use pId (customer ID) if available, otherwise use userProfile.id
       const targetUserId = pId || userProfile?.id;
-      if (!targetUserId || !formData.amount || disableRewardsForGroup) {
-        setEstimatedPoints(0);
-        return;
-      }
+      if (!targetUserId || !formData.amount) return;
       
       try {
         const points = await calculateOrderPoints(formData.amount, targetUserId);
@@ -213,7 +206,7 @@ const CreateOrderPaymentForm = ({
     };
     
     calculatePoints();
-  }, [formData.amount, userProfile?.id, pId, disableRewardsForGroup]);
+  }, [formData.amount, userProfile?.id, pId]);
 
   useEffect(() => {
     const cleanedCartItems = cleanCartItems(cartItems);
@@ -612,9 +605,7 @@ const CreateOrderPaymentForm = ({
         payment_transication: response.data.transactionId || "",
         payment_method: "card" as const,
         shippin_cost: shipping,
-        notes: response.data.authCode 
-          ? `${newOrder.notes || ''}\nAuth Code: ${response.data.authCode}`.trim()
-          : newOrder.notes || null,
+        notes: newOrder.notes || null,
         items: newOrder.items || [],
         customer_info: newOrder.customerInfo || {
           name: (newOrder.customerInfo as any)?.name,
@@ -725,101 +716,19 @@ const CreateOrderPaymentForm = ({
 
       // Mark redeemed rewards as used and apply credit memos
       const appliedDiscounts = discountDetails || data.appliedDiscounts || [];
-      const { data: orderProfile } = await supabase
-        .from("profiles")
-        .select("type")
-        .eq("id", newOrder.profile_id)
-        .maybeSingle();
-      const rewardsAllowedForOrder =
-        !disableRewardsForGroup &&
-        String(orderProfile?.type || "").toLowerCase() !== "group";
-
-      console.log("📦 Applied discounts in payment:", appliedDiscounts);
-      console.log("📦 Applied discounts length:", appliedDiscounts.length);
-      
       if (appliedDiscounts.length > 0) {
         for (const discountItem of appliedDiscounts) {
-          console.log("🎁 Processing discount in payment:", discountItem);
-          
-          // Handle reward points redemption (deduct points)
-          if (rewardsAllowedForOrder && discountItem.type === "rewards" && discountItem.pointsUsed) {
-            console.log("💰 Starting reward points deduction in payment...");
-            console.log("💰 User ID:", newOrder.profile_id);
-            console.log("💰 Points to deduct:", discountItem.pointsUsed);
-            
-            try {
-              // Fetch current profile
-              const { data: currentProfile, error: fetchError } = await supabase
-                .from("profiles")
-                .select("reward_points, lifetime_reward_points, reward_tier, first_name, last_name, email, company_name, type")
-                .eq("id", newOrder.profile_id)
-                .single();
-
-              if (fetchError) {
-                console.error("❌ Error fetching profile for points deduction:", fetchError);
-              } else if (currentProfile) {
-                console.log("💰 Current points:", currentProfile.reward_points);
-                const newPoints = Math.max(0, (currentProfile.reward_points || 0) - discountItem.pointsUsed);
-                console.log("💰 New points after deduction:", newPoints);
-                
-                // Update database
-                const { error: updateError } = await supabase
-                  .from("profiles")
-                  .update({ reward_points: newPoints })
-                  .eq("id", newOrder.profile_id);
-
-                if (updateError) {
-                  console.error("❌ Error updating profile points:", updateError);
-                } else {
-                  console.log("✅ Database updated successfully with new points");
-
-                  // Log reward transaction
-                  const { error: transactionError } = await supabase
-                    .from("reward_transactions")
-                    .insert({
-                      user_id: newOrder.profile_id,
-                      points: -discountItem.pointsUsed,
-                      transaction_type: "redeem",
-                      description: `Redeemed ${discountItem.pointsUsed} points for order ${orderNumber}`,
-                      reference_type: "order",
-                      reference_id: newOrder.id,
-                    });
-                  
-                  if (transactionError) {
-                    console.error("❌ Error creating transaction:", transactionError);
-                  } else {
-                    console.log("✅ Transaction logged successfully");
-                  }
-                  
-                  console.log(`✅ Deducted ${discountItem.pointsUsed} points from user ${newOrder.profile_id}`);
-                }
-              }
-            } catch (error) {
-              console.error("❌ Error in reward points deduction:", error);
-            }
-          }
-          
-          if (rewardsAllowedForOrder && discountItem.type === "redeemed_reward" && discountItem.redemptionId) {
+          if (discountItem.type === "redeemed_reward" && discountItem.redemptionId) {
             console.log("🔄 Marking redemption as used:", discountItem.redemptionId);
-            const { data: updatedRedemption, error: updateError } = await (supabase as any)
+            await (supabase as any)
               .from("reward_redemptions")
               .update({ 
-                status: REWARD_REDEMPTION_STATUS.USED,
+                status: "used",
                 used_at: new Date().toISOString(),
                 used_in_order_id: newOrder.id
               })
-              .eq("id", discountItem.redemptionId)
-              .eq("status", REWARD_REDEMPTION_STATUS.PENDING)
-              .select("id")
-              .maybeSingle();
-
-            if (updateError) {
-              console.error("❌ Error marking redemption as used:", updateError);
-            } else if (!updatedRedemption) {
-              console.warn("⚠️ Reward redemption already consumed:", discountItem.redemptionId);
-            } else {
-              console.log("✅ Marked reward redemption as used:", discountItem.redemptionId);
-            }
+              .eq("id", discountItem.redemptionId);
+            console.log("✅ Marked reward redemption as used:", discountItem.redemptionId);
           }
           
           // Handle credit memo usage - apply to database
@@ -844,7 +753,7 @@ const CreateOrderPaymentForm = ({
       // Note: Card saving is now handled in handleSubmit with Authorize.net Customer Profile
 
       // Award reward points for the order
-      if (rewardsAllowedForOrder && newOrder.profile_id && finalTotal > 0) {
+      if (newOrder.profile_id && finalTotal > 0) {
         try {
           const rewardResult = await awardOrderPoints(
             newOrder.profile_id,
@@ -959,38 +868,6 @@ const CreateOrderPaymentForm = ({
         performedByEmail: userProfileData?.email,
       });
 
-      // Log payment transaction in payment_transactions table
-      try {
-        console.log('💳 Logging payment transaction...');
-        const { error: paymentLogError } = await supabase
-          .from("payment_transactions")
-          .insert({
-            profile_id: newOrder.profile_id,
-            order_id: newOrder.id,
-            amount: totalAmount,
-            payment_method_type: "card",
-            transaction_id: response.data.transactionId,
-            auth_code: response.data.authCode,
-            status: "approved",
-            transaction_type: "charge",
-            currency: "USD",
-            raw_response: {
-              order_number: orderNumber,
-              invoice_number: invoiceNumber,
-              customer_name: formDataa.customerInfo?.name,
-              items_count: formDataa.items?.length || 0
-            }
-          });
-
-        if (paymentLogError) {
-          console.error('❌ Error logging payment transaction:', paymentLogError);
-        } else {
-          console.log('✅ Payment transaction logged successfully');
-        }
-      } catch (paymentLogError) {
-        console.error('❌ Failed to log payment transaction:', paymentLogError);
-      }
-
       const logsData = {
         user_id: newOrder.profile_id,
         order_id: orderNumber,
@@ -1007,46 +884,24 @@ const CreateOrderPaymentForm = ({
     }
   };
 
-  const updateProductStock = async (cleanedCartItems: any[], orderId?: string) => {
-    let batchManagedSizeIds = new Set<string>();
+  const updateProductStock = async (_cleanedCartItems: any[], orderId: string) => {
+    const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+      "deduct_order_stock_after_payment_atomic",
+      { p_order_id: orderId }
+    );
 
-    if (orderId) {
-      try {
-        const result = await deductOrderBatchesWithFallback(orderId, cleanedCartItems);
-        if (result.alreadyDeducted) {
-          console.log(`Batch stock already deducted for order ${orderId}, skipping duplicate deduction.`);
-          return;
-        }
-        batchManagedSizeIds = result.batchManagedSizeIds;
-      } catch (error) {
-        console.warn(`Batch deduction failed for order ${orderId}, using fallback stock deduction.`, error);
-      }
+    if (rpcError) {
+      const detailedError = [rpcError.message, rpcError.details, rpcError.hint]
+        .filter(Boolean)
+        .join(" | ");
+      throw new Error(detailedError || "Payment stock deduction RPC failed");
     }
 
-    for (const item of cleanedCartItems) {
-      if (item.sizes && item.sizes.length > 0) {
-        for (const size of item.sizes) {
-          if (size.id && batchManagedSizeIds.has(size.id)) {
-            continue;
-          }
-
-          const { data: currentSize, error: fetchError } = await supabase
-            .from("product_sizes")
-            .select("stock")
-            .eq("id", size.id)
-            .single();
-
-          if (fetchError || !currentSize) continue;
-
-          const newQuantity = currentSize.stock - size.quantity;
-
-          await supabase
-            .from("product_sizes")
-            .update({ stock: newQuantity })
-            .eq("id", size.id);
-        }
-      }
+    if (!rpcResult?.success) {
+      throw new Error(rpcResult?.message || "Payment stock deduction failed");
     }
+
+    console.log(`✅ Payment stock deduction RPC completed for order ${orderId}:`, rpcResult);
   };
 
   // Calculate actual subtotal from cart items (before discount)
@@ -1726,7 +1581,7 @@ const CreateOrderPaymentForm = ({
                   </div>
 
                   {/* Reward Points Preview */}
-                  {!disableRewardsForGroup && estimatedPoints > 0 && (
+                  {estimatedPoints > 0 && (
                     <>
                       <Separator />
                       <div className="flex items-center justify-between p-3 bg-gradient-to-r from-pink-50 to-purple-50 rounded-lg">
@@ -1876,25 +1731,25 @@ const CreateOrderPaymentForm = ({
             >
               View My Orders
             </Button>
-            {!disableRewardsForGroup && (
-              <Button 
-                variant="outline"
-                onClick={() => {
-                  setShowSuccessPopup(false);
-                  // Redirect based on user type
-                  const userType = sessionStorage.getItem("userType");
-                  if (userType === "admin") {
-                    navigate("/admin/rewards");
-                  } else {
-                    navigate("/pharmacy/rewards");
-                  }
-                }}
-                className="w-full"
-              >
-                <Gift className="w-4 h-4 mr-2" />
-                View My Rewards
-              </Button>
-            )}
+            <Button 
+              variant="outline"
+              onClick={() => {
+                setShowSuccessPopup(false);
+                // Redirect based on user type
+                const userType = sessionStorage.getItem("userType");
+                if (userType === "admin") {
+                  navigate("/admin/rewards");
+                } else if (userType === "group") {
+                  navigate("/group/rewards");
+                } else {
+                  navigate("/pharmacy/rewards");
+                }
+              }}
+              className="w-full"
+            >
+              <Gift className="w-4 h-4 mr-2" />
+              View My Rewards
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

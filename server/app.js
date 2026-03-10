@@ -974,6 +974,7 @@ async function deductQuickOrderStockAfterPayment(order) {
   }
 
   const batchManagedUnitsBySize = new Map();
+  const fallbackCasesBySize = new Map();
   let batchDeductionAlreadyExists = false;
 
   try {
@@ -1007,6 +1008,8 @@ async function deductQuickOrderStockAfterPayment(order) {
           }
 
           if (!availableBatches || availableBatches.length === 0) {
+            const fallbackCases = Number(fallbackCasesBySize.get(sizeId) || 0) + caseQty;
+            fallbackCasesBySize.set(sizeId, fallbackCases);
             continue;
           }
 
@@ -1028,6 +1031,8 @@ async function deductQuickOrderStockAfterPayment(order) {
           }
 
           if (allocations.length === 0) {
+            const fallbackCases = Number(fallbackCasesBySize.get(sizeId) || 0) + caseQty;
+            fallbackCasesBySize.set(sizeId, fallbackCases);
             continue;
           }
 
@@ -1098,20 +1103,18 @@ async function deductQuickOrderStockAfterPayment(order) {
     return;
   }
 
-  // Mandatory: every ordered size must be batch deducted first.
-  for (const item of items) {
-    for (const size of item?.sizes || []) {
-      const sizeId = size?.id;
-      if (!sizeId) continue;
-      if (!batchManagedUnitsBySize.has(sizeId)) {
-        throw new Error(`[pay-now] Batch deduction is mandatory but missing for size ${sizeId}`);
-      }
+  // Apply a single product_sizes stock update per size:
+  // - batch-managed sizes use allocated units
+  // - non-batch sizes fallback to case quantity
+  const stockReductionBySize = new Map(batchManagedUnitsBySize);
+  for (const [sizeId, fallbackCases] of fallbackCasesBySize.entries()) {
+    if (!stockReductionBySize.has(sizeId)) {
+      stockReductionBySize.set(sizeId, fallbackCases);
     }
   }
 
-  // Mandatory second step: always reduce product_sizes.stock after batch deduction.
-  for (const [sizeId, deductedUnits] of batchManagedUnitsBySize.entries()) {
-    if (!(Number(deductedUnits) > 0)) continue;
+  for (const [sizeId, reductionQty] of stockReductionBySize.entries()) {
+    if (!(Number(reductionQty) > 0)) continue;
 
     const { data: currentSize, error: sizeFetchError } = await supabaseAdmin
       .from("product_sizes")
@@ -1120,10 +1123,10 @@ async function deductQuickOrderStockAfterPayment(order) {
       .single();
 
     if (sizeFetchError || !currentSize) {
-      throw new Error(`[pay-now] Failed to fetch stock for batch-managed size ${sizeId}`);
+      throw new Error(`[pay-now] Failed to fetch stock for size ${sizeId}`);
     }
 
-    const newQuantity = Math.max(0, Number(currentSize.stock || 0) - Number(deductedUnits));
+    const newQuantity = Math.max(0, Number(currentSize.stock || 0) - Number(reductionQty));
     const { error: sizeUpdateError } = await supabaseAdmin
       .from("product_sizes")
       .update({
@@ -1133,7 +1136,7 @@ async function deductQuickOrderStockAfterPayment(order) {
       .eq("id", sizeId);
 
     if (sizeUpdateError) {
-      throw new Error(`[pay-now] Failed to update stock for batch-managed size ${sizeId}`);
+      throw new Error(`[pay-now] Failed to update stock for size ${sizeId}`);
     }
   }
 
