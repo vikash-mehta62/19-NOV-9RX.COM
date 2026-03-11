@@ -82,7 +82,7 @@ export function CreatePurchaseOrderDialog() {
     }
 
     // Navigate to PO creation page with selected vendor
-    navigate("/admin/po/create", {
+    navigate(`/admin/po/create?vendorId=${selectedVendor}`, {
       state: {
         vendorId: selectedVendor,
         isPO: true,

@@ -594,13 +594,45 @@ export function OrdersList({
     return (
       <EmptyState
         variant="orders"
-        title="No orders found"
-        description="Orders will appear here once customers start placing them. You can also create orders manually."
-        actionLabel="Create Order"
-        onAction={() => window.location.href = "/pharmacy/order/create"}
+        title={poIs ? "No purchase orders found" : "No orders found"}
+        description={
+          poIs
+            ? "Create a PO or adjust your filters. Purchase orders will appear here with vendor and approval details."
+            : "Orders will appear here once customers start placing them. You can also create orders manually."
+        }
+        actionLabel={poIs ? "Create PO" : "Create Order"}
+        onAction={() =>
+          (window.location.href = poIs ? "/admin/po" : "/pharmacy/order/create")
+        }
       />
     );
   }
+
+  const getPoApprovalState = (order: any) => {
+    if (order?.poApproved) return "approved";
+    if (order?.poRejected) return "rejected";
+    return "pending";
+  };
+
+  const getPoApprovalClasses = (state: string) => {
+    if (state === "approved") return "bg-emerald-100 text-emerald-800";
+    if (state === "rejected") return "bg-rose-100 text-rose-800";
+    return "bg-amber-100 text-amber-800";
+  };
+
+  const getPoMetrics = (order: any) => {
+    const lines = Array.isArray(order?.items) ? order.items.length : 0;
+    const units = Array.isArray(order?.items)
+      ? order.items.reduce((sum: number, item: any) => {
+          if (Array.isArray(item?.sizes) && item.sizes.length > 0) {
+            return sum + item.sizes.reduce((sizeSum: number, size: any) => sizeSum + Number(size.quantity || 0), 0);
+          }
+          return sum + Number(item?.quantity || 0);
+        }, 0)
+      : 0;
+
+    return { lines, units };
+  };
 
   // Helper to get sort icon
   const getSortIcon = (field: SortField) => {
@@ -638,12 +670,17 @@ export function OrdersList({
             )}
             {poIs && (
               <TableHead className="font-semibold text-gray-700 text-center">
-                Order #
+                PO #
               </TableHead>
             )}
             {poIs && (
               <TableHead className="font-semibold text-gray-700 text-center">
-                Notes
+                Vendor Reference
+              </TableHead>
+            )}
+            {poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Items
               </TableHead>
             )}
             <SortableHeader field="customer">
@@ -733,25 +770,57 @@ export function OrdersList({
 
               {poIs && (
                 <TableCell
-                  className="text-center font-mono text-sm text-blue-600 font-medium"
+                  className="text-center"
                   onClick={async () => {
                     onOrderClick(order);
                     await clearCart();
                   }}
                 >
-                  {order.order_number}
+                  <div className="flex flex-col items-center">
+                    <span className="font-mono text-sm font-semibold text-blue-700">{order.order_number}</span>
+                    <span className="text-xs text-slate-500">
+                      {(order as any).purchase_number_external || "Internal PO"}
+                    </span>
+                  </div>
                 </TableCell>
               )}
 
               {poIs && (
                 <TableCell
-                  className="text-center text-sm text-gray-600 max-w-[150px] truncate"
+                  className="text-center"
                   onClick={async () => {
                     onOrderClick(order);
                     await clearCart();
                   }}
                 >
-                  {order.specialInstructions}
+                  <div className="mx-auto max-w-[220px]">
+                    <p className="truncate text-sm font-medium text-slate-800">
+                      {(order as any).purchase_number_external || "No vendor ref"}
+                    </p>
+                    <p className="truncate text-xs text-slate-500">
+                      {order.specialInstructions || "No notes added"}
+                    </p>
+                  </div>
+                </TableCell>
+              )}
+
+              {poIs && (
+                <TableCell
+                  className="text-center"
+                  onClick={async () => {
+                    onOrderClick(order);
+                    await clearCart();
+                  }}
+                >
+                  {(() => {
+                    const metrics = getPoMetrics(order);
+                    return (
+                      <div className="flex flex-col items-center">
+                        <span className="font-semibold text-slate-900">{metrics.lines} lines</span>
+                        <span className="text-xs text-slate-500">{metrics.units} units</span>
+                      </div>
+                    );
+                  })()}
                 </TableCell>
               )}
 
@@ -766,6 +835,11 @@ export function OrdersList({
                   <span className="font-semibold text-gray-900">
                     {order.customerInfo?.name || "N/A"}
                   </span>
+                  {poIs && (
+                    <span className="text-xs text-slate-500">
+                      {order.customerInfo?.email || order.customerInfo?.phone || "Vendor contact unavailable"}
+                    </span>
+                  )}
                   {order.void && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 px-2 py-0.5 rounded-full">
                       <Ban size={12} />
@@ -826,19 +900,22 @@ export function OrdersList({
 
               {poIs && (
                 <TableCell className="text-center">
-                  {(order as any).poApproved ? (
-                    <Badge variant="secondary" className="bg-green-100 text-green-800 font-medium text-xs px-2.5 py-1 rounded-full">
-                      APPROVED
-                    </Badge>
-                  ) : (order as any).poRejected ? (
-                    <Badge variant="secondary" className="bg-red-100 text-red-800 font-medium text-xs px-2.5 py-1 rounded-full">
-                      REJECTED
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 font-medium text-xs px-2.5 py-1 rounded-full">
-                      PENDING
-                    </Badge>
-                  )}
+                  {(() => {
+                    const poState = getPoApprovalState(order);
+                    return (
+                      <div className="flex flex-col items-center gap-1">
+                        <Badge
+                          variant="secondary"
+                          className={`${getPoApprovalClasses(poState)} font-medium text-xs px-2.5 py-1 rounded-full`}
+                        >
+                          {poState.toUpperCase()}
+                        </Badge>
+                        <span className="text-xs text-slate-500">
+                          Click row to review PO
+                        </span>
+                      </div>
+                    );
+                  })()}
                 </TableCell>
               )}
 

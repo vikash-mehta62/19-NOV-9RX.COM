@@ -35,6 +35,7 @@ export function ProductFilter({ selectedProducts, onProductsChange }: ProductFil
   const [open, setOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [productSizes, setProductSizes] = useState<any[]>([]); // Optional: Store sizes if needed for advanced filtering
 
   useEffect(() => {
     fetchProducts();
@@ -55,6 +56,27 @@ export function ProductFilter({ selectedProducts, onProductsChange }: ProductFil
       setLoading(false);
     }
   };
+
+  const fetchProductSizes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('product_sizes')
+        .select('id, product_id, size_value, size_unit');
+        
+      if (error) throw error;
+      // You can choose to store sizes in state if needed for more advanced filtering
+      setProductSizes(data || []);
+    } catch (error) {
+      console.error('Error fetching product sizes:', error);
+    }
+  };
+
+    useEffect(() => {
+      
+      console.log("Fetching product sizes for advanced filtering...", productSizes);
+      fetchProductSizes();
+
+    }, []);
 
   const handleSelect = (productId: string) => {
     const newSelection = selectedProducts.includes(productId)

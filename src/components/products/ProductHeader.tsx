@@ -1,10 +1,10 @@
 
 import { BulkProductUpload } from "@/components/products/BulkProductUpload";
 import { AddProductButton } from "@/components/products/AddProductButton";
-import { Product } from "@/types/product";
+import { ProductFormValues } from "@/components/products/schemas/productSchema";
 
 interface ProductHeaderProps {
-  onUploadComplete: (products: Product[]) => Promise<void>;
+  onUploadComplete: (products: ProductFormValues[]) => Promise<void>;
   onAddProduct: () => void;
 }
 

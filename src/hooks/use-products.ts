@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Product } from "@/types/product";
 import { useToast } from "@/hooks/use-toast";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
 import { 
@@ -223,13 +222,28 @@ export const useProducts = (includeInactive: boolean = false) => {
     }
   };
 
-  const handleBulkAddProducts = async (products: Product[]) => {
+  const handleBulkAddProducts = async (products: ProductFormValues[]) => {
     try {
-      await bulkAddProductsService(products);
-      toast({ 
-        title: "Success", 
-        description: `${products.length} products added successfully.` 
-      });
+      const result = await bulkAddProductsService(products);
+
+      if (result.created > 0) {
+        toast({
+          title: "Import completed",
+          description:
+            result.failed > 0
+              ? `${result.created} products added, ${result.failed} failed.`
+              : `${result.created} products added successfully.`,
+        });
+      }
+
+      if (result.failed > 0) {
+        toast({
+          title: "Some products were skipped",
+          description: result.errors[0]?.reason || "One or more products could not be imported.",
+          variant: "destructive",
+        });
+      }
+
       fetchProducts();
     } catch (error) {
       console.error("Error adding bulk products:", error);
@@ -261,3 +275,4 @@ export const useProducts = (includeInactive: boolean = false) => {
     loading
   };
 };
+import { Product } from "@/types/product";

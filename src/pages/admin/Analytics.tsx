@@ -17,9 +17,16 @@ import { StoreAnalytics } from "@/components/admin/analytics/StoreAnalytics";
 import { SalesVsPurchaseAnalytics } from "@/components/admin/analytics/SalesVsPurchaseAnalytics";
 import { ReportGenerator } from "@/components/admin/analytics/ReportGenerator";
 import { DateRangePicker } from "@/components/admin/analytics/DateRangePicker";
-import { ProductFilter } from "@/components/admin/analytics/ProductFilter";
+import { AdvancedProductFilter } from "@/components/admin/analytics/AdvancedProductFilter";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+
+type AnalyticsFilterState = {
+  products: string[];
+  categories: string[];
+  subcategories: string[];
+  sizes: string[];
+};
 
 export default function Analytics() {
   const { toast } = useToast();
@@ -27,7 +34,13 @@ export default function Analytics() {
     from: new Date(new Date().setDate(new Date().getDate() - 30)),
     to: new Date()
   });
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [selectedFilters, setSelectedFilters] = useState<AnalyticsFilterState>({
+    products: [],
+    categories: [],
+    subcategories: [],
+    sizes: [],
+  });
+  const [matchingProductIds, setMatchingProductIds] = useState<string[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [quickStats, setQuickStats] = useState({
@@ -37,10 +50,72 @@ export default function Analytics() {
     productsSold: 0,
     unitsSold: 0
   });
+  const hasActiveFilters =
+    selectedFilters.products.length > 0 ||
+    selectedFilters.categories.length > 0 ||
+    selectedFilters.subcategories.length > 0 ||
+    selectedFilters.sizes.length > 0;
 
   useEffect(() => {
     fetchQuickStats();
-  }, [dateRange, selectedProducts]);
+  }, [dateRange, matchingProductIds]);
+
+  useEffect(() => {
+    const resolveMatchingProducts = async () => {
+      if (!hasActiveFilters) {
+        setMatchingProductIds([]);
+        return;
+      }
+
+      try {
+        let productQuery = supabase
+          .from("products")
+          .select("id")
+          .order("name");
+
+        if (selectedFilters.products.length > 0) {
+          productQuery = productQuery.in("id", selectedFilters.products);
+        }
+
+        if (selectedFilters.categories.length > 0) {
+          productQuery = productQuery.in("category", selectedFilters.categories);
+        }
+
+        if (selectedFilters.subcategories.length > 0) {
+          productQuery = productQuery.in("subcategory", selectedFilters.subcategories);
+        }
+
+        const { data: productRows, error: productError } = await productQuery;
+
+        if (productError) throw productError;
+
+        let resolvedIds = (productRows || []).map((row) => row.id).filter(Boolean);
+
+        if (selectedFilters.sizes.length > 0) {
+          const { data: sizeRows, error: sizeError } = await supabase
+            .from("product_sizes")
+            .select("id, product_id")
+            .in("id", selectedFilters.sizes);
+
+          if (sizeError) throw sizeError;
+
+          const sizedProductIds = new Set(
+            (sizeRows || []).map((row) => row.product_id).filter(Boolean)
+          );
+
+          resolvedIds = resolvedIds.filter((id) => sizedProductIds.has(id));
+        }
+
+        const uniqueIds = Array.from(new Set(resolvedIds));
+        setMatchingProductIds(uniqueIds.length > 0 ? uniqueIds : ["__no_matching_products__"]);
+      } catch (error) {
+        console.error("Error resolving analytics filters:", error);
+        setMatchingProductIds(["__no_matching_products__"]);
+      }
+    };
+
+    resolveMatchingProducts();
+  }, [hasActiveFilters, selectedFilters]);
 
   const fetchQuickStats = async () => {
     try {
@@ -64,20 +139,19 @@ export default function Analytics() {
           .or('void.eq.false,void.is.null')
           .is('deleted_at', null);
 
-        // Filter orders by selected products if any
+        // Filter orders by selected products ONLY if products are selected
         let filteredOrders = ordersWithoutPO || [];
-        if (selectedProducts.length > 0) {
+        if (matchingProductIds.length > 0) {
           const orderIds = ordersWithoutPO?.map(o => o.id) || [];
           if (orderIds.length > 0) {
             const { data: orderItems } = await supabase
               .from('order_items')
               .select('order_id')
               .in('order_id', orderIds)
-              .in('product_id', selectedProducts);
+              .in('product_id', matchingProductIds);
 
             const orderIdsWithProducts = new Set(orderItems?.map(item => item.order_id));
             filteredOrders = ordersWithoutPO?.filter(order => orderIdsWithProducts.has(order.id)) || [];
-            console.log("orderItems:--->>>>", orderItems)
           }
         }
 
@@ -101,9 +175,9 @@ export default function Analytics() {
             .select('product_id, quantity')
             .in('order_id', orderIds);
 
-          // Apply product filter if selected
-          if (selectedProducts.length > 0) {
-            itemsQuery = itemsQuery.in('product_id', selectedProducts);
+          // Apply product filter ONLY if products are selected
+          if (matchingProductIds.length > 0) {
+            itemsQuery = itemsQuery.in('product_id', matchingProductIds);
           }
 
           const { data: items } = await itemsQuery;
@@ -137,8 +211,8 @@ export default function Analytics() {
       // Filter sales orders (not purchase orders)
       let orders = allOrders?.filter(o => !o.poApproved) || [];
 
-      // Filter orders by selected products if any
-      if (selectedProducts.length > 0) {
+      // Filter orders by selected products ONLY if products are selected
+      if (matchingProductIds.length > 0) {
         const orderIds = orders?.map(o => o.id) || [];
         if (orderIds.length > 0) {
           // Split into chunks to avoid URL length limit
@@ -151,7 +225,7 @@ export default function Analytics() {
               .from('order_items')
               .select('order_id')
               .in('order_id', chunk)
-              .in('product_id', selectedProducts);
+              .in('product_id', matchingProductIds);
             
             if (!error && chunkItems) {
               allOrderItems.push(...chunkItems);
@@ -183,9 +257,9 @@ export default function Analytics() {
           .select('product_id, quantity')
           .in('order_id', orderIds);
 
-        // Apply product filter if selected
-        if (selectedProducts.length > 0) {
-          itemsQuery = itemsQuery.in('product_id', selectedProducts);
+        // Apply product filter ONLY if products are selected
+        if (matchingProductIds.length > 0) {
+          itemsQuery = itemsQuery.in('product_id', matchingProductIds);
         }
 
         const { data: items } = await itemsQuery;
@@ -251,9 +325,9 @@ export default function Analytics() {
 
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3">
-              <ProductFilter
-                selectedProducts={selectedProducts}
-                onProductsChange={setSelectedProducts}
+              <AdvancedProductFilter
+                selectedFilters={selectedFilters}
+                onFiltersChange={setSelectedFilters}
               />
               <DateRangePicker
                 dateRange={dateRange}
@@ -356,24 +430,24 @@ export default function Analytics() {
             <SalesVsPurchaseAnalytics
               dateRange={dateRange}
               refresh={isRefreshing}
-              selectedProducts={selectedProducts}
+              selectedProducts={matchingProductIds}
             />
           </TabsContent>
 
           <TabsContent value="products" className="space-y-4">
-            <ProductAnalytics
-              dateRange={dateRange}
-              refresh={isRefreshing}
-              selectedProducts={selectedProducts}
-            />
+              <ProductAnalytics
+                dateRange={dateRange}
+                refresh={isRefreshing}
+                selectedProducts={matchingProductIds}
+              />
           </TabsContent>
 
           <TabsContent value="stores" className="space-y-4">
-            <StoreAnalytics
-              dateRange={dateRange}
-              refresh={isRefreshing}
-              selectedProducts={selectedProducts}
-            />
+              <StoreAnalytics
+                dateRange={dateRange}
+                refresh={isRefreshing}
+                selectedProducts={matchingProductIds}
+              />
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-4">

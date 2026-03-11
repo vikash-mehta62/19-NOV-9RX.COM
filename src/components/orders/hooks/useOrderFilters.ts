@@ -14,19 +14,22 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
   });
 
   const filteredOrders = (orders || [])
-    // 1️⃣ Filter by payment_status
     .filter((order) =>
       statusFilter === "all" ? true : order.payment_status === statusFilter
     )
+    .filter((order) => {
+      if (statusFilter2 === "all") return true;
 
-    // 2️⃣ Filter by order status
-    .filter((order) =>
-      statusFilter2 === "all"
-        ? true
-        : order.status?.toLowerCase() === statusFilter2.toLowerCase()
-    )
+      if (po) {
+        if (statusFilter2 === "approved") return Boolean((order as any).poApproved);
+        if (statusFilter2 === "rejected") return Boolean((order as any).poRejected);
+        if (statusFilter2 === "pending") {
+          return !Boolean((order as any).poApproved) && !Boolean((order as any).poRejected);
+        }
+      }
 
-    // 3️⃣ Filter by search query (including order_number!)
+      return order.status?.toLowerCase() === statusFilter2.toLowerCase();
+    })
     .filter((order) => {
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
@@ -35,8 +38,9 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
         customerInfo = {},
         id = "",
         order_number = "",
-        specialInstructions = ""
-      } = order;
+        specialInstructions = "",
+        purchase_number_external = "",
+      } = order as OrderFormValues & { purchase_number_external?: string };
 
       const {
         name = "",
@@ -55,7 +59,8 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
 
       return (
         id.toLowerCase().includes(query) ||
-        order_number?.toLowerCase().includes(query) || // ✅ Added this
+        order_number?.toLowerCase().includes(query) ||
+        purchase_number_external?.toLowerCase().includes(query) ||
         name.toLowerCase().includes(query) ||
         email.toLowerCase().includes(query) ||
         phone.toLowerCase().includes(query) ||
@@ -67,15 +72,12 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
         specialInstructions?.toLowerCase().includes(query)
       );
     })
-
-    // 4️⃣ Filter by date range
     .filter((order) => {
       if (!dateRange.from || !dateRange.to) return true;
       const orderDate = new Date(order.date);
       return orderDate >= dateRange.from && orderDate <= dateRange.to;
     })
     .filter((order) => order.poAccept === !po);
-
 
   return {
     statusFilter,

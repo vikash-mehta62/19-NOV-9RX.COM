@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
-import { Form } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { OrderFormValues, orderFormSchema } from "./schemas/orderSchema";
 import { OrderItemsSection } from "./sections/OrderItemsSection";
 import { ShippingSection } from "./sections/ShippingSection";
@@ -14,13 +14,16 @@ import { useSelector, useDispatch } from "react-redux";
 import { selectUserProfile } from "../../store/selectors/userSelectors";
 import { useCart } from "@/hooks/use-cart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save } from "lucide-react";
+import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save, ClipboardList, Truck, Receipt, Sparkles, ScanLine } from "lucide-react";
 import { OrderActivityService } from "@/services/orderActivityService";
-import ProductShowcase from "../pharmacy/ProductShowcase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { updateCartPrice } from "@/store/actions/cartActions";
+import { Textarea } from "@/components/ui/textarea";
+import { v4 as uuidv4 } from "uuid";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
@@ -36,7 +39,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [isCus, setIsCus] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const userProfile = useSelector(selectUserProfile);
-  const { cartItems, clearCart } = useCart();
+  const { cartItems, clearCart, addToCart } = useCart();
   const [vendorInfo, setVendorInfo] = useState<any>(null);
   const [loadingVendor, setLoadingVendor] = useState(true);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
@@ -51,6 +54,23 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
+  const [productPickerMode, setProductPickerMode] = useState<"catalog" | "manual">("catalog");
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogSearch, setCatalogSearch] = useState("");
+  const [catalogCategory, setCatalogCategory] = useState("all");
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [sizeSelections, setSizeSelections] = useState<Record<string, number>>({});
+  const [sizePriceOverrides, setSizePriceOverrides] = useState<Record<string, string>>({});
+  const [manualProduct, setManualProduct] = useState({
+    name: "",
+    sku: "",
+    size: "",
+    unit: "unit",
+    quantity: "1",
+    price: "",
+    notes: "",
+  });
 
   // Fetch vendor information
   useEffect(() => {
@@ -168,6 +188,35 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     }
   }, [vendorInfo, form]);
 
+  useEffect(() => {
+    const fetchCatalogProducts = async () => {
+      if (!showProductSelector || productPickerMode !== "catalog") return;
+
+      setCatalogLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from("products")
+          .select("id, name, sku, category, description, image_url, images, product_sizes(*)")
+          .eq("is_active", true)
+          .order("name", { ascending: true });
+
+        if (error) throw error;
+        setCatalogProducts(data || []);
+      } catch (error) {
+        console.error("Error loading PO catalog:", error);
+        toast({
+          title: "Catalog unavailable",
+          description: "Failed to load products for purchase order selection.",
+          variant: "destructive",
+        });
+      } finally {
+        setCatalogLoading(false);
+      }
+    };
+
+    fetchCatalogProducts();
+  }, [showProductSelector, productPickerMode]);
+
   // Sync cart items with form
   useEffect(() => {
     form.setValue("items", cartItems);
@@ -243,6 +292,154 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const handleCancelPriceEdit = () => {
     setEditingPriceFor(null);
     setTempPrice("");
+  };
+
+  const handleManualProductAdd = async () => {
+    const quantity = Number(manualProduct.quantity);
+    const price = Number(manualProduct.price);
+
+    if (!manualProduct.name.trim()) {
+      toast({
+        title: "Product name required",
+        description: "Enter a product name for the manual PO item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      toast({
+        title: "Invalid quantity",
+        description: "Quantity must be greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!Number.isFinite(price) || price <= 0) {
+      toast({
+        title: "Invalid price",
+        description: "Unit price must be greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const productId = `manual-po-${uuidv4()}`;
+    const sizeId = `${productId}-size`;
+
+    await addToCart({
+      productId,
+      name: manualProduct.name.trim(),
+      sku: manualProduct.sku.trim() || `MANUAL-${Date.now()}`,
+      price: quantity * price,
+      image: "",
+      description: manualProduct.notes.trim(),
+      quantity,
+      sizes: [
+        {
+          id: sizeId,
+          size_value: manualProduct.size.trim() || "Standard",
+          size_unit: manualProduct.unit.trim() || "unit",
+          price,
+          quantity,
+          sku: manualProduct.sku.trim() || "",
+          type: "manual",
+        },
+      ],
+      customizations: {},
+      notes: manualProduct.notes.trim(),
+      shipping_cost: 0,
+    });
+
+    setManualProduct({
+      name: "",
+      sku: "",
+      size: "",
+      unit: "unit",
+      quantity: "1",
+      price: "",
+      notes: "",
+    });
+
+    toast({
+      title: "Manual item added",
+      description: "The custom product was added to this purchase order.",
+    });
+  };
+
+  const catalogCategories = useMemo(() => {
+    const categories = Array.from(
+      new Set(catalogProducts.map((product) => product.category).filter(Boolean))
+    ) as string[];
+
+    return categories.sort((a, b) => a.localeCompare(b));
+  }, [catalogProducts]);
+
+  const filteredCatalogProducts = useMemo(() => {
+    return catalogProducts.filter((product) => {
+      const matchesCategory =
+        catalogCategory === "all" ||
+        String(product.category || "").toLowerCase() === catalogCategory.toLowerCase();
+
+      const query = catalogSearch.trim().toLowerCase();
+      const matchesSearch =
+        !query ||
+        String(product.name || "").toLowerCase().includes(query) ||
+        String(product.sku || "").toLowerCase().includes(query) ||
+        String(product.description || "").toLowerCase().includes(query);
+
+      return matchesCategory && matchesSearch;
+    });
+  }, [catalogProducts, catalogCategory, catalogSearch]);
+
+  const handleCatalogAdd = async (product: any, size: any) => {
+    const quantity = Math.max(1, Number(sizeSelections[size.id] || 1));
+    const price = Number(sizePriceOverrides[size.id] ?? size.price ?? 0);
+
+    if (!price || price <= 0) {
+      toast({
+        title: "Invalid price",
+        description: "Enter a valid vendor cost before adding this item.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    await addToCart({
+      productId: String(product.id),
+      name: product.name,
+      sku: product.sku || size.sku || "",
+      price: quantity * price,
+      image: product.image_url || product.images?.[0] || "",
+      description: product.description || "",
+      quantity,
+      sizes: [
+        {
+          id: size.id,
+          size_value: size.size_value,
+          size_unit: size.size_unit,
+          price,
+          quantity,
+          sku: size.sku || "",
+          type: "case",
+          shipping_cost: Number(size.shipping_cost || 0),
+        },
+      ],
+      customizations: {},
+      notes: "",
+      shipping_cost: Number(size.shipping_cost || 0),
+    });
+
+    setSizeSelections((prev) => ({ ...prev, [size.id]: 1 }));
+    setSizePriceOverrides((prev) => ({
+      ...prev,
+      [size.id]: String(Number(size.price || 0).toFixed(2)),
+    }));
+    toast({
+      title: "Product added",
+      description: `${product.name} ${size.size_value} ${size.size_unit} added to purchase order.`,
+    });
   };
 
   const onSubmit = async (data: OrderFormValues) => {
@@ -458,9 +655,51 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     );
   }
 
+  const subtotal = cartItems.reduce((sum, item) => {
+    const itemTotal =
+      item.sizes?.reduce((sizeSum: number, size: any) => sizeSum + size.quantity * size.price, 0) ||
+      item.price * item.quantity;
+    return sum + itemTotal;
+  }, 0);
+
+  const shippingCost = Number(form.watch("shipping.cost") || 0);
+  const totalQuantity = cartItems.reduce(
+    (sum, item) =>
+      sum +
+      (item.sizes?.reduce((sizeSum: number, size: any) => sizeSum + size.quantity, 0) || item.quantity || 0),
+    0
+  );
+
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      {/* Vendor Information Card */}
+    <div className="container mx-auto space-y-6 py-6">
+      <Card className="overflow-hidden border-0 bg-gradient-to-r from-slate-900 via-blue-900 to-cyan-800 text-white shadow-xl">
+        <CardContent className="grid gap-5 p-6 md:grid-cols-[1.4fr_1fr]">
+          <div>
+            <p className="text-sm uppercase tracking-[0.3em] text-blue-100">Purchase Order Workspace</p>
+            <h1 className="mt-2 text-3xl font-semibold">Create vendor PO with pricing and delivery control</h1>
+            <p className="mt-3 max-w-2xl text-sm text-blue-100/90">
+              Select catalog items, adjust vendor cost before submission, and store a vendor reference so the PO stays usable after approval.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs uppercase tracking-wide text-blue-100">Items</p>
+              <p className="mt-2 text-2xl font-semibold">{cartItems.length}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs uppercase tracking-wide text-blue-100">Units</p>
+              <p className="mt-2 text-2xl font-semibold">{totalQuantity}</p>
+            </div>
+            <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+              <p className="text-xs uppercase tracking-wide text-blue-100">Estimated Total</p>
+              <p className="mt-2 text-2xl font-semibold">${(subtotal + shippingCost).toFixed(2)}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="space-y-6">
       <Card className="border-blue-200 bg-blue-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-blue-900">
@@ -667,7 +906,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         </CardContent>
       </Card>
 
-      {/* Delivery Address Card (9RX) */}
       <Card className="border-blue-200 bg-blue-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-blue-900">
@@ -685,7 +923,64 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         </CardContent>
       </Card>
 
-      {/* Product Selection Card */}
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <Card className="border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-900">
+                <Receipt className="h-5 w-5 text-blue-600" />
+                PO Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4 md:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="purchase_number_external"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Vendor Reference / External PO Number</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter supplier reference" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="shipping.method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Shipping Method</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="FedEx, UPS, LTL, Pickup" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <div className="md:col-span-2">
+                <FormField
+                  control={form.control}
+                  name="specialInstructions"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Notes for this purchase order</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          {...field}
+                          rows={4}
+                          placeholder="Add vendor notes, receiving instructions, expected lead time, or special handling details."
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+            </CardContent>
+          </Card>
+
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
@@ -852,13 +1147,8 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         </CardContent>
       </Card>
 
-      {/* Order Form */}
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-          {/* Shipping Details */}
           <ShippingSection form={form} />
 
-          {/* Form Actions */}
           <OrderFormActions
             orderData={form.getValues()}
             form={form}
@@ -872,6 +1162,59 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           />
         </form>
       </Form>
+        </div>
+
+        <div className="space-y-6">
+          <Card className="sticky top-6 border-slate-200 shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-slate-900">
+                <ClipboardList className="h-5 w-5 text-blue-600" />
+                Order Summary
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="rounded-xl bg-slate-50 p-4">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Vendor</p>
+                <p className="mt-1 font-semibold text-slate-900">
+                  {vendorInfo?.company_name || `${vendorInfo?.first_name} ${vendorInfo?.last_name}`}
+                </p>
+                <p className="text-sm text-slate-500">{vendorInfo?.email}</p>
+              </div>
+
+              <div className="rounded-xl bg-slate-50 p-4">
+                <div className="flex items-center gap-2">
+                  <Truck className="h-4 w-4 text-blue-600" />
+                  <p className="text-sm font-medium text-slate-900">Delivery to 9RX</p>
+                </div>
+                <p className="mt-2 text-sm text-slate-600">936 Broad River Ln, Charlotte, NC 28211</p>
+              </div>
+
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Product lines</span>
+                  <span>{cartItems.length}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Total units</span>
+                  <span>{totalQuantity}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Subtotal</span>
+                  <span>${subtotal.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between text-sm text-slate-600">
+                  <span>Shipping</span>
+                  <span>${shippingCost.toFixed(2)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-3 text-base font-semibold text-slate-900">
+                  <span>Total</span>
+                  <span>${(subtotal + shippingCost).toFixed(2)}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
 
       {/* Product Selection Modal */}
       {showProductSelector && (
@@ -891,8 +1234,341 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                 <X className="h-5 w-5" />
               </Button>
             </div>
+            <div className="border-b bg-white px-4 py-3">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Add from catalog or enter manually</p>
+                  <p className="text-sm text-slate-500">
+                    Use catalog products when available. Use manual entry for one-off vendor items, freight lines, or non-catalog purchases.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 rounded-2xl bg-slate-100 p-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setProductPickerMode("catalog")}
+                    className={productPickerMode === "catalog" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}
+                  >
+                    <ScanLine className="mr-2 h-4 w-4" />
+                    Catalog
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setProductPickerMode("manual")}
+                    className={productPickerMode === "manual" ? "bg-white text-blue-700 shadow-sm" : "text-slate-600"}
+                  >
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Manual Item
+                  </Button>
+                </div>
+              </div>
+            </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <ProductShowcase groupShow={true} />
+              {productPickerMode === "catalog" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1.5fr)_220px_auto]">
+                    <Input
+                      value={catalogSearch}
+                      onChange={(e) => setCatalogSearch(e.target.value)}
+                      placeholder="Search by product name, SKU, or description"
+                    />
+                    <select
+                      value={catalogCategory}
+                      onChange={(e) => setCatalogCategory(e.target.value)}
+                      className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="all">All categories</option>
+                      {catalogCategories.map((category) => (
+                        <option key={category} value={category}>
+                          {category}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setProductPickerMode("manual")}
+                      className="whitespace-nowrap"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add Manual Item
+                    </Button>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Catalog results</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">{filteredCatalogProducts.length}</p>
+                      <p className="text-sm text-slate-500">Filter products and add directly to this PO.</p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-slate-500">Current PO lines</p>
+                      <p className="mt-2 text-2xl font-semibold text-slate-900">{cartItems.length}</p>
+                      <p className="text-sm text-slate-500">Existing items already added to this order.</p>
+                    </div>
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3">
+                      <p className="text-xs font-medium uppercase tracking-[0.2em] text-blue-600">Quick add flow</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-900">Expand a product, pick a size, set qty, add.</p>
+                      <p className="text-sm text-slate-500">No page change, no separate product screen.</p>
+                    </div>
+                  </div>
+
+                  <ScrollArea className="h-[52vh] rounded-2xl border border-slate-200">
+                    <div className="space-y-3 p-4">
+                      {catalogLoading ? (
+                        <div className="py-10 text-center text-slate-500">Loading products...</div>
+                      ) : filteredCatalogProducts.length === 0 ? (
+                        <div className="py-10 text-center text-slate-500">
+                          No matching products found. Try a different search or use Manual Item.
+                        </div>
+                      ) : (
+                        filteredCatalogProducts.map((product) => {
+                          const isExpanded = expandedProductId === product.id;
+                          const sizes = (product.product_sizes || []).filter((size: any) => Number(size.stock || 0) >= 0);
+                          const existingLine = cartItems.find(
+                            (item: any) => String(item.productId) === String(product.id)
+                          );
+                          const existingUnits = existingLine?.sizes?.reduce(
+                            (sum: number, size: any) => sum + Number(size.quantity || 0),
+                            0
+                          ) || 0;
+
+                          return (
+                            <div key={product.id} className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+                              <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-start lg:justify-between">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-base font-semibold text-slate-900">{product.name}</p>
+                                    <Badge variant="outline">{sizes.length} sizes</Badge>
+                                    {existingUnits > 0 && (
+                                      <Badge className="border-0 bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                                        {existingUnits} already on PO
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                    <span>{product.category || "Uncategorized"}</span>
+                                    {product.sku && <span>SKU: {product.sku}</span>}
+                                    <span>{sizes.length ? `${sizes.length} purchasable sizes` : "No sizes configured"}</span>
+                                  </div>
+                                  <p className="mt-3 max-w-3xl text-sm text-slate-600">
+                                    {product.description || "No description available."}
+                                  </p>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    variant={isExpanded ? "default" : "outline"}
+                                    className={isExpanded ? "bg-blue-600 hover:bg-blue-700" : ""}
+                                    onClick={() =>
+                                      setExpandedProductId((prev) => (prev === product.id ? null : product.id))
+                                    }
+                                  >
+                                    {isExpanded ? "Hide sizes" : "Select size and add"}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              {isExpanded && (
+                                <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
+                                  {sizes.length === 0 ? (
+                                    <p className="text-sm text-slate-500">No sizes configured for this product.</p>
+                                  ) : (
+                                    <div className="space-y-2">
+                                      <div className="hidden rounded-2xl bg-slate-100 px-4 py-2 text-xs font-medium uppercase tracking-[0.18em] text-slate-500 lg:grid lg:grid-cols-[minmax(0,1.35fr)_130px_140px_90px_100px_140px]">
+                                        <span>Size</span>
+                                        <span>Pack</span>
+                                        <span>PO cost</span>
+                                        <span>Stock</span>
+                                        <span>Qty</span>
+                                        <span>Add</span>
+                                      </div>
+                                      {sizes.map((size: any) => (
+                                        <div
+                                          key={size.id}
+                                          className="grid gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1.35fr)_130px_140px_90px_100px_140px] lg:items-center"
+                                        >
+                                          <div>
+                                            <p className="font-medium text-slate-900">
+                                              {size.size_value} {size.size_unit}
+                                            </p>
+                                            {size.sku && <p className="text-xs text-slate-500">Size SKU: {size.sku}</p>}
+                                          </div>
+                                          <div className="text-sm text-slate-600">
+                                            {size.quantity_per_case
+                                              ? `${size.quantity_per_case} units/case`
+                                              : "Pack not set"}
+                                          </div>
+                                          <div>
+                                            <Label className="text-xs text-slate-500 lg:sr-only">PO cost</Label>
+                                            <Input
+                                              type="number"
+                                              min="0.01"
+                                              step="0.01"
+                                              value={sizePriceOverrides[size.id] ?? String(Number(size.price || 0).toFixed(2))}
+                                              onChange={(e) =>
+                                                setSizePriceOverrides((prev) => ({
+                                                  ...prev,
+                                                  [size.id]: e.target.value,
+                                                }))
+                                              }
+                                              className="h-10"
+                                            />
+                                            <p className="mt-1 text-xs text-slate-500">
+                                              Catalog: ${Number(size.price || 0).toFixed(2)}
+                                            </p>
+                                          </div>
+                                          <div className="text-sm text-slate-600">
+                                            {Number(size.stock || 0)}
+                                          </div>
+                                          <div>
+                                            <Label className="text-xs text-slate-500 lg:sr-only">Qty</Label>
+                                            <Input
+                                              type="number"
+                                              min="1"
+                                              value={sizeSelections[size.id] || 1}
+                                              onChange={(e) =>
+                                                setSizeSelections((prev) => ({
+                                                  ...prev,
+                                                  [size.id]: Math.max(1, Number(e.target.value) || 1),
+                                                }))
+                                              }
+                                              className="h-10"
+                                            />
+                                          </div>
+                                          <Button
+                                            type="button"
+                                            className="bg-blue-600 hover:bg-blue-700"
+                                            onClick={() => handleCatalogAdd(product, size)}
+                                          >
+                                            Add to PO
+                                          </Button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className="mx-auto max-w-3xl space-y-6">
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                    <h3 className="text-lg font-semibold text-slate-900">Manual purchase order item</h3>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Add vendor-specific products or charges that are not in the product catalog.
+                    </p>
+
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <div className="md:col-span-2">
+                        <Label htmlFor="manual-name">Product name</Label>
+                        <Input
+                          id="manual-name"
+                          value={manualProduct.name}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, name: e.target.value }))}
+                          placeholder="Enter item name"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="manual-sku">SKU / Vendor code</Label>
+                        <Input
+                          id="manual-sku"
+                          value={manualProduct.sku}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, sku: e.target.value }))}
+                          placeholder="Optional reference"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="manual-size">Pack / size</Label>
+                        <Input
+                          id="manual-size"
+                          value={manualProduct.size}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, size: e.target.value }))}
+                          placeholder="Ex: 1 case, 500 ct, pallet"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="manual-unit">Unit</Label>
+                        <Input
+                          id="manual-unit"
+                          value={manualProduct.unit}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, unit: e.target.value }))}
+                          placeholder="case"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="manual-quantity">Quantity</Label>
+                        <Input
+                          id="manual-quantity"
+                          type="number"
+                          min="1"
+                          value={manualProduct.quantity}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, quantity: e.target.value }))}
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <Label htmlFor="manual-price">Unit price</Label>
+                        <Input
+                          id="manual-price"
+                          type="number"
+                          min="0.01"
+                          step="0.01"
+                          value={manualProduct.price}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, price: e.target.value }))}
+                          placeholder="0.00"
+                          className="mt-1"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <Label htmlFor="manual-notes">Notes</Label>
+                        <Textarea
+                          id="manual-notes"
+                          rows={4}
+                          value={manualProduct.notes}
+                          onChange={(e) => setManualProduct((prev) => ({ ...prev, notes: e.target.value }))}
+                          placeholder="Add vendor item notes, specifications, or internal receiving comments."
+                          className="mt-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-white p-4 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-slate-900">Estimated line total</p>
+                        <p className="text-2xl font-semibold text-blue-700">
+                          ${((Number(manualProduct.quantity) || 0) * (Number(manualProduct.price) || 0)).toFixed(2)}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        onClick={handleManualProductAdd}
+                        className="bg-blue-600 hover:bg-blue-700"
+                      >
+                        Add Manual Item to PO
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
               <Button

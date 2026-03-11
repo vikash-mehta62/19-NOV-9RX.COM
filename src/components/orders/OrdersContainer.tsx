@@ -6,7 +6,7 @@ import { useOrderFilters } from "./hooks/useOrderFilters";
 import { useOrderManagement } from "./hooks/useOrderManagement";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { Download, Package, PlusCircle, Zap } from "lucide-react";
+import { Download, Package, PlusCircle, Zap, Building2, ClipboardList, CircleDashed, BadgeDollarSign } from "lucide-react";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/supabaseClient";
 import { OrderSummaryCards } from "./OrderSummaryCards";
@@ -421,6 +421,42 @@ export const OrdersContainer = ({
     });
   }, [filteredOrders, sortField, sortDirection]);
 
+  const poStats = useMemo(() => {
+    if (!poIs) return null;
+
+    const stats = {
+      total: sortedOrders.length,
+      pending: 0,
+      approved: 0,
+      rejected: 0,
+      totalValue: 0,
+      vendorCount: 0,
+    };
+
+    const vendors = new Set<string>();
+
+    sortedOrders.forEach((order: any) => {
+      const total = Number(order.total_amount || order.total || 0);
+      stats.totalValue += total;
+
+      if (order.poApproved) {
+        stats.approved += 1;
+      } else if (order.poRejected) {
+        stats.rejected += 1;
+      } else {
+        stats.pending += 1;
+      }
+
+      const vendorKey = order.customerInfo?.cusid || order.customerInfo?.name || order.profile_id;
+      if (vendorKey) {
+        vendors.add(String(vendorKey));
+      }
+    });
+
+    stats.vendorCount = vendors.size;
+    return stats;
+  }, [poIs, sortedOrders]);
+
   useEffect(() => {
     loadOrders({ statusFilter, statusFilter2, searchQuery, dateRange, poIs });
   }, [statusFilter, statusFilter2, searchQuery, dateRange, page, poIs, limit, location.pathname]);
@@ -452,7 +488,104 @@ export const OrdersContainer = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
+      {poIs && poStats && (
+        <>
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-900 text-white shadow-xl">
+            <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1.4fr_1fr]">
+              <div>
+                <p className="text-sm uppercase tracking-[0.3em] text-cyan-100/80">Purchase Control</p>
+                <h2 className="mt-2 text-3xl font-semibold">Manage purchase orders with vendor-first visibility</h2>
+                <p className="mt-3 max-w-2xl text-sm text-slate-200">
+                  Track pending approvals, vendor references, order value, and inbound volume from one purchase-friendly workspace.
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                  <div className="flex items-center gap-2 text-cyan-100">
+                    <ClipboardList className="h-4 w-4" />
+                    <span className="text-xs uppercase tracking-wide">Total POs</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">{poStats.total}</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                  <div className="flex items-center gap-2 text-amber-100">
+                    <CircleDashed className="h-4 w-4" />
+                    <span className="text-xs uppercase tracking-wide">Pending</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">{poStats.pending}</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                  <div className="flex items-center gap-2 text-emerald-100">
+                    <Building2 className="h-4 w-4" />
+                    <span className="text-xs uppercase tracking-wide">Vendors</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">{poStats.vendorCount}</p>
+                </div>
+                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
+                  <div className="flex items-center gap-2 text-blue-100">
+                    <BadgeDollarSign className="h-4 w-4" />
+                    <span className="text-xs uppercase tracking-wide">PO Value</span>
+                  </div>
+                  <p className="mt-3 text-2xl font-semibold">${poStats.totalValue.toFixed(2)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+                <OrderFilters
+                  onSearch={setSearchQuery}
+                  onDateChange={setDateRange}
+                  onExport={() =>
+                    console.log("Export functionality to be implemented")
+                  }
+                />
+
+                <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-1">
+                  {[
+                    { value: "all", label: "All" },
+                    { value: "pending", label: "Pending" },
+                    { value: "approved", label: "Approved" },
+                    { value: "rejected", label: "Rejected" },
+                  ].map((option) => (
+                    <Button
+                      key={option.value}
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setStatusFilter2(option.value)}
+                      className={
+                        statusFilter2 === option.value
+                          ? "bg-white text-blue-700 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                  onClick={() => setIsOpen(true)}
+                >
+                  <Package className="h-4 w-4" />
+                  Browse Products
+                </Button>
+                <CreatePurchaseOrderDialog />
+                <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
       {/* Order Summary Cards */}
       {!poIs && userRole === "admin" && (
         <OrderSummaryCards
@@ -514,7 +647,7 @@ export const OrdersContainer = ({
       </div>
       )}
 
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-gray-200">
+      <div className={`flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 p-4 bg-white rounded-xl shadow-sm border border-gray-200 ${poIs ? "hidden" : ""}`}>
         {/* Left side - Search and Filters */}
         <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full xl:w-auto">
           <OrderFilters

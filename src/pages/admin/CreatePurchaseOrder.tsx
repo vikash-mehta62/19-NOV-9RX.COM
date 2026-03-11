@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { CreatePurchaseOrderForm } from "@/components/orders/CreatePurchaseOrderForm";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Button } from "@/components/ui/button";
 export default function CreatePurchaseOrder() {
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const locationState = location.state as { vendorId?: string } | null;
-  const vendorId = locationState?.vendorId;
+  const vendorId = locationState?.vendorId || searchParams.get("vendorId") || "";
 
   useEffect(() => {
     if (!vendorId) {

@@ -1,5 +1,4 @@
 import { supabase } from "@/integrations/supabase/client";
-import { Product } from "@/types/product";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
 
 type ProductSizeInput = ProductFormValues["sizes"][number];
@@ -557,7 +556,26 @@ export const deleteProductService = async (id: string) => {
   if (error) throw error;
 };
 
-export const bulkAddProductsService = async (products: Product[]) => {
-  const { error } = await supabase.from("products").insert(products);
-  if (error) throw error;
+export const bulkAddProductsService = async (products: ProductFormValues[]) => {
+  const errors: { name: string; reason: string }[] = [];
+  let created = 0;
+
+  for (const product of products) {
+    try {
+      await addProductService(product);
+      created += 1;
+    } catch (error) {
+      console.error("Error importing product:", product.name, error);
+      errors.push({
+        name: product.name,
+        reason: error instanceof Error ? error.message : "Unknown import error.",
+      });
+    }
+  }
+
+  return {
+    created,
+    failed: errors.length,
+    errors,
+  };
 };
