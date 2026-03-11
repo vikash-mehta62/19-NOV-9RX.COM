@@ -67,7 +67,8 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
   return new Promise(async (resolve, reject) => {
     try {
       const documentType = options.documentType || 'SALES ORDER';
-      const isPaid = order.payment_status?.toLowerCase() === 'paid';
+      const rawPaymentStatus = String(order.payment_status || '').toLowerCase();
+      const isPaid = rawPaymentStatus === 'paid';
       const isInvoice = documentType === 'INVOICE';
       
       const orderNumber = order?.order_number || order?.orderNumber || "N/A";
@@ -126,6 +127,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const paidAmount = toNumber(order?.paid_amount || 0);
       const actualPaid = (isPaid && paidAmount === 0) ? total : paidAmount;
       const balanceDue = Math.max(0, total - actualPaid);
+      const isPartialPaid = rawPaymentStatus === 'partial_paid' || (actualPaid > 0 && balanceDue > 0);
       
       console.log("📊 PDF Calculation Details:", {
         subtotal,
@@ -200,10 +202,16 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       // Document title (right side)
       const titleText = isInvoice ? 'INVOICE' : 'SALES ORDER';
-      doc.fontSize(26)
+      let titleFontSize = 26;
+      while (titleFontSize > 18) {
+        doc.fontSize(titleFontSize).font('Helvetica-Bold');
+        if (doc.widthOfString(titleText) <= mm(65)) break;
+        titleFontSize -= 1;
+      }
+      doc.fontSize(titleFontSize)
          .fillColor('#3B82F6')
          .font('Helvetica-Bold')
-         .text(titleText, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(12), { width: mm(65), align: 'right' });
+         .text(titleText, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(14), { width: mm(65), align: 'right', lineBreak: false });
       
       // Order/Invoice number and date
       const currentDate = new Date().toLocaleDateString('en-US', { 
@@ -215,27 +223,28 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fontSize(9)
          .fillColor('#1F2937')
          .font('Helvetica')
-         .text(`# ${documentNumber}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(22), { width: mm(65), align: 'right' })
-         .text(`Date: ${currentDate}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(27), { width: mm(65), align: 'right' });
+         .text(`# ${documentNumber}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(24), { width: mm(65), align: 'right', lineBreak: false })
+         .text(`Date: ${currentDate}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(29), { width: mm(65), align: 'right', lineBreak: false });
       
-      // PAID badge if applicable
-      if (isPaid) {
-        const badgeX = mm(PAGE_WIDTH - PAGE_MARGIN - 30);
-        const badgeY = mm(34);
-        doc.roundedRect(badgeX, badgeY, mm(30), mm(9), mm(2))
-           .fill('#10B981');
-        
-        doc.fontSize(9)
-           .fillColor('#FFFFFF')
-           .font('Helvetica-Bold')
-           .text('PAID', badgeX, badgeY + mm(3), { width: mm(30), align: 'center' });
-      }
+      // Payment status badge
+      const badgeLabel = isPaid ? 'PAID' : (isPartialPaid ? 'PARTIAL PAID' : 'UNPAID');
+      const badgeColor = isPaid ? '#10B981' : (isPartialPaid ? '#F59E0B' : '#EF4444');
+      const badgeWidth = isPartialPaid ? 40 : 30;
+      const badgeX = mm(PAGE_WIDTH - PAGE_MARGIN - badgeWidth);
+      const badgeY = mm(36);
+      doc.roundedRect(badgeX, badgeY, mm(badgeWidth), mm(9), mm(2))
+         .fill(badgeColor);
+
+      doc.fontSize(isPartialPaid ? 8 : 9)
+         .fillColor('#FFFFFF')
+         .font('Helvetica-Bold')
+         .text(badgeLabel, badgeX, badgeY + mm(3), { width: mm(badgeWidth), align: 'center', lineBreak: false });
       
       // Add barcode
       try {
         const barcodeBuffer = await generateBarcode(orderNumber);
         if (barcodeBuffer) {
-          doc.image(barcodeBuffer, mm(PAGE_WIDTH - PAGE_MARGIN - 45), mm(48), { width: mm(45), height: mm(10) });
+          doc.image(barcodeBuffer, mm(PAGE_WIDTH - PAGE_MARGIN - 45), mm(50), { width: mm(45), height: mm(10) });
         }
       } catch (err) {
         console.log('Barcode generation failed');
@@ -512,20 +521,44 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         }
       }
       
-      // Footer
-      const footerY = PAGE_HEIGHT - 25;
-      doc.fontSize(10)
-         .fillColor('#3B82F6')
-         .font('Helvetica')
-         .text('Thank you for your business!', mm(PAGE_MARGIN), mm(footerY), { width: mm(PAGE_WIDTH - PAGE_MARGIN * 2), align: 'center' });
-      
-      doc.fontSize(8)
-         .fillColor('#6B7280')
-         .text('Questions? Contact us at info@9rx.com', mm(PAGE_MARGIN), mm(footerY + 7), { width: mm(PAGE_WIDTH - PAGE_MARGIN * 2), align: 'center' });
-      
-      // Add footer band (2mm green bar at bottom)
-      doc.rect(0, mm(PAGE_HEIGHT - 2), mm(PAGE_WIDTH), mm(2))
-         .fill('#3B82F6');
+      const pageRange = doc.bufferedPageRange();
+      for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
+        doc.switchToPage(i);
+
+        // Keep all footer text above PDFKit's bottom margin safe area.
+        // Writing inside the bottom margin causes PDFKit to push text to a new page.
+        const footerY = PAGE_HEIGHT - 42;
+        const contactY = footerY + 7;
+        const pageNumberY = PAGE_HEIGHT - 19;
+        doc.fontSize(10)
+           .fillColor('#3B82F6')
+           .font('Helvetica')
+           .text('Thank you for your business!', mm(PAGE_MARGIN), mm(footerY), {
+             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+             align: 'center',
+             lineBreak: false
+           });
+        
+        doc.fontSize(8)
+           .fillColor('#6B7280')
+           .text('Questions? Contact us at info@9rx.com', mm(PAGE_MARGIN), mm(contactY), {
+             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+             align: 'center',
+             lineBreak: false
+           });
+
+        doc.fontSize(8)
+           .fillColor('#6B7280')
+           .text(`Page ${i - pageRange.start + 1} of ${pageRange.count}`, mm(PAGE_MARGIN), mm(pageNumberY), {
+             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+             align: 'center',
+             lineBreak: false
+           });
+        
+        // Add footer band (2mm green bar at bottom)
+        doc.rect(0, mm(PAGE_HEIGHT - 2), mm(PAGE_WIDTH), mm(2))
+           .fill('#3B82F6');
+      }
       
       doc.end();
       
