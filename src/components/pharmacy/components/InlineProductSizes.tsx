@@ -673,7 +673,7 @@ export const InlineProductSizes = ({
                           title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                         >
                           <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
-                            {size.size_value}
+                            {size.size_value} {size.size_unit}
                           </p>
                           <p className="text-[10px] sm:text-xs text-gray-500 line-clamp-2 break-words uppercase">
                             {displayProduct.name}
