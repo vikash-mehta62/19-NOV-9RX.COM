@@ -162,6 +162,7 @@ export const OrderHeader = ({
   };
 
   const status = statusConfig[order.status] || statusConfig.pending;
+  const orderDate = order.date || (order as any).created_at;
   const orderAny = order as any;
   const totalAmount = Number(orderAny.total_amount ?? order.total ?? 0);
   const rawPaidAmount = Number(orderAny.paid_amount ?? 0);
@@ -214,11 +215,11 @@ export const OrderHeader = ({
           <div className="flex flex-wrap items-center gap-3 md:gap-4 text-xs md:text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <Calendar className="w-4 h-4" />
-              {formatDate(order.date)}
+              {formatDate(orderDate)}
             </span>
             <span className="flex items-center gap-1">
               <Clock className="w-4 h-4" />
-              {formatTime(order.date)}
+              {formatTime(orderDate)}
             </span>
           </div>
 

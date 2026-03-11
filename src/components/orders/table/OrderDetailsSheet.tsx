@@ -33,6 +33,7 @@ import { PackingSlipModal } from "../PackingSlipModal";
 import { PharmacyOrderDetails } from "@/components/pharmacy/PharmacyOrderDetails";
 import Logo from "../../../assests/home/9rx_logo.png";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { formatDate } from "../utils/dateUtils";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -359,12 +360,7 @@ export const OrderDetailsSheet = ({
     }
   };
 
-  const formattedDate = new Date(currentOrder.date).toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    timeZone: "UTC",
-  });
+  const formattedDate = formatDate(currentOrder.date || (currentOrder as any).created_at);
 
   const generateBarcode = (text: string): string => {
     const canvas = document.createElement("canvas");

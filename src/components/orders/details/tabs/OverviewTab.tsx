@@ -11,6 +11,7 @@ import { calculateFinalTotal } from "@/utils/orderCalculations";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
+import { formatDate } from "../../utils/dateUtils";
 
 interface OverviewTabProps {
   order: OrderFormValues;
@@ -50,6 +51,7 @@ const getAddressField = (
 export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const orderDate = order.date || (order as any).created_at;
   
   // Derive poIs from order data itself for reliability
   // This ensures we always use the correct order type regardless of prop
@@ -463,12 +465,7 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
             <div>
               <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Order Date</p>
               <p className="font-semibold text-gray-900">
-                {new Date(order.date).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                  timeZone: "UTC",
-                })}
+                {formatDate(orderDate)}
               </p>
             </div>
           </div>

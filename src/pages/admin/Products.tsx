@@ -733,7 +733,6 @@ const Products = () => {
                     <TableRow className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                       <TableHead className="w-[80px] font-semibold text-gray-700 py-4">Image</TableHead>
                       <TableHead className="font-semibold text-gray-700">Product Details</TableHead>
-                      <TableHead className="font-semibold text-gray-700">SKU</TableHead>
                       <TableHead className="font-semibold text-gray-700">Category</TableHead>
                       <TableHead className="text-right font-semibold text-gray-700">Price</TableHead>
                       <TableHead className="text-center font-semibold text-gray-700">Stock Status</TableHead>
@@ -782,11 +781,6 @@ const Products = () => {
                               <p className="text-sm text-gray-500 line-clamp-2 leading-relaxed">{product.description}</p>
                             )}
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <span className="font-mono text-sm text-gray-600 bg-gray-100 rounded-lg px-3 py-1 inline-block">
-                            {product.sku || "N/A"}
-                          </span>
                         </TableCell>
                         <TableCell>
                           {product.category && (

@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDate } from "../../utils/dateUtils";
 
 // Helper function to generate tracking URL based on carrier
 const getTrackingUrl = (method: string, trackingNumber: string): string => {
@@ -68,6 +69,7 @@ interface ShippingTabProps {
 export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }: ShippingTabProps) => {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
+  const orderDate = order.date || (order as any).created_at;
   
   const canEdit = userRole === "admin" && order.status !== "cancelled" && !order.void;
   
@@ -566,12 +568,7 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
           <div>
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Order Date</p>
             <p className="font-semibold text-gray-900">
-              {new Date(order.date).toLocaleDateString("en-US", {
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-                timeZone: "UTC",
-              })}
+              {formatDate(orderDate)}
             </p>
           </div>
         </div>

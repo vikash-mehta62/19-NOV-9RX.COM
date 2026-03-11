@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { OrderFormValues } from "../../schemas/orderSchema";
 import { OrderActivityTimeline } from "../../OrderActivityTimeline";
+import { formatDate } from "../../utils/dateUtils";
 import { 
   Activity, FileText, DollarSign, Package, 
   Calendar, Hash, CreditCard, AlertCircle
@@ -27,6 +28,7 @@ export const ActivityTab = ({ order }: ActivityTabProps) => {
   }
 
   const isPaid = order.payment_status === "paid";
+  const orderDate = order.date || (order as any).created_at;
 
   return (
     <div className="space-y-6">
@@ -145,12 +147,7 @@ export const ActivityTab = ({ order }: ActivityTabProps) => {
               <div>
                 <span className="text-xs text-gray-500 font-medium uppercase tracking-wide mr-2">Order Date:</span>
                 <span className="font-medium text-gray-900">
-                  {new Date(order.date).toLocaleDateString("en-US", {
-                    year: "numeric",
-                    month: "long",
-                    day: "numeric",
-                    timeZone: "UTC",
-                  })}
+                  {formatDate(orderDate)}
                 </span>
               </div>
             </div>
