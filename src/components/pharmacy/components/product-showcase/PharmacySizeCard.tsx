@@ -227,14 +227,14 @@ export const PharmacySizeCard = ({
         <div 
           className="cursor-pointer hover:text-blue-600 transition-colors"
           onClick={handleCardClick}
-          title={`${item.productName} – ${item.sizeValue} ${item.sizeUnit}`}
+          title={`${item.productName}${item.sizeValue ? ` – ${item.sizeValue}` : ""}`}
         >
           <h3 className="font-semibold text-gray-900 text-xs lg:text-sm leading-tight line-clamp-1">
             {item.productName}
           </h3>
           {item.sizeValue && (
             <p className="text-blue-600 text-xs lg:text-sm font-medium line-clamp-1 mt-0.5">
-              – {item.sizeValue} {item.sizeUnit}
+              – {item.sizeValue}
             </p>
           )}
         </div>

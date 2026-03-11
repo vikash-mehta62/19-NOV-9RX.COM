@@ -7,7 +7,6 @@ import { Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, Ext
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useCart } from '@/hooks/use-cart'
@@ -15,6 +14,8 @@ import { useToast } from '@/hooks/use-toast'
 import { ProductDetails } from '../types/product.types'
 import { WishlistItem } from '@/hooks/use-wishlist'
 import { getProductEffectivePrice } from '@/services/productOfferService'
+import axios from '../../../../axiosconfig'
+import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from './CustomizationEnquiryDialog'
 
 interface InlineProductSizesProps {
   product: ProductDetails | null
@@ -39,7 +40,10 @@ export const InlineProductSizes = ({
   const [isAdding, setIsAdding] = useState<Record<string, boolean>>({})
   const [fullProduct, setFullProduct] = useState<ProductDetails | null>(null)
   const [loading, setLoading] = useState(false)
-  const [customizations, setCustomizations] = useState<Record<string, { enabled: boolean; text: string }>>({})
+  const [customizationItems, setCustomizationItems] = useState<CustomizationEnquiryItem[]>([])
+  const [customizationInstruction, setCustomizationInstruction] = useState('')
+  const [isCustomizationDialogOpen, setIsCustomizationDialogOpen] = useState(false)
+  const [isSendingCustomizationEnquiry, setIsSendingCustomizationEnquiry] = useState(false)
   const [productOffer, setProductOffer] = useState<{
     effectivePrice: number;
     discountPercent: number;
@@ -266,24 +270,95 @@ export const InlineProductSizes = ({
     })
   }
 
-  const handleCustomizationToggle = (sizeId: string, enabled: boolean) => {
-    setCustomizations(prev => ({
-      ...prev,
-      [sizeId]: { ...prev[sizeId], enabled, text: prev[sizeId]?.text || '' }
-    }))
+  const createCustomizationItem = (size: any): CustomizationEnquiryItem => ({
+    key: `${displayProduct.id}:${size.id}`,
+    productId: displayProduct.id.toString(),
+    productName: displayProduct.name,
+    sizeId: size.id,
+    sizeLabel: `${size.size_value} ${size.size_unit}`,
+    sku: size.sku || displayProduct.sku || '',
+    requestedQuantity: selectedSizes[size.id]?.quantity || 1,
+  })
+
+  const isCustomizationSelected = (sizeId: string) =>
+    customizationItems.some((item) => item.productId === displayProduct.id.toString() && item.sizeId === sizeId)
+
+  const handleCustomizationToggle = (size: any, enabled: boolean) => {
+    const itemKey = `${displayProduct.id}:${size.id}`
+
+    if (enabled) {
+      setCustomizationItems((prev) => {
+        if (prev.some((item) => item.key === itemKey)) {
+          return prev
+        }
+        return [...prev, createCustomizationItem(size)]
+      })
+      setIsCustomizationDialogOpen(true)
+      return
+    }
+
+    setCustomizationItems((prev) => prev.filter((item) => item.key !== itemKey))
   }
 
-  const handleCustomizationTextChange = (sizeId: string, text: string) => {
-    setCustomizations(prev => ({
-      ...prev,
-      [sizeId]: { ...prev[sizeId], enabled: prev[sizeId]?.enabled || false, text }
-    }))
+  const handleSendCustomizationEnquiry = async () => {
+    if (customizationItems.length === 0) {
+      toast({
+        title: "No Size Selected",
+        description: "Select at least one size for customization enquiry.",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setIsSendingCustomizationEnquiry(true)
+
+    try {
+      const name = userProfile?.display_name || userProfile?.name || "Unknown User"
+      const email = userProfile?.email || "NA"
+      const phone = userProfile?.mobile_phone || userProfile?.work_phone || "NA"
+
+      const selectedProducts = customizationItems.map((item) => {
+        const skuLabel = item.sku ? ` | SKU: ${item.sku}` : ""
+        return {
+          value: `${item.productName} - ${item.sizeLabel}${skuLabel} | Requested Qty: ${item.requestedQuantity}`
+        }
+      })
+
+      if (customizationInstruction.trim()) {
+        selectedProducts.push({ value: `Customization Instruction: ${customizationInstruction.trim()}` })
+      }
+
+      await axios.post("/customization", {
+        name,
+        email,
+        phone,
+        selectedProducts,
+      })
+
+      toast({
+        title: "Enquiry Sent",
+        description: "Customization enquiry sent to admin successfully.",
+      })
+
+      setCustomizationItems([])
+      setCustomizationInstruction('')
+      setIsCustomizationDialogOpen(false)
+    } catch (error) {
+      console.error("Failed to send customization enquiry:", error)
+      toast({
+        title: "Send Enquiry Failed",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSendingCustomizationEnquiry(false)
+    }
   }
 
   const handleAddToCart = async (size: any) => {
     const sizeId = size.id
     const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
-    const customization = customizations[sizeId] || { enabled: false, text: '' }
+    const customizationEnabled = isCustomizationSelected(sizeId)
     
     if (size.stock <= 0) {
       toast({
@@ -301,7 +376,7 @@ export const InlineProductSizes = ({
       const currentPrice = size.price
       
       // Calculate customization price if enabled
-      const customizationPrice = customization.enabled && displayProduct.customization?.allowed 
+      const customizationPrice = customizationEnabled && displayProduct.customization?.allowed 
         ? (displayProduct.customization.basePrice || 0) * selection.quantity
         : 0
       
@@ -309,7 +384,7 @@ export const InlineProductSizes = ({
 
       const cartItem = {
         productId: displayProduct.id.toString(),
-        name: `${displayProduct.name}${customization.enabled ? ' (Customized)' : ''}`,
+        name: `${displayProduct.name}${customizationEnabled ? ' (Customized)' : ''}`,
         sku: displayProduct.sku || size.sku || "",
         price: totalPrice,
         image: getImageUrl(size.image),
@@ -326,12 +401,12 @@ export const InlineProductSizes = ({
           type: "case" // Always case - unit is just for reference
         }],
         quantity: selection.quantity,
-        customizations: customization.enabled ? {
+        customizations: customizationEnabled ? {
           customization_enabled: 'true',
-          customization_text: customization.text,
+          customization_text: customizationInstruction.trim(),
           customization_price: (displayProduct.customization?.basePrice || 0).toString()
         } : {},
-        notes: customization.enabled ? `Customization: ${customization.text}` : ''
+        notes: customizationEnabled ? `Customization: ${customizationInstruction.trim()}` : ''
       }
 
       const success = await addToCart(cartItem)
@@ -339,17 +414,14 @@ export const InlineProductSizes = ({
       if (success) {
         toast({
           title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value} ${size.size_unit}${customization.enabled ? ' with customization' : ''} added!`,
+          description: `${displayProduct.name} ${size.size_value} ${size.size_unit}${customizationEnabled ? ' with customization' : ''} added!`,
         })
         // Reset quantity and customization after adding
         setSelectedSizes(prev => ({
           ...prev,
           [sizeId]: { ...prev[sizeId], quantity: 1 }
         }))
-        setCustomizations(prev => ({
-          ...prev,
-          [sizeId]: { enabled: false, text: '' }
-        }))
+        setCustomizationItems(prev => prev.filter((item) => item.key !== `${displayProduct.id}:${sizeId}`))
       }
     } catch (error) {
       toast({
@@ -381,6 +453,17 @@ export const InlineProductSizes = ({
 
   return (
     <div className="w-full bg-gradient-to-r from-blue-50 to-blue-100 border-2 border-blue-200 rounded-xl sm:rounded-2xl p-3 sm:p-6 mb-4 sm:mb-6 shadow-lg">
+      <CustomizationEnquiryDialog
+        open={isCustomizationDialogOpen}
+        onOpenChange={setIsCustomizationDialogOpen}
+        items={customizationItems}
+        instruction={customizationInstruction}
+        onInstructionChange={setCustomizationInstruction}
+        onItemsChange={setCustomizationItems}
+        onSubmit={handleSendCustomizationEnquiry}
+        isSubmitting={isSendingCustomizationEnquiry}
+      />
+
       {/* Back to Category Button */}
       <Button
         variant="ghost"
@@ -458,10 +541,26 @@ export const InlineProductSizes = ({
 
       {/* Sizes Grid */}
       <div className="space-y-3 sm:space-y-4">
-        <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center gap-1.5 sm:gap-2">
-          <Package className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
-          Available Sizes
-        </h3>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center gap-1.5 sm:gap-2">
+            <Package className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
+            Available Sizes
+          </h3>
+          {displayProduct.customization?.allowed && customizationItems.length > 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-purple-200 text-purple-700 hover:bg-purple-50"
+              onClick={() => setIsCustomizationDialogOpen(true)}
+            >
+              <Palette className="w-4 h-4 mr-1.5" />
+              Customization Enquiry
+              <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
+                {customizationItems.length}
+              </Badge>
+            </Button>
+          )}
+        </div>
         
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -483,7 +582,7 @@ export const InlineProductSizes = ({
             {displayProduct.sizes.map((size) => {
               const sizeId = size.id
               const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
-              const customization = customizations[sizeId] || { enabled: false, text: '' }
+              const isCustomizationSelectedForSize = isCustomizationSelected(sizeId)
               
               // Check for group pricing discount OR product offer discount
               const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
@@ -501,7 +600,7 @@ export const InlineProductSizes = ({
               
               const unitsPerCase = size.quantity_per_case || 0
               const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
-              const customizationPrice = customization.enabled && displayProduct.customization?.allowed 
+              const customizationPrice = isCustomizationSelectedForSize && displayProduct.customization?.allowed 
                 ? (displayProduct.customization.basePrice || 0) * selection.quantity
                 : 0
               const totalPrice = (casePrice * selection.quantity) + customizationPrice
@@ -574,7 +673,7 @@ export const InlineProductSizes = ({
                           title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                         >
                           <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
-                            {size.size_value} {size.size_unit}
+                            {size.size_value}
                           </p>
                           <p className="text-[10px] sm:text-xs text-gray-500 line-clamp-2 break-words uppercase">
                             {displayProduct.name}
@@ -647,7 +746,7 @@ export const InlineProductSizes = ({
                                   size="icon"
                                   className="h-8 w-10 sm:h-9 sm:w-12 rounded-l-lg rounded-r-none hover:bg-gray-100 p-0"
                                   onClick={() => handleQuantityChange(sizeId, -1)}
-                                  disabled={selection.quantity <= 1}
+                                  disabled={selection.quantity <= 1 || isCustomizationSelectedForSize}
                                 >
                                   <Minus className="w-4 h-4" />
                                 </Button>
@@ -657,7 +756,7 @@ export const InlineProductSizes = ({
                                   size="icon"
                                   className="h-8 w-10 sm:h-9 sm:w-12 rounded-r-lg rounded-l-none hover:bg-gray-100 p-0"
                                   onClick={() => handleQuantityChange(sizeId, 1)}
-                                  disabled={selection.quantity >= size.stock}
+                                  disabled={selection.quantity >= size.stock || isCustomizationSelectedForSize}
                                 >
                                   <Plus className="w-4 h-4" />
                                 </Button>
@@ -667,7 +766,7 @@ export const InlineProductSizes = ({
                               <Button
                                 className="w-full h-9 sm:h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg text-xs sm:text-sm"
                                 onClick={() => handleAddToCart(size)}
-                                disabled={isAdding[sizeId] || sizeInCart}
+                                disabled={isAdding[sizeId] || sizeInCart || isCustomizationSelectedForSize}
                               >
                                 {isAdding[sizeId] ? (
                                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -694,28 +793,20 @@ export const InlineProductSizes = ({
                     {!isOutOfStock && displayProduct.customization?.allowed && (
                       <div className="mt-2 sm:mt-3 p-2 sm:p-2.5 bg-purple-50 rounded-md sm:rounded-lg border border-purple-100">
                         <div className="flex items-center gap-1.5 sm:gap-2">
-                          <Checkbox
-                            id={`customize-${sizeId}`}
-                            checked={customization.enabled}
-                            onCheckedChange={(checked) => handleCustomizationToggle(sizeId, checked as boolean)}
-                            className="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                          />
+                            <Checkbox
+                              id={`customize-${sizeId}`}
+                              checked={isCustomizationSelectedForSize}
+                              onCheckedChange={(checked) => handleCustomizationToggle(size, checked as boolean)}
+                              className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                            />
                           <Label htmlFor={`customize-${sizeId}`} className="text-[10px] sm:text-xs font-medium text-purple-700 cursor-pointer flex items-center gap-0.5 sm:gap-1">
                             <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                            Add Customization
+                            Add Customaization
                             {displayProduct.customization.basePrice > 0 && (
                               <span className="text-purple-500">(+${displayProduct.customization.basePrice.toFixed(2)}/unit)</span>
                             )}
                           </Label>
                         </div>
-                        {customization.enabled && (
-                          <Input
-                            placeholder="Enter customization details..."
-                            value={customization.text}
-                            onChange={(e) => handleCustomizationTextChange(sizeId, e.target.value)}
-                            className="mt-1.5 sm:mt-2 text-[10px] sm:text-xs h-7 sm:h-8 border-purple-200"
-                          />
-                        )}
                       </div>
                     )}
                   </CardContent>

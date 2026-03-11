@@ -552,7 +552,7 @@ export const ProductSizesPanel = ({
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-gray-900">
-                                {size.size_value} {size.size_unit}
+                                {size.size_value}
                               </h4>
                               {hasDiscount && discountPercent > 5 && (
                                 <Badge className="bg-red-500 text-white text-xs">

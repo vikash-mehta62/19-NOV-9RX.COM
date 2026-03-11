@@ -472,7 +472,8 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button 
+            {/* TODO:Custom-Product */}
+            {/* <Button 
               onClick={() => setShowCustomProductDialog(true)} 
               variant="outline" 
               size="sm"
@@ -480,7 +481,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
             >
               <Sparkles className="w-3.5 h-3.5 text-blue-600" />
               Custom Item
-            </Button>
+            </Button> */}
             {orderTotals.itemCount > 0 && (
               <Badge className="bg-blue-600 text-white text-xs px-2.5 py-1">
                 {orderTotals.itemCount} items • ${orderTotals.subtotal.toFixed(2)}

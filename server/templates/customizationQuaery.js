@@ -1,4 +1,36 @@
 const customizationQueryEmail = (name, email, phone, selectedProducts) => {
+    const safeSelectedProducts = Array.isArray(selectedProducts) ? selectedProducts : [];
+
+    const extracted = safeSelectedProducts.reduce(
+        (acc, item) => {
+            const rawValue =
+                typeof item === "string"
+                    ? item
+                    : item?.value || item?.label || "";
+            const value = String(rawValue).trim();
+
+            if (!value) return acc;
+
+            if (value.toLowerCase().startsWith("customization instruction:")) {
+                acc.customizationInstruction = value.replace(/^customization instruction:\s*/i, "");
+                return acc;
+            }
+
+            if (value.toLowerCase().startsWith("global note:")) {
+                acc.globalNote = value.replace(/^global note:\s*/i, "");
+                return acc;
+            }
+
+            acc.productItems.push(value);
+            return acc;
+        },
+        {
+            customizationInstruction: "",
+            globalNote: "",
+            productItems: [],
+        }
+    );
+
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -62,6 +94,33 @@ const customizationQueryEmail = (name, email, phone, selectedProducts) => {
             .product-list {
                 margin-top: 20px;
                 text-align: left;
+            }
+
+            .section-card {
+                margin-top: 16px;
+                text-align: left;
+                background: #F6FBF7;
+                border: 1px solid #D6EFD9;
+                border-left: 5px solid #2E7D32;
+                border-radius: 8px;
+                padding: 12px 14px;
+            }
+
+            .section-title {
+                font-size: 13px;
+                font-weight: 700;
+                color: #1B5E20;
+                margin: 0 0 8px 0;
+                text-transform: uppercase;
+                letter-spacing: 0.3px;
+            }
+
+            .section-text {
+                font-size: 14px;
+                color: #234D34;
+                margin: 0;
+                line-height: 1.5;
+                word-break: break-word;
             }
 
             .product-item {
@@ -130,15 +189,33 @@ const customizationQueryEmail = (name, email, phone, selectedProducts) => {
 
             <div class="product-list">
                 <h3>Selected Products:</h3>
-                ${selectedProducts
-                    .map(
-                        (product) => `
+                ${extracted.productItems.length > 0
+                    ? extracted.productItems
+                        .map(
+                            (productValue) => `
                         <div class="product-item">
-                            <div class="product-details">${product.value}</div>
+                            <div class="product-details">${productValue}</div>
                         </div>`
-                    )
-                    .join('')}
+                        )
+                        .join('')
+                    : `<div class="product-item"><div class="product-details">No specific size selected.</div></div>`}
             </div>
+
+            ${extracted.customizationInstruction
+                ? `
+            <div class="section-card">
+                <p class="section-title">Customization Instruction</p>
+                <p class="section-text">${extracted.customizationInstruction}</p>
+            </div>`
+                : ``}
+
+            ${extracted.globalNote
+                ? `
+            <div class="section-card">
+                <p class="section-title">Global Note</p>
+                <p class="section-text">${extracted.globalNote}</p>
+            </div>`
+                : ``}
 
        
 

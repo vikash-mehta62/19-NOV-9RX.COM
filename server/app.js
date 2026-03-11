@@ -122,7 +122,7 @@ app.use(cookieParser());
 
 // CORS setup
 const allowedOrigins = [
-  "http://localhost:3000",
+  "https://9rx.vercel.app",
   "http://localhost:8080",
   "https://9rx.vercel.app",
   "http://localhost:3001",

@@ -606,15 +606,16 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                 </div>
               </ScrollArea>
 
+              {/* TODO:Custom-Product */}
               {/* Custom Item Button */}
-              <Button 
+              {/* <Button 
                 variant="outline" 
                 className="w-full mt-3 h-9 text-xs border-dashed"
                 onClick={() => setShowCustomProductDialog(true)}
               >
                 <Sparkles className="w-3.5 h-3.5 mr-1.5 text-blue-600" />
                 Add Custom Item
-              </Button>
+              </Button> */}
             </CardContent>
           </Card>
         </div>
