@@ -297,8 +297,7 @@ export default function PharmacyCreateOrder() {
         orderStatus = "credit_approval_processing";
       }
 
-      const orderToSubmit = {
-        order_number: newOrderId,
+      const baseOrderToSubmit = {
         profile_id: session.user.id,
         location_id: session.user.id, // For pharmacy, location_id is same as profile_id
         customerInfo: customerInfo,
@@ -319,17 +318,51 @@ export default function PharmacyCreateOrder() {
         discount_details: orderData.appliedDiscounts || [],
       };
 
-      // Insert order into database
-      const { data: insertedOrder, error } = await supabase
-        .from("orders")
-        .insert([orderToSubmit])
-        .select()
-        .single();
+      // Insert order with duplicate-order-number retry protection.
+      const MAX_ORDER_INSERT_RETRIES = 5;
+      let insertedOrder: any = null;
+      let orderInsertError: any = null;
+      let finalOrderNumber = newOrderId;
 
-      if (error) {
-        console.error("Error creating order:", error);
-        throw error;
+      for (let attempt = 0; attempt < MAX_ORDER_INSERT_RETRIES; attempt++) {
+        const orderToSubmit = {
+          ...baseOrderToSubmit,
+          order_number: finalOrderNumber,
+        };
+
+        const { data, error } = await supabase
+          .from("orders")
+          .insert([orderToSubmit])
+          .select()
+          .single();
+
+        if (!error && data) {
+          insertedOrder = data;
+          break;
+        }
+
+        orderInsertError = error;
+        const isDuplicateOrderNumber =
+          error?.code === "23505" &&
+          String(error?.message || "").includes("orders_order_number_key");
+
+        if (!isDuplicateOrderNumber) {
+          break;
+        }
+
+        const regeneratedOrderNumber = await generateOrderId();
+        if (!regeneratedOrderNumber) {
+          break;
+        }
+        finalOrderNumber = regeneratedOrderNumber;
       }
+
+      if (!insertedOrder) {
+        console.error("Error creating order:", orderInsertError);
+        throw orderInsertError || new Error("Failed to create order");
+      }
+
+      finalOrderNumber = insertedOrder.order_number || finalOrderNumber;
 
       // Create invoice if order is paid (total = 0 from credit memo)
       if (initialPaymentStatus === "paid" && finalTotal === 0) {
@@ -356,7 +389,7 @@ export default function PharmacyCreateOrder() {
               session.user.id,
               insertedOrder.id,
               originalSubtotal, // Use original subtotal for points calculation
-              newOrderId
+              finalOrderNumber
             );
             
             if (rewardResult.success && rewardResult.pointsEarned > 0) {
@@ -451,7 +484,7 @@ export default function PharmacyCreateOrder() {
                   user_id: session.user.id,
                   points: -discount.pointsUsed,
                   transaction_type: "redeem",
-                  description: `Redeemed ${discount.pointsUsed} points for order ${newOrderId}`,
+                  description: `Redeemed ${discount.pointsUsed} points for order ${finalOrderNumber}`,
                   reference_type: "order",
                   reference_id: insertedOrder.id,
                 });
@@ -543,9 +576,9 @@ export default function PharmacyCreateOrder() {
 
         const activityResult = await OrderActivityService.logOrderCreation({
           orderId: insertedOrder.id,
-          orderNumber: newOrderId,
+          orderNumber: finalOrderNumber,
           totalAmount: orderData.total,
-          status: orderToSubmit.status,
+          status: orderStatus,
           paymentMethod: paymentMethod,
           performedBy: session.user.id,
           performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}`.trim() : "Pharmacy User",
@@ -597,7 +630,7 @@ export default function PharmacyCreateOrder() {
             session.user.id,
             insertedOrder.id,
             finalTotal,
-            newOrderId
+            finalOrderNumber
           );
           
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
@@ -638,7 +671,7 @@ export default function PharmacyCreateOrder() {
 
         if (profileData?.email_notifaction || profileData?.order_updates) {
           const emailPayload = {
-            order_number: newOrderId,
+            order_number: finalOrderNumber,
             customerInfo: {
               name: orderData.customer?.name || "",
               email: orderData.customer?.email || "",
@@ -649,7 +682,7 @@ export default function PharmacyCreateOrder() {
             tax_amount: orderData.tax,
             shipping_cost: orderData.shipping,
             payment_method: paymentMethod,
-            status: orderToSubmit.status,
+            status: orderStatus,
             shippingAddress: {
               fullName: orderData.shippingAddress?.fullName || "",
               address: {
@@ -673,7 +706,7 @@ export default function PharmacyCreateOrder() {
 
       toast({
         title: "Order Created Successfully",
-        description: `Order ${newOrderId} has been created and is ready for processing`,
+        description: `Order ${finalOrderNumber} has been created and is ready for processing`,
       });
 
       console.log("🧹 Clearing cart...");

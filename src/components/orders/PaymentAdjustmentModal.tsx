@@ -59,6 +59,7 @@ interface PaymentAdjustmentModalProps {
     success: boolean;
     adjustmentType: string;
     transactionId?: string;
+    adjustmentKey?: string;
   }) => void;
 }
 
@@ -97,7 +98,10 @@ export function PaymentAdjustmentModal({
 
   const differenceAmount = Number((newAmount - originalAmount).toFixed(2));
   const isIncrease = differenceAmount > 0;
-  const absoluteDifference = Math.abs(differenceAmount);
+  const balanceDueAmount = Math.max(0, Number((newAmount - currentPaidAmount).toFixed(2)));
+  const refundCreditAmount = Math.max(0, Number((currentPaidAmount - newAmount).toFixed(2)));
+  const actionAmount = isIncrease ? balanceDueAmount : refundCreditAmount;
+  const isZeroAdjustment = actionAmount <= 0;
 
   useEffect(() => {
     if (open) {
@@ -140,45 +144,46 @@ export function PaymentAdjustmentModal({
     setOriginalTransactionId(transactionId || null);
   };
 
+  const saveOrderOnly = async () => {
+    const newPaymentStatus = calculatePaymentStatusAfterAdjustment(
+      newAmount,
+      currentPaidAmount
+    );
+
+    try {
+      await supabase
+        .from('orders')
+        .update({ payment_status: newPaymentStatus })
+        .eq('id', orderId);
+    } catch (error) {
+      console.error('Error updating payment status:', error);
+    }
+
+    toast({
+      title: "Order Saved",
+      description: "Order items updated. Payment adjustment pending.",
+    });
+
+    onPaymentComplete({
+      success: true,
+      adjustmentType: 'none',
+    });
+
+    onOpenChange(false);
+  };
+
   const handleSubmit = async () => {
+    if (isZeroAdjustment || selectedAction === 'none') {
+      await saveOrderOnly();
+      return;
+    }
+
     if (!selectedAction) {
       toast({
         title: "Select an action",
         description: "Please select how you want to handle this payment adjustment",
         variant: "destructive",
       });
-      return;
-    }
-
-    // If "none" is selected, just save the order without any payment processing
-    if (selectedAction === 'none') {
-      // Calculate new payment status based on current amounts
-      const newPaymentStatus = calculatePaymentStatusAfterAdjustment(
-        newAmount,
-        currentPaidAmount
-      );
-
-      // Update order payment status
-      try {
-        await supabase
-          .from('orders')
-          .update({ payment_status: newPaymentStatus })
-          .eq('id', orderId);
-      } catch (error) {
-        console.error('Error updating payment status:', error);
-      }
-
-      toast({
-        title: "Order Saved",
-        description: "Order items updated. Payment adjustment pending.",
-      });
-
-      onPaymentComplete({
-        success: true,
-        adjustmentType: 'none',
-      });
-
-      onOpenChange(false);
       return;
     }
 
@@ -192,7 +197,7 @@ export function PaymentAdjustmentModal({
       // Guard against accidental double-processing of the exact same adjustment.
       if (selectedAction === "issue_credit_memo" || selectedAction === "process_refund") {
         const adjustmentType = selectedAction === "issue_credit_memo" ? "credit_memo_issued" : "partial_refund";
-        const signedDifference = -absoluteDifference;
+        const signedDifference = -refundCreditAmount;
 
         const alreadyProcessed = await PaymentAdjustmentService.hasEquivalentCompletedAdjustment({
           orderId,
@@ -227,7 +232,7 @@ export function PaymentAdjustmentModal({
           }
 
           console.log('Processing payment with card:', card);
-          console.log('Order details:', { orderId, orderNumber, customerId, absoluteDifference });
+          console.log('Order details:', { orderId, orderNumber, customerId, balanceDueAmount });
 
           // Check if this is a local test card
           const isLocalCard = !card.customer_profile_id || card.payment_profile_id?.startsWith('local_');
@@ -246,7 +251,7 @@ export function PaymentAdjustmentModal({
             // Real Authorize.net payment
             console.log('💳 Using real Authorize.net card');
             paymentResult = await PaymentAdjustmentService.processGatewayPayment(
-              absoluteDifference,
+              balanceDueAmount,
               'saved_card',
               {
                 customerProfileId: card.customer_profile_id,
@@ -271,7 +276,7 @@ export function PaymentAdjustmentModal({
             orderId,
             transactionId,
             transactionType: 'additional_payment',
-            amount: absoluteDifference,
+            amount: balanceDueAmount,
             paymentMethodType: 'saved_card',
             status: 'completed',
             cardLastFour: card.card_last_four,
@@ -285,7 +290,7 @@ export function PaymentAdjustmentModal({
             transactionType: 'credit',
             referenceType: 'payment',
             description: `Additional payment for order ${orderNumber || orderId}`,
-            amount: absoluteDifference,
+            amount: balanceDueAmount,
             processedBy: customerId,
             transactionId,
           });
@@ -304,7 +309,7 @@ export function PaymentAdjustmentModal({
           // Calculate new payment status - payment collected, should be paid
           newPaymentStatus = calculatePaymentStatusAfterAdjustment(
             newAmount,
-            currentPaidAmount + absoluteDifference // new paid amount after charging card
+            currentPaidAmount + balanceDueAmount // new paid amount after charging card
           );
 
           // Update order payment status
@@ -312,7 +317,7 @@ export function PaymentAdjustmentModal({
             .from('orders')
             .update({ 
               payment_status: newPaymentStatus,
-              paid_amount: currentPaidAmount + absoluteDifference 
+              paid_amount: currentPaidAmount + balanceDueAmount 
             })
             .eq('id', orderId);
         } else if (selectedAction === 'send_payment_link') {
@@ -335,7 +340,7 @@ export function PaymentAdjustmentModal({
             shipping_cost: orderData?.shipping_cost || 0,
             date: new Date().toISOString(),
             status: 'pending_additional_payment',
-            adjustment_amount: absoluteDifference,
+            adjustment_amount: balanceDueAmount,
             original_amount: originalAmount,
             paid_amount: paidAmount, // Amount already paid
             adjustment_reason: reason || `Order ${orderNumber || orderId} modified - additional payment required`,
@@ -351,7 +356,7 @@ export function PaymentAdjustmentModal({
               adjustmentType: 'additional_payment',
               originalAmount,
               newAmount,
-              differenceAmount: absoluteDifference,
+              differenceAmount: balanceDueAmount,
               paymentMethod: 'payment_link',
               paymentStatus: 'pending',
               reason: reason || `Order ${orderNumber || orderId} modified - payment link sent`,
@@ -359,7 +364,7 @@ export function PaymentAdjustmentModal({
 
             toast({
               title: "Payment Link Sent",
-              description: `Payment link for $${absoluteDifference.toFixed(2)} sent to ${customerEmail || orderData?.customerInfo?.email}`,
+              description: `Payment link for $${balanceDueAmount.toFixed(2)} sent to ${customerEmail || orderData?.customerInfo?.email}`,
             });
           } catch (emailError: any) {
             throw new Error(emailError.message || 'Failed to send payment link');
@@ -368,8 +373,8 @@ export function PaymentAdjustmentModal({
           }
         } else if (selectedAction === 'use_credit' && hasCredit) {
           // Check if sufficient credit is available
-          if (availableCredit < absoluteDifference) {
-            throw new Error(`Insufficient credit. Available: $${availableCredit.toFixed(2)}, Required: $${absoluteDifference.toFixed(2)}`);
+          if (availableCredit < balanceDueAmount) {
+            throw new Error(`Insufficient credit. Available: $${availableCredit.toFixed(2)}, Required: $${balanceDueAmount.toFixed(2)}`);
           }
 
           const { data: rpcResult, error: rpcError } = await supabase.rpc(
@@ -377,7 +382,7 @@ export function PaymentAdjustmentModal({
             {
               p_order_id: orderId,
               p_customer_id: customerId,
-              p_adjustment_amount: absoluteDifference,
+              p_adjustment_amount: balanceDueAmount,
               p_original_amount: originalAmount,
               p_new_amount: newAmount,
               p_reason: reason || `Order ${orderNumber || orderId} modified - charged to credit line`,
@@ -396,7 +401,7 @@ export function PaymentAdjustmentModal({
 
           toast({
             title: "Credit Applied",
-            description: `$${absoluteDifference.toFixed(2)} charged to credit line. Credit Invoice: ${rpcResult.credit_invoice_number || 'Created'}`,
+            description: `$${balanceDueAmount.toFixed(2)} charged to credit line. Credit Invoice: ${rpcResult.credit_invoice_number || 'Created'}`,
           });
         } else {
           throw new Error('Invalid action selected');
@@ -405,7 +410,7 @@ export function PaymentAdjustmentModal({
         if (selectedAction === 'issue_credit_memo') {
           result = await PaymentAdjustmentService.issueCreditMemo({
             customerId,
-            amount: absoluteDifference,
+            amount: refundCreditAmount,
             reason: reason || `Order ${orderNumber || orderId} modified - credit memo issued`,
             orderId,
           });
@@ -417,7 +422,7 @@ export function PaymentAdjustmentModal({
               adjustmentType: 'credit_memo_issued',
               originalAmount,
               newAmount,
-              differenceAmount: -absoluteDifference,
+              differenceAmount: -refundCreditAmount,
               paymentStatus: 'completed',
               creditMemoId: result.data?.credit_memo_id,
               reason: reason || `Order ${orderNumber || orderId} modified - credit memo issued`,
@@ -427,7 +432,7 @@ export function PaymentAdjustmentModal({
           result = await PaymentAdjustmentService.createRefund({
             orderId,
             customerId,
-            amount: absoluteDifference,
+            amount: refundCreditAmount,
             reason: reason || `Order ${orderNumber || orderId} modified - refund processed`,
             refundMethod: 'original_payment',
             originalPaymentId: originalTransactionId || undefined,
@@ -442,7 +447,7 @@ export function PaymentAdjustmentModal({
               orderId,
               transactionId,
               transactionType: 'refund',
-              amount: absoluteDifference,
+              amount: refundCreditAmount,
               paymentMethodType: 'card_refund',
               status: result.data?.status === 'completed' ? 'completed' : 'pending',
             });
@@ -454,7 +459,7 @@ export function PaymentAdjustmentModal({
               transactionType: 'debit',
               referenceType: 'refund',
               description: `Refund for order ${orderNumber || orderId}`,
-              amount: absoluteDifference,
+              amount: refundCreditAmount,
               processedBy: customerId,
               transactionId,
             });
@@ -465,7 +470,7 @@ export function PaymentAdjustmentModal({
               adjustmentType: 'partial_refund',
               originalAmount,
               newAmount,
-              differenceAmount: -absoluteDifference,
+              differenceAmount: -refundCreditAmount,
               paymentStatus: 'completed',
               refundId: result.data?.id,
               paymentTransactionId: transactionId,
@@ -475,20 +480,56 @@ export function PaymentAdjustmentModal({
         } else {
           throw new Error('Invalid action selected');
         }
+
+        // Normalize paid amount after decrease adjustment so the same
+        // refund/credit is not prompted again on subsequent saves.
+        if (result.success) {
+          const adjustedPaidAmount = Math.max(0, Number((currentPaidAmount - refundCreditAmount).toFixed(2)));
+          const updatedPaymentStatus = calculatePaymentStatusAfterAdjustment(
+            newAmount,
+            adjustedPaidAmount
+          );
+
+          await supabase
+            .from('orders')
+            .update({
+              paid_amount: adjustedPaidAmount,
+              payment_status: updatedPaymentStatus,
+            })
+            .eq('id', orderId);
+
+          await supabase
+            .from('invoices')
+            .update({
+              paid_amount: adjustedPaidAmount,
+              payment_status: updatedPaymentStatus,
+            })
+            .eq('order_id', orderId);
+        }
       }
 
       if (result.success) {
+        const adjustmentKey = [
+          orderId,
+          selectedAction,
+          originalAmount.toFixed(2),
+          newAmount.toFixed(2),
+          actionAmount.toFixed(2),
+          transactionId || result.data?.id || 'no_txn',
+        ].join(':');
+
         toast({
           title: "Payment adjustment completed",
           description: isIncrease 
-            ? `Additional payment of $${absoluteDifference.toFixed(2)} processed`
-            : `Credit/refund of $${absoluteDifference.toFixed(2)} processed`,
+            ? `Additional payment of $${balanceDueAmount.toFixed(2)} processed`
+            : `Credit/refund of $${refundCreditAmount.toFixed(2)} processed`,
         });
 
         onPaymentComplete({
           success: true,
           adjustmentType: selectedAction,
           transactionId: transactionId || result.data?.id,
+          adjustmentKey,
         });
 
         onOpenChange(false);
@@ -543,7 +584,7 @@ export function PaymentAdjustmentModal({
             <div className="flex justify-between font-semibold">
               <span>{isIncrease ? 'Balance Due:' : 'Refund/Credit:'}</span>
               <span className={isIncrease ? 'text-red-600' : 'text-green-600'}>
-                {isIncrease ? '+' : '-'}${absoluteDifference.toFixed(2)}
+                {isIncrease ? '+' : '-'}${actionAmount.toFixed(2)}
               </span>
             </div>
           </div>
@@ -565,7 +606,7 @@ export function PaymentAdjustmentModal({
           </div>
 
           {/* Refund Warning - No Transaction ID */}
-          {!isIncrease && !originalTransactionId && selectedAction === 'process_refund' && (
+          {!isZeroAdjustment && !isIncrease && !originalTransactionId && selectedAction === 'process_refund' && (
             <Alert variant="destructive">
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
@@ -575,10 +616,11 @@ export function PaymentAdjustmentModal({
           )}
 
           {/* Action Selection */}
-          <div className="space-y-3">
-            <Label>Select Action:</Label>
-            
-            {isIncrease ? (
+          {!isZeroAdjustment && (
+            <div className="space-y-3">
+              <Label>Select Action:</Label>
+              
+              {isIncrease ? (
               <RadioGroup
                 value={selectedAction || ''}
                 onValueChange={(value) => setSelectedAction(value as AdjustmentAction)}
@@ -602,7 +644,7 @@ export function PaymentAdjustmentModal({
                     <CreditCard className="h-4 w-4 text-blue-500" />
                     <div>
                       <p className="font-medium">Charge Saved Card</p>
-                      <p className="text-xs text-gray-500">Charge customer's saved card for ${absoluteDifference.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">Charge customer's saved card for ${balanceDueAmount.toFixed(2)}</p>
                     </div>
                   </Label>
                 </div>
@@ -614,13 +656,13 @@ export function PaymentAdjustmentModal({
                     <div>
                       <p className="font-medium">Send Payment Link</p>
                       <p className="text-xs text-gray-500">
-                        Email payment link to {customerEmail || 'customer'} for ${absoluteDifference.toFixed(2)}
+                        Email payment link to {customerEmail || 'customer'} for ${balanceDueAmount.toFixed(2)}
                       </p>
                     </div>
                   </Label>
                 </div>
 
-                {hasCredit && availableCredit >= absoluteDifference && (
+                {hasCredit && availableCredit >= balanceDueAmount && (
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                     <RadioGroupItem value="use_credit" id="use_credit" />
                     <Label htmlFor="use_credit" className="flex items-center gap-2 cursor-pointer flex-1">
@@ -628,18 +670,18 @@ export function PaymentAdjustmentModal({
                       <div>
                         <p className="font-medium">Use Credit Line</p>
                         <p className="text-xs text-gray-500">
-                          Available: ${availableCredit.toFixed(2)} - Will use ${absoluteDifference.toFixed(2)}
+                          Available: ${availableCredit.toFixed(2)} - Will use ${balanceDueAmount.toFixed(2)}
                         </p>
                       </div>
                     </Label>
                   </div>
                 )}
 
-                {hasCredit && availableCredit < absoluteDifference && (
+                {hasCredit && availableCredit < balanceDueAmount && (
                   <Alert variant="destructive" className="mt-2">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>
-                      Insufficient credit. Available: ${availableCredit.toFixed(2)}, Required: ${absoluteDifference.toFixed(2)}
+                      Insufficient credit. Available: ${availableCredit.toFixed(2)}, Required: ${balanceDueAmount.toFixed(2)}
                     </AlertDescription>
                   </Alert>
                 )}
@@ -669,7 +711,7 @@ export function PaymentAdjustmentModal({
                     <div>
                       <p className="font-medium">Issue Credit Memo</p>
                       <p className="text-xs text-gray-500">
-                        Customer can use ${absoluteDifference.toFixed(2)} on future orders
+                        Customer can use ${refundCreditAmount.toFixed(2)} on future orders
                       </p>
                     </div>
                   </Label>
@@ -682,7 +724,7 @@ export function PaymentAdjustmentModal({
                     <div>
                       <p className="font-medium">Process Refund to Card</p>
                       <p className="text-xs text-gray-500">
-                        Refund ${absoluteDifference.toFixed(2)} via Authorize.net
+                        Refund ${refundCreditAmount.toFixed(2)} via Authorize.net
                         {originalTransactionId && <span className="text-green-600"> ✓ Transaction found</span>}
                       </p>
                     </div>
@@ -690,10 +732,11 @@ export function PaymentAdjustmentModal({
                 </div>
               </RadioGroup>
             )}
-          </div>
+            </div>
+          )}
 
           {/* Saved Card Selection (for collect_payment) */}
-          {selectedAction === 'collect_payment' && savedCards.length > 0 && (
+          {!isZeroAdjustment && selectedAction === 'collect_payment' && savedCards.length > 0 && (
             <div className="space-y-2">
               <Label>Select Payment Card:</Label>
               <Select value={selectedCard || ''} onValueChange={setSelectedCard}>
@@ -715,7 +758,7 @@ export function PaymentAdjustmentModal({
             </div>
           )}
 
-          {selectedAction === 'collect_payment' && savedCards.length === 0 && (
+          {!isZeroAdjustment && selectedAction === 'collect_payment' && savedCards.length === 0 && (
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
@@ -746,7 +789,7 @@ export function PaymentAdjustmentModal({
             disabled={
               loading || 
               sendingEmail || 
-              !selectedAction || 
+              (!isZeroAdjustment && !selectedAction) || 
               (selectedAction === 'collect_payment' && savedCards.length === 0) ||
               (selectedAction === 'send_payment_link' && !customerEmail && !orderData?.customerInfo?.email)
             }
@@ -758,14 +801,16 @@ export function PaymentAdjustmentModal({
               </>
             ) : (
               <>
-                {selectedAction === 'none' ? (
+                {isZeroAdjustment || selectedAction === 'none' ? (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 ) : selectedAction === 'send_payment_link' ? (
                   <Mail className="mr-2 h-4 w-4" />
                 ) : (
                   <CheckCircle className="mr-2 h-4 w-4" />
                 )}
-                {selectedAction === 'none'
+                {isZeroAdjustment
+                  ? 'Save Order'
+                  : selectedAction === 'none'
                   ? 'Save Order'
                   : selectedAction === 'send_payment_link' 
                     ? 'Send Payment Link' 

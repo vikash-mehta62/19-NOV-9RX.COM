@@ -901,8 +901,9 @@ async function awardPayNowOrderPoints({ order, orderId, orderTotal, newPaymentSt
   }
 }
 
-const isQuickOrder = (order = {}) =>
-  String(order?.order_type || "").toLowerCase() === "quick_order";
+const isPurchaseOrder = (order = {}) =>
+  String(order?.order_type || "").toLowerCase() === "purchase_order" ||
+  String(order?.order_number || "").toUpperCase().startsWith("PO-");
 
 async function hasOrderBatchDeductions(orderId) {
   const { count, error } = await supabaseAdmin
@@ -956,8 +957,31 @@ async function markPayNowStockDeducted(order) {
   });
 }
 
+async function hasDeferredOrderEditInventoryDeduction(orderId) {
+  const { data, error } = await supabaseAdmin
+    .from("order_activities")
+    .select("metadata")
+    .eq("order_id", orderId)
+    .eq("activity_type", "updated")
+    .contains("metadata", {
+      source: "order_edit_inventory_rpc",
+      inventory_changed: true,
+    })
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data || []).some((row) => {
+    const action = row?.metadata?.adjustment_action;
+    return action === "none" || action === "send_payment_link";
+  });
+}
+
 async function deductQuickOrderStockAfterPayment(order) {
-  if (!order?.id || !isQuickOrder(order)) {
+  if (!order?.id) {
     return;
   }
 
@@ -1285,9 +1309,9 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
     const shippingCost = parseFloat(order.shipping_cost || "0");
     const taxAmount = parseFloat(order.tax_amount?.toString() || "0");
     const discountAmount = parseFloat(order.discount_amount?.toString() || "0");
-    const isPurchaseOrder = order.poAccept === false;
-    const handlingCharges = isPurchaseOrder ? parseFloat(order.po_handling_charges || "0") : 0;
-    const fredCharges = isPurchaseOrder ? parseFloat(order.po_fred_charges || "0") : 0;
+    const isPurchaseOrderPricing = order.poAccept === false;
+    const handlingCharges = isPurchaseOrderPricing ? parseFloat(order.po_handling_charges || "0") : 0;
+    const fredCharges = isPurchaseOrderPricing ? parseFloat(order.po_fred_charges || "0") : 0;
 
     const totalAmount = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmount;
     const paidAmount = Number(order.paid_amount || 0);
@@ -1472,6 +1496,17 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           previousPaymentStatus === "unpaid" ||
           previousPaymentStatus === "pending" ||
           previousPaymentStatus === "partial_paid";
+        let deferredEditInventoryAlreadyDeducted = false;
+        if (previousPaymentStatus === "partial_paid") {
+          try {
+            deferredEditInventoryAlreadyDeducted = await hasDeferredOrderEditInventoryDeduction(orderId);
+          } catch (deferredCheckError) {
+            console.error(
+              `[pay-now] Failed to check deferred order-edit inventory marker for order ${orderId}:`,
+              deferredCheckError
+            );
+          }
+        }
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid";
 
         // 8a. Update order
@@ -1481,13 +1516,53 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           updated_at: new Date().toISOString(),
         }).eq("id", orderId);
 
-        // Quick-order stock deduction must happen only after successful payment.
-        if (newPaymentStatus === "paid" && wasUnpaidOrPending && isQuickOrder(order)) {
+        // Only consider pending order-edit delta adjustments when stock was already
+        // deducted previously. For unpaid/pending/partial -> paid transitions, stock
+        // must be deducted from the full current order payload, not just delta.
+        let pendingInventoryAdjustmentApplied = false;
+        if (
+          previousPaymentStatus === "paid" ||
+          (previousPaymentStatus === "partial_paid" && deferredEditInventoryAlreadyDeducted)
+        ) {
+          try {
+            const { data: pendingAdjustResult, error: pendingAdjustError } = await supabaseAdmin.rpc(
+              "apply_pending_order_edit_inventory_adjustment_atomic",
+              { p_order_id: orderId }
+            );
+
+            if (pendingAdjustError) {
+              console.error(`[pay-now] Failed to apply pending inventory adjustment for order ${orderId}:`, pendingAdjustError);
+            } else if (
+              pendingAdjustResult?.status === "applied" ||
+              pendingAdjustResult?.status === "already_processed"
+            ) {
+              pendingInventoryAdjustmentApplied = true;
+              console.log(
+                `[pay-now] Pending inventory adjustment handled (${pendingAdjustResult?.status}) for order ${order.order_number || orderId}`
+              );
+            }
+          } catch (pendingAdjustUnhandledError) {
+            console.error(`[pay-now] Unexpected pending inventory adjustment error for order ${orderId}:`, pendingAdjustUnhandledError);
+          }
+        }
+
+        // Pay-now stock deduction must happen only after successful payment.
+        if (
+          newPaymentStatus === "paid" &&
+          wasUnpaidOrPending &&
+          !isPurchaseOrder(order) &&
+          !pendingInventoryAdjustmentApplied &&
+          !deferredEditInventoryAlreadyDeducted
+        ) {
           try {
             await deductQuickOrderStockAfterPayment(order);
           } catch (stockError) {
-            console.error(`[pay-now] Stock deduction failed for quick order ${orderId}:`, stockError);
+            console.error(`[pay-now] Stock deduction failed for order ${orderId}:`, stockError);
           }
+        } else if (deferredEditInventoryAlreadyDeducted) {
+          console.log(
+            `[pay-now] Skipping full-order stock deduction for ${order.order_number || orderId}; deferred edit inventory was already deducted`
+          );
         }
 
         // Keep pay-now reward behavior aligned with other paid flows.

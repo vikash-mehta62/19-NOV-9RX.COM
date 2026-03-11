@@ -689,6 +689,23 @@ export function OrdersList({
         {orders.map((order, index) => {
           const orderId = order.id || "";
           const isEven = index % 2 === 0;
+          const orderTotalForBalance = Number((order as any)?.total_amount ?? order.total ?? 0);
+          const rawPaidAmount = Number((order as any)?.paid_amount || 0);
+          const rawPaymentStatus = String(order?.payment_status || "").toLowerCase();
+          const effectivePaidAmount =
+            rawPaidAmount === 0 && rawPaymentStatus === "paid"
+              ? orderTotalForBalance
+              : rawPaidAmount;
+          const rawBalanceDue = orderTotalForBalance - effectivePaidAmount;
+          const normalizedBalanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
+          const displayPaymentStatus =
+            normalizedBalanceDue === 0
+              ? "paid"
+              : rawPaymentStatus === "partial_paid" || effectivePaidAmount > 0
+                ? "partial_paid"
+                : rawPaymentStatus === "pending"
+                  ? "pending"
+                  : "unpaid";
           return (
             <TableRow 
               key={orderId} 
@@ -852,20 +869,20 @@ export function OrdersList({
                     <div className="flex flex-col items-center gap-1.5">
                       <Badge
                         variant="secondary"
-                        className={`${getStatusColor(order?.payment_status || "")} font-medium text-xs px-2.5 py-1 rounded-full`}
+                        className={`${getStatusColor(displayPaymentStatus)} font-medium text-xs px-2.5 py-1 rounded-full`}
                       >
-                        {order?.payment_status?.toUpperCase() || "UNPAID"}
+                        {displayPaymentStatus.toUpperCase()}
                       </Badge>
                       
                       {/* Balance Due Indicator for Partial Paid Orders */}
-                      {order?.payment_status?.toLowerCase() === "partial_paid" && (
+                      {displayPaymentStatus === "partial_paid" && normalizedBalanceDue > 0.01 && (
                         <div className="text-xs text-amber-600 font-medium">
-                          Balance Due: ${((order?.total_amount || 0) - (order?.paid_amount || 0)).toFixed(2)}
+                          Balance Due: ${normalizedBalanceDue.toFixed(2)}
                         </div>
                       )}
                       
                       {/* Paid method indicator for $0 paid_amount cases */}
-                      {order?.payment_status?.toLowerCase() === "paid" && (order?.paid_amount || 0) === 0 && (
+                      {displayPaymentStatus === "paid" && rawPaidAmount === 0 && (
                         <div className="text-xs text-blue-600">
                           <span>
                             {getPaymentMethodLabel(getOrderPaymentMethod(order))}
@@ -874,14 +891,14 @@ export function OrdersList({
                       )}
                       
                       {/* Regular Paid Indicator */}
-                      {order?.payment_status?.toLowerCase() === "paid" && (order?.paid_amount || 0) > 0 && (
+                      {displayPaymentStatus === "paid" && rawPaidAmount > 0 && (
                         <div className="text-xs text-gray-600">
                           <span className="text-green-600">✓ Paid</span>
                         </div>
                       )}
                       
-                      {(order?.payment_status?.toLowerCase() === "unpaid" ||
-                        order?.payment_status?.toLowerCase() === "pending") &&
+                      {(displayPaymentStatus === "unpaid" ||
+                        displayPaymentStatus === "pending") &&
                         order.status !== "credit_approval_processing" &&
                         !order.void && (
                           <button
@@ -1038,6 +1055,7 @@ export function OrdersList({
             amountP={selectCustomerInfo.total}
             orderId={selectCustomerInfo.id}
             orders={selectCustomerInfo}
+            useStockDeductionRpc={userRole === "pharmacy"}
           />
         )}
       </TableBody>

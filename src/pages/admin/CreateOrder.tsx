@@ -481,8 +481,7 @@ const profileID =
       }
 
       // Prepare order data for database
-      const orderToSubmit = {
-        order_number: newOrderId,
+      const baseOrderToSubmit = {
         profile_id: profileID,
         location_id: orderData.customerId,
         customerInfo: customerInfo,
@@ -503,17 +502,51 @@ const profileID =
         discount_details: orderData.appliedDiscounts || [],
       };
 
-      // Insert order into database
-      const { data: insertedOrder, error } = await supabase
-        .from("orders")
-        .insert([orderToSubmit])
-        .select()
-        .single();
+      // Insert order with duplicate-order-number retry protection.
+      const MAX_ORDER_INSERT_RETRIES = 5;
+      let insertedOrder: any = null;
+      let orderInsertError: any = null;
+      let finalOrderNumber = newOrderId;
 
-      if (error) {
-        console.error("Error creating order:", error);
-        throw error;
+      for (let attempt = 0; attempt < MAX_ORDER_INSERT_RETRIES; attempt++) {
+        const orderToSubmit = {
+          ...baseOrderToSubmit,
+          order_number: finalOrderNumber,
+        };
+
+        const { data, error } = await supabase
+          .from("orders")
+          .insert([orderToSubmit])
+          .select()
+          .single();
+
+        if (!error && data) {
+          insertedOrder = data;
+          break;
+        }
+
+        orderInsertError = error;
+        const isDuplicateOrderNumber =
+          error?.code === "23505" &&
+          String(error?.message || "").includes("orders_order_number_key");
+
+        if (!isDuplicateOrderNumber) {
+          break;
+        }
+
+        const regeneratedOrderNumber = await generateOrderId();
+        if (!regeneratedOrderNumber) {
+          break;
+        }
+        finalOrderNumber = regeneratedOrderNumber;
       }
+
+      if (!insertedOrder) {
+        console.error("Error creating order:", orderInsertError);
+        throw orderInsertError || new Error("Failed to create order");
+      }
+
+      finalOrderNumber = insertedOrder.order_number || finalOrderNumber;
 
       // Create invoice if order is paid (total = 0 from credit memo)
       if (initialPaymentStatus === "paid" && finalTotal === 0) {
@@ -580,7 +613,7 @@ const profileID =
                   user_id: orderData.customerId,
                   points: -discount.pointsUsed,
                   transaction_type: "redeem",
-                  description: `Redeemed ${discount.pointsUsed} points for order ${newOrderId}`,
+                  description: `Redeemed ${discount.pointsUsed} points for order ${finalOrderNumber}`,
                   reference_type: "order",
                   reference_id: insertedOrder.id,
                 });
@@ -661,9 +694,9 @@ const profileID =
 
       await OrderActivityService.logOrderCreation({
         orderId: insertedOrder.id,
-        orderNumber: newOrderId,
+        orderNumber: finalOrderNumber,
         totalAmount: orderData.total,
-        status: orderToSubmit.status,
+        status: orderStatus,
         paymentMethod: paymentMethod,
         performedBy: user?.id,
         performedByName: userProfile ? `${userProfile.first_name} ${userProfile.last_name}` : undefined,
@@ -700,7 +733,7 @@ const profileID =
             orderData.customerId,
             insertedOrder.id,
             orderData.total,
-            newOrderId
+            finalOrderNumber
           );
           
           if (rewardResult.success && rewardResult.pointsEarned > 0) {
@@ -729,7 +762,7 @@ const profileID =
 
         if (customerProfileData?.email_notifaction || customerProfileData?.order_updates) {
           const emailPayload = {
-            order_number: newOrderId,
+            order_number: finalOrderNumber,
             customerInfo: {
               name: orderData.customer?.name || "",
               email: orderData.customer?.email || "",
@@ -740,7 +773,7 @@ const profileID =
             tax_amount: orderData.tax,
             shipping_cost: orderData.shipping,
             payment_method: paymentMethod,
-            status: orderToSubmit.status,
+            status: orderStatus,
             shippingAddress: {
               fullName: orderData.shippingAddress?.fullName || "",
               address: {
@@ -763,9 +796,9 @@ const profileID =
       }
 
       // Show success message
-      const successMessage = finalTotal === 0 
-        ? `Order ${newOrderId} has been created (fully discounted - no payment required)`
-        : `Order ${newOrderId} has been created and is ready for processing`;
+      const successMessage = finalTotal === 0
+        ? `Order ${finalOrderNumber} has been created (fully discounted - no payment required)`
+        : `Order ${finalOrderNumber} has been created and is ready for processing`;
 
       toast({
         title: "Order Created Successfully",
@@ -812,7 +845,7 @@ const profileID =
   }
 
   // Handle payment adjustment completion
-  const handlePaymentAdjustmentComplete = async (result: { success: boolean; adjustmentType: string; transactionId?: string }) => {
+  const handlePaymentAdjustmentComplete = async (result: { success: boolean; adjustmentType: string; transactionId?: string; adjustmentKey?: string }) => {
     if (!result.success || !pendingEditOrderData) {
       setIsPaymentAdjustmentOpen(false);
       return;

@@ -180,6 +180,11 @@ export const OrderDetailsSheet = ({
         amount = Number(orderData?.total_amount || 0);
       }
       setPaidAmount(amount);
+      setCurrentOrder((prev) => ({
+        ...prev,
+        payment_status: String(orderData?.payment_status || prev.payment_status || ""),
+        total: Number(orderData?.total_amount ?? prev.total ?? 0).toFixed(2),
+      }));
     } catch (error) {
       console.error("Error fetching paid amount:", error);
     }

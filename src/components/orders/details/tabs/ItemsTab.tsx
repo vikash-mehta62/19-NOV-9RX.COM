@@ -19,6 +19,34 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import { recalculateOrderPaymentStatus, calculateBalanceDue } from "@/utils/paymentStatusCalculator";
 
+const hasPositiveQuantityDelta = (oldItems: any[] = [], newItems: any[] = []) => {
+  const oldMap = new Map<string, number>();
+  const newMap = new Map<string, number>();
+
+  const accumulate = (target: Map<string, number>, itemList: any[]) => {
+    for (const item of itemList || []) {
+      for (const size of item?.sizes || []) {
+        const sizeId = String(size?.id || "").trim();
+        if (!sizeId) continue;
+        const qty = Number(size?.quantity || 0);
+        if (!(qty > 0)) continue;
+        target.set(sizeId, Number(target.get(sizeId) || 0) + qty);
+      }
+    }
+  };
+
+  accumulate(oldMap, oldItems);
+  accumulate(newMap, newItems);
+
+  const allSizeIds = new Set<string>([...oldMap.keys(), ...newMap.keys()]);
+  for (const sizeId of allSizeIds) {
+    const oldQty = Number(oldMap.get(sizeId) || 0);
+    const newQty = Number(newMap.get(sizeId) || 0);
+    if (newQty > oldQty) return true;
+  }
+  return false;
+};
+
 interface ItemsTabProps {
   items: OrderFormValues["items"];
   onEdit?: () => void;
@@ -244,6 +272,7 @@ export const ItemsTab = ({
 
       // Store pending data and show payment adjustment modal
       setPendingEditData({
+        originalItems: JSON.parse(JSON.stringify(items)),
         editedItems,
         newSubtotal,
         newTotal,
@@ -286,10 +315,16 @@ export const ItemsTab = ({
       });
       setIsSaving(false);
     }
-  }, [orderId, editedItems, customerId, orderNumber, customerEmail, toast]);
+  }, [orderId, editedItems, items, customerId, orderNumber, customerEmail, toast]);
 
   // Actual save function (called directly or after payment adjustment)
-  const saveOrderChanges = useCallback(async (itemsToSave: any[], newSubtotal: number, newTotal: number, newPaymentStatus?: string) => {
+  const saveOrderChanges = useCallback(async (
+    itemsToSave: any[],
+    newSubtotal: number,
+    newTotal: number,
+    newPaymentStatus?: string,
+    paymentAdjustmentResult?: { adjustmentType?: string; adjustmentKey?: string }
+  ) => {
     try {
       // Get current order data for activity logging
       const { data: currentOrderData } = await supabase
@@ -297,6 +332,49 @@ export const ItemsTab = ({
         .select("total_amount, items, order_number, payment_status, paid_amount, profile_id, location_id, payment_method")
         .eq("id", orderId)
         .single();
+
+      const shouldApplyInventoryAdjustment = [
+        "collect_payment",
+        "use_credit",
+        "issue_credit_memo",
+        "process_refund",
+      ].includes(String(paymentAdjustmentResult?.adjustmentType || ""));
+
+      const adjustmentAction = String(paymentAdjustmentResult?.adjustmentType || "");
+      const currentPaymentStatus = String(currentOrderData?.payment_status || "").toLowerCase();
+      const quantityIncreased = hasPositiveQuantityDelta(
+        currentOrderData?.items || [],
+        itemsToSave || []
+      );
+
+      const isDeferredAction = adjustmentAction === "none" || adjustmentAction === "send_payment_link";
+      const shouldApplyImmediateForDeferredAction =
+        isDeferredAction &&
+        quantityIncreased &&
+        (currentPaymentStatus === "paid" || currentPaymentStatus === "partial_paid");
+      if (shouldApplyInventoryAdjustment || shouldApplyImmediateForDeferredAction) {
+        const { data: inventoryResult, error: inventoryError } = await (supabase as any).rpc(
+          "apply_order_edit_inventory_adjustment_atomic",
+          {
+            p_order_id: orderId,
+            p_old_items: currentOrderData?.items || [],
+            p_new_items: itemsToSave || [],
+            p_adjustment_action: adjustmentAction,
+            p_adjustment_key: paymentAdjustmentResult?.adjustmentKey || null,
+          }
+        );
+
+        if (inventoryError) {
+          const detailedError = [inventoryError.message, inventoryError.details, inventoryError.hint]
+            .filter(Boolean)
+            .join(" | ");
+          throw new Error(detailedError || "Order edit inventory adjustment failed");
+        }
+
+        if (!inventoryResult?.success) {
+          throw new Error(inventoryResult?.message || "Order edit inventory adjustment failed");
+        }
+      }
 
       const oldTotal = Number(currentOrderData?.total_amount || 0);
       const oldItemCount = currentOrderData?.items?.length || 0;
@@ -484,7 +562,7 @@ export const ItemsTab = ({
   }, [orderId, onItemsUpdate, onOrderUpdate, toast]);
 
   // Handle payment adjustment completion
-  const handlePaymentAdjustmentComplete = useCallback(async (result: { success: boolean; adjustmentType: string; transactionId?: string }) => {
+  const handlePaymentAdjustmentComplete = useCallback(async (result: { success: boolean; adjustmentType: string; transactionId?: string; adjustmentKey?: string }) => {
     if (!result.success || !pendingEditData) {
       setIsPaymentAdjustmentOpen(false);
       setPendingEditData(null);
@@ -495,7 +573,10 @@ export const ItemsTab = ({
     setIsSaving(true);
     try {
       const { editedItems: itemsToSave, newSubtotal, newTotal } = pendingEditData;
-      await saveOrderChanges(itemsToSave, newSubtotal, newTotal);
+      await saveOrderChanges(itemsToSave, newSubtotal, newTotal, undefined, {
+        adjustmentType: result.adjustmentType,
+        adjustmentKey: result.adjustmentKey,
+      });
       
       toast({
         title: "Success",

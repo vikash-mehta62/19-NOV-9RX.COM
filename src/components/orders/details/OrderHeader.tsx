@@ -162,6 +162,24 @@ export const OrderHeader = ({
   };
 
   const status = statusConfig[order.status] || statusConfig.pending;
+  const orderAny = order as any;
+  const totalAmount = Number(orderAny.total_amount ?? order.total ?? 0);
+  const rawPaidAmount = Number(orderAny.paid_amount ?? 0);
+  const paidAmount =
+    rawPaidAmount === 0 && String(order.payment_status || "").toLowerCase() === "paid"
+      ? totalAmount
+      : rawPaidAmount;
+  const rawBalanceDue = totalAmount - paidAmount;
+  const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
+  const storedPaymentStatus = String(order.payment_status || "").toLowerCase();
+  const normalizedPaymentStatus =
+    balanceDue === 0
+      ? "paid"
+      : storedPaymentStatus === "partial_paid" || paidAmount > 0
+        ? "partial_paid"
+        : storedPaymentStatus === "pending"
+          ? "pending"
+          : "unpaid";
 
   return (
     <Card className="p-4 md:p-6 mb-4 md:mb-6 border-2">
@@ -220,12 +238,20 @@ export const OrderHeader = ({
             {order.payment_status && (
               <Badge
                 className={`${
-                  order.payment_status === "paid"
+                  normalizedPaymentStatus === "paid"
                     ? "bg-green-100 text-green-800 border-green-300"
-                    : "bg-red-100 text-red-800 border-red-300"
+                    : normalizedPaymentStatus === "partial_paid"
+                      ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                      : "bg-red-100 text-red-800 border-red-300"
                 } border px-3 py-1 text-xs md:text-sm font-semibold`}
               >
-                {order.payment_status === "paid" ? "Paid" : "Unpaid"}
+                {normalizedPaymentStatus === "paid"
+                  ? "Paid"
+                  : normalizedPaymentStatus === "partial_paid"
+                    ? "Partial Paid"
+                    : normalizedPaymentStatus === "pending"
+                      ? "Pending"
+                      : "Unpaid"}
               </Badge>
             )}
           </div>
@@ -308,7 +334,7 @@ export const OrderHeader = ({
       {userRole === "admin" && !order.void && order.status !== "cancelled" && (
         <div className="mt-4 pt-4 border-t">
           <div className="flex flex-wrap gap-2">
-            {order.payment_status !== "paid" && onSendEmail && !poIs && (
+            {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && (
               <Button
                 variant="outline"
                 size="sm"
@@ -345,7 +371,7 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {order.payment_status !== "paid" && !poIs && (
+            {normalizedPaymentStatus !== "paid" && !poIs && (
               <Button
                 variant="outline"
                 size="sm"

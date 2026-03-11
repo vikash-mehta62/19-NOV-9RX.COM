@@ -21,6 +21,7 @@ interface PaymentTabProps {
 
 export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: PaymentTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
+  const [dbPaymentStatus, setDbPaymentStatus] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [poCharges, setPoCharges] = useState({ handling: 0, fred: 0 });
 
@@ -50,6 +51,7 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
         }
         
         setPaidAmount(amount);
+        setDbPaymentStatus(String(orderData?.payment_status || order.payment_status || "").toLowerCase());
         
         // Set PO charges ONLY for Purchase Orders
         // For Sales Orders, always set to 0 to prevent stale data
@@ -80,7 +82,7 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
     };
 
     fetchPaidAmount();
-  }, [order.id, poIs]); // Added poIs to dependency array
+  }, [order.id, order.payment_status, poIs]); // keep status in sync for same order id
 
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
@@ -105,6 +107,7 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;
   const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
+  const effectivePaymentStatus = dbPaymentStatus || String(order.payment_status || "").toLowerCase();
   
   console.log("💰 Payment Calculation:", {
     subtotal,
@@ -115,18 +118,19 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
     total,
     paidAmount,
     balanceDue,
-    paymentStatus: order.payment_status
+    paymentStatus: effectivePaymentStatus
   });
 
-  // Paid if total is effectively zero, or paid amount fully covers/overpays total.
-  // This keeps reduced-price edits from incorrectly showing "Unpaid".
+  // Display as paid when balance is effectively zero, even if stored status is stale.
   const isPaid =
+    effectivePaymentStatus === "paid" ||
     total <= 0.01 ||
     paidAmount >= total - 0.01 ||
-    (order.payment_status === "paid" && balanceDue === 0);
+    balanceDue === 0;
   const isPartiallyPaid =
     !isPaid &&
-    (order.payment_status === "partial_paid" || (paidAmount > 0.01 && balanceDue > 0.01));
+    balanceDue > 0.01 &&
+    (effectivePaymentStatus === "partial_paid" || paidAmount > 0.01);
 
   // Get payment method display name
   const getPaymentMethodDisplay = (method: string) => {

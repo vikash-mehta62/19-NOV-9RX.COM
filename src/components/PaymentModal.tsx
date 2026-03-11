@@ -383,6 +383,26 @@ async function updateProductStock(orderItems: any[], orderId: string) {
   }
 }
 
+async function deductOrderStockByRpc(orderId: string) {
+  const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+    "deduct_order_stock_after_payment_atomic",
+    { p_order_id: orderId }
+  )
+
+  if (rpcError) {
+    const detailedError = [rpcError.message, rpcError.details, rpcError.hint]
+      .filter(Boolean)
+      .join(" | ")
+    throw new Error(detailedError || "Payment stock deduction RPC failed")
+  }
+
+  if (!rpcResult?.success) {
+    throw new Error(rpcResult?.message || "Payment stock deduction failed")
+  }
+
+  console.log(`Payment stock deduction RPC completed for order ${orderId}:`, rpcResult)
+}
+
 interface PaymentFormProps {
   modalIsOpen: boolean
   setModalIsOpen: (open: boolean) => void
@@ -394,9 +414,10 @@ interface PaymentFormProps {
   isBalancePayment?: boolean
   previousPaidAmount?: number
   onPaymentSuccess?: () => void
+  useStockDeductionRpc?: boolean
 }
 
-const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0, onPaymentSuccess }: PaymentFormProps) => {
+const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0, onPaymentSuccess, useStockDeductionRpc = false }: PaymentFormProps) => {
   // Check if this is a Purchase Order (PO)
   const isPurchaseOrder = orders?.order_number?.startsWith('PO-') || orders?.order_type === 'purchase_order'
   
@@ -436,6 +457,36 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   const [selectedYear, setSelectedYear] = useState("")
 
   const [errors, setErrors] = useState<Record<string, string | null>>({})
+
+  const hasDeferredOrderEditInventoryDeduction = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("order_activities")
+        .select("metadata")
+        .eq("order_id", orderId)
+        .eq("activity_type", "updated")
+        .contains("metadata", {
+          source: "order_edit_inventory_rpc",
+          inventory_changed: true,
+        })
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (error) {
+        console.error("Failed checking deferred order-edit inventory marker:", error);
+        return false;
+      }
+
+      const activities = (data || []) as Array<{ metadata?: { adjustment_action?: string } | null }>;
+      return activities.some((row) => {
+        const action = row?.metadata?.adjustment_action;
+        return action === "none" || action === "send_payment_link";
+      });
+    } catch (error) {
+      console.error("Error checking deferred order-edit inventory marker:", error);
+      return false;
+    }
+  }
 
   const months = [
     { value: "01", label: "01 - Jan" },
@@ -647,9 +698,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           .eq("id", orderId)
           .single();
         
-        const wasUnpaidOrPending = currentOrderData?.payment_status === "unpaid" || 
-                                   currentOrderData?.payment_status === "pending" ||
-                                   currentOrderData?.payment_status === "partial_paid";
+        const previousPaymentStatus = String(currentOrderData?.payment_status || "").toLowerCase()
+        const wasUnpaidOrPending = previousPaymentStatus === "unpaid" || 
+                                   previousPaymentStatus === "pending" ||
+                                   previousPaymentStatus === "partial_paid";
+        const deferredEditInventoryAlreadyDeducted =
+          previousPaymentStatus === "partial_paid"
+            ? await hasDeferredOrderEditInventoryDeduction()
+            : false;
         
         await supabase.from("orders").update({
           payment_status: newPaymentStatus,
@@ -659,13 +715,28 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }).eq("id", orderId)
 
         // Deduct stock only when order transitions to fully paid (exclude Purchase Orders).
-        if (newPaymentStatus === "paid" && wasUnpaidOrPending && !isPurchaseOrder) {
+        const shouldDeductFullStockOnFinalize =
+          newPaymentStatus === "paid" &&
+          !isPurchaseOrder &&
+          (
+            previousPaymentStatus === "unpaid" ||
+            previousPaymentStatus === "pending" ||
+            (previousPaymentStatus === "partial_paid" && !deferredEditInventoryAlreadyDeducted)
+          );
+
+        if (shouldDeductFullStockOnFinalize) {
           try {
-            await updateProductStock(orders.items || [], orderId)
+            if (useStockDeductionRpc) {
+              await deductOrderStockByRpc(orderId)
+            } else {
+              await updateProductStock(orders.items || [], orderId)
+            }
           } catch (stockError) {
             console.error("Stock deduction failed (manual payment):", stockError)
             // Don't throw - payment succeeded
           }
+        } else if (deferredEditInventoryAlreadyDeducted) {
+          console.log("Skipping full stock deduction: deferred order-edit inventory already applied.")
         }
 
         // Award reward points if order is now fully paid and was unpaid/pending before
@@ -950,9 +1021,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           .eq("id", orderId)
           .single();
         
-        const wasUnpaidOrPending = currentOrderData?.payment_status === "unpaid" || 
-                                   currentOrderData?.payment_status === "pending" ||
-                                   currentOrderData?.payment_status === "partial_paid";
+        const previousPaymentStatus = String(currentOrderData?.payment_status || "").toLowerCase()
+        const wasUnpaidOrPending = previousPaymentStatus === "unpaid" || 
+                                   previousPaymentStatus === "pending" ||
+                                   previousPaymentStatus === "partial_paid";
+        const deferredEditInventoryAlreadyDeducted =
+          previousPaymentStatus === "partial_paid"
+            ? await hasDeferredOrderEditInventoryDeduction()
+            : false;
         
         await supabase.from("orders").update({ 
           payment_status: newPaymentStatus, 
@@ -961,13 +1037,28 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }).eq("id", orderId)
 
         // Deduct stock only when order transitions to fully paid (exclude Purchase Orders).
-        if (newPaymentStatus === "paid" && wasUnpaidOrPending && !isPurchaseOrder) {
+        const shouldDeductFullStockOnFinalize =
+          newPaymentStatus === "paid" &&
+          !isPurchaseOrder &&
+          (
+            previousPaymentStatus === "unpaid" ||
+            previousPaymentStatus === "pending" ||
+            (previousPaymentStatus === "partial_paid" && !deferredEditInventoryAlreadyDeducted)
+          );
+
+        if (shouldDeductFullStockOnFinalize) {
           try {
-            await updateProductStock(orders.items || [], orderId)
+            if (useStockDeductionRpc) {
+              await deductOrderStockByRpc(orderId)
+            } else {
+              await updateProductStock(orders.items || [], orderId)
+            }
           } catch (stockError) {
             console.error("Stock deduction failed (card/ach payment):", stockError)
             // Don't throw - payment succeeded
           }
+        } else if (deferredEditInventoryAlreadyDeducted) {
+          console.log("Skipping full stock deduction: deferred order-edit inventory already applied.")
         }
 
         // Award reward points if order is now fully paid and was unpaid/pending before

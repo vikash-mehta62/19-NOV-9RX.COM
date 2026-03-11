@@ -541,7 +541,10 @@ const CreateOrderPaymentForm = ({
       const defaultEstimatedDelivery = new Date();
       defaultEstimatedDelivery.setDate(defaultEstimatedDelivery.getDate() + 10);
 
-      const orderNumber = await generateOrderId();
+      const generatedOrderNumber = await generateOrderId();
+      if (!generatedOrderNumber) {
+        throw new Error("Failed to generate order number");
+      }
 
       let profileID = userProfile?.id;
       if (sessionStorage.getItem("userType") === "admin") {
@@ -550,8 +553,7 @@ const CreateOrderPaymentForm = ({
         profileID = pId;
       }
 
-      const orderData = {
-        order_number: orderNumber,
+      const baseOrderData = {
         profile_id: profileID,
         location_id: pId,
         status: data.status || "new",
@@ -573,17 +575,48 @@ const CreateOrderPaymentForm = ({
         discount_amount: discount,
         discount_details: discountDetails || data.appliedDiscounts || [],
       };
+      const MAX_ORDER_RETRIES = 5;
+      let finalOrderNumber = generatedOrderNumber;
+      let newOrder: any = null;
+      let orderInsertError: any = null;
 
-      const { data: orderResponse, error: orderError } = await supabase
-        .from("orders")
-        .insert([orderData])
-        .select();
+      for (let attempt = 0; attempt < MAX_ORDER_RETRIES; attempt++) {
+        const orderData = {
+          ...baseOrderData,
+          order_number: finalOrderNumber,
+        };
 
-      if (orderError) {
-        throw new Error(orderError.message);
+        const { data: insertedOrder, error } = await supabase
+          .from("orders")
+          .insert(orderData as any)
+          .select()
+          .single();
+
+        if (!error && insertedOrder) {
+          newOrder = insertedOrder;
+          break;
+        }
+
+        orderInsertError = error;
+        const isDuplicateOrderNumber =
+          error?.code === "23505" &&
+          String(error?.message || "").includes("orders_order_number_key");
+
+        if (!isDuplicateOrderNumber) {
+          break;
+        }
+
+        const regeneratedOrderNumber = await generateOrderId();
+        if (!regeneratedOrderNumber) {
+          break;
+        }
+
+        finalOrderNumber = regeneratedOrderNumber;
       }
 
-      const newOrder = orderResponse[0];
+      if (!newOrder) {
+        throw new Error(orderInsertError?.message || "Failed to create order");
+      }
 
       // Invoice number was already generated before payment processing
       console.log("✅ Using invoice number:", invoiceNumber);
@@ -612,7 +645,7 @@ const CreateOrderPaymentForm = ({
           email: (newOrder.customerInfo as any)?.email || "",
           phone: (newOrder.customerInfo as any)?.phone || "",
         },
-        shipping_info: orderData.shippingAddress || {},
+        shipping_info: baseOrderData.shippingAddress || {},
         subtotal: subtotal,
         // Add discount information
         discount_amount: discount,
@@ -682,7 +715,7 @@ const CreateOrderPaymentForm = ({
       }
 
       // Log activities with the final invoice data
-      await logOrderActivities(newOrder, orderNumber, finalTotal, response, finalInvoiceNumber, finalInvoiceData);
+      await logOrderActivities(newOrder, finalOrderNumber, finalTotal, response, finalInvoiceNumber, finalInvoiceData);
 
       // Send email notification
       const { data: profileData } = await supabase
@@ -759,12 +792,12 @@ const CreateOrderPaymentForm = ({
             newOrder.profile_id,
             newOrder.id,
             finalTotal, // Use final total for points
-            orderNumber
+            finalOrderNumber
           );
           
           // Always show success popup after payment
           setSuccessData({
-            orderNumber,
+            orderNumber: finalOrderNumber,
             pointsEarned: rewardResult.success ? rewardResult.pointsEarned : 0,
             newTotal: rewardResult.success ? rewardResult.newTotal : 0,
             tierUpgrade: rewardResult.success ? rewardResult.tierUpgrade : false,
@@ -779,7 +812,7 @@ const CreateOrderPaymentForm = ({
           console.error("Error awarding reward points:", rewardError);
           // Still show success popup even if rewards fail
           setSuccessData({
-            orderNumber,
+            orderNumber: finalOrderNumber,
             pointsEarned: 0,
             newTotal: 0,
             tierUpgrade: false,
@@ -793,7 +826,7 @@ const CreateOrderPaymentForm = ({
       } else {
         // No profile_id or zero total - still show success popup
         setSuccessData({
-          orderNumber,
+          orderNumber: finalOrderNumber,
           pointsEarned: 0,
           newTotal: 0,
           tierUpgrade: false,
