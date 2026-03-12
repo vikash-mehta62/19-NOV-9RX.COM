@@ -676,7 +676,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
   return (
     <div className="container mx-auto space-y-6 py-6">
-      <Card className="overflow-hidden border-0 bg-gradient-to-r from-slate-900 via-blue-900 to-cyan-800 text-white shadow-xl">
+      <Card className="overflow-hidden border-0 bg-blue-600 text-white shadow-xl">
         <CardContent className="grid gap-5 p-6 md:grid-cols-[1.4fr_1fr]">
           <div>
             <p className="text-sm uppercase tracking-[0.3em] text-blue-100">Purchase Order Workspace</p>

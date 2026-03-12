@@ -721,18 +721,21 @@ export const OrderDetailsSheet = ({
     doc.setFont("helvetica", "bold");
     doc.text(badgeLabel, pageWidth - margin - badgeWidth / 2, badgeY + 5.5, { align: "center" });
 
+    const barcodeY = badgeY + 10;
+    const barcodeHeight = 12;
     try {
       const barcodeDataUrl = generateBarcode(documentNumber);
-      doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12);
+      doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
     } catch {
       // noop
     }
 
+    const dividerY = Math.max(62, badgeY + 8, barcodeY + barcodeHeight) + 4;
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
-    doc.line(margin, 62, pageWidth - margin, 62);
+    doc.line(margin, dividerY, pageWidth - margin, dividerY);
 
-    const infoStartY = 67;
+    const infoStartY = dividerY + 5;
     const boxWidth = (pageWidth - margin * 3) / 2;
     const drawInfoBox = (title: string, x: number, lines: string[]) => {
       doc.setFillColor(...lightGray);
@@ -832,13 +835,6 @@ export const OrderDetailsSheet = ({
         );
         itemIndex += 1;
 
-        if (sizeIndex === 0 && item.description && item.description.trim()) {
-          tableBody.push(
-            poIs && !showPricing
-              ? ["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", ""]
-              : ["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""]
-          );
-        }
       });
     });
 
@@ -1076,20 +1072,23 @@ export const OrderDetailsSheet = ({
       }
 
       // ===== BARCODE =====
+      const barcodeY = badgeY + 10;
+      const barcodeHeight = 12;
       try {
         const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
       } catch {
         // Skip barcode if generation fails
       }
 
       // ===== DIVIDER LINE =====
+      const dividerY = Math.max(58, badgeY + 8, barcodeY + barcodeHeight) + 4;
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.5);
-      doc.line(margin, 58, pageWidth - margin, 58);
+      doc.line(margin, dividerY, pageWidth - margin, dividerY);
 
       // ===== BILL TO / SHIP TO SECTION =====
-      const infoStartY = 63;
+      const infoStartY = dividerY + 5;
       const boxWidth = (pageWidth - margin * 3) / 2;
 
       // Helper to draw info box
@@ -1222,28 +1221,6 @@ export const OrderDetailsSheet = ({
 
           itemIndex++;
 
-          if (
-            sizeIndex === 0 &&
-            item.description &&
-            item.description.trim() &&
-            !item.description.toLowerCase().includes("test")
-          ) {
-            tableBody.push([
-              "",
-              {
-                content: `↳ ${item.description.trim()}`,
-                styles: {
-                  fontStyle: "italic",
-                  textColor: [120, 120, 120],
-                  fontSize: 8,
-                },
-              },
-              "",
-              "",
-              "",
-              "",
-            ]);
-          }
         });
       });
 
@@ -1603,20 +1580,23 @@ export const OrderDetailsSheet = ({
       }
 
       // ===== BARCODE =====
+      const barcodeY = badgeY + 11;
+      const barcodeHeight = 12;
       try {
         const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 11, 50, 12);
+        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
       } catch {
         // Skip barcode if generation fails
       }
 
       // ===== DIVIDER LINE =====
+      const dividerY = Math.max(58, badgeY + 8, barcodeY + barcodeHeight) + 4;
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.5);
-      doc.line(margin, 58, pageWidth - margin, 58);
+      doc.line(margin, dividerY, pageWidth - margin, dividerY);
 
       // ===== BILL TO / SHIP TO SECTION =====
-      const infoStartY = 63;
+      const infoStartY = dividerY + 5;
       const boxWidth = (pageWidth - margin * 3) / 2;
 
       const drawInfoBox = (title: string, x: number, lines: string[]) => {
@@ -1715,19 +1695,6 @@ export const OrderDetailsSheet = ({
           tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
           itemIndex++;
 
-          if (sizeIndex === 0 && item.description && item.description.trim()) {
-            tableBody.push([
-              "",
-              {
-                content: `↳ ${item.description.trim()}`,
-                styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 },
-              },
-              "",
-              "",
-              "",
-              "",
-            ]);
-          }
         });
       });
 
