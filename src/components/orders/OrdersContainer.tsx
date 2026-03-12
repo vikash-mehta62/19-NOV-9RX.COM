@@ -52,6 +52,7 @@ import { Card, CardContent } from "../ui/card";
 import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { CreatePurchaseOrderDialog } from "./CreatePurchaseOrderDialog";
+import { getPoWorkflowState } from "./utils/poWorkflow";
 
 const exportToCSV = (orders: OrderFormValues[]) => {
   if (!orders || orders.length === 0) {
@@ -428,6 +429,8 @@ export const OrdersContainer = ({
       total: sortedOrders.length,
       pending: 0,
       approved: 0,
+      receiving: 0,
+      closed: 0,
       rejected: 0,
       totalValue: 0,
       vendorCount: 0,
@@ -439,12 +442,23 @@ export const OrdersContainer = ({
       const total = Number(order.total_amount || order.total || 0);
       stats.totalValue += total;
 
-      if (order.poApproved) {
-        stats.approved += 1;
-      } else if (order.poRejected) {
-        stats.rejected += 1;
-      } else {
-        stats.pending += 1;
+      switch (getPoWorkflowState(order)) {
+        case "pending":
+          stats.pending += 1;
+          break;
+        case "approved":
+          stats.approved += 1;
+          break;
+        case "partially_received":
+        case "received":
+          stats.receiving += 1;
+          break;
+        case "closed":
+          stats.closed += 1;
+          break;
+        case "rejected":
+          stats.rejected += 1;
+          break;
       }
 
       const vendorKey = order.customerInfo?.cusid || order.customerInfo?.name || order.profile_id;
@@ -490,50 +504,7 @@ export const OrdersContainer = ({
   return (
     <div className="space-y-4">
       {poIs && poStats && (
-        <>
-          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-900 text-white shadow-xl">
-            <div className="grid gap-6 px-6 py-7 lg:grid-cols-[1.4fr_1fr]">
-              <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-cyan-100/80">Purchase Control</p>
-                <h2 className="mt-2 text-3xl font-semibold">Manage purchase orders with vendor-first visibility</h2>
-                <p className="mt-3 max-w-2xl text-sm text-slate-200">
-                  Track pending approvals, vendor references, order value, and inbound volume from one purchase-friendly workspace.
-                </p>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                  <div className="flex items-center gap-2 text-cyan-100">
-                    <ClipboardList className="h-4 w-4" />
-                    <span className="text-xs uppercase tracking-wide">Total POs</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-semibold">{poStats.total}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                  <div className="flex items-center gap-2 text-amber-100">
-                    <CircleDashed className="h-4 w-4" />
-                    <span className="text-xs uppercase tracking-wide">Pending</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-semibold">{poStats.pending}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                  <div className="flex items-center gap-2 text-emerald-100">
-                    <Building2 className="h-4 w-4" />
-                    <span className="text-xs uppercase tracking-wide">Vendors</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-semibold">{poStats.vendorCount}</p>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-4 backdrop-blur">
-                  <div className="flex items-center gap-2 text-blue-100">
-                    <BadgeDollarSign className="h-4 w-4" />
-                    <span className="text-xs uppercase tracking-wide">PO Value</span>
-                  </div>
-                  <p className="mt-3 text-2xl font-semibold">${poStats.totalValue.toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
                 <OrderFilters
@@ -549,6 +520,9 @@ export const OrdersContainer = ({
                     { value: "all", label: "All" },
                     { value: "pending", label: "Pending" },
                     { value: "approved", label: "Approved" },
+                    { value: "partially_received", label: "Receiving" },
+                    { value: "received", label: "Received" },
+                    { value: "closed", label: "Closed" },
                     { value: "rejected", label: "Rejected" },
                   ].map((option) => (
                     <Button
@@ -583,7 +557,6 @@ export const OrdersContainer = ({
               </div>
             </div>
           </div>
-        </>
       )}
 
       {/* Order Summary Cards */}

@@ -1,33 +1,25 @@
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
-import { useForm } from "react-hook-form"
-import { zodResolver } from "@hookform/resolvers/zod"
-import * as z from "zod"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog"
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Plus, Edit, User, Building, MapPin, Truck } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/integrations/supabase/client"
-import axios from "../../../axiosconfig"
+import { useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import axios from "../../../axiosconfig";
+import { Building2, Mail, MapPin, Plus, Receipt, Truck, User } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/hooks/use-toast";
 
 const addressSchema = z.object({
   attention: z.string().optional(),
-  countryRegion: z.string().min(1, "Country/Region is required"),
+  countryRegion: z.string().min(1, "Country is required"),
   street1: z.string().min(1, "Street address is required"),
   street2: z.string().optional(),
   city: z.string().min(1, "City is required"),
@@ -35,604 +27,406 @@ const addressSchema = z.object({
   zip_code: z.string().min(1, "ZIP code is required"),
   phone: z.string().optional(),
   faxNumber: z.string().optional(),
-})
+});
 
 const vendorSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Invalid email address"),
-  type: z.string().min(1, "Type is required"),
-  status: z.string().min(1, "Status is required"),
-  role: z.string().min(1, "Role is required"),
+  email: z.string().email("Valid email is required"),
+  alternativeEmail: z.string().email("Invalid email").optional().or(z.literal("")),
   companyName: z.string().min(1, "Company name is required"),
   displayName: z.string().optional(),
+  status: z.enum(["active", "inactive", "suspended"]),
+  role: z.string().default("user"),
+  type: z.literal("vendor"),
   workPhone: z.string().optional(),
   mobilePhone: z.string().optional(),
+  contactPerson: z.string().optional(),
+  department: z.string().optional(),
+  website: z.string().optional(),
+  taxId: z.string().optional(),
+  paymentTerms: z.string().min(1, "Payment terms are required"),
+  paymentMethod: z.string().optional(),
+  preferredContactMethod: z.enum(["email", "phone", "portal"]),
+  languagePreference: z.string().default("English"),
+  currency: z.string().min(1, "Currency is required"),
+  freeShipping: z.boolean(),
+  sameAsShipping: z.boolean(),
+  email_notifaction: z.boolean(),
+  notes: z.string().optional(),
   billingAddress: addressSchema,
   shippingAddress: addressSchema,
-  sameAsShipping: z.boolean(),
-  freeShipping: z.boolean(),
-  currency: z.string().min(1, "Currency is required"),
-})
+});
 
-type VendorFormData = z.infer<typeof vendorSchema>
+export type VendorFormData = z.infer<typeof vendorSchema>;
+
+interface CreatedVendorResult {
+  id: string;
+  first_name: string;
+  last_name: string;
+  company_name: string;
+  email: string;
+  status: string;
+  type: string;
+}
+
+interface VendorDialogFormProps {
+  vendor?: Partial<VendorFormData>;
+  mode?: "add" | "edit";
+  onSubmit?: (data: VendorFormData, createdVendor?: CreatedVendorResult) => void;
+}
+
+const defaultAddress = {
+  attention: "",
+  countryRegion: "USA",
+  street1: "",
+  street2: "",
+  city: "",
+  state: "",
+  zip_code: "",
+  phone: "",
+  faxNumber: "",
+};
 
 const defaultValues: VendorFormData = {
   firstName: "",
   lastName: "",
   email: "",
-  type: "vendor",
-  status: "active",
-  role: "user",
+  alternativeEmail: "",
   companyName: "",
   displayName: "",
+  status: "active",
+  role: "user",
+  type: "vendor",
   workPhone: "",
   mobilePhone: "",
-  billingAddress: {
-    attention: "",
-    countryRegion: "USA",
-    street1: "",
-    street2: "",
-    city: "",
-    state: "",
-    zip_code: "",
-    phone: "",
-    faxNumber: "",
-  },
-  shippingAddress: {
-    attention: "9RX",
-    countryRegion: "USA",
-    street1: "936 Broad River Ln",
-    street2: "",
-    city: "Charlotte",
-    state: "NC",
-    zip_code: "28211",
-    phone: "1 800 969 6295",
-    faxNumber: "",
-  },
-  sameAsShipping: false,
-  freeShipping: true,
+  contactPerson: "",
+  department: "",
+  website: "",
+  taxId: "",
+  paymentTerms: "Net 30",
+  paymentMethod: "ach",
+  preferredContactMethod: "email",
+  languagePreference: "English",
   currency: "USD",
-}
+  freeShipping: false,
+  sameAsShipping: true,
+  email_notifaction: false,
+  notes: "",
+  billingAddress: defaultAddress,
+  shippingAddress: defaultAddress,
+};
 
-interface VendorDialogFormProps {
-  vendor?: VendorFormData
-  mode?: "add" | "edit"
-  onSubmit?: (data: VendorFormData) => void
-}
+const generatePassword = () => {
+  const chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*";
+  return Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+};
+
+const createProfileData = (values: VendorFormData) => ({
+  first_name: values.firstName.trim(),
+  last_name: values.lastName.trim(),
+  email: values.email.toLowerCase().trim(),
+  type: "vendor",
+  status: values.status,
+  role: values.role,
+  company_name: values.companyName.trim(),
+  display_name: values.displayName?.trim() || values.companyName.trim() || `${values.firstName} ${values.lastName}`.trim(),
+  work_phone: values.workPhone?.trim() || null,
+  mobile_phone: values.mobilePhone?.trim() || null,
+  contact_person: values.contactPerson?.trim() || `${values.firstName} ${values.lastName}`.trim(),
+  department: values.department?.trim() || null,
+  billing_address: values.billingAddress,
+  shipping_address: values.sameAsShipping ? values.billingAddress : values.shippingAddress,
+  same_as_shipping: values.sameAsShipping,
+  freeShipping: values.freeShipping,
+  currency: values.currency,
+  payment_terms: values.paymentTerms,
+  payment_method: values.paymentMethod?.trim() || null,
+  tax_id: values.taxId?.trim() || null,
+  alternative_email: values.alternativeEmail?.trim() || null,
+  website: values.website?.trim() || null,
+  fax_number: values.billingAddress.faxNumber?.trim() || values.shippingAddress.faxNumber?.trim() || null,
+  preferred_contact_method: values.preferredContactMethod,
+  language_preference: values.languagePreference,
+  notes: values.notes?.trim() || null,
+  email_notifaction: values.email_notifaction,
+  active_notification: true,
+  updated_at: new Date().toISOString(),
+});
 
 export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: VendorDialogFormProps) {
-  const [open, setOpen] = useState(false)
-  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { toast } = useToast();
+
+  const mergedDefaults = useMemo(() => ({
+    ...defaultValues,
+    ...vendor,
+    billingAddress: { ...defaultValues.billingAddress, ...(vendor?.billingAddress || {}) },
+    shippingAddress: { ...defaultValues.shippingAddress, ...(vendor?.shippingAddress || {}) },
+  }), [vendor]);
 
   const form = useForm<VendorFormData>({
     resolver: zodResolver(vendorSchema),
-    defaultValues: vendor || defaultValues,
-  })
+    defaultValues: mergedDefaults,
+  });
 
-  const watchSameAsShipping = form.watch("sameAsShipping")
+  const sameAsShipping = form.watch("sameAsShipping");
 
-
-
-
-
-  // const handleSubmit = (data: VendorFormData) => {
-  //   console.log("Form submitted:", data)
-  //   onSubmit?.(data)
-  //   setOpen(false)
-  //   form.reset()
-  // }
-
-
-
+  const closeDialog = () => {
+    setOpen(false);
+    form.reset(mergedDefaults);
+  };
 
   const handleSubmit = async (values: VendorFormData) => {
-  try {
     setIsSubmitting(true);
+    try {
+      const temporaryPassword = generatePassword();
+      const response = await axios.post("/api/users/create-user", {
+        email: values.email,
+        password: temporaryPassword,
+        firstName: values.firstName,
+        lastName: values.lastName,
+        userMetadata: { first_name: values.firstName, last_name: values.lastName },
+        profileData: createProfileData(values),
+      });
 
-    // Call secure backend API to create user
-    const response = await axios.post("/api/users/create-user", {
-      email: values.email,
-      password: "12345678",
-      firstName: values.firstName,
-      lastName: values.lastName,
-      userMetadata: {
+      if (!response.data?.success || !response.data?.userId) {
+        throw new Error(response.data?.message || "Failed to create vendor");
+      }
+      if (response.data.profile && !response.data.profile.success) {
+        throw new Error(response.data.profile.error || "Failed to save vendor profile");
+      }
+
+      if (values.email_notifaction) {
+        try {
+          await axios.post("/active-admin", {
+            name: `${values.firstName} ${values.lastName}`.trim(),
+            email: values.email.toLowerCase().trim(),
+            admin: true,
+            password: temporaryPassword,
+          });
+        } catch (emailError) {
+          console.error("Vendor welcome email failed:", emailError);
+        }
+      }
+
+      const createdVendor: CreatedVendorResult = {
+        id: response.data.userId,
         first_name: values.firstName,
         last_name: values.lastName,
-      },
-    });
+        company_name: values.companyName,
+        email: values.email.toLowerCase().trim(),
+        status: values.status,
+        type: "vendor",
+      };
 
-    if (!response.data?.success || !response.data?.userId) {
-      throw new Error(response.data?.message || "Failed to create user");
+      onSubmit?.(values, createdVendor);
+      toast({
+        title: "Vendor created",
+        description: `${values.companyName || `${values.firstName} ${values.lastName}`} is ready for purchase orders.`,
+      });
+      form.reset(defaultValues);
+      setOpen(false);
+    } catch (error: any) {
+      toast({
+        title: "Vendor create failed",
+        description: error.response?.data?.message || error.message || "Failed to create vendor.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const tempUserData = { id: response.data.userId };
-
-    // Build clean userData from defaultValues
-    const userData: any = {
-      id: tempUserData?.id,
-      first_name: values.firstName,
-      last_name: values.lastName,
-      email: values.email.toLowerCase().trim(),
-      type: values.type,
-      status: values.status,
-      role: values.role,
-      company_name: values.companyName,
-      display_name: values.displayName || `${values.firstName} ${values.lastName}`,
-      work_phone: values.workPhone,
-      mobile_phone: values.mobilePhone,
-      billing_address: values.billingAddress,
-      shipping_address: values.sameAsShipping
-        ? values.billingAddress
-        : values.shippingAddress,
-      same_as_shipping: values.sameAsShipping,
-      freeShipping: values.freeShipping,
-      currency: values.currency,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-
-    const { error } = await supabase.from("profiles").upsert(userData);
-
-    if (error) throw new Error(error.message);
-
-    toast({
-      title: "Success",
-      description: `${values.firstName} ${values.lastName} has been created successfully`,
-    });
-
-  
-    form.reset();
-     setOpen(false)
-   
-  } catch (error: any) {
-    // Handle specific error cases with user-friendly messages
-    let errorMessage = "Failed to create vendor. Please try again.";
-    
-    // Check for 400 error (user already exists)
-    if (error.response?.status === 400 || error.message?.includes("already") || error.message?.includes("exists")) {
-      errorMessage = `This email (${values.email}) is already registered. Please use a different email address.`;
-    } else if (error.response?.data?.message) {
-      errorMessage = error.response.data.message;
-    } else if (error.message) {
-      errorMessage = error.message;
-    }
-
-    toast({
-      description: errorMessage,
-      variant: "destructive",
-    });
-  } finally {
-    setIsSubmitting(false);
-  }
-};
-
-
-
-  const copyBillingToShipping = () => {
-    const billingAddress = form.getValues("billingAddress")
-    form.setValue("shippingAddress", billingAddress)
-  }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : closeDialog())}>
       <DialogTrigger asChild>
-        <Button variant={mode === "edit" ? "outline" : "default"} size="sm">
-          {mode === "edit" ? (
-            <>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Vendor
-            </>
-          ) : (
-            <>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Vendor
-            </>
-          )}
+        <Button variant={mode === "edit" ? "outline" : "default"} size="sm" className={mode === "add" ? "gap-2 bg-blue-600 hover:bg-blue-700" : "gap-2"}>
+          <Plus className="h-4 w-4" />
+          {mode === "edit" ? "Edit Vendor" : "Add Vendor"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Building className="h-5 w-5" />
+            <Building2 className="h-5 w-5" />
             {mode === "edit" ? "Edit Vendor" : "Add New Vendor"}
           </DialogTitle>
           <DialogDescription>
-            {mode === "edit"
-              ? "Update vendor information and addresses."
-              : "Fill in the vendor details and address information."}
+            Create a complete vendor profile with contact, purchasing, billing, and shipping information for PO workflow.
           </DialogDescription>
         </DialogHeader>
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <Tabs defaultValue="basic" className="w-full">
-              <TabsList className="grid w-full grid-cols-2">
-                <TabsTrigger value="basic" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  Basic Info
-                </TabsTrigger>
-                <TabsTrigger value="billing" className="flex items-center gap-2">
-                  <MapPin className="h-4 w-4" />
-                  Address
-                </TabsTrigger>
-                {/* <TabsTrigger value="shipping" className="flex items-center gap-2">
-                  <Truck className="h-4 w-4" />
-                  Shipping
-                </TabsTrigger> */}
-              
+            <Tabs defaultValue="contact" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="contact" className="gap-2"><User className="h-4 w-4" />Contact</TabsTrigger>
+                <TabsTrigger value="business" className="gap-2"><Receipt className="h-4 w-4" />Business</TabsTrigger>
+                <TabsTrigger value="address" className="gap-2"><MapPin className="h-4 w-4" />Address</TabsTrigger>
               </TabsList>
-
-              <TabsContent value="basic" className="space-y-4">
+              <TabsContent value="contact" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Vendor Information</CardTitle>
-                    {/* <CardDescription>Basic vendor contact details</CardDescription> */}
+                    <CardTitle>Vendor Contact</CardTitle>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="firstName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>First Name *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter first name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="lastName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Last Name *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter last name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email *</FormLabel>
-                          <FormControl>
-                            <Input type="email" placeholder="Enter email address" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                 
-                    <FormField
-                      control={form.control}
-                      name="companyName"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Company Name *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter company name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="workPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Work Phone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter work phone" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="mobilePhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Mobile Phone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter mobile phone" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  
-                  
-               
+                  <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField control={form.control} name="firstName" render={({ field }) => <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} placeholder="First name" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="lastName" render={({ field }) => <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} placeholder="Last name" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="companyName" render={({ field }) => <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} placeholder="Vendor company" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="displayName" render={({ field }) => <FormItem><FormLabel>Display Name</FormLabel><FormControl><Input {...field} placeholder="Used in PO lists and selectors" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="email" render={({ field }) => <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} placeholder="Primary vendor email" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="alternativeEmail" render={({ field }) => <FormItem><FormLabel>Alternative Email</FormLabel><FormControl><Input type="email" {...field} placeholder="AP or backup email" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="contactPerson" render={({ field }) => <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} placeholder="Sales rep or account contact" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="department" render={({ field }) => <FormItem><FormLabel>Department</FormLabel><FormControl><Input {...field} placeholder="Sales, AP, logistics" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="workPhone" render={({ field }) => <FormItem><FormLabel>Work Phone</FormLabel><FormControl><Input {...field} placeholder="Office phone" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="mobilePhone" render={({ field }) => <FormItem><FormLabel>Mobile Phone</FormLabel><FormControl><Input {...field} placeholder="Mobile phone" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="website" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Website</FormLabel><FormControl><Input {...field} placeholder="https://vendor-site.com" /></FormControl><FormMessage /></FormItem>} />
                   </CardContent>
                 </Card>
               </TabsContent>
 
-              <TabsContent value="billing" className="space-y-4">
+              <TabsContent value="business" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Vendor Address</CardTitle>
-                    <CardDescription>Enter the Vendor address information</CardDescription>
+                    <CardTitle>Business and Purchasing Defaults</CardTitle>
                   </CardHeader>
-                  <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.attention"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Attention</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Attention to" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.countryRegion"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Country/Region *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter country/region" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.street1"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Street Address 1 *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter street address" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.street2"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Street Address 2</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Apartment, suite, etc." {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.city"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>City *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter city" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.state"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>State *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter state" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.zip_code"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>ZIP Code *</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter ZIP code" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.phone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter phone number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="billingAddress.faxNumber"
-                      render={({ field }) => (
-                        <FormItem className="md:col-span-2">
-                          <FormLabel>Fax Number</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter fax number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField control={form.control} name="status" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Status</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="active">Active</SelectItem>
+                            <SelectItem value="inactive">Inactive</SelectItem>
+                            <SelectItem value="suspended">Suspended</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="currency" render={({ field }) => <FormItem><FormLabel>Currency</FormLabel><FormControl><Input {...field} placeholder="USD" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="paymentTerms" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Payment Terms</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="Prepaid">Prepaid</SelectItem>
+                            <SelectItem value="COD">COD</SelectItem>
+                            <SelectItem value="Net 15">Net 15</SelectItem>
+                            <SelectItem value="Net 30">Net 30</SelectItem>
+                            <SelectItem value="Net 45">Net 45</SelectItem>
+                            <SelectItem value="Net 60">Net 60</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preferred Payment Method</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Select a method" /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="ach">ACH</SelectItem>
+                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            <SelectItem value="manual">Manual</SelectItem>
+                            <SelectItem value="card">Card</SelectItem>
+                            <SelectItem value="check">Check</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="preferredContactMethod" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Preferred Contact Method</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="email">Email</SelectItem>
+                            <SelectItem value="phone">Phone</SelectItem>
+                            <SelectItem value="portal">Portal</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="languagePreference" render={({ field }) => <FormItem><FormLabel>Language</FormLabel><FormControl><Input {...field} placeholder="English" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="taxId" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Tax ID</FormLabel><FormControl><Input {...field} placeholder="Tax ID or supplier reference" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="notes" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Purchasing Notes</FormLabel><FormControl><Textarea {...field} className="min-h-[120px]" placeholder="Lead times, ordering rules, AP notes, account references, or delivery instructions." /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="freeShipping" render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 rounded-xl border p-4">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1"><FormLabel>Free Shipping Vendor</FormLabel><p className="text-sm text-slate-500">Use this vendor as free-freight by default for purchase orders.</p></div>
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="email_notifaction" render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 rounded-xl border p-4">
+                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                        <div className="space-y-1"><FormLabel>Send Welcome Email</FormLabel><p className="text-sm text-slate-500">Send vendor portal credentials to the primary email after creation.</p></div>
+                      </FormItem>
+                    )} />
                   </CardContent>
                 </Card>
               </TabsContent>
-
-              <TabsContent value="shipping" className="space-y-4">
+              <TabsContent value="address" className="space-y-4">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Shipping Address</CardTitle>
-                    <CardDescription>Enter the shipping address information</CardDescription>
+                    <CardTitle>Billing Address</CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                 
-
-                    {!watchSameAsShipping && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.attention"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Attention</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Attention to" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.countryRegion"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Country/Region *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter country/region" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.street1"
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Street Address 1 *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter street address" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.street2"
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Street Address 2</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Apartment, suite, etc." {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.city"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>City *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter city" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.state"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>State *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter state" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.zip_code"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>ZIP Code *</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter ZIP code" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.phone"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel>Phone</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter phone number" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="shippingAddress.faxNumber"
-                          render={({ field }) => (
-                            <FormItem className="md:col-span-2">
-                              <FormLabel>Fax Number</FormLabel>
-                              <FormControl>
-                                <Input placeholder="Enter fax number" {...field} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                    )}
+                  <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                    <FormField control={form.control} name="billingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Attention / department" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 1</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.city" render={({ field }) => <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.state" render={({ field }) => <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.phone" render={({ field }) => <FormItem><FormLabel>Billing Phone</FormLabel><FormControl><Input {...field} placeholder="Billing phone" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} placeholder="Fax number" /></FormControl><FormMessage /></FormItem>} />
                   </CardContent>
                 </Card>
-              </TabsContent>
 
-              
+                <FormField control={form.control} name="sameAsShipping" render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 rounded-xl border bg-slate-50 p-4">
+                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    <div className="space-y-1"><FormLabel>Shipping address same as billing</FormLabel><p className="text-sm text-slate-500">Use the billing address as the vendor warehouse / shipping address.</p></div>
+                  </FormItem>
+                )} />
+
+                {!sameAsShipping && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Shipping Address</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                      <FormField control={form.control} name="shippingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Dock / warehouse contact" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 1</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.city" render={({ field }) => <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.state" render={({ field }) => <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.phone" render={({ field }) => <FormItem><FormLabel>Shipping Phone</FormLabel><FormControl><Input {...field} placeholder="Shipping phone" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} placeholder="Fax number" /></FormControl><FormMessage /></FormItem>} />
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
             </Tabs>
-
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : mode === "edit" ? "Update Vendor" : "Add Vendor"}
+            <DialogFooter className="gap-2">
+              <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                <Mail className="h-4 w-4" />
+                {isSubmitting ? "Saving Vendor..." : "Create Vendor"}
               </Button>
             </DialogFooter>
           </form>
         </Form>
       </DialogContent>
     </Dialog>
-  )
+  );
 }

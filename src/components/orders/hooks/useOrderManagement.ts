@@ -99,7 +99,28 @@ setOrders([])
       if (statusFilter && statusFilter !== "all") {
         query = query.eq("payment_status", statusFilter);
       }
-      if (statusFilter2 && statusFilter2 !== "all") {
+      if (poIs === true && statusFilter2 && statusFilter2 !== "all") {
+        switch (statusFilter2) {
+          case "pending":
+            query = query.eq("poApproved", false).eq("poRejected", false);
+            break;
+          case "approved":
+            query = query.eq("poApproved", true).eq("poRejected", false).eq("status", "approved");
+            break;
+          case "partially_received":
+            query = query.eq("status", "partially_received");
+            break;
+          case "received":
+            query = query.eq("status", "received");
+            break;
+          case "closed":
+            query = query.eq("status", "closed");
+            break;
+          case "rejected":
+            query = query.eq("poRejected", true);
+            break;
+        }
+      } else if (statusFilter2 && statusFilter2 !== "all") {
         query = query.ilike("status", statusFilter2);
       }
 
@@ -179,11 +200,13 @@ setOrders([])
             order_number: order.order_number,
             items: order.items || [],
             shipping: {
-              method: order.shipping_method || "custom",
-              cost: order.shipping_cost || 0,
-              trackingNumber: order.tracking_number || "",
-              estimatedDelivery: order.estimated_delivery || "",
+              ...((order.shipping as Record<string, any> | null) || {}),
+              method: order.shipping_method || order.shipping?.method || "custom",
+              cost: order.shipping_cost || order.shipping?.cost || 0,
+              trackingNumber: order.tracking_number || order.shipping?.trackingNumber || "",
+              estimatedDelivery: order.estimated_delivery || order.shipping?.estimatedDelivery || "",
             },
+            receiving_notes: order.receiving_notes || "",
             payment: {
               method: normalizedPaymentMethod,
               notes: order.payment_notes || "",

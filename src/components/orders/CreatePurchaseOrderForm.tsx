@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from "uuid";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
@@ -158,11 +159,12 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         method: "FedEx",
         cost: 0,
         trackingNumber: "",
-        estimatedDelivery: "",
+        estimatedDelivery: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
       },
       payment: {
         method: "manual",
         notes: "",
+        includePricingInPdf: true,
       },
       specialInstructions: "",
       purchase_number_external: "",
@@ -503,10 +505,12 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         tracking_number: data.shipping?.trackingNumber,
         estimated_delivery:
           data.shipping?.estimatedDelivery ||
-          new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString(),
+          new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
         location_id: vendorId,
         poAccept: false, // Mark as PO
         payment_status: "unpaid",
+        payment_method: data.payment?.method || "manual",
+        payment_notes: data.payment?.notes || null,
       };
 
       // Create PO in database with retry logic for duplicate order numbers
@@ -955,6 +959,52 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                     <FormControl>
                       <Input {...field} placeholder="FedEx, UPS, LTL, Pickup" />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="shipping.estimatedDelivery"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Expected Delivery Date</FormLabel>
+                    <FormControl>
+                      <Input {...field} type="date" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="payment.method"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Planned Payment Method</FormLabel>
+                    <FormControl>
+                      <Input {...field} placeholder="ACH, check, wire, card" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="payment.includePricingInPdf"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <FormLabel>Include pricing on PO PDF</FormLabel>
+                        <p className="mt-1 text-sm text-slate-500">
+                          Turn this off for quantity-only purchase orders sent to vendors without cost visibility.
+                        </p>
+                      </div>
+                      <FormControl>
+                        <Switch checked={field.value ?? true} onCheckedChange={field.onChange} />
+                      </FormControl>
+                    </div>
                     <FormMessage />
                   </FormItem>
                 )}

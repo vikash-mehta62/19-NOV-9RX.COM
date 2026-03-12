@@ -34,6 +34,7 @@ import { EmptyState, TableSkeleton } from "@/components/common/EmptyState";
 import { InventoryTransactionService } from "@/services/inventoryTransactionService";
 import { StockReservationService } from "@/services/stockReservationService";
 import { awardOrderPoints } from "@/services/rewardsService";
+import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
 
 // Import UI components for the cancel dialog
 import {
@@ -608,18 +609,6 @@ export function OrdersList({
     );
   }
 
-  const getPoApprovalState = (order: any) => {
-    if (order?.poApproved) return "approved";
-    if (order?.poRejected) return "rejected";
-    return "pending";
-  };
-
-  const getPoApprovalClasses = (state: string) => {
-    if (state === "approved") return "bg-emerald-100 text-emerald-800";
-    if (state === "rejected") return "bg-rose-100 text-rose-800";
-    return "bg-amber-100 text-amber-800";
-  };
-
   const getPoMetrics = (order: any) => {
     const lines = Array.isArray(order?.items) ? order.items.length : 0;
     const units = Array.isArray(order?.items)
@@ -675,7 +664,7 @@ export function OrdersList({
             )}
             {poIs && (
               <TableHead className="font-semibold text-gray-700 text-center">
-                Vendor Reference
+                Receiving Notes
               </TableHead>
             )}
             {poIs && (
@@ -795,10 +784,7 @@ export function OrdersList({
                 >
                   <div className="mx-auto max-w-[220px]">
                     <p className="truncate text-sm font-medium text-slate-800">
-                      {(order as any).purchase_number_external || "No vendor ref"}
-                    </p>
-                    <p className="truncate text-xs text-slate-500">
-                      {order.specialInstructions || "No notes added"}
+                      {((order as any)?.receiving_notes as string) || "No receiving notes"}
                     </p>
                   </div>
                 </TableCell>
@@ -901,14 +887,14 @@ export function OrdersList({
               {poIs && (
                 <TableCell className="text-center">
                   {(() => {
-                    const poState = getPoApprovalState(order);
+                    const poState = getPoWorkflowState(order);
                     return (
                       <div className="flex flex-col items-center gap-1">
                         <Badge
                           variant="secondary"
-                          className={`${getPoApprovalClasses(poState)} font-medium text-xs px-2.5 py-1 rounded-full`}
+                          className={`${getPoWorkflowBadgeClass(poState)} font-medium text-xs px-2.5 py-1 rounded-full`}
                         >
-                          {poState.toUpperCase()}
+                          {getPoWorkflowLabel(poState)}
                         </Badge>
                         <span className="text-xs text-slate-500">
                           Click row to review PO

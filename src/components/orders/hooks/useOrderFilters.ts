@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { OrderFormValues } from "../schemas/orderSchema";
+import { matchesPoWorkflowFilter } from "../utils/poWorkflow";
 
 export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -21,11 +22,7 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
       if (statusFilter2 === "all") return true;
 
       if (po) {
-        if (statusFilter2 === "approved") return Boolean((order as any).poApproved);
-        if (statusFilter2 === "rejected") return Boolean((order as any).poRejected);
-        if (statusFilter2 === "pending") {
-          return !Boolean((order as any).poApproved) && !Boolean((order as any).poRejected);
-        }
+        return matchesPoWorkflowFilter(order, statusFilter2);
       }
 
       return order.status?.toLowerCase() === statusFilter2.toLowerCase();

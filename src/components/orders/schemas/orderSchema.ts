@@ -52,6 +52,7 @@ const shippingSchema = z.object({
 const paymentSchema = z.object({
   method: z.enum(["card", "bank_transfer", "manual", "ach","credit"]),
   notes: z.string().optional(),
+  includePricingInPdf: z.boolean().optional(),
   achAccountType: z
     .enum(["checking", "savings", "businessChecking"])
     .optional(),

@@ -47,14 +47,60 @@ export interface Expense {
   name: string
   amount: number
   description?: string
+  category?: string
+  source_type?: string
+  source_subtype?: string
   date: string
   created_at: string
 }
 
+const expenseCategoryPresets = [
+  {
+    value: "cost_of_goods_sold",
+    label: "COGS",
+    hint: "Vendor payments and direct inventory cost",
+    suggestedNames: ["PO Payment", "Inventory Purchase", "Vendor Invoice"],
+  },
+  {
+    value: "other_expense",
+    label: "Other Expense",
+    hint: "Shipping, handling, admin, and overhead",
+    suggestedNames: ["Freight", "Handling", "Office Expense"],
+  },
+  {
+    value: "shipping",
+    label: "Shipping",
+    hint: "Courier, freight, and delivery bills",
+    suggestedNames: ["Freight", "Courier Charge", "Delivery Fee"],
+  },
+  {
+    value: "utilities",
+    label: "Utilities",
+    hint: "Internet, electricity, phone, and water",
+    suggestedNames: ["Electricity", "Internet", "Phone Bill"],
+  },
+  {
+    value: "rent",
+    label: "Rent",
+    hint: "Warehouse, office, or facility rent",
+    suggestedNames: ["Office Rent", "Warehouse Rent", "Storage Rent"],
+  },
+  {
+    value: "payroll",
+    label: "Payroll",
+    hint: "Salary, contractor, and labor expense",
+    suggestedNames: ["Salary", "Contract Labor", "Overtime"],
+  },
+] as const
+
 // Get all expenses
 export const getAllExpenses = async (): Promise<Expense[]> => {
   try {
-    const { data, error } = await supabase.from("expenses").select("*").order("date", { ascending: false })
+    const { data, error } = await supabase
+      .from("expenses")
+      .select("*")
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false })
     if (error) throw error
     return data || []
   } catch (error) {
@@ -73,6 +119,7 @@ export const addExpense = async (expense: Partial<Expense>): Promise<Expense | n
           name: expense.name,
           amount: expense.amount,
           description: expense.description,
+          category: expense.category || "other_expense",
           date: expense.date,
         },
       ])
@@ -107,9 +154,34 @@ const mapToExpenses = (data: any[]): Expense[] => {
     name: item.name,
     amount: item.amount,
     description: item.description,
+    category: item.category,
+    source_type: item.source_type,
+    source_subtype: item.source_subtype,
     date: item.date,
     created_at: item.created_at,
   }))
+}
+
+const getExpenseCategoryLabel = (category?: string) => {
+  switch (category) {
+    case "cost_of_goods_sold":
+      return "COGS"
+    case "other_expense":
+      return "Other Expense"
+    default:
+      return category || "Other"
+  }
+}
+
+const getExpenseCategoryBadgeClass = (category?: string) => {
+  switch (category) {
+    case "cost_of_goods_sold":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-700"
+    case "other_expense":
+      return "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-400 dark:border-amber-700"
+    default:
+      return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
+  }
 }
 
 const Expenses = () => {
@@ -122,6 +194,7 @@ const Expenses = () => {
     name: "",
     amount: 0,
     description: "",
+    category: "other_expense",
     date: new Date().toISOString(),
   })
   // Initializing startDate and endDate to undefined to show all expenses by default
@@ -139,6 +212,7 @@ const Expenses = () => {
   const headers = [
     { label: "ID", key: "id" },
     { label: "Name", key: "name" },
+    { label: "Category", key: "category" },
     { label: "Amount", key: "amount" },
     { label: "Description", key: "description" },
     { label: "Date", key: "date" },
@@ -149,7 +223,11 @@ const Expenses = () => {
     try {
       setLoading(true)
       const allExpenses = await getAllExpenses()
-      const typedExpenses = mapToExpenses(allExpenses)
+      const typedExpenses = mapToExpenses(allExpenses).sort((a, b) => {
+        const dateDiff = new Date(b.date).getTime() - new Date(a.date).getTime()
+        if (dateDiff !== 0) return dateDiff
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      })
       setExpenses(typedExpenses)
     } catch (error) {
       console.error("Error fetching expenses:", error)
@@ -221,6 +299,7 @@ const Expenses = () => {
         name: "",
         amount: 0,
         description: "",
+        category: "other_expense",
         date: new Date().toISOString(),
       })
       fetchExpenses()
@@ -387,7 +466,7 @@ const Expenses = () => {
   const categoryChartData = (() => {
     const categories: Record<string, number> = {}
     filteredExpenses.forEach((expense) => {
-      const category = expense.name || "Other"
+      const category = expense.category || expense.name || "Other"
       categories[category] = (categories[category] || 0) + Number(expense.amount)
     })
     return Object.entries(categories)
@@ -621,12 +700,18 @@ const Expenses = () => {
                                     className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                                   >
                                     <TableCell className="font-medium">
-                                      <div className="flex items-center gap-2">
+                                      <div className="flex items-center gap-2 flex-wrap">
                                         <Badge
                                           variant="outline"
                                           className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
                                         >
                                           {expense.name.charAt(0).toUpperCase()}
+                                        </Badge>
+                                        <Badge
+                                          variant="outline"
+                                          className={getExpenseCategoryBadgeClass(expense.category)}
+                                        >
+                                          {getExpenseCategoryLabel(expense.category)}
                                         </Badge>
                                         {expense.name}
                                       </div>
@@ -719,12 +804,18 @@ const Expenses = () => {
                                           className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors"
                                         >
                                           <TableCell className="font-medium">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                               <Badge
                                                 variant="outline"
                                                 className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
                                               >
                                                 {expense.name.charAt(0).toUpperCase()}
+                                              </Badge>
+                                              <Badge
+                                                variant="outline"
+                                                className={getExpenseCategoryBadgeClass(expense.category)}
+                                              >
+                                                {getExpenseCategoryLabel(expense.category)}
                                               </Badge>
                                               {expense.name}
                                             </div>
@@ -917,12 +1008,64 @@ const Expenses = () => {
 
         {/* Add Expense Dialog */}
         <Dialog open={showAddExpense} onOpenChange={setShowAddExpense}>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md max-h-[90vh] overflow-hidden">
             <DialogHeader>
               <DialogTitle>Add New Expense</DialogTitle>
-              <DialogDescription>Enter the details of the expense you want to add.</DialogDescription>
+              <DialogDescription>Pick a common category first, then fill the rest. This keeps expense entry faster and more consistent.</DialogDescription>
             </DialogHeader>
-            <div className="space-y-4 py-2">
+            <div className="space-y-4 overflow-y-auto py-2 pr-2 max-h-[calc(90vh-10rem)]">
+              <div className="space-y-2">
+                <Label>Most used categories</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  {expenseCategoryPresets.map((preset) => {
+                    const isActive = (newExpense.category || "other_expense") === preset.value
+                    return (
+                      <button
+                        key={preset.value}
+                        type="button"
+                        onClick={() =>
+                          setNewExpense((prev) => ({
+                            ...prev,
+                            category: preset.value,
+                            name: prev.name || preset.suggestedNames[0],
+                          }))
+                        }
+                        className={`rounded-xl border p-3 text-left transition-colors ${
+                          isActive
+                            ? "border-blue-500 bg-blue-50 shadow-sm"
+                            : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-slate-900">{preset.label}</span>
+                          <Badge variant="outline" className={getExpenseCategoryBadgeClass(preset.value)}>
+                            {preset.label}
+                          </Badge>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">{preset.hint}</p>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expense-category">Category</Label>
+                <Select
+                  value={newExpense.category || "other_expense"}
+                  onValueChange={(value) => setNewExpense((prev) => ({ ...prev, category: value }))}
+                >
+                  <SelectTrigger id="expense-category" className="focus:border-blue-500 focus:ring-blue-500">
+                    <SelectValue placeholder="Select category" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {expenseCategoryPresets.map((preset) => (
+                      <SelectItem key={preset.value} value={preset.value}>
+                        {preset.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Expense Name</Label>
                 <Input
@@ -932,6 +1075,24 @@ const Expenses = () => {
                   placeholder="Rent, Utilities, Materials, etc."
                   className="focus:border-blue-500 focus:ring-blue-500"
                 />
+                {(() => {
+                  const activePreset = expenseCategoryPresets.find((preset) => preset.value === (newExpense.category || "other_expense"))
+                  if (!activePreset) return null
+                  return (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {activePreset.suggestedNames.map((suggestedName) => (
+                        <button
+                          key={suggestedName}
+                          type="button"
+                          onClick={() => setNewExpense((prev) => ({ ...prev, name: suggestedName }))}
+                          className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs text-slate-600 hover:border-slate-300 hover:bg-slate-100"
+                        >
+                          {suggestedName}
+                        </button>
+                      ))}
+                    </div>
+                  )
+                })()}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="amount">Amount ($)</Label>
