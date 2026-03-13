@@ -18,45 +18,79 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
+const trimString = (message?: string) =>
+  z.string().trim().min(1, message || "This field is required");
+
+const optionalTrimmedString = z.string().trim().optional().or(z.literal(""));
+
+const optionalPhoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => value.length === 0 || value.replace(/\D/g, "").length === 10, "Phone number must contain exactly 10 digits")
+  .optional()
+  .or(z.literal(""));
+
+const optionalWebsiteSchema = z
+  .string()
+  .trim()
+  .refine((value) => {
+    if (!value) return true;
+    try {
+      const normalizedValue = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+      new URL(normalizedValue);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "Enter a valid website URL")
+  .optional()
+  .or(z.literal(""));
+
+const zipCodeSchema = z
+  .string()
+  .trim()
+  .min(1, "ZIP code is required")
+  .regex(/^[A-Za-z0-9 -]{3,10}$/, "Enter a valid ZIP code");
+
 const addressSchema = z.object({
-  attention: z.string().optional(),
-  countryRegion: z.string().min(1, "Country is required"),
-  street1: z.string().min(1, "Street address is required"),
-  street2: z.string().optional(),
-  city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zip_code: z.string().min(1, "ZIP code is required"),
-  phone: z.string().optional(),
-  faxNumber: z.string().optional(),
+  attention: optionalTrimmedString,
+  countryRegion: trimString("Country is required"),
+  street1: trimString("Street address is required"),
+  street2: optionalTrimmedString,
+  city: trimString("City is required"),
+  state: trimString("State is required"),
+  zip_code: zipCodeSchema,
+  phone: optionalPhoneSchema,
+  faxNumber: optionalPhoneSchema,
 });
 
 const shippingAddressSchema = addressSchema.partial();
 
 const vendorSchema = z.object({
-  firstName: z.string().min(1, "First name is required"),
-  lastName: z.string().min(1, "Last name is required"),
-  email: z.string().email("Valid email is required"),
-  alternativeEmail: z.string().email("Invalid email").optional().or(z.literal("")),
-  companyName: z.string().min(1, "Company name is required"),
-  displayName: z.string().optional(),
+  firstName: trimString("First name is required"),
+  lastName: trimString("Last name is required"),
+  email: z.string().trim().email("Valid email is required"),
+  alternativeEmail: z.string().trim().email("Invalid email").optional().or(z.literal("")),
+  companyName: trimString("Company name is required"),
+  displayName: optionalTrimmedString,
   status: z.enum(["active", "inactive", "suspended"]),
   role: z.string().default("user"),
   type: z.literal("vendor"),
-  workPhone: z.string().optional(),
-  mobilePhone: z.string().optional(),
-  contactPerson: z.string().optional(),
-  department: z.string().optional(),
-  website: z.string().optional(),
-  taxId: z.string().optional(),
-  paymentTerms: z.string().min(1, "Payment terms are required"),
-  paymentMethod: z.string().optional(),
+  workPhone: optionalPhoneSchema,
+  mobilePhone: optionalPhoneSchema,
+  contactPerson: optionalTrimmedString,
+  department: optionalTrimmedString,
+  website: optionalWebsiteSchema,
+  taxId: optionalTrimmedString,
+  paymentTerms: trimString("Payment terms are required"),
+  paymentMethod: optionalTrimmedString,
   preferredContactMethod: z.enum(["email", "phone", "portal"]),
   languagePreference: z.string().default("English"),
-  currency: z.string().min(1, "Currency is required"),
+  currency: optionalTrimmedString,
   freeShipping: z.boolean(),
   sameAsShipping: z.boolean(),
   email_notifaction: z.boolean(),
-  notes: z.string().optional(),
+  notes: optionalTrimmedString,
   billingAddress: addressSchema,
   shippingAddress: shippingAddressSchema,
 }).superRefine((values, ctx) => {
@@ -141,12 +175,12 @@ const defaultValues: VendorFormData = {
   website: "",
   taxId: "",
   paymentTerms: "Net 30",
-  paymentMethod: "ach",
+  paymentMethod: "manual",
   preferredContactMethod: "email",
   languagePreference: "English",
   currency: "USD",
   freeShipping: false,
-  sameAsShipping: true,
+  sameAsShipping: false,
   email_notifaction: false,
   notes: "",
   billingAddress: defaultAddress,
@@ -175,9 +209,9 @@ const createProfileData = (values: VendorFormData) => ({
   shipping_address: values.sameAsShipping ? values.billingAddress : values.shippingAddress,
   same_as_shipping: values.sameAsShipping,
   freeShipping: values.freeShipping,
-  currency: values.currency,
+  currency: "USD",
   payment_terms: values.paymentTerms,
-  payment_method: values.paymentMethod?.trim() || null,
+  payment_method: "manual",
   tax_id: values.taxId?.trim() || null,
   alternative_email: values.alternativeEmail?.trim() || null,
   website: values.website?.trim() || null,
@@ -189,6 +223,17 @@ const createProfileData = (values: VendorFormData) => ({
   active_notification: true,
   updated_at: new Date().toISOString(),
 });
+
+const RequiredMark = () => <span className="ml-1 text-red-500">*</span>;
+
+const requiredLabel = (label: string) => (
+  <span>
+    {label}
+    <RequiredMark />
+  </span>
+);
+
+const normalizePhoneDigits = (value: string) => value.replace(/\D/g, "").slice(0, 10);
 
 export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: VendorDialogFormProps) {
   const [open, setOpen] = useState(false);
@@ -223,7 +268,7 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
       return "address";
     }
 
-    if (errorKeys.some((key) => ["status", "currency", "paymentTerms", "paymentMethod", "preferredContactMethod", "languagePreference", "taxId", "notes", "freeShipping", "email_notifaction"].includes(key))) {
+    if (errorKeys.some((key) => ["status", "paymentTerms", "preferredContactMethod", "languagePreference", "taxId", "notes", "freeShipping", "email_notifaction"].includes(key))) {
       return "business";
     }
 
@@ -244,10 +289,9 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
   const handleSubmit = async (values: VendorFormData) => {
     setIsSubmitting(true);
     try {
-      const temporaryPassword = generatePassword();
       const response = await axios.post("/api/users/create-user", {
         email: values.email,
-        password: temporaryPassword,
+        password: generatePassword(),
         firstName: values.firstName,
         lastName: values.lastName,
         userMetadata: { first_name: values.firstName, last_name: values.lastName },
@@ -259,19 +303,6 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
       }
       if (response.data.profile && !response.data.profile.success) {
         throw new Error(response.data.profile.error || "Failed to save vendor profile");
-      }
-
-      if (values.email_notifaction) {
-        try {
-          await axios.post("/active-admin", {
-            name: `${values.firstName} ${values.lastName}`.trim(),
-            email: values.email.toLowerCase().trim(),
-            admin: true,
-            password: temporaryPassword,
-          });
-        } catch (emailError) {
-          console.error("Vendor welcome email failed:", emailError);
-        }
       }
 
       const createdVendor: CreatedVendorResult = {
@@ -291,10 +322,21 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
       });
       form.reset(defaultValues);
       setOpen(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const errorMessage =
+        typeof error === "object" &&
+        error !== null &&
+        "response" in error &&
+        typeof (error as { response?: { data?: { message?: string } } }).response?.data?.message === "string"
+          ? (error as { response?: { data?: { message?: string } } }).response?.data?.message
+          : error instanceof Error
+            ? error.message
+            : "Failed to create vendor.";
+      const isDuplicateEmailError = errorMessage.toLowerCase().includes("email already exists");
+
       toast({
-        title: "Vendor create failed",
-        description: error.response?.data?.message || error.message || "Failed to create vendor.",
+        title: isDuplicateEmailError ? "Email already exists" : "Vendor create failed",
+        description: isDuplicateEmailError ? "Use a different email address for this vendor." : errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -335,16 +377,16 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                     <CardTitle>Vendor Contact</CardTitle>
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                    <FormField control={form.control} name="firstName" render={({ field }) => <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} placeholder="First name" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="lastName" render={({ field }) => <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} placeholder="Last name" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="companyName" render={({ field }) => <FormItem><FormLabel>Company Name</FormLabel><FormControl><Input {...field} placeholder="Vendor company" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="firstName" render={({ field }) => <FormItem><FormLabel>{requiredLabel("First Name")}</FormLabel><FormControl><Input {...field} placeholder="First name" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="lastName" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Last Name")}</FormLabel><FormControl><Input {...field} placeholder="Last name" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="companyName" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Company Name")}</FormLabel><FormControl><Input {...field} placeholder="Vendor company" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="displayName" render={({ field }) => <FormItem><FormLabel>Display Name</FormLabel><FormControl><Input {...field} placeholder="Used in PO lists and selectors" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="email" render={({ field }) => <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} placeholder="Primary vendor email" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="email" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Email")}</FormLabel><FormControl><Input type="email" {...field} placeholder="Primary vendor email" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="alternativeEmail" render={({ field }) => <FormItem><FormLabel>Alternative Email</FormLabel><FormControl><Input type="email" {...field} placeholder="AP or backup email" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="contactPerson" render={({ field }) => <FormItem><FormLabel>Contact Person</FormLabel><FormControl><Input {...field} placeholder="Sales rep or account contact" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="department" render={({ field }) => <FormItem><FormLabel>Department</FormLabel><FormControl><Input {...field} placeholder="Sales, AP, logistics" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="workPhone" render={({ field }) => <FormItem><FormLabel>Work Phone</FormLabel><FormControl><Input {...field} placeholder="Office phone" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="mobilePhone" render={({ field }) => <FormItem><FormLabel>Mobile Phone</FormLabel><FormControl><Input {...field} placeholder="Mobile phone" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="workPhone" render={({ field }) => <FormItem><FormLabel>Work Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Office phone" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="mobilePhone" render={({ field }) => <FormItem><FormLabel>Mobile Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Mobile phone" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="website" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Website</FormLabel><FormControl><Input {...field} placeholder="https://vendor-site.com" /></FormControl><FormMessage /></FormItem>} />
                   </CardContent>
                 </Card>
@@ -361,7 +403,7 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                         <FormLabel>Status</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
+                          <SelectContent className="z-[100002]">
                             <SelectItem value="active">Active</SelectItem>
                             <SelectItem value="inactive">Inactive</SelectItem>
                             <SelectItem value="suspended">Suspended</SelectItem>
@@ -370,13 +412,12 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                         <FormMessage />
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="currency" render={({ field }) => <FormItem><FormLabel>Currency</FormLabel><FormControl><Input {...field} placeholder="USD" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="paymentTerms" render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Payment Terms</FormLabel>
+                        <FormLabel>{requiredLabel("Payment Terms")}</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
+                          <SelectContent className="z-[100002]">
                             <SelectItem value="Prepaid">Prepaid</SelectItem>
                             <SelectItem value="COD">COD</SelectItem>
                             <SelectItem value="Net 15">Net 15</SelectItem>
@@ -388,28 +429,12 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                         <FormMessage />
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="paymentMethod" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Preferred Payment Method</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value || ""}>
-                          <FormControl><SelectTrigger><SelectValue placeholder="Select a method" /></SelectTrigger></FormControl>
-                          <SelectContent>
-                            <SelectItem value="ach">ACH</SelectItem>
-                            <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
-                            <SelectItem value="manual">Manual</SelectItem>
-                            <SelectItem value="card">Card</SelectItem>
-                            <SelectItem value="check">Check</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
                     <FormField control={form.control} name="preferredContactMethod" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Preferred Contact Method</FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                          <SelectContent>
+                          <SelectContent className="z-[100002]">
                             <SelectItem value="email">Email</SelectItem>
                             <SelectItem value="phone">Phone</SelectItem>
                             <SelectItem value="portal">Portal</SelectItem>
@@ -427,12 +452,6 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                         <div className="space-y-1"><FormLabel>Free Shipping Vendor</FormLabel><p className="text-sm text-slate-500">Use this vendor as free-freight by default for purchase orders.</p></div>
                       </FormItem>
                     )} />
-                    <FormField control={form.control} name="email_notifaction" render={({ field }) => (
-                      <FormItem className="flex flex-row items-start space-x-3 rounded-xl border p-4">
-                        <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-                        <div className="space-y-1"><FormLabel>Send Welcome Email</FormLabel><p className="text-sm text-slate-500">Send vendor portal credentials to the primary email after creation.</p></div>
-                      </FormItem>
-                    )} />
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -443,14 +462,14 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                   </CardHeader>
                   <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
                     <FormField control={form.control} name="billingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Attention / department" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 1</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Country")}</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>{requiredLabel("Street 1")}</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
                     <FormField control={form.control} name="billingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.city" render={({ field }) => <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.state" render={({ field }) => <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.phone" render={({ field }) => <FormItem><FormLabel>Billing Phone</FormLabel><FormControl><Input {...field} placeholder="Billing phone" /></FormControl><FormMessage /></FormItem>} />
-                    <FormField control={form.control} name="billingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} placeholder="Fax number" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.city" render={({ field }) => <FormItem><FormLabel>{requiredLabel("City")}</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.state" render={({ field }) => <FormItem><FormLabel>{requiredLabel("State")}</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>{requiredLabel("ZIP Code")}</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.phone" render={({ field }) => <FormItem><FormLabel>Billing Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Billing phone" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
+                    <FormField control={form.control} name="billingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Fax number" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
                   </CardContent>
                 </Card>
 
@@ -474,14 +493,14 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                     </CardHeader>
                     <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
                       <FormField control={form.control} name="shippingAddress.attention" render={({ field }) => <FormItem><FormLabel>Attention</FormLabel><FormControl><Input {...field} placeholder="Dock / warehouse contact" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>Country</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 1</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.countryRegion" render={({ field }) => <FormItem><FormLabel>{requiredLabel("Country")}</FormLabel><FormControl><Input {...field} placeholder="Country" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.street1" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>{requiredLabel("Street 1")}</FormLabel><FormControl><Input {...field} placeholder="Street address" /></FormControl><FormMessage /></FormItem>} />
                       <FormField control={form.control} name="shippingAddress.street2" render={({ field }) => <FormItem className="md:col-span-2"><FormLabel>Street 2</FormLabel><FormControl><Input {...field} placeholder="Suite, unit, building" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.city" render={({ field }) => <FormItem><FormLabel>City</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.state" render={({ field }) => <FormItem><FormLabel>State</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>ZIP Code</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.phone" render={({ field }) => <FormItem><FormLabel>Shipping Phone</FormLabel><FormControl><Input {...field} placeholder="Shipping phone" /></FormControl><FormMessage /></FormItem>} />
-                      <FormField control={form.control} name="shippingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} placeholder="Fax number" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.city" render={({ field }) => <FormItem><FormLabel>{requiredLabel("City")}</FormLabel><FormControl><Input {...field} placeholder="City" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.state" render={({ field }) => <FormItem><FormLabel>{requiredLabel("State")}</FormLabel><FormControl><Input {...field} placeholder="State" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.zip_code" render={({ field }) => <FormItem><FormLabel>{requiredLabel("ZIP Code")}</FormLabel><FormControl><Input {...field} placeholder="ZIP code" /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.phone" render={({ field }) => <FormItem><FormLabel>Shipping Phone</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Shipping phone" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
+                      <FormField control={form.control} name="shippingAddress.faxNumber" render={({ field }) => <FormItem><FormLabel>Fax</FormLabel><FormControl><Input {...field} inputMode="numeric" pattern="[0-9]*" maxLength={10} placeholder="Fax number" onChange={(event) => field.onChange(normalizePhoneDigits(event.target.value))} /></FormControl><FormMessage /></FormItem>} />
                     </CardContent>
                   </Card>
                 )}

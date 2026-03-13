@@ -112,7 +112,7 @@ const cookieParser = require("cookie-parser");
 const logger = require("morgan");
 
 
-const { orderSatusCtrl, orderPlacedCtrl, userNotificationCtrl, contactCtrl, customization, accountActivation, paymentLink, paymentLinkCtrl, adminAccountActivation, updateProfileNotification, paymentSuccessFull, groupInvitationCtrl } = require("./controllers/orderStatus");
+const { orderSatusCtrl, orderPlacedCtrl, purchaseOrderEmailCtrl, userNotificationCtrl, contactCtrl, customization, accountActivation, paymentLink, paymentLinkCtrl, adminAccountActivation, updateProfileNotification, paymentSuccessFull, groupInvitationCtrl } = require("./controllers/orderStatus");
 const { invoicesCtrl } = require("./controllers/quickBooks");
 const { requireAuth, requireAdmin } = require("./middleware/auth");
 
@@ -1959,6 +1959,7 @@ app.use("/api/login-logs", require("./routes/loginLogsRoutes")) // Login logs an
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)
 app.post("/order-place", emailLimiter, orderPlacedCtrl)
+app.post("/po-email", requireAuth, emailLimiter, purchaseOrderEmailCtrl)
 app.post("/user-verification", emailLimiter, userNotificationCtrl)
 
 app.post("/active", emailLimiter, accountActivation)

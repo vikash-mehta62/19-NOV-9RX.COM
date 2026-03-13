@@ -22,16 +22,180 @@ const getSupabaseAdmin = () => {
 
 const requireAdminOrGroup = requireRoles(["admin", "superadmin", "group"]);
 
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
+const hasValidPhoneDigits = (value) => {
+  if (value == null || value === "") return true;
+  return String(value).replace(/\D/g, "").length === 10;
+};
+const hasValidEmail = (value) => {
+  if (value == null || value === "") return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value).trim());
+};
+const hasValidUrl = (value) => {
+  if (value == null || value === "") return true;
+  try {
+    const normalizedValue = /^https?:\/\//i.test(String(value).trim())
+      ? String(value).trim()
+      : `https://${String(value).trim()}`;
+    new URL(normalizedValue);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const validateVendorProfileData = (profileData = {}) => {
+  const missingFields = [];
+  const billingAddress = profileData.billing_address || {};
+  const shippingAddress = profileData.shipping_address || {};
+  const sameAsShipping = Boolean(profileData.same_as_shipping);
+
+  if (!isNonEmptyString(profileData.first_name)) missingFields.push("first_name");
+  if (!isNonEmptyString(profileData.last_name)) missingFields.push("last_name");
+  if (!isNonEmptyString(profileData.company_name)) missingFields.push("company_name");
+  if (!isNonEmptyString(profileData.payment_terms)) missingFields.push("payment_terms");
+  if (!isNonEmptyString(billingAddress.countryRegion || billingAddress.country)) missingFields.push("billing_address.countryRegion");
+  if (!isNonEmptyString(billingAddress.street1)) missingFields.push("billing_address.street1");
+  if (!isNonEmptyString(billingAddress.city)) missingFields.push("billing_address.city");
+  if (!isNonEmptyString(billingAddress.state)) missingFields.push("billing_address.state");
+  if (!isNonEmptyString(billingAddress.zip_code)) missingFields.push("billing_address.zip_code");
+
+  if (!sameAsShipping) {
+    if (!isNonEmptyString(shippingAddress.countryRegion || shippingAddress.country)) missingFields.push("shipping_address.countryRegion");
+    if (!isNonEmptyString(shippingAddress.street1)) missingFields.push("shipping_address.street1");
+    if (!isNonEmptyString(shippingAddress.city)) missingFields.push("shipping_address.city");
+    if (!isNonEmptyString(shippingAddress.state)) missingFields.push("shipping_address.state");
+    if (!isNonEmptyString(shippingAddress.zip_code)) missingFields.push("shipping_address.zip_code");
+  }
+
+  if (missingFields.length > 0) {
+    return `Missing required vendor fields: ${missingFields.join(", ")}`;
+  }
+
+  if (!hasValidEmail(profileData.email) || !hasValidEmail(profileData.alternative_email)) {
+    return "Vendor email fields must contain valid email addresses";
+  }
+
+  const phoneValues = [
+    profileData.work_phone,
+    profileData.mobile_phone,
+    billingAddress.phone,
+    billingAddress.faxNumber,
+    shippingAddress.phone,
+    shippingAddress.faxNumber,
+  ];
+
+  if (phoneValues.some((value) => !hasValidPhoneDigits(value))) {
+    return "Phone and fax fields must contain exactly 10 digits when provided";
+  }
+
+  if (!hasValidUrl(profileData.website)) {
+    return "Website must be a valid URL";
+  }
+
+  return null;
+};
+
+const isDuplicateEmailError = (error) => {
+  const details = [
+    error?.message,
+    error?.msg,
+    error?.error_description,
+    error?.details,
+    error?.code,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    details.includes("already registered") ||
+    details.includes("already exists") ||
+    details.includes("user already registered") ||
+    details.includes("duplicate") ||
+    details.includes("email exists")
+  );
+};
+
+const findExistingUserByEmail = async (supabaseAdmin, email) => {
+  const normalizedEmail = String(email || "").toLowerCase().trim();
+  if (!normalizedEmail) return null;
+
+  const { data: profileMatch, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("id, email")
+    .ilike("email", normalizedEmail)
+    .maybeSingle();
+
+  if (profileError) {
+    throw profileError;
+  }
+
+  if (profileMatch) {
+    return { source: "profiles", user: profileMatch };
+  }
+
+  const perPage = 200;
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await supabaseAdmin.auth.admin.listUsers({
+      page,
+      perPage,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    const users = data?.users || [];
+    const authMatch = users.find(
+      (user) => String(user.email || "").toLowerCase().trim() === normalizedEmail
+    );
+
+    if (authMatch) {
+      return { source: "auth", user: authMatch };
+    }
+
+    if (users.length < perPage) {
+      break;
+    }
+  }
+
+  return null;
+};
+
 // Create user endpoint (generic - for customers, groups, vendors)
 router.post("/create-user", requireAdmin, async (req, res) => {
   try {
     const supabaseAdmin = getSupabaseAdmin();
     const { email, password, firstName, lastName, userMetadata, profileData } = req.body;
+    const normalizedEmail = String(email || "").toLowerCase().trim();
 
     if (!email || !firstName) {
       return res.status(400).json({
         success: false,
         message: "Missing required fields: email, firstName",
+      });
+    }
+
+    if (profileData?.type === "vendor") {
+      const vendorValidationError = validateVendorProfileData({
+        ...profileData,
+        email,
+      });
+
+      if (vendorValidationError) {
+        return res.status(400).json({
+          success: false,
+          message: vendorValidationError,
+        });
+      }
+    }
+
+    const existingUser = await findExistingUserByEmail(supabaseAdmin, normalizedEmail);
+    if (existingUser) {
+      return res.status(409).json({
+        success: false,
+        message: "Email already exists",
       });
     }
 
@@ -45,7 +209,7 @@ router.post("/create-user", requireAdmin, async (req, res) => {
     }
 
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
+      email: normalizedEmail,
       password: userPassword,
       email_confirm: true,
       user_metadata: {
@@ -57,6 +221,13 @@ router.post("/create-user", requireAdmin, async (req, res) => {
 
     if (authError) {
       console.error("Auth Error:", authError);
+      if (isDuplicateEmailError(authError)) {
+        return res.status(409).json({
+          success: false,
+          message: "Email already exists",
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: "Failed to create user account",
@@ -73,7 +244,7 @@ router.post("/create-user", requireAdmin, async (req, res) => {
           ? sanitizedProfileData.active_notification
           : true,
         id: authData.user.id,
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
       };
 
       const { data: profile, error: profileError } = await supabaseAdmin

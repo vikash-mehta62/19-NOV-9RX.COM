@@ -9,6 +9,7 @@ import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
 import { FedExDialogState, TrackingDialog } from "../components/TrackingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
 
 interface OrderHeaderProps {
   order: OrderFormValues;
@@ -23,6 +24,7 @@ interface OrderHeaderProps {
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   poIs?: boolean;
   hideFinancialData?: boolean;
+  totalAmountOverride?: number;
 }
 
 const statusConfig = {
@@ -48,6 +50,7 @@ export const OrderHeader = ({
   userRole,
   poIs,
   hideFinancialData = false,
+  totalAmountOverride,
 }: OrderHeaderProps) => {
   const { toast } = useToast();
   const [showShipConfirmDialog, setShowShipConfirmDialog] = useState(false);
@@ -177,9 +180,12 @@ export const OrderHeader = ({
   };
 
   const status = statusConfig[order.status] || statusConfig.pending;
+  const poWorkflowState = getPoWorkflowState(order);
+  const poStatusLabel = getPoWorkflowLabel(poWorkflowState);
+  const poStatusBadgeClass = getPoWorkflowBadgeClass(poWorkflowState);
   const orderDate = order.date || (order as any).created_at;
   const orderAny = order as any;
-  const totalAmount = Number(orderAny.total_amount ?? order.total ?? 0);
+  const totalAmount = Number(totalAmountOverride ?? orderAny.total_amount ?? order.total ?? 0);
   const rawPaidAmount = Number(orderAny.paid_amount ?? 0);
   const paidAmount =
     rawPaidAmount === 0 && String(order.payment_status || "").toLowerCase() === "paid"
@@ -247,8 +253,8 @@ export const OrderHeader = ({
               </Badge>
             )}
 
-            <Badge className={`${status.color} border px-3 py-1 text-xs md:text-sm font-semibold`}>
-              {status.label}
+            <Badge className={`${poIs ? poStatusBadgeClass : status.color} border px-3 py-1 text-xs md:text-sm font-semibold`}>
+              {poIs ? poStatusLabel : status.label}
             </Badge>
 
             {order.payment_status && (
@@ -277,7 +283,7 @@ export const OrderHeader = ({
         <div className="flex flex-col md:items-end gap-3">
           {!hideFinancialData && (
             <div className="text-2xl md:text-3xl font-bold text-primary">
-              ${parseFloat(order.total || "0").toFixed(2)}
+              ${totalAmount.toFixed(2)}
             </div>
           )}
 

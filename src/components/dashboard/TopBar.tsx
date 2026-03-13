@@ -30,7 +30,11 @@ interface Notification {
   createdAt: string;
 }
 
-export const TopBar = () => {
+interface TopBarProps {
+  hideCartDrawer?: boolean;
+}
+
+export const TopBar = ({ hideCartDrawer = false }: TopBarProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const navigate = useNavigate();
   const userType = sessionStorage.getItem('userType');
@@ -297,7 +301,7 @@ export const TopBar = () => {
         {/* <ThemeToggle /> */}
         
         {/* Hide CartDrawer for pharmacy users as they have cart in sidebar */}
-        {sessionStorage.getItem('userType') !== 'pharmacy' && <CartDrawer />}
+        {sessionStorage.getItem('userType') !== 'pharmacy' && !hideCartDrawer && <CartDrawer />}
         
         {/* Notification Bell - Admin Only */}
         {userType === 'admin' && <DropdownMenu>

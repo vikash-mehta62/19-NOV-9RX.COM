@@ -6,6 +6,7 @@ const { contactUsEmail } = require("../templates/contactFormRes");
 const { customizationQueryEmail } = require("../templates/customizationQuaery");
 const orderConfirmationTemplate = require("../templates/orderCreate");
 const orderStatusTemplate = require("../templates/orderTemlate");
+const purchaseOrderTemplate = require("../templates/purchaseOrderTemplate");
 const paymentLink = require("../templates/paymentLink");
 const { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate } = require("../templates/profiles");
 const userVerificationTemplate = require("../templates/userVerificationTemplate");
@@ -233,6 +234,7 @@ const buildOrderDocument = async (order, options = {}) => {
     const pdf = await generateFrontendStylePdf(order, {
       documentType: options.documentType,
       paymentUrl,
+      includePricingInPdf: options.includePricingInPdf,
     });
 
     return {
@@ -250,6 +252,39 @@ const buildOrderDocument = async (order, options = {}) => {
     console.error("Failed to generate order PDF attachment:", error.message);
     return null;
   }
+};
+
+const buildPurchaseOrderEmailPayload = async (incomingOrder = {}, options = {}) => {
+  const order = await resolveOrderFromDb(incomingOrder);
+
+  if (!order || order.poAccept !== false) {
+    throw new Error("This endpoint only supports purchase orders.");
+  }
+
+  if (!order?.customerInfo?.email) {
+    throw new Error("Vendor email is missing on this purchase order.");
+  }
+
+  const includePricingInPdf =
+    typeof options.includePricingInPdf === "boolean"
+      ? options.includePricingInPdf
+      : order?.payment?.includePricingInPdf !== false;
+
+  const pdfMeta = await buildOrderDocument(order, {
+    documentType: "PURCHASE ORDER",
+    includePricingInPdf,
+  });
+  const eventType = options.eventType === "updated" ? "updated" : "created";
+  const subjectPrefix = eventType === "updated" ? "Updated Purchase Order" : "New Purchase Order";
+
+  return {
+    order,
+    pdfMeta,
+    eventType,
+    includePricingInPdf,
+    subject: `${subjectPrefix} #${order.order_number || order.id} - 9RX`,
+    emailContent: purchaseOrderTemplate(order, { eventType, includePricingInPdf }),
+  };
 };
 
 
@@ -437,6 +472,34 @@ exports.orderPlacedCtrl = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Something went wrong in Order Status",
+      error: "Internal server error",
+    });
+  }
+};
+
+exports.purchaseOrderEmailCtrl = async (req, res) => {
+  try {
+    const { order, pdfMeta, subject, emailContent } = await buildPurchaseOrderEmailPayload(req.body || {}, {
+      eventType: req.body?.eventType,
+      includePricingInPdf: req.body?.includePricingInPdf,
+    });
+
+    await mailSender(
+      order.customerInfo.email,
+      subject,
+      emailContent,
+      pdfMeta ? { attachments: pdfMeta.attachments } : undefined
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Purchase order email sent successfully.",
+    });
+  } catch (error) {
+    console.error("Error sending purchase order email:", error);
+    return res.status(500).json({
+      success: false,
+      message: error?.message || "Failed to send purchase order email.",
       error: "Internal server error",
     });
   }

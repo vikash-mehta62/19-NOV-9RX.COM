@@ -48,6 +48,7 @@ import {
   formatDocumentContactLine,
   formatDocumentMetaLine,
 } from "@/lib/documentSettings";
+import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -139,6 +140,7 @@ export const OrderDetailsSheet = ({
   const [receivingQuantities, setReceivingQuantities] = useState<Record<string, string>>({});
   const [receivingNotes, setReceivingNotes] = useState("");
   const [isSavingPoWorkflow, setIsSavingPoWorkflow] = useState(false);
+  const [showPoPaymentErrors, setShowPoPaymentErrors] = useState(false);
   const [poFinance, setPoFinance] = useState({
     expectedDelivery: "",
     paymentMethod: "manual",
@@ -433,10 +435,10 @@ export const OrderDetailsSheet = ({
 
     setPoFinance({
       expectedDelivery: toDateInputValue(shippingData.estimatedDelivery),
-      paymentMethod: paymentData.method || "manual",
-      paymentDate: toDateInputValue(paymentData.date),
-      paymentReference: paymentData.reference || "",
-      paymentAmount: paidAmount > 0 ? paidAmount.toFixed(2) : "",
+      paymentMethod: "manual",
+      paymentDate: "",
+      paymentReference: "",
+      paymentAmount: "",
       freightCharges: String((currentOrder as any)?.po_fred_charges || ""),
       handlingCharges: String((currentOrder as any)?.po_handling_charges || ""),
       financeNotes: paymentData.notes || "",
@@ -743,15 +745,17 @@ export const OrderDetailsSheet = ({
     }
 
     const badgeY = poIs ? 45 : 34;
-    const badgeLabel = poIs ? poStatusLabel : currentOrder.payment_status === "paid" ? "PAID" : "UNPAID";
-    const badgeColor = poIs ? poStatusColor : currentOrder.payment_status === "paid" ? [34, 197, 94] as [number, number, number] : [239, 68, 68] as [number, number, number];
-    const badgeWidth = poIs ? 34 : badgeLabel === "PAID" ? 25 : 30;
-    doc.setFillColor(...badgeColor);
-    doc.roundedRect(pageWidth - margin - badgeWidth, badgeY, badgeWidth, 8, 2, 2, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "bold");
-    doc.text(badgeLabel, pageWidth - margin - badgeWidth / 2, badgeY + 5.5, { align: "center" });
+    if (!poIs) {
+      const badgeLabel = currentOrder.payment_status === "paid" ? "PAID" : "UNPAID";
+      const badgeColor = currentOrder.payment_status === "paid" ? [34, 197, 94] as [number, number, number] : [239, 68, 68] as [number, number, number];
+      const badgeWidth = badgeLabel === "PAID" ? 25 : 30;
+      doc.setFillColor(...badgeColor);
+      doc.roundedRect(pageWidth - margin - badgeWidth, badgeY, badgeWidth, 8, 2, 2, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text(badgeLabel, pageWidth - margin - badgeWidth / 2, badgeY + 5.5, { align: "center" });
+    }
 
     const barcodeY = badgeY + 10;
     const barcodeHeight = 12;
@@ -2455,8 +2459,21 @@ export const OrderDetailsSheet = ({
   const poPaidPercentAfterDraft = poGrossAmount > 0 ? Math.min(100, Math.round((poAppliedAfterDraft / poGrossAmount) * 100)) : 0;
   const hasAnyReceivedInventory = poReceivedUnits > 0;
   const poCanReceive = Boolean((currentOrder as any)?.poApproved) && !Boolean((currentOrder as any)?.poRejected);
-  const poCanRecordPayment = Number(poFinance.paymentAmount || 0) > 0;
-  const poCanReject = !Boolean((currentOrder as any)?.poRejected) && !hasAnyReceivedInventory && !isSavingPoWorkflow;
+  const poPaymentExceedsOutstanding = poPaymentDraftAmount > poOutstandingAmount;
+  const poPaymentDateMissing = !poFinance.paymentDate;
+  const poPaymentReferenceMissing = !String(poFinance.paymentReference || "").trim();
+  const poPaymentAmountMissing = Number(poFinance.paymentAmount || 0) <= 0;
+  const poCanRecordPayment =
+    !poPaymentDateMissing &&
+    !poPaymentReferenceMissing &&
+    !poPaymentAmountMissing &&
+    !poPaymentExceedsOutstanding &&
+    !isPoFullyPaid;
+  const poCanReject =
+    !Boolean((currentOrder as any)?.poApproved) &&
+    !Boolean((currentOrder as any)?.poRejected) &&
+    !hasAnyReceivedInventory &&
+    !isSavingPoWorkflow;
   const poPaymentLedger = poPayments.length > 0
     ? poPayments.map((entry: any) => ({
       id: entry.id,
@@ -2496,6 +2513,38 @@ export const OrderDetailsSheet = ({
 
   const handleApproveWorkflow = async () => {
     if ((currentOrder as any).poApproved) return;
+    if ((currentOrder as any).poRejected) {
+      toast({
+        title: "Cannot approve",
+        description: "This purchase order has already been rejected and can no longer be approved.",
+        variant: "destructive",
+      });
+      return;
+    }
+    onOpenChange(false);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const approveConfirmation = await Swal.fire({
+      title: "Approve Purchase Order?",
+      text: "After approval, this purchase order can no longer be rejected.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#2563eb",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Approve",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: "!z-[100000] rounded-xl shadow-lg",
+        container: "!z-[100000]",
+      },
+      backdrop: true,
+      allowOutsideClick: false,
+    });
+    if (!approveConfirmation.isConfirmed) {
+      onOpenChange(true);
+      return;
+    }
 
     setIsSavingPoWorkflow(true);
     try {
@@ -2507,7 +2556,7 @@ export const OrderDetailsSheet = ({
       };
       const updatedPayment = {
         ...((currentOrder as any)?.payment || {}),
-        method: poFinance.paymentMethod || "manual",
+        method: "manual",
         notes: poFinance.financeNotes || "",
         includePricingInPdf: poFinance.includePricingInPdf !== false,
       };
@@ -2522,7 +2571,7 @@ export const OrderDetailsSheet = ({
           po_fred_charges: freightCharges,
           shipping_method: updatedShipping.method || null,
           estimated_delivery: updatedShipping.estimatedDelivery || null,
-          payment_method: updatedPayment.method || "manual",
+          payment_method: "manual",
           payment_notes: updatedPayment.notes || null,
         })
         .eq("id", currentOrder.id);
@@ -2552,7 +2601,7 @@ export const OrderDetailsSheet = ({
         payment: updatedPayment,
         shipping_method: updatedShipping.method || null,
         estimated_delivery: updatedShipping.estimatedDelivery || null,
-        payment_method: updatedPayment.method || "manual",
+        payment_method: "manual",
         payment_notes: updatedPayment.notes || null,
       });
 
@@ -2569,16 +2618,50 @@ export const OrderDetailsSheet = ({
       });
     } finally {
       setIsSavingPoWorkflow(false);
+      onOpenChange(true);
     }
   };
 
   const handleRejectWorkflow = async () => {
+    if ((currentOrder as any).poRejected) return;
+    if ((currentOrder as any).poApproved) {
+      toast({
+        title: "Cannot reject",
+        description: "This purchase order has already been approved and can no longer be rejected.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (hasAnyReceivedInventory) {
       toast({
         title: "Cannot reject",
         description: "This PO already has received inventory. Resolve receiving first instead of rejecting.",
         variant: "destructive",
       });
+      return;
+    }
+    onOpenChange(false);
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    const rejectConfirmation = await Swal.fire({
+      title: "Reject Purchase Order?",
+      text: "After rejection, this purchase order can no longer be approved.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#dc2626",
+      cancelButtonColor: "#6b7280",
+      confirmButtonText: "Yes, Reject",
+      cancelButtonText: "Cancel",
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: "!z-[100000] rounded-xl shadow-lg",
+        container: "!z-[100000]",
+      },
+      backdrop: true,
+      allowOutsideClick: false,
+    });
+    if (!rejectConfirmation.isConfirmed) {
+      onOpenChange(true);
       return;
     }
 
@@ -2620,6 +2703,7 @@ export const OrderDetailsSheet = ({
       });
     } finally {
       setIsSavingPoWorkflow(false);
+      onOpenChange(true);
     }
   };
 
@@ -2637,7 +2721,7 @@ export const OrderDetailsSheet = ({
         estimatedDelivery: poFinance.expectedDelivery || "",
       });
       const updatedPayment = sanitizeJsonObject({
-        method: poFinance.paymentMethod || "manual",
+        method: "manual",
         notes: poFinance.financeNotes || "",
         includePricingInPdf: poFinance.includePricingInPdf !== false,
         date: existingPayment.date || "",
@@ -2653,7 +2737,7 @@ export const OrderDetailsSheet = ({
           tracking_number: updatedShipping.trackingNumber || null,
           estimated_delivery: updatedShipping.estimatedDelivery || null,
           receiving_notes: receivingNotes || null,
-          payment_method: updatedPayment.method || "manual",
+          payment_method: "manual",
           payment_notes: updatedPayment.notes || null,
           po_handling_charges: Number.isFinite(handlingCharges) ? handlingCharges : 0,
           po_fred_charges: Number.isFinite(freightCharges) ? freightCharges : 0,
@@ -2671,11 +2755,22 @@ export const OrderDetailsSheet = ({
         shipping_method: updatedShipping.method || null,
         tracking_number: updatedShipping.trackingNumber || null,
         estimated_delivery: updatedShipping.estimatedDelivery || null,
-        payment_method: updatedPayment.method || "manual",
+        payment_method: "manual",
         payment_notes: updatedPayment.notes || null,
         po_handling_charges: Number.isFinite(handlingCharges) ? handlingCharges : 0,
         po_fred_charges: Number.isFinite(freightCharges) ? freightCharges : 0,
       });
+
+      try {
+        await sendPurchaseOrderEmail(currentOrder.id, "updated", poFinance.includePricingInPdf !== false);
+      } catch (emailError) {
+        console.error("Failed to send updated PO email to vendor:", emailError);
+        toast({
+          title: "Schedule saved, email not sent",
+          description: "The purchase order was updated, but the vendor email could not be delivered.",
+          variant: "destructive",
+        });
+      }
 
       toast({
         title: "Schedule saved",
@@ -2838,12 +2933,40 @@ export const OrderDetailsSheet = ({
   };
 
   const handleRecordPoPayment = async () => {
+    setShowPoPaymentErrors(true);
     const paymentAmount = Number(poFinance.paymentAmount || 0);
+
+    if (!poFinance.paymentDate) {
+      toast({
+        title: "Payment date required",
+        description: "Enter the payment date before recording the vendor payment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!String(poFinance.paymentReference || "").trim()) {
+      toast({
+        title: "Reference required",
+        description: "Enter a payment reference before recording the vendor payment.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     if (paymentAmount <= 0) {
       toast({
         title: "Invalid payment",
         description: "Enter a valid payment amount to record the vendor payment.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (paymentAmount > poOutstandingAmount) {
+      toast({
+        title: "Payment exceeds outstanding total",
+        description: `Payment amount cannot exceed the outstanding vendor total of $${poOutstandingAmount.toFixed(2)}.`,
         variant: "destructive",
       });
       return;
@@ -2862,14 +2985,14 @@ export const OrderDetailsSheet = ({
         id: crypto.randomUUID(),
         amount: paymentAmount,
         date: poFinance.paymentDate || new Date().toISOString().slice(0, 10),
-        method: poFinance.paymentMethod || "manual",
+        method: "manual",
         reference: poFinance.paymentReference || "",
         note: poFinance.financeNotes || "",
         recorded_at: new Date().toISOString(),
       };
       const updatedPayment = {
         ...((currentOrder as any)?.payment || {}),
-        method: poFinance.paymentMethod || "manual",
+        method: "manual",
         date: paymentEntry.date,
         reference: poFinance.paymentReference || "",
         notes: poFinance.financeNotes || "",
@@ -2906,7 +3029,7 @@ export const OrderDetailsSheet = ({
           paid_amount: nextPaidAmount,
           payment_status: nextPaymentStatus,
           status: nextOrderStatus,
-          payment_method: updatedPayment.method || "manual",
+          payment_method: "manual",
           payment_notes: updatedPayment.notes || null,
         })
         .eq("id", currentOrder.id);
@@ -2951,6 +3074,7 @@ export const OrderDetailsSheet = ({
         paymentReference: "",
         paymentDate: "",
       }));
+      setShowPoPaymentErrors(false);
 
       toast({
         title: "Payment recorded",
@@ -3118,7 +3242,7 @@ export const OrderDetailsSheet = ({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg md:max-w-2xl lg:max-w-3xl max-h-[95vh] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
+        <SheetContent className="w-full sm:max-w-lg md:max-w-[52rem] lg:max-w-[60rem] xl:max-w-[66rem] max-h-[95vh] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
           <SheetHeader className="mb-1 sm:mb-2">
             <SheetTitle className="text-base sm:text-lg md:text-xl">{poIs ? "Purchase Order Workspace" : "Order Details"}</SheetTitle>
             <SheetDescription className="text-xs sm:text-sm md:text-base">
@@ -3150,6 +3274,7 @@ export const OrderDetailsSheet = ({
                 {/* Order Header */}
                 <OrderHeader
                   order={currentOrder}
+                  totalAmountOverride={poIs ? poGrossAmount : undefined}
                   onEdit={() => {
                     // Navigate to new flow for editing
                     const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
@@ -3170,13 +3295,10 @@ export const OrderDetailsSheet = ({
                 {/* Tabs */}
                 {poIs ? (
                   <Tabs value={activePoTab} onValueChange={setActivePoTab} className="w-full">
-                    <TabsList className={`w-full h-auto grid gap-1 mb-4 bg-muted/50 p-1 rounded-lg ${hideFinancialData ? "grid-cols-4" : "grid-cols-5"}`}>
+                    <TabsList className="w-full h-auto grid grid-cols-4 gap-1 mb-4 bg-muted/50 p-1 rounded-lg">
                       <TabsTrigger value="workspace" className="text-xs md:text-sm px-2 py-2">Workspace</TabsTrigger>
                       <TabsTrigger value="items" className="text-xs md:text-sm px-2 py-2">Items</TabsTrigger>
-                      <TabsTrigger value="receiving" className="text-xs md:text-sm px-2 py-2">Receiving</TabsTrigger>
-                      {!hideFinancialData && (
-                        <TabsTrigger value="finance" className="text-xs md:text-sm px-2 py-2">Finance</TabsTrigger>
-                      )}
+                      <TabsTrigger value="operations" className="text-xs md:text-sm px-2 py-2">Operations</TabsTrigger>
                       <TabsTrigger value="activity" className="text-xs md:text-sm px-2 py-2">Activity</TabsTrigger>
                     </TabsList>
 
@@ -3262,6 +3384,11 @@ export const OrderDetailsSheet = ({
                         shippingCost={parseFloat(currentOrder.shipping_cost || "0")}
                         taxAmount={currentOrder.tax_amount || 0}
                         discountAmount={Number((currentOrder as any).discount_amount || 0)}
+                        freightCharges={Number((currentOrder as any).po_fred_charges || 0)}
+                        handlingCharges={Number((currentOrder as any).po_handling_charges || 0)}
+                        isPurchaseOrder={poIs}
+                        includePricingInPdf={poFinance.includePricingInPdf !== false}
+                        disableEdit={poIs && (Boolean((currentOrder as any).poApproved) || Boolean((currentOrder as any).poRejected))}
                         onItemsUpdate={(updatedItems) => {
                           const newSubtotal = updatedItems.reduce((acc, item) => {
                             return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -3269,7 +3396,9 @@ export const OrderDetailsSheet = ({
                           const taxAmount = currentOrder.tax_amount || 0;
                           const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
                           const discountAmount = Number((currentOrder as any).discount_amount || 0);
-                          const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
+                          const freightCharges = Number((currentOrder as any).po_fred_charges || 0);
+                          const handlingCharges = Number((currentOrder as any).po_handling_charges || 0);
+                          const newTotal = newSubtotal + taxAmount + shippingCost + freightCharges + handlingCharges - discountAmount;
 
                           setCurrentOrder(prev => ({
                             ...prev,
@@ -3285,7 +3414,25 @@ export const OrderDetailsSheet = ({
                       />
                     </TabsContent>
 
-                    <TabsContent value="receiving" className="mt-0 space-y-4">
+                    <TabsContent value="operations" className="mt-0 space-y-4">
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border bg-slate-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Receive progress</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900">{poReceiveProgress}%</p>
+                          <p className="mt-1 text-sm text-slate-500">{poReceivedUnits} of {poOrderedUnits} units posted.</p>
+                        </div>
+                        <div className="rounded-2xl border bg-slate-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Expected delivery</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900">{formatDateOnly(poFinance.expectedDelivery)}</p>
+                          <p className="mt-1 text-sm text-slate-500">Plan inbound delivery and receiving in one place.</p>
+                        </div>
+                        <div className="rounded-2xl border bg-slate-50 p-4">
+                          <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Vendor outstanding</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-900">${poOutstandingAmount.toFixed(2)}</p>
+                          <p className="mt-1 text-sm text-slate-500">{poPaidPercent}% paid across recorded vendor payments.</p>
+                        </div>
+                      </div>
+
                       <div className="rounded-2xl border bg-white p-4">
                         <div className="flex items-start justify-between gap-4">
                           <div>
@@ -3362,6 +3509,296 @@ export const OrderDetailsSheet = ({
                             className="mt-2 min-h-[96px]"
                           />
                         </div>
+                        <div className="mt-4 flex justify-end">
+                          <Button
+                            onClick={handleReceiveInventory}
+                            disabled={!poCanReceive || isSavingPoWorkflow || poFullyReceived}
+                            variant="outline"
+                            className="gap-2"
+                          >
+                            <PackageCheck size={16} />
+                            Receive Stock
+                          </Button>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+                        <div className="rounded-2xl border bg-white p-4">
+                          <h3 className="text-lg font-semibold text-slate-900">Delivery, charges, and payment defaults</h3>
+                          <p className="mt-1 text-sm text-slate-500">Keep landed cost planning and vendor payment defaults in the same workflow as receiving.</p>
+                          <div className="mt-4 grid gap-4 md:grid-cols-2">
+                            <div>
+                              <Label htmlFor="po-eta">Expected delivery</Label>
+                              <Input id="po-eta" type="date" value={poFinance.expectedDelivery} onChange={(e) => setPoFinance((prev) => ({ ...prev, expectedDelivery: e.target.value }))} className="mt-2" disabled={isPoFullyPaid} />
+                            </div>
+                            <div>
+                              <Label htmlFor="po-freight">Freight charges</Label>
+                              <Input id="po-freight" type="number" min={0} step="0.01" value={poFinance.freightCharges} onChange={(e) => setPoFinance((prev) => ({ ...prev, freightCharges: e.target.value }))} className="mt-2" disabled={isPoFullyPaid} />
+                            </div>
+                            <div>
+                              <Label htmlFor="po-handling">Handling charges</Label>
+                              <Input id="po-handling" type="number" min={0} step="0.01" value={poFinance.handlingCharges} onChange={(e) => setPoFinance((prev) => ({ ...prev, handlingCharges: e.target.value }))} className="mt-2" disabled={isPoFullyPaid} />
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <Label htmlFor="po-finance-notes">Planning notes</Label>
+                            <Textarea id="po-finance-notes" value={poFinance.financeNotes} onChange={(e) => setPoFinance((prev) => ({ ...prev, financeNotes: e.target.value }))} className="mt-2 min-h-[96px]" placeholder="Terms, delivery windows, vendor promises, or internal approvals." disabled={isPoFullyPaid} />
+                          </div>
+                          {isPoFullyPaid ? (
+                            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                              Freight, handling, delivery, and payment-default inputs are locked because this PO is already 100% paid.
+                            </div>
+                          ) : null}
+                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                            Vendor payments are posted as <span className="font-medium text-slate-900">COGS</span>. Freight and handling are posted as <span className="font-medium text-slate-900">Other Expense</span> and do not change inventory weighted cost.
+                          </div>
+                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <div className="flex items-center justify-between gap-4">
+                              <div>
+                                <Label htmlFor="po-pricing-pdf" className="text-sm font-medium text-slate-900">Include pricing on PO PDF</Label>
+                                <p className="mt-1 text-sm text-slate-500">
+                                  Use quantity-only PDF when the vendor should not see purchase pricing on the document.
+                                </p>
+                              </div>
+                              <Switch
+                                id="po-pricing-pdf"
+                                checked={poFinance.includePricingInPdf !== false}
+                                onCheckedChange={(checked) => setPoFinance((prev) => ({ ...prev, includePricingInPdf: Boolean(checked) }))}
+                              />
+                            </div>
+                          </div>
+                          <div className="mt-4 flex justify-end">
+                            <Button
+                              onClick={handleSavePoSchedule}
+                              disabled={isSavingPoWorkflow || isPoFullyPaid}
+                              variant="outline"
+                              className="gap-2"
+                            >
+                              <CalendarClock size={16} />
+                              Save Schedule
+                            </Button>
+                          </div>
+
+                          <div className="mt-6 rounded-2xl border bg-white p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div>
+                                <h3 className="text-lg font-semibold text-slate-900">PO documents</h3>
+                                <p className="text-sm text-slate-500">Attach invoices, receiving slips, vendor confirmations, or payment proof.</p>
+                              </div>
+                              <Label htmlFor="po-document-upload" className="cursor-pointer rounded-md border px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50">
+                                {isUploadingPoDocument ? "Uploading..." : "Upload"}
+                              </Label>
+                              <Input id="po-document-upload" type="file" className="hidden" onChange={handleUploadPoDocument} disabled={isUploadingPoDocument} />
+                            </div>
+                            <div className="mt-4 space-y-2">
+                              {poDocuments.length > 0 ? (
+                                poDocuments.slice().reverse().map((doc: any) => (
+                                  <div key={doc.id} className="flex items-center justify-between gap-3 rounded-xl border bg-slate-50 p-3 text-sm">
+                                    <div className="min-w-0">
+                                      <p className="truncate font-medium text-slate-900">{doc.name}</p>
+                                      <p className="text-slate-500">{formatDateOnly(doc.uploaded_at)}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDownloadPoDocument(doc)} aria-label={`Download ${doc.name}`}>
+                                        <Download className="h-4 w-4" />
+                                      </Button>
+                                      <Button type="button" variant="ghost" size="sm" onClick={() => handleDeletePoDocument(doc.id)}>
+                                        Delete
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="rounded-xl border border-dashed p-4 text-sm text-slate-500">No documents attached to this PO yet.</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {!hideFinancialData && (
+                          <div className="space-y-4">
+                            <div className="rounded-2xl border bg-slate-50 p-4">
+                              <h3 className="text-lg font-semibold text-slate-900">Vendor payment tracker</h3>
+                              <p className="mt-1 text-sm text-slate-500">
+                                Track what is already paid, what this payment will cover, and what will still be pending.
+                              </p>
+                              <div className="mt-4 grid gap-4">
+                                <div>
+                                  <Label htmlFor="po-payment-date">Payment date</Label>
+                                  <Input id="po-payment-date" type="date" value={poFinance.paymentDate} onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentDate: e.target.value }))} className="mt-2" disabled={isPoFullyPaid} />
+                                  {showPoPaymentErrors && poPaymentDateMissing && !isPoFullyPaid ? (
+                                    <p className="mt-2 text-xs text-red-600">Payment date is required.</p>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  <Label htmlFor="po-payment-reference">Reference</Label>
+                                  <Input id="po-payment-reference" value={poFinance.paymentReference} onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentReference: e.target.value }))} className="mt-2" placeholder="Check no, ACH trace, wire ref" disabled={isPoFullyPaid} />
+                                  {showPoPaymentErrors && poPaymentReferenceMissing && !isPoFullyPaid ? (
+                                    <p className="mt-2 text-xs text-red-600">Reference is required.</p>
+                                  ) : null}
+                                </div>
+                                <div>
+                                  <Label htmlFor="po-payment-amount">Record payment now</Label>
+                                  <Input
+                                    id="po-payment-amount"
+                                    type="number"
+                                    min={0}
+                                    max={Number(poOutstandingAmount.toFixed(2))}
+                                    step="0.01"
+                                    value={poFinance.paymentAmount}
+                                    onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentAmount: e.target.value }))}
+                                    className="mt-2"
+                                    placeholder="Enter this payment amount"
+                                    disabled={isPoFullyPaid}
+                                    aria-invalid={poPaymentExceedsOutstanding || (showPoPaymentErrors && poPaymentAmountMissing)}
+                                  />
+                                  {showPoPaymentErrors && poPaymentAmountMissing && !isPoFullyPaid ? (
+                                    <p className="mt-2 text-xs text-red-600">Payment amount is required.</p>
+                                  ) : null}
+                                  {poPaymentExceedsOutstanding && !isPoFullyPaid ? (
+                                    <p className="mt-2 text-xs text-red-600">
+                                      Payment amount cannot exceed the outstanding vendor total of ${poOutstandingAmount.toFixed(2)}.
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {isPoFullyPaid ? (
+                                  <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+                                    Vendor payment is complete. Payment date, reference, and payment amount are locked because nothing is pending.
+                                  </div>
+                                ) : null}
+                                <div className="rounded-xl border bg-white p-4 text-sm shadow-sm">
+                                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div>
+                                        <p className="text-xs font-medium uppercase tracking-wide text-amber-700">Outstanding to vendor</p>
+                                        <p className="mt-1 text-3xl font-semibold text-slate-900">${poOutstandingAmount.toFixed(2)}</p>
+                                      </div>
+                                      <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-amber-700 shadow-sm">
+                                        {poPaidPercent}% paid
+                                      </span>
+                                    </div>
+                                    <p className="mt-2 text-xs text-amber-800">
+                                      This is the amount still pending right now.
+                                    </p>
+                                  </div>
+
+                                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                                    <div className="rounded-lg border bg-slate-50 p-3">
+                                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Paid so far</p>
+                                      <p className="mt-1 text-2xl font-semibold text-emerald-600">${paidAmount.toFixed(2)}</p>
+                                      <p className="mt-1 text-xs text-slate-500">Already posted to vendor</p>
+                                    </div>
+                                    <div className="rounded-lg border bg-slate-50 p-3">
+                                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Recording now</p>
+                                      <p className="mt-1 text-2xl font-semibold text-slate-900">${poPaymentDraftAmount.toFixed(2)}</p>
+                                      <p className="mt-1 text-xs text-slate-500">Will save when you click `Pay + Expense`</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-4">
+                                    <div className="flex items-center justify-between text-xs text-slate-500">
+                                      <span>Current payment progress</span>
+                                      <span>{poPaidPercent}% paid</span>
+                                    </div>
+                                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-200">
+                                      <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${poPaidPercent}%` }} />
+                                    </div>
+                                  </div>
+
+                                  {poPaymentDraftAmount > 0 ? (
+                                    <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                                      <div className="flex items-center justify-between text-sm">
+                                        <span className="font-medium text-slate-900">After this payment</span>
+                                        <span className="font-semibold text-blue-700">{poPaidPercentAfterDraft}% paid</span>
+                                      </div>
+                                      <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                        <div className="rounded-md bg-white/80 px-3 py-2">
+                                          <div className="text-xs text-slate-500">Total paid after save</div>
+                                          <div className="font-semibold text-slate-900">${poAppliedAfterDraft.toFixed(2)}</div>
+                                        </div>
+                                        <div className="rounded-md bg-white/80 px-3 py-2">
+                                          <div className="text-xs text-slate-500">Still pending after save</div>
+                                          <div className="font-semibold text-blue-700">${poPendingAfterDraft.toFixed(2)}</div>
+                                        </div>
+                                      </div>
+                                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+                                        <div className="h-full rounded-full bg-blue-600 transition-all" style={{ width: `${poPaidPercentAfterDraft}%` }} />
+                                      </div>
+                                    </div>
+                                  ) : null}
+
+                                  <div className="mt-4 rounded-lg border bg-slate-50 p-3">
+                                    <div className="mb-3 flex items-center justify-between">
+                                      <span className="text-sm font-medium text-slate-900">PO cost breakdown</span>
+                                      <span className="text-xs text-slate-500">Current totals</span>
+                                    </div>
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between"><span className="text-slate-500">Merchandise subtotal</span><span className="font-medium">${poSubtotal.toFixed(2)}</span></div>
+                                      <div className="flex items-center justify-between"><span className="text-slate-500">Freight + handling</span><span className="font-medium">${poChargesTotal.toFixed(2)}</span></div>
+                                      <div className="flex items-center justify-between"><span className="text-slate-500">Total PO cost</span><span className="font-medium">${poLandedCostAmount.toFixed(2)}</span></div>
+                                      <div className="flex items-center justify-between"><span className="text-slate-500">Paid to vendor</span><span className="font-medium">${paidAmount.toFixed(2)}</span></div>
+                                      <div className="border-t pt-3 flex items-center justify-between"><span className="font-semibold text-slate-900">Outstanding</span><span className="font-semibold text-slate-900">${poOutstandingAmount.toFixed(2)}</span></div>
+                                    </div>
+                                  </div>
+                                  <p className="mt-3 text-xs leading-5 text-slate-500">Vendor payments post to COGS. Freight and handling post to Other Expense.</p>
+                                </div>
+                                <div className="mt-4 flex justify-end">
+                                  <Button
+                                    onClick={handleRecordPoPayment}
+                                    disabled={isSavingPoWorkflow || !poCanRecordPayment}
+                                    variant="outline"
+                                    className="gap-2"
+                                  >
+                                    <ReceiptText size={16} />
+                                    Pay + Expense
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="rounded-2xl border bg-white p-4">
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <h3 className="text-lg font-semibold text-slate-900">Payment history</h3>
+                                  <p className="text-sm text-slate-500">See exactly when each payment was done and how much was still pending after it.</p>
+                                </div>
+                              </div>
+                              <div className="mt-4 space-y-2">
+                                {poPaymentHistory.length > 0 ? (
+                                  poPaymentHistory.slice().reverse().map((entry: any) => (
+                                    <div key={entry.id} className="rounded-xl border bg-slate-50 p-3 text-sm">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="font-medium text-slate-900">${Number(entry.amount || 0).toFixed(2)}</span>
+                                        <span className="text-slate-500">{formatDateOnly(entry.date)}</span>
+                                      </div>
+                                      <div className="mt-1 text-slate-500">
+                                        {entry.method || "manual"}{entry.reference ? ` • ${entry.reference}` : ""}
+                                      </div>
+                                      <div className="mt-2">
+                                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${getExpenseCategoryBadgeClass("cost_of_goods_sold")}`}>
+                                          {getExpenseCategoryLabel("cost_of_goods_sold")}
+                                        </span>
+                                      </div>
+                                      <div className="mt-2 grid gap-2 sm:grid-cols-2 text-xs">
+                                        <div className="rounded-md border bg-white px-2 py-2">
+                                          <span className="text-slate-500">Paid after this payment</span>
+                                          <div className="font-medium text-slate-900">${Number(entry.paidAfter || 0).toFixed(2)}</div>
+                                        </div>
+                                        <div className="rounded-md border bg-white px-2 py-2">
+                                          <span className="text-slate-500">Pending after this payment</span>
+                                          <div className="font-medium text-amber-700">${Number(entry.pendingAfter || 0).toFixed(2)}</div>
+                                        </div>
+                                      </div>
+                                      {entry.note ? <div className="mt-1 text-slate-500">{entry.note}</div> : null}
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="rounded-xl border border-dashed p-4 text-sm text-slate-500">No payment recorded yet.</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </TabsContent>
 
@@ -3374,10 +3811,6 @@ export const OrderDetailsSheet = ({
                             <div>
                               <Label htmlFor="po-eta">Expected delivery</Label>
                               <Input id="po-eta" type="date" value={poFinance.expectedDelivery} onChange={(e) => setPoFinance((prev) => ({ ...prev, expectedDelivery: e.target.value }))} className="mt-2" disabled={isPoFullyPaid} />
-                            </div>
-                            <div>
-                              <Label htmlFor="po-payment-method">Payment method</Label>
-                              <Input id="po-payment-method" value={poFinance.paymentMethod} onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentMethod: e.target.value }))} className="mt-2" placeholder="ACH, check, wire, card" disabled={isPoFullyPaid} />
                             </div>
                             <div>
                               <Label htmlFor="po-freight">Freight charges</Label>
@@ -3518,7 +3951,24 @@ export const OrderDetailsSheet = ({
                             </div>
                             <div>
                               <Label htmlFor="po-payment-amount">Record payment now</Label>
-                              <Input id="po-payment-amount" type="number" min={0} step="0.01" value={poFinance.paymentAmount} onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentAmount: e.target.value }))} className="mt-2" placeholder="Enter this payment amount" disabled={isPoFullyPaid} />
+                              <Input
+                                id="po-payment-amount"
+                                type="number"
+                                min={0}
+                                max={Number(poOutstandingAmount.toFixed(2))}
+                                step="0.01"
+                                value={poFinance.paymentAmount}
+                                onChange={(e) => setPoFinance((prev) => ({ ...prev, paymentAmount: e.target.value }))}
+                                className="mt-2"
+                                placeholder="Enter this payment amount"
+                                disabled={isPoFullyPaid}
+                                aria-invalid={poPaymentExceedsOutstanding}
+                              />
+                              {poPaymentExceedsOutstanding ? (
+                                <p className="mt-2 text-xs text-red-600">
+                                  Payment amount cannot exceed the outstanding vendor total of ${poOutstandingAmount.toFixed(2)}.
+                                </p>
+                              ) : null}
                             </div>
                             {isPoFullyPaid ? (
                               <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
@@ -3661,6 +4111,10 @@ export const OrderDetailsSheet = ({
                         shippingCost={parseFloat(currentOrder.shipping_cost || "0")}
                         taxAmount={currentOrder.tax_amount || 0}
                         discountAmount={Number((currentOrder as any).discount_amount || 0)}
+                        freightCharges={Number((currentOrder as any).po_fred_charges || 0)}
+                        handlingCharges={Number((currentOrder as any).po_handling_charges || 0)}
+                        isPurchaseOrder={poIs}
+                        includePricingInPdf={poFinance.includePricingInPdf !== false}
                         onItemsUpdate={(updatedItems) => {
                           const newSubtotal = updatedItems.reduce((acc, item) => {
                             return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -3668,7 +4122,9 @@ export const OrderDetailsSheet = ({
                           const taxAmount = currentOrder.tax_amount || 0;
                           const shippingCost = parseFloat(currentOrder.shipping_cost || "0");
                           const discountAmount = Number((currentOrder as any).discount_amount || 0);
-                          const newTotal = newSubtotal + taxAmount + shippingCost - discountAmount;
+                          const freightCharges = Number((currentOrder as any).po_fred_charges || 0);
+                          const handlingCharges = Number((currentOrder as any).po_handling_charges || 0);
+                          const newTotal = newSubtotal + taxAmount + shippingCost + freightCharges + handlingCharges - discountAmount;
 
                           setCurrentOrder(prev => ({
                             ...prev,
@@ -3767,7 +4223,7 @@ export const OrderDetailsSheet = ({
                 </div>
               </div>
 
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              <div className="grid gap-2 md:grid-cols-2">
                 <Button
                   onClick={handleApproveWorkflow}
                   disabled={Boolean((currentOrder as any).poApproved) || Boolean((currentOrder as any).poRejected) || isSavingPoWorkflow}
@@ -3776,35 +4232,6 @@ export const OrderDetailsSheet = ({
                   <CheckCircle size={16} />
                   Approve PO
                 </Button>
-                <Button
-                  onClick={handleSavePoSchedule}
-                  disabled={isSavingPoWorkflow}
-                  variant="outline"
-                  className="w-full justify-center gap-2"
-                >
-                  <CalendarClock size={16} />
-                  Save Schedule
-                </Button>
-                <Button
-                  onClick={handleReceiveInventory}
-                  disabled={!poCanReceive || isSavingPoWorkflow || poFullyReceived}
-                  variant="outline"
-                  className="w-full justify-center gap-2"
-                >
-                  <PackageCheck size={16} />
-                  Receive Stock
-                </Button>
-                {!hideFinancialData && (
-                <Button
-                  onClick={handleRecordPoPayment}
-                  disabled={isSavingPoWorkflow || !poCanRecordPayment}
-                  variant="outline"
-                  className="w-full justify-center gap-2"
-                >
-                  <ReceiptText size={16} />
-                  Pay + Expense
-                </Button>
-                )}
                 <Button
                   onClick={handleRejectWorkflow}
                   disabled={!poCanReject}

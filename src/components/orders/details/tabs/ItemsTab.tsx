@@ -9,7 +9,7 @@ import {
   Tag, Hash, DollarSign, Layers, AlertCircle,
   Plus, Trash2, Save, X, Check, Search
 } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import ProductShowcase from "@/components/pharmacy/ProductShowcase";
@@ -18,6 +18,7 @@ import { useCart } from "@/hooks/use-cart";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import { recalculateOrderPaymentStatus, calculateBalanceDue } from "@/utils/paymentStatusCalculator";
+import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 
 const hasPositiveQuantityDelta = (oldItems: any[] = [], newItems: any[] = []) => {
   const oldMap = new Map<string, number>();
@@ -63,7 +64,12 @@ interface ItemsTabProps {
   shippingCost?: number;
   taxAmount?: number;
   discountAmount?: number;
+  freightCharges?: number;
+  handlingCharges?: number;
+  isPurchaseOrder?: boolean;
+  includePricingInPdf?: boolean;
   hideFinancialData?: boolean;
+  disableEdit?: boolean;
 }
 
 export const ItemsTab = ({ 
@@ -82,7 +88,12 @@ export const ItemsTab = ({
   shippingCost = 0,
   taxAmount = 0,
   discountAmount = 0,
+  freightCharges = 0,
+  handlingCharges = 0,
+  isPurchaseOrder = false,
+  includePricingInPdf = true,
   hideFinancialData = false,
+  disableEdit = false,
 }: ItemsTabProps) => {
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
@@ -96,8 +107,14 @@ export const ItemsTab = ({
   const [isPaymentAdjustmentOpen, setIsPaymentAdjustmentOpen] = useState(false);
   const [paymentAdjustmentData, setPaymentAdjustmentData] = useState<any>(null);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
+  const [isPoEmailPricingDialogOpen, setIsPoEmailPricingDialogOpen] = useState(false);
+  const [pendingPoSaveData, setPendingPoSaveData] = useState<{
+    itemsToSave: OrderFormValues["items"];
+    newSubtotal: number;
+    newTotal: number;
+  } | null>(null);
   
-  const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid && !hideFinancialData;
+  const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid && !hideFinancialData && !disableEdit;
   const maskedAmountLabel = "Restricted";
   
   // Calculate totals
@@ -112,6 +129,8 @@ export const ItemsTab = ({
     }, 0);
     return { totalItems: total, subtotal: sub };
   }, [items, editedItems, isEditMode]);
+  const extraChargesTotal = freightCharges + handlingCharges;
+  const grandTotal = subtotal + shippingCost + taxAmount + extraChargesTotal - discountAmount;
 
   // Handle entering edit mode
   const handleEnterEditMode = useCallback(() => {
@@ -186,8 +205,8 @@ export const ItemsTab = ({
     const itemsSubtotal = items.reduce((acc, item) => {
       return acc + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
     }, 0);
-    return itemsSubtotal + shippingCost + taxAmount - discountAmount;
-  }, [items, shippingCost, taxAmount, discountAmount]);
+    return itemsSubtotal + shippingCost + taxAmount + freightCharges + handlingCharges - discountAmount;
+  }, [items, shippingCost, taxAmount, freightCharges, handlingCharges, discountAmount]);
 
   // Handle save changes
   const handleSaveChanges = useCallback(async () => {
@@ -210,7 +229,7 @@ export const ItemsTab = ({
       // Get current order to preserve other values and check payment status
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("tax_amount, shipping_cost, discount_amount, payment_status, total_amount, order_number, location_id, profile_id, paid_amount")
+        .select("tax_amount, shipping_cost, discount_amount, po_fred_charges, po_handling_charges, payment_status, total_amount, order_number, location_id, profile_id, paid_amount")
         .eq("id", orderId)
         .single();
 
@@ -219,8 +238,27 @@ export const ItemsTab = ({
       const orderTaxAmount = currentOrder?.tax_amount || 0;
       const orderShippingCost = parseFloat(currentOrder?.shipping_cost || "0");
       const orderDiscountAmount = Number(currentOrder?.discount_amount || 0);
-      // Correct formula: Total = Subtotal + Shipping + Tax - Discount
-      const newTotal = newSubtotal + orderShippingCost + orderTaxAmount - orderDiscountAmount;
+      const orderFreightCharges = Number(currentOrder?.po_fred_charges || 0);
+      const orderHandlingCharges = Number(currentOrder?.po_handling_charges || 0);
+      const newTotal =
+        newSubtotal +
+        orderShippingCost +
+        orderTaxAmount +
+        orderFreightCharges +
+        orderHandlingCharges -
+        orderDiscountAmount;
+
+      if (isPurchaseOrder) {
+        setPendingPoSaveData({
+          itemsToSave: editedItems,
+          newSubtotal,
+          newTotal,
+        });
+        setIsSaving(false);
+        setIsPoEmailPricingDialogOpen(true);
+        return;
+      }
+
       const originalAmount = Number(currentOrder?.total_amount || 0);
 
       // Get the paid_amount - if not set and order is paid, use original total_amount
@@ -318,16 +356,39 @@ export const ItemsTab = ({
       });
       setIsSaving(false);
     }
-  }, [orderId, editedItems, items, customerId, orderNumber, customerEmail, toast]);
+  }, [orderId, editedItems, items, customerId, orderNumber, customerEmail, isPurchaseOrder, saveOrderChanges, toast]);
+
+  const handlePoEmailPricingChoice = useCallback(async (shouldIncludePricing: boolean) => {
+    if (!pendingPoSaveData) return;
+
+    setIsPoEmailPricingDialogOpen(false);
+    setIsSaving(true);
+
+    try {
+      await saveOrderChanges(
+        pendingPoSaveData.itemsToSave,
+        pendingPoSaveData.newSubtotal,
+        pendingPoSaveData.newTotal,
+        undefined,
+        undefined,
+        shouldIncludePricing,
+      );
+      setPendingPoSaveData(null);
+    } catch (error) {
+      console.error("Error saving PO changes after email pricing choice:", error);
+      setIsSaving(false);
+    }
+  }, [pendingPoSaveData, saveOrderChanges]);
 
   // Actual save function (called directly or after payment adjustment)
-  const saveOrderChanges = useCallback(async (
+  async function saveOrderChanges(
     itemsToSave: any[],
     newSubtotal: number,
     newTotal: number,
     newPaymentStatus?: string,
-    paymentAdjustmentResult?: { adjustmentType?: string; adjustmentKey?: string }
-  ) => {
+    paymentAdjustmentResult?: { adjustmentType?: string; adjustmentKey?: string },
+    shouldIncludePricingInEmail: boolean = includePricingInPdf,
+  ) {
     try {
       // Get current order data for activity logging
       const { data: currentOrderData } = await supabase
@@ -547,6 +608,19 @@ export const ItemsTab = ({
         onOrderUpdate();
       }
 
+      if (isPurchaseOrder && orderId) {
+        try {
+          await sendPurchaseOrderEmail(orderId, "updated", shouldIncludePricingInEmail);
+        } catch (emailError) {
+          console.error("Failed to send updated PO email to vendor:", emailError);
+          toast({
+            title: "PO updated, email not sent",
+            description: "The purchase order changes were saved, but the vendor email could not be delivered.",
+            variant: "destructive",
+          });
+        }
+      }
+
       setIsEditMode(false);
       toast({
         title: "Success",
@@ -562,7 +636,7 @@ export const ItemsTab = ({
     } finally {
       setIsSaving(false);
     }
-  }, [orderId, onItemsUpdate, onOrderUpdate, toast]);
+  }
 
   // Handle payment adjustment completion
   const handlePaymentAdjustmentComplete = useCallback(async (result: { success: boolean; adjustmentType: string; transactionId?: string; adjustmentKey?: string }) => {
@@ -992,10 +1066,28 @@ export const ItemsTab = ({
                 <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${shippingCost.toFixed(2)}`}</span>
               </div>
             )}
+            {freightCharges > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Freight Charges</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${freightCharges.toFixed(2)}`}</span>
+              </div>
+            )}
+            {handlingCharges > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Handling Charges</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${handlingCharges.toFixed(2)}`}</span>
+              </div>
+            )}
             {taxAmount > 0 && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">Tax</span>
                 <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${taxAmount.toFixed(2)}`}</span>
+              </div>
+            )}
+            {discountAmount > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Discount</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `-$${discountAmount.toFixed(2)}`}</span>
               </div>
             )}
           </div>
@@ -1013,7 +1105,7 @@ export const ItemsTab = ({
                 </div>
               </div>
               <span className="text-2xl font-bold text-white">
-                {hideFinancialData ? maskedAmountLabel : `$${(subtotal + shippingCost + taxAmount).toFixed(2)}`}
+                {hideFinancialData ? maskedAmountLabel : `$${grandTotal.toFixed(2)}`}
               </span>
             </div>
           </div>
@@ -1028,6 +1120,50 @@ export const ItemsTab = ({
         onAddProducts={handleAddProductsFromCart}
         cartItemsCount={cartItems.length}
       />
+
+      <Dialog
+        open={isPoEmailPricingDialogOpen}
+        onOpenChange={(open) => {
+          setIsPoEmailPricingDialogOpen(open);
+          if (!open) {
+            setPendingPoSaveData(null);
+            setIsSaving(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Include pricing in vendor email?</DialogTitle>
+            <DialogDescription>
+              The purchase order item changes are ready to save. Choose whether the updated vendor email should include pricing.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            Select `Include Pricing` to send unit prices and totals. Select `Hide Pricing` to send a quantity-only vendor copy.
+          </div>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsPoEmailPricingDialogOpen(false);
+                setPendingPoSaveData(null);
+                setIsSaving(false);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handlePoEmailPricingChoice(false)}
+            >
+              Hide Pricing
+            </Button>
+            <Button onClick={() => handlePoEmailPricingChoice(true)}>
+              Include Pricing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Payment Adjustment Modal for Paid Orders */}
       {isPaymentAdjustmentOpen && paymentAdjustmentData && (

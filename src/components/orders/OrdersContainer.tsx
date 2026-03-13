@@ -513,60 +513,64 @@ export const OrdersContainer = ({
     <div className="space-y-4">
       {poIs && poStats && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-              <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-                <OrderFilters
-                  onSearch={setSearchQuery}
-                  onDateChange={setDateRange}
-                  onExport={() =>
-                    console.log("Export functionality to be implemented")
-                  }
-                />
-
-                <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-1">
-                  {[
-                    { value: "all", label: "All" },
-                    { value: "pending", label: "Pending" },
-                    { value: "approved", label: "Approved" },
-                    { value: "partially_received", label: "Receiving" },
-                    { value: "received", label: "Received" },
-                    { value: "closed", label: "Closed" },
-                    { value: "rejected", label: "Rejected" },
-                  ].map((option) => (
-                    <Button
-                      key={option.value}
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setStatusFilter2(option.value)}
-                      className={
-                        statusFilter2 === option.value
-                          ? "bg-white text-blue-700 shadow-sm"
-                          : "text-slate-600 hover:text-slate-900"
-                      }
-                    >
-                      {option.label}
-                    </Button>
-                  ))}
-                </div>
-              </div>
-
-              {!hideFinancialData && (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                    onClick={() => setIsOpen(true)}
-                  >
-                    <Package className="h-4 w-4" />
-                    Browse Products
-                  </Button>
-                  <CreatePurchaseOrderDialog />
-                  <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
-                </div>
-              )}
+          <div className="space-y-3">
+            <div className="min-w-0">
+              <OrderFilters
+                onSearch={setSearchQuery}
+                onDateChange={setDateRange}
+                onExport={() =>
+                  console.log("Export functionality to be implemented")
+                }
+              />
             </div>
+
+              <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-1">
+                    {[
+                      { value: "all", label: "All" },
+                      { value: "pending", label: "Pending" },
+                      { value: "approved", label: "Approved" },
+                      { value: "partially_received", label: "Receiving" },
+                      { value: "received", label: "Received" },
+                      { value: "closed", label: "Closed" },
+                      { value: "rejected", label: "Rejected" },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setStatusFilter2(option.value)}
+                        className={
+                          statusFilter2 === option.value
+                            ? "bg-white text-blue-700 shadow-sm"
+                            : "text-slate-600 hover:text-slate-900"
+                        }
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                {!hideFinancialData && (
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                      onClick={() => setIsOpen(true)}
+                    >
+                      <Package className="h-4 w-4" />
+                      Browse Products
+                    </Button>
+                    <CreatePurchaseOrderDialog />
+                    <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
+                  </div>
+                )}
+              </div>
           </div>
+        </div>
       )}
 
       {/* Order Summary Cards */}

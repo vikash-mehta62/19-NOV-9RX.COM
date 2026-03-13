@@ -70,6 +70,8 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const rawPaymentStatus = String(order.payment_status || '').toLowerCase();
       const isPaid = rawPaymentStatus === 'paid';
       const isInvoice = documentType === 'INVOICE';
+      const isPurchaseOrder = documentType === 'PURCHASE ORDER';
+      const includePricingInPdf = !isPurchaseOrder || options.includePricingInPdf !== false;
       
       const orderNumber = order?.order_number || order?.orderNumber || "N/A";
       const invoiceNumber = order?.invoice_number || `INV-${Date.now()}`;
@@ -116,14 +118,18 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       const shipping = toNumber(order?.shipping_cost || order?.shippin_cost || 0);
       const tax = toNumber(order?.tax_amount || order?.tax || 0);
+      const freightCharges = toNumber(order?.po_fred_charges || order?.po_freight_charges || 0);
+      const handlingCharges = toNumber(order?.po_handling_charges || 0);
       const discountAmount = toNumber(order?.discount_amount || 0);
       const processingFeeAmount = toNumber(order?.processing_fee_amount || 0);
       const discountDetails = order?.discount_details || [];
       
-      // Calculate total: subtotal + shipping + tax - discount (EXACT frontend formula)
-      const calculatedTotal = subtotal + shipping + tax - discountAmount;
+      // Calculate total: subtotal + shipping + tax - discount, plus PO charge fields when present.
+      const calculatedTotal = isPurchaseOrder
+        ? subtotal + shipping + tax + freightCharges + handlingCharges - discountAmount
+        : subtotal + shipping + tax - discountAmount;
       const storedTotal = toNumber(order?.total_amount || order?.total || 0);
-      const total = storedTotal > 0 ? storedTotal : calculatedTotal;
+      const total = isPurchaseOrder ? calculatedTotal : (storedTotal > 0 ? storedTotal : calculatedTotal);
       
       const paidAmount = toNumber(order?.paid_amount || 0);
       const actualPaid = (isPaid && paidAmount === 0) ? total : paidAmount;
@@ -158,7 +164,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const chunks = [];
       doc.on('data', (chunk) => chunks.push(chunk));
       doc.on('end', () => {
-        const filePrefix = isInvoice ? "Invoice" : "SalesOrder";
+        const filePrefix = isInvoice ? "Invoice" : (isPurchaseOrder ? "PurchaseOrder" : "SalesOrder");
         const safeDocNumber = String(documentNumber).replace(/[^a-zA-Z0-9-_]/g, "_");
         
         resolve({
@@ -203,7 +209,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
          .text('Tax ID: 99-0540972  |  www.9rx.com', mm(PAGE_MARGIN), mm(44));
       
       // Document title (right side)
-      const titleText = isInvoice ? 'INVOICE' : 'SALES ORDER';
+      const titleText = isInvoice ? 'INVOICE' : (isPurchaseOrder ? 'PURCHASE ORDER' : 'SALES ORDER');
       let titleFontSize = 26;
       while (titleFontSize > 18) {
         doc.fontSize(titleFontSize).font('Helvetica-Bold');
@@ -228,19 +234,21 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
          .text(`# ${documentNumber}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(24), { width: mm(65), align: 'right', lineBreak: false })
          .text(`Date: ${currentDate}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(29), { width: mm(65), align: 'right', lineBreak: false });
       
-      // Payment status badge
-      const badgeLabel = isPaid ? 'PAID' : (isPartialPaid ? 'PARTIAL PAID' : 'UNPAID');
-      const badgeColor = isPaid ? '#10B981' : (isPartialPaid ? '#F59E0B' : '#EF4444');
-      const badgeWidth = isPartialPaid ? 40 : 30;
-      const badgeX = mm(PAGE_WIDTH - PAGE_MARGIN - badgeWidth);
-      const badgeY = mm(36);
-      doc.roundedRect(badgeX, badgeY, mm(badgeWidth), mm(9), mm(2))
-         .fill(badgeColor);
+      if (!isPurchaseOrder) {
+        // Payment status badge
+        const badgeLabel = isPaid ? 'PAID' : (isPartialPaid ? 'PARTIAL PAID' : 'UNPAID');
+        const badgeColor = isPaid ? '#10B981' : (isPartialPaid ? '#F59E0B' : '#EF4444');
+        const badgeWidth = isPartialPaid ? 40 : 30;
+        const badgeX = mm(PAGE_WIDTH - PAGE_MARGIN - badgeWidth);
+        const badgeY = mm(36);
+        doc.roundedRect(badgeX, badgeY, mm(badgeWidth), mm(9), mm(2))
+           .fill(badgeColor);
 
-      doc.fontSize(isPartialPaid ? 8 : 9)
-         .fillColor('#FFFFFF')
-         .font('Helvetica-Bold')
-         .text(badgeLabel, badgeX, badgeY + mm(3), { width: mm(badgeWidth), align: 'center', lineBreak: false });
+        doc.fontSize(isPartialPaid ? 8 : 9)
+           .fillColor('#FFFFFF')
+           .font('Helvetica-Bold')
+           .text(badgeLabel, badgeX, badgeY + mm(3), { width: mm(badgeWidth), align: 'center', lineBreak: false });
+      }
       
       // Add barcode
       try {
@@ -271,7 +279,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fontSize(9)
          .fillColor('#3B82F6')
          .font('Helvetica-Bold')
-         .text('BILL TO', mm(PAGE_MARGIN + 4), mm(sectionY + 5));
+         .text(isPurchaseOrder ? 'VENDOR' : 'BILL TO', mm(PAGE_MARGIN + 4), mm(sectionY + 5));
       
       doc.fontSize(8)
          .fillColor('#1F2937')
@@ -300,7 +308,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fontSize(9)
          .fillColor('#3B82F6')
          .font('Helvetica-Bold')
-         .text('SHIP TO', mm(shipToX + 4), mm(sectionY + 5));
+         .text(isPurchaseOrder ? 'DELIVER TO' : 'SHIP TO', mm(shipToX + 4), mm(sectionY + 5));
       
       doc.fontSize(8)
          .fillColor('#1F2937')
@@ -352,8 +360,10 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.text('Description', mm(colX.desc), mm(tableStartY + 3));
       doc.text('Size', mm(colX.size), mm(tableStartY + 3));
       doc.text('Qty', mm(colX.qty), mm(tableStartY + 3));
-      doc.text('Unit Price', mm(colX.price), mm(tableStartY + 3));
-      doc.text('Total', mm(colX.total), mm(tableStartY + 3));
+      if (includePricingInPdf) {
+        doc.text('Unit Price', mm(colX.price), mm(tableStartY + 3));
+        doc.text('Total', mm(colX.total), mm(tableStartY + 3));
+      }
       
       // Table rows
       let rowY = tableStartY + tableHeaderHeight;
@@ -386,8 +396,10 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(70) });
             doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
             doc.text(itemQty.toString(), mm(colX.qty), mm(rowY + 2.5));
-            doc.text(`$${formatCurrency(itemPrice)}`, mm(colX.price), mm(rowY + 2.5));
-            doc.text(`$${formatCurrency(itemTotal)}`, mm(colX.total), mm(rowY + 2.5));
+            if (includePricingInPdf) {
+              doc.text(`$${formatCurrency(itemPrice)}`, mm(colX.price), mm(rowY + 2.5));
+              doc.text(`$${formatCurrency(itemTotal)}`, mm(colX.total), mm(rowY + 2.5));
+            }
             
             rowY += rowHeight;
             itemIndex++;
@@ -410,14 +422,17 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(70) });
           doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
           doc.text(itemQty.toString(), mm(colX.qty), mm(rowY + 2.5));
-          doc.text(`$${formatCurrency(itemPrice)}`, mm(colX.price), mm(rowY + 2.5));
-          doc.text(`$${formatCurrency(itemTotal)}`, mm(colX.total), mm(rowY + 2.5));
+          if (includePricingInPdf) {
+            doc.text(`$${formatCurrency(itemPrice)}`, mm(colX.price), mm(rowY + 2.5));
+            doc.text(`$${formatCurrency(itemTotal)}`, mm(colX.total), mm(rowY + 2.5));
+          }
           
           rowY += rowHeight;
           itemIndex++;
         }
       });
       
+      if (includePricingInPdf) {
       // Totals section
       const totalsStartY = rowY + 15;
       const totalsX = PAGE_WIDTH - PAGE_MARGIN - 75;
@@ -457,6 +472,22 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       console.log("💵 Rendering Tax:", taxText, "at position:", mm(valueX), mm(totalY));
       doc.text(taxText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
       totalY += 8;
+
+      if (isPurchaseOrder && freightCharges > 0) {
+        doc.fillColor('#1F2937');
+        doc.text('Freight', mm(totalsX), mm(totalY));
+        doc.fillColor('#1F2937');
+        doc.text(`$${formatCurrency(freightCharges)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
+        totalY += 8;
+      }
+
+      if (isPurchaseOrder && handlingCharges > 0) {
+        doc.fillColor('#1F2937');
+        doc.text('Handling', mm(totalsX), mm(totalY));
+        doc.fillColor('#1F2937');
+        doc.text(`$${formatCurrency(handlingCharges)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
+        totalY += 8;
+      }
 
       if (processingFeeAmount > 0) {
         doc.fillColor('#1F2937');
@@ -533,6 +564,23 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         }
       }
       
+      } else if (isPurchaseOrder) {
+        doc.roundedRect(mm(PAGE_MARGIN), mm(rowY + 10), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(12), mm(2))
+           .fill('#EFF6FF');
+
+        doc.fontSize(9)
+           .fillColor('#2563EB')
+           .font('Helvetica-Bold')
+           .text('Vendor copy: pricing hidden', mm(PAGE_MARGIN + 4), mm(rowY + 14));
+
+        doc.fontSize(8)
+           .fillColor('#1F2937')
+           .font('Helvetica')
+           .text('This purchase order includes quantities and delivery details only.', mm(PAGE_MARGIN + 4), mm(rowY + 18), {
+             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2 - 8),
+           });
+      }
+
       const pageRange = doc.bufferedPageRange();
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);

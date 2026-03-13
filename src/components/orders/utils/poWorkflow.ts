@@ -52,7 +52,7 @@ export const getPoWorkflowLabel = (state: PoWorkflowState) => {
     case "received":
       return "Received";
     case "closed":
-      return "Closed";
+      return "Completed";
     case "rejected":
       return "Rejected";
     default:

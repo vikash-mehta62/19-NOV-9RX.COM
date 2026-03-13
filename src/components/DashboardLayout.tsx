@@ -47,6 +47,7 @@ import { AnnouncementDisplay } from "@/components/AnnouncementDisplay"
 import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
 import { AdminPermission, hasAdminPermission, isInternalAdminType, shouldHideAdminFinancials } from "@/lib/adminAccess"
+import { useLocation } from "react-router-dom"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -70,8 +71,10 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
   const isMobile = useIsMobile()
   const { cartItems } = useCart()
   const currentUserProfile = useSelector((state: RootState) => state.user.profile)
+  const location = useLocation()
   const contentRef = useRef<HTMLDivElement | null>(null)
   const hideFinancialData = role === "admin" && shouldHideAdminFinancials(currentUserProfile)
+  const hideCartDrawer = role === "admin" && location.pathname.startsWith("/admin/po")
   
   // Calculate total cart items
   const totalCartItems = useMemo(() => 
@@ -358,7 +361,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         </Sidebar>
 
         <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-          <TopBar />
+          <TopBar hideCartDrawer={hideCartDrawer} />
           <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 overflow-y-auto">
             <div ref={contentRef} className="mx-auto max-w-7xl w-full">
               <AnnouncementDisplay userRole={role} />

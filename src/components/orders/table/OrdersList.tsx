@@ -818,9 +818,6 @@ export function OrdersList({
                 >
                   <div className="flex flex-col items-center">
                     <span className="font-mono text-sm font-semibold text-blue-700">{order.order_number}</span>
-                    <span className="text-xs text-slate-500">
-                      {(order as any).purchase_number_external || "Internal PO"}
-                    </span>
                   </div>
                 </TableCell>
               )}
@@ -956,9 +953,6 @@ export function OrdersList({
                         >
                           {getPoWorkflowLabel(poState)}
                         </Badge>
-                        <span className="text-xs text-slate-500">
-                          Click row to review PO
-                        </span>
                       </div>
                     );
                   })()}

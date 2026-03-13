@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-import { useForm } from "react-hook-form";
+import { useState, useEffect, useMemo, useRef } from "react";
+import { FieldErrors, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -19,7 +19,8 @@ import { OrderActivityService } from "@/services/orderActivityService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { updateCartPrice } from "@/store/actions/cartActions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { clearCart as clearCartAction, updateCartPrice } from "@/store/actions/cartActions";
 import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from "uuid";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -31,16 +32,32 @@ import {
   fetchAdminDocumentSettings,
   formatDocumentAddressLine,
 } from "@/lib/documentSettings";
+import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
 }
+
+const SHIPPING_METHOD_OPTIONS = [
+  { value: "FedEx", label: "FedEx" },
+  { value: "custom", label: "Custom" },
+];
+
+type WarehouseAddressErrors = Partial<Record<
+  "name" | "email" | "phone" | "street" | "city" | "state" | "zipCode" | "country",
+  string
+>>;
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const TEN_DIGIT_PHONE_PATTERN = /^\d{10}$/;
+const FIVE_DIGIT_ZIP_PATTERN = /^\d{5}$/;
 
 export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormProps) {
   const { toast } = useToast();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPoCartInitialized, setIsPoCartInitialized] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [isCus, setIsCus] = useState(false);
@@ -50,15 +67,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [vendorInfo, setVendorInfo] = useState<any>(null);
   const [loadingVendor, setLoadingVendor] = useState(true);
   const [documentSettings, setDocumentSettings] = useState<AdminDocumentSettings>(DEFAULT_ADMIN_DOCUMENT_SETTINGS);
-  const [isEditingAddress, setIsEditingAddress] = useState(false);
-  const [editableAddress, setEditableAddress] = useState({
-    street1: "",
-    street2: "",
-    city: "",
-    state: "",
-    zip_code: "",
-    country: "",
-  });
   const [isEditingWarehouseAddress, setIsEditingWarehouseAddress] = useState(false);
   const [isSavingWarehouseAddress, setIsSavingWarehouseAddress] = useState(false);
   const [editableWarehouseAddress, setEditableWarehouseAddress] = useState({
@@ -72,6 +80,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     zipCode: "",
     country: "",
   });
+  const [warehouseAddressErrors, setWarehouseAddressErrors] = useState<WarehouseAddressErrors>({});
   const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
@@ -83,6 +92,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [sizeSelections, setSizeSelections] = useState<Record<string, number>>({});
   const [sizePriceOverrides, setSizePriceOverrides] = useState<Record<string, string>>({});
+  const hasInitializedPoCartRef = useRef(false);
   const [manualProduct, setManualProduct] = useState({
     name: "",
     sku: "",
@@ -106,16 +116,6 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
         if (error) throw error;
         setVendorInfo(data);
-        
-        // Initialize editable address
-        setEditableAddress({
-          street1: data?.billing_address?.street1 || "",
-          street2: data?.billing_address?.street2 || "",
-          city: data?.billing_address?.city || "",
-          state: data?.billing_address?.state || "",
-          zip_code: data?.billing_address?.zip_code || "",
-          country: data?.billing_address?.country || "",
-        });
       } catch (error) {
         console.error("Error fetching vendor:", error);
         toast({
@@ -174,7 +174,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       },
 
       order_number: "",
-      items: cartItems,
+      items: [],
       shipping: {
         method: "FedEx",
         cost: 0,
@@ -187,9 +187,49 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         includePricingInPdf: true,
       },
       specialInstructions: "",
-      purchase_number_external: "",
     },
   });
+
+  useEffect(() => {
+    if (hasInitializedPoCartRef.current) return;
+    hasInitializedPoCartRef.current = true;
+
+    let isActive = true;
+
+    const resetPurchaseOrderCart = async () => {
+      dispatch(clearCartAction());
+      localStorage.removeItem("cart");
+      localStorage.removeItem("cartItems");
+
+      if (!isActive) return;
+
+      form.setValue("items", []);
+      setIsPoCartInitialized(true);
+    };
+
+    void resetPurchaseOrderCart();
+
+    return () => {
+      isActive = false;
+    };
+  }, [dispatch, form]);
+
+  useEffect(() => {
+    const shippingMethod = form.getValues("shipping.method");
+    if (!SHIPPING_METHOD_OPTIONS.some((option) => option.value === shippingMethod)) {
+      form.setValue("shipping.method", "FedEx");
+    }
+
+    form.setValue("payment.method", "manual");
+
+    const estimatedDelivery = form.getValues("shipping.estimatedDelivery");
+    if (!estimatedDelivery) {
+      form.setValue(
+        "shipping.estimatedDelivery",
+        new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+      );
+    }
+  }, [form]);
 
   useEffect(() => {
     const loadDocumentSettings = async () => {
@@ -224,10 +264,76 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     });
   }
 
+  function validateWarehouseAddress() {
+    const nextErrors: WarehouseAddressErrors = {};
+    const values = {
+      name: editableWarehouseAddress.name.trim(),
+      email: editableWarehouseAddress.email.trim(),
+      phone: editableWarehouseAddress.phone.trim(),
+      street: editableWarehouseAddress.street.trim(),
+      city: editableWarehouseAddress.city.trim(),
+      state: editableWarehouseAddress.state.trim(),
+      zipCode: editableWarehouseAddress.zipCode.trim(),
+      country: editableWarehouseAddress.country.trim(),
+    };
+
+    if (!values.name) nextErrors.name = "Company / Name is required.";
+    if (!values.phone) {
+      nextErrors.phone = "Phone is required.";
+    } else if (!TEN_DIGIT_PHONE_PATTERN.test(values.phone)) {
+      nextErrors.phone = "Phone must contain exactly 10 digits.";
+    }
+    if (!values.email) {
+      nextErrors.email = "Email is required.";
+    } else if (!EMAIL_PATTERN.test(values.email)) {
+      nextErrors.email = "Enter a valid email address.";
+    }
+    if (!values.street) nextErrors.street = "Street address is required.";
+    if (!values.country) nextErrors.country = "Country is required.";
+    if (!values.city) nextErrors.city = "City is required.";
+    if (!values.state) nextErrors.state = "State is required.";
+    if (!values.zipCode) {
+      nextErrors.zipCode = "ZIP code is required.";
+    } else if (!FIVE_DIGIT_ZIP_PATTERN.test(values.zipCode)) {
+      nextErrors.zipCode = "ZIP code must contain exactly 5 digits.";
+    }
+
+    setWarehouseAddressErrors(nextErrors);
+    return Object.keys(nextErrors).length === 0;
+  }
+
+  function updateWarehouseAddressField(
+    field: keyof typeof editableWarehouseAddress,
+    value: string
+  ) {
+    setEditableWarehouseAddress((current) => ({
+      ...current,
+      [field]: value,
+    }));
+
+    if (field in warehouseAddressErrors) {
+      setWarehouseAddressErrors((current) => {
+        const next = { ...current };
+        delete next[field as keyof WarehouseAddressErrors];
+        return next;
+      });
+    }
+  }
+
   const handleWarehouseAddressEdit = async () => {
     if (!isEditingWarehouseAddress) {
       setEditableWarehouseAddress(warehouseAddress);
+      setWarehouseAddressErrors({});
       setIsEditingWarehouseAddress(true);
+      return;
+    }
+
+    if (!validateWarehouseAddress()) {
+      toast({
+        title: "Delivery address not saved",
+        description: "Fix the highlighted fields and try again.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -246,6 +352,15 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       const updatedWarehouse = {
         ...warehouseAddress,
         ...editableWarehouseAddress,
+        name: editableWarehouseAddress.name.trim(),
+        email: editableWarehouseAddress.email.trim(),
+        phone: editableWarehouseAddress.phone.trim(),
+        street: editableWarehouseAddress.street.trim(),
+        suite: editableWarehouseAddress.suite.trim(),
+        city: editableWarehouseAddress.city.trim(),
+        state: editableWarehouseAddress.state.trim(),
+        zipCode: editableWarehouseAddress.zipCode.trim(),
+        country: editableWarehouseAddress.country.trim(),
       };
 
       const { error } = await supabase.from("settings").upsert(
@@ -276,6 +391,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
       setDocumentSettings(nextSettings);
       setEditableWarehouseAddress(updatedWarehouse);
+      setWarehouseAddressErrors({});
       applyWarehouseAddressToForm(updatedWarehouse);
       setIsEditingWarehouseAddress(false);
 
@@ -345,9 +461,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
   // Sync cart items with form
   useEffect(() => {
+    if (!isPoCartInitialized) return;
     form.setValue("items", cartItems);
     console.log("📦 Cart items synced to form:", cartItems);
-  }, [cartItems, form]);
+  }, [cartItems, form, isPoCartInitialized]);
 
   const calculateOrderTotal = (items: any[], shippingCost: number) => {
     const itemsTotal = items.reduce((total, item) => {
@@ -612,17 +729,16 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         customization: false,
         items: cartItems,
         notes: data.specialInstructions,
-        purchase_number_external: data.purchase_number_external,
         shipping_method: data.shipping?.method,
         customerInfo: {
           ...data.customerInfo,
           address: {
-            street: editableAddress.street1,
-            street2: editableAddress.street2,
-            city: editableAddress.city,
-            state: editableAddress.state,
-            zip_code: editableAddress.zip_code,
-            country: editableAddress.country,
+            street: vendorInfo?.billing_address?.street1 || "",
+            street2: vendorInfo?.billing_address?.street2 || "",
+            city: vendorInfo?.billing_address?.city || "",
+            state: vendorInfo?.billing_address?.state || "",
+            zip_code: vendorInfo?.billing_address?.zip_code || "",
+            country: vendorInfo?.billing_address?.country || vendorInfo?.billing_address?.countryRegion || "",
           },
         },
         shippingAddress: data.shippingAddress,
@@ -746,6 +862,17 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         console.error("Failed to log PO creation activity:", activityError);
       }
 
+      try {
+        await sendPurchaseOrderEmail(poResponse.id, "created", data.payment?.includePricingInPdf !== false);
+      } catch (emailError) {
+        console.error("Failed to send PO email to vendor:", emailError);
+        toast({
+          title: "PO created, email not sent",
+          description: "The purchase order was saved, but the vendor email could not be delivered.",
+          variant: "destructive",
+        });
+      }
+
       // Clear cart and navigate
       localStorage.removeItem("cart");
       localStorage.removeItem("cartItems");
@@ -772,12 +899,32 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     }
   };
 
-  if (loadingVendor) {
+  const onInvalidSubmit = (errors: FieldErrors<OrderFormValues>) => {
+    const errorMessages = [
+      errors.shipping?.method?.message,
+      errors.shipping?.estimatedDelivery?.message,
+      errors.items?.message,
+      errors.customerInfo?.message,
+    ].filter(Boolean);
+
+    toast({
+      title: "Purchase order not created",
+      description:
+        typeof errorMessages[0] === "string"
+          ? errorMessages[0]
+          : "Please fix the highlighted purchase order fields and try again.",
+      variant: "destructive",
+    });
+  };
+
+  if (loadingVendor || !isPoCartInitialized) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading vendor information...</p>
+          <p className="mt-4 text-gray-600">
+            {loadingVendor ? "Loading vendor information..." : "Preparing purchase order workspace..."}
+          </p>
         </div>
       </div>
     );
@@ -860,174 +1007,30 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           
           {/* Vendor Address Section */}
           <div className="pt-4 border-t border-blue-200">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2">
               <p className="text-sm font-medium text-gray-700">Vendor Address</p>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  if (isEditingAddress) {
-                    // Save the address to database
-                    try {
-                      const { error } = await supabase
-                        .from("profiles")
-                        .update({
-                          billing_address: {
-                            ...vendorInfo.billing_address,
-                            street1: editableAddress.street1,
-                            street2: editableAddress.street2,
-                            city: editableAddress.city,
-                            state: editableAddress.state,
-                            zip_code: editableAddress.zip_code,
-                            country: editableAddress.country,
-                          },
-                        })
-                        .eq("id", vendorId);
-
-                      if (error) throw error;
-
-                      // Update local state
-                      setVendorInfo({
-                        ...vendorInfo,
-                        billing_address: {
-                          ...vendorInfo.billing_address,
-                          street1: editableAddress.street1,
-                          street2: editableAddress.street2,
-                          city: editableAddress.city,
-                          state: editableAddress.state,
-                          zip_code: editableAddress.zip_code,
-                          country: editableAddress.country,
-                        },
-                      });
-
-                      toast({
-                        title: "Address Updated",
-                        description: "Vendor address has been updated successfully in the database.",
-                      });
-                    } catch (error) {
-                      console.error("Error updating vendor address:", error);
-                      toast({
-                        title: "Error",
-                        description: "Failed to update vendor address. Please try again.",
-                        variant: "destructive",
-                      });
-                      return; // Don't toggle edit mode if save failed
-                    }
-                  }
-                  setIsEditingAddress(!isEditingAddress);
-                }}
-                className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-              >
-                {isEditingAddress ? (
-                  <>
-                    <Save className="h-4 w-4 mr-1" />
-                    Save
-                  </>
-                ) : (
-                  <>
-                    <Edit2 className="h-4 w-4 mr-1" />
-                    Edit
-                  </>
-                )}
-              </Button>
             </div>
             <div className="bg-white rounded-lg p-4 border border-blue-100">
-              {isEditingAddress ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="md:col-span-2">
-                    <Label htmlFor="street1" className="text-sm">Street Address 1</Label>
-                    <Input
-                      id="street1"
-                      value={editableAddress.street1}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, street1: e.target.value })}
-                      placeholder="Enter street address"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor="street2" className="text-sm">Street Address 2 (Optional)</Label>
-                    <Input
-                      id="street2"
-                      value={editableAddress.street2}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, street2: e.target.value })}
-                      placeholder="Apt, Suite, etc."
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="city" className="text-sm">City</Label>
-                    <Input
-                      id="city"
-                      value={editableAddress.city}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, city: e.target.value })}
-                      placeholder="Enter city"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="state" className="text-sm">State</Label>
-                    <Input
-                      id="state"
-                      value={editableAddress.state}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, state: e.target.value })}
-                      placeholder="Enter state"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="zip_code" className="text-sm">ZIP Code</Label>
-                    <Input
-                      id="zip_code"
-                      value={editableAddress.zip_code}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, zip_code: e.target.value })}
-                      placeholder="Enter ZIP code"
-                      className="mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="country" className="text-sm">Country</Label>
-                    <Input
-                      id="country"
-                      value={editableAddress.country}
-                      onChange={(e) => setEditableAddress({ ...editableAddress, country: e.target.value })}
-                      placeholder="Enter country"
-                      className="mt-1"
-                    />
-                  </div>
+              {vendorInfo?.billing_address?.street1 ||
+              vendorInfo?.billing_address?.city ||
+              vendorInfo?.billing_address?.state ||
+              vendorInfo?.billing_address?.zip_code ? (
+                <div className="space-y-1 text-gray-900">
+                  {vendorInfo?.billing_address?.street1 && <p>{vendorInfo.billing_address.street1}</p>}
+                  {vendorInfo?.billing_address?.street2 && <p>{vendorInfo.billing_address.street2}</p>}
+                  <p>
+                    {[
+                      vendorInfo?.billing_address?.city,
+                      vendorInfo?.billing_address?.state,
+                      vendorInfo?.billing_address?.zip_code,
+                    ].filter(Boolean).join(", ")}
+                  </p>
+                  {(vendorInfo?.billing_address?.country || vendorInfo?.billing_address?.countryRegion) && (
+                    <p>{vendorInfo?.billing_address?.country || vendorInfo?.billing_address?.countryRegion}</p>
+                  )}
                 </div>
               ) : (
-                <>
-                  {vendorInfo?.billing_address?.street1 || 
-                   editableAddress.street1 ||
-                   vendorInfo?.billing_address?.city || 
-                   editableAddress.city ||
-                   vendorInfo?.billing_address?.state || 
-                   editableAddress.state ||
-                   vendorInfo?.billing_address?.zip_code ||
-                   editableAddress.zip_code ? (
-                    <div className="space-y-1 text-gray-900">
-                      {(vendorInfo?.billing_address?.street1 || editableAddress.street1) && (
-                        <p>{vendorInfo?.billing_address?.street1 || editableAddress.street1}</p>
-                      )}
-                      {(vendorInfo?.billing_address?.street2 || editableAddress.street2) && (
-                        <p>{vendorInfo?.billing_address?.street2 || editableAddress.street2}</p>
-                      )}
-                      <p>
-                        {[
-                          vendorInfo?.billing_address?.city || editableAddress.city,
-                          vendorInfo?.billing_address?.state || editableAddress.state,
-                          vendorInfo?.billing_address?.zip_code || editableAddress.zip_code
-                        ].filter(Boolean).join(", ")}
-                      </p>
-                      {(vendorInfo?.billing_address?.country || editableAddress.country) && (
-                        <p>{vendorInfo?.billing_address?.country || editableAddress.country}</p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-gray-500 italic">No address available - Click Edit to add</p>
-                  )}
-                </>
+                <p className="text-gray-500 italic">No vendor address available.</p>
               )}
             </div>
           </div>
@@ -1067,86 +1070,98 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           {isEditingWarehouseAddress ? (
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
-                <Label htmlFor="warehouse_name" className="text-sm">Company / Name</Label>
+                <Label htmlFor="warehouse_name" className="text-sm">Company / Name <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_name"
                   value={editableWarehouseAddress.name}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, name: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("name", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.name ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.name}</p> : null}
               </div>
               <div>
-                <Label htmlFor="warehouse_phone" className="text-sm">Phone</Label>
+                <Label htmlFor="warehouse_phone" className="text-sm">Phone <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_phone"
                   value={editableWarehouseAddress.phone}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, phone: e.target.value })}
+                  inputMode="numeric"
+                  maxLength={10}
+                  onChange={(e) => updateWarehouseAddressField("phone", e.target.value.replace(/\D/g, "").slice(0, 10))}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.phone ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.phone}</p> : null}
               </div>
               <div className="md:col-span-2">
-                <Label htmlFor="warehouse_email" className="text-sm">Email</Label>
+                <Label htmlFor="warehouse_email" className="text-sm">Email <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_email"
                   type="email"
                   value={editableWarehouseAddress.email}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, email: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("email", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.email ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.email}</p> : null}
               </div>
               <div className="md:col-span-2">
-                <Label htmlFor="warehouse_street" className="text-sm">Street Address</Label>
+                <Label htmlFor="warehouse_street" className="text-sm">Street Address <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_street"
                   value={editableWarehouseAddress.street}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, street: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("street", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.street ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.street}</p> : null}
               </div>
               <div>
                 <Label htmlFor="warehouse_suite" className="text-sm">Suite / Unit</Label>
                 <Input
                   id="warehouse_suite"
                   value={editableWarehouseAddress.suite}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, suite: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("suite", e.target.value)}
                   className="mt-1"
                 />
               </div>
               <div>
-                <Label htmlFor="warehouse_country" className="text-sm">Country</Label>
+                <Label htmlFor="warehouse_country" className="text-sm">Country <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_country"
                   value={editableWarehouseAddress.country}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, country: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("country", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.country ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.country}</p> : null}
               </div>
               <div>
-                <Label htmlFor="warehouse_city" className="text-sm">City</Label>
+                <Label htmlFor="warehouse_city" className="text-sm">City <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_city"
                   value={editableWarehouseAddress.city}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, city: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("city", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.city ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.city}</p> : null}
               </div>
               <div>
-                <Label htmlFor="warehouse_state" className="text-sm">State</Label>
+                <Label htmlFor="warehouse_state" className="text-sm">State <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_state"
                   value={editableWarehouseAddress.state}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, state: e.target.value })}
+                  onChange={(e) => updateWarehouseAddressField("state", e.target.value)}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.state ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.state}</p> : null}
               </div>
               <div>
-                <Label htmlFor="warehouse_zip_code" className="text-sm">ZIP Code</Label>
+                <Label htmlFor="warehouse_zip_code" className="text-sm">ZIP Code <span className="text-red-500">*</span></Label>
                 <Input
                   id="warehouse_zip_code"
                   value={editableWarehouseAddress.zipCode}
-                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, zipCode: e.target.value })}
+                  inputMode="numeric"
+                  maxLength={5}
+                  onChange={(e) => updateWarehouseAddressField("zipCode", e.target.value.replace(/\D/g, "").slice(0, 5))}
                   className="mt-1"
                 />
+                {warehouseAddressErrors.zipCode ? <p className="mt-1 text-sm text-red-600">{warehouseAddressErrors.zipCode}</p> : null}
               </div>
             </div>
           ) : (
@@ -1161,7 +1176,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       </Card>
 
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={form.handleSubmit(onSubmit, onInvalidSubmit)} className="space-y-6">
           <Card className="border-slate-200 shadow-sm">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-slate-900">
@@ -1172,26 +1187,24 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
             <CardContent className="grid gap-4 md:grid-cols-2">
               <FormField
                 control={form.control}
-                name="purchase_number_external"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Vendor Reference / External PO Number</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="Enter supplier reference" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
                 name="shipping.method"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Shipping Method</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="FedEx, UPS, LTL, Pickup" />
-                    </FormControl>
+                    <Select onValueChange={field.onChange} value={field.value || "FedEx"}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select shipping method" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {SHIPPING_METHOD_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -1203,20 +1216,11 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                   <FormItem>
                     <FormLabel>Expected Delivery Date</FormLabel>
                     <FormControl>
-                      <Input {...field} type="date" />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="payment.method"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Planned Payment Method</FormLabel>
-                    <FormControl>
-                      <Input {...field} placeholder="ACH, check, wire, card" />
+                      <Input
+                        {...field}
+                        type="date"
+                        value={field.value || ""}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

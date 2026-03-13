@@ -1,6 +1,6 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { OrderCreationWizard } from "@/components/orders/wizard/OrderCreationWizard";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
@@ -12,6 +12,7 @@ import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
+import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -99,6 +100,7 @@ const getPreselectedCustomerData = () => {
 
 export default function CreateOrder() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { orderId } = useParams();
   const { toast } = useToast();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -112,6 +114,7 @@ export default function CreateOrder() {
   // Read preselected data synchronously on first render
   const [preselectedCustomerData] = useState<any>(() => orderId ? null : getPreselectedCustomerData());
   const isEditMode = !!orderId;
+  const isPurchaseOrderRoute = location.pathname.startsWith("/admin/po");
 
   // Load existing order data if in edit mode
   useEffect(() => {
@@ -369,6 +372,19 @@ const profileID =
               subtotal: orderData.total,
             })
             .eq("id", invoiceData.id);
+        }
+
+        if (isPurchaseOrderRoute) {
+          try {
+            await sendPurchaseOrderEmail(orderId, "updated");
+          } catch (emailError) {
+            console.error("Failed to send updated PO email to vendor:", emailError);
+            toast({
+              title: "PO updated, email not sent",
+              description: "The purchase order was saved, but the vendor email could not be delivered.",
+              variant: "destructive",
+            });
+          }
         }
 
         toast({
@@ -926,6 +942,19 @@ const profileID =
             subtotal: orderData.total,
           })
           .eq("id", invoiceData.id);
+      }
+
+      if (isPurchaseOrderRoute && orderId) {
+        try {
+          await sendPurchaseOrderEmail(orderId, "updated");
+        } catch (emailError) {
+          console.error("Failed to send updated PO email to vendor:", emailError);
+          toast({
+            title: "PO updated, email not sent",
+            description: "The purchase order was saved, but the vendor email could not be delivered.",
+            variant: "destructive",
+          });
+        }
       }
 
       toast({
