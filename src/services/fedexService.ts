@@ -103,6 +103,9 @@ const resolveRecipientFromOrder = (order: OrderFormValues) => {
   const address = shippingAddress || customerAddress;
   const normalizedState = String(address?.state || "").trim().toUpperCase();
   const normalizedZip = String(address?.zip_code || "").trim();
+  const normalizedPhone = String(
+    order.shippingAddress?.phone || order.customerInfo?.phone || ""
+  ).replace(/\D/g, "");
 
   if (!address?.street || !address?.city || !address?.state || !address?.zip_code) {
     throw new Error("Order is missing a complete shipping address");
@@ -116,10 +119,14 @@ const resolveRecipientFromOrder = (order: OrderFormValues) => {
     throw new Error("Recipient ZIP code must be a valid US ZIP code for FedEx labels");
   }
 
+  if (normalizedPhone.length < 10) {
+    throw new Error("Recipient phone number is required for FedEx label creation");
+  }
+
   return {
     name: order.shippingAddress?.fullName || order.customerInfo?.name || "Customer",
     email: order.shippingAddress?.email || order.customerInfo?.email || "",
-    phone: order.shippingAddress?.phone || order.customerInfo?.phone || "",
+    phone: normalizedPhone,
     streetLines: [address.street].filter(Boolean),
     city: address.city,
     stateOrProvinceCode: normalizedState,
@@ -143,28 +150,7 @@ export const fedexService = {
         addressAlert || "FedEx could not validate the recipient shipping address for this order"
       );
     }
-
-    const resolved = resolvedAddresses[0];
-    const resolvedCity = String(resolved.city || "").trim().toUpperCase();
-    const resolvedState = String(resolved.stateOrProvinceCode || "").trim().toUpperCase();
-    const resolvedPostalCode = String(resolved.postalCode || "").trim();
     const requestedRecipient = resolveRecipientFromOrder(order);
-
-    if (
-      (resolvedCity && resolvedCity !== requestedRecipient.city.trim().toUpperCase()) ||
-      (resolvedState && resolvedState !== requestedRecipient.stateOrProvinceCode) ||
-      (resolvedPostalCode && resolvedPostalCode !== requestedRecipient.postalCode)
-    ) {
-      throw new Error(
-        `Recipient address does not match FedEx validation. FedEx resolved it as ${[
-          resolved.city,
-          resolved.stateOrProvinceCode,
-          resolved.postalCode,
-        ]
-          .filter(Boolean)
-          .join(", ")}`
-      );
-    }
 
     return invokeFedEx<FedExShipmentResult>("create_shipment", {
       shipment: {

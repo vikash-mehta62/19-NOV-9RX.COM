@@ -96,6 +96,9 @@ const fedexRequest = async (
     const message =
       result?.errors?.[0]?.message ||
       result?.transactionShipments?.[0]?.alerts?.[0]?.message ||
+      result?.output?.alerts?.[0]?.message ||
+      result?.output?.notifications?.[0]?.message ||
+      result?.customerMessages?.[0]?.message ||
       "FedEx request failed";
     throw new Error(message);
   }
@@ -124,6 +127,10 @@ const buildShipper = (settings: JsonRecord) => ({
 const validateShipperSettings = (settings: JsonRecord) => {
   const shipper = buildShipper(settings);
   const missingFields: string[] = [];
+  const state = String(shipper.address.stateOrProvinceCode || "").trim().toUpperCase();
+  const postalCode = String(shipper.address.postalCode || "").trim();
+  const countryCode = String(shipper.address.countryCode || "").trim().toUpperCase();
+  const phone = String(shipper.contact.phoneNumber || "").replace(/\D/g, "");
 
   if (!shipper.contact.companyName) missingFields.push("shipping company name");
   if (!shipper.address.streetLines?.length) missingFields.push("shipping street");
@@ -134,6 +141,20 @@ const validateShipperSettings = (settings: JsonRecord) => {
   if (missingFields.length > 0) {
     throw new Error(`FedEx shipper address is incomplete: ${missingFields.join(", ")}`);
   }
+
+  if (countryCode === "US") {
+    if (!/^[A-Z]{2}$/.test(state)) {
+      throw new Error("FedEx shipper state must be a valid 2-letter US state code in Shipping Settings");
+    }
+
+    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
+      throw new Error("FedEx shipper ZIP code must be a valid US ZIP code in Shipping Settings");
+    }
+  }
+
+  if (phone.length < 10) {
+    throw new Error("FedEx shipper phone number is required in Shipping Settings");
+  }
 };
 
 const validateRecipient = (shipment: JsonRecord) => {
@@ -142,6 +163,7 @@ const validateRecipient = (shipment: JsonRecord) => {
   const state = String(recipient.stateOrProvinceCode || "").trim().toUpperCase();
   const postalCode = String(recipient.postalCode || "").trim();
   const city = String(recipient.city || "").trim();
+  const phone = String(recipient.phone || "").replace(/\D/g, "");
 
   if (!Array.isArray(recipient.streetLines) || recipient.streetLines.filter(Boolean).length === 0) {
     missingFields.push("recipient street");
@@ -149,6 +171,7 @@ const validateRecipient = (shipment: JsonRecord) => {
   if (!city) missingFields.push("recipient city");
   if (!state) missingFields.push("recipient state");
   if (!postalCode) missingFields.push("recipient ZIP code");
+  if (!phone) missingFields.push("recipient phone");
 
   if (missingFields.length > 0) {
     throw new Error(`FedEx recipient address is incomplete: ${missingFields.join(", ")}`);
@@ -161,9 +184,77 @@ const validateRecipient = (shipment: JsonRecord) => {
   if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
     throw new Error("FedEx recipient ZIP code must be a valid US ZIP code");
   }
+
+  if (phone.length < 10) {
+    throw new Error("FedEx recipient phone number is required");
+  }
 };
 
-const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord) => {
+const ALLOWED_SERVICE_TYPES = new Set([
+  "FEDEX_GROUND",
+  "GROUND_HOME_DELIVERY",
+  "FEDEX_2_DAY",
+  "STANDARD_OVERNIGHT",
+  "PRIORITY_OVERNIGHT",
+]);
+
+const ALLOWED_PACKAGING_TYPES = new Set([
+  "YOUR_PACKAGING",
+  "FEDEX_BOX",
+  "FEDEX_PAK",
+  "FEDEX_ENVELOPE",
+  "FEDEX_TUBE",
+]);
+
+const ALLOWED_PICKUP_TYPES = new Set([
+  "USE_SCHEDULED_PICKUP",
+  "CONTACT_FEDEX_TO_SCHEDULE",
+  "DROPOFF_AT_FEDEX_LOCATION",
+]);
+
+const ALLOWED_LABEL_IMAGE_TYPES = new Set(["PDF", "PNG", "ZPLII"]);
+const THERMAL_LABEL_IMAGE_TYPES = new Set(["ZPLII"]);
+const ALLOWED_PLAIN_PAPER_STOCK_TYPES = new Set([
+  "PAPER_85X11_TOP_HALF_LABEL",
+  "PAPER_85X11_BOTTOM_HALF_LABEL",
+  "PAPER_4X6",
+  "PAPER_LETTER",
+]);
+const ALLOWED_THERMAL_STOCK_TYPES = new Set(["STOCK_4X6"]);
+
+const normalizeEnum = (value: unknown, allowed: Set<string>, fallback: string) => {
+  const normalized = String(value || "").trim().toUpperCase();
+  return allowed.has(normalized) ? normalized : fallback;
+};
+
+const normalizeLabelOptions = (settings: JsonRecord) => {
+  const imageType = normalizeEnum(settings.fedex_label_image_type, ALLOWED_LABEL_IMAGE_TYPES, "PDF");
+  const labelStockType = THERMAL_LABEL_IMAGE_TYPES.has(imageType)
+    ? normalizeEnum(settings.fedex_label_stock_type, ALLOWED_THERMAL_STOCK_TYPES, "STOCK_4X6")
+    : normalizeEnum(settings.fedex_label_stock_type, ALLOWED_PLAIN_PAPER_STOCK_TYPES, "PAPER_85X11_TOP_HALF_LABEL");
+
+  return { imageType, labelStockType };
+};
+
+const cleanObject = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value
+      .map(cleanObject)
+      .filter((item) => item !== undefined && item !== null && item !== "");
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, entryValue]) => [key, cleanObject(entryValue)] as const)
+      .filter(([, entryValue]) => entryValue !== undefined && entryValue !== null && entryValue !== "");
+
+    return Object.fromEntries(entries);
+  }
+
+  return value;
+};
+
+const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, options?: { minimal?: boolean }) => {
   const pkg = shipment.package || {};
   const weightUnits = pkg.weightUnits || settings.fedex_default_weight_units || "LB";
   const weightValue = Number(pkg.weightValue || settings.fedex_default_weight_value || 1);
@@ -171,24 +262,49 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord) => {
   const length = Number(pkg.length || settings.fedex_default_length || 12);
   const width = Number(pkg.width || settings.fedex_default_width || 10);
   const height = Number(pkg.height || settings.fedex_default_height || 8);
-
-  return {
+  const serviceType = normalizeEnum(
+    pkg.serviceType || settings.fedex_default_service_type,
+    ALLOWED_SERVICE_TYPES,
+    "FEDEX_GROUND",
+  );
+  const packagingType = normalizeEnum(
+    pkg.packagingType || settings.fedex_default_packaging_type,
+    ALLOWED_PACKAGING_TYPES,
+    "YOUR_PACKAGING",
+  );
+  const pickupType = normalizeEnum(
+    pkg.pickupType || settings.fedex_default_pickup_type,
+    ALLOWED_PICKUP_TYPES,
+    "DROPOFF_AT_FEDEX_LOCATION",
+  );
+  const { imageType, labelStockType } = normalizeLabelOptions(settings);
+  const shipper = buildShipper(settings);
+  const selectedPickupType = options?.minimal ? "DROPOFF_AT_FEDEX_LOCATION" : pickupType;
+  const selectedImageType = options?.minimal ? "PDF" : imageType;
+  const selectedLabelStockType = options?.minimal ? "PAPER_85X11_TOP_HALF_LABEL" : labelStockType;
+  const requestedShipment = {
     shipDatestamp: new Date().toISOString().slice(0, 10),
-    pickupType: pkg.pickupType || settings.fedex_default_pickup_type || "USE_SCHEDULED_PICKUP",
-    serviceType: pkg.serviceType || settings.fedex_default_service_type || "FEDEX_GROUND",
-    packagingType: pkg.packagingType || settings.fedex_default_packaging_type || "YOUR_PACKAGING",
+    pickupType: selectedPickupType,
+    serviceType,
+    packagingType,
+    ...(options?.minimal ? {} : { rateRequestType: ["ACCOUNT"] }),
     totalPackageCount: 1,
-    totalWeight: {
-      units: weightUnits,
-      value: weightValue,
-    },
-    shipper: buildShipper(settings),
+    ...(options?.minimal
+      ? {}
+      : {
+          totalWeight: {
+            units: weightUnits,
+            value: weightValue,
+          },
+        }),
+    shipper,
     recipients: [
       {
         contact: {
           personName: shipment.recipient?.name || "Customer",
           phoneNumber: shipment.recipient?.phone || "",
-          companyName: shipment.recipient?.name || "Customer",
+          ...(options?.minimal ? {} : { companyName: shipment.recipient?.name || "Customer" }),
+          ...(shipment.recipient?.email ? { emailAddress: shipment.recipient.email } : {}),
         },
         address: {
           streetLines: shipment.recipient?.streetLines || [],
@@ -202,15 +318,26 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord) => {
     ],
     shippingChargesPayment: {
       paymentType: "SENDER",
+      payor: {
+        responsibleParty: {
+          accountNumber: {
+            value: String(settings.fedex_account_number || "").trim(),
+          },
+          address: {
+            countryCode: shipper.address.countryCode || "US",
+          },
+        },
+      },
     },
     labelSpecification: {
-      imageType: settings.fedex_label_image_type || "PDF",
-      labelStockType: settings.fedex_label_stock_type || "PAPER_85X11_TOP_HALF_LABEL",
+      labelFormatType: "COMMON2D",
+      imageType: selectedImageType,
+      labelStockType: selectedLabelStockType,
     },
     requestedPackageLineItems: [
       {
         sequenceNumber: 1,
-        groupPackageCount: 1,
+        ...(options?.minimal ? {} : { groupPackageCount: 1 }),
         weight: {
           units: weightUnits,
           value: weightValue,
@@ -221,12 +348,21 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord) => {
           height,
           units: dimensionUnits,
         },
-        customerReferences: shipment.customerReference
-          ? [{ customerReferenceType: "CUSTOMER_REFERENCE", value: shipment.customerReference }]
-          : undefined,
+        ...(options?.minimal || !shipment.customerReference
+          ? {}
+          : {
+              customerReferences: [
+                {
+                  customerReferenceType: "CUSTOMER_REFERENCE",
+                  value: shipment.customerReference,
+                },
+              ],
+            }),
       },
     ],
   };
+
+  return cleanObject(requestedShipment);
 };
 
 const extractShipmentResult = (result: JsonRecord) => {
@@ -286,6 +422,8 @@ Deno.serve(async (req) => {
 
     switch (action) {
       case "test_auth": {
+        requireAccountNumber();
+        validateShipperSettings(settings);
         return jsonResponse({
           success: true,
           data: {
@@ -328,11 +466,28 @@ Deno.serve(async (req) => {
         requireAccountNumber();
         validateShipperSettings(settings);
         validateRecipient(body.shipment || {});
-        const data = await fedexRequest(settings, token, "/ship/v1/shipments", {
+        const createPayload = {
           labelResponseOptions: "LABEL",
           accountNumber: { value: accountNumber },
           requestedShipment: buildRequestedShipment(settings, body.shipment || {}),
-        });
+        };
+
+        let data: JsonRecord;
+        try {
+          data = await fedexRequest(settings, token, "/ship/v1/shipments", createPayload);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (!/invalid field value/i.test(message)) {
+            throw error;
+          }
+
+          data = await fedexRequest(settings, token, "/ship/v1/shipments", {
+            labelResponseOptions: "LABEL",
+            accountNumber: { value: accountNumber },
+            requestedShipment: buildRequestedShipment(settings, body.shipment || {}, { minimal: true }),
+          });
+        }
+
         return jsonResponse({ success: true, data: extractShipmentResult(data) });
       }
 

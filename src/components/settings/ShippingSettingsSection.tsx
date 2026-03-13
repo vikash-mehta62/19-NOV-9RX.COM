@@ -58,7 +58,7 @@ export function ShippingSettingsSection({ form }: ShippingSettingsSectionProps) 
       }
 
       toast.success(
-        `FedEx connected (${data.data?.mode || "unknown mode"})${data.data?.accountNumber ? ` - Account ${data.data.accountNumber}` : ""}`
+        `FedEx auth and ship-from settings are valid (${data.data?.mode || "unknown mode"})${data.data?.accountNumber ? ` - Account ${data.data.accountNumber}` : ""}`
       );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "FedEx connection test failed");
@@ -196,6 +196,9 @@ export function ShippingSettingsSection({ form }: ShippingSettingsSectionProps) 
           <h3 className="text-lg font-semibold">FedEx Carrier Integration</h3>
           <p className="text-sm text-muted-foreground">
             Configure FedEx credentials and shipment defaults for label generation, tracking, and pickup requests.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            FedEx uses the Shipping Address above as the ship-from origin for quotes, labels, and pickups.
           </p>
         </div>
 

@@ -59,6 +59,19 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     zip_code: "",
     country: "",
   });
+  const [isEditingWarehouseAddress, setIsEditingWarehouseAddress] = useState(false);
+  const [isSavingWarehouseAddress, setIsSavingWarehouseAddress] = useState(false);
+  const [editableWarehouseAddress, setEditableWarehouseAddress] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    street: "",
+    suite: "",
+    city: "",
+    state: "",
+    zipCode: "",
+    country: "",
+  });
   const [editingPriceFor, setEditingPriceFor] = useState<string | null>(null);
   const [tempPrice, setTempPrice] = useState<string>("");
   const [originalPrices, setOriginalPrices] = useState<Record<string, number>>({});
@@ -184,18 +197,8 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         const settings = await fetchAdminDocumentSettings();
         setDocumentSettings(settings);
         const warehouse = settings.warehouse;
-
-        form.setValue("shippingAddress", {
-          fullName: warehouse.name,
-          email: warehouse.email,
-          phone: warehouse.phone,
-          address: {
-            street: [warehouse.street, warehouse.suite].filter(Boolean).join(", "),
-            city: warehouse.city,
-            state: warehouse.state,
-            zip_code: warehouse.zipCode,
-          },
-        });
+        setEditableWarehouseAddress(warehouse);
+        applyWarehouseAddressToForm(warehouse);
       } catch (error) {
         console.error("Failed to load admin document settings for PO:", error);
       }
@@ -206,6 +209,91 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
   const warehouseAddress = documentSettings.warehouse;
   const warehouseAddressLine = formatDocumentAddressLine(warehouseAddress);
+
+  function applyWarehouseAddressToForm(warehouse: AdminDocumentSettings["warehouse"]) {
+    form.setValue("shippingAddress", {
+      fullName: warehouse.name,
+      email: warehouse.email,
+      phone: warehouse.phone,
+      address: {
+        street: [warehouse.street, warehouse.suite].filter(Boolean).join(", "),
+        city: warehouse.city,
+        state: warehouse.state,
+        zip_code: warehouse.zipCode,
+      },
+    });
+  }
+
+  const handleWarehouseAddressEdit = async () => {
+    if (!isEditingWarehouseAddress) {
+      setEditableWarehouseAddress(warehouseAddress);
+      setIsEditingWarehouseAddress(true);
+      return;
+    }
+
+    if (!userProfile?.id) {
+      toast({
+        title: "Error",
+        description: "Admin profile not found. Please log in again.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingWarehouseAddress(true);
+
+    try {
+      const updatedWarehouse = {
+        ...warehouseAddress,
+        ...editableWarehouseAddress,
+      };
+
+      const { error } = await supabase.from("settings").upsert(
+        {
+          profile_id: userProfile.id,
+          warehouse_name: updatedWarehouse.name,
+          warehouse_email: updatedWarehouse.email,
+          warehouse_phone: updatedWarehouse.phone,
+          warehouse_street: updatedWarehouse.street,
+          warehouse_suite: updatedWarehouse.suite,
+          warehouse_city: updatedWarehouse.city,
+          warehouse_state: updatedWarehouse.state,
+          warehouse_zip_code: updatedWarehouse.zipCode,
+          warehouse_country: updatedWarehouse.country,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "profile_id",
+        }
+      );
+
+      if (error) throw error;
+
+      const nextSettings = {
+        ...documentSettings,
+        warehouse: updatedWarehouse,
+      };
+
+      setDocumentSettings(nextSettings);
+      setEditableWarehouseAddress(updatedWarehouse);
+      applyWarehouseAddressToForm(updatedWarehouse);
+      setIsEditingWarehouseAddress(false);
+
+      toast({
+        title: "Delivery Address Updated",
+        description: "Warehouse delivery address has been updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error updating warehouse delivery address:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update delivery address. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingWarehouseAddress(false);
+    }
+  };
 
   // Update vendor info in form when loaded
   useEffect(() => {
@@ -948,18 +1036,127 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
       <Card className="border-blue-200 bg-blue-50">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-blue-900">
-            <Package className="h-5 w-5" />
-            Delivery Address
-          </CardTitle>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="flex items-center gap-2 text-blue-900">
+              <Package className="h-5 w-5" />
+              Delivery Address
+            </CardTitle>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handleWarehouseAddressEdit}
+              disabled={isSavingWarehouseAddress}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
+            >
+              {isEditingWarehouseAddress ? (
+                <>
+                  <Save className="h-4 w-4 mr-1" />
+                  {isSavingWarehouseAddress ? "Saving..." : "Save"}
+                </>
+              ) : (
+                <>
+                  <Edit2 className="h-4 w-4 mr-1" />
+                  Edit
+                </>
+              )}
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-1">
-            <p className="font-semibold text-gray-900">{warehouseAddress.name}</p>
-            <p className="text-gray-700">{warehouseAddressLine}</p>
-            {warehouseAddress.phone && <p className="text-gray-700">{warehouseAddress.phone}</p>}
-            {warehouseAddress.email && <p className="text-gray-700">{warehouseAddress.email}</p>}
-          </div>
+          {isEditingWarehouseAddress ? (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <Label htmlFor="warehouse_name" className="text-sm">Company / Name</Label>
+                <Input
+                  id="warehouse_name"
+                  value={editableWarehouseAddress.name}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, name: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_phone" className="text-sm">Phone</Label>
+                <Input
+                  id="warehouse_phone"
+                  value={editableWarehouseAddress.phone}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, phone: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="warehouse_email" className="text-sm">Email</Label>
+                <Input
+                  id="warehouse_email"
+                  type="email"
+                  value={editableWarehouseAddress.email}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, email: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label htmlFor="warehouse_street" className="text-sm">Street Address</Label>
+                <Input
+                  id="warehouse_street"
+                  value={editableWarehouseAddress.street}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, street: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_suite" className="text-sm">Suite / Unit</Label>
+                <Input
+                  id="warehouse_suite"
+                  value={editableWarehouseAddress.suite}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, suite: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_country" className="text-sm">Country</Label>
+                <Input
+                  id="warehouse_country"
+                  value={editableWarehouseAddress.country}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, country: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_city" className="text-sm">City</Label>
+                <Input
+                  id="warehouse_city"
+                  value={editableWarehouseAddress.city}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, city: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_state" className="text-sm">State</Label>
+                <Input
+                  id="warehouse_state"
+                  value={editableWarehouseAddress.state}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, state: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="warehouse_zip_code" className="text-sm">ZIP Code</Label>
+                <Input
+                  id="warehouse_zip_code"
+                  value={editableWarehouseAddress.zipCode}
+                  onChange={(e) => setEditableWarehouseAddress({ ...editableWarehouseAddress, zipCode: e.target.value })}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              <p className="font-semibold text-gray-900">{warehouseAddress.name}</p>
+              <p className="text-gray-700">{warehouseAddressLine}</p>
+              {warehouseAddress.phone && <p className="text-gray-700">{warehouseAddress.phone}</p>}
+              {warehouseAddress.email && <p className="text-gray-700">{warehouseAddress.email}</p>}
+            </div>
+          )}
         </CardContent>
       </Card>
 
