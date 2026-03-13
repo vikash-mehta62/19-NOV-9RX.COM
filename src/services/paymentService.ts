@@ -730,6 +730,9 @@ export interface CardPaymentRequest {
     cardholderName: string;
   };
   amount: number;
+  chargedAmount?: number;
+  appliedAmount?: number;
+  processingFeeAmount?: number;
   invoiceNumber?: string;
   orderId?: string;
   customerEmail?: string;
@@ -754,6 +757,9 @@ export interface ACHPaymentRequest {
     echeckType?: "WEB" | "PPD" | "CCD";
   };
   amount: number;
+  chargedAmount?: number;
+  appliedAmount?: number;
+  processingFeeAmount?: number;
   invoiceNumber?: string;
   orderId?: string;
   customerEmail?: string;
@@ -792,6 +798,9 @@ export async function processPayment(request: PaymentRequest): Promise<PaymentRe
             echeckType: (request as ACHPaymentRequest).payment.echeckType || "WEB",
           },
       amount: request.amount,
+      chargedAmount: request.chargedAmount ?? request.amount,
+      appliedAmount: request.appliedAmount,
+      processingFeeAmount: request.processingFeeAmount,
       invoiceNumber: request.invoiceNumber,
       orderId: request.orderId,
       customerEmail: request.customerEmail,

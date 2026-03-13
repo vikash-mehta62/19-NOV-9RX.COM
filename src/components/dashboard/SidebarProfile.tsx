@@ -14,6 +14,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { selectUserProfile } from "../../store/selectors/userSelectors";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebar } from "../ui/sidebar";
+import { hasAdminPermission, isInternalAdminType } from "@/lib/adminAccess";
 
 export const SidebarProfile = () => {
   const navigate = useNavigate();
@@ -25,6 +26,8 @@ export const SidebarProfile = () => {
   const userName = `${userProfile?.first_name ?? "User"} ${userProfile?.last_name ?? ""}`.trim();
   const userEmail = userProfile?.email ?? "No email available";
   const userType = userProfile?.type;
+  const canAccessSettings =
+    !isInternalAdminType(userProfile?.type) || hasAdminPermission(userProfile, "settings");
   const { toast } = useToast();
 
   // Function to get initials for the avatar fallback
@@ -109,12 +112,14 @@ export const SidebarProfile = () => {
             <User className="w-4 h-4 mr-2 text-blue-600" />
             <span className="font-medium">Profile</span>
           </DropdownMenuItem>
-          <DropdownMenuItem
-           onClick={() => navigate(`/${userType}/settings`)}
-           className="rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-800 dark:hover:to-gray-700 cursor-pointer transition-all duration-200">
-            <Settings className="w-4 h-4 mr-2 text-purple-600" />
-            <span className="font-medium">Settings</span>
-          </DropdownMenuItem>
+          {canAccessSettings && (
+            <DropdownMenuItem
+             onClick={() => navigate(`/${userType}/settings`)}
+             className="rounded-lg hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 dark:hover:from-gray-800 dark:hover:to-gray-700 cursor-pointer transition-all duration-200">
+              <Settings className="w-4 h-4 mr-2 text-purple-600" />
+              <span className="font-medium">Settings</span>
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator className="bg-gradient-to-r from-blue-200 via-purple-200 to-pink-200" />
           <DropdownMenuItem
             className="rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400 cursor-pointer transition-all duration-200 font-medium"

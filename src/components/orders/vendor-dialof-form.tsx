@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
+import type { FieldErrors } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import axios from "../../../axiosconfig";
@@ -29,6 +30,8 @@ const addressSchema = z.object({
   faxNumber: z.string().optional(),
 });
 
+const shippingAddressSchema = addressSchema.partial();
+
 const vendorSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
@@ -55,7 +58,38 @@ const vendorSchema = z.object({
   email_notifaction: z.boolean(),
   notes: z.string().optional(),
   billingAddress: addressSchema,
-  shippingAddress: addressSchema,
+  shippingAddress: shippingAddressSchema,
+}).superRefine((values, ctx) => {
+  if (values.sameAsShipping) {
+    return;
+  }
+
+  const requiredShippingFields: Array<keyof z.infer<typeof shippingAddressSchema>> = [
+    "countryRegion",
+    "street1",
+    "city",
+    "state",
+    "zip_code",
+  ];
+
+  requiredShippingFields.forEach((field) => {
+    const value = values.shippingAddress[field];
+    if (typeof value !== "string" || value.trim().length === 0) {
+      const labels: Record<string, string> = {
+        countryRegion: "Country is required",
+        street1: "Street address is required",
+        city: "City is required",
+        state: "State is required",
+        zip_code: "ZIP code is required",
+      };
+
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["shippingAddress", field],
+        message: labels[field],
+      });
+    }
+  });
 });
 
 export type VendorFormData = z.infer<typeof vendorSchema>;
@@ -75,6 +109,8 @@ interface VendorDialogFormProps {
   mode?: "add" | "edit";
   onSubmit?: (data: VendorFormData, createdVendor?: CreatedVendorResult) => void;
 }
+
+type VendorTab = "contact" | "business" | "address";
 
 const defaultAddress = {
   attention: "",
@@ -157,6 +193,7 @@ const createProfileData = (values: VendorFormData) => ({
 export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: VendorDialogFormProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<VendorTab>("contact");
   const { toast } = useToast();
 
   const mergedDefaults = useMemo(() => ({
@@ -175,7 +212,33 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
 
   const closeDialog = () => {
     setOpen(false);
+    setActiveTab("contact");
     form.reset(mergedDefaults);
+  };
+
+  const getFirstErrorTab = (errors: FieldErrors<VendorFormData>): VendorTab => {
+    const errorKeys = Object.keys(errors);
+
+    if (errorKeys.some((key) => ["billingAddress", "shippingAddress", "sameAsShipping"].includes(key))) {
+      return "address";
+    }
+
+    if (errorKeys.some((key) => ["status", "currency", "paymentTerms", "paymentMethod", "preferredContactMethod", "languagePreference", "taxId", "notes", "freeShipping", "email_notifaction"].includes(key))) {
+      return "business";
+    }
+
+    return "contact";
+  };
+
+  const handleInvalidSubmit = (errors: FieldErrors<VendorFormData>) => {
+    const nextTab = getFirstErrorTab(errors);
+    setActiveTab(nextTab);
+
+    toast({
+      title: "Complete required fields",
+      description: `The form has missing or invalid fields in the ${nextTab} section.`,
+      variant: "destructive",
+    });
   };
 
   const handleSubmit = async (values: VendorFormData) => {
@@ -247,19 +310,20 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
           {mode === "edit" ? "Edit Vendor" : "Add Vendor"}
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+      <DialogContent className="z-[100001] flex max-h-[92vh] max-w-5xl flex-col overflow-hidden p-0">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+          <DialogTitle className="flex items-center gap-2 px-6 pt-6">
             <Building2 className="h-5 w-5" />
             {mode === "edit" ? "Edit Vendor" : "Add New Vendor"}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="px-6 pb-2">
             Create a complete vendor profile with contact, purchasing, billing, and shipping information for PO workflow.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
-            <Tabs defaultValue="contact" className="w-full">
+          <form onSubmit={form.handleSubmit(handleSubmit, handleInvalidSubmit)} className="flex min-h-0 flex-1 flex-col">
+            <div className="min-h-0 flex-1 overflow-y-auto px-6">
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as VendorTab)} className="w-full space-y-6 pb-6">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="contact" className="gap-2"><User className="h-4 w-4" />Contact</TabsTrigger>
                 <TabsTrigger value="business" className="gap-2"><Receipt className="h-4 w-4" />Business</TabsTrigger>
@@ -392,7 +456,13 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
 
                 <FormField control={form.control} name="sameAsShipping" render={({ field }) => (
                   <FormItem className="flex flex-row items-start space-x-3 rounded-xl border bg-slate-50 p-4">
-                    <FormControl><Checkbox checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+                    <FormControl><Checkbox checked={field.value} onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      if (checked) {
+                        const billing = form.getValues("billingAddress");
+                        form.setValue("shippingAddress", { ...billing }, { shouldValidate: true });
+                      }
+                    }} /></FormControl>
                     <div className="space-y-1"><FormLabel>Shipping address same as billing</FormLabel><p className="text-sm text-slate-500">Use the billing address as the vendor warehouse / shipping address.</p></div>
                   </FormItem>
                 )} />
@@ -417,7 +487,8 @@ export default function VendorDialogForm({ vendor, mode = "add", onSubmit }: Ven
                 )}
               </TabsContent>
             </Tabs>
-            <DialogFooter className="gap-2">
+            </div>
+            <DialogFooter className="sticky bottom-0 gap-2 border-t bg-white px-6 py-4">
               <Button type="button" variant="outline" onClick={closeDialog} disabled={isSubmitting}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting} className="gap-2 bg-blue-600 hover:bg-blue-700">
                 <Mail className="h-4 w-4" />

@@ -7,6 +7,7 @@ import { CartSync } from "./components/CartSync";
 import MaintenanceBanner from "./components/MaintenanceBanner";
 import MaintenanceModal from "./components/MaintenanceModal";
 import { Loader2 } from "lucide-react";
+import { AdminPermission, hasEveryAdminPermission, isInternalAdminType } from "@/lib/adminAccess";
 
 // Loading component for lazy loaded routes
 const PageLoader = () => (
@@ -168,9 +169,20 @@ export async function fetchCategoryConfigs() {
 }
 
 // Protected route wrapper component
-const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) => {
+const ProtectedRoute = ({
+  children,
+  allowedRoles,
+  allowedPermissions = [],
+  fallbackPath = "/",
+}: {
+  children: React.ReactNode;
+  allowedRoles: string[];
+  allowedPermissions?: AdminPermission[];
+  fallbackPath?: string;
+}) => {
   const location = useLocation();
   const allowedRolesKey = allowedRoles.join("|");
+  const allowedPermissionsKey = allowedPermissions.join("|");
   const allowedRolesSet = useMemo(
     () => new Set(allowedRolesKey.split("|").filter(Boolean).map((role) => role.toLowerCase())),
     [allowedRolesKey]
@@ -195,7 +207,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("role,type")
+          .select("role,type,admin_permissions")
           .eq("id", session.user.id)
           .maybeSingle();
 
@@ -209,7 +221,11 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
           }
         }
 
-        const allowed = [...roleCandidates].some((role) => allowedRolesSet.has(role));
+        let allowed = [...roleCandidates].some((role) => allowedRolesSet.has(role));
+
+        if (allowed && allowedPermissions.length > 0 && isInternalAdminType(profile?.type)) {
+          allowed = hasEveryAdminPermission(profile, allowedPermissions);
+        }
 
         if (!isMounted) return;
         setIsLoggedIn(true);
@@ -230,7 +246,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
     return () => {
       isMounted = false;
     };
-  }, [allowedRolesKey, allowedRolesSet]);
+  }, [allowedPermissionsKey, allowedPermissions, allowedRolesKey, allowedRolesSet]);
 
   if (isChecking) {
     return <PageLoader />;
@@ -241,7 +257,7 @@ const ProtectedRoute = ({ children, allowedRoles }: { children: React.ReactNode;
   }
 
   if (!isAllowed) {
-    return <Navigate to="/" replace />;
+    return <Navigate to={fallbackPath} replace />;
   }
 
   return <>{children}</>;
@@ -371,217 +387,217 @@ function App() {
 
           {/* Admin Routes */}
           <Route path="/admin/dashboard" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['dashboard']} fallbackPath="/admin/dashboard">
               <AdminDashboard />
             </ProtectedRoute>
           } />
           <Route path="/admin/users" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['users']} fallbackPath="/admin/dashboard">
               <AdminUsers />
             </ProtectedRoute>
           } />
           <Route path="/admin/products" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['products']} fallbackPath="/admin/dashboard">
               <AdminProducts />
             </ProtectedRoute>
           } />
           <Route path="/admin/categories" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['categories']} fallbackPath="/admin/dashboard">
               <AdminCategoryManagement />
             </ProtectedRoute>
           } />
           <Route path="/admin/product/:productId" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['products']} fallbackPath="/admin/dashboard">
               <ProductDetails />
             </ProtectedRoute>
           } />
           <Route path="/admin/inventory" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['inventory']} fallbackPath="/admin/dashboard">
               <AdminInventory />
             </ProtectedRoute>
           } />
           <Route path="/admin/inventory-phase2" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['inventory']} fallbackPath="/admin/dashboard">
               <AdminInventoryPhase2 />
             </ProtectedRoute>
           } />
           <Route path="/admin/expenses" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['expenses']} fallbackPath="/admin/dashboard">
               <Expenses />
             </ProtectedRoute>
           } />
           <Route path="/admin/analytics" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['analytics']} fallbackPath="/admin/dashboard">
               <AdminAnalytics />
             </ProtectedRoute>
           } />
           <Route path="/admin/intelligence" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['intelligence']} fallbackPath="/admin/dashboard">
               <AdminIntelligence />
             </ProtectedRoute>
           } />
           <Route path="/admin/alerts" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['alerts']} fallbackPath="/admin/dashboard">
               <AdminAlerts />
             </ProtectedRoute>
           } />
           <Route path="/admin/reports" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['reports']} fallbackPath="/admin/dashboard">
               <AdminReports />
             </ProtectedRoute>
           } />
           <Route path="/admin/suppliers" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['suppliers']} fallbackPath="/admin/dashboard">
               <AdminSuppliers />
             </ProtectedRoute>
           } />
           <Route path="/admin/cost-tracking" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['expenses']} fallbackPath="/admin/dashboard">
               <AdminCostTracking />
             </ProtectedRoute>
           } />
           <Route path="/admin/automation" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['automation']} fallbackPath="/admin/dashboard">
               <AdminAutomation />
             </ProtectedRoute>
           } />
           <Route path="/admin/orders" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['orders']} fallbackPath="/admin/dashboard">
               <AdminOrders />
             </ProtectedRoute>
           } />
           <Route path="/admin/orders/create" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['orders']} fallbackPath="/admin/dashboard">
               <AdminCreateOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/orders/quick" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['orders']} fallbackPath="/admin/dashboard">
               <AdminQuickOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/access-requests" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['users']} fallbackPath="/admin/dashboard">
               <AccessRequests />
             </ProtectedRoute>
           } />
           <Route path="/admin/orders/edit/:orderId" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['orders']} fallbackPath="/admin/dashboard">
               <AdminCreateOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/po/edit/:orderId" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['purchase_orders']} fallbackPath="/admin/dashboard">
               <AdminCreateOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/po/create" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['purchase_orders']} fallbackPath="/admin/dashboard">
               <AdminCreatePurchaseOrder />
             </ProtectedRoute>
           } />
           <Route path="/admin/logs" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['logs']} fallbackPath="/admin/dashboard">
               <AdminLogs />
             </ProtectedRoute>
           } />
           <Route path="/admin/login-logs" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['logs']} fallbackPath="/admin/dashboard">
               <LoginLogsPage />
             </ProtectedRoute>
           } />
           <Route path="/admin/po" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['purchase_orders']} fallbackPath="/admin/dashboard">
               <AdminOrders />
             </ProtectedRoute>
           } />
           <Route path="/admin/invoices" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['invoices']} fallbackPath="/admin/dashboard">
               <AdminInvoices />
             </ProtectedRoute>
           } />
           <Route path="/admin/group-pricing" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['special_pricing']} fallbackPath="/admin/dashboard">
               <AdminGroupPricing />
             </ProtectedRoute>
           } />
           <Route path="/admin/groups" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['users']} fallbackPath="/admin/dashboard">
               <AdminGroups />
             </ProtectedRoute>
           } />
           <Route path="/admin/settings" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['settings']} fallbackPath="/admin/dashboard">
               <AdminSettings />
             </ProtectedRoute>
           } />
           <Route path="/admin/launch-password-reset" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['users']} fallbackPath="/admin/dashboard">
               <AdminLaunchPasswordReset />
             </ProtectedRoute>
           } />
           <Route path="/admin/payment-transactions" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['payments']} fallbackPath="/admin/dashboard">
               <AdminPaymentTransactions />
             </ProtectedRoute>
           } />
           <Route path="/admin/banners" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['marketing']} fallbackPath="/admin/dashboard">
               <AdminBanners />
             </ProtectedRoute>
           } />
           <Route path="/admin/offers" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['marketing']} fallbackPath="/admin/dashboard">
               <AdminOffers />
             </ProtectedRoute>
           } />
           <Route path="/admin/blogs" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['marketing']} fallbackPath="/admin/dashboard">
               <AdminBlogs />
             </ProtectedRoute>
           } />
           <Route path="/admin/announcements" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['marketing']} fallbackPath="/admin/dashboard">
               <AdminAnnouncements />
             </ProtectedRoute>
           } />
           <Route path="/admin/email-templates" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['email']} fallbackPath="/admin/dashboard">
               <AdminEmailTemplates />
             </ProtectedRoute>
           } />
           <Route path="/admin/email-campaigns" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['email']} fallbackPath="/admin/dashboard">
               <AdminEmailCampaigns />
             </ProtectedRoute>
           } />
           <Route path="/admin/email-automations" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['email']} fallbackPath="/admin/dashboard">
               <AdminEmailAutomations />
             </ProtectedRoute>
           } />
           <Route path="/admin/email-settings" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['email']} fallbackPath="/admin/dashboard">
               <AdminEmailSettings />
             </ProtectedRoute>
           } />
           <Route path="/admin/abandoned-carts" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['marketing']} fallbackPath="/admin/dashboard">
               <AdminAbandonedCarts />
             </ProtectedRoute>
           } />
           <Route path="/admin/rewards" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['rewards']} fallbackPath="/admin/dashboard">
               <AdminRewards />
             </ProtectedRoute>
           } />
           <Route path="/admin/credit-management" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['credit_management']} fallbackPath="/admin/dashboard">
               <AdminCreditManagement />
             </ProtectedRoute>
           } />
           <Route path="/admin/terms-management" element={
-            <ProtectedRoute allowedRoles={['admin']}>
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['settings']} fallbackPath="/admin/dashboard">
               <AdminTermsManagement />
             </ProtectedRoute>
           } />

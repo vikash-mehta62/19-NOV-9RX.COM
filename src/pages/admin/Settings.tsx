@@ -14,6 +14,7 @@ import { EmailSettingsSection } from "@/components/settings/EmailSettingsSection
 import { StoreHoursSection } from "@/components/settings/StoreHoursSection";
 import { SocialMediaSection } from "@/components/settings/SocialMediaSection";
 import { CurrencySettingsSection } from "@/components/settings/CurrencySettingsSection";
+import { DocumentAddressesSection } from "@/components/settings/DocumentAddressesSection";
 import {
   defaultValues,
   SettingsFormValues,
@@ -346,6 +347,10 @@ export default function Settings() {
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>
                   </TabsTrigger>
+                  <TabsTrigger value="documents" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Documents</span>
+                  </TabsTrigger>
                   <TabsTrigger value="orders" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Settings2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Orders</span>
@@ -401,6 +406,10 @@ export default function Settings() {
                 <BusinessProfileSection form={form} />
                 <LocationContactSection form={form} />
                 <CurrencySettingsSection form={form} />
+              </TabsContent>
+
+              <TabsContent value="documents" className="space-y-6">
+                <DocumentAddressesSection form={form} />
               </TabsContent>
 
               {/* Orders Tab */}

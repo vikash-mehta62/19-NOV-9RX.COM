@@ -22,6 +22,12 @@ export const getRoleBadgeColor = (role: UserRole) => {
       return "bg-blue-500 text-blue-50 hover:bg-blue-600";
     case "staff":
       return "bg-green-500 text-green-50 hover:bg-green-600";
+    case "accounting":
+      return "bg-amber-500 text-amber-50 hover:bg-amber-600";
+    case "warehouse":
+      return "bg-cyan-500 text-cyan-50 hover:bg-cyan-600";
+    case "superadmin":
+      return "bg-fuchsia-600 text-fuchsia-50 hover:bg-fuchsia-700";
     case "user":
       return "bg-gray-500 text-gray-50 hover:bg-gray-600";
     default:

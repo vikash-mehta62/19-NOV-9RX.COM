@@ -117,6 +117,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const shipping = toNumber(order?.shipping_cost || order?.shippin_cost || 0);
       const tax = toNumber(order?.tax_amount || order?.tax || 0);
       const discountAmount = toNumber(order?.discount_amount || 0);
+      const processingFeeAmount = toNumber(order?.processing_fee_amount || 0);
       const discountDetails = order?.discount_details || [];
       
       // Calculate total: subtotal + shipping + tax - discount (EXACT frontend formula)
@@ -134,6 +135,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         shipping,
         tax,
         discountAmount,
+        processingFeeAmount,
         calculatedTotal,
         storedTotal,
         finalTotal: total,
@@ -455,6 +457,16 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       console.log("💵 Rendering Tax:", taxText, "at position:", mm(valueX), mm(totalY));
       doc.text(taxText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
       totalY += 8;
+
+      if (processingFeeAmount > 0) {
+        doc.fillColor('#1F2937');
+        doc.text('Credit Card Processing Fee', mm(totalsX), mm(totalY));
+        doc.fillColor('#1F2937');
+        const processingFeeText = `$${formatCurrency(processingFeeAmount)}`;
+        console.log("ðŸ’³ Rendering Processing Fee:", processingFeeText, "at position:", mm(valueX), mm(totalY));
+        doc.text(processingFeeText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
+        totalY += 8;
+      }
       
       // Discounts (if any)
       if (discountAmount > 0) {

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -12,10 +12,12 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { InvoiceStatus, PaymentMethod } from "./types/invoice.types";
+import { getPaymentExperienceSettings } from "@/config/paymentConfig";
 
 const formSchema = z.object({
   orderSearch: z.string().min(1, {
@@ -35,6 +37,7 @@ const formSchema = z.object({
   }),
   paymentMethod: z.string().optional(),
   paymentNotes: z.string().optional(),
+  invoiceNotes: z.string().optional(),
   payment_status: z.string().optional(),
 });
 
@@ -52,9 +55,21 @@ export function CreateInvoiceForm() {
       dueDate: "",
       paymentMethod: "",
       paymentNotes: "",
+      invoiceNotes: "",
       payment_status:""
     },
   });
+
+  useEffect(() => {
+    const loadInvoiceDefaults = async () => {
+      const settings = await getPaymentExperienceSettings();
+      if (!form.getValues("invoiceNotes")) {
+        form.setValue("invoiceNotes", settings.invoiceDefaultNotes || "");
+      }
+    };
+
+    void loadInvoiceDefaults();
+  }, [form]);
 
   async function fetchOrder(orderSearch: string) {
     setLoading(true);
@@ -142,6 +157,7 @@ export function CreateInvoiceForm() {
         payment_status: orderData.payment_status,
         payment_method: values.paymentMethod as PaymentMethod,
         payment_notes: values.paymentNotes || null,
+        notes: values.invoiceNotes || null,
         items: orderData.items || [],
         customer_info: {
           name: values.customerName,
@@ -311,6 +327,23 @@ export function CreateInvoiceForm() {
                   <FormLabel>Payment Notes</FormLabel>
                   <FormControl>
                     <Input placeholder="Enter payment notes" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="invoiceNotes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Invoice Notes</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Add notes shown on the invoice"
+                      className="min-h-[110px]"
+                      {...field}
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

@@ -221,7 +221,7 @@ router.post("/send", async (req, res) => {
     // Step 2: Check if user profile exists and is active
     const { data: profile, error: profileError } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset")
+      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset, admin_permissions")
       .eq("id", authData.user.id)
       .single();
 
@@ -423,6 +423,7 @@ router.post("/verify", async (req, res) => {
         displayName: profile.display_name,
         type: profile.type,
         role: profile.role,
+        adminPermissions: profile.admin_permissions || [],
         status: profile.status,
         companyName: profile.company_name,
         groupId: profile.group_id,
@@ -495,7 +496,7 @@ router.post("/resend", async (req, res) => {
     // Get profile
     const { data: profile } = await supabaseAdmin
       .from("profiles")
-      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset")
+      .select("id, email, first_name, last_name, status, portal_access, type, group_id, role, requires_password_reset, admin_permissions")
       .eq("id", authData.user.id)
       .single();
 

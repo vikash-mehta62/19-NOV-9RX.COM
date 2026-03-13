@@ -45,6 +45,20 @@ export function InvoiceTableContent({
     }).format(amount);
   };
 
+  const getDisplayInvoiceAmount = (invoice: Invoice) => {
+    const baseAmount =
+      Number(invoice.total_amount || 0) ||
+      (
+        Number(invoice.subtotal || 0) +
+        Number(invoice.tax_amount || 0) +
+        Number(invoice.shippin_cost || 0) -
+        Number((invoice as any).discount_amount || 0)
+      );
+
+    const processingFeeAmount = Number((invoice as any).processing_fee_amount || 0);
+    return processingFeeAmount > 0 ? baseAmount + processingFeeAmount : baseAmount;
+  };
+
   // Format date nicely
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -150,16 +164,7 @@ export function InvoiceTableContent({
                 {/* Amount */}
                 <TableCell className="py-4 text-right font-mono">
                   <span className="font-semibold text-gray-900">
-                    {/* Use stored total_amount if available, otherwise calculate */}
-                    {formatCurrency(
-                      invoice.total_amount || 
-                      (
-                        (invoice.subtotal || 0) + 
-                        (invoice.tax_amount || 0) + 
-                        Number(invoice.shippin_cost || 0) - 
-                        Number((invoice as any).discount_amount || 0)
-                      )
-                    )}
+                    {formatCurrency(getDisplayInvoiceAmount(invoice))}
                   </span>
                 </TableCell>
 

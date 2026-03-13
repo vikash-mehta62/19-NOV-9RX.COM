@@ -163,6 +163,110 @@ function createMerchantAuthenticationType() {
   return merchantAuthenticationType;
 }
 
+async function createAuthorizeCustomerProfile(endpoint, apiLoginId, transactionKey, email, profileId) {
+  const shortProfileId = String(profileId || "").replace(/-/g, "").substring(0, 20);
+  const requestBody = {
+    createCustomerProfileRequest: {
+      merchantAuthentication: { name: apiLoginId, transactionKey },
+      profile: { merchantCustomerId: shortProfileId, email },
+    },
+  };
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    const responseText = await response.text();
+    const result = JSON.parse(responseText.replace(/^\uFEFF/, ""));
+
+    if (result.messages?.resultCode === "Ok") {
+      return { success: true, customerProfileId: result.customerProfileId };
+    }
+    if (result.messages?.message?.[0]?.code === "E00039") {
+      const match = result.messages.message[0].text.match(/ID (\d+)/);
+      if (match) {
+        return { success: true, customerProfileId: match[1] };
+      }
+    }
+
+    return {
+      success: false,
+      error: result.messages?.message?.[0]?.text || "Failed to create customer profile",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+async function createAuthorizePaymentProfile(endpoint, apiLoginId, transactionKey, customerProfileId, cardNumber, expirationDate, cvv, billing) {
+  const expDate = String(expirationDate || "").replace(/[\/\s-]/g, "");
+  const formattedExpDate =
+    expDate.length === 4
+      ? `20${expDate.substring(2, 4)}-${expDate.substring(0, 2)}`
+      : expDate;
+
+  const requestBody = {
+    createCustomerPaymentProfileRequest: {
+      merchantAuthentication: { name: apiLoginId, transactionKey },
+      customerProfileId,
+      paymentProfile: {
+        billTo: {
+          firstName: billing?.firstName || "Customer",
+          lastName: billing?.lastName || "Customer",
+          address: billing?.address || "",
+          city: billing?.city || "",
+          state: billing?.state || "",
+          zip: billing?.zip || "",
+          country: billing?.country || "USA",
+        },
+        payment: {
+          creditCard: {
+            cardNumber: String(cardNumber || "").replace(/\s/g, ""),
+            expirationDate: formattedExpDate,
+            cardCode: String(cvv || ""),
+          },
+        },
+      },
+      validationMode: "liveMode",
+    },
+  };
+
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+    const responseText = await response.text();
+    const result = JSON.parse(responseText.replace(/^\uFEFF/, ""));
+
+    if (result.messages?.resultCode === "Ok") {
+      return { success: true, paymentProfileId: result.customerPaymentProfileId };
+    }
+    if (result.messages?.message?.[0]?.code === "E00039") {
+      const match = result.messages.message[0].text.match(/ID (\d+)/);
+      if (match) {
+        return { success: true, paymentProfileId: match[1] };
+      }
+    }
+
+    return {
+      success: false,
+      error: result.messages?.message?.[0]?.text || "Failed to create payment profile",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
 app.post("/pay", requireAuth, async (req, res) => {
   try {
 
@@ -1259,6 +1363,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
       zip,
       country,
       paymentType, // "credit_card" or "ach"
+      saveCard,
       // ACH fields
       accountType,
       routingNumber,
@@ -1321,7 +1426,23 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
       return res.status(400).json({ success: false, message: "No balance due on this order" });
     }
 
-    const amountToCharge = parseFloat(balanceDue.toFixed(2));
+    const amountApplied = parseFloat(balanceDue.toFixed(2));
+
+    const { data: uiSettings } = await supabaseAdmin
+      .from("settings")
+      .select("card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer")
+      .limit(1)
+      .maybeSingle();
+
+    const cardFeeEnabled =
+      paymentType === "credit_card" &&
+      Boolean(uiSettings?.card_processing_fee_enabled) &&
+      Boolean(uiSettings?.card_processing_fee_pass_to_customer);
+    const configuredCardFeePercent = Number(uiSettings?.card_processing_fee_percentage || 0);
+    const processingFeeAmount = cardFeeEnabled
+      ? Number(((amountApplied * configuredCardFeePercent) / 100).toFixed(2))
+      : 0;
+    const amountToCharge = parseFloat((amountApplied + processingFeeAmount).toFixed(2));
 
     console.log(`[pay-now] Processing payment for order ${order.order_number}, amount: $${amountToCharge}`);
 
@@ -1489,7 +1610,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
         // 8. Payment succeeded — update all DB records using supabaseAdmin
         console.log(`[pay-now] Payment successful for order ${order.order_number}, txn: ${transactionId}`);
 
-        const newPaidAmount = paidAmount + amountToCharge;
+        const newPaidAmount = paidAmount + amountApplied;
         const orderTotal = totalAmount;
         const previousPaymentStatus = String(order.payment_status || "").toLowerCase();
         const wasUnpaidOrPending =
@@ -1594,6 +1715,96 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           }
         }
 
+        let cardSaved = false;
+        if (
+          saveCard === true &&
+          paymentType === "credit_card" &&
+          profileId &&
+          (order.customerInfo?.email || order.customer_email)
+        ) {
+          try {
+            const billingName = (cardholderName || "Customer").trim().split(" ").filter(Boolean);
+            const saveEmail = order.customerInfo?.email || order.customer_email;
+            const customerProfileResult = await createAuthorizeCustomerProfile(
+              payNowEnvironment,
+              DB_API_LOGIN_ID,
+              DB_TRANSACTION_KEY,
+              saveEmail,
+              profileId
+            );
+
+            if (customerProfileResult.success && customerProfileResult.customerProfileId) {
+              const paymentProfileResult = await createAuthorizePaymentProfile(
+                payNowEnvironment,
+                DB_API_LOGIN_ID,
+                DB_TRANSACTION_KEY,
+                customerProfileResult.customerProfileId,
+                cardNumber,
+                expirationDate,
+                cvv,
+                {
+                  firstName: billingName[0] || "Customer",
+                  lastName: billingName.length > 1 ? billingName.slice(1).join(" ") : "Customer",
+                  address: address || "",
+                  city: city || "",
+                  state: state || "",
+                  zip: zip || "",
+                  country: country || "USA",
+                }
+              );
+
+              if (paymentProfileResult.success && paymentProfileResult.paymentProfileId) {
+                const cleanNumber = String(cardNumber || "").replace(/\s/g, "");
+                const cardLastFour = cleanNumber.slice(-4);
+                let cardType = "unknown";
+                if (/^4/.test(cleanNumber)) cardType = "visa";
+                else if (/^5[1-5]/.test(cleanNumber)) cardType = "mastercard";
+                else if (/^3[47]/.test(cleanNumber)) cardType = "amex";
+                else if (/^6(?:011|5)/.test(cleanNumber)) cardType = "discover";
+
+                const expDigits = String(expirationDate || "").replace(/[\/\s-]/g, "");
+                const expMonth = parseInt(expDigits.substring(0, 2), 10);
+                const expYear = parseInt(`20${expDigits.substring(2, 4)}`, 10);
+
+                const { error: saveMethodError } = await supabaseAdmin
+                  .from("saved_payment_methods")
+                  .insert({
+                    profile_id: profileId,
+                    customer_profile_id: customerProfileResult.customerProfileId,
+                    payment_profile_id: paymentProfileResult.paymentProfileId,
+                    method_type: "card",
+                    card_last_four: cardLastFour,
+                    card_type: cardType,
+                    card_expiry_month: Number.isFinite(expMonth) ? expMonth : null,
+                    card_expiry_year: Number.isFinite(expYear) ? expYear : null,
+                    billing_first_name: billingName[0] || "Customer",
+                    billing_last_name: billingName.length > 1 ? billingName.slice(1).join(" ") : "Customer",
+                    billing_address: address || "",
+                    billing_city: city || "",
+                    billing_state: state || "",
+                    billing_zip: zip || "",
+                    billing_country: country || "USA",
+                    is_default: false,
+                    is_active: true,
+                    nickname: `${cardType.charAt(0).toUpperCase() + cardType.slice(1)} **** ${cardLastFour}`,
+                  });
+
+                if (!saveMethodError) {
+                  cardSaved = true;
+                } else {
+                  console.error("[pay-now] Failed to save card method:", saveMethodError);
+                }
+              } else {
+                console.error("[pay-now] Failed to create customer payment profile:", paymentProfileResult.error);
+              }
+            } else {
+              console.error("[pay-now] Failed to create customer profile:", customerProfileResult.error);
+            }
+          } catch (saveCardError) {
+            console.error("[pay-now] Unexpected save-card error:", saveCardError);
+          }
+        }
+
         // 8c. Create or update invoice
         try {
           const { data: existingInvoice } = await supabaseAdmin
@@ -1609,7 +1820,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
 
             const shippingCostVal = order.shipping_cost || 0;
             const discountVal = Number(order.discount_amount || 0);
-            const subtotal = amountToCharge + discountVal - taxAmount - shippingCostVal;
+            const subtotal = totalAmount + discountVal - taxAmount - shippingCostVal;
 
             const MAX_INVOICE_RETRIES = 5;
             let insertedInvoice = false;
@@ -1633,7 +1844,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
                 status: "pending",
                 amount: subtotal,
                 tax_amount: taxAmount,
-                total_amount: amountToCharge,
+                total_amount: totalAmount,
                 payment_status: newPaymentStatus,
                 payment_method: paymentType === "credit_card" ? "card" : "ach",
                 notes: order.notes || null,
@@ -1687,12 +1898,14 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           await supabaseAdmin.from("order_activities").insert({
             order_id: orderId,
             activity_type: "payment_received",
-            description: `Payment of $${amountToCharge.toFixed(2)} received via ${paymentType === "credit_card" ? "card" : "ach"} (Pay-Now link)`,
+            description: `Payment of $${amountApplied.toFixed(2)} received via ${paymentType === "credit_card" ? "card" : "ach"}${processingFeeAmount > 0 ? ` with $${processingFeeAmount.toFixed(2)} card fee` : ""} (Pay-Now link)`,
             performed_by_name: order.customerInfo?.name || "Customer",
             performed_by_email: order.customerInfo?.email || "",
             metadata: {
               order_number: order.order_number,
-              payment_amount: amountToCharge,
+              payment_amount: amountApplied,
+              charged_amount: amountToCharge,
+              processing_fee_amount: processingFeeAmount,
               payment_method: paymentType === "credit_card" ? "card" : "ach",
               payment_id: transactionId,
               source: "pay_now_link",
@@ -1709,6 +1922,9 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
           transactionId: transactionId,
           authCode: authCode,
           amount: amountToCharge,
+          appliedAmount: amountApplied,
+          processingFeeAmount,
+          cardSaved,
           paymentStatus: newPaymentStatus,
         });
       } catch (processError) {

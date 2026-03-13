@@ -73,18 +73,78 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   const [limit, setLimit] = useState(20);
   const [totalInvoices, setTotalInvoices] = useState(0);
 
+  const getInvoiceDisplayAmount = (invoice: { amount?: number | null; total_amount?: number | null; processing_fee_amount?: number | null }) => {
+    const baseAmount = Number(invoice.amount || invoice.total_amount || 0);
+    const processingFeeAmount = Number(invoice.processing_fee_amount || 0);
+    return processingFeeAmount > 0 ? baseAmount + processingFeeAmount : baseAmount;
+  };
+
+  const hydrateInvoiceProcessingFees = async <T extends { order_id?: string | null; processing_fee_amount?: number | null; payment_method?: string | null; profile_id?: string | null; subtotal?: number | null; tax_amount?: number | null; total_amount?: number | null; shippin_cost?: string | number | null }>(rows: T[]) => {
+    if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+    const pendingOrderIds = rows
+      .filter((row) => Number(row.processing_fee_amount || 0) <= 0 && row.order_id)
+      .map((row) => row.order_id as string);
+
+    if (pendingOrderIds.length === 0) return rows;
+
+    try {
+      const { data: activities, error } = await supabase
+        .from("order_activities")
+        .select("order_id, metadata, created_at")
+        .in("order_id", pendingOrderIds)
+        .eq("activity_type", "payment_received")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error hydrating invoice processing fees:", error);
+        return rows;
+      }
+
+      const feeByOrderId = new Map<string, number>();
+      for (const activity of activities || []) {
+        const orderId = (activity as any)?.order_id;
+        if (!orderId) continue;
+        const fee = Number((activity as any)?.metadata?.processing_fee_amount || 0);
+        const current = feeByOrderId.get(orderId) || 0;
+        if (fee > current) {
+          feeByOrderId.set(orderId, fee);
+        }
+      }
+
+      return rows.map((row) => {
+        if (Number(row.processing_fee_amount || 0) > 0 || !row.order_id) {
+          return row;
+        }
+
+        const fallbackFee = feeByOrderId.get(row.order_id) || 0;
+        if (fallbackFee <= 0) {
+          return row;
+        }
+
+        return {
+          ...row,
+          processing_fee_amount: fallbackFee,
+        };
+      });
+    } catch (error) {
+      console.error("Error hydrating invoice processing fees:", error);
+      return rows;
+    }
+  };
+
   // Calculate stats from all invoices
   const stats = {
     total: allInvoicesForStats.length,
-    totalAmount: allInvoicesForStats.reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
+    totalAmount: allInvoicesForStats.reduce((sum, inv) => sum + getInvoiceDisplayAmount(inv), 0),
     paid: allInvoicesForStats.filter(inv => inv.payment_status === "paid").length,
     paidAmount: allInvoicesForStats
       .filter(inv => inv.payment_status === "paid")
-      .reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
+      .reduce((sum, inv) => sum + getInvoiceDisplayAmount(inv), 0),
     unpaid: allInvoicesForStats.filter(inv => inv.payment_status === "unpaid" || inv.payment_status === "partial_paid").length,
     unpaidAmount: allInvoicesForStats
       .filter(inv => inv.payment_status === "unpaid" || inv.payment_status === "partial_paid")
-      .reduce((sum, inv) => sum + (inv.amount || inv.total_amount || 0), 0),
+      .reduce((sum, inv) => sum + getInvoiceDisplayAmount(inv), 0),
     overdue: allInvoicesForStats.filter(inv => {
       if (inv.payment_status === "paid" || inv.void) return false;
       const dueDate = new Date(inv.due_date);
@@ -107,7 +167,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
       while (hasMore) {
         let query = supabase
           .from("invoices")
-          .select(`id, payment_status, amount, total_amount, due_date, void`, { count: "exact" })
+          .select(`id, payment_status, amount, total_amount, processing_fee_amount, due_date, void`, { count: "exact" })
           .eq("void", false)
           .range(from, from + batchSize - 1);
 
@@ -149,8 +209,9 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         }
       }
       
-      console.log("📊 Fetched invoices for stats:", allInvoices?.length);
-      setAllInvoicesForStats(allInvoices || []);
+      const hydratedInvoices = await hydrateInvoiceProcessingFees(allInvoices || []);
+      console.log("📊 Fetched invoices for stats:", hydratedInvoices?.length);
+      setAllInvoicesForStats(hydratedInvoices || []);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
@@ -247,7 +308,8 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         return;
       }
 
-      const validInvoices = (data || []).filter(isInvoice);
+      const hydratedInvoices = await hydrateInvoiceProcessingFees((data || []) as Invoice[]);
+      const validInvoices = hydratedInvoices.filter(isInvoice);
       setInvoices(validInvoices);
       setTotalInvoices(count || 0);
 
@@ -346,6 +408,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         invoice_number: invoice.invoice_number,
         order_number: invoice.orders.order_number,
         id: invoice.id,
+        order_id: invoice.order_id,
         customerInfo,
         shippingInfo,
         profile_id: invoice.profile_id,
@@ -359,6 +422,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         subtotal: invoice.subtotal,
         tax: invoice.tax_amount,
         total: invoice.total_amount,
+        processing_fee_amount: (invoice as any).processing_fee_amount || 0,
         paid_amount: (invoice as any).paid_amount || 0,
         // Add discount fields
         discount_amount: (invoice as any).discount_amount || 0,

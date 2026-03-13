@@ -36,7 +36,7 @@ export default function Orders() {
               {poIs ? "Purchase Orders" : "Sales Orders"}
             </h1>
             <p className="text-gray-500 mt-1">
-              {poIs ? "Manage vendor purchase orders" : "Process and manage customer orders"}
+              {poIs ? "Manage vendor purchase orders" : "Review, process, and ship customer orders"}
             </p>
           </div>
         </div>

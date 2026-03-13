@@ -1,6 +1,13 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import JsBarcode from "jsbarcode";
+import {
+  DocumentAddressSettings,
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -94,6 +101,8 @@ export class SalesOrderPDFGenerator {
    */
   async createPDF(orderData: SalesOrderData): Promise<Blob> {
     try {
+      const documentSettings = await fetchAdminDocumentSettings();
+
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -107,7 +116,7 @@ export class SalesOrderPDFGenerator {
       this.addHeader(doc, pageWidth);
 
       // Add company info and sales order title
-      await this.addCompanySection(doc, orderData, pageWidth);
+      await this.addCompanySection(doc, orderData, pageWidth, documentSettings.invoice);
 
       // Add separator line after heading
       this.addHeaderSeparator(doc, pageWidth);
@@ -146,7 +155,12 @@ export class SalesOrderPDFGenerator {
   /**
    * Add company info and sales order title
    */
-  private async addCompanySection(doc: jsPDFWithAutoTable, orderData: SalesOrderData, pageWidth: number): Promise<void> {
+  private async addCompanySection(
+    doc: jsPDFWithAutoTable,
+    orderData: SalesOrderData,
+    pageWidth: number,
+    companySettings: DocumentAddressSettings
+  ): Promise<void> {
     // Company logo (left side)
     try {
       const logo = new Image();
@@ -165,21 +179,32 @@ export class SalesOrderPDFGenerator {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-      doc.text("9RX", this.margin, 15);
+      doc.text(companySettings.name || "9RX", this.margin, 15);
     }
 
     // Company details (left side, below logo)
+    const companyName = companySettings.name || "9RX LLC";
+    const companyAddressLine = formatDocumentAddressLine(companySettings);
+    const companyContactLine = formatDocumentContactLine(companySettings);
+    const companyMetaLine = formatDocumentMetaLine(companySettings);
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(COLORS.black[0], COLORS.black[1], COLORS.black[2]);
-    doc.text("9RX LLC", this.margin, 32);
+    doc.text(companyName, this.margin, 32);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("936 Broad River Ln, Charlotte, NC 28211", this.margin, 38);
-    doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", this.margin, 43);
-    doc.text("Tax ID: 99-0540972  |  www.9rx.com", this.margin, 48);
+    if (companyAddressLine) {
+      doc.text(companyAddressLine, this.margin, 38);
+    }
+    if (companyContactLine) {
+      doc.text(companyContactLine, this.margin, 43);
+    }
+    if (companyMetaLine) {
+      doc.text(companyMetaLine, this.margin, 48);
+    }
 
     // Sales Order title (right side)
     doc.setFont("helvetica", "bold");

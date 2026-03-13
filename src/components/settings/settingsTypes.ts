@@ -21,6 +21,37 @@ export interface SettingsFormValues {
   email: string;
   logo: string;
 
+  // Document addresses
+  invoice_company_name: string;
+  invoice_email: string;
+  invoice_phone: string;
+  invoice_tax_id: string;
+  invoice_website: string;
+  invoice_street: string;
+  invoice_suite: string;
+  invoice_city: string;
+  invoice_state: string;
+  invoice_zip_code: string;
+  invoice_country: string;
+  shipping_company_name: string;
+  shipping_email: string;
+  shipping_phone: string;
+  shipping_street: string;
+  shipping_suite: string;
+  shipping_city: string;
+  shipping_state: string;
+  shipping_zip_code: string;
+  shipping_country: string;
+  warehouse_name: string;
+  warehouse_email: string;
+  warehouse_phone: string;
+  warehouse_street: string;
+  warehouse_suite: string;
+  warehouse_city: string;
+  warehouse_state: string;
+  warehouse_zip_code: string;
+  warehouse_country: string;
+
   // Security Settings
   current_password: string;
   new_password: string;
@@ -93,6 +124,25 @@ export interface SettingsFormValues {
   free_shipping_enabled: boolean;
   shipping_calculation_method: string;
   handling_fee: number;
+  fedex_enabled: boolean;
+  fedex_use_sandbox: boolean;
+  fedex_api_key: string;
+  fedex_secret_key: string;
+  fedex_child_key: string;
+  fedex_child_secret: string;
+  fedex_account_number: string;
+  fedex_meter_number: string;
+  fedex_default_service_type: string;
+  fedex_default_packaging_type: string;
+  fedex_default_pickup_type: string;
+  fedex_label_stock_type: string;
+  fedex_label_image_type: string;
+  fedex_default_weight_value: number;
+  fedex_default_weight_units: string;
+  fedex_default_length: number;
+  fedex_default_width: number;
+  fedex_default_height: number;
+  fedex_default_dimension_units: string;
 
   // Order Settings
   minimum_order_amount: number;
@@ -146,6 +196,37 @@ export const defaultValues: SettingsFormValues = {
   phone: "",
   email: "",
   logo: "",
+
+  // Document addresses
+  invoice_company_name: "",
+  invoice_email: "",
+  invoice_phone: "",
+  invoice_tax_id: "",
+  invoice_website: "",
+  invoice_street: "",
+  invoice_suite: "",
+  invoice_city: "",
+  invoice_state: "",
+  invoice_zip_code: "",
+  invoice_country: "USA",
+  shipping_company_name: "",
+  shipping_email: "",
+  shipping_phone: "",
+  shipping_street: "",
+  shipping_suite: "",
+  shipping_city: "",
+  shipping_state: "",
+  shipping_zip_code: "",
+  shipping_country: "USA",
+  warehouse_name: "",
+  warehouse_email: "",
+  warehouse_phone: "",
+  warehouse_street: "",
+  warehouse_suite: "",
+  warehouse_city: "",
+  warehouse_state: "",
+  warehouse_zip_code: "",
+  warehouse_country: "USA",
 
   // Security
   current_password: "",
@@ -219,6 +300,25 @@ export const defaultValues: SettingsFormValues = {
   free_shipping_enabled: false,
   shipping_calculation_method: "flat_rate",
   handling_fee: 0,
+  fedex_enabled: false,
+  fedex_use_sandbox: true,
+  fedex_api_key: "",
+  fedex_secret_key: "",
+  fedex_child_key: "",
+  fedex_child_secret: "",
+  fedex_account_number: "",
+  fedex_meter_number: "",
+  fedex_default_service_type: "FEDEX_GROUND",
+  fedex_default_packaging_type: "YOUR_PACKAGING",
+  fedex_default_pickup_type: "USE_SCHEDULED_PICKUP",
+  fedex_label_stock_type: "PAPER_85X11_TOP_HALF_LABEL",
+  fedex_label_image_type: "PDF",
+  fedex_default_weight_value: 1,
+  fedex_default_weight_units: "LB",
+  fedex_default_length: 12,
+  fedex_default_width: 10,
+  fedex_default_height: 8,
+  fedex_default_dimension_units: "IN",
 
   // Order Settings
   minimum_order_amount: 0,

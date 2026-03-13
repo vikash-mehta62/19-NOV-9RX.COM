@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import axios from "../../axiosconfig"
-import { processPayment, PaymentResponse, logPaymentTransaction } from "@/services/paymentService"
+import { processPayment, PaymentResponse, logPaymentTransaction, saveCardToProfile } from "@/services/paymentService"
 import {
   CreditCard,
   Landmark,
@@ -35,11 +35,23 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Checkbox } from "@/components/ui/checkbox"
 import { cn } from "@/lib/utils"
 import { OrderActivityService } from "@/services/orderActivityService"
 import { PaymentResultPopup, PaymentResultData } from "@/components/payment/PaymentResultPopup"
 import { getAddressPredictions, getPlaceDetails } from "@/utils/googleAddressHelper"
 import { deductOrderBatchesWithFallback } from "@/services/orderBatchDeductionService"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { getACHProcessor, getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig"
 
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
@@ -431,6 +443,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   // Payment result popup state
   const [showResultPopup, setShowResultPopup] = useState(false)
   const [paymentResult, setPaymentResult] = useState<PaymentResultData | null>(null)
+  const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
+    cardProcessingFeeEnabled: false,
+    cardProcessingFeePercentage: 0,
+    cardProcessingFeePassToCustomer: false,
+    invoiceDefaultNotes: "",
+  })
+  const [showCardFeeConfirm, setShowCardFeeConfirm] = useState(false)
+  const [saveCard, setSaveCard] = useState(false)
   
   // Google Address API suggestions
   const [addressSuggestions, setAddressSuggestions] = useState<any[]>([])
@@ -537,6 +557,32 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       }))
     }
   }, [customer, amountP])
+
+  useEffect(() => {
+    const loadPaymentSettings = async () => {
+      const settings = await getPaymentExperienceSettings()
+      setFeeSettings(settings)
+    }
+
+    void loadPaymentSettings()
+  }, [])
+
+  const basePaymentAmount = Number(formData.amount || 0)
+  const cardFeeApplies =
+    paymentType === "credit_card" &&
+    feeSettings.cardProcessingFeeEnabled &&
+    feeSettings.cardProcessingFeePassToCustomer &&
+    feeSettings.cardProcessingFeePercentage > 0
+  const cardProcessingFeeAmount = cardFeeApplies
+    ? Number(((basePaymentAmount * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
+    : 0
+  const processorChargeAmount = Number(
+    (paymentType === "credit_card" ? basePaymentAmount + cardProcessingFeeAmount : basePaymentAmount).toFixed(2)
+  )
+  const savableProfileId = orders?.profile_id || orders?.customer || customer?.id || null
+  const canOfferSaveCard =
+    paymentType === "credit_card" &&
+    Boolean(savableProfileId && customer?.email)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -660,9 +706,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     return !hasErrors
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e?.preventDefault?.()
-    
+  const submitPayment = async (skipFeeConfirm = false) => {
     // Prevent double submission
     if (loading) return
     
@@ -672,22 +716,26 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
 
     // Validate amount
-    if (!formData.amount || formData.amount <= 0) {
+    if (!basePaymentAmount || basePaymentAmount <= 0) {
       toast({ title: "Invalid Amount", description: "Payment amount must be greater than zero.", variant: "destructive" })
       return
     }
 
+    if (!skipFeeConfirm && cardProcessingFeeAmount > 0) {
+      setShowCardFeeConfirm(true)
+      return
+    }
+
     setLoading(true)
-    
+
     // Check which ACH processor to use from database settings
-    const { getACHProcessor } = await import("@/config/paymentConfig");
     const achProcessor = await getACHProcessor();
 
     // Manual payment handling
     if (paymentType === "manaul_payemnt") {
       try {
         // Calculate new paid_amount for manual payment
-        const newPaidAmount = previousPaidAmount + formData.amount
+        const newPaidAmount = previousPaidAmount + basePaymentAmount
         const orderTotal = Number(orders.total_amount || orders.total || 0)
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
         
@@ -790,7 +838,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
         if (!existingInvoice) {
           const orderInfo = { ...orders, profile_id: orders.customer, id: orderId, paymentMethod: "manual", payment_status: newPaymentStatus }
-          await createInvoice(orderInfo, formData.amount, orders.tax_amount || 0)
+          await createInvoice(orderInfo, Number(orders.total_amount || orders.total || basePaymentAmount), orders.tax_amount || 0)
         }
 
         await supabase.from("invoices").update({
@@ -802,13 +850,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }).eq("order_id", orderId)
 
         await OrderActivityService.logPaymentReceived({
-          orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: "manual", performedByName: "Admin",
+          orderId, orderNumber: orders.order_number, amount: basePaymentAmount, paymentMethod: "manual", performedByName: "Admin",
         })
 
         // Show success popup for manual payment
         setPaymentResult({
           success: true,
-          amount: formData.amount,
+          amount: basePaymentAmount,
           orderNumber: orders?.order_number,
           paymentMethod: "manual",
         })
@@ -820,7 +868,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         // Show failure popup for manual payment
         setPaymentResult({
           success: false,
-          amount: formData.amount,
+          amount: basePaymentAmount,
           orderNumber: orders?.order_number,
           paymentMethod: "manual",
           errorMessage: error.message || "Failed to process manual payment",
@@ -841,6 +889,41 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     
     const cardNameParts = getNameParts(formData.cardholderName);
     const achNameParts = getNameParts(formData.nameOnAccount);
+    const maybeSaveCardAfterSuccess = async () => {
+      if (!saveCard || paymentType !== "credit_card" || !savableProfileId || !customer?.email) {
+        return
+      }
+
+      try {
+        const saveResult = await saveCardToProfile(
+          savableProfileId,
+          customer.email,
+          formData.cardNumber,
+          formData.expirationDate,
+          formData.cvv,
+          {
+            firstName: cardNameParts.firstName,
+            lastName: cardNameParts.lastName,
+            address: formData.address || "N/A",
+            city: formData.city || "N/A",
+            state: formData.state || "N/A",
+            zip: formData.zip || "00000",
+            country: formData.country || "USA",
+          }
+        )
+
+        if (saveResult.success) {
+          toast({
+            title: "Card Saved",
+            description: "This card is now available for faster future checkout.",
+          })
+        } else if (saveResult.error) {
+          console.error("Failed to save card after payment:", saveResult.error)
+        }
+      } catch (saveError) {
+        console.error("Error saving card after payment:", saveError)
+      }
+    }
 
     // ============================================
     // PAY-NOW FLOW: Use server endpoint (unauthenticated)
@@ -851,6 +934,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         const payNowPayload: any = {
           orderId,
           paymentType,
+          amount: processorChargeAmount,
+          appliedAmount: basePaymentAmount,
+          processingFeeAmount: cardProcessingFeeAmount,
+          saveCard,
           address: formData.address || "N/A",
           city: formData.city || "N/A",
           state: formData.state || "N/A",
@@ -874,12 +961,18 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         const result = serverResponse.data;
 
         if (result.success) {
+          if (result.cardSaved) {
+            toast({
+              title: "Card Saved",
+              description: "This card is now available for faster future checkout.",
+            });
+          }
           setPaymentSuccess(true);
           setPaymentResult({
             success: true,
             transactionId: result.transactionId,
             authCode: result.authCode,
-            amount: result.amount || formData.amount,
+            amount: result.amount || processorChargeAmount,
             orderNumber: orders?.order_number,
             paymentMethod: paymentType === "credit_card" ? "card" : "ach",
             cardType: paymentType === "credit_card" ? cardType.type : undefined,
@@ -893,7 +986,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         } else {
           setPaymentResult({
             success: false,
-            amount: formData.amount,
+            amount: processorChargeAmount,
             orderNumber: orders?.order_number,
             errorMessage: result.message || "Payment failed. Please try again.",
             errorCode: result.errorCode,
@@ -908,7 +1001,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         const errMsg = error?.response?.data?.message || error?.message || "Something went wrong. Please try again.";
         setPaymentResult({
           success: false,
-          amount: formData.amount,
+          amount: processorChargeAmount,
           orderNumber: orders?.order_number,
           errorMessage: errMsg,
           paymentMethod: paymentType === "credit_card" ? "card" : "ach",
@@ -948,7 +1041,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             zip: formData.zip || "00000",
             country: formData.country || "USA",
           },
-          formData.amount,
+          processorChargeAmount,
           orderId,
           `Order Payment - ${orders?.order_number}`,
           "WEB"
@@ -958,7 +1051,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         const paymentRequest = paymentType === "credit_card"
           ? {
               payment: { type: "card" as const, cardNumber: formData.cardNumber, expirationDate: formData.expirationDate.replace("/", ""), cvv: formData.cvv, cardholderName: formData.cardholderName },
-              amount: formData.amount,
+              amount: processorChargeAmount,
+              chargedAmount: processorChargeAmount,
+              appliedAmount: basePaymentAmount,
+              processingFeeAmount: cardProcessingFeeAmount,
               invoiceNumber: orders?.order_number,
               orderId,
               customerEmail: customer?.email,
@@ -966,7 +1062,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             }
           : {
               payment: { type: "ach" as const, accountType: formData.accountType as "checking" | "savings", routingNumber: formData.routingNumber, accountNumber: formData.accountNumber, nameOnAccount: formData.nameOnAccount, echeckType: "WEB" as const },
-              amount: formData.amount,
+              amount: processorChargeAmount,
+              chargedAmount: processorChargeAmount,
+              appliedAmount: basePaymentAmount,
+              processingFeeAmount: cardProcessingFeeAmount,
               invoiceNumber: orders?.order_number,
               orderId,
               customerEmail: customer?.email,
@@ -989,7 +1088,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           orderId,
           null, // invoice_id - will be set after invoice creation
           "auth_capture",
-          formData.amount,
+          processorChargeAmount,
           {
             success: response.success,
             transactionId: response.transactionId,
@@ -1008,9 +1107,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
       if (response.success) {
         setPaymentSuccess(true)
+        await maybeSaveCardAfterSuccess()
         
         // Calculate new paid_amount - add current payment to previous paid amount
-        const newPaidAmount = previousPaidAmount + formData.amount
+        const newPaidAmount = previousPaidAmount + basePaymentAmount
         const orderTotal = Number(orders.total_amount || orders.total || 0)
         const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
         
@@ -1118,7 +1218,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             id: orderId 
           }
           // Pass the actual tax_amount from the order
-          await createInvoice(orderWithProfileId, formData.amount, orders.tax_amount || 0)
+          await createInvoice(orderWithProfileId, Number(orders.total_amount || orders.total || basePaymentAmount), orders.tax_amount || 0)
         }
 
         await supabase.from("invoices").update({
@@ -1130,7 +1230,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }).eq("order_id", orderId)
 
         await OrderActivityService.logPaymentReceived({
-          orderId, orderNumber: orders.order_number, amount: formData.amount, paymentMethod: paymentType === "credit_card" ? "card" : "ach", paymentId: response.transactionId, performedByName: customer.name || "Customer", performedByEmail: customer.email,
+          orderId, orderNumber: orders.order_number, amount: basePaymentAmount, chargedAmount: processorChargeAmount, processingFeeAmount: cardProcessingFeeAmount, paymentMethod: paymentType === "credit_card" ? "card" : "ach", paymentId: response.transactionId, performedByName: customer.name || "Customer", performedByEmail: customer.email,
         })
 
         // Show success popup with transaction details
@@ -1138,7 +1238,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           success: true,
           transactionId: response.transactionId,
           authCode: response.authCode,
-          amount: formData.amount,
+          amount: processorChargeAmount,
           orderNumber: orders?.order_number,
           paymentMethod: paymentType === "credit_card" ? "card" : "ach",
           cardType: paymentType === "credit_card" ? cardType.type : undefined,
@@ -1156,7 +1256,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         // Show failure popup with error details
         setPaymentResult({
           success: false,
-          amount: formData.amount,
+          amount: processorChargeAmount,
           orderNumber: orders?.order_number,
           errorMessage: finalMessage,
           errorCode: errorCode,
@@ -1173,7 +1273,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
       // Show failure popup for unexpected errors
       setPaymentResult({
         success: false,
-        amount: formData.amount,
+        amount: processorChargeAmount,
         orderNumber: orders?.order_number,
         errorMessage: error?.message || "Something went wrong. Please try again.",
         paymentMethod: paymentType === "credit_card" ? "card" : "ach",
@@ -1186,6 +1286,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
   }
 
+  const handleSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault?.()
+    await submitPayment()
+  }
+
   if (!modalIsOpen) return null
 
   // Helper to safely format amount
@@ -1195,7 +1300,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   }
 
   const paymentContent = (
-    <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-50 via-white to-slate-100 overflow-auto">
+    <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-50 via-white to-slate-100 overflow-y-auto overscroll-contain">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b shadow-sm">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1251,6 +1356,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       >
                         <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
                         <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
+                        <span className="text-xs text-gray-500 text-center">
+                          {feeSettings.cardProcessingFeeEnabled && feeSettings.cardProcessingFeePassToCustomer
+                            ? `${feeSettings.cardProcessingFeePercentage}% card fee applies`
+                            : "No extra card fee on this order"}
+                        </span>
                         {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
                       <button
@@ -1263,6 +1373,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       >
                         <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
                         <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
+                        <span className="text-xs text-emerald-600 text-center">No processing fee</span>
                         {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
                     </>
@@ -1396,6 +1507,27 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         </div>
                         {errors.cardholderName && <p className="text-sm text-red-500">{errors.cardholderName}</p>}
                       </div>
+
+                      {canOfferSaveCard && (
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              id="saveCard"
+                              checked={saveCard}
+                              onCheckedChange={(checked) => setSaveCard(checked === true)}
+                              className="mt-0.5 border-blue-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                            />
+                            <div className="space-y-1">
+                              <Label htmlFor="saveCard" className="cursor-pointer text-sm font-semibold text-slate-900">
+                                Save this card securely for faster future checkout
+                              </Label>
+                              <p className="text-sm text-slate-600">
+                                Optional. Your card is stored as a secure payment token so it can be reused later without entering all card details again.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </>
                   )}
 
@@ -1606,13 +1738,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <div className="lg:hidden mt-6">
                 <Button 
                   type="submit" 
-                  disabled={loading || formData.amount <= 0} 
+                  disabled={loading || basePaymentAmount <= 0} 
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(formData.amount)}</>
+                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(processorChargeAmount)}</>
                   )}
                 </Button>
               </div>
@@ -1653,14 +1785,31 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
 
                   <Separator />
 
-                  {/* Amount */}
-                  <div className="bg-blue-50 rounded-xl p-4">
+                  <div className="bg-blue-50 rounded-xl p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-blue-700 font-medium flex items-center gap-2">
                         <DollarSign className="w-5 h-5" />
-                        Amount Due
+                        Payment applied
                       </span>
-                      <span className="text-2xl font-bold text-blue-700">${formatAmount(formData.amount)}</span>
+                      <span className="text-2xl font-bold text-blue-700">${formatAmount(basePaymentAmount)}</span>
+                    </div>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Base payment</span>
+                        <span>${formatAmount(basePaymentAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-gray-600">
+                        <span>Processing fee</span>
+                        <span>
+                          {paymentType === "credit_card"
+                            ? `$${formatAmount(cardProcessingFeeAmount)}`
+                            : "$0.00"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between border-t pt-2 font-semibold text-gray-900">
+                        <span>Total charged today</span>
+                        <span>${formatAmount(processorChargeAmount)}</span>
+                      </div>
                     </div>
                   </div>
 
@@ -1673,6 +1822,102 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       {paymentType === "manaul_payemnt" && <><FileText className="w-3 h-3 mr-1" />Manual</>}
                     </Badge>
                   </div>
+
+                  <Card className={cn(
+                    "border",
+                    paymentType === "credit_card"
+                      ? cardProcessingFeeAmount > 0
+                        ? "border-amber-200 bg-amber-50"
+                        : "border-blue-200 bg-blue-50"
+                      : paymentType === "ach"
+                        ? "border-emerald-200 bg-emerald-50"
+                        : "border-slate-200 bg-slate-50"
+                  )}>
+                    <CardContent className="p-5">
+                      {paymentType === "credit_card" && cardProcessingFeeAmount > 0 ? (
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-full bg-amber-100 p-2">
+                              <AlertCircle className="h-5 w-5 text-amber-700" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-amber-900">
+                                Card payments include an extra processing fee
+                              </p>
+                              <p className="text-sm leading-6 text-amber-800">
+                                You will pay the balance amount plus the configured {feeSettings.cardProcessingFeePercentage}% card fee. Only the balance amount is applied to this payment.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-slate-600">Applied to balance</span>
+                              <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-sm">
+                              <span className="text-slate-600">Card processing fee</span>
+                              <span className="font-semibold text-amber-700">${formatAmount(cardProcessingFeeAmount)}</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
+                              <span className="font-semibold text-slate-900">Total charged today</span>
+                              <span className="text-lg font-bold text-amber-700">${formatAmount(processorChargeAmount)}</span>
+                            </div>
+                          </div>
+                          <p className="text-sm font-semibold text-amber-800">
+                            Use ACH at checkout to avoid card fees and save ${formatAmount(cardProcessingFeeAmount)} on this payment.
+                          </p>
+                        </div>
+                      ) : paymentType === "credit_card" ? (
+                        <div className="space-y-4">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-full bg-blue-100 p-2">
+                              <ShieldCheck className="h-5 w-5 text-blue-700" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-blue-900">
+                                Credit card checkout is active
+                              </p>
+                              <p className="text-sm leading-6 text-blue-800">
+                                This order currently has no extra card processing fee. The amount charged to the card matches the order amount shown above.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="rounded-xl border border-blue-200 bg-white/80 p-4">
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-slate-600">Applied to balance</span>
+                              <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
+                            </div>
+                            <div className="mt-2 flex items-center justify-between text-sm">
+                              <span className="text-slate-600">Card processing fee</span>
+                              <span className="font-semibold text-blue-700">$0.00</span>
+                            </div>
+                            <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
+                              <span className="font-semibold text-slate-900">Total charged today</span>
+                              <span className="text-lg font-bold text-blue-700">${formatAmount(processorChargeAmount)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : paymentType === "ach" ? (
+                        <div className="space-y-3">
+                          <div className="flex items-start gap-3">
+                            <div className="rounded-full bg-emerald-100 p-2">
+                              <ShieldCheck className="h-5 w-5 text-emerald-700" />
+                            </div>
+                            <div className="space-y-1">
+                              <p className="text-sm font-semibold text-emerald-900">ACH payments are fee-free</p>
+                              <p className="text-sm text-emerald-800">
+                                The amount you enter is the exact amount charged and applied to this balance.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-600">
+                          Manual payments apply only the amount entered to the order or invoice balance.
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
                 </CardContent>
               </Card>
 
@@ -1680,14 +1925,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <div className="hidden lg:block">
                 <Button 
                   type="button" 
-                  disabled={loading || formData.amount <= 0} 
+                  disabled={loading || basePaymentAmount <= 0} 
                   onClick={(e) => handleSubmit(e as unknown as React.FormEvent)} 
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing Payment...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(formData.amount)}</>
+                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(processorChargeAmount)}</>
                   )}
                 </Button>
               </div>
@@ -1747,6 +1992,42 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   return (
     <>
       {createPortal(paymentContent, document.body)}
+      <AlertDialog open={showCardFeeConfirm} onOpenChange={setShowCardFeeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm card payment</AlertDialogTitle>
+            <AlertDialogDescription>
+              Credit card processing adds an extra fee based on your configured settings.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-xl border bg-slate-50 p-4 text-sm space-y-2">
+            <div className="flex items-center justify-between">
+              <span>Payment applied to invoice</span>
+              <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+              <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-2 font-semibold">
+              <span>Total charged to card</span>
+              <span>${processorChargeAmount.toFixed(2)}</span>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={loading}
+              onClick={async () => {
+                setShowCardFeeConfirm(false)
+                await submitPayment(true)
+              }}
+            >
+              Continue and charge ${processorChargeAmount.toFixed(2)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {paymentResult && (
         <PaymentResultPopup
           isOpen={showResultPopup}

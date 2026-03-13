@@ -33,7 +33,7 @@ interface UserActionsProps {
   userStatus: string;
   userName: string;
   userEmail: string;
-  userType: "pharmacy" | "hospital" | "group";
+  userType: "pharmacy" | "hospital" | "group" | "admin";
   onUserUpdated: () => void;
 }
 

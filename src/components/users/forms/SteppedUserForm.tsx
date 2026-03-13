@@ -148,16 +148,16 @@ export function SteppedUserForm({
     }
 
     try {
-      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" => {
-        const validTypes = ["pharmacy", "hospital", "group", "vendor"] as const;
+      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" | "admin" => {
+        const validTypes = ["pharmacy", "hospital", "group", "vendor", "admin"] as const;
         return validTypes.includes(type.toLowerCase() as any) ? (type.toLowerCase() as any) : "pharmacy";
       };
       const validStatus = (status: string): "active" | "inactive" | "pending" => {
         const validStatuses = ["active", "inactive", "pending"] as const;
         return validStatuses.includes(status.toLowerCase() as any) ? (status.toLowerCase() as any) : "active";
       };
-      const validRole = (role: string): "admin" | "manager" | "staff" | "user" => {
-        const validRoles = ["admin", "manager", "staff", "user"] as const;
+      const validRole = (role: string): "admin" | "superadmin" | "manager" | "staff" | "accounting" | "warehouse" | "user" => {
+        const validRoles = ["admin", "superadmin", "manager", "staff", "accounting", "warehouse", "user"] as const;
         return validRoles.includes(role.toLowerCase() as any) ? (role.toLowerCase() as any) : "user";
       };
 
@@ -170,6 +170,7 @@ export function SteppedUserForm({
         type: validType(values.type),
         status: validStatus(values.status),
         role: validRole(values.role),
+        adminPermissions: Array.isArray(values.adminPermissions) ? values.adminPermissions : [],
         displayName: values.displayName || `${values.firstName} ${values.lastName}`,
         documents: Array.isArray(values.documents) ? values.documents : [],
         billingAddress: values.billingAddress || {},

@@ -17,10 +17,21 @@ interface PaymentTabProps {
   onSendPaymentLink?: () => void;
   isSendingLink?: boolean;
   poIs?: boolean;
+  onCollectPayment?: () => void;
+  hideFinancialData?: boolean;
 }
 
-export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: PaymentTabProps) => {
+export const PaymentTab = ({
+  order,
+  onSendPaymentLink,
+  isSendingLink,
+  poIs,
+  onCollectPayment,
+  hideFinancialData = false,
+}: PaymentTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
+  const [chargedAmount, setChargedAmount] = useState(0);
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(0);
   const [dbPaymentStatus, setDbPaymentStatus] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [poCharges, setPoCharges] = useState({ handling: 0, fred: 0 });
@@ -84,6 +95,49 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
     fetchPaidAmount();
   }, [order.id, order.payment_status, poIs]); // keep status in sync for same order id
 
+  useEffect(() => {
+    const fetchPaymentActivitySummary = async () => {
+      if (!order.id) return;
+
+      const toNumber = (value: unknown) => {
+        const parsed = Number(value || 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      try {
+        const { data, error } = await supabase
+          .from("order_activities")
+          .select("metadata")
+          .eq("order_id", order.id)
+          .eq("activity_type", "payment_received");
+
+        if (error) {
+          console.error("Error fetching payment activities:", error);
+          return;
+        }
+
+        const summary = (data || []).reduce(
+          (acc, activity: any) => {
+            const metadata = activity?.metadata || {};
+            acc.charged += toNumber(
+              metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount
+            );
+            acc.fee += toNumber(metadata.processing_fee_amount);
+            return acc;
+          },
+          { charged: 0, fee: 0 }
+        );
+
+        setChargedAmount(summary.charged);
+        setProcessingFeeAmount(summary.fee);
+      } catch (error) {
+        console.error("Error fetching payment activity summary:", error);
+      }
+    };
+
+    fetchPaymentActivitySummary();
+  }, [order.id]);
+
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
       return total + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -103,6 +157,10 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
   
   // Calculate total including all charges (PO charges only added for POs) and subtracting discount
   const total = subtotal + shipping + tax + handling + fred - discountAmount;
+  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount;
+  const displayTotal = processingFeeAmount > 0
+    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
+    : total;
   
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;
@@ -146,6 +204,34 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
 
   const paymentMethod = getPaymentMethodDisplay(order.payment?.method || "");
   const PaymentIcon = paymentMethod.icon;
+
+  if (hideFinancialData) {
+    return (
+      <div className="space-y-6">
+        <Card className="overflow-hidden border-0 shadow-sm">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-gray-50 border-b pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-white rounded-lg shadow-sm">
+                <PaymentIcon className="w-5 h-5 text-slate-600" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Payment Status</CardTitle>
+                <p className="text-sm text-gray-500 mt-0.5">Financial amounts are hidden for this role.</p>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50">
+              <span className="text-sm font-medium text-gray-600">Current Status</span>
+              <Badge variant="secondary" className="capitalize">
+                {isPaid ? "paid" : isPartiallyPaid ? "partial" : "unpaid"}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -227,16 +313,27 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
                     }
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    <Link to={`/pay-now?orderid=${order.id}`}>
+                    {onCollectPayment ? (
                       <Button size="sm" className={
                         isPartiallyPaid 
                           ? "bg-yellow-600 hover:bg-yellow-700" 
                           : "bg-amber-600 hover:bg-amber-700"
-                      }>
+                      } onClick={onCollectPayment}>
                         <CreditCard className="w-4 h-4 mr-1.5" />
                         {isPartiallyPaid ? "Collect Balance" : "Create Payment Link"}
                       </Button>
-                    </Link>
+                    ) : (
+                      <Link to={`/pay-now?orderid=${order.id}`}>
+                        <Button size="sm" className={
+                          isPartiallyPaid 
+                            ? "bg-yellow-600 hover:bg-yellow-700" 
+                            : "bg-amber-600 hover:bg-amber-700"
+                        }>
+                          <CreditCard className="w-4 h-4 mr-1.5" />
+                          {isPartiallyPaid ? "Collect Balance" : "Create Payment Link"}
+                        </Button>
+                      </Link>
+                    )}
                     {onSendPaymentLink && (
                       <Button
                         size="sm"
@@ -347,6 +444,16 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
 
+            {processingFeeAmount > 0 && (
+              <div className="flex justify-between items-center py-2">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-amber-500" />
+                  <span className="text-gray-600">Card Processing Fee</span>
+                </div>
+                <span className="font-medium text-amber-600">${processingFeeAmount.toFixed(2)}</span>
+              </div>
+            )}
+
             {/* Show discount if applied */}
             {discountAmount > 0 && (
               <>
@@ -378,19 +485,19 @@ export const PaymentTab = ({ order, onSendPaymentLink, isSendingLink, poIs }: Pa
             {/* Total */}
             <div className="border-t pt-4 mt-2">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-900">Total</span>
-                <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
+                <span className="text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
+                <span className="text-2xl font-bold text-emerald-600">${displayTotal.toFixed(2)}</span>
               </div>
             </div>
 
             {/* Paid Amount */}
-            {paidAmount > 0 && (
+            {effectiveChargedAmount > 0 && (
               <div className="flex justify-between items-center py-2 border-t">
                 <div className="flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
                   <span className="text-green-600 font-medium">Paid Amount</span>
                 </div>
-                <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+                <span className="font-bold text-green-600">${effectiveChargedAmount.toFixed(2)}</span>
               </div>
             )}
 

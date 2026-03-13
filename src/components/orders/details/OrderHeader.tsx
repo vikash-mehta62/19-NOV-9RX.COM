@@ -6,7 +6,7 @@ import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, 
 import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
-import { TrackingDialog } from "../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog } from "../components/TrackingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
 
@@ -22,6 +22,7 @@ interface OrderHeaderProps {
   isSendingEmail?: boolean;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   poIs?: boolean;
+  hideFinancialData?: boolean;
 }
 
 const statusConfig = {
@@ -46,12 +47,14 @@ export const OrderHeader = ({
   isSendingEmail,
   userRole,
   poIs,
+  hideFinancialData = false,
 }: OrderHeaderProps) => {
   const { toast } = useToast();
   const [showShipConfirmDialog, setShowShipConfirmDialog] = useState(false);
   const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
+  const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
   const [isShipping, setIsShipping] = useState(false);
 
   const copyToClipboard = (text: string) => {
@@ -96,6 +99,18 @@ export const OrderHeader = ({
         .update({
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
+          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+          shipping: {
+            ...(((order as any).shipping as Record<string, any> | null) || {}),
+            method: shippingMethod,
+            trackingNumber,
+            labelUrl: fedexData?.labelUrl,
+            labelFormat: fedexData?.labelFormat,
+            serviceType: fedexData?.serviceType,
+            packagingType: fedexData?.packagingType,
+            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
+            estimatedDelivery: fedexData?.estimatedDeliveryDate,
+          } as any,
           status: "shipped"
         })
         .eq("id", order.id);
@@ -260,9 +275,11 @@ export const OrderHeader = ({
 
         {/* Right Section */}
         <div className="flex flex-col md:items-end gap-3">
-          <div className="text-2xl md:text-3xl font-bold text-primary">
-            ${parseFloat(order.total || "0").toFixed(2)}
-          </div>
+          {!hideFinancialData && (
+            <div className="text-2xl md:text-3xl font-bold text-primary">
+              ${parseFloat(order.total || "0").toFixed(2)}
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-2">
             {/* {userRole === "admin" && order.status !== "cancelled" && !order.void && onEdit && (
@@ -272,7 +289,7 @@ export const OrderHeader = ({
               </Button>
             )} */}
 
-            {onDownload && (
+            {onDownload && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
@@ -335,7 +352,7 @@ export const OrderHeader = ({
       {userRole === "admin" && !order.void && order.status !== "cancelled" && (
         <div className="mt-4 pt-4 border-t">
           <div className="flex flex-wrap gap-2">
-            {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && (
+            {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
@@ -348,7 +365,7 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {onPrint && (
+            {onPrint && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
@@ -372,7 +389,7 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {normalizedPaymentStatus !== "paid" && !poIs && (
+            {normalizedPaymentStatus !== "paid" && !poIs && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
@@ -405,6 +422,8 @@ export const OrderHeader = ({
         onTrackingNumberChange={setTrackingNumber}
         shippingMethod={shippingMethod}
         onShippingMethodChange={setShippingMethod}
+        order={order}
+        onFedExDataChange={setFedexData}
         onSubmit={handleTrackingSubmit}
       />
     </Card>

@@ -40,8 +40,8 @@ export function SharedUserForm({
       );
 
       // Ensure type is one of the allowed values
-      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" => {
-        const validTypes = ["pharmacy", "hospital", "group", "vendor"] as const;
+      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" | "admin" => {
+        const validTypes = ["pharmacy", "hospital", "group", "vendor", "admin"] as const;
         const normalizedType = type.toLowerCase();
         return validTypes.includes(normalizedType as any)
           ? (normalizedType as "pharmacy" | "hospital" | "group" | "vendor")
@@ -62,8 +62,8 @@ export function SharedUserForm({
       // Ensure role is one of the allowed values
       const validRole = (
         role: string
-      ): "admin" | "manager" | "staff" | "user" => {
-        const validRoles = ["admin", "manager", "staff", "user"] as const;
+      ): "admin" | "superadmin" | "manager" | "staff" | "accounting" | "warehouse" | "user" => {
+        const validRoles = ["admin", "superadmin", "manager", "staff", "accounting", "warehouse", "user"] as const;
         const normalizedRole = role.toLowerCase();
         return validRoles.includes(normalizedRole as any)
           ? (normalizedRole as "admin" | "manager" | "staff" | "user")
@@ -79,6 +79,7 @@ export function SharedUserForm({
         type: validType(values.type),
         status: validStatus(values.status),
         role: validRole(values.role),
+        adminPermissions: Array.isArray(values.adminPermissions) ? values.adminPermissions : [],
         companyName: values.companyName,
         displayName:
           values.displayName || `${values.firstName} ${values.lastName}`,

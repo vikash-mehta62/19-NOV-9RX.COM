@@ -358,8 +358,12 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: deleteResult.success, error: deleteResult.error, message: deleteResult.success ? "Card deleted" : deleteResult.error });
     }
 
-    const { payment, amount, invoiceNumber, orderId, customerEmail, billing } = body;
-    if (!payment || !amount) {
+    const { payment, amount, chargedAmount, appliedAmount, processingFeeAmount, invoiceNumber, orderId, customerEmail, billing } = body;
+    const normalizedChargedAmount = Number(chargedAmount ?? amount ?? 0);
+    const normalizedAppliedAmount = Number(appliedAmount ?? amount ?? 0);
+    const normalizedProcessingFeeAmount = Number(processingFeeAmount ?? Math.max(0, normalizedChargedAmount - normalizedAppliedAmount));
+
+    if (!payment || !normalizedChargedAmount) {
       return jsonResponse({ success: false, error: "Payment details and amount are required", errorCode: "INVALID_REQUEST" });
     }
 
@@ -412,7 +416,7 @@ Deno.serve(async (req) => {
 
     const transactionRequest: any = {
       transactionType: "authCaptureTransaction",
-      amount: amount.toFixed(2),
+      amount: normalizedChargedAmount.toFixed(2),
       payment: paymentData,
     };
     if (Object.keys(orderInfo).length > 0) transactionRequest.order = orderInfo;
@@ -450,8 +454,15 @@ Deno.serve(async (req) => {
           await supabase.from("order_activities").insert({
             order_id: orderId,
             activity_type: "payment_received",
-            description: `Payment of $${amount.toFixed(2)} received via ${payment.type === "card" ? "Credit Card" : "ACH"}`,
-            metadata: { transaction_id: transactionResponse.transId, auth_code: transactionResponse.authCode, payment_type: payment.type, amount },
+            description: `Payment of $${normalizedAppliedAmount.toFixed(2)} received via ${payment.type === "card" ? "Credit Card" : "ACH"}${normalizedProcessingFeeAmount > 0 ? ` with $${normalizedProcessingFeeAmount.toFixed(2)} card fee` : ""}`,
+            metadata: {
+              transaction_id: transactionResponse.transId,
+              auth_code: transactionResponse.authCode,
+              payment_type: payment.type,
+              amount: normalizedAppliedAmount,
+              charged_amount: normalizedChargedAmount,
+              processing_fee_amount: normalizedProcessingFeeAmount,
+            },
           });
         } catch (e) { console.error("Failed to log activity:", e); }
       }
@@ -460,6 +471,7 @@ Deno.serve(async (req) => {
         success: true,
         transactionId: transactionResponse.transId,
         authCode: transactionResponse.authCode,
+        amount: normalizedChargedAmount,
         message: "Transaction approved",
       });
     } else {

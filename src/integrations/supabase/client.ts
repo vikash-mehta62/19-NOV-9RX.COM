@@ -13,7 +13,7 @@ import type { Database } from './types';
 //9RX DB - US West
 const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
 //9RX DB - US West
-const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
+export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
 
 
 // Import the supabase client like this:

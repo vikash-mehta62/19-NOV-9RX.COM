@@ -25,6 +25,12 @@ import { v4 as uuidv4 } from "uuid";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
+import {
+  AdminDocumentSettings,
+  DEFAULT_ADMIN_DOCUMENT_SETTINGS,
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+} from "@/lib/documentSettings";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
@@ -43,6 +49,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const { cartItems, clearCart, addToCart } = useCart();
   const [vendorInfo, setVendorInfo] = useState<any>(null);
   const [loadingVendor, setLoadingVendor] = useState(true);
+  const [documentSettings, setDocumentSettings] = useState<AdminDocumentSettings>(DEFAULT_ADMIN_DOCUMENT_SETTINGS);
   const [isEditingAddress, setIsEditingAddress] = useState(false);
   const [editableAddress, setEditableAddress] = useState({
     street1: "",
@@ -140,16 +147,16 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         },
       },
 
-      // 9RX shipping address (where products will be delivered)
+      // Default warehouse delivery address for purchase orders
       shippingAddress: {
-        fullName: "9RX",
-        email: "info@9rx.com",
-        phone: "18009696295",
+        fullName: "",
+        email: "",
+        phone: "",
         address: {
-          street: "936 Broad River Ln",
-          city: "Charlotte",
-          state: "NC",
-          zip_code: "28211",
+          street: "",
+          city: "",
+          state: "",
+          zip_code: "",
         },
       },
 
@@ -170,6 +177,35 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       purchase_number_external: "",
     },
   });
+
+  useEffect(() => {
+    const loadDocumentSettings = async () => {
+      try {
+        const settings = await fetchAdminDocumentSettings();
+        setDocumentSettings(settings);
+        const warehouse = settings.warehouse;
+
+        form.setValue("shippingAddress", {
+          fullName: warehouse.name,
+          email: warehouse.email,
+          phone: warehouse.phone,
+          address: {
+            street: [warehouse.street, warehouse.suite].filter(Boolean).join(", "),
+            city: warehouse.city,
+            state: warehouse.state,
+            zip_code: warehouse.zipCode,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to load admin document settings for PO:", error);
+      }
+    };
+
+    void loadDocumentSettings();
+  }, [form]);
+
+  const warehouseAddress = documentSettings.warehouse;
+  const warehouseAddressLine = formatDocumentAddressLine(warehouseAddress);
 
   // Update vendor info in form when loaded
   useEffect(() => {
@@ -914,15 +950,15 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-blue-900">
             <Package className="h-5 w-5" />
-            Delivery Address (9RX)
+            Delivery Address
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-1">
-            <p className="font-semibold text-gray-900">9RX</p>
-            <p className="text-gray-700">936 Broad River Ln</p>
-            <p className="text-gray-700">Charlotte, NC 28211</p>
-            <p className="text-gray-700">Phone: 1-800-969-6295</p>
+            <p className="font-semibold text-gray-900">{warehouseAddress.name}</p>
+            <p className="text-gray-700">{warehouseAddressLine}</p>
+            {warehouseAddress.phone && <p className="text-gray-700">{warehouseAddress.phone}</p>}
+            {warehouseAddress.email && <p className="text-gray-700">{warehouseAddress.email}</p>}
           </div>
         </CardContent>
       </Card>
@@ -1234,9 +1270,9 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
               <div className="rounded-xl bg-slate-50 p-4">
                 <div className="flex items-center gap-2">
                   <Truck className="h-4 w-4 text-blue-600" />
-                  <p className="text-sm font-medium text-slate-900">Delivery to 9RX</p>
+                  <p className="text-sm font-medium text-slate-900">Delivery to {warehouseAddress.name}</p>
                 </div>
-                <p className="mt-2 text-sm text-slate-600">936 Broad River Ln, Charlotte, NC 28211</p>
+                <p className="mt-2 text-sm text-slate-600">{warehouseAddressLine}</p>
               </div>
 
               <div className="space-y-3 border-t pt-4">

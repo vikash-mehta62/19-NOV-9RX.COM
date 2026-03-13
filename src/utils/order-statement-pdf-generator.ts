@@ -2,6 +2,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { OrderStatementData, OrderStatementRecord } from "@/types/orderStatement";
 import Logo from "../assests/home/9rx_logo.png";
+import {
+  DocumentAddressSettings,
+  fetchAdminDocumentSettings,
+} from "@/lib/documentSettings";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -49,6 +53,8 @@ export class OrderPDFGenerator {
    */
   async createPDF(statementData: OrderStatementData): Promise<Blob> {
     try {
+      const documentSettings = await fetchAdminDocumentSettings();
+
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -62,7 +68,7 @@ export class OrderPDFGenerator {
       this.addHeaderGradient(doc, pageWidth);
 
       // Add logo and company info
-      await this.addCompanyHeader(doc, pageWidth);
+      await this.addCompanyHeader(doc, pageWidth, documentSettings.invoice);
 
       // Add statement info
       this.addStatementInfo(doc, statementData, pageWidth);
@@ -71,7 +77,7 @@ export class OrderPDFGenerator {
       this.addHeaderSeparator(doc, pageWidth);
 
       // Add customer info section
-      this.addCustomerSection(doc, statementData, pageWidth);
+      this.addCustomerSection(doc, statementData, pageWidth, documentSettings.invoice);
 
       // Add summary cards
       this.addSummaryCards(doc, statementData, pageWidth);
@@ -83,7 +89,7 @@ export class OrderPDFGenerator {
       this.addTotalsSection(doc, statementData, pageWidth);
 
       // Add footer
-      this.addFooter(doc, pageWidth, pageHeight);
+      this.addFooter(doc, pageWidth, pageHeight, documentSettings.invoice);
 
       // Add page numbers to all pages (like statement-pdf-generator)
       const totalPages = doc.getNumberOfPages();
@@ -131,7 +137,11 @@ export class OrderPDFGenerator {
   /**
    * Add company logo and header info
    */
-  private async addCompanyHeader(doc: jsPDFWithAutoTable, pageWidth: number): Promise<void> {
+  private async addCompanyHeader(
+    doc: jsPDFWithAutoTable,
+    pageWidth: number,
+    companySettings: DocumentAddressSettings
+  ): Promise<void> {
     // Try to add logo
     try {
       const logo = new Image();
@@ -150,7 +160,7 @@ export class OrderPDFGenerator {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(20);
       doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-      doc.text("9RX", this.margin, 16);
+      doc.text(companySettings.name || "9RX", this.margin, 16);
     }
 
     // Company tagline
@@ -202,7 +212,8 @@ export class OrderPDFGenerator {
   private addCustomerSection(
     doc: jsPDFWithAutoTable,
     statementData: OrderStatementData,
-    pageWidth: number
+    pageWidth: number,
+    companySettings: DocumentAddressSettings
   ): void {
     const sectionY = 38;
     const boxWidth = (pageWidth - this.margin * 3) / 2;
@@ -244,10 +255,10 @@ export class OrderPDFGenerator {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-    doc.text("9RX Pharmacy Solutions", contactBoxX + 4, sectionY + 13);
+    doc.text(companySettings.name || "Company", contactBoxX + 4, sectionY + 13);
     doc.setFontSize(8);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("Phone: +1 (800) 940-9619", contactBoxX + 4, sectionY + 18);
+    doc.text(`Phone: ${companySettings.phone || "-"}`, contactBoxX + 4, sectionY + 18);
   }
 
   /**
@@ -545,7 +556,8 @@ export class OrderPDFGenerator {
   private addFooter(
     doc: jsPDFWithAutoTable,
     pageWidth: number,
-    pageHeight: number
+    pageHeight: number,
+    companySettings: DocumentAddressSettings
   ): void {
     const footerY = pageHeight - 22; // Moved up to avoid overlap with page numbers
 
@@ -558,9 +570,18 @@ export class OrderPDFGenerator {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 940-9619 | info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" });
+    doc.text(this.buildCompanyFooterLine(companySettings), pageWidth / 2, footerY + 4, { align: "center" });
 
     // Generated timestamp (removed - will be replaced by page numbers)
+  }
+
+  private buildCompanyFooterLine(companySettings: DocumentAddressSettings): string {
+    return [
+      companySettings.name,
+      [companySettings.street, companySettings.suite, [companySettings.city, companySettings.state, companySettings.zipCode].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      companySettings.phone,
+      companySettings.email,
+    ].filter(Boolean).join(" | ");
   }
 }
 

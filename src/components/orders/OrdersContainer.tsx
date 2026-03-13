@@ -7,10 +7,11 @@ import { useOrderManagement } from "./hooks/useOrderManagement";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Download, Package, PlusCircle, Zap, Building2, ClipboardList, CircleDashed, BadgeDollarSign } from "lucide-react";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "@/supabaseClient";
 import { OrderSummaryCards } from "./OrderSummaryCards";
 import { isAfter, subDays, subYears, isWithinInterval } from "date-fns";
+import PaymentForm from "@/components/PaymentModal";
 
 type SortField = "customer" | "date" | "total" | "status" | "payment_status";
 type SortDirection = "asc" | "desc";
@@ -53,6 +54,7 @@ import { useSelector } from "react-redux";
 import { RootState } from "@/store/store";
 import { CreatePurchaseOrderDialog } from "./CreatePurchaseOrderDialog";
 import { getPoWorkflowState } from "./utils/poWorkflow";
+import { shouldHideAdminFinancials } from "@/lib/adminAccess";
 
 const exportToCSV = (orders: OrderFormValues[]) => {
   if (!orders || orders.length === 0) {
@@ -109,6 +111,10 @@ export const OrdersContainer = ({
   const navigate = useNavigate();
   const [orderStatus, setOrderStatus] = useState<string>("");
 
+  // Payment modal state for collect balance payment
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [paymentOrder, setPaymentOrder] = useState<any>(null);
+
   // Stats from database (not paginated)
   const [dbStats, setDbStats] = useState({
     total: 0,
@@ -127,6 +133,7 @@ export const OrdersContainer = ({
 
   //For the order history status cards
   const userProfile = useSelector((state: RootState) => state.user.profile);
+  const hideFinancialData = userRole === "admin" && shouldHideAdminFinancials(userProfile);
   const [historyorders, setHistoryOrders] = useState<OrderHistoryItem[]>([]);
 
   const {
@@ -483,6 +490,7 @@ export const OrdersContainer = ({
 
   const handleVendorSubmit = (data: any) => {
     console.log("Vendor data submitted:", data);
+    loadOrders({ statusFilter, statusFilter2, searchQuery, dateRange, poIs });
   };
 
   const handleCreateOrderClick = () => {
@@ -542,19 +550,21 @@ export const OrdersContainer = ({
                 </div>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
-                  onClick={() => setIsOpen(true)}
-                >
-                  <Package className="h-4 w-4" />
-                  Browse Products
-                </Button>
-                <CreatePurchaseOrderDialog />
-                <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
-              </div>
+              {!hideFinancialData && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
+                    onClick={() => setIsOpen(true)}
+                  >
+                    <Package className="h-4 w-4" />
+                    Browse Products
+                  </Button>
+                  <CreatePurchaseOrderDialog />
+                  <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
+                </div>
+              )}
             </div>
           </div>
       )}
@@ -641,7 +651,7 @@ export const OrdersContainer = ({
 
         {/* Right side - Action Buttons */}
         <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-          {!poIs && (
+          {!poIs && !hideFinancialData && (
             <CSVLink {...exportToCSV(filteredOrders)}>
               <Button variant="outline" size="sm" className="gap-2 text-gray-600 hover:text-gray-900">
                 <Download className="h-4 w-4" />
@@ -650,7 +660,7 @@ export const OrdersContainer = ({
             </CSVLink>
           )}
 
-          {userRole === "admin" && (
+          {userRole === "admin" && !hideFinancialData && (
             <>
               {!poIs && (
                 <>
@@ -734,6 +744,7 @@ export const OrdersContainer = ({
         sortField={sortField}
         sortDirection={sortDirection}
         onSort={handleSort}
+        hideFinancialData={hideFinancialData}
       />
 
       <Pagination
@@ -758,6 +769,33 @@ export const OrdersContainer = ({
           userRole={userRole}
           poIs={poIs}
           loadOrders={loadOrders}
+          hideFinancialData={hideFinancialData}
+          onCollectPayment={userRole === "admin" && !hideFinancialData ? (order) => {
+            setPaymentOrder(order);
+            setPaymentModalOpen(true);
+          } : undefined}
+        />
+      )}
+
+      {paymentModalOpen && paymentOrder && (
+        <PaymentForm
+          modalIsOpen={paymentModalOpen}
+          setModalIsOpen={setPaymentModalOpen}
+          customer={paymentOrder.customerInfo}
+          amountP={(() => {
+            const total = Number(paymentOrder.total || 0);
+            const paid = Number((paymentOrder as any).paid_amount || 0);
+            return total - paid;
+          })()}
+          orderId={paymentOrder.id}
+          orders={paymentOrder}
+          isBalancePayment={Number((paymentOrder as any).paid_amount || 0) > 0}
+          previousPaidAmount={Number((paymentOrder as any).paid_amount || 0)}
+          onPaymentSuccess={() => {
+            setPaymentModalOpen(false);
+            setPaymentOrder(null);
+            loadOrders?.({ poIs });
+          }}
         />
       )}
     </div>

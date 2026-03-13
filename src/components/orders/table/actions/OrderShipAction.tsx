@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { OrderFormValues } from "../../schemas/orderSchema";
 import { ConfirmationDialog } from "./ConfirmationDialog";
-import { TrackingDialog } from "../../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog } from "../../components/TrackingDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useCart } from "@/hooks/use-cart";
@@ -25,6 +25,7 @@ export const OrderShipAction = ({
   const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">(
     "FedEx"
   );
+  const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
   const { cartItems, clearCart } = useCart();
 
   const totalShippingCost = cartItems.reduce(
@@ -66,6 +67,12 @@ export const OrderShipAction = ({
               method: shippingMethod,
               trackingNumber,
               cost: shippingMethod === "FedEx" ? totalShippingCost : 0,
+              labelUrl: fedexData?.labelUrl,
+              labelFormat: fedexData?.labelFormat,
+              serviceType: fedexData?.serviceType,
+              packagingType: fedexData?.packagingType,
+              pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
+              estimatedDelivery: fedexData?.estimatedDeliveryDate,
             },
             status: "shipped",
           };
@@ -96,6 +103,19 @@ export const OrderShipAction = ({
         .update({
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
+          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+          shipping: {
+            ...(((order as any).shipping as Record<string, any> | null) || {}),
+            method: shippingMethod,
+            trackingNumber,
+            cost: shippingMethod === "FedEx" ? totalShippingCost : 0,
+            labelUrl: fedexData?.labelUrl,
+            labelFormat: fedexData?.labelFormat,
+            serviceType: fedexData?.serviceType,
+            packagingType: fedexData?.packagingType,
+            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
+            estimatedDelivery: fedexData?.estimatedDeliveryDate,
+          } as any,
           status: "shipped"
         })
         .eq("id", order.id)
@@ -174,6 +194,8 @@ export const OrderShipAction = ({
         onTrackingNumberChange={setTrackingNumber}
         shippingMethod={shippingMethod}
         onShippingMethodChange={setShippingMethod}
+        order={order}
+        onFedExDataChange={setFedexData}
         onSubmit={handleTrackingSubmit}
       />
     </>

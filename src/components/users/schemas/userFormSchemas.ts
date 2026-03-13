@@ -30,8 +30,17 @@ const rolePermissions = {
     "manage_settings",
     "manage_billing",
   ],
+  superadmin: [
+    "manage_users",
+    "manage_roles",
+    "view_reports",
+    "manage_settings",
+    "manage_billing",
+  ],
   manager: ["view_users", "edit_users", "view_reports", "manage_billing"],
   staff: ["view_users", "view_reports"],
+  accounting: ["view_reports", "manage_billing"],
+  warehouse: ["view_users", "view_reports"],
   user: ["view_reports"],
 } as const;
 
@@ -47,7 +56,7 @@ const baseSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   workPhone: z.string().min(10, "Work phone must be at least 10 digits"),
   mobilePhone: z.string().optional(),
-  role: z.enum(["admin", "manager", "staff", "user"] as const),
+  role: z.enum(["admin", "superadmin", "manager", "staff", "accounting", "warehouse", "user"] as const),
   billingAddress: addressSchema,
   shippingAddress: addressSchema,
   sameAsShipping: z.boolean().default(false),

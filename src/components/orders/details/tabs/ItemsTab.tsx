@@ -63,6 +63,7 @@ interface ItemsTabProps {
   shippingCost?: number;
   taxAmount?: number;
   discountAmount?: number;
+  hideFinancialData?: boolean;
 }
 
 export const ItemsTab = ({ 
@@ -80,7 +81,8 @@ export const ItemsTab = ({
   onOrderUpdate,
   shippingCost = 0,
   taxAmount = 0,
-  discountAmount = 0
+  discountAmount = 0,
+  hideFinancialData = false,
 }: ItemsTabProps) => {
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
@@ -95,7 +97,8 @@ export const ItemsTab = ({
   const [paymentAdjustmentData, setPaymentAdjustmentData] = useState<any>(null);
   const [pendingEditData, setPendingEditData] = useState<any>(null);
   
-  const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid;
+  const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid && !hideFinancialData;
+  const maskedAmountLabel = "Restricted";
   
   // Calculate totals
   const { totalItems, subtotal } = useMemo(() => {
@@ -812,7 +815,13 @@ export const ItemsTab = ({
               {item?.sizes && item?.sizes.length > 0 ? (
                 <div className="divide-y divide-gray-100">
                   {/* Table Header */}
-                  <div className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 bg-gray-50/50 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>
+                  <div className={`grid ${
+                    hideFinancialData
+                      ? "grid-cols-2"
+                      : isEditMode
+                        ? "grid-cols-5"
+                        : "grid-cols-4"
+                  } gap-4 px-4 py-3 bg-gray-50/50 text-xs font-semibold text-gray-500 uppercase tracking-wider`}>
                     <div className="flex items-center gap-1">
                       <Layers className="w-3.5 h-3.5" />
                       Size
@@ -821,11 +830,13 @@ export const ItemsTab = ({
                       <Hash className="w-3.5 h-3.5" />
                       Quantity
                     </div>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="w-3.5 h-3.5" />
-                      Unit Price
-                    </div>
-                    <div className="text-right">Total</div>
+                    {!hideFinancialData && (
+                      <div className="flex items-center gap-1">
+                        <DollarSign className="w-3.5 h-3.5" />
+                        Unit Price
+                      </div>
+                    )}
+                    {!hideFinancialData && <div className="text-right">Total</div>}
                     {isEditMode && <div className="text-center">Action</div>}
                   </div>
                   
@@ -833,7 +844,13 @@ export const ItemsTab = ({
                   {item.sizes.map((size, sizeIndex) => (
                     <div
                       key={sizeIndex}
-                      className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 hover:bg-gray-50 transition-colors items-center`}
+                      className={`grid ${
+                        hideFinancialData
+                          ? "grid-cols-2"
+                          : isEditMode
+                            ? "grid-cols-5"
+                            : "grid-cols-4"
+                      } gap-4 px-4 py-3 hover:bg-gray-50 transition-colors items-center`}
                     >
                       <div>
                         <span className="font-medium text-gray-900">
@@ -882,6 +899,7 @@ export const ItemsTab = ({
                           </span>
                         )}
                       </div>
+                      {!hideFinancialData && (
                       <div>
                         {isEditMode ? (
                           <div className="flex items-center gap-1">
@@ -899,11 +917,14 @@ export const ItemsTab = ({
                           <span className="font-medium text-gray-900">${size.price.toFixed(2)}</span>
                         )}
                       </div>
-                      <div className="text-right">
-                        <span className="font-semibold text-emerald-600">
-                          ${(size.quantity * size.price).toFixed(2)}
-                        </span>
-                      </div>
+                      )}
+                      {!hideFinancialData && (
+                        <div className="text-right">
+                          <span className="font-semibold text-emerald-600">
+                            {`$${(size.quantity * size.price).toFixed(2)}`}
+                          </span>
+                        </div>
+                      )}
                       {isEditMode && (
                         <div className="text-center">
                           <Button
@@ -920,15 +941,17 @@ export const ItemsTab = ({
                   ))}
                   
                   {/* Item Subtotal */}
-                  <div className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 bg-gray-50`}>
-                    <div className={`${isEditMode ? 'col-span-3' : 'col-span-3'} text-right font-medium text-gray-600`}>
-                      Item Subtotal:
+                  {!hideFinancialData && (
+                    <div className={`grid ${isEditMode ? 'grid-cols-5' : 'grid-cols-4'} gap-4 px-4 py-3 bg-gray-50`}>
+                      <div className={`${isEditMode ? 'col-span-3' : 'col-span-3'} text-right font-medium text-gray-600`}>
+                        Item Subtotal:
+                      </div>
+                      <div className="text-right font-bold text-gray-900">
+                        {`$${item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0).toFixed(2)}`}
+                      </div>
+                      {isEditMode && <div></div>}
                     </div>
-                    <div className="text-right font-bold text-gray-900">
-                      ${item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0).toFixed(2)}
-                    </div>
-                    {isEditMode && <div></div>}
-                  </div>
+                  )}
                 </div>
               ) : (
                 <div className="p-4 text-center text-gray-400 italic">
@@ -954,24 +977,25 @@ export const ItemsTab = ({
       </div>
 
       {/* Order Summary */}
+      {!hideFinancialData && (
       <Card className="overflow-hidden border-0 shadow-sm">
         <CardContent className="p-0">
           {/* Subtotal, Shipping, Tax breakdown */}
           <div className="p-4 space-y-2 bg-gray-50 border-b">
             <div className="flex justify-between items-center text-sm">
               <span className="text-gray-600">Items Subtotal ({totalItems} items)</span>
-              <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
+              <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${subtotal.toFixed(2)}`}</span>
             </div>
             {shippingCost > 0 && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">Shipping</span>
-                <span className="font-medium text-gray-900">${shippingCost.toFixed(2)}</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${shippingCost.toFixed(2)}`}</span>
               </div>
             )}
             {taxAmount > 0 && (
               <div className="flex justify-between items-center text-sm">
                 <span className="text-gray-600">Tax</span>
-                <span className="font-medium text-gray-900">${taxAmount.toFixed(2)}</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${taxAmount.toFixed(2)}`}</span>
               </div>
             )}
           </div>
@@ -989,12 +1013,13 @@ export const ItemsTab = ({
                 </div>
               </div>
               <span className="text-2xl font-bold text-white">
-                ${(subtotal + shippingCost + taxAmount).toFixed(2)}
+                {hideFinancialData ? maskedAmountLabel : `$${(subtotal + shippingCost + taxAmount).toFixed(2)}`}
               </span>
             </div>
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Add Product Dialog */}
       <AddProductDialog 

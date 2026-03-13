@@ -233,6 +233,7 @@ export const OTPLoginForm = () => {
           last_name: user.lastName,
           type: user.type,
           role: user.role,
+          admin_permissions: user.adminPermissions || [],
           status: user.status,
           display_name: user.displayName,
           company_name: user.companyName,

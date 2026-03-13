@@ -17,6 +17,8 @@ interface OverviewTabProps {
   order: OrderFormValues;
   companyName?: string;
   poIs?: boolean;
+  onCollectPayment?: () => void;
+  hideFinancialData?: boolean;
 }
 
 // Helper function to safely get address fields
@@ -48,8 +50,16 @@ const getAddressField = (
   return "";
 };
 
-export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabProps) => {
+export const OverviewTab = ({
+  order,
+  companyName,
+  poIs: poIsProp,
+  onCollectPayment,
+  hideFinancialData = false,
+}: OverviewTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
+  const [chargedAmount, setChargedAmount] = useState(0);
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const orderDate = order.date || (order as any).created_at;
   
@@ -103,6 +113,49 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
     fetchPaidAmount();
   }, [order.id, poIs]); // Added poIs to ensure re-fetch when switching between SO/PO
 
+  useEffect(() => {
+    const fetchPaymentActivitySummary = async () => {
+      if (!order.id) return;
+
+      const toNumber = (value: unknown) => {
+        const parsed = Number(value || 0);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+
+      try {
+        const { data, error } = await supabase
+          .from("order_activities")
+          .select("metadata")
+          .eq("order_id", order.id)
+          .eq("activity_type", "payment_received");
+
+        if (error) {
+          console.error("Error fetching payment activities:", error);
+          return;
+        }
+
+        const summary = (data || []).reduce(
+          (acc, activity: any) => {
+            const metadata = activity?.metadata || {};
+            acc.charged += toNumber(
+              metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount
+            );
+            acc.fee += toNumber(metadata.processing_fee_amount);
+            return acc;
+          },
+          { charged: 0, fee: 0 }
+        );
+
+        setChargedAmount(summary.charged);
+        setProcessingFeeAmount(summary.fee);
+      } catch (error) {
+        console.error("Error fetching payment activity summary:", error);
+      }
+    };
+
+    fetchPaymentActivitySummary();
+  }, [order.id]);
+
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
       return total + item.sizes.reduce((sum, size) => sum + size.quantity * size.price, 0);
@@ -121,6 +174,10 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
   
   // Calculate total including PO charges (only for POs)
   const total = subtotal + shipping + tax + handling + fred - discountAmount;
+  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount;
+  const displayTotal = processingFeeAmount > 0
+    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
+    : total;
 
   // Debug logging
   console.log("📊 OverviewTab Calculations:", {
@@ -135,6 +192,9 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
     fred,
     discountAmount,
     total,
+    displayTotal,
+    effectiveChargedAmount,
+    processingFeeAmount,
     paidAmount,
     balanceDue: Math.max(0, total - paidAmount),
     orderTotal: order.total,
@@ -166,6 +226,7 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
     (total, item) => total + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
     0
   );
+  const maskedAmountLabel = "Restricted";
 
   return (
     <div className="space-y-6">
@@ -192,7 +253,9 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
             </div>
             <div className="min-w-0">
               <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Total</p>
-              <p className="text-base sm:text-lg font-bold text-gray-900 truncate">${total.toFixed(2)}</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900 truncate">
+                {hideFinancialData ? maskedAmountLabel : `$${displayTotal.toFixed(2)}`}
+              </p>
             </div>
           </div>
         </Card>
@@ -321,6 +384,7 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
       </div>
 
       {/* Order Summary */}
+      {!hideFinancialData && (
       <Card className="overflow-hidden border-0 shadow-sm">
         <CardHeader className="bg-gradient-to-r from-amber-50 to-orange-50 border-b pb-4">
           <div className="flex items-center gap-3">
@@ -363,6 +427,13 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
               <span className="text-gray-600">Tax</span>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
+
+            {processingFeeAmount > 0 && (
+              <div className="flex justify-between items-center py-2">
+                <span className="text-gray-600">Card Processing Fee</span>
+                <span className="font-medium text-amber-600">${processingFeeAmount.toFixed(2)}</span>
+              </div>
+            )}
             
             {/* Show discount if applied */}
             {discountAmount > 0 && (
@@ -388,18 +459,18 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
             
             <div className="border-t pt-3 mt-2">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-900">Total</span>
-                <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
+                <span className="text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
+                <span className="text-2xl font-bold text-emerald-600">${displayTotal.toFixed(2)}</span>
               </div>
               
               {/* Paid Amount */}
-              {paidAmount > 0 && (
+              {effectiveChargedAmount > 0 && (
                 <div className="flex justify-between items-center mt-2 pt-2 border-t">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
                     <span className="text-green-600 font-medium">Paid Amount</span>
                   </div>
-                  <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+                  <span className="font-bold text-green-600">${effectiveChargedAmount.toFixed(2)}</span>
                 </div>
               )}
 
@@ -415,12 +486,19 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
                   </div>
                   {/* Payment Link Button */}
                   <div className="mt-3 pt-3 border-t border-red-200">
-                    <Link to={`/pay-now?orderid=${order.id}`}>
-                      <Button size="sm" className="w-full bg-red-600 hover:bg-red-700">
+                    {onCollectPayment ? (
+                      <Button size="sm" className="w-full bg-red-600 hover:bg-red-700" onClick={onCollectPayment}>
                         <CreditCard className="w-4 h-4 mr-2" />
                         Collect Balance Payment
                       </Button>
-                    </Link>
+                    ) : (
+                      <Link to={`/pay-now?orderid=${order.id}`}>
+                        <Button size="sm" className="w-full bg-red-600 hover:bg-red-700">
+                          <CreditCard className="w-4 h-4 mr-2" />
+                          Collect Balance Payment
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 </div>
               )}
@@ -456,6 +534,7 @@ export const OverviewTab = ({ order, companyName, poIs: poIsProp }: OverviewTabP
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* Order Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

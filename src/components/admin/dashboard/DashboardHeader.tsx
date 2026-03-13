@@ -23,9 +23,9 @@ export function DashboardHeader({
       <Breadcrumb homeHref="/admin/dashboard" />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Admin Dashboard</h1>
+          <h1 className="text-3xl font-bold tracking-tight">Operations Dashboard</h1>
           <p className="text-muted-foreground">
-            Manage your business, view analytics, and handle administrative tasks.
+            Manage operations, monitor activity, and handle internal workflows.
           </p>
           {lastUpdated && (
             <p className="text-xs text-muted-foreground mt-1">

@@ -53,7 +53,10 @@ export function UserTableRow({
   searchTerm = "",
 }: UserTableRowProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const userType = user.type.toLowerCase() as "pharmacy" | "hospital" | "group";
+  const normalizedUserType = user.type.toLowerCase();
+  const userType = (["pharmacy", "hospital", "group", "admin"].includes(normalizedUserType)
+    ? normalizedUserType
+    : "pharmacy") as "pharmacy" | "hospital" | "group" | "admin";
 
   // Format date for display
   const formatDate = (dateString: string) => {
@@ -87,6 +90,8 @@ export function UserTableRow({
         return "bg-red-100 text-red-700";
       case "group":
         return "bg-purple-100 text-purple-700";
+      case "admin":
+        return "bg-blue-100 text-blue-700";
       default:
         return "bg-gray-100 text-gray-700";
     }

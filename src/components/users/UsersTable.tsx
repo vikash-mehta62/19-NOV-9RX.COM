@@ -24,9 +24,10 @@ export interface User {
   name: string;
   email: string;
   company?: string;
-  type: "Pharmacy" | "Hospital" | "Group";
+  type: "Pharmacy" | "Hospital" | "Group" | "Admin" | string;
   status: string;
   role: UserRole;
+  adminPermissions?: string[];
   locations?: number;
   lastActive: string;
   phone?: string;

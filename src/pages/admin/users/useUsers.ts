@@ -76,6 +76,7 @@ async function fetchUsers() {
     type: profile.type || "Pharmacy",
     status: profile.status || "pending",
     role: profile.role || "user",
+    adminPermissions: Array.isArray(profile.admin_permissions) ? profile.admin_permissions : [],
     lastActive: profile.last_sign_in_at 
       ? new Date(profile.last_sign_in_at).toISOString().split('T')[0]
       : new Date(profile.created_at).toISOString().split('T')[0],
@@ -131,13 +132,12 @@ export function useUsers() {
   }, []);
 
 const filteredUsers = users.filter((user) => {
-  const isNotVendor = user.type.toLowerCase() !== "vendor";
   const matchesSearch =
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase());
   const matchesType = filterType === "all" || user.type.toLowerCase() === filterType.toLowerCase();
   const matchesStatus = filterStatus === "all" || user.status.toLowerCase() === filterStatus.toLowerCase();
-  return  matchesSearch && matchesType && matchesStatus;
+  return matchesSearch && matchesType && matchesStatus;
 });
 
 

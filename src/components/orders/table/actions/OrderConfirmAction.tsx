@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Package, Clock, CirclePlus } from "lucide-react";
 import { OrderFormValues } from "../../schemas/orderSchema";
 import { ConfirmationDialog } from "./ConfirmationDialog";
-import { TrackingDialog } from "../../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog } from "../../components/TrackingDialog";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
@@ -19,6 +19,7 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
   const [isLoading, setIsLoading] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
+  const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
   const [currentStatus, setCurrentStatus] = useState(order.status || 'new');
   const { toast } = useToast();
 
@@ -127,6 +128,18 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
         .update({
           shipping_method: shippingMethod,
           tracking_number: trackingNumber,
+          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+          shipping: {
+            ...(((order as any).shipping as Record<string, any> | null) || {}),
+            method: shippingMethod,
+            trackingNumber,
+            labelUrl: fedexData?.labelUrl,
+            labelFormat: fedexData?.labelFormat,
+            serviceType: fedexData?.serviceType,
+            packagingType: fedexData?.packagingType,
+            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
+            estimatedDelivery: fedexData?.estimatedDeliveryDate,
+          } as any,
           status: 'shipped',
           updated_at: new Date().toISOString()
         })
@@ -242,6 +255,8 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
         onTrackingNumberChange={setTrackingNumber}
         shippingMethod={shippingMethod}
         onShippingMethodChange={setShippingMethod}
+        order={order}
+        onFedExDataChange={setFedexData}
         onSubmit={handleTrackingSubmit}
       />
     </>

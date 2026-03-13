@@ -40,6 +40,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
+import {
+  AdminDocumentSettings,
+  DEFAULT_ADMIN_DOCUMENT_SETTINGS,
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -94,6 +102,8 @@ interface OrderDetailsSheetProps {
   onConfirmOrder?: (orderId: string) => void;
   onDeleteOrder?: (orderId: string) => Promise<void>;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
+  onCollectPayment?: (order: OrderFormValues) => void;
+  hideFinancialData?: boolean;
 }
 
 export const OrderDetailsSheet = ({
@@ -109,6 +119,8 @@ export const OrderDetailsSheet = ({
   poIs: poIsProp = false, // Renamed to avoid confusion
   loadOrders,
   userRole = "pharmacy",
+  onCollectPayment,
+  hideFinancialData = false,
 }: OrderDetailsSheetProps) => {
   const { toast } = useToast();
   const { clearCart } = useCart();
@@ -117,6 +129,7 @@ export const OrderDetailsSheet = ({
   const [loading, setLoading] = useState(false);
   const [loadingQuick, setLoadingQuick] = useState(false);
   const [companyName, setCompanyName] = useState("");
+  const [documentSettings, setDocumentSettings] = useState<AdminDocumentSettings>(DEFAULT_ADMIN_DOCUMENT_SETTINGS);
   const [isLoadingCompany, setIsLoadingCompany] = useState(false);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [chargesOpen, setChargesOpen] = useState(false);
@@ -214,6 +227,17 @@ export const OrderDetailsSheet = ({
   useEffect(() => {
     fetchUser();
   }, [fetchUser]);
+
+  useEffect(() => {
+    const loadDocumentSettings = async () => {
+      const settings = await fetchAdminDocumentSettings();
+      if (isMountedRef.current) {
+        setDocumentSettings(settings);
+      }
+    };
+
+    void loadDocumentSettings();
+  }, []);
 
   const loadPoDocuments = useCallback(async () => {
     if (!currentOrder?.id || !poIs) {
@@ -598,6 +622,14 @@ export const OrderDetailsSheet = ({
   };
 
   const formattedDate = formatDate(currentOrder.date || (currentOrder as any).created_at);
+  const invoiceCompany = documentSettings.invoice;
+  const warehouseCompany = documentSettings.warehouse;
+  const invoiceCompanyName = invoiceCompany.name || DEFAULT_ADMIN_DOCUMENT_SETTINGS.invoice.name;
+  const invoiceAddressLine = formatDocumentAddressLine(invoiceCompany);
+  const invoiceContactLine = formatDocumentContactLine(invoiceCompany);
+  const invoiceMetaLine = formatDocumentMetaLine(invoiceCompany);
+  const warehouseAddressLine = formatDocumentAddressLine(warehouseCompany);
+  const supportEmail = invoiceCompany.email || DEFAULT_ADMIN_DOCUMENT_SETTINGS.invoice.email;
 
   const generateBarcode = (text: string): string => {
     const canvas = document.createElement("canvas");
@@ -684,13 +716,13 @@ export const OrderDetailsSheet = ({
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(...darkGray);
-    doc.text("9RX LLC", margin, logo ? 32 : 16);
+    doc.text(invoiceCompanyName, margin, logo ? 32 : 16);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
-    doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logo ? 38 : 22);
-    doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logo ? 43 : 27);
-    doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logo ? 48 : 32);
+    doc.text(invoiceAddressLine, margin, logo ? 38 : 22);
+    doc.text(invoiceContactLine, margin, logo ? 43 : 27);
+    doc.text(invoiceMetaLine, margin, logo ? 48 : 32);
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(24);
@@ -767,9 +799,9 @@ export const OrderDetailsSheet = ({
         vendorAddress,
       ]);
       drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-        "9RX LLC",
-        "936 Broad River Ln",
-        "Charlotte, NC 28211",
+        warehouseCompany.name,
+        warehouseCompany.street,
+        [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
         shippingData.method ? `Method: ${shippingData.method}` : "",
         showPricing ? "Pricing included on vendor copy" : "Pricing hidden on vendor copy",
       ]);
@@ -924,7 +956,7 @@ export const OrderDetailsSheet = ({
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
       doc.setTextColor(120, 120, 120);
-      doc.text(poIs ? (showPricing ? "Includes cost detail for internal/vendor approval." : "Quantity-only vendor copy. Pricing intentionally hidden.") : (currentOrder.payment_status === "paid" ? "Payment received  |  Questions? Contact us at info@9rx.com" : "Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com"), pageWidth / 2, footerY + 8, { align: "center" });
+      doc.text(poIs ? (showPricing ? "Includes cost detail for internal/vendor approval." : "Quantity-only vendor copy. Pricing intentionally hidden.") : (currentOrder.payment_status === "paid" ? `Payment received  |  Questions? Contact us at ${supportEmail}` : `Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`), pageWidth / 2, footerY + 8, { align: "center" });
     }
 
     const totalPages = (doc as any).internal.getNumberOfPages();
@@ -1003,14 +1035,14 @@ export const OrderDetailsSheet = ({
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(...darkGray);
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
+      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
+      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
+      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
+      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
       // Determine document type: PO, Sales Order (new), or Invoice (confirmed)
@@ -1133,11 +1165,11 @@ export const OrderDetailsSheet = ({
 
         drawInfoBox("VENDOR", margin, vendorLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-          "9RX LLC",
-          "936 Broad River Ln",
-          "Charlotte, NC 28211",
-          "+1 (800) 940-9619",
-          "info@9rx.com"
+          warehouseCompany.name,
+          warehouseCompany.street,
+          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
+          warehouseCompany.phone,
+          warehouseCompany.email
         ]);
       } else {
         // INVOICE & SALES ORDER: Bill To + Ship To Customer
@@ -1381,13 +1413,13 @@ export const OrderDetailsSheet = ({
           // Show transaction ID for paid invoices
           const transactionId = (currentOrder as any).payment_transication || "";
           if (transactionId) {
-            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 8, { align: "center" });
+            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
           } else {
-            doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+            doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
           }
         } else {
           // Show payment terms for unpaid invoices
-          doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+          doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
         }
       }
 
@@ -1513,14 +1545,14 @@ export const OrderDetailsSheet = ({
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(...darkGray);
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
+      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
+      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
+      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
+      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
       const invoiceNumber = (currentOrder as any).invoice_number;
@@ -1636,11 +1668,11 @@ export const OrderDetailsSheet = ({
 
         drawInfoBox("VENDOR", margin, vendorLines);
         drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-          "9RX LLC",
-          "936 Broad River Ln",
-          "Charlotte, NC 28211",
-          "+1 (800) 940-9619",
-          "info@9rx.com"
+          warehouseCompany.name,
+          warehouseCompany.street,
+          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
+          warehouseCompany.phone,
+          warehouseCompany.email
         ]);
       } else {
         // INVOICE & SALES ORDER: Bill To + Ship To Customer
@@ -1850,12 +1882,12 @@ export const OrderDetailsSheet = ({
         if (currentOrder.payment_status === "paid") {
           const transactionId = (currentOrder as any).payment_transication || "";
           if (transactionId) {
-            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 8, { align: "center" });
+            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
           } else {
-            doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+            doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
           }
         } else {
-          doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 8, { align: "center" });
+          doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
         }
       }
 
@@ -3123,25 +3155,28 @@ export const OrderDetailsSheet = ({
                     const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
                     window.location.href = editUrl;
                   }}
-                  onDownload={handleDownloadPDF}
+                  onDownload={!hideFinancialData ? handleDownloadPDF : undefined}
                   onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
-                  onSendEmail={sendMail}
+                  onSendEmail={!hideFinancialData ? sendMail : undefined}
                   onShipOrder={!poIs && onShipOrder ? () => handleStatusUpdate("ship") : undefined}
-                  onPrint={handlePrint}
+                  onPrint={!hideFinancialData ? handlePrint : undefined}
                   isGeneratingPDF={isGeneratingPDF}
                   isSendingEmail={loading}
                   userRole={userRole}
                   poIs={poIs}
+                  hideFinancialData={hideFinancialData}
                 />
 
                 {/* Tabs */}
                 {poIs ? (
                   <Tabs value={activePoTab} onValueChange={setActivePoTab} className="w-full">
-                    <TabsList className="w-full h-auto grid grid-cols-5 gap-1 mb-4 bg-muted/50 p-1 rounded-lg">
+                    <TabsList className={`w-full h-auto grid gap-1 mb-4 bg-muted/50 p-1 rounded-lg ${hideFinancialData ? "grid-cols-4" : "grid-cols-5"}`}>
                       <TabsTrigger value="workspace" className="text-xs md:text-sm px-2 py-2">Workspace</TabsTrigger>
                       <TabsTrigger value="items" className="text-xs md:text-sm px-2 py-2">Items</TabsTrigger>
                       <TabsTrigger value="receiving" className="text-xs md:text-sm px-2 py-2">Receiving</TabsTrigger>
-                      <TabsTrigger value="finance" className="text-xs md:text-sm px-2 py-2">Finance</TabsTrigger>
+                      {!hideFinancialData && (
+                        <TabsTrigger value="finance" className="text-xs md:text-sm px-2 py-2">Finance</TabsTrigger>
+                      )}
                       <TabsTrigger value="activity" className="text-xs md:text-sm px-2 py-2">Activity</TabsTrigger>
                     </TabsList>
 
@@ -3173,6 +3208,7 @@ export const OrderDetailsSheet = ({
                           <p className="mt-3 text-2xl font-semibold text-slate-900">{poReceivedUnits} / {poOrderedUnits}</p>
                           <p className="mt-1 text-sm text-slate-500">{poReceiveProgress}% received into inventory.</p>
                         </div>
+                        {!hideFinancialData && (
                         <div className="rounded-2xl border bg-slate-50 p-4">
                           <div className="flex items-center gap-2 text-slate-500">
                             <Wallet className="h-4 w-4" />
@@ -3181,6 +3217,7 @@ export const OrderDetailsSheet = ({
                           <p className="mt-3 text-2xl font-semibold text-slate-900">${poOutstandingAmount.toFixed(2)}</p>
                           <p className="mt-1 text-sm text-slate-500">Open amount after recorded PO payments.</p>
                         </div>
+                        )}
                       </div>
 
                       <div className="rounded-2xl border bg-white p-4">
@@ -3244,6 +3281,7 @@ export const OrderDetailsSheet = ({
                         userRole={userRole}
                         orderStatus={currentOrder.status}
                         isVoid={currentOrder.void}
+                        hideFinancialData={hideFinancialData}
                       />
                     </TabsContent>
 
@@ -3327,6 +3365,7 @@ export const OrderDetailsSheet = ({
                       </div>
                     </TabsContent>
 
+                    {!hideFinancialData && (
                     <TabsContent value="finance" className="mt-0 space-y-4">
                       <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
                         <div className="rounded-2xl border bg-white p-4">
@@ -3570,6 +3609,7 @@ export const OrderDetailsSheet = ({
 
                       </div>
                     </TabsContent>
+                    )}
 
                     <TabsContent value="activity" className="mt-0">
                       <ActivityTab order={currentOrder} />
@@ -3577,7 +3617,7 @@ export const OrderDetailsSheet = ({
                   </Tabs>
                 ) : (
                   <Tabs key={currentOrder.id} defaultValue="overview" className="w-full">
-                    <TabsList className="w-full h-auto flex sm:grid sm:grid-cols-6 gap-1 mb-4 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30">
+                    <TabsList className={`w-full h-auto flex sm:grid gap-1 mb-4 bg-muted/50 p-1 rounded-lg overflow-x-auto scrollbar-thin scrollbar-thumb-muted-foreground/30 ${hideFinancialData ? "sm:grid-cols-5" : "sm:grid-cols-6"}`}>
                       <TabsTrigger value="overview" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                         Overview
                       </TabsTrigger>
@@ -3587,9 +3627,11 @@ export const OrderDetailsSheet = ({
                       <TabsTrigger value="customer" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                         Customer
                       </TabsTrigger>
-                      <TabsTrigger value="payment" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
-                        Payment
-                      </TabsTrigger>
+                      {!hideFinancialData && (
+                        <TabsTrigger value="payment" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
+                          Payment
+                        </TabsTrigger>
+                      )}
                       <TabsTrigger value="shipping" className="text-[11px] sm:text-xs md:text-sm flex-1 sm:flex-none px-2 py-1.5 whitespace-nowrap">
                         Shipping
                       </TabsTrigger>
@@ -3599,7 +3641,13 @@ export const OrderDetailsSheet = ({
                     </TabsList>
 
                     <TabsContent value="overview" className="mt-0">
-                      <OverviewTab order={currentOrder} companyName={companyName} poIs={poIs} />
+                      <OverviewTab
+                        order={currentOrder}
+                        companyName={companyName}
+                        poIs={poIs}
+                        hideFinancialData={hideFinancialData}
+                        onCollectPayment={onCollectPayment ? () => onCollectPayment(currentOrder) : undefined}
+                      />
                     </TabsContent>
 
                     <TabsContent value="items" className="mt-0">
@@ -3632,6 +3680,7 @@ export const OrderDetailsSheet = ({
                         userRole={userRole}
                         orderStatus={currentOrder.status}
                         isVoid={currentOrder.void}
+                        hideFinancialData={hideFinancialData}
                       />
                     </TabsContent>
 
@@ -3649,14 +3698,18 @@ export const OrderDetailsSheet = ({
                       />
                     </TabsContent>
 
-                    <TabsContent value="payment" className="mt-0">
-                      <PaymentTab
-                        order={currentOrder}
-                        onSendPaymentLink={sendMail}
-                        isSendingLink={loading}
-                        poIs={poIs}
-                      />
-                    </TabsContent>
+                    {!hideFinancialData && (
+                      <TabsContent value="payment" className="mt-0">
+                        <PaymentTab
+                          order={currentOrder}
+                          onSendPaymentLink={sendMail}
+                          isSendingLink={loading}
+                          poIs={poIs}
+                          hideFinancialData={hideFinancialData}
+                          onCollectPayment={onCollectPayment ? () => onCollectPayment(currentOrder) : undefined}
+                        />
+                      </TabsContent>
+                    )}
 
                     <TabsContent value="shipping" className="mt-0">
                       <ShippingTab
@@ -3664,6 +3717,7 @@ export const OrderDetailsSheet = ({
                         orderId={currentOrder.id}
                         onOrderUpdate={() => loadOrders?.(poIs)}
                         userRole={userRole}
+                        hideFinancialData={hideFinancialData}
                       />
                     </TabsContent>
 
@@ -3740,6 +3794,7 @@ export const OrderDetailsSheet = ({
                   <PackageCheck size={16} />
                   Receive Stock
                 </Button>
+                {!hideFinancialData && (
                 <Button
                   onClick={handleRecordPoPayment}
                   disabled={isSavingPoWorkflow || !poCanRecordPayment}
@@ -3749,6 +3804,7 @@ export const OrderDetailsSheet = ({
                   <ReceiptText size={16} />
                   Pay + Expense
                 </Button>
+                )}
                 <Button
                   onClick={handleRejectWorkflow}
                   disabled={!poCanReject}

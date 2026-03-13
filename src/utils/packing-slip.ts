@@ -2,6 +2,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import JsBarcode from "jsbarcode";
 import Logo from "../assests/home/9rx_logo.png"
+import {
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings";
 
 // Generate barcode as base64 image
 const generateBarcode = (text: string): string => {
@@ -18,6 +24,13 @@ const generateBarcode = (text: string): string => {
 
 export const generateWorkOrderPDF = async (workOrderData: any, packingData: any) => {
   try {
+    const documentSettings = await fetchAdminDocumentSettings();
+    const shippingCompany = documentSettings.shipping;
+    const shippingCompanyName = shippingCompany.name || "9RX";
+    const shippingAddressLine = formatDocumentAddressLine(shippingCompany);
+    const shippingContactLine = formatDocumentContactLine(shippingCompany);
+    const shippingMetaLine = formatDocumentMetaLine(shippingCompany);
+
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -73,7 +86,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
       doc.setFont("helvetica", "bold");
       doc.setFontSize(16);
       doc.setTextColor(...COLORS.primary);
-      doc.text("9RX.com", margin, yPos + 10);
+      doc.text(shippingCompanyName, margin, yPos + 10);
     }
 
     // SALES ORDER title on right
@@ -98,14 +111,20 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(13);
     doc.setTextColor(...COLORS.black);
-    doc.text("9RX LLC", margin, yPos);
+    doc.text(shippingCompanyName, margin, yPos);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.medium);
-    doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, yPos + 6);
-    doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, yPos + 11);
-    doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, yPos + 16);
+    if (shippingAddressLine) {
+      doc.text(shippingAddressLine, margin, yPos + 6);
+    }
+    if (shippingContactLine) {
+      doc.text(shippingContactLine, margin, yPos + 11);
+    }
+    if (shippingMetaLine) {
+      doc.text(shippingMetaLine, margin, yPos + 16);
+    }
 
     // Right side - Order Info
     const formattedDate = new Date().toLocaleDateString("en-US", {

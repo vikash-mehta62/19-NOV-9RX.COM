@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -39,6 +40,17 @@ import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import axios from "../../../axiosconfig";
 import { supabase } from "@/integrations/supabase/client";
 import { calculatePaymentStatusAfterAdjustment } from "@/utils/paymentStatusCalculator";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter as AlertDialogFooterActions,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
 
 interface PaymentAdjustmentModalProps {
   open: boolean;
@@ -95,10 +107,27 @@ export function PaymentAdjustmentModal({
   const [originalTransactionId, setOriginalTransactionId] = useState<string | null>(null);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [currentPaidAmount, setCurrentPaidAmount] = useState<number>(0);
+  const [showCardFeeConfirm, setShowCardFeeConfirm] = useState(false);
+  const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
+    cardProcessingFeeEnabled: false,
+    cardProcessingFeePercentage: 0,
+    cardProcessingFeePassToCustomer: false,
+    invoiceDefaultNotes: "",
+  });
+  const feeConfirmBypassRef = useRef(false);
 
   const differenceAmount = Number((newAmount - originalAmount).toFixed(2));
   const isIncrease = differenceAmount > 0;
   const balanceDueAmount = Math.max(0, Number((newAmount - currentPaidAmount).toFixed(2)));
+  const cardFeeApplies =
+    selectedAction === "collect_payment" &&
+    feeSettings.cardProcessingFeeEnabled &&
+    feeSettings.cardProcessingFeePassToCustomer &&
+    feeSettings.cardProcessingFeePercentage > 0;
+  const cardProcessingFeeAmount = cardFeeApplies
+    ? Number(((balanceDueAmount * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
+    : 0;
+  const processorChargeAmount = Number((balanceDueAmount + cardProcessingFeeAmount).toFixed(2));
   const refundCreditAmount = Math.max(0, Number((currentPaidAmount - newAmount).toFixed(2)));
   const actionAmount = isIncrease ? balanceDueAmount : refundCreditAmount;
   const isZeroAdjustment = actionAmount <= 0;
@@ -113,6 +142,15 @@ export function PaymentAdjustmentModal({
       }
     }
   }, [open, isIncrease, customerId]);
+
+  useEffect(() => {
+    const loadFeeSettings = async () => {
+      const settings = await getPaymentExperienceSettings();
+      setFeeSettings(settings);
+    };
+
+    void loadFeeSettings();
+  }, []);
 
   const loadOrderData = async () => {
     try {
@@ -173,6 +211,13 @@ export function PaymentAdjustmentModal({
   };
 
   const handleSubmit = async () => {
+    if (selectedAction === 'collect_payment' && cardProcessingFeeAmount > 0 && !feeConfirmBypassRef.current) {
+      setShowCardFeeConfirm(true);
+      return;
+    }
+
+    feeConfirmBypassRef.current = false;
+
     if (isZeroAdjustment || selectedAction === 'none') {
       await saveOrderOnly();
       return;
@@ -251,7 +296,7 @@ export function PaymentAdjustmentModal({
             // Real Authorize.net payment
             console.log('💳 Using real Authorize.net card');
             paymentResult = await PaymentAdjustmentService.processGatewayPayment(
-              balanceDueAmount,
+              processorChargeAmount,
               'saved_card',
               {
                 customerProfileId: card.customer_profile_id,
@@ -276,7 +321,7 @@ export function PaymentAdjustmentModal({
             orderId,
             transactionId,
             transactionType: 'additional_payment',
-            amount: balanceDueAmount,
+            amount: processorChargeAmount,
             paymentMethodType: 'saved_card',
             status: 'completed',
             cardLastFour: card.card_last_four,
@@ -549,6 +594,7 @@ export function PaymentAdjustmentModal({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[500px]">
         <DialogHeader>
@@ -644,7 +690,10 @@ export function PaymentAdjustmentModal({
                     <CreditCard className="h-4 w-4 text-blue-500" />
                     <div>
                       <p className="font-medium">Charge Saved Card</p>
-                      <p className="text-xs text-gray-500">Charge customer's saved card for ${balanceDueAmount.toFixed(2)}</p>
+                      <p className="text-xs text-gray-500">
+                        Charge customer's saved card for ${balanceDueAmount.toFixed(2)}
+                        {cardProcessingFeeAmount > 0 ? ` + $${cardProcessingFeeAmount.toFixed(2)} card fee` : ''}
+                      </p>
                     </div>
                   </Label>
                 </div>
@@ -755,6 +804,35 @@ export function PaymentAdjustmentModal({
                   ))}
                 </SelectContent>
               </Select>
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-full bg-amber-100 p-2">
+                    <AlertTriangle className="h-4 w-4 text-amber-700" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-amber-900">
+                      Card charge includes an extra processing fee
+                    </p>
+                    <p className="text-amber-800">
+                      This saved-card charge adds the configured {feeSettings.cardProcessingFeePercentage}% fee. Only the additional amount due is applied to the order balance.
+                    </p>
+                  </div>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Applied to order</span>
+                    <span className="font-semibold text-slate-900">${balanceDueAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between">
+                    <span className="text-slate-600">Card processing fee</span>
+                    <span className="font-semibold text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 font-semibold">
+                    <span className="text-slate-900">Total charged today</span>
+                    <span className="text-lg text-amber-700">${processorChargeAmount.toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -823,6 +901,44 @@ export function PaymentAdjustmentModal({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    <AlertDialog open={showCardFeeConfirm} onOpenChange={setShowCardFeeConfirm}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Confirm saved-card charge</AlertDialogTitle>
+          <AlertDialogDescription>
+            This additional payment includes the configured credit-card processing fee.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <div className="rounded-xl border bg-slate-50 p-4 text-sm space-y-2">
+          <div className="flex items-center justify-between">
+            <span>Additional amount applied</span>
+            <span className="font-medium">${balanceDueAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+            <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between border-t pt-2 font-semibold">
+            <span>Total charged</span>
+            <span>${processorChargeAmount.toFixed(2)}</span>
+          </div>
+        </div>
+        <AlertDialogFooterActions>
+          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={loading}
+            onClick={async () => {
+              feeConfirmBypassRef.current = true;
+              setShowCardFeeConfirm(false);
+              await handleSubmit();
+            }}
+          >
+            Continue and charge ${processorChargeAmount.toFixed(2)}
+          </AlertDialogAction>
+        </AlertDialogFooterActions>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 }
 

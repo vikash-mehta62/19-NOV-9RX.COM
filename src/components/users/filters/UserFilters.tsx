@@ -49,6 +49,7 @@ export function UserFilters({
             <SelectItem value="Pharmacy">Pharmacy</SelectItem>
             <SelectItem value="Hospital">Hospital</SelectItem>
             <SelectItem value="Group">Group</SelectItem>
+            <SelectItem value="Admin">Internal Admin</SelectItem>
             <SelectItem value="vendor">Vendor</SelectItem>
           </SelectContent>
         </Select>

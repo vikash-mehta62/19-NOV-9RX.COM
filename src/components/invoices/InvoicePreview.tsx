@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/integrations/supabase/client"
+import { getPaymentExperienceSettings } from "@/config/paymentConfig"
 import { 
   Building, MapPin, Phone, Mail, Globe, Download, 
   FileText, CheckCircle, XCircle, CreditCard, Hash,
@@ -17,6 +18,14 @@ import {
 } from "lucide-react"
 import JsBarcode from "jsbarcode"
 import Logo from "../../assests/home/9rx_logo.png"
+import {
+  AdminDocumentSettings,
+  DEFAULT_ADMIN_DOCUMENT_SETTINGS,
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings"
 
 interface Address {
   street: string
@@ -58,9 +67,11 @@ interface InvoicePreviewProps {
     tax?: number
     total?: number
     total_amount?: number
+    processing_fee_amount?: number
     payment_status: string
     payment_method: string
     payment_notes: string
+    notes?: string
     created_at: string
     payment_transication: string
     // Discount fields
@@ -76,9 +87,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const invoiceRef = useRef<HTMLDivElement>(null)
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [companyName, setCompanyName] = useState("")
+  const [documentSettings, setDocumentSettings] = useState<AdminDocumentSettings>(DEFAULT_ADMIN_DOCUMENT_SETTINGS)
   const [paidAmount, setPaidAmount] = useState(
     Number(invoice?.paid_amount || (invoice?.payment_status === "paid" ? (invoice?.total || invoice?.total_amount || 0) : 0))
   )
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(Number(invoice?.processing_fee_amount || 0))
 
   console.log("🧾 Rendering InvoicePreview with invoice:", invoice)
   console.log("💳 Payment Details:", {
@@ -195,13 +208,91 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     }
   }
 
+  const getInvoiceBaseTotal = () => {
+    const subtotalAmount = Number(invoice?.subtotal || 0)
+    const taxAmount = Number(invoice?.tax || 0)
+    const shippingCost = Number(invoice?.shippin_cost || 0)
+    const discountAmount = Number((invoice as any)?.discount_amount || 0)
+    const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
+    const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount
+    return storedTotal > 0 ? storedTotal : calculatedTotal
+  }
+
+  const fetchProcessingFeeAmount = async (): Promise<number> => {
+    const inlineFeeAmount = Number(invoice?.processing_fee_amount || 0)
+    if (inlineFeeAmount > 0) {
+      setProcessingFeeAmount(inlineFeeAmount)
+      return inlineFeeAmount
+    }
+
+    try {
+      if (invoice?.order_id) {
+        const { data, error } = await supabase
+          .from("order_activities")
+          .select("metadata, created_at")
+          .eq("order_id", invoice.order_id)
+          .eq("activity_type", "payment_received")
+          .order("created_at", { ascending: false })
+          .limit(10)
+
+        if (!error && Array.isArray(data)) {
+          const activityFee = data.reduce((maxFee, activity: any) => {
+            const fee = Number(activity?.metadata?.processing_fee_amount || 0)
+            return fee > maxFee ? fee : maxFee
+          }, 0)
+
+          if (activityFee > 0) {
+            setProcessingFeeAmount(activityFee)
+            return activityFee
+          }
+        }
+      }
+
+      if (invoice?.payment_method === "card") {
+        const feeSettings = await getPaymentExperienceSettings(invoice?.profile_id || undefined)
+        const shouldShowConfiguredFee =
+          feeSettings.cardProcessingFeeEnabled &&
+          feeSettings.cardProcessingFeePassToCustomer &&
+          feeSettings.cardProcessingFeePercentage > 0
+
+        if (shouldShowConfiguredFee) {
+          const calculatedFee = Number(
+            ((getInvoiceBaseTotal() * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2)
+          )
+          setProcessingFeeAmount(calculatedFee)
+          return calculatedFee
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching processing fee amount:", error)
+    }
+
+    setProcessingFeeAmount(0)
+    return 0
+  }
+
+  const loadDocumentSettings = async () => {
+    const settings = await fetchAdminDocumentSettings()
+    setDocumentSettings(settings)
+  }
+
   useEffect(() => { 
     setPaidAmount(
       Number(invoice?.paid_amount || (invoice?.payment_status === "paid" ? (invoice?.total || invoice?.total_amount || 0) : 0))
     )
+    setProcessingFeeAmount(Number(invoice?.processing_fee_amount || 0))
     fetchUser()
+    void loadDocumentSettings()
     void fetchPaidAmount()
+    void fetchProcessingFeeAmount()
   }, [invoice])
+
+  const invoiceCompany = documentSettings.invoice
+  const invoiceCompanyName = invoiceCompany.name || DEFAULT_ADMIN_DOCUMENT_SETTINGS.invoice.name
+  const invoiceAddressLine = formatDocumentAddressLine(invoiceCompany)
+  const invoiceContactLine = formatDocumentContactLine(invoiceCompany)
+  const invoiceMetaLine = formatDocumentMetaLine(invoiceCompany)
+  const supportEmail = invoiceCompany.email || DEFAULT_ADMIN_DOCUMENT_SETTINGS.invoice.email
 
   const formattedDate = new Date(invoice.created_at).toLocaleDateString("en-US", {
     year: "numeric", month: "2-digit", day: "2-digit", timeZone: "UTC",
@@ -220,7 +311,9 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   
   // Calculate total - use stored total if available, otherwise calculate
   const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount
-  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal
+  const baseTotal = storedTotal > 0 ? storedTotal : calculatedTotal
+  // Include processing fee in the displayed total since the customer was charged for it
+  const totalAmount = baseTotal + processingFeeAmount
   
   console.log("Invoice totals:", {
     subtotal: subtotalAmount,
@@ -229,6 +322,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     discount: discountAmount,
     calculatedTotal,
     storedTotal,
+    processingFee: processingFeeAmount,
     finalTotal: totalAmount,
     paidAmount
   })
@@ -279,13 +373,13 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
       doc.setTextColor(...darkGray)
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16)
+      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16)
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
+      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22)
+      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27)
+      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32)
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
       doc.setFont("helvetica", "bold")
@@ -389,7 +483,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 `$${Number(size.price * size.quantity).toFixed(2)}`
               ])
               itemIndex++
-              if (sizeIndex === 0 && item.description && item.description.trim()) {
+              if (false && sizeIndex === 0 && item.description && item.description.trim()) {
                 tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
               }
             })
@@ -430,10 +524,16 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const invoiceDiscountDetails = (invoice as any)?.discount_details || []
       // Use stored total_amount if available, otherwise calculate
       const calculatedTotal = subtotalAmount + shippingCost + taxAmount - invoiceDiscountAmount
-      const pdfTotalAmount = totalAmount // Use the totalAmount we calculated earlier from stored value
-
       // Build summary body with discount if applicable
+      const resolvedProcessingFeeAmount = await fetchProcessingFeeAmount()
+      // Include processing fee in total since the customer was charged for it
+      const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (calculatedTotal + resolvedProcessingFeeAmount)
+
       const invoiceSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+
+      if (resolvedProcessingFeeAmount > 0) {
+        invoiceSummaryBody.push(["Credit Card Processing Fee", `$${resolvedProcessingFeeAmount.toFixed(2)}`])
+      }
       if (invoiceDiscountAmount > 0) {
         const discountName = invoiceDiscountDetails.length > 0 ? invoiceDiscountDetails[0].name || "Discount" : "Discount"
         invoiceSummaryBody.push([discountName, `-$${invoiceDiscountAmount.toFixed(2)}`])
@@ -499,16 +599,19 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
 
+      const pdfInvoiceNote = invoice?.notes?.trim()
       if (showTransactionId) {
-        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
+      } else if (pdfInvoiceNote) {
+        doc.text(`Invoice Notes: ${pdfInvoiceNote}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
       } else if (isPaid || isPartialPaid) {
         if (invoice?.payment_notes) {
-          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
         } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
         }
       } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
       }
 
       // Add page numbers to all pages (Page X of Y format)
@@ -567,13 +670,13 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFont("helvetica", "bold")
       doc.setFontSize(16)
       doc.setTextColor(...darkGray)
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16)
+      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16)
       doc.setFont("helvetica", "normal")
       doc.setFontSize(9)
       doc.setTextColor(100, 100, 100)
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
+      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22)
+      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27)
+      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32)
 
       doc.setFont("helvetica", "bold")
       doc.setFontSize(24)
@@ -651,7 +754,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             item.sizes.forEach((size: any, sizeIndex: number) => {
               tableBody.push([itemIndex.toString(), item.name, `${size.size_value} ${size.size_unit}`, size.quantity?.toString() || '0', `$${Number(size.price).toFixed(2)}`, `$${Number(size.price * size.quantity).toFixed(2)}`])
               itemIndex++
-              if (sizeIndex === 0 && item.description && item.description.trim()) {
+              if (false && sizeIndex === 0 && item.description && item.description.trim()) {
                 tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
               }
             })
@@ -688,10 +791,16 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       const printDiscountDetails = (invoice as any)?.discount_details || []
       // Use stored total_amount if available, otherwise calculate
       const printCalculatedTotal = subtotalAmount + shippingCost + taxAmount - printDiscountAmount
-      const pdfTotalAmount = totalAmount // Use the totalAmount we calculated earlier from stored value
-
       // Build summary body with discount if applicable
+      const resolvedProcessingFeeAmount = await fetchProcessingFeeAmount()
+      // Include processing fee in total since the customer was charged for it
+      const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (printCalculatedTotal + resolvedProcessingFeeAmount)
+
       const printSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+
+      if (resolvedProcessingFeeAmount > 0) {
+        printSummaryBody.push(["Credit Card Processing Fee", `$${resolvedProcessingFeeAmount.toFixed(2)}`])
+      }
       if (printDiscountAmount > 0) {
         const discountName = printDiscountDetails.length > 0 ? printDiscountDetails[0].name || "Discount" : "Discount"
         printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
@@ -755,16 +864,19 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       doc.setFont("helvetica", "normal")
       doc.setFontSize(8)
       doc.setTextColor(120, 120, 120)
+      const printInvoiceNote = invoice?.notes?.trim()
       if (showTransactionId) {
-        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
+      } else if (printInvoiceNote) {
+        doc.text(`Invoice Notes: ${printInvoiceNote}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
       } else if (isPaid || isPartialPaid) {
         if (invoice?.payment_notes) {
-          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
         } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
         }
       } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
       }
 
       // Add page numbers to all pages (Page X of Y format)
@@ -865,11 +977,11 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             </div>
             {/* Company Info - Below on mobile, hidden on desktop (shown in different position) */}
             <div className="space-y-1 text-[11px] sm:text-sm text-gray-600 pt-3 border-t sm:border-t-0 sm:pt-0">
-              <div className="flex items-center gap-1.5"><Building className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>Tax ID: 99-0540972</span></div>
-              <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>936 Broad River Ln, Charlotte, NC 28211</span></div>
-              <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>+1 (800) 940-9619</span></div>
-              <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>info@9rx.com</span></div>
-              <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>www.9rx.com</span></div>
+              <div className="flex items-center gap-1.5"><Building className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>Tax ID: {invoiceCompany.taxId || "N/A"}</span></div>
+              <div className="flex items-center gap-1.5"><MapPin className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>{invoiceAddressLine}</span></div>
+              <div className="flex items-center gap-1.5"><Phone className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>{invoiceCompany.phone || "N/A"}</span></div>
+              <div className="flex items-center gap-1.5"><Mail className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>{supportEmail}</span></div>
+              <div className="flex items-center gap-1.5"><Globe className="w-3 h-3 sm:w-4 sm:h-4 text-gray-400 flex-shrink-0" /><span>{invoiceCompany.website || "N/A"}</span></div>
             </div>
           </div>
         </Card>
@@ -972,6 +1084,15 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                   </p>
                 </div>
               )}
+              {invoice?.notes && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                  <div className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-700 mb-1">
+                    <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    Invoice Notes
+                  </div>
+                  <p className="text-xs sm:text-sm text-blue-900 whitespace-pre-wrap">{invoice.notes}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
           <Card className="overflow-hidden border-0 shadow-sm">
@@ -979,6 +1100,12 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Sub Total</span><span className="font-medium text-gray-900">${subtotalAmount.toFixed(2)}</span></div>
               <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Tax</span><span className="font-medium text-gray-900">${(invoice?.tax || 0).toFixed(2)}</span></div>
               <div className="flex justify-between text-xs sm:text-sm"><span className="text-gray-600">Shipping Cost</span><span className="font-medium text-gray-900">${Number(invoice?.shippin_cost || 0).toFixed(2)}</span></div>
+              {processingFeeAmount > 0 && (
+                <div className="flex justify-between text-xs sm:text-sm">
+                  <span className="text-gray-600">Credit Card Processing Fee</span>
+                  <span className="font-medium text-gray-900">${processingFeeAmount.toFixed(2)}</span>
+                </div>
+              )}
               {/* Show discount if applied */}
               {Number((invoice as any)?.discount_amount || 0) > 0 && (
                 <>

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useSelector } from "react-redux";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModernCard } from "@/components/modern/ModernCard";
@@ -35,6 +36,8 @@ import {
   fetchTopProducts,
   getDateRange,
 } from "./dashboardService";
+import { RootState } from "@/store/store";
+import { shouldHideAdminFinancials } from "@/lib/adminAccess";
 
 const AdminDashboard = () => {
   const { toast } = useToast();
@@ -67,6 +70,8 @@ const AdminDashboard = () => {
   // Dialog
   const [selectedAccessRequest, setSelectedAccessRequest] = useState<any | null>(null);
   const [accessRequestDialogOpen, setAccessRequestDialogOpen] = useState(false);
+  const currentUserProfile = useSelector((state: RootState) => state.user.profile);
+  const hideFinancialData = shouldHideAdminFinancials(currentUserProfile);
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
@@ -91,15 +96,22 @@ const AdminDashboard = () => {
       setBestPerformingProducts(topProducts);
 
       // Load additional data
-      await Promise.all([
-        loadPendingAccessRequests(),
-        loadRecentAccessRequests(),
+      const dashboardLoaders = [
         loadRecentOrders(),
         loadTopPharmacies(),
         loadOutstandingPayments(),
         loadUserCounts(),
         loadTotalProducts(),
-      ]);
+      ];
+
+      if (!hideFinancialData) {
+        dashboardLoaders.unshift(
+          loadPendingAccessRequests(),
+          loadRecentAccessRequests(),
+        );
+      }
+
+      await Promise.all(dashboardLoaders);
 
       setLastUpdated(new Date());
     } catch (err) {
@@ -113,7 +125,7 @@ const AdminDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [timeRange, toast]);
+  }, [timeRange, toast, hideFinancialData]);
 
   useEffect(() => {
     loadAllData();
@@ -121,6 +133,8 @@ const AdminDashboard = () => {
 
   // Real-time subscription for pending access requests
   useEffect(() => {
+    if (hideFinancialData) return;
+
     const channel = supabase
       .channel('pending-access-requests')
       .on(
@@ -414,7 +428,12 @@ const AdminDashboard = () => {
         )}
 
         {/* Stats Grid */}
-        <StatsGrid stats={stats} revenueChartData={revenueChartData} isLoading={isLoading} />
+        <StatsGrid
+          stats={stats}
+          revenueChartData={revenueChartData}
+          isLoading={isLoading}
+          hideFinancialData={hideFinancialData}
+        />
 
         {/* Low Stock Alert - NEW! */}
         <LowStockAlert products={lowStockProducts} isLoading={isLoading} />
@@ -455,7 +474,9 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="font-semibold">${parseFloat(order.total_amount).toFixed(2)}</div>
+                          {!hideFinancialData && (
+                            <div className="font-semibold">${parseFloat(order.total_amount).toFixed(2)}</div>
+                          )}
                           <Badge variant={
                             order.status === 'delivered' ? 'default' :
                             order.status === 'processing' ? 'secondary' :
@@ -471,57 +492,58 @@ const AdminDashboard = () => {
               </Card>
             )}
 
-            {/* Access Requests Section - Only Pending */}
-            <Card className="border-orange-200">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2 text-base lg:text-xs lg:font-bold">
-                    <Bell className="h-5 w-5 text-orange-600 lg:text-xs lg:font-bold" />
-                    Access Requests
-                    {recentAccessRequests.length > 0 && (
-                      <Badge variant="destructive" className="ml-1">{recentAccessRequests.length} pending</Badge>
-                    )}
-                  </CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => window.location.href = '/admin/access-requests'}
-                    className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 lg:text-xs lg:font-bold lg:text-wrap"
-                  >
-                    View All
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {recentAccessRequests.length > 0 ? (
-                  <div className="space-y-2">
-                    {recentAccessRequests.map((request) => (
-                      <div 
-                        key={request.id} 
-                        className="flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
-                        onClick={() => handleViewAccessRequest(request)}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-sm truncate">
-                            {request.company_name || `${request.first_name} ${request.last_name}`}
+            {!hideFinancialData && (
+              <Card className="border-orange-200">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2 text-base lg:text-xs lg:font-bold">
+                      <Bell className="h-5 w-5 text-orange-600 lg:text-xs lg:font-bold" />
+                      Access Requests
+                      {recentAccessRequests.length > 0 && (
+                        <Badge variant="destructive" className="ml-1">{recentAccessRequests.length} pending</Badge>
+                      )}
+                    </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => window.location.href = '/admin/access-requests'}
+                      className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 lg:text-xs lg:font-bold lg:text-wrap"
+                    >
+                      View All
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {recentAccessRequests.length > 0 ? (
+                    <div className="space-y-2">
+                      {recentAccessRequests.map((request) => (
+                        <div 
+                          key={request.id} 
+                          className="flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
+                          onClick={() => handleViewAccessRequest(request)}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="font-medium text-sm truncate">
+                              {request.company_name || `${request.first_name} ${request.last_name}`}
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">{request.email}</div>
                           </div>
-                          <div className="text-xs text-muted-foreground truncate">{request.email}</div>
+                          <div className="flex items-center gap-2 ml-2">
+                            <Badge variant="outline" className="capitalize text-xs">{request.type}</Badge>
+                            <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">Pending</Badge>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 ml-2">
-                          <Badge variant="outline" className="capitalize text-xs">{request.type}</Badge>
-                          <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">Pending</Badge>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-sm text-muted-foreground text-center py-8">
-                    <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
-                    No pending requests
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-muted-foreground text-center py-8">
+                      <Bell className="h-8 w-8 mx-auto mb-2 text-gray-300" />
+                      No pending requests
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Best Performing Products */}
             <Card>
@@ -543,7 +565,7 @@ const AdminDashboard = () => {
                           <span className="truncate">{product.name}</span>
                         </div>
                         <div className="text-muted-foreground">
-                          ${product.revenue.toFixed(2)} · {product.quantity} units
+                          {hideFinancialData ? `${product.quantity} units` : `$${product.revenue.toFixed(2)} · ${product.quantity} units`}
                         </div>
                       </div>
                       <div className="h-2 rounded bg-muted">
@@ -564,7 +586,7 @@ const AdminDashboard = () => {
         )}
 
         {/* Outstanding Payments & AR Aging */}
-        {outstandingPharmacies.length > 0 && (
+        {!hideFinancialData && outstandingPharmacies.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -631,7 +653,7 @@ const AdminDashboard = () => {
         )}
 
         {/* Charts Row */}
-        {!isLoading && (
+        {!isLoading && !hideFinancialData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
             <ModernCard className="lg:col-span-2 xl:col-span-2">
               <div className="flex items-center justify-between mb-6">
@@ -680,7 +702,7 @@ const AdminDashboard = () => {
                 <div>#</div>
                 <div className="col-span-2">Customer</div>
                 <div>Orders</div>
-                <div>Revenue</div>
+                <div>{hideFinancialData ? "Status" : "Revenue"}</div>
               </div>
               {topPharmacies.slice(0, 5).map((pharmacy, idx) => (
                 <div key={pharmacy.id} className="grid grid-cols-5 gap-4 text-sm items-center">
@@ -692,13 +714,16 @@ const AdminDashboard = () => {
                     <span className="font-medium text-gray-900 truncate">{pharmacy.name}</span>
                   </div>
                   <div className="font-medium text-gray-900">{pharmacy.count}</div>
-                  <div className="font-medium text-gray-900">${pharmacy.value.toFixed(0)}</div>
+                  <div className="font-medium text-gray-900">
+                    {hideFinancialData ? "Restricted" : `$${pharmacy.value.toFixed(0)}`}
+                  </div>
                 </div>
               ))}
             </div>
           </ModernCard>
 
-          <ModernCard className="bg-gradient-to-br from-purple-50 to-blue-50">
+          {!hideFinancialData && (
+            <ModernCard className="bg-gradient-to-br from-purple-50 to-blue-50">
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Period Sales</p>
@@ -720,7 +745,8 @@ const AdminDashboard = () => {
                 </LineChart>
               </ResponsiveContainer>
             </div>
-          </ModernCard>
+            </ModernCard>
+          )}
         </div>
 
         {/* Quick Stats */}
@@ -749,27 +775,31 @@ const AdminDashboard = () => {
                 </div>
                 <span className="text-sm font-semibold">{stats?.totalOrders || 0}</span>
               </div>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-5 w-5 text-muted-foreground" />
-                  <span className="text-sm">Revenue</span>
+              {!hideFinancialData && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <DollarSign className="h-5 w-5 text-muted-foreground" />
+                    <span className="text-sm">Revenue</span>
+                  </div>
+                  <span className="text-sm font-semibold">${stats?.totalSales.toLocaleString() || '0'}</span>
                 </div>
-                <span className="text-sm font-semibold">${stats?.totalSales.toLocaleString() || '0'}</span>
-              </div>
+              )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <AccessRequestDetailDialog
-        request={selectedAccessRequest}
-        open={accessRequestDialogOpen}
-        onOpenChange={setAccessRequestDialogOpen}
-        onStatusUpdate={() => {
-          loadPendingAccessRequests();
-          setSelectedAccessRequest(null);
-        }}
-      />
+      {!hideFinancialData && (
+        <AccessRequestDetailDialog
+          request={selectedAccessRequest}
+          open={accessRequestDialogOpen}
+          onOpenChange={setAccessRequestDialogOpen}
+          onStatusUpdate={() => {
+            loadPendingAccessRequests();
+            setSelectedAccessRequest(null);
+          }}
+        />
+      )}
     </DashboardLayout>
   );
 };

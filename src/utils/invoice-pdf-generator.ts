@@ -2,6 +2,12 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import JsBarcode from "jsbarcode";
 import Logo from "../assests/home/9rx_logo.png";
+import {
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings";
 
 interface InvoiceData {
   id?: string;
@@ -46,10 +52,12 @@ interface InvoiceData {
   tax?: number;
   total?: number;
   total_amount?: number;
+  processing_fee_amount?: number;
   payment_status: string;
   payment_method: string;
   payment_transication?: string;
   payment_notes?: string;
+  notes?: string;
   created_at: string;
   discount_amount?: number;
   discount_details?: any[];
@@ -71,6 +79,14 @@ export async function generateInvoicePdfBlob(
   invoice: InvoiceData,
   companyName: string = ""
 ): Promise<Blob> {
+  const documentSettings = await fetchAdminDocumentSettings();
+  const invoiceCompany = documentSettings.invoice;
+  const invoiceCompanyName = invoiceCompany.name || "9RX LLC";
+  const invoiceAddressLine = formatDocumentAddressLine(invoiceCompany);
+  const invoiceContactLine = formatDocumentContactLine(invoiceCompany);
+  const invoiceMetaLine = formatDocumentMetaLine(invoiceCompany);
+  const supportEmail = invoiceCompany.email || "info@9rx.com";
+
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }) as any;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -89,9 +105,12 @@ export async function generateInvoicePdfBlob(
   const taxAmount = Number(invoice?.tax || 0);
   const shippingCost = Number(invoice?.shippin_cost || 0);
   const discountAmount = Number(invoice?.discount_amount || 0);
+  const processingFeeAmount = Number(invoice?.processing_fee_amount || 0);
   const storedTotal = Number(invoice?.total || invoice?.total_amount || 0);
   const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount;
-  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal;
+  const baseTotal = storedTotal > 0 ? storedTotal : calculatedTotal;
+  // Include processing fee in the displayed total since the customer was charged for it
+  const totalAmount = baseTotal + processingFeeAmount;
   const paidAmount = Number(invoice?.paid_amount || (isPaid ? totalAmount : 0));
 
   const formattedDate = new Date(invoice.created_at).toLocaleDateString("en-US", {
@@ -131,13 +150,19 @@ export async function generateInvoicePdfBlob(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
   doc.setTextColor(...darkGray);
-  doc.text("9RX LLC", margin, logoLoaded ? 32 : 16);
+  doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
-  doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22);
-  doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27);
-  doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32);
+  if (invoiceAddressLine) {
+    doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
+  }
+  if (invoiceContactLine) {
+    doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
+  }
+  if (invoiceMetaLine) {
+    doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
+  }
 
   // ===== DOCUMENT TITLE & NUMBER (Right) =====
   doc.setFont("helvetica", "bold");
@@ -255,7 +280,7 @@ export async function generateInvoicePdfBlob(
             `${Number(size.price * size.quantity).toFixed(2)}`,
           ]);
           itemIndex++;
-          if (sizeIndex === 0 && item.description && item.description.trim()) {
+          if (false && sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push([
               "",
               {
@@ -315,6 +340,10 @@ export async function generateInvoicePdfBlob(
     ["Shipping", `${shippingCost.toFixed(2)}`],
     ["Tax", `${taxAmount.toFixed(2)}`],
   ];
+
+  if (processingFeeAmount > 0) {
+    invoiceSummaryBody.push(["Credit Card Processing Fee", `${processingFeeAmount.toFixed(2)}`]);
+  }
 
   if (discountAmount > 0) {
     const discountName =
@@ -388,28 +417,34 @@ export async function generateInvoicePdfBlob(
   doc.setFontSize(8);
   doc.setTextColor(120, 120, 120);
 
+  const invoiceNote = invoice?.notes?.trim();
+
   if (showTransactionId) {
-    doc.text(
-      `Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at info@9rx.com`,
+      doc.text(
+      `Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`,
       pageWidth / 2,
       footerY + 6,
       { align: "center" }
     );
+  } else if (invoiceNote) {
+    doc.text(`Invoice Notes: ${invoiceNote}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, {
+      align: "center",
+    });
   } else if (isPaid || isPartialPaid) {
     if (invoice?.payment_notes) {
       doc.text(
-        `Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at info@9rx.com`,
+        `Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`,
         pageWidth / 2,
         footerY + 6,
         { align: "center" }
       );
     } else {
-      doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, {
+      doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, {
         align: "center",
       });
     }
   } else {
-    doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, {
+    doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, {
       align: "center",
     });
   }

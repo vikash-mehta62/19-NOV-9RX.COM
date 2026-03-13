@@ -57,6 +57,17 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
 
 interface CreateOrderPaymentFormProps {
   modalIsOpen: boolean;
@@ -106,6 +117,13 @@ const CreateOrderPaymentForm = ({
   const [selectedSavedCard, setSelectedSavedCard] = useState<SavedPaymentMethod | null>(null);
   const [estimatedPoints, setEstimatedPoints] = useState(0);
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [showCardFeeConfirm, setShowCardFeeConfirm] = useState(false);
+  const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
+    cardProcessingFeeEnabled: false,
+    cardProcessingFeePercentage: 0,
+    cardProcessingFeePassToCustomer: false,
+    invoiceDefaultNotes: "",
+  });
   const [successData, setSuccessData] = useState<{
     orderNumber: string;
     pointsEarned: number;
@@ -132,6 +150,8 @@ const CreateOrderPaymentForm = ({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const paymentFormRef = useRef<HTMLFormElement>(null);
+  const feeConfirmBypassRef = useRef(false);
 
   const totalShippingCost =
     sessionStorage.getItem("shipping") == "true"
@@ -189,6 +209,15 @@ const CreateOrderPaymentForm = ({
     
     fetchSavedCards();
   }, [pId, userProfile?.id]); // Re-fetch when customer changes
+
+  useEffect(() => {
+    const loadFeeSettings = async () => {
+      const settings = await getPaymentExperienceSettings();
+      setFeeSettings(settings);
+    };
+
+    void loadFeeSettings();
+  }, []);
 
   // Calculate estimated reward points
   useEffect(() => {
@@ -248,6 +277,19 @@ const CreateOrderPaymentForm = ({
       setErrors({ ...errors, [name]: "" });
     }
   };
+
+  const basePaymentAmount = Number(formData.amount || 0);
+  const cardFeeApplies =
+    paymentType === "credit_card" &&
+    feeSettings.cardProcessingFeeEnabled &&
+    feeSettings.cardProcessingFeePassToCustomer &&
+    feeSettings.cardProcessingFeePercentage > 0;
+  const cardProcessingFeeAmount = cardFeeApplies
+    ? Number(((basePaymentAmount * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
+    : 0;
+  const processorChargeAmount = Number(
+    (paymentType === "credit_card" ? basePaymentAmount + cardProcessingFeeAmount : basePaymentAmount).toFixed(2)
+  );
 
   const formatCardNumber = (value: string) => {
     const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
@@ -335,6 +377,13 @@ const CreateOrderPaymentForm = ({
       return;
     }
 
+    if (cardFeeApplies && !feeConfirmBypassRef.current) {
+      setShowCardFeeConfirm(true);
+      return;
+    }
+
+    feeConfirmBypassRef.current = false;
+
     isSubmitting.current = true;
     setLoading(true);
 
@@ -352,6 +401,7 @@ const CreateOrderPaymentForm = ({
       });
       setLoading(false);
       isSubmitting.current = false;
+      feeConfirmBypassRef.current = false;
       return;
     }
 
@@ -368,7 +418,7 @@ const CreateOrderPaymentForm = ({
         
         const chargeResult = await chargeSavedCard(
           selectedSavedCard,
-          formData.amount,
+          processorChargeAmount,
           invoiceNumber
         );
 
@@ -409,7 +459,7 @@ const CreateOrderPaymentForm = ({
                 accountNumber: formData.accountNumber,
                 nameOnAccount: formData.nameOnAccount,
               },
-          amount: formData.amount,
+          amount: processorChargeAmount,
           invoiceNumber: invoiceNumber,
           customerEmail: formDataa?.customerInfo?.email || "",
           billing: {
@@ -490,6 +540,7 @@ const CreateOrderPaymentForm = ({
     } catch (error: any) {
       setLoading(false);
       isSubmitting.current = false;
+      feeConfirmBypassRef.current = false;
       
       const errorMessage = error?.message || "Something went wrong. Please try again.";
       
@@ -563,6 +614,7 @@ const CreateOrderPaymentForm = ({
         items: cleanedCartItems,
         payment_status: "paid",
         payment_method: "card",
+        paid_amount: processorChargeAmount,
         notes: data.specialInstructions,
         shipping_method: data.shipping?.method,
         customerInfo: data.customerInfo,
@@ -647,6 +699,7 @@ const CreateOrderPaymentForm = ({
         },
         shipping_info: baseOrderData.shippingAddress || {},
         subtotal: subtotal,
+        paid_amount: processorChargeAmount,
         // Add discount information
         discount_amount: discount,
         discount_details: discountDetails || [],
@@ -894,6 +947,8 @@ const CreateOrderPaymentForm = ({
         orderId: newOrder.id,
         orderNumber: orderNumber,
         amount: totalAmount,
+        chargedAmount: processorChargeAmount,
+        processingFeeAmount: cardProcessingFeeAmount,
         paymentMethod: "card",
         paymentId: response.data.transactionId,
         performedBy: session?.user?.id,
@@ -1037,7 +1092,7 @@ const CreateOrderPaymentForm = ({
             </Card>
 
             {/* Payment Details Form */}
-            <form onSubmit={handleSubmit}>
+            <form id="payment-form" ref={paymentFormRef} onSubmit={handleSubmit}>
               <Card className="shadow-lg border-0">
                 <CardHeader>
                   <CardTitle className="text-lg">
@@ -1284,18 +1339,24 @@ const CreateOrderPaymentForm = ({
 
                       {/* Save Card Checkbox - Hide when saved card selected */}
                       {!selectedSavedCard && (
-                      <div className="flex items-center gap-3 pt-2">
-                        <input
-                          type="checkbox"
-                          id="saveCard"
-                          checked={saveCard}
-                          onChange={(e) => setSaveCard(e.target.checked)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <Label htmlFor="saveCard" className="text-sm font-medium cursor-pointer">
-                          Save this card for future purchases
-                        </Label>
-                      </div>
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4">
+                          <div className="flex items-start gap-3">
+                            <Checkbox
+                              id="saveCard"
+                              checked={saveCard}
+                              onCheckedChange={(checked) => setSaveCard(checked === true)}
+                              className="mt-0.5 border-blue-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
+                            />
+                            <div className="space-y-1">
+                              <Label htmlFor="saveCard" className="cursor-pointer text-sm font-semibold text-slate-900">
+                                Save this card securely for faster future checkout
+                              </Label>
+                              <p className="text-sm text-slate-600">
+                                Optional. Your card is stored as a secure payment token so you can reuse it next time without entering all details again.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </>
                   ) : (
@@ -1507,7 +1568,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay ${formData.amount.toFixed(2)}
+                      Pay ${processorChargeAmount.toFixed(2)}
                     </>
                   )}
                 </Button>
@@ -1602,9 +1663,20 @@ const CreateOrderPaymentForm = ({
                     )}
                     
                     <Separator />
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Order total</span>
+                      <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Card fee</span>
+                      <span className="font-medium">
+                        {paymentType === "credit_card" ? `$${cardProcessingFeeAmount.toFixed(2)}` : "$0.00"}
+                      </span>
+                    </div>
+                    <Separator />
                     <div className="flex justify-between text-lg font-bold">
-                      <span>Total</span>
-                      <span className="text-blue-600">${formData.amount.toFixed(2)}</span>
+                      <span>Total charged</span>
+                      <span className="text-blue-600">${processorChargeAmount.toFixed(2)}</span>
                     </div>
                     {discountAmount > 0 && (
                       <div className="text-right text-sm text-blue-600">
@@ -1631,6 +1703,101 @@ const CreateOrderPaymentForm = ({
                 </CardContent>
               </Card>
 
+              <Card className={`border ${paymentType === "credit_card" ? (cardProcessingFeeAmount > 0 ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50") : paymentType === "ach" ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+                <CardContent className="p-5">
+                  {paymentType === "credit_card" && cardProcessingFeeAmount > 0 ? (
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-full bg-amber-100 p-2">
+                          <AlertCircle className="h-5 w-5 text-amber-700" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-amber-900">
+                            Card payments include an extra processing fee
+                          </p>
+                          <p className="text-sm leading-6 text-amber-800">
+                            You will pay the order amount plus the configured {feeSettings.cardProcessingFeePercentage}% card fee. Only the order amount is applied to this purchase.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Applied to order</span>
+                          <span className="font-semibold text-slate-900">${basePaymentAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Card processing fee</span>
+                          <span className="font-semibold text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
+                          <span className="font-semibold text-slate-900">Total charged today</span>
+                          <span className="text-lg font-bold text-amber-700">${processorChargeAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                        <div>
+                          <span className="text-sm text-amber-600 font-bold">
+                            Use ACH at checkout to avoid card fees and save ${cardProcessingFeeAmount.toFixed(2)} on this order.
+                          </span>
+                        </div>
+                    </div>
+                  ) : paymentType === "credit_card" ? (
+                    <div className="space-y-4">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-full bg-blue-100 p-2">
+                          <ShieldCheck className="h-5 w-5 text-blue-700" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-blue-900">
+                            Credit card checkout is active
+                          </p>
+                          <p className="text-sm leading-6 text-blue-800">
+                            This order currently has no extra card processing fee. The amount charged to the card matches the order amount shown above.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-blue-200 bg-white/80 p-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Applied to order</span>
+                          <span className="font-semibold text-slate-900">${basePaymentAmount.toFixed(2)}</span>
+                        </div>
+                        <div className="mt-2 flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Card processing fee</span>
+                          <span className="font-semibold text-blue-700">$0.00</span>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
+                          <span className="font-semibold text-slate-900">Total charged today</span>
+                          <span className="text-lg font-bold text-blue-700">${processorChargeAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : paymentType === "ach" ? (
+                    <div className="space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="rounded-full bg-emerald-100 p-2">
+                          <ShieldCheck className="h-5 w-5 text-emerald-700" />
+                        </div>
+                        <div className="space-y-1">
+                          <p className="text-sm font-semibold text-emerald-900">ACH payments are fee-free</p>
+                          <p className="text-sm text-emerald-800">
+                            The amount charged matches your order total. No extra processing fee is added for ACH.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-emerald-200 bg-white/80 p-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Charged today</span>
+                          <span className="text-lg font-bold text-emerald-700">${processorChargeAmount.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-600">
+                      The amount shown above is the amount charged and applied to this order.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+
               {/* Submit Button - Desktop */}
               <div className="hidden lg:block">
                 <Button
@@ -1648,7 +1815,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay ${formData.amount.toFixed(2)}
+                      Pay ${processorChargeAmount.toFixed(2)}
                     </>
                   )}
                 </Button>
@@ -1683,7 +1850,45 @@ const CreateOrderPaymentForm = ({
             </div>
           </div>
         </div>
-      </div>
+    </div>
+
+      <AlertDialog open={showCardFeeConfirm} onOpenChange={setShowCardFeeConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm card charge</AlertDialogTitle>
+            <AlertDialogDescription>
+              This checkout includes your configured card processing fee.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="rounded-xl border bg-slate-50 p-4 space-y-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span>Order total</span>
+              <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span>Card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+              <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-2 font-semibold">
+              <span>Total charged</span>
+              <span>${processorChargeAmount.toFixed(2)}</span>
+            </div>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={loading}
+              onClick={() => {
+                feeConfirmBypassRef.current = true;
+                setShowCardFeeConfirm(false);
+                paymentFormRef.current?.requestSubmit();
+              }}
+            >
+              Continue and charge ${processorChargeAmount.toFixed(2)}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Success Popup Dialog */}
       <Dialog open={showSuccessPopup} onOpenChange={(open) => {

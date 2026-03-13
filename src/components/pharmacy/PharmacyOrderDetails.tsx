@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast"
 import { supabase } from "@/supabaseClient"
 import { OrderFormValues, ShippingAddressData } from "@/components/orders/schemas/orderSchema"
 import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline"
+import PaymentForm from "@/components/PaymentModal"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
 import JsBarcode from "jsbarcode"
@@ -52,6 +53,9 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   const [companyName, setCompanyName] = useState("")
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [paidAmount, setPaidAmount] = useState(0)
+  const [chargedAmount, setChargedAmount] = useState(0)
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(0)
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
 
   // Fetch company name and paid amount
   useEffect(() => {
@@ -81,6 +85,31 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
           }
           setPaidAmount(amount)
         }
+
+        const { data: paymentActivities } = await supabase
+          .from("order_activities")
+          .select("metadata")
+          .eq("order_id", order.id)
+          .eq("activity_type", "payment_received")
+
+        if (paymentActivities) {
+          const summary = paymentActivities.reduce(
+            (acc: { charged: number; fee: number }, activity: any) => {
+              const metadata = activity?.metadata || {}
+              const charged = Number(
+                metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount ?? 0
+              )
+              const fee = Number(metadata.processing_fee_amount || 0)
+              acc.charged += Number.isFinite(charged) ? charged : 0
+              acc.fee += Number.isFinite(fee) ? fee : 0
+              return acc
+            },
+            { charged: 0, fee: 0 }
+          )
+
+          setChargedAmount(summary.charged)
+          setProcessingFeeAmount(summary.fee)
+        }
       }
     }
     fetchData()
@@ -98,6 +127,10 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   // Calculate correct total: Subtotal + Shipping + Tax - Discount
   // Don't use stored total_amount as it may have discount already subtracted
   const total = subtotal + shipping + tax - discountAmount
+  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount
+  const displayTotal = processingFeeAmount > 0
+    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
+    : total
   
   // Count total line items (sizes across all products)
   const totalLineItems = order.items.reduce(
@@ -818,6 +851,7 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   }
 
   return (
+    <>
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="w-full max-w-[calc(100vw-16px)] sm:max-w-md md:max-w-lg lg:max-w-xl xl:max-w-2xl p-0 overflow-hidden [&>button]:hidden">
         <ScrollArea className="h-full">
@@ -1043,6 +1077,13 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                   <span className="text-gray-600">Tax</span>
                   <span className="font-medium">${tax.toFixed(2)}</span>
                 </div>
+
+                {processingFeeAmount > 0 && (
+                  <div className="flex justify-between text-xs sm:text-sm">
+                    <span className="text-gray-600">Credit Card Processing Fee</span>
+                    <span className="font-medium text-amber-600">${processingFeeAmount.toFixed(2)}</span>
+                  </div>
+                )}
                 
                 {/* Show discount if applied */}
                 {discountAmount > 0 && (
@@ -1067,8 +1108,8 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 
                 <Separator />
                 <div className="flex justify-between items-center pt-1">
-                  <span className="text-base sm:text-lg font-bold text-gray-900">Total</span>
-                  <span className="text-xl sm:text-2xl font-bold text-blue-600">${total.toFixed(2)}</span>
+                  <span className="text-base sm:text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
+                  <span className="text-xl sm:text-2xl font-bold text-blue-600">${displayTotal.toFixed(2)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="text-right text-sm text-green-600">
@@ -1077,10 +1118,10 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                 )}
                 
                 {/* Paid Amount */}
-                {paidAmount > 0 && (
+                {effectiveChargedAmount > 0 && (
                   <div className="flex justify-between text-sm pt-2 border-t">
                     <span className="text-green-600 font-medium">✓ Paid Amount</span>
-                    <span className="font-bold text-green-600">${paidAmount.toFixed(2)}</span>
+                    <span className="font-bold text-green-600">${effectiveChargedAmount.toFixed(2)}</span>
                   </div>
                 )}
                 
@@ -1099,12 +1140,16 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
                             <span className="text-xl font-bold text-red-600">${balanceDue.toFixed(2)}</span>
                           </div>
                           {canPay && (
-                            <a href={`/pay-now?orderid=${order.id}`} target="_blank" rel="noopener noreferrer">
-                              <Button className="w-full mt-3 bg-red-600 hover:bg-red-700">
-                                <CreditCard className="w-4 h-4 mr-2" />
-                                Pay Now - ${balanceDue.toFixed(2)}
-                              </Button>
-                            </a>
+                            <Button 
+                              className="w-full mt-3 bg-red-600 hover:bg-red-700"
+                              onClick={() => {
+                                onOpenChange(false)
+                                setPaymentModalOpen(true)
+                              }}
+                            >
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              Pay Now - ${balanceDue.toFixed(2)}
+                            </Button>
                           )}
                         </div>
                       ) : paidAmount > 0 && (
@@ -1152,5 +1197,25 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         </ScrollArea>
       </SheetContent>
     </Sheet>
+
+    {paymentModalOpen && order && (
+      <PaymentForm
+        modalIsOpen={paymentModalOpen}
+        setModalIsOpen={setPaymentModalOpen}
+        customer={order.customerInfo || order.customer}
+        amountP={(() => {
+          const items = order.items || [];
+          const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0), 0);
+          const shipping = Number(order.shipping_cost) || 0;
+          const tax = Number(order.tax_amount) || 0;
+          const discount = Number(order.discount_amount) || 0;
+          return subtotal + shipping + tax - discount;
+        })()}
+        orderId={order.id}
+        orders={order}
+        useStockDeductionRpc={true}
+      />
+    )}
+    </>
   )
 }

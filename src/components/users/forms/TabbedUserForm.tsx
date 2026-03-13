@@ -30,7 +30,7 @@ interface TabbedUserFormProps {
 
 // Define which fields belong to which tab for error tracking
 const tabFields: Record<string, (keyof BaseUserFormData)[]> = {
-  basic: ["firstName", "lastName", "email", "type", "status", "companyName", "role"],
+  basic: ["firstName", "lastName", "email", "type", "status", "companyName", "role", "adminPermissions"],
   contact: ["workPhone", "mobilePhone", "alternativeEmail", "faxNumber", "contactPerson", "department"],
   address: ["billingAddress", "shippingAddress", "sameAsShipping", "freeShipping", "order_pay", "email_notifaction"],
   tax: ["taxPreference", "taxPercantage", "taxId", "paymentTerms", "documents"],
@@ -182,8 +182,8 @@ export function TabbedUserForm({
 
   const handleSubmit = async (values: BaseUserFormData) => {
     try {
-      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" => {
-        const validTypes = ["pharmacy", "hospital", "group", "vendor"] as const;
+      const validType = (type: string): "pharmacy" | "hospital" | "group" | "vendor" | "admin" => {
+        const validTypes = ["pharmacy", "hospital", "group", "vendor", "admin"] as const;
         const normalizedType = type.toLowerCase();
         return validTypes.includes(normalizedType as any)
           ? (normalizedType as "pharmacy" | "hospital" | "group" | "vendor")
@@ -202,8 +202,8 @@ export function TabbedUserForm({
 
       const validRole = (
         role: string
-      ): "admin" | "manager" | "staff" | "user" => {
-        const validRoles = ["admin", "manager", "staff", "user"] as const;
+      ): "admin" | "superadmin" | "manager" | "staff" | "accounting" | "warehouse" | "user" => {
+        const validRoles = ["admin", "superadmin", "manager", "staff", "accounting", "warehouse", "user"] as const;
         const normalizedRole = role.toLowerCase();
         return validRoles.includes(normalizedRole as any)
           ? (normalizedRole as "admin" | "manager" | "staff" | "user")
@@ -218,6 +218,7 @@ export function TabbedUserForm({
         type: validType(values.type),
         status: validStatus(values.status),
         role: validRole(values.role),
+        adminPermissions: Array.isArray(values.adminPermissions) ? values.adminPermissions : [],
         companyName: values.companyName,
         displayName:
           values.displayName || `${values.firstName} ${values.lastName}`,

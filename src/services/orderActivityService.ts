@@ -141,22 +141,27 @@ export class OrderActivityService {
     amount: number | string;
     paymentMethod: string;
     paymentId?: string;
+    chargedAmount?: number;
+    processingFeeAmount?: number;
     performedBy?: string;
     performedByName?: string;
     performedByEmail?: string;
   }) {
     console.log("🔵 Logging payment received:", params);
     const amountNum = typeof params.amount === 'string' ? parseFloat(params.amount) : params.amount;
+    const feeAmount = params.processingFeeAmount || 0;
     return this.logActivity({
       orderId: params.orderId,
       activityType: "payment_received",
-      description: `Payment of $${amountNum.toFixed(2)} received via ${params.paymentMethod}`,
+      description: `Payment of $${amountNum.toFixed(2)} received via ${params.paymentMethod}${feeAmount > 0 ? ` with $${feeAmount.toFixed(2)} card fee` : ""}`,
       performedBy: params.performedBy,
       performedByName: params.performedByName,
       performedByEmail: params.performedByEmail,
       metadata: {
         order_number: params.orderNumber,
         payment_amount: amountNum,
+        charged_amount: params.chargedAmount || amountNum,
+        processing_fee_amount: feeAmount,
         payment_method: params.paymentMethod,
         payment_id: params.paymentId,
       },

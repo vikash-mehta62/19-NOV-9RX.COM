@@ -15,6 +15,20 @@ export interface PaymentConfig {
   authorizeNetEnabled: boolean;
 }
 
+export interface PaymentExperienceSettings {
+  cardProcessingFeeEnabled: boolean;
+  cardProcessingFeePercentage: number;
+  cardProcessingFeePassToCustomer: boolean;
+  invoiceDefaultNotes: string;
+}
+
+interface PaymentExperienceSettingsRow {
+  card_processing_fee_enabled?: boolean | null;
+  card_processing_fee_percentage?: number | null;
+  card_processing_fee_pass_to_customer?: boolean | null;
+  invoice_notes?: string | null;
+}
+
 // Default to environment variables
 let cachedConfig: PaymentConfig | null = null;
 
@@ -125,4 +139,128 @@ export async function isAuthorizeNetAvailable(): Promise<boolean> {
  */
 export function clearPaymentConfigCache() {
   cachedConfig = null;
+}
+
+async function fetchPaymentExperienceRow(profileId: string): Promise<PaymentExperienceSettingsRow | null> {
+  const { data, error } = await supabase
+    .from("settings")
+    .select(
+      "card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer, invoice_notes"
+    )
+    .eq("profile_id", profileId)
+    .maybeSingle();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data as PaymentExperienceSettingsRow;
+}
+
+function normalizePaymentExperienceRow(row: PaymentExperienceSettingsRow | null): PaymentExperienceSettings {
+  return {
+    cardProcessingFeeEnabled: Boolean(row?.card_processing_fee_enabled),
+    cardProcessingFeePercentage: Number(row?.card_processing_fee_percentage || 0),
+    cardProcessingFeePassToCustomer: Boolean(row?.card_processing_fee_pass_to_customer),
+    invoiceDefaultNotes: row?.invoice_notes || "",
+  };
+}
+
+function hasConfiguredCardFee(settings: PaymentExperienceSettings): boolean {
+  return (
+    settings.cardProcessingFeeEnabled ||
+    settings.cardProcessingFeePassToCustomer ||
+    settings.cardProcessingFeePercentage > 0
+  );
+}
+
+async function getAdminSettingsProfileId(): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id")
+    .in("role", ["admin", "superadmin"])
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.id) {
+    return null;
+  }
+
+  return data.id as string;
+}
+
+export async function getPaymentExperienceSettings(profileId?: string): Promise<PaymentExperienceSettings> {
+  const defaults: PaymentExperienceSettings = {
+    cardProcessingFeeEnabled: false,
+    cardProcessingFeePercentage: 0,
+    cardProcessingFeePassToCustomer: false,
+    invoiceDefaultNotes: "",
+  };
+
+  try {
+    let settingsProfileId = profileId;
+
+    if (!settingsProfileId) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      settingsProfileId = user?.id;
+    }
+
+    if (!settingsProfileId) {
+      const adminProfileId = await getAdminSettingsProfileId();
+      if (!adminProfileId) {
+        return defaults;
+      }
+
+      const adminRow = await fetchPaymentExperienceRow(adminProfileId);
+      return adminRow ? normalizePaymentExperienceRow(adminRow) : defaults;
+    }
+
+    const primaryRow = await fetchPaymentExperienceRow(settingsProfileId);
+    const primarySettings = normalizePaymentExperienceRow(primaryRow);
+
+    let fallbackSettings = defaults;
+    if (!hasConfiguredCardFee(primarySettings) || !primarySettings.invoiceDefaultNotes) {
+      // Use RPC function (SECURITY DEFINER) to get admin fee settings — works for all authenticated users
+      const { data: rpcResult } = await supabase.rpc("get_card_processing_fee_settings");
+      if (rpcResult) {
+        const parsed = typeof rpcResult === "string" ? JSON.parse(rpcResult) : rpcResult;
+        fallbackSettings = {
+          cardProcessingFeeEnabled: Boolean(parsed.cardProcessingFeeEnabled),
+          cardProcessingFeePercentage: Number(parsed.cardProcessingFeePercentage || 0),
+          cardProcessingFeePassToCustomer: Boolean(parsed.cardProcessingFeePassToCustomer),
+          invoiceDefaultNotes: "",
+        };
+      }
+
+      // For invoice notes, try direct query (only works if current user is admin)
+      if (!fallbackSettings.invoiceDefaultNotes) {
+        const adminProfileId = await getAdminSettingsProfileId();
+        if (adminProfileId && adminProfileId !== settingsProfileId) {
+          const adminRow = await fetchPaymentExperienceRow(adminProfileId);
+          if (adminRow?.invoice_notes) {
+            fallbackSettings.invoiceDefaultNotes = adminRow.invoice_notes || "";
+          }
+        }
+      }
+    }
+
+    return {
+      cardProcessingFeeEnabled: hasConfiguredCardFee(primarySettings)
+        ? primarySettings.cardProcessingFeeEnabled
+        : fallbackSettings.cardProcessingFeeEnabled,
+      cardProcessingFeePercentage: hasConfiguredCardFee(primarySettings)
+        ? primarySettings.cardProcessingFeePercentage
+        : fallbackSettings.cardProcessingFeePercentage,
+      cardProcessingFeePassToCustomer: hasConfiguredCardFee(primarySettings)
+        ? primarySettings.cardProcessingFeePassToCustomer
+        : fallbackSettings.cardProcessingFeePassToCustomer,
+      invoiceDefaultNotes: primarySettings.invoiceDefaultNotes || fallbackSettings.invoiceDefaultNotes || "",
+    };
+  } catch (error) {
+    console.error("Error fetching payment experience settings:", error);
+    return defaults;
+  }
 }

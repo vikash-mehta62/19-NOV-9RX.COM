@@ -64,9 +64,17 @@ interface ShippingTabProps {
   orderId?: string;
   onOrderUpdate?: () => void;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
+  hideFinancialData?: boolean;
 }
 
-export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }: ShippingTabProps) => {
+export const ShippingTab = ({
+  order,
+  onEdit,
+  orderId,
+  onOrderUpdate,
+  userRole,
+  hideFinancialData = false,
+}: ShippingTabProps) => {
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const orderDate = order.date || (order as any).created_at;
@@ -255,7 +263,9 @@ export const ShippingTab = ({ order, onEdit, orderId, onOrderUpdate, userRole }:
                 </div>
                 <div>
                   <p className="text-xs text-gray-500 font-medium uppercase tracking-wide">Shipping Cost</p>
-                  <p className="font-medium text-gray-900">${parseFloat(order.shipping_cost || "0").toFixed(2)}</p>
+                  <p className="font-medium text-gray-900">
+                    {hideFinancialData ? "Restricted" : `$${parseFloat(order.shipping_cost || "0").toFixed(2)}`}
+                  </p>
                 </div>
               </div>
             </div>

@@ -57,6 +57,7 @@ export function AddUserModal({
       type: "pharmacy",
       status: "active",
       role: "user",
+      adminPermissions: [],
       companyName: "",
       displayName: "",
       workPhone: "",
@@ -114,6 +115,7 @@ export function AddUserModal({
         type: values.type.toLowerCase(),
         status: values.status.toLowerCase(),
         role: values.role.toLowerCase(),
+        admin_permissions: values.type === "admin" ? (values.adminPermissions || []) : [],
         company_name: values.companyName,
         display_name:
           values.displayName || `${values.firstName} ${values.lastName}`,
@@ -295,15 +297,15 @@ export function AddUserModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Add New Customer</DialogTitle>
+          <DialogTitle>Add New User</DialogTitle>
           <DialogDescription>
-            Create a new customer account with the following details.
+            Create a new customer or internal admin account with the following details.
           </DialogDescription>
         </DialogHeader>
         <TabbedUserForm
           form={form}
           onSubmit={onSubmit}
-          submitLabel="Create Customer"
+          submitLabel="Create User"
           isSubmitting={isSubmitting}
           isAdmin={isAdmin}
         />

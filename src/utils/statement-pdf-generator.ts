@@ -3,6 +3,10 @@ import autoTable from "jspdf-autotable";
 import { StatementData, StatementTransaction } from "@/services/statementService";
 import { DownloadManager, DownloadOptions, DownloadResult } from "./download-manager";
 import Logo from "../assests/home/9rx_logo.png"
+import {
+  DocumentAddressSettings,
+  fetchAdminDocumentSettings,
+} from "@/lib/documentSettings";
 
 // Extend the jsPDF type to include autoTable
 interface jsPDFWithAutoTable extends jsPDF {
@@ -50,6 +54,8 @@ export class StatementPDFGenerator {
    */
   async createPDF(statementData: StatementData, userProfile?: UserProfile): Promise<Blob> {
     try {
+      const documentSettings = await fetchAdminDocumentSettings();
+
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
@@ -62,7 +68,7 @@ export class StatementPDFGenerator {
       this.addHeaderGradient(doc, pageWidth);
 
       // Add logo and company info
-      await this.addCompanyHeader(doc, pageWidth);
+      await this.addCompanyHeader(doc, pageWidth, documentSettings.invoice);
 
       // Add statement title and info
       this.addStatementInfo(doc, statementData, userProfile, pageWidth);
@@ -99,7 +105,7 @@ export class StatementPDFGenerator {
         doc.setFont("helvetica", "normal");
         doc.setFontSize(8);
         doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-        doc.text("9RX LLC | 936 Broad River Ln, Charlotte, NC 28211 | +1 (800) 940-9619 | info@9rx.com", pdfWidth / 2, footerY + 5, { align: "center" });
+        doc.text(this.buildCompanyFooterLine(documentSettings.invoice), pdfWidth / 2, footerY + 5, { align: "center" });
 
         // Generated timestamp
         doc.setFontSize(7);
@@ -149,7 +155,11 @@ export class StatementPDFGenerator {
   /**
    * Add company logo and header info
    */
-  private async addCompanyHeader(doc: jsPDFWithAutoTable, pageWidth: number): Promise<void> {
+  private async addCompanyHeader(
+    doc: jsPDFWithAutoTable,
+    pageWidth: number,
+    companySettings: DocumentAddressSettings
+  ): Promise<void> {
     // Try to add logo
     try {
       const logo = new Image();
@@ -168,7 +178,7 @@ export class StatementPDFGenerator {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(24);
       doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-      doc.text("9RX", this.margin, 22);
+      doc.text(companySettings.name || "9RX", this.margin, 22);
     }
 
     // Company tagline
@@ -176,6 +186,15 @@ export class StatementPDFGenerator {
     doc.setFontSize(8);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
     doc.text("Your Trusted Pharmacy Partner", this.margin, 30);
+  }
+
+  private buildCompanyFooterLine(companySettings: DocumentAddressSettings): string {
+    return [
+      companySettings.name,
+      [companySettings.street, companySettings.suite, [companySettings.city, companySettings.state, companySettings.zipCode].filter(Boolean).join(" ")].filter(Boolean).join(", "),
+      companySettings.phone,
+      companySettings.email,
+    ].filter(Boolean).join(" | ");
   }
 
   /**

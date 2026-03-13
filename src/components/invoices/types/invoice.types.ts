@@ -79,8 +79,10 @@ export const invoiceSchema = z.object({
   amount: z.number().nonnegative(),
   tax_amount: z.number().nullable(),
   total_amount: z.number().nonnegative(),
+  processing_fee_amount: z.number().nullable().optional(),
   payment_method: z.enum(["card", "bank_transfer", "ach", "manual"]).nullable(),
   payment_notes: z.string().nullable(),
+  notes: z.string().nullable().optional(),
   due_date: z.string(),
   created_at: z.string().optional(),
   payment_status: z.string(),
@@ -158,8 +160,10 @@ export interface Invoice {
   amount: number;
   tax_amount: number | null;
   total_amount: number;
+  processing_fee_amount?: number | null;
   payment_method: PaymentMethod;
   payment_notes: string | null;
+  notes?: string | null;
   due_date: string;
   payment_status: string | null;
   created_at?: string;

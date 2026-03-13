@@ -21,7 +21,7 @@ import { getStatusColor } from "../utils/statusUtils";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { Clipboard, ClipboardCheck, Ban } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import PaymentForm from "@/components/PaymentModal";
 import axios from "../../../../axiosconfig";
 import {
@@ -81,6 +81,7 @@ interface OrdersListProps {
   sortField?: SortField;
   sortDirection?: SortDirection;
   onSort?: (field: SortField) => void;
+  hideFinancialData?: boolean;
 }
 
 export function OrdersList({
@@ -103,17 +104,20 @@ export function OrdersList({
   onOrderSelect,
   setOrderStatus,
   poIs = false,
+  hideFinancialData = false,
 }: OrdersListProps) {
   const { toast } = useToast();
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [loadingPO, setLoadingPO] = useState(false);
   const [selectCustomerInfo, setSelectCustomerInfo] = useState<any>({});
+  const [paymentSummaries, setPaymentSummaries] = useState<Record<string, { charged: number; fee: number }>>({});
   const { cartItems, clearCart, addToCart } = useCart();
 
   // State for cancel dialog
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [orderToCancel, setOrderToCancel] = useState<string | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const maskedAmountLabel = "Restricted";
 
   const getPaymentMethodLabel = (method?: string | null) => {
     const normalized = String(method || "").toLowerCase();
@@ -136,6 +140,53 @@ export function OrdersList({
     };
     return typedOrder.payment_method || typedOrder.payment?.method || "";
   };
+
+  useEffect(() => {
+    const orderIds = orders.map((order) => order.id).filter(Boolean);
+
+    if (orderIds.length === 0) {
+      setPaymentSummaries({});
+      return;
+    }
+
+    const toNumber = (value: unknown) => {
+      const parsed = Number(value || 0);
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+
+    const loadPaymentSummaries = async () => {
+      const { data, error } = await supabase
+        .from("order_activities")
+        .select("order_id, metadata")
+        .in("order_id", orderIds)
+        .eq("activity_type", "payment_received");
+
+      if (error) {
+        console.error("Error loading order payment summaries:", error);
+        return;
+      }
+
+      const nextSummaries = (data || []).reduce<Record<string, { charged: number; fee: number }>>((acc, activity: any) => {
+        const metadata = activity?.metadata || {};
+        const chargedAmount = toNumber(
+          metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount
+        );
+        const feeAmount = toNumber(metadata.processing_fee_amount);
+
+        if (!acc[activity.order_id]) {
+          acc[activity.order_id] = { charged: 0, fee: 0 };
+        }
+
+        acc[activity.order_id].charged += chargedAmount;
+        acc[activity.order_id].fee += feeAmount;
+        return acc;
+      }, {});
+
+      setPaymentSummaries(nextSummaries);
+    };
+
+    loadPaymentSummaries();
+  }, [orders]);
 
   const createInvoiceForOrder = async (
     orderId: string,
@@ -860,7 +911,7 @@ export function OrdersList({
               <TableCell className="text-center">
                 <div className="flex flex-col items-center">
                   <span className="font-bold text-gray-900">
-                    {(() => {
+                    {hideFinancialData ? maskedAmountLabel : (() => {
                       // Calculate correct total: Subtotal + Shipping + Tax + PO Charges - Discount
                       const itemsSubtotal = order.items?.reduce((total, item) => {
                         return total + (item.sizes?.reduce((sum, size) => sum + size.quantity * size.price, 0) || 0)
@@ -873,14 +924,23 @@ export function OrdersList({
                       const handlingCharges = isPurchaseOrder ? parseFloat((order as any).po_handling_charges || "0") : 0
                       const fredCharges = isPurchaseOrder ? parseFloat((order as any).po_fred_charges || "0") : 0
                       const correctTotal = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmt
-                      return formatTotal(correctTotal)
+                      const paymentSummary = paymentSummaries[order.id]
+                      const chargedTotal = paymentSummary
+                        ? Math.max(correctTotal + paymentSummary.fee, paymentSummary.charged)
+                        : correctTotal
+
+                      return formatTotal(chargedTotal)
                     })()}
                   </span>
-                  {order.tax_amount > 0 && (
+                  {!hideFinancialData && paymentSummaries[order.id]?.fee > 0 ? (
+                    <span className="text-xs text-amber-600">
+                      incl. {formatTotal(paymentSummaries[order.id].fee)} card fee
+                    </span>
+                  ) : !hideFinancialData && order.tax_amount > 0 ? (
                     <span className="text-xs text-gray-500">
                       incl. {formatTotal(order.tax_amount)} tax
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </TableCell>
 
@@ -938,7 +998,7 @@ export function OrdersList({
                       </Badge>
                       
                       {/* Balance Due Indicator for Partial Paid Orders */}
-                      {displayPaymentStatus === "partial_paid" && normalizedBalanceDue > 0.01 && (
+                      {!hideFinancialData && displayPaymentStatus === "partial_paid" && normalizedBalanceDue > 0.01 && (
                         <div className="text-xs text-amber-600 font-medium">
                           Balance Due: ${normalizedBalanceDue.toFixed(2)}
                         </div>
@@ -960,7 +1020,7 @@ export function OrdersList({
                         </div>
                       )}
                       
-                      {(displayPaymentStatus === "unpaid" ||
+                      {!hideFinancialData && (displayPaymentStatus === "unpaid" ||
                         displayPaymentStatus === "pending") &&
                         order.status !== "credit_approval_processing" &&
                         !order.void && (

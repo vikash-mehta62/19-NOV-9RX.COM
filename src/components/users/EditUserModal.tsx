@@ -16,7 +16,7 @@ interface EditUserModalProps {
     id: string;
     name: string;
     email: string;
-    type: "pharmacy" | "hospital" | "group";
+    type: "pharmacy" | "hospital" | "group" | "admin";
     status: "active" | "inactive" | "pending";
   };
   open: boolean;

@@ -1,6 +1,12 @@
 import jsPDF from "jspdf";
 import JsBarcode from "jsbarcode"; // Keeping JsBarcode import as it was present in your previous full code
 import Logo from "../assests/home/9rx_logo.png"
+import {
+  fetchAdminDocumentSettings,
+  formatDocumentAddressLine,
+  formatDocumentContactLine,
+  formatDocumentMetaLine,
+} from "@/lib/documentSettings";
 
 interface WorkOrderData {
   id: string;
@@ -88,6 +94,12 @@ export const generateWorkOrderPDF = async (
   packingData: PackingSlipData
 ) => {
   try {
+    const documentSettings = await fetchAdminDocumentSettings();
+    const shippingCompany = documentSettings.shipping;
+    const shippingAddressLine = formatDocumentAddressLine(shippingCompany);
+    const shippingContactLine = formatDocumentContactLine(shippingCompany);
+    const shippingMetaLine = formatDocumentMetaLine(shippingCompany);
+
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
@@ -121,18 +133,18 @@ export const generateWorkOrderPDF = async (
 
     // Top Info Line (All in one row, top line)
     const topInfo = [
-      "Tax ID : 99-0540972",
-      "936 Broad River Ln, Charlotte, NC 28211",
-      "info@9rx.com",
-      "www.9rx.com",
-    ].join("     |     ");
+      shippingCompany.taxId ? `Tax ID : ${shippingCompany.taxId}` : "",
+      shippingAddressLine,
+      shippingCompany.email,
+      shippingCompany.website,
+    ].filter(Boolean).join("     |     ");
     doc.text(topInfo, pageWidth / 2, margin - 2, { align: "center" });
 
     // Centered Phone Number (under logo)
     // Phone number (left aligned, vertically center of logo)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
-    doc.text("+1 (800) 940-9619", margin, margin + 10);
+    doc.text(shippingCompany.phone || "", margin, margin + 10);
 
     // PACKING SLIP TITLE (right side)
     doc.setFont("helvetica", "bold");

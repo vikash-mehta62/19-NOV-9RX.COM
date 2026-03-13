@@ -9,9 +9,10 @@ interface StatsGridProps {
   stats: DashboardStats | null;
   revenueChartData: { date: string; revenue: number }[];
   isLoading: boolean;
+  hideFinancialData?: boolean;
 }
 
-export function StatsGrid({ stats, revenueChartData, isLoading }: StatsGridProps) {
+export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialData = false }: StatsGridProps) {
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
@@ -38,54 +39,85 @@ export function StatsGrid({ stats, revenueChartData, isLoading }: StatsGridProps
     return `${trend.direction === 'up' ? '+' : '-'}${trend.change}%`;
   };
 
+  const cards = hideFinancialData
+    ? [
+        <ModernStatCard
+          key="orders"
+          title="Total Orders"
+          value={stats.totalOrders.toLocaleString()}
+          change={formatTrend(stats.ordersTrend)}
+          trend={stats.ordersTrend.direction}
+          subtitle="vs previous period"
+          color="red"
+          icon={<ShoppingCart className="w-6 h-6" />}
+        />,
+        <ModernStatCard
+          key="customers"
+          title="Total Customers"
+          value={stats.totalCustomers.toLocaleString()}
+          change={formatTrend(stats.customersTrend)}
+          trend={stats.customersTrend.direction}
+          subtitle="vs previous period"
+          color="green"
+          icon={<Users className="w-6 h-6" />}
+        />,
+      ]
+    : [
+        <ModernStatCard
+          key="sales"
+          title="Total Sales"
+          value={`$${stats.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          change={formatTrend(stats.salesTrend)}
+          trend={stats.salesTrend.direction}
+          subtitle="vs previous period"
+          color="blue"
+          chart={
+            revenueChartData.length > 0 ? (
+              <div className="h-12">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueChartData.slice(-7)}>
+                    <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            ) : undefined
+          }
+        />,
+        <ModernStatCard
+          key="orders"
+          title="Total Orders"
+          value={stats.totalOrders.toLocaleString()}
+          change={formatTrend(stats.ordersTrend)}
+          trend={stats.ordersTrend.direction}
+          subtitle="vs previous period"
+          color="red"
+          icon={<ShoppingCart className="w-6 h-6" />}
+        />,
+        <ModernStatCard
+          key="customers"
+          title="Total Customers"
+          value={stats.totalCustomers.toLocaleString()}
+          change={formatTrend(stats.customersTrend)}
+          trend={stats.customersTrend.direction}
+          subtitle="vs previous period"
+          color="green"
+          icon={<Users className="w-6 h-6" />}
+        />,
+        <ModernStatCard
+          key="average-order"
+          title="Avg Order Value"
+          value={`$${stats.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+          change={formatTrend(stats.avgOrderTrend)}
+          trend={stats.avgOrderTrend.direction}
+          subtitle="vs previous period"
+          color="purple"
+          icon={<TrendingUp className="w-6 h-6" />}
+        />,
+      ];
+
   return (
-    <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
-      <ModernStatCard
-        title="Total Sales"
-        value={`$${stats.totalSales.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        change={formatTrend(stats.salesTrend)}
-        trend={stats.salesTrend.direction}
-        subtitle="vs previous period"
-        color="blue"
-        chart={
-          revenueChartData.length > 0 ? (
-            <div className="h-12">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={revenueChartData.slice(-7)}>
-                  <Line type="monotone" dataKey="revenue" stroke="#3b82f6" strokeWidth={2} dot={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          ) : undefined
-        }
-      />
-      <ModernStatCard
-        title="Total Orders"
-        value={stats.totalOrders.toLocaleString()}
-        change={formatTrend(stats.ordersTrend)}
-        trend={stats.ordersTrend.direction}
-        subtitle="vs previous period"
-        color="red"
-        icon={<ShoppingCart className="w-6 h-6" />}
-      />
-      <ModernStatCard
-        title="Total Customers"
-        value={stats.totalCustomers.toLocaleString()}
-        change={formatTrend(stats.customersTrend)}
-        trend={stats.customersTrend.direction}
-        subtitle="vs previous period"
-        color="green"
-        icon={<Users className="w-6 h-6" />}
-      />
-      <ModernStatCard
-        title="Avg Order Value"
-        value={`$${stats.avgOrderValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-        change={formatTrend(stats.avgOrderTrend)}
-        trend={stats.avgOrderTrend.direction}
-        subtitle="vs previous period"
-        color="purple"
-        icon={<TrendingUp className="w-6 h-6" />}
-      />
+    <div className={`grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 ${hideFinancialData ? "xl:grid-cols-2" : "xl:grid-cols-4"}`}>
+      {cards}
     </div>
   );
 }
