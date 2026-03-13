@@ -723,6 +723,11 @@ export function OrdersList({
                 Items
               </TableHead>
             )}
+            {!poIs && (
+              <TableHead className="font-semibold text-gray-700 text-center">
+                Order #
+              </TableHead>
+            )}
             <SortableHeader field="customer">
               {poIs ? "Vendor" : "Customer"}
             </SortableHeader>
@@ -855,6 +860,30 @@ export function OrdersList({
                       </div>
                     );
                   })()}
+                </TableCell>
+              )}
+
+              {!poIs && (
+                <TableCell
+                  className="text-center"
+                  onClick={async () => {
+                    onOrderClick(order);
+                    await clearCart();
+                  }}
+                >
+                  <div className="flex justify-center">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 font-mono text-[11px] font-semibold tracking-wide ${
+                        displayPaymentStatus === "paid"
+                          ? "bg-slate-100 text-slate-700"
+                          : "bg-amber-100 text-amber-700"
+                      }`}
+                    >
+                      {displayPaymentStatus === "paid"
+                        ? order.order_number
+                        : `SO-${order.order_number}`}
+                    </span>
+                  </div>
                 </TableCell>
               )}
 
