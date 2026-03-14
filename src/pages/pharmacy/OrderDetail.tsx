@@ -551,7 +551,7 @@ export default function OrderDetail() {
                   {paidAmount > 0 && (
                     <>
                       <div className="flex justify-between text-sm text-green-600">
-                        <span>Paid Amount</span>
+                        <span>Paid Amount</span> 
                         <span className="font-medium">${paidAmount.toFixed(2)}</span>
                       </div>
                       {balanceDue > 0 && (

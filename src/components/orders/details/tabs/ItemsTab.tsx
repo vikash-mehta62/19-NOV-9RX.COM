@@ -70,6 +70,8 @@ interface ItemsTabProps {
   includePricingInPdf?: boolean;
   hideFinancialData?: boolean;
   disableEdit?: boolean;
+  processingFeeAmount?: number;
+
 }
 
 export const ItemsTab = ({ 
@@ -94,6 +96,7 @@ export const ItemsTab = ({
   includePricingInPdf = true,
   hideFinancialData = false,
   disableEdit = false,
+  processingFeeAmount = 0
 }: ItemsTabProps) => {
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
@@ -130,7 +133,7 @@ export const ItemsTab = ({
     return { totalItems: total, subtotal: sub };
   }, [items, editedItems, isEditMode]);
   const extraChargesTotal = freightCharges + handlingCharges;
-  const grandTotal = subtotal + shippingCost + taxAmount + extraChargesTotal - discountAmount;
+  const grandTotal = subtotal + shippingCost + taxAmount + extraChargesTotal + processingFeeAmount- discountAmount;
 
   // Handle entering edit mode
   const handleEnterEditMode = useCallback(() => {
@@ -229,7 +232,7 @@ export const ItemsTab = ({
       // Get current order to preserve other values and check payment status
       const { data: currentOrder, error: fetchError } = await supabase
         .from("orders")
-        .select("tax_amount, shipping_cost, discount_amount, po_fred_charges, po_handling_charges, payment_status, total_amount, order_number, location_id, profile_id, paid_amount")
+        .select("tax_amount, shipping_cost, discount_amount, po_fred_charges, po_handling_charges, payment_status, total_amount, order_number, location_id, profile_id, paid_amount, processing_fee_amount")
         .eq("id", orderId)
         .single();
 
@@ -238,6 +241,8 @@ export const ItemsTab = ({
       const orderTaxAmount = currentOrder?.tax_amount || 0;
       const orderShippingCost = parseFloat(currentOrder?.shipping_cost || "0");
       const orderDiscountAmount = Number(currentOrder?.discount_amount || 0);
+      const orderProcessingFee = Number(currentOrder?.processing_fee_amount || 0);
+
       const orderFreightCharges = Number(currentOrder?.po_fred_charges || 0);
       const orderHandlingCharges = Number(currentOrder?.po_handling_charges || 0);
       const newTotal =
@@ -245,7 +250,8 @@ export const ItemsTab = ({
         orderShippingCost +
         orderTaxAmount +
         orderFreightCharges +
-        orderHandlingCharges -
+        orderHandlingCharges +
+        orderProcessingFee -
         orderDiscountAmount;
 
       if (isPurchaseOrder) {
@@ -327,8 +333,9 @@ export const ItemsTab = ({
         customerEmail: customerEmail || customerProfile?.email,
         // Use current order total as the adjustment baseline.
         // Using paid amount here can cause duplicate credit/refund prompts.
-        originalAmount,
-        newAmount: newTotal,
+       originalAmount: originalAmount ,
+        // newAmount should include old processing fee (will be recalculated if payment method changes)
+        newAmount: newTotal ,
         paidAmount,
         hasCredit,
         availableCredit,
@@ -467,10 +474,18 @@ export const ItemsTab = ({
       }
 
       // Build update object
-      const orderUpdate: any = {
-        items: itemsToSave,
-        total_amount: newTotal,
-      };
+     const orderUpdate: any = {
+  items: itemsToSave,
+};
+
+// ❗ Only update total when NO payment adjustment
+if (
+  !paymentAdjustmentResult ||
+  paymentAdjustmentResult.adjustmentType === "none" ||
+  paymentAdjustmentResult.adjustmentType === "send_payment_link"
+) {
+  orderUpdate.total_amount = newTotal;
+}
       
       if (updatePaymentStatus) {
         orderUpdate.payment_status = updatePaymentStatus;
@@ -1090,6 +1105,12 @@ export const ItemsTab = ({
                 <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `-$${discountAmount.toFixed(2)}`}</span>
               </div>
             )}
+            {processingFeeAmount > 0 && (
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Credit Card Fee</span>
+                <span className="font-medium text-gray-900">{hideFinancialData ? maskedAmountLabel : `$${processingFeeAmount.toFixed(2)}`}</span>
+              </div>
+            )}
           </div>
           
           {/* Grand Total */}
@@ -1189,6 +1210,8 @@ export const ItemsTab = ({
           creditMemoBalance={paymentAdjustmentData.creditMemoBalance}
           orderData={paymentAdjustmentData.orderData}
           onPaymentComplete={handlePaymentAdjustmentComplete}
+          processingFeeAmount={processingFeeAmount}
+
         />
       )}
 

@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/supabaseClient";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, Bell, Gift, LogIn, ShieldAlert } from "lucide-react";
+import { Loader2, Save, Bell, Gift, Shield, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 interface SettingsTabProps {
@@ -22,7 +22,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
     email_notifaction: false, // Marketing emails
     order_updates: false,     // Order emails
     is_rewards_member: false, // Derived from reward_tier
-    portal_access: true       // Portal login access
+    status: "active"          // Account status (active/inactive)
   });
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
         email_notifaction: profile.email_notifaction || false,
         order_updates: profile.order_updates || false,
         is_rewards_member: !!profile.reward_tier,
-        portal_access: profile.portal_access !== false // Default to true if undefined
+        status: profile.status || "active" // Default to active if undefined
       });
     }
   }, [profile]);
@@ -39,19 +39,22 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
   const handleSave = async () => {
     setLoading(true);
     try {
-      const updates: any = {
+      const updates = {
         active_notification: true,
         email_notifaction: settings.email_notifaction,
         order_updates: settings.order_updates,
-        portal_access: settings.portal_access,
+        status: settings.status,
+        // Automatically update portal_access based on status
+        // If status is active, enable portal access
+        // If status is inactive, disable portal access
+        portal_access: settings.status === "active",
         // If enrolling, set to Bronze if null. If unenrolling, set to null.
         reward_tier: settings.is_rewards_member 
-          ? (profile.reward_tier || "Bronze") 
+          ? (profile?.reward_tier || "Bronze") 
           : null,
-        // Optional: Reset points if unenrolling? Let's keep them for now in case of re-enrollment, 
-        // or strictly follow "not member" = "no tier".
-      };
+      } as any;
 
+      // @ts-ignore - Supabase type inference issue
       const { error } = await supabase
         .from("profiles")
         .update(updates)
@@ -61,7 +64,7 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
 
       toast({
         title: "Settings updated",
-        description: "User profile settings have been saved successfully.",
+        description: `Portal login is now ${settings.status === "active" ? "enabled" : "disabled"}. User status has been updated.`,
       });
 
       if (onUpdate) onUpdate();
@@ -79,45 +82,57 @@ export function SettingsTab({ userId, profile, onUpdate }: SettingsTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Portal Access Card - Most Important */}
-      <Card className={!settings.portal_access ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}>
+      {/* Portal Login Card - Most Important */}
+      <Card className={settings.status === "inactive" ? "border-red-200 bg-red-50/50" : "border-green-200 bg-green-50/50"}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <LogIn className="w-5 h-5" />
-            Portal Login Access
-            {!settings.portal_access && (
+            <Shield className="w-5 h-5" />
+            Portal Login
+            {settings.status === "inactive" && (
               <Badge variant="destructive" className="ml-2">
                 <ShieldAlert className="w-3 h-3 mr-1" />
-                Blocked
+                Disabled
+              </Badge>
+            )}
+            {settings.status === "active" && (
+              <Badge variant="default" className="ml-2 bg-green-600">
+                Enabled
               </Badge>
             )}
           </CardTitle>
           <CardDescription>
-            Control whether this user can login to the pharmacy portal to place orders.
+            Control portal login access. This will automatically update the user's account status.
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between space-x-2">
             <div className="space-y-0.5">
-              <Label className="text-base">Allow Portal Login</Label>
+              <Label className="text-base">Portal Login</Label>
               <p className="text-sm text-muted-foreground">
-                {settings.portal_access 
-                  ? "User can login and place orders through the portal."
-                  : "User is blocked from logging into the portal."}
+                {settings.status === "active"
+                  ? "Portal login is enabled. User can login to place orders."
+                  : "Portal login is disabled. User cannot login to the portal."}
               </p>
             </div>
             <Switch
-              checked={settings.portal_access}
+              checked={settings.status === "active"}
               onCheckedChange={(checked) => 
-                setSettings(prev => ({ ...prev, portal_access: checked }))
+                setSettings(prev => ({ ...prev, status: checked ? "active" : "inactive" }))
               }
             />
           </div>
-          {!settings.portal_access && (
+          {settings.status === "inactive" ? (
             <div className="mt-4 p-3 bg-red-100 border border-red-200 rounded-lg">
               <p className="text-sm text-red-700 flex items-center gap-2">
                 <ShieldAlert className="w-4 h-4" />
-                This user will see an error message when trying to login.
+                Portal login is disabled. User will see an error message when trying to login.
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 p-3 bg-green-100 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-700 flex items-center gap-2">
+                <Shield className="w-4 h-4" />
+                Portal login is enabled. User can access the portal and place orders.
               </p>
             </div>
           )}

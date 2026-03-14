@@ -3411,6 +3411,8 @@ export const OrderDetailsSheet = ({
                         orderStatus={currentOrder.status}
                         isVoid={currentOrder.void}
                         hideFinancialData={hideFinancialData}
+                        processingFeeAmount={Number((currentOrder as any).processing_fee_amount || 0)}
+
                       />
                     </TabsContent>
 
@@ -4137,6 +4139,8 @@ export const OrderDetailsSheet = ({
                         orderStatus={currentOrder.status}
                         isVoid={currentOrder.void}
                         hideFinancialData={hideFinancialData}
+                        processingFeeAmount={Number((currentOrder as any).processing_fee_amount || 0)}
+
                       />
                     </TabsContent>
 

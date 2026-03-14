@@ -145,7 +145,7 @@ setOrders([])
       }
       const { data, error, count } = await query;
 
-      console.log(data);
+      // console.log(data);
       if (error) throw error;
       setTotalOrders(count || 0);
 
@@ -157,7 +157,6 @@ setOrders([])
           const normalizedPaymentMethod = allowedPaymentMethods.includes(rawPaymentMethod)
             ? (rawPaymentMethod as OrderFormValues["payment"]["method"])
             : "manual";
-
           return {
             id: order.id || "",
             customer: order.profile_id || "",
@@ -180,6 +179,8 @@ setOrders([])
             po_handling_charges: order.po_handling_charges,
             po_fred_charges: order.po_fred_charges,
             // Add discount fields
+            processing_fee_amount :order.processing_fee_amount || 0,
+            paid_amount :order.paid_amount || 0,
             discount_amount: order.discount_amount || 0,
             discount_details: order.discount_details || [],
             customerInfo: order.customerInfo || {
@@ -262,6 +263,7 @@ setOrders([])
   // }, []);
 
   const handleOrderClick = (order: OrderFormValues) => {
+    console.log("ON CLICK ",order)
     setSelectedOrder(order);
     setIsEditing(false);
     setIsSheetOpen(true);

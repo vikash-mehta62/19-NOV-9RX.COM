@@ -124,12 +124,11 @@ app.use(cookieParser());
 const allowedOrigins = [
   "https://9rx.vercel.app",
   "http://localhost:8080",
-  "https://9rx.vercel.app",
+  "http://localhost:3000", // Added for local development
   "http://localhost:3001",
   "http://localhost:3002",
   "https://www.9rx.com",
   "https://9rx.com",
-  "https://9rx.vercel.app"
 ];
 
 app.use(
@@ -1330,6 +1329,7 @@ app.get("/api/pay-now-order/:orderId", payNowLimiter, async (req, res) => {
         po_handling_charges: order.po_handling_charges,
         po_fred_charges: order.po_fred_charges,
         estimated_delivery: order.estimated_delivery,
+       processing_fee_amount: order.processing_fee_amount,
         notes: order.notes,
         profile_id: order.profile_id,
         customer: order.customer,
@@ -1407,6 +1407,9 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
     }
 
     // 5. Calculate the REAL amount from DB (never trust frontend amount)
+    console.log(`[pay-now] ========== PAYMENT CALCULATION START ==========`);
+    console.log(`[pay-now] Order: ${order.order_number} (${orderId})`);
+    
     const itemsSubtotal = order.items?.reduce((total, item) => {
       return total + (item.sizes?.reduce((sum, size) => sum + size.quantity * size.price, 0) || 0);
     }, 0) || 0;
@@ -1417,32 +1420,118 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
     const isPurchaseOrderPricing = order.poAccept === false;
     const handlingCharges = isPurchaseOrderPricing ? parseFloat(order.po_handling_charges || "0") : 0;
     const fredCharges = isPurchaseOrderPricing ? parseFloat(order.po_fred_charges || "0") : 0;
-
-    const totalAmount = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmount;
+    const existingProcessingFee = parseFloat(order.processing_fee_amount?.toString() || "0");
     const paidAmount = Number(order.paid_amount || 0);
-    const balanceDue = Math.abs(totalAmount - paidAmount) < 0.01 ? 0 : Math.max(0, totalAmount - paidAmount);
 
-    if (balanceDue <= 0) {
+    console.log(`[pay-now] Order breakdown:`);
+    console.log(`  - Items subtotal: $${itemsSubtotal.toFixed(2)}`);
+    console.log(`  - Shipping: $${shippingCost.toFixed(2)}`);
+    console.log(`  - Tax: $${taxAmount.toFixed(2)}`);
+    console.log(`  - Handling: $${handlingCharges.toFixed(2)}`);
+    console.log(`  - Freight: $${fredCharges.toFixed(2)}`);
+    console.log(`  - Discount: -$${discountAmount.toFixed(2)}`);
+    console.log(`  - Existing processing fee: $${existingProcessingFee.toFixed(2)}`);
+    console.log(`  - Already paid: $${paidAmount.toFixed(2)}`);
+
+    // Calculate total WITHOUT processing fee first (base amount)
+    const baseTotal = itemsSubtotal + shippingCost + taxAmount + handlingCharges + fredCharges - discountAmount;
+    
+    // Current total includes existing processing fee
+    const currentTotal = baseTotal + existingProcessingFee;
+    
+    // Balance due on the CURRENT total (includes old processing fee)
+    const currentBalanceDue = Math.abs(currentTotal - paidAmount) < 0.01 ? 0 : Math.max(0, currentTotal - paidAmount);
+
+    console.log(`  - Base total (no fees): $${baseTotal.toFixed(2)}`);
+    console.log(`  - Current total (with old fee): $${currentTotal.toFixed(2)}`);
+    console.log(`  - Current balance due: $${currentBalanceDue.toFixed(2)}`);
+
+    if (currentBalanceDue <= 0) {
+      console.log(`[pay-now] ❌ No balance due - order already paid`);
       return res.status(400).json({ success: false, message: "No balance due on this order" });
     }
 
-    const amountApplied = parseFloat(balanceDue.toFixed(2));
+    // Calculate what portion of balance is base amount vs old processing fee
+    // If balance < existingProcessingFee, customer is paying remaining fee only
+    // Otherwise, customer is paying base amount + potentially new fee
+    const balanceOfOldFee = Math.min(currentBalanceDue, existingProcessingFee);
+    const balanceOfBaseAmount = currentBalanceDue - balanceOfOldFee;
 
-    const { data: uiSettings } = await supabaseAdmin
-      .from("settings")
-      .select("card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer")
+    console.log(`  - Balance breakdown:`);
+    console.log(`    * Base amount portion: $${balanceOfBaseAmount.toFixed(2)}`);
+    console.log(`    * Old fee portion: $${balanceOfOldFee.toFixed(2)}`);
+
+    // Get processing fee settings - fetch from admin/superadmin profile
+    console.log(`[pay-now] Fetching processing fee settings...`);
+    
+    // First, try to get settings from the first admin/superadmin profile
+    const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
+      .from("profiles")
+      .select("id")
+      .in("role", ["admin", "superadmin"])
+      .order("created_at", { ascending: true })
       .limit(1)
       .maybeSingle();
+
+    if (adminProfileError) {
+      console.error(`[pay-now] ❌ Error fetching admin profile:`, adminProfileError);
+    } else if (adminProfile) {
+      console.log(`[pay-now] Found admin profile: ${adminProfile.id}`);
+    } else {
+      console.log(`[pay-now] ⚠️  No admin profile found`);
+    }
+
+    // Fetch settings for admin profile
+    const { data: uiSettings, error: uiSettingsError } = await supabaseAdmin
+      .from("settings")
+      .select("card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer, profile_id")
+      .eq("profile_id", adminProfile?.id)
+      .maybeSingle();
+
+    console.log(`[pay-now] Processing fee settings query result:`);
+    if (uiSettingsError) {
+      console.error(`  - ❌ Error fetching settings:`, uiSettingsError);
+    } else if (!uiSettings) {
+      console.log(`  - ⚠️  No settings found for admin profile ${adminProfile?.id}`);
+    } else {
+      console.log(`  - ✅ Settings found for profile: ${uiSettings.profile_id}`);
+      console.log(`  - Raw settings:`, JSON.stringify(uiSettings, null, 2));
+    }
 
     const cardFeeEnabled =
       paymentType === "credit_card" &&
       Boolean(uiSettings?.card_processing_fee_enabled) &&
       Boolean(uiSettings?.card_processing_fee_pass_to_customer);
     const configuredCardFeePercent = Number(uiSettings?.card_processing_fee_percentage || 0);
-    const processingFeeAmount = cardFeeEnabled
-      ? Number(((amountApplied * configuredCardFeePercent) / 100).toFixed(2))
+    
+    console.log(`[pay-now] Processing fee calculation:`);
+    console.log(`  - Payment type: ${paymentType}`);
+    console.log(`  - card_processing_fee_enabled: ${uiSettings?.card_processing_fee_enabled} (type: ${typeof uiSettings?.card_processing_fee_enabled})`);
+    console.log(`  - card_processing_fee_pass_to_customer: ${uiSettings?.card_processing_fee_pass_to_customer} (type: ${typeof uiSettings?.card_processing_fee_pass_to_customer})`);
+    console.log(`  - card_processing_fee_percentage: ${uiSettings?.card_processing_fee_percentage} (type: ${typeof uiSettings?.card_processing_fee_percentage})`);
+    console.log(`  - ✅ Final cardFeeEnabled: ${cardFeeEnabled}`);
+    console.log(`  - ✅ Final configuredCardFeePercent: ${configuredCardFeePercent}%`);
+
+    // Calculate NEW processing fee on the ENTIRE balance due
+    // This ensures processing fee is charged on every payment, including balance payments
+    const newProcessingFeeAmount = cardFeeEnabled
+      ? Number(((currentBalanceDue * configuredCardFeePercent) / 100).toFixed(2))
       : 0;
-    const amountToCharge = parseFloat((amountApplied + processingFeeAmount).toFixed(2));
+
+    // Amount to apply = balance due
+    const amountApplied = parseFloat(currentBalanceDue.toFixed(2));
+    
+    // Total amount to charge = balance + new processing fee
+    const amountToCharge = parseFloat((amountApplied + newProcessingFeeAmount).toFixed(2));
+
+    console.log(`[pay-now] Payment calculation:`);
+    console.log(`  - Amount applied (balance): $${amountApplied.toFixed(2)}`);
+    console.log(`  - NEW processing fee (${configuredCardFeePercent}% of balance): $${newProcessingFeeAmount.toFixed(2)}`);
+    console.log(`  - Total to charge customer: $${amountToCharge.toFixed(2)}`);
+    console.log(`[pay-now] ========== PAYMENT CALCULATION END ==========`);
+
+    // Store for later use
+    const processingFeeAmount = newProcessingFeeAmount;
 
     console.log(`[pay-now] Processing payment for order ${order.order_number}, amount: $${amountToCharge}`);
 
@@ -1608,10 +1697,33 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
         }
 
         // 8. Payment succeeded — update all DB records using supabaseAdmin
-        console.log(`[pay-now] Payment successful for order ${order.order_number}, txn: ${transactionId}`);
+        console.log(`[pay-now] ========== PAYMENT SUCCESS - UPDATING DATABASE ==========`);
+        console.log(`[pay-now] Transaction ID: ${transactionId}, Auth Code: ${authCode}`);
+        console.log(`[pay-now] Order: ${order.order_number}`);
+        
+        // Current state
+        console.log(`[pay-now] BEFORE update:`);
+        console.log(`  - Current total_amount in DB: $${currentTotal.toFixed(2)}`);
+        console.log(`  - Current paid_amount in DB: $${paidAmount.toFixed(2)}`);
+        console.log(`  - Current processing_fee_amount in DB: $${existingProcessingFee.toFixed(2)}`);
+        console.log(`  - Current payment_status: ${order.payment_status}`);
 
-        const newPaidAmount = paidAmount + amountApplied;
-        const orderTotal = totalAmount;
+        // Calculate new amounts
+        console.log(`[pay-now] THIS payment:`);
+        console.log(`  - Amount applied to balance: $${amountApplied.toFixed(2)}`);
+        console.log(`  - NEW processing fee charged: $${processingFeeAmount.toFixed(2)}`);
+        console.log(`  - Total charged to customer: $${amountToCharge.toFixed(2)}`);
+
+        // New totals
+        const newPaidAmount = paidAmount + amountToCharge; // Total customer has paid (includes all fees)
+        const totalProcessingFee = existingProcessingFee + processingFeeAmount; // All fees accumulated
+        const newTotalAmount = baseTotal + totalProcessingFee; // Base + all accumulated fees
+        
+        console.log(`[pay-now] AFTER update (calculated):`);
+        console.log(`  - NEW total_amount: $${newTotalAmount.toFixed(2)} (base $${baseTotal.toFixed(2)} + fees $${totalProcessingFee.toFixed(2)})`);
+        console.log(`  - NEW paid_amount: $${newPaidAmount.toFixed(2)}`);
+        console.log(`  - NEW processing_fee_amount: $${totalProcessingFee.toFixed(2)}`);
+        
         const previousPaymentStatus = String(order.payment_status || "").toLowerCase();
         const wasUnpaidOrPending =
           previousPaymentStatus === "unpaid" ||
@@ -1628,14 +1740,30 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
             );
           }
         }
-        const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid";
+        
+        // Determine new payment status
+        const remainingBalance = newTotalAmount - newPaidAmount;
+        const newPaymentStatus = Math.abs(remainingBalance) < 0.01 ? "paid" : "partial_paid";
 
-        // 8a. Update order
-        await supabaseAdmin.from("orders").update({
+        console.log(`  - Remaining balance: $${remainingBalance.toFixed(2)}`);
+        console.log(`  - NEW payment_status: ${newPaymentStatus}`);
+        console.log(`[pay-now] ========== UPDATING ORDER TABLE ==========`);
+
+        // 8a. Update order with all amounts
+        const orderUpdateResult = await supabaseAdmin.from("orders").update({
           payment_status: newPaymentStatus,
           paid_amount: newPaidAmount,
+          total_amount: newTotalAmount,
+          processing_fee_amount: totalProcessingFee,
           updated_at: new Date().toISOString(),
         }).eq("id", orderId);
+
+        if (orderUpdateResult.error) {
+          console.error(`[pay-now] ❌ Failed to update order:`, orderUpdateResult.error);
+          throw orderUpdateResult.error;
+        }
+        
+        console.log(`[pay-now] ✅ Order updated successfully`);
 
         // Only consider pending order-edit delta adjustments when stock was already
         // deducted previously. For unpaid/pending/partial -> paid transitions, stock
@@ -1690,7 +1818,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
         await awardPayNowOrderPoints({
           order,
           orderId,
-          orderTotal,
+          orderTotal: newTotalAmount,
           newPaymentStatus,
         });
 
@@ -1806,6 +1934,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
         }
 
         // 8c. Create or update invoice
+        console.log(`[pay-now] ========== UPDATING INVOICE ==========`);
         try {
           const { data: existingInvoice } = await supabaseAdmin
             .from("invoices")
@@ -1814,13 +1943,23 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
             .maybeSingle();
 
           if (!existingInvoice) {
+            console.log(`[pay-now] Creating NEW invoice...`);
             const dueDate = new Date(
               new Date(order.estimated_delivery || Date.now()).getTime() + 30 * 24 * 60 * 60 * 1000
             ).toISOString();
 
             const shippingCostVal = order.shipping_cost || 0;
             const discountVal = Number(order.discount_amount || 0);
-            const subtotal = totalAmount + discountVal - taxAmount - shippingCostVal;
+            const subtotal = baseTotal;
+
+            console.log(`[pay-now] Invoice amounts:`);
+            console.log(`  - Subtotal: $${subtotal.toFixed(2)}`);
+            console.log(`  - Tax: $${taxAmount.toFixed(2)}`);
+            console.log(`  - Shipping: $${shippingCostVal}`);
+            console.log(`  - Discount: $${discountVal.toFixed(2)}`);
+            console.log(`  - Processing fee: $${totalProcessingFee.toFixed(2)}`);
+            console.log(`  - Total: $${newTotalAmount.toFixed(2)}`);
+            console.log(`  - Paid: $${newPaidAmount.toFixed(2)}`);
 
             const MAX_INVOICE_RETRIES = 5;
             let insertedInvoice = false;
@@ -1844,7 +1983,8 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
                 status: "pending",
                 amount: subtotal,
                 tax_amount: taxAmount,
-                total_amount: totalAmount,
+                total_amount: newTotalAmount,
+                processing_fee_amount: totalProcessingFee,
                 payment_status: newPaymentStatus,
                 payment_method: paymentType === "credit_card" ? "card" : "ach",
                 notes: order.notes || null,
@@ -1862,6 +2002,7 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
 
               if (!invoiceInsertError) {
                 insertedInvoice = true;
+                console.log(`[pay-now] ✅ Invoice created: ${invoiceNumber}`);
                 break;
               }
 
@@ -1873,25 +2014,52 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
               if (!isDuplicateInvoiceNumber) {
                 throw invoiceInsertError;
               }
+              console.log(`[pay-now] Invoice number collision, retrying... (${attempt}/${MAX_INVOICE_RETRIES})`);
             }
 
             if (!insertedInvoice) {
               throw new Error(lastInvoiceError?.message || "Failed to create invoice after retries");
             }
           } else {
-            // Update existing invoice
-            await supabaseAdmin.from("invoices").update({
+            console.log(`[pay-now] Updating EXISTING invoice: ${existingInvoice.invoice_number}`);
+            
+            // Update existing invoice - add processing fee to existing amounts
+            const previousInvoiceProcessingFee = parseFloat(existingInvoice.processing_fee_amount?.toString() || "0");
+            const previousInvoiceTotal = parseFloat(existingInvoice.total_amount?.toString() || "0");
+            const previousInvoicePaid = parseFloat(existingInvoice.paid_amount?.toString() || "0");
+            
+            console.log(`[pay-now] Invoice BEFORE:`);
+            console.log(`  - Total: $${previousInvoiceTotal.toFixed(2)}`);
+            console.log(`  - Paid: $${previousInvoicePaid.toFixed(2)}`);
+            console.log(`  - Processing fee: $${previousInvoiceProcessingFee.toFixed(2)}`);
+            
+            console.log(`[pay-now] Invoice AFTER:`);
+            console.log(`  - Total: $${newTotalAmount.toFixed(2)}`);
+            console.log(`  - Paid: $${newPaidAmount.toFixed(2)}`);
+            console.log(`  - Processing fee: $${totalProcessingFee.toFixed(2)}`);
+            
+            const invoiceUpdateResult = await supabaseAdmin.from("invoices").update({
               payment_status: newPaymentStatus,
               paid_amount: newPaidAmount,
+              total_amount: newTotalAmount,
+              processing_fee_amount: totalProcessingFee,
               updated_at: new Date().toISOString(),
               payment_transication: transactionId || "",
               payment_method: paymentType === "credit_card" ? "card" : "ach",
             }).eq("order_id", orderId);
+            
+            if (invoiceUpdateResult.error) {
+              console.error(`[pay-now] ❌ Failed to update invoice:`, invoiceUpdateResult.error);
+              throw invoiceUpdateResult.error;
+            }
+            
+            console.log(`[pay-now] ✅ Invoice updated successfully`);
           }
         } catch (invErr) {
-          console.error("Failed to create/update invoice:", invErr);
+          console.error("[pay-now] ❌ Invoice error:", invErr);
           // Don't fail the response — payment already went through
         }
+        console.log(`[pay-now] ========== INVOICE UPDATE COMPLETE ==========`);
 
         // 8d. Log order activity
         try {

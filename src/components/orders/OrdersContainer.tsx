@@ -786,10 +786,16 @@ export const OrdersContainer = ({
           modalIsOpen={paymentModalOpen}
           setModalIsOpen={setPaymentModalOpen}
           customer={paymentOrder.customerInfo}
-          amountP={(() => {
-            const total = Number(paymentOrder.total || 0);
+         amountP={(() => {
+            // Use total_amount (includes processing fee) for accurate balance calculation
+            const total = Number(paymentOrder.total_amount || paymentOrder.total || 0);
             const paid = Number((paymentOrder as any).paid_amount || 0);
-            return total - paid;
+            const balanceDue = Math.max(0, total - paid);
+            console.log('💰 Payment Modal - Balance Due Calculation:');
+            console.log('  total_amount:', total);
+            console.log('  paid_amount:', paid);
+            console.log('  balanceDue:', balanceDue);
+            return balanceDue;
           })()}
           orderId={paymentOrder.id}
           orders={paymentOrder}

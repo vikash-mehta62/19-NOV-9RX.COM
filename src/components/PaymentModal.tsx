@@ -330,6 +330,8 @@ async function createInvoice(order: any, totalAmount: number, newTax: number) {
       // Add discount information
       discount_amount: discountAmount,
       discount_details: order.discount_details || [],
+      // Copy processing fee from order (total_amount already includes it)
+      processing_fee_amount: order.processing_fee_amount || 0,
     }
 
     const { error: invoiceError } = await supabase.from("invoices").insert(invoiceData)
@@ -432,7 +434,7 @@ interface PaymentFormProps {
 const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0, onPaymentSuccess, useStockDeductionRpc = false }: PaymentFormProps) => {
   // Check if this is a Purchase Order (PO)
   const isPurchaseOrder = orders?.order_number?.startsWith('PO-') || orders?.order_type === 'purchase_order'
-  
+
   const [paymentType, setPaymentType] = useState(isPurchaseOrder ? "manaul_payemnt" : "credit_card")
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
@@ -1109,15 +1111,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         setPaymentSuccess(true)
         await maybeSaveCardAfterSuccess()
         
-        // Calculate new paid_amount - add current payment to previous paid amount
-        const newPaidAmount = previousPaidAmount + basePaymentAmount
-        const orderTotal = Number(orders.total_amount || orders.total || 0)
-        const newPaymentStatus = newPaidAmount >= orderTotal ? "paid" : "partial_paid"
-        
-        // Get current order status before updating
+        // Get current order data FIRST to calculate everything correctly
         const { data: currentOrderData } = await supabase
           .from("orders")
-          .select("payment_status, payment_method, profile_id, location_id")
+          .select("payment_status, payment_method, profile_id, location_id, processing_fee_amount, total_amount, paid_amount")
           .eq("id", orderId)
           .single();
         
@@ -1130,9 +1127,40 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             ? await hasDeferredOrderEditInventoryDeduction()
             : false;
         
+        // Get current values from database
+        const currentTotal = Number(currentOrderData?.total_amount || 0);
+        const currentPaid = Number(currentOrderData?.paid_amount || 0);
+        const previousProcessingFee = Number(currentOrderData?.processing_fee_amount || 0);
+        
+        // Calculate new values
+        // When customer pays with card, they are charged: basePaymentAmount + cardProcessingFeeAmount
+        // This full amount (processorChargeAmount) should be reflected in paid_amount
+        // The processing fee increases the total, and the customer pays it, so both should increase together
+        const newTotalAmount = currentTotal + cardProcessingFeeAmount; // Add fee to total
+        const newPaidAmount = currentPaid + processorChargeAmount; // Add full charged amount (base + fee)
+        const totalProcessingFee = previousProcessingFee + cardProcessingFeeAmount; // Accumulate fees
+        
+        // Determine payment status based on new values
+        const newPaymentStatus = newPaidAmount >= newTotalAmount ? "paid" : "partial_paid";
+        
+        console.log("💰 Payment Calculation:", {
+          currentTotal,
+          currentPaid,
+          basePaymentAmount,
+          cardProcessingFeeAmount,
+          processorChargeAmount,
+          newTotalAmount,
+          newPaidAmount,
+          totalProcessingFee,
+          newPaymentStatus,
+          formula: `total: ${currentTotal} + ${cardProcessingFeeAmount} = ${newTotalAmount}, paid: ${currentPaid} + ${processorChargeAmount} = ${newPaidAmount}`
+        });
+        
         await supabase.from("orders").update({ 
           payment_status: newPaymentStatus, 
-          paid_amount: newPaidAmount,
+          paid_amount: newPaidAmount, // Full amount charged to customer (base + processing fee)
+          total_amount: newTotalAmount, // Total includes processing fee
+          processing_fee_amount: totalProcessingFee, // Accumulated fees tracked separately
           updated_at: new Date().toISOString() 
         }).eq("id", orderId)
 
@@ -1168,7 +1196,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         console.log("  - Was unpaid/pending:", wasUnpaidOrPending);
         console.log("  - Previous status:", currentOrderData?.payment_status);
         console.log("  - Payment method:", currentOrderData?.payment_method);
-        console.log("  - Order total:", orderTotal);
+        console.log("  - Order total:", newTotalAmount);
         
         if (newPaymentStatus === "paid" && wasUnpaidOrPending && currentOrderData?.payment_method !== "credit") {
           try {
@@ -1177,13 +1205,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             const customerId = currentOrderData?.profile_id || currentOrderData?.location_id || orders.profile_id || orders.location_id || orders.customer;
             console.log("  - Customer ID:", customerId);
             
-            if (customerId && orderTotal > 0) {
+            if (customerId && newTotalAmount > 0) {
               const { awardOrderPoints } = await import("@/services/rewardsService");
               console.log("  - Calling awardOrderPoints...");
               const rewardResult = await awardOrderPoints(
                 customerId,
                 orderId,
-                orderTotal,
+                newTotalAmount,
                 orders.order_number
               );
               
@@ -1221,9 +1249,19 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           await createInvoice(orderWithProfileId, Number(orders.total_amount || orders.total || basePaymentAmount), orders.tax_amount || 0)
         }
 
+        // Add new processing fee to existing fees (for multiple payments)
+        const previousInvoiceProcessingFee = Number(invoiceData?.processing_fee_amount || 0);
+        const totalInvoiceProcessingFee = previousInvoiceProcessingFee + cardProcessingFeeAmount;
+        
+        // Get current invoice total and add processing fee
+        const currentInvoiceTotal = Number(invoiceData?.total_amount || 0);
+        const newInvoiceTotalAmount = currentInvoiceTotal + cardProcessingFeeAmount;
+
         await supabase.from("invoices").update({
           payment_status: newPaymentStatus,
-          paid_amount: newPaidAmount,
+          paid_amount: newPaidAmount, // Full amount charged to customer (base + processing fee)
+          total_amount: newInvoiceTotalAmount, // Update total to include processing fee
+          processing_fee_amount: totalInvoiceProcessingFee, // Add to existing processing fees
           updated_at: new Date().toISOString(),
           payment_transication: response.transactionId || "",
           payment_method: paymentType === "credit_card" ? "card" : "ach",

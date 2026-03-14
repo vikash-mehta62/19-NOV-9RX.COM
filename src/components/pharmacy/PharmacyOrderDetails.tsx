@@ -54,9 +54,9 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false)
   const [paidAmount, setPaidAmount] = useState(0)
   const [chargedAmount, setChargedAmount] = useState(0)
-  const [processingFeeAmount, setProcessingFeeAmount] = useState(0)
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(order?.processing_fee_amount ||0)
   const [paymentModalOpen, setPaymentModalOpen] = useState(false)
-
+console.log(order,"PHARorder")
   // Fetch company name and paid amount
   useEffect(() => {
     const fetchData = async () => {
@@ -94,21 +94,22 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
 
         if (paymentActivities) {
           const summary = paymentActivities.reduce(
-            (acc: { charged: number; fee: number }, activity: any) => {
+            (acc: { paid: number; fee: number }, activity: any) => {
               const metadata = activity?.metadata || {}
-              const charged = Number(
-                metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount ?? 0
+              // Use payment_amount (base payment applied to order) NOT charged_amount (which includes fee)
+              const paid = Number(
+                metadata.payment_amount ?? metadata.amount ?? 0
               )
               const fee = Number(metadata.processing_fee_amount || 0)
-              acc.charged += Number.isFinite(charged) ? charged : 0
+              acc.paid += Number.isFinite(paid) ? paid : 0
               acc.fee += Number.isFinite(fee) ? fee : 0
               return acc
             },
-            { charged: 0, fee: 0 }
+            { paid: 0, fee: 0 }
           )
 
-          setChargedAmount(summary.charged)
-          setProcessingFeeAmount(summary.fee)
+          setChargedAmount(summary.paid)
+          // setProcessingFeeAmount(summary.fee)
         }
       }
     }
@@ -124,13 +125,11 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
   const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0")
   const discountDetails = (order as any).discount_details || []
   
-  // Calculate correct total: Subtotal + Shipping + Tax - Discount
-  // Don't use stored total_amount as it may have discount already subtracted
-  const total = subtotal + shipping + tax - discountAmount
-  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount
-  const displayTotal = processingFeeAmount > 0
-    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
-    : total
+  // Use total_amount (includes processing fee) for accurate balance calculation - same as admin flow
+  const total = Number(order.total_amount || order.total || 0)
+  const effectiveChargedAmount = paidAmount
+  // Display total should use total_amount which includes processing fees
+  const displayTotal = total
   
   // Count total line items (sizes across all products)
   const totalLineItems = order.items.reduce(
@@ -1204,16 +1203,26 @@ export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrde
         setModalIsOpen={setPaymentModalOpen}
         customer={order.customerInfo || order.customer}
         amountP={(() => {
-          const items = order.items || [];
-          const subtotal = items.reduce((sum: number, item: any) => sum + (Number(item.price) || 0), 0);
-          const shipping = Number(order.shipping_cost) || 0;
-          const tax = Number(order.tax_amount) || 0;
-          const discount = Number(order.discount_amount) || 0;
-          return subtotal + shipping + tax - discount;
+          // Use total_amount (includes processing fee) for accurate balance calculation - same as admin flow
+          const total = Number(order.total_amount || order.total || 0);
+          const paid = Number(paidAmount || 0);
+          const balanceDue = Math.max(0, total - paid);
+          console.log('💰 Pharmacy Payment Modal - Balance Due Calculation:');
+          console.log('  total_amount:', total);
+          console.log('  paid_amount:', paid);
+          console.log('  balanceDue:', balanceDue);
+          return balanceDue;
         })()}
         orderId={order.id}
         orders={order}
+        isBalancePayment={paidAmount > 0}
+        previousPaidAmount={paidAmount}
         useStockDeductionRpc={true}
+        onPaymentSuccess={() => {
+          setPaymentModalOpen(false);
+          // Refresh order data
+          window.location.reload();
+        }}
       />
     )}
     </>

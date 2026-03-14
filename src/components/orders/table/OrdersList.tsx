@@ -769,6 +769,7 @@ export function OrdersList({
         </TableHeader>
       <TableBody>
         {orders.map((order, index) => {
+          console.log(order,"orderLIST")
           const orderId = order.id || "";
           const isEven = index % 2 === 0;
           const orderTotalForBalance = Number((order as any)?.total_amount ?? order.total ?? 0);
@@ -955,18 +956,23 @@ export function OrdersList({
                         ? Math.max(correctTotal + paymentSummary.fee, paymentSummary.charged)
                         : correctTotal
 
-                      return formatTotal(chargedTotal)
+                      return formatTotal(order.total)
                     })()}
                   </span>
-                  {!hideFinancialData && paymentSummaries[order.id]?.fee > 0 ? (
-                    <span className="text-xs text-amber-600">
-                      incl. {formatTotal(paymentSummaries[order.id].fee)} card fee
-                    </span>
-                  ) : !hideFinancialData && order.tax_amount > 0 ? (
-                    <span className="text-xs text-gray-500">
-                      incl. {formatTotal(order.tax_amount)} tax
-                    </span>
-                  ) : null}
+               {!hideFinancialData && (
+  <>
+    {order.tax_amount > 0 && (
+      <span className="text-xs text-gray-500 block">
+        incl. {formatTotal(order.tax_amount)} tax
+      </span>
+    )}
+    {order.processing_fee_amount > 0 && (
+      <span className="text-xs text-gray-500 block">
+        incl. {formatTotal(order.processing_fee_amount)} card fee
+      </span>
+    )}
+  </>
+)}
                 </div>
               </TableCell>
 
@@ -1198,8 +1204,18 @@ export function OrdersList({
             modalIsOpen={modalIsOpen}
             setModalIsOpen={setModalIsOpen}
             customer={selectCustomerInfo.customerInfo}
-            amountP={selectCustomerInfo.total}
-            orderId={selectCustomerInfo.id}
+ amountP={(() => {
+              // Calculate balance due: total_amount - paid_amount
+              const total = Number(selectCustomerInfo.total_amount || selectCustomerInfo.total || 0);
+              const paid = Number(selectCustomerInfo.paid_amount || 0);
+              const balanceDue = Math.max(0, total - paid);
+              console.log('💰 OrdersList - Payment Modal Balance Due:');
+              console.log('  Order:', selectCustomerInfo.order_number);
+              console.log('  total_amount:', total);
+              console.log('  paid_amount:', paid);
+              console.log('  balanceDue:', balanceDue);
+              return balanceDue;
+            })()}            orderId={selectCustomerInfo.id}
             orders={selectCustomerInfo}
             useStockDeductionRpc={userRole === "pharmacy"}
           />

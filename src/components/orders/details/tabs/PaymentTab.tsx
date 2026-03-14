@@ -119,16 +119,17 @@ export const PaymentTab = ({
         const summary = (data || []).reduce(
           (acc, activity: any) => {
             const metadata = activity?.metadata || {};
-            acc.charged += toNumber(
-              metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount
+            // Use payment_amount (base payment applied to order) NOT charged_amount (which includes fee)
+            acc.paid += toNumber(
+              metadata.payment_amount ?? metadata.amount
             );
             acc.fee += toNumber(metadata.processing_fee_amount);
             return acc;
           },
-          { charged: 0, fee: 0 }
+          { paid: 0, fee: 0 }
         );
 
-        setChargedAmount(summary.charged);
+        setChargedAmount(summary.paid);
         setProcessingFeeAmount(summary.fee);
       } catch (error) {
         console.error("Error fetching payment activity summary:", error);
@@ -156,11 +157,11 @@ export const PaymentTab = ({
   const fred = poIs ? poCharges.fred : 0;
   
   // Calculate total including all charges (PO charges only added for POs) and subtracting discount
-  const total = subtotal + shipping + tax + handling + fred - discountAmount;
-  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount;
-  const displayTotal = processingFeeAmount > 0
-    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
-    : total;
+  const total = subtotal + shipping + tax + handling + fred + processingFeeAmount - discountAmount;
+  const effectiveChargedAmount =  paidAmount;
+  // Display total should be the base order total (not including processing fees)
+  // Processing fees are shown separately and added to the charged amount
+  const displayTotal = total;
   
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;

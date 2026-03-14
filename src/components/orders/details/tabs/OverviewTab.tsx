@@ -59,10 +59,10 @@ export const OverviewTab = ({
 }: OverviewTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [chargedAmount, setChargedAmount] = useState(0);
-  const [processingFeeAmount, setProcessingFeeAmount] = useState(0);
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(order.processing_fee_amount || 0);
   const [loading, setLoading] = useState(true);
   const orderDate = order.date || (order as any).created_at;
-  
+  console.log(order,"orderMAIN")
   // Derive poIs from order data itself for reliability
   // This ensures we always use the correct order type regardless of prop
   const poIs = (order as any)?.poAccept === false;
@@ -113,48 +113,7 @@ export const OverviewTab = ({
     fetchPaidAmount();
   }, [order.id, poIs]); // Added poIs to ensure re-fetch when switching between SO/PO
 
-  useEffect(() => {
-    const fetchPaymentActivitySummary = async () => {
-      if (!order.id) return;
-
-      const toNumber = (value: unknown) => {
-        const parsed = Number(value || 0);
-        return Number.isFinite(parsed) ? parsed : 0;
-      };
-
-      try {
-        const { data, error } = await supabase
-          .from("order_activities")
-          .select("metadata")
-          .eq("order_id", order.id)
-          .eq("activity_type", "payment_received");
-
-        if (error) {
-          console.error("Error fetching payment activities:", error);
-          return;
-        }
-
-        const summary = (data || []).reduce(
-          (acc, activity: any) => {
-            const metadata = activity?.metadata || {};
-            acc.charged += toNumber(
-              metadata.charged_amount ?? metadata.payment_amount ?? metadata.amount
-            );
-            acc.fee += toNumber(metadata.processing_fee_amount);
-            return acc;
-          },
-          { charged: 0, fee: 0 }
-        );
-
-        setChargedAmount(summary.charged);
-        setProcessingFeeAmount(summary.fee);
-      } catch (error) {
-        console.error("Error fetching payment activity summary:", error);
-      }
-    };
-
-    fetchPaymentActivitySummary();
-  }, [order.id]);
+ 
 
   const calculateSubtotal = () => {
     return order.items.reduce((total, item) => {
@@ -173,11 +132,11 @@ export const OverviewTab = ({
   const fred = poIs ? parseFloat((order as any).po_fred_charges || "0") : 0;
   
   // Calculate total including PO charges (only for POs)
-  const total = subtotal + shipping + tax + handling + fred - discountAmount;
-  const effectiveChargedAmount = chargedAmount > 0 ? chargedAmount : paidAmount;
-  const displayTotal = processingFeeAmount > 0
-    ? Math.max(total + processingFeeAmount, effectiveChargedAmount)
-    : total;
+  const total = Number(order.total);
+  const effectiveChargedAmount =  paidAmount;
+  // Display total should be the base order total (not including processing fees)
+  // Processing fees are shown separately and added to the charged amount
+  const displayTotal = total;
 
   // Debug logging
   console.log("📊 OverviewTab Calculations:", {
@@ -468,7 +427,7 @@ export const OverviewTab = ({
                 <div className="flex justify-between items-center mt-2 pt-2 border-t">
                   <div className="flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-500" />
-                    <span className="text-green-600 font-medium">Paid Amount</span>
+                    <span className="text-green-600 font-medium">Paid Amount</span> 
                   </div>
                   <span className="font-bold text-green-600">${effectiveChargedAmount.toFixed(2)}</span>
                 </div>
