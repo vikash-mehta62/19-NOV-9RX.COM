@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Package, Clock, CirclePlus } from "lucide-react";
 import { OrderFormValues } from "../../schemas/orderSchema";
 import { ConfirmationDialog } from "./ConfirmationDialog";
-import { FedExDialogState, TrackingDialog } from "../../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from "../../components/TrackingDialog";
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
@@ -39,6 +39,11 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
 
     setIsLoading(true);
     try {
+      const shippingCost =
+        shippingMethod === "FedEx"
+          ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
+          : 0;
+
       // Get old status before update
       const { data: oldOrder } = await supabase
         .from("orders")
@@ -51,7 +56,7 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
 
       const { error } = await supabase
         .from('orders')
-        .update({ 
+        .update({
           status: 'processing',
           updated_at: new Date().toISOString()
         })
@@ -102,7 +107,7 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
     }
   };
 
-  const handleTrackingSubmit = async () => {
+  const handleTrackingSubmit = async ({ recipient }: TrackingDialogSubmitPayload) => {
     if (!order.id || !trackingNumber.trim()) {
       toast({
         title: "Error",
@@ -113,6 +118,11 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
     }
 
     try {
+      const shippingCost =
+        shippingMethod === "FedEx"
+          ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
+          : 0;
+
       // Get old status before update
       const { data: oldOrder } = await supabase
         .from("orders")
@@ -123,26 +133,18 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
       const oldStatus = oldOrder?.status || "unknown";
       const orderNumber = oldOrder?.order_number || "N/A";
 
+      const orderShippingUpdate = {
+        shipping_method: shippingMethod,
+        tracking_number: trackingNumber,
+        shipping_cost: shippingCost,
+        estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+        status: 'shipped',
+        updated_at: new Date().toISOString(),
+      };
+
       const { error } = await supabase
         .from('orders')
-        .update({
-          shipping_method: shippingMethod,
-          tracking_number: trackingNumber,
-          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
-          shipping: {
-            ...(((order as any).shipping as Record<string, any> | null) || {}),
-            method: shippingMethod,
-            trackingNumber,
-            labelUrl: fedexData?.labelUrl,
-            labelFormat: fedexData?.labelFormat,
-            serviceType: fedexData?.serviceType,
-            packagingType: fedexData?.packagingType,
-            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
-            estimatedDelivery: fedexData?.estimatedDeliveryDate,
-          } as any,
-          status: 'shipped',
-          updated_at: new Date().toISOString()
-        })
+        .update(orderShippingUpdate)
         .eq('id', order.id);
 
       if (error) throw error;

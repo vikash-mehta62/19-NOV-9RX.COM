@@ -1,21 +1,35 @@
 import { Json } from '@/integrations/supabase/types';
 import { z } from "zod";
 
+const usStateSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Z]{2}$/, "State must be a 2-letter code");
+
+const usZipSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{5}(-\d{4})?$/, "ZIP code must be a valid US ZIP code");
+
+const phoneSchema = z
+  .string()
+  .trim()
+  .refine((value) => value.replace(/\D/g, "").length >= 10, {
+    message: "Phone number must contain at least 10 digits",
+  });
+
 const addressSchema = z.object({
   street: z.string().min(1, "Street is required"),
   city: z.string().min(1, "City is required"),
-  state: z.string().min(1, "State is required"),
-  zip_code: z
-    .string()
-    .min(5, "Zip code is required")
-    .max(10, "Zip code must be at most 10 characters"),
+  state: usStateSchema,
+  zip_code: usZipSchema,
 });
 
 const customerInfoSchema = z.object({
 cusid :z.string().optional(),
   name: z.string().min(0, "Name is required"),
   email: z.string().email("Invalid email address"),
-  phone: z.string().min(0, "Phone number must be at least 10 digits"),
+  phone: phoneSchema,
   type: z.enum(["Hospital", "Pharmacy", "Clinic"]),
   address: addressSchema,
 });
@@ -76,7 +90,7 @@ const extendedAddressSchema = z.object({
 const shippingAddressSchema = z.object({
   fullName: z.string().optional(),
   email: z.string().optional(),
-  phone: z.string().optional(),
+  phone: phoneSchema.optional(),
   address: addressSchema.optional(),
   // Extended format with billing/shipping objects
   billing: extendedAddressSchema.optional(),

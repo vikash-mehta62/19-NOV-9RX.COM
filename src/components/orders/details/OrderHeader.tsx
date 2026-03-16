@@ -6,7 +6,7 @@ import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, 
 import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
-import { FedExDialogState, TrackingDialog } from "../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from "../components/TrackingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
@@ -74,7 +74,7 @@ export const OrderHeader = ({
     setShowTrackingDialog(true);
   };
 
-  const handleTrackingSubmit = async () => {
+  const handleTrackingSubmit = async ({ recipient }: TrackingDialogSubmitPayload) => {
     if (!trackingNumber.trim()) {
       toast({
         title: "Error",
@@ -86,6 +86,11 @@ export const OrderHeader = ({
 
     setIsShipping(true);
     try {
+      const shippingCost =
+        shippingMethod === "FedEx"
+          ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
+          : 0;
+
       // Get old status before update
       const { data: oldOrder } = await supabase
         .from("orders")
@@ -97,25 +102,17 @@ export const OrderHeader = ({
       const orderNumber = oldOrder?.order_number || "N/A";
 
       // Update order in database with tracking info
+      const orderShippingUpdate = {
+        tracking_number: trackingNumber,
+        shipping_method: shippingMethod,
+        shipping_cost: shippingCost,
+        estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+        status: "shipped",
+      };
+
       const { error } = await supabase
         .from("orders")
-        .update({
-          tracking_number: trackingNumber,
-          shipping_method: shippingMethod,
-          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
-          shipping: {
-            ...(((order as any).shipping as Record<string, any> | null) || {}),
-            method: shippingMethod,
-            trackingNumber,
-            labelUrl: fedexData?.labelUrl,
-            labelFormat: fedexData?.labelFormat,
-            serviceType: fedexData?.serviceType,
-            packagingType: fedexData?.packagingType,
-            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
-            estimatedDelivery: fedexData?.estimatedDeliveryDate,
-          } as any,
-          status: "shipped"
-        })
+        .update(orderShippingUpdate)
         .eq("id", order.id);
 
       if (error) throw error;

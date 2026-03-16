@@ -2974,8 +2974,12 @@ export const OrderDetailsSheet = ({
 
     setIsSavingPoWorkflow(true);
     try {
-      const nextPaidAmount = Number(paidAmount || 0) + paymentAmount;
+      const priorPaidAmount = Number(paidAmount || 0);
+      const nextPaidAmount = priorPaidAmount + paymentAmount;
       const totalAmount = Number(currentOrder.total || currentOrder.total_amount || 0);
+      const previouslyRecognizedCogs = Math.min(totalAmount, priorPaidAmount);
+      const remainingCogsToRecognize = Math.max(0, totalAmount - previouslyRecognizedCogs);
+      const cogsExpenseAmount = Math.min(paymentAmount, remainingCogsToRecognize);
       const nextPaymentStatus = nextPaidAmount >= totalAmount ? "paid" : "partial";
       const nextOrderStatus =
         nextPaymentStatus === "paid" && String(currentOrder.status || "").toLowerCase() === "received"
@@ -3001,14 +3005,16 @@ export const OrderDetailsSheet = ({
       };
       const expenseDescription = `COGS payment for purchase order ${currentOrder.order_number || currentOrder.id}${paymentEntry.reference ? ` | Ref ${paymentEntry.reference}` : ""}`;
 
-      await syncPoExpenseEntry({
-        amount: paymentAmount,
-        category: "cost_of_goods_sold",
-        sourceSubtype: `vendor_payment_${paymentEntry.id}`,
-        name: `PO Payment ${currentOrder.order_number}`,
-        description: expenseDescription,
-        date: paymentEntry.date,
-      });
+      if (cogsExpenseAmount > 0) {
+        await syncPoExpenseEntry({
+          amount: cogsExpenseAmount,
+          category: "cost_of_goods_sold",
+          sourceSubtype: `vendor_payment_${paymentEntry.id}`,
+          name: `PO Payment ${currentOrder.order_number}`,
+          description: expenseDescription,
+          date: paymentEntry.date,
+        });
+      }
 
       const { error: poPaymentError } = await supabase
         .from("po_payments" as any)

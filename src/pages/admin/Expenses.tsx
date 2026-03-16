@@ -14,6 +14,7 @@ import {
   BarChart3,
   PieChart,
   Clock,
+  Truck,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -182,6 +183,29 @@ const getExpenseCategoryBadgeClass = (category?: string) => {
     default:
       return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-700"
   }
+}
+
+const isFedExExpense = (expense: Expense) => {
+  const sourceType = (expense.source_type || "").toLowerCase()
+  const sourceSubtype = (expense.source_subtype || "").toLowerCase()
+  const category = (expense.category || "").toLowerCase()
+  const name = (expense.name || "").toLowerCase()
+  const description = (expense.description || "").toLowerCase()
+
+  if (sourceSubtype.includes("fedex") || sourceSubtype.includes("label")) return true
+  if (sourceType.includes("fedex")) return true
+
+  return (
+    name.includes("fedex") ||
+    description.includes("fedex") ||
+    name.includes("shipping label") ||
+    description.includes("shipping label") ||
+    name.includes("label expense") ||
+    description.includes("label expense") ||
+    (category === "shipping" && (name.includes("label") || description.includes("label"))) ||
+    ((name.includes("shipping") || description.includes("shipping")) &&
+      (name.includes("tracking") || description.includes("tracking") || name.includes("courier") || description.includes("courier")))
+  )
 }
 
 const Expenses = () => {
@@ -363,9 +387,28 @@ const Expenses = () => {
     })
 
   const totalFilteredExpenses = filteredExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+  const fedexExpenses = filteredExpenses.filter(isFedExExpense)
+  const fedexTotal = fedexExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
 
   // For monthly grouping
   const groupedExpenses = filteredExpenses.reduce(
+    (groups, expense) => {
+      const date = parseISO(expense.date)
+      if (!isValid(date)) return groups
+      const monthYear = format(date, "MMMM yyyy")
+      if (!groups[monthYear]) {
+        groups[monthYear] = {
+          expenses: [],
+          total: 0,
+        }
+      }
+      groups[monthYear].expenses.push(expense)
+      groups[monthYear].total += Number(expense.amount)
+      return groups
+    },
+    {} as Record<string, { expenses: Expense[]; total: number }>,
+  )
+  const groupedFedexExpenses = fedexExpenses.reduce(
     (groups, expense) => {
       const date = parseISO(expense.date)
       if (!isValid(date)) return groups
@@ -391,6 +434,8 @@ const Expenses = () => {
     return isValid(expenseDate) && expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear
   })
   const currentMonthTotal = currentMonthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+  const currentMonthFedExExpenses = currentMonthExpenses.filter(isFedExExpense)
+  const currentMonthFedExTotal = currentMonthFedExExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
 
   const previousMonthExpenses = expenses.filter((expense) => {
     const expenseDate = parseISO(expense.date)
@@ -404,6 +449,8 @@ const Expenses = () => {
     )
   })
   const previousMonthTotal = previousMonthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
+  const previousMonthFedExExpenses = previousMonthExpenses.filter(isFedExExpense)
+  const previousMonthFedExTotal = previousMonthFedExExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
 
   const monthOverMonthChange =
     previousMonthTotal === 0
@@ -550,10 +597,14 @@ const Expenses = () => {
           </div>
 
           <Tabs defaultValue="list" className="w-full">
-            <TabsList className="grid grid-cols-2 mb-6 w-full max-w-md mx-auto">
+            <TabsList className="grid grid-cols-3 mb-6 w-full max-w-2xl mx-auto">
               <TabsTrigger value="list" className="flex items-center gap-2">
                 <Receipt className="h-4 w-4" />
                 Expense List
+              </TabsTrigger>
+              <TabsTrigger value="fedex" className="flex items-center gap-2">
+                <Truck className="h-4 w-4" />
+                FedEx Labels
               </TabsTrigger>
               <TabsTrigger value="analytics" className="flex items-center gap-2">
                 <BarChart3 className="h-4 w-4" />
@@ -890,6 +941,253 @@ const Expenses = () => {
                   </div>
                 </CardFooter>
               </Card>
+            </TabsContent>
+
+            <TabsContent value="fedex">
+              <div className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <Card className="shadow-sm border-gray-200 dark:border-gray-700">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">FedEx Label Expenses</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${fedexTotal.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">Based on current filters</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="shadow-sm border-gray-200 dark:border-gray-700">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">Current Month FedEx</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${currentMonthFedExTotal.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">{currentMonthFedExExpenses.length} label expense records</p>
+                    </CardContent>
+                  </Card>
+                  <Card className="shadow-sm border-gray-200 dark:border-gray-700">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-sm font-medium">Previous Month FedEx</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="text-2xl font-bold">${previousMonthFedExTotal.toLocaleString()}</div>
+                      <p className="text-xs text-muted-foreground">{previousMonthFedExExpenses.length} label expense records</p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="shadow-lg border-gray-200 dark:border-gray-700">
+                  <CardHeader className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
+                    <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">FedEx Label Expense Tracking</h2>
+                        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                          Track courier label charges separately from the broader expense ledger.
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="w-fit bg-blue-50 text-blue-700 border-blue-200">
+                        {fedexExpenses.length} {fedexExpenses.length === 1 ? "record" : "records"}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {loading ? (
+                      <div className="p-8 text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                        <p className="mt-4 text-gray-600 dark:text-gray-400">Loading FedEx expenses...</p>
+                      </div>
+                    ) : viewMode === "daily" ? (
+                      <div className="overflow-x-auto w-full px-1 sm:px-0">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="bg-gray-50 dark:bg-gray-800">
+                              <TableHead className="font-semibold whitespace-nowrap">Label Expense</TableHead>
+                              <TableHead className="font-semibold whitespace-nowrap">Amount</TableHead>
+                              <TableHead className="font-semibold whitespace-nowrap">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="h-4 w-4" />
+                                  Date
+                                </div>
+                              </TableHead>
+                              <TableHead className="font-semibold whitespace-nowrap hidden md:table-cell">Description</TableHead>
+                              <TableHead className="w-20 text-right whitespace-nowrap">Actions</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {fedexExpenses.length === 0 ? (
+                              <TableRow>
+                                <TableCell colSpan={5} className="text-center py-12 text-gray-500">
+                                  <div className="flex flex-col items-center">
+                                    <Truck className="h-12 w-12 text-gray-300 mb-2" />
+                                    <p>No FedEx label expenses found for the selected period</p>
+                                    <Button variant="link" onClick={handleClearFilters} className="mt-2 text-blue-500">
+                                      Clear filters
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ) : (
+                              fedexExpenses.map((expense) => (
+                                <TableRow key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                  <TableCell className="font-medium">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                        FX
+                                      </Badge>
+                                      <Badge variant="outline" className={getExpenseCategoryBadgeClass(expense.category)}>
+                                        {getExpenseCategoryLabel(expense.category)}
+                                      </Badge>
+                                      {expense.name}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                    ${Number.parseFloat(expense.amount as any).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    {isValid(parseISO(expense.date)) ? format(parseISO(expense.date), "dd MMM yyyy") : "Invalid date"}
+                                  </TableCell>
+                                  <TableCell className="text-gray-600 dark:text-gray-400 max-w-xs truncate hidden md:table-cell">
+                                    {expense.description || "-"}
+                                  </TableCell>
+                                  <TableCell className="text-right">
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            onClick={() => handleDeleteExpense(expense.id)}
+                                            className="hover:bg-red-50 hover:text-red-600 text-gray-500"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Delete expense</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  </TableCell>
+                                </TableRow>
+                              ))
+                            )}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    ) : (
+                      <div className="space-y-6 p-4">
+                        {Object.keys(groupedFedexExpenses).length === 0 ? (
+                          <div className="text-center py-12 text-gray-500">
+                            <div className="flex flex-col items-center">
+                              <Truck className="h-12 w-12 text-gray-300 mb-2" />
+                              <p>No FedEx label expenses found for the selected period</p>
+                              <Button variant="link" onClick={handleClearFilters} className="mt-2 text-blue-500">
+                                Clear filters
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          Object.entries(groupedFedexExpenses).map(([month, data]) => (
+                            <div key={month} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden shadow-sm">
+                              <div className="bg-gray-50 dark:bg-gray-800 p-4 flex justify-between items-center">
+                                <h3 className="font-medium text-lg flex items-center gap-2">
+                                  <Calendar className="h-4 w-4 text-gray-500" />
+                                  {month}
+                                </h3>
+                                <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+                                  <Truck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                                  <span className="font-semibold text-blue-600 dark:text-blue-400">
+                                    ${data.total.toLocaleString()}
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="overflow-x-auto">
+                                <Table>
+                                  <TableHeader>
+                                    <TableRow className="bg-gray-50/50 dark:bg-gray-800/50">
+                                      <TableHead className="font-semibold">Label Expense</TableHead>
+                                      <TableHead className="font-semibold">Amount</TableHead>
+                                      <TableHead className="font-semibold">Date</TableHead>
+                                      <TableHead className="font-semibold">Description</TableHead>
+                                      <TableHead className="w-20 text-right">Actions</TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+                                  <TableBody>
+                                    {data.expenses.map((expense) => (
+                                      <TableRow key={expense.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
+                                        <TableCell className="font-medium">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                              FX
+                                            </Badge>
+                                            <Badge variant="outline" className={getExpenseCategoryBadgeClass(expense.category)}>
+                                              {getExpenseCategoryLabel(expense.category)}
+                                            </Badge>
+                                            {expense.name}
+                                          </div>
+                                        </TableCell>
+                                        <TableCell className="text-emerald-600 dark:text-emerald-400 font-medium">
+                                          ${Number.parseFloat(expense.amount as any).toLocaleString()}
+                                        </TableCell>
+                                        <TableCell>
+                                          {isValid(parseISO(expense.date)) ? format(parseISO(expense.date), "dd MMM yyyy") : "Invalid date"}
+                                        </TableCell>
+                                        <TableCell className="text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                                          {expense.description || "-"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                          <TooltipProvider>
+                                            <Tooltip>
+                                              <TooltipTrigger asChild>
+                                                <Button
+                                                  variant="ghost"
+                                                  size="icon"
+                                                  onClick={() => handleDeleteExpense(expense.id)}
+                                                  className="hover:bg-red-50 hover:text-red-600 text-gray-500"
+                                                >
+                                                  <Trash2 className="h-4 w-4" />
+                                                </Button>
+                                              </TooltipTrigger>
+                                              <TooltipContent>
+                                                <p>Delete expense</p>
+                                              </TooltipContent>
+                                            </Tooltip>
+                                          </TooltipProvider>
+                                        </TableCell>
+                                      </TableRow>
+                                    ))}
+                                  </TableBody>
+                                </Table>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                  <CardFooter className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50 p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 w-full">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      {fedexExpenses.length} {fedexExpenses.length === 1 ? "FedEx expense" : "FedEx expenses"} found
+                    </span>
+                    <div className="flex flex-col xs:flex-row items-start xs:items-center gap-3 xs:gap-6 w-full xs:w-auto">
+                      <CSVLink
+                        data={fedexExpenses}
+                        headers={headers}
+                        filename="fedex-label-expenses.csv"
+                        className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-medium text-sm px-4 py-2 rounded-md shadow transition duration-200 w-full xs:w-auto justify-center"
+                      >
+                        <Download className="h-4 w-4" />
+                        Export CSV
+                      </CSVLink>
+                      <div className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">FedEx Total:</span>
+                        <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                          ${fedexTotal.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </CardFooter>
+                </Card>
+              </div>
             </TabsContent>
 
             <TabsContent value="analytics">

@@ -40,6 +40,17 @@ export function CustomerInfoFields({
   const customerAddressInputRef = useRef<HTMLInputElement | null>(null);
   const shippingAddressInputRef = useRef<HTMLInputElement | null>(null);
 
+  const normalizeStateValue = (value: string) =>
+    value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2);
+
+  const normalizeZipValue = (value: string) => {
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+    if (digits.length <= 5) return digits;
+    return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  };
+
+  const normalizePhoneValue = (value: string) => value.replace(/[^\d()+\-\s]/g, "");
+
   const syncShippingWithCustomer = useCallback(() => {
     const info = form.getValues("customerInfo");
     form.setValue("shippingAddress.fullName", info.name || "", {
@@ -143,6 +154,18 @@ export function CustomerInfoFields({
     }
   };
 
+  const handleNormalizedFieldChange = (
+    name: string,
+    value: string,
+    normalizer: (input: string) => string,
+  ) => {
+    form.setValue(name, normalizer(value), {
+      shouldDirty: true,
+      shouldTouch: true,
+      shouldValidate: true,
+    });
+  };
+
   const renderField = (
     name: string,
     label: string,
@@ -208,12 +231,29 @@ export function CustomerInfoFields({
             <Mail className="w-4 h-4 text-blue-500" />,
             "email"
           )}
-          {renderField(
-            "customerInfo.phone",
-            "Phone Number",
-            <Phone className="w-4 h-4 text-blue-500" />,
-            "tel"
-          )}
+          <FormField
+            control={form.control}
+            name="customerInfo.phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <Phone className="w-4 h-4 text-blue-500" />
+                  Phone Number
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    type="tel"
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizePhoneValue)
+                    }
+                    className="border-2 border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="relative col-span-1 md:col-span-2">
             <FormField
@@ -264,16 +304,52 @@ export function CustomerInfoFields({
             "City",
             <Building2 className="w-4 h-4 text-blue-500" />
           )}
-          {renderField(
-            "customerInfo.address.state",
-            "State",
-            <Building2 className="w-4 h-4 text-blue-500" />
-          )}
-          {renderField(
-            "customerInfo.address.zip_code",
-            "Zip Code",
-            <MapPin className="w-4 h-4 text-blue-500" />
-          )}
+          <FormField
+            control={form.control}
+            name="customerInfo.address.state"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4 text-blue-500" />
+                  State
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    maxLength={2}
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizeStateValue)
+                    }
+                    className="border-2 border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="customerInfo.address.zip_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <MapPin className="w-4 h-4 text-blue-500" />
+                  Zip Code
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    maxLength={10}
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizeZipValue)
+                    }
+                    className="border-2 border-gray-200 rounded-lg px-4 py-2.5 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </div>
 
@@ -319,13 +395,37 @@ export function CustomerInfoFields({
             "email",
             readOnly || sameAsCustomer
           )}
-          {renderField(
-            "shippingAddress.phone",
-            "Phone Number",
-            <Phone className="w-4 h-4 text-amber-500" />,
-            "tel",
-            readOnly || sameAsCustomer
-          )}
+          <FormField
+            control={form.control}
+            name="shippingAddress.phone"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <Phone className="w-4 h-4 text-amber-500" />
+                  Phone Number
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    type="tel"
+                    readOnly={readOnly || sameAsCustomer}
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizePhoneValue)
+                    }
+                    className={`
+                      border-2 rounded-lg px-4 py-2.5 text-sm transition-all
+                      ${
+                        readOnly || sameAsCustomer
+                          ? "border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                          : "border-gray-200 bg-white hover:border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                      }
+                    `}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
 
           <div className="relative col-span-1 md:col-span-2">
             <FormField
@@ -384,20 +484,68 @@ export function CustomerInfoFields({
             "text",
             readOnly || sameAsCustomer
           )}
-          {renderField(
-            "shippingAddress.address.state",
-            "State",
-            <Building2 className="w-4 h-4 text-amber-500" />,
-            "text",
-            readOnly || sameAsCustomer
-          )}
-          {renderField(
-            "shippingAddress.address.zip_code",
-            "Zip Code",
-            <MapPin className="w-4 h-4 text-amber-500" />,
-            "text",
-            readOnly || sameAsCustomer
-          )}
+          <FormField
+            control={form.control}
+            name="shippingAddress.address.state"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4 text-amber-500" />
+                  State
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    maxLength={2}
+                    readOnly={readOnly || sameAsCustomer}
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizeStateValue)
+                    }
+                    className={`
+                      border-2 rounded-lg px-4 py-2.5 text-sm transition-all
+                      ${
+                        readOnly || sameAsCustomer
+                          ? "border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                          : "border-gray-200 bg-white hover:border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                      }
+                    `}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="shippingAddress.address.zip_code"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="text-sm font-semibold text-gray-700 flex items-center gap-2 mb-2">
+                  <MapPin className="w-4 h-4 text-amber-500" />
+                  Zip Code
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    {...field}
+                    maxLength={10}
+                    readOnly={readOnly || sameAsCustomer}
+                    onChange={(e) =>
+                      handleNormalizedFieldChange(field.name, e.target.value, normalizeZipValue)
+                    }
+                    className={`
+                      border-2 rounded-lg px-4 py-2.5 text-sm transition-all
+                      ${
+                        readOnly || sameAsCustomer
+                          ? "border-gray-200 bg-gray-50 text-gray-600 cursor-not-allowed"
+                          : "border-gray-200 bg-white hover:border-gray-300 focus:border-amber-500 focus:ring-2 focus:ring-amber-100"
+                      }
+                    `}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         </div>
       </div>
     </div>

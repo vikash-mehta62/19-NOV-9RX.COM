@@ -31,7 +31,7 @@ export const PaymentTab = ({
 }: PaymentTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [chargedAmount, setChargedAmount] = useState(0);
-  const [processingFeeAmount, setProcessingFeeAmount] = useState(0);
+  const [processingFeeAmount, setProcessingFeeAmount] = useState(order.processing_fee_amount|| 0);
   const [dbPaymentStatus, setDbPaymentStatus] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [poCharges, setPoCharges] = useState({ handling: 0, fred: 0 });
@@ -129,8 +129,8 @@ export const PaymentTab = ({
           { paid: 0, fee: 0 }
         );
 
-        setChargedAmount(summary.paid);
-        setProcessingFeeAmount(summary.fee);
+        // setChargedAmount(summary.paid);
+        // setProcessingFeeAmount(summary.fee);
       } catch (error) {
         console.error("Error fetching payment activity summary:", error);
       }

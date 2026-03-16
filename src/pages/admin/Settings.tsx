@@ -26,6 +26,7 @@ import type { Json } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { selectUserProfile } from "@/store/selectors/userSelectors";
+import { normalizeUsStateCode } from "@/services/fedexService";
 import { CategoryManagement } from "@/components/admin/CategoryManagement";
 import { AppearanceSection } from "@/components/settings/AppearanceSection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,32 @@ const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
     ...generalSettings,
     store_hours: JSON.parse(JSON.stringify(generalSettings.store_hours)) as Json,
   };
+};
+
+const normalizeShippingSettings = (values: SettingsFormValues): SettingsFormValues => ({
+  ...values,
+  shipping_state:
+    normalizeUsStateCode(values.shipping_state) ||
+    String(values.shipping_state || "").trim().toUpperCase(),
+  shipping_zip_code: String(values.shipping_zip_code || "").trim(),
+  shipping_phone: String(values.shipping_phone || "").trim(),
+  shipping_city: String(values.shipping_city || "").trim(),
+  shipping_street: String(values.shipping_street || "").trim(),
+  shipping_company_name: String(values.shipping_company_name || "").trim(),
+  shipping_country: String(values.shipping_country || "").trim() || "USA",
+});
+
+const validateFedExShippingSettings = (values: SettingsFormValues): string | null => {
+  if (!values.fedex_enabled) return null;
+
+  if (!values.shipping_company_name) return "Shipping company/name is required for FedEx ship-from settings.";
+  if (!values.shipping_street) return "Shipping street is required for FedEx ship-from settings.";
+  if (values.shipping_city.length < 3) return "Shipping city must contain at least 3 characters for FedEx.";
+  if (!/^[A-Z]{2}$/.test(values.shipping_state)) return "Shipping state must be a valid 2-letter code for FedEx.";
+  if (!/^\d{5}(-\d{4})?$/.test(values.shipping_zip_code)) return "Shipping ZIP code must be a valid US ZIP code for FedEx.";
+  if (values.shipping_phone.replace(/\D/g, "").length < 10) return "Shipping phone must contain at least 10 digits for FedEx.";
+
+  return null;
 };
 
 export default function Settings() {
@@ -201,23 +228,30 @@ export default function Settings() {
 
     setSaving(true);
     try {
+      const normalizedData = normalizeShippingSettings(data);
+      const shippingValidationError = validateFedExShippingSettings(normalizedData);
+      if (shippingValidationError) {
+        toast.error(shippingValidationError);
+        return;
+      }
+
       const paymentSettings = {
-        enabled: data.authorize_net_enabled,
-        apiLoginId: data.authorize_net_api_login_id,
-        transactionKey: data.authorize_net_transaction_key,
-        testMode: data.authorize_net_test_mode,
+        enabled: normalizedData.authorize_net_enabled,
+        apiLoginId: normalizedData.authorize_net_api_login_id,
+        transactionKey: normalizedData.authorize_net_transaction_key,
+        testMode: normalizedData.authorize_net_test_mode,
       };
 
       const fortisPaySettings = {
-        enabled: data.fortispay_enabled,
-        userId: data.fortispay_user_id,
-        userApiKey: data.fortispay_user_api_key,
-        locationId: data.fortispay_location_id,
-        productTransactionIdAch: data.fortispay_product_transaction_id_ach,
-        testMode: data.fortispay_test_mode,
+        enabled: normalizedData.fortispay_enabled,
+        userId: normalizedData.fortispay_user_id,
+        userApiKey: normalizedData.fortispay_user_api_key,
+        locationId: normalizedData.fortispay_location_id,
+        productTransactionIdAch: normalizedData.fortispay_product_transaction_id_ach,
+        testMode: normalizedData.fortispay_test_mode,
       };
 
-      const generalSettingsPayload = buildGeneralSettingsPayload(data);
+      const generalSettingsPayload = buildGeneralSettingsPayload(normalizedData);
 
       // Save general settings
       const { error: settingsError } = await supabase.from("settings").upsert({

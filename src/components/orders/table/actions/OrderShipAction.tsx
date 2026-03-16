@@ -2,10 +2,9 @@ import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { OrderFormValues } from "../../schemas/orderSchema";
 import { ConfirmationDialog } from "./ConfirmationDialog";
-import { FedExDialogState, TrackingDialog } from "../../components/TrackingDialog";
+import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from "../../components/TrackingDialog";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { useCart } from "@/hooks/use-cart";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
 
@@ -26,18 +25,13 @@ export const OrderShipAction = ({
     "FedEx"
   );
   const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
-  const { cartItems, clearCart } = useCart();
 
-  const totalShippingCost = cartItems.reduce(
-    (total, item) => total + (item.shipping_cost || 0),
-    0
-  );
   const handleShipConfirm = () => {
     setShowConfirmDialog(false);
     setShowTrackingDialog(true);
   };
 
-  const handleTrackingSubmit = async () => {
+  const handleTrackingSubmit = async ({ recipient }: TrackingDialogSubmitPayload) => {
     console.log("tracing")
     
     if (!trackingNumber.trim()) {
@@ -50,10 +44,16 @@ export const OrderShipAction = ({
     }
 
     try {
+      const shippingCost =
+        shippingMethod === "FedEx"
+          ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
+          : 0;
+
       console.log("Submitting tracking information:", {
         orderId: order.id,
         trackingNumber,
         shippingMethod,
+        shippingCost,
       });
 
       // Get fresh orders from localStorage
@@ -62,17 +62,35 @@ export const OrderShipAction = ({
         if (o.id === order.id) {
           return {
             ...o,
+            shippingAddress: recipient
+              ? {
+                  ...(o.shippingAddress || {}),
+                  fullName: recipient.name,
+                  email: recipient.email || "",
+                  phone: recipient.phone,
+                  address: {
+                    street: recipient.street,
+                    city: recipient.city,
+                    state: recipient.state,
+                    zip_code: recipient.zip_code,
+                  },
+                }
+              : o.shippingAddress,
             shipping: {
               ...(o.shipping || {}),
               method: shippingMethod,
               trackingNumber,
-              cost: shippingMethod === "FedEx" ? totalShippingCost : 0,
+              cost: shippingCost,
               labelUrl: fedexData?.labelUrl,
+              labelBase64: fedexData?.labelBase64,
               labelFormat: fedexData?.labelFormat,
+              labelStockType: fedexData?.labelStockType,
               serviceType: fedexData?.serviceType,
               packagingType: fedexData?.packagingType,
               pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
               estimatedDelivery: fedexData?.estimatedDeliveryDate,
+              quotedAmount: fedexData?.quotedAmount,
+              quotedCurrency: fedexData?.quotedCurrency,
             },
             status: "shipped",
           };
@@ -98,29 +116,20 @@ export const OrderShipAction = ({
         const oldStatus = oldOrder?.status || "unknown";
         const orderNumber = oldOrder?.order_number || "N/A";
         
-        const { data: updatedOrder, error } = await supabase
-        .from("orders")
-        .update({
+        const orderShippingUpdate = {
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
+          shipping_cost: shippingCost,
           estimated_delivery: fedexData?.estimatedDeliveryDate || null,
-          shipping: {
-            ...(((order as any).shipping as Record<string, any> | null) || {}),
-            method: shippingMethod,
-            trackingNumber,
-            cost: shippingMethod === "FedEx" ? totalShippingCost : 0,
-            labelUrl: fedexData?.labelUrl,
-            labelFormat: fedexData?.labelFormat,
-            serviceType: fedexData?.serviceType,
-            packagingType: fedexData?.packagingType,
-            pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
-            estimatedDelivery: fedexData?.estimatedDeliveryDate,
-          } as any,
-          status: "shipped"
-        })
-        .eq("id", order.id)
-        .select("*")
-        .single();
+          status: "shipped",
+        };
+
+        const { data: updatedOrder, error } = await supabase
+          .from("orders")
+          .update(orderShippingUpdate)
+          .eq("id", order.id)
+          .select("*")
+          .single();
         
         if (error) throw error;
     

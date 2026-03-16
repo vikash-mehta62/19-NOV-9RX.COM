@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { FieldErrors, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { useToast } from "@/hooks/use-toast";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { OrderFormValues, orderFormSchema } from "./schemas/orderSchema";
@@ -51,6 +52,39 @@ type WarehouseAddressErrors = Partial<Record<
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEN_DIGIT_PHONE_PATTERN = /^\d{10}$/;
 const FIVE_DIGIT_ZIP_PATTERN = /^\d{5}$/;
+
+const purchaseOrderFormSchema = orderFormSchema.extend({
+  customerInfo: z.object({
+    cusid: z.string().optional(),
+    name: z.string().optional().default(""),
+    email: z.string().optional().default(""),
+    phone: z.string().optional().default(""),
+    type: z.enum(["Hospital", "Pharmacy", "Clinic"]).default("Pharmacy"),
+    address: z.object({
+      street: z.string().optional().default(""),
+      city: z.string().optional().default(""),
+      state: z.string().optional().default(""),
+      zip_code: z.string().optional().default(""),
+    }),
+  }),
+  shippingAddress: z
+    .object({
+      fullName: z.string().optional(),
+      email: z.string().optional(),
+      phone: z.string().optional(),
+      address: z
+        .object({
+          street: z.string().optional(),
+          city: z.string().optional(),
+          state: z.string().optional(),
+          zip_code: z.string().optional(),
+        })
+        .optional(),
+      billing: z.any().optional(),
+      shipping: z.any().optional(),
+    })
+    .optional(),
+});
 
 export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormProps) {
   const { toast } = useToast();
@@ -135,7 +169,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   }, [vendorId]);
 
   const form = useForm<OrderFormValues>({
-    resolver: zodResolver(orderFormSchema),
+    resolver: zodResolver(purchaseOrderFormSchema),
     defaultValues: {
       id: "",
       customer: vendorId,
@@ -1351,6 +1385,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                         />
                                       </div>
                                       <Button
+                                        type="button"
                                         size="sm"
                                         onClick={() => handleSavePrice(index, sizeIndex)}
                                         className="h-7 px-2 bg-green-600 hover:bg-green-700"
@@ -1358,6 +1393,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                         <Save className="h-3 w-3" />
                                       </Button>
                                       <Button
+                                        type="button"
                                         size="sm"
                                         variant="ghost"
                                         onClick={handleCancelPriceEdit}
@@ -1372,6 +1408,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                         ${size.price.toFixed(2)}
                                       </span>
                                       <Button
+                                        type="button"
                                         size="sm"
                                         variant="ghost"
                                         onClick={() => handleEditPrice(index, sizeIndex, size.price)}

@@ -19,6 +19,49 @@ const jsonResponse = (data: unknown, status = 200) =>
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 
+const flattenFedExMessages = (value: unknown): string[] => {
+  if (!value) return [];
+  if (Array.isArray(value)) {
+    return value.flatMap(flattenFedExMessages);
+  }
+  if (typeof value === "string") {
+    const message = value.trim();
+    return message ? [message] : [];
+  }
+  if (typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const direct = [record.message, record.code, record.description]
+      .flatMap(flattenFedExMessages);
+    const nested = Object.values(record)
+      .filter((entry) => entry !== record.message && entry !== record.code && entry !== record.description)
+      .flatMap(flattenFedExMessages);
+    return [...direct, ...nested];
+  }
+  return [];
+};
+
+const buildFedExErrorMessage = (result: JsonRecord) => {
+  const primaryMessage =
+    result?.errors?.[0]?.message ||
+    result?.transactionShipments?.[0]?.alerts?.[0]?.message ||
+    result?.output?.alerts?.[0]?.message ||
+    result?.output?.notifications?.[0]?.message ||
+    result?.customerMessages?.[0]?.message ||
+    "FedEx request failed";
+
+  const detailMessages = [
+    ...flattenFedExMessages(result?.errors),
+    ...flattenFedExMessages(result?.transactionShipments?.[0]?.alerts),
+    ...flattenFedExMessages(result?.output?.alerts),
+    ...flattenFedExMessages(result?.output?.notifications),
+    ...flattenFedExMessages(result?.customerMessages),
+  ].filter((message) => message && message !== primaryMessage);
+
+  return detailMessages.length > 0
+    ? `${primaryMessage} | ${Array.from(new Set(detailMessages)).join(" | ")}`
+    : primaryMessage;
+};
+
 const getFedExSettings = async (supabase: ReturnType<typeof createClient>) => {
   const { data, error } = await supabase
     .from("settings")
@@ -93,13 +136,7 @@ const fedexRequest = async (
 
   const result = await response.json();
   if (!response.ok) {
-    const message =
-      result?.errors?.[0]?.message ||
-      result?.transactionShipments?.[0]?.alerts?.[0]?.message ||
-      result?.output?.alerts?.[0]?.message ||
-      result?.output?.notifications?.[0]?.message ||
-      result?.customerMessages?.[0]?.message ||
-      "FedEx request failed";
+    const message = buildFedExErrorMessage(result);
     throw new Error(message);
   }
 
@@ -129,6 +166,7 @@ const validateShipperSettings = (settings: JsonRecord) => {
   const missingFields: string[] = [];
   const state = String(shipper.address.stateOrProvinceCode || "").trim().toUpperCase();
   const postalCode = String(shipper.address.postalCode || "").trim();
+  const city = String(shipper.address.city || "").trim();
   const countryCode = String(shipper.address.countryCode || "").trim().toUpperCase();
   const phone = String(shipper.contact.phoneNumber || "").replace(/\D/g, "");
 
@@ -140,6 +178,10 @@ const validateShipperSettings = (settings: JsonRecord) => {
 
   if (missingFields.length > 0) {
     throw new Error(`FedEx shipper address is incomplete: ${missingFields.join(", ")}`);
+  }
+
+  if (city.length < 3) {
+    throw new Error("FedEx shipper city in Shipping Settings must contain at least 3 characters");
   }
 
   if (countryCode === "US") {
@@ -185,6 +227,10 @@ const validateRecipient = (shipment: JsonRecord) => {
     throw new Error("FedEx recipient ZIP code must be a valid US ZIP code");
   }
 
+  if (city.length < 3) {
+    throw new Error("FedEx recipient city must contain at least 3 characters");
+  }
+
   if (phone.length < 10) {
     throw new Error("FedEx recipient phone number is required");
   }
@@ -227,11 +273,19 @@ const normalizeEnum = (value: unknown, allowed: Set<string>, fallback: string) =
   return allowed.has(normalized) ? normalized : fallback;
 };
 
-const normalizeLabelOptions = (settings: JsonRecord) => {
-  const imageType = normalizeEnum(settings.fedex_label_image_type, ALLOWED_LABEL_IMAGE_TYPES, "PDF");
+const normalizeLabelOptions = (settings: JsonRecord, pkg: JsonRecord = {}) => {
+  const imageType = normalizeEnum(
+    pkg.labelImageType || settings.fedex_label_image_type,
+    ALLOWED_LABEL_IMAGE_TYPES,
+    "PDF",
+  );
   const labelStockType = THERMAL_LABEL_IMAGE_TYPES.has(imageType)
-    ? normalizeEnum(settings.fedex_label_stock_type, ALLOWED_THERMAL_STOCK_TYPES, "STOCK_4X6")
-    : normalizeEnum(settings.fedex_label_stock_type, ALLOWED_PLAIN_PAPER_STOCK_TYPES, "PAPER_85X11_TOP_HALF_LABEL");
+    ? normalizeEnum(pkg.labelStockType || settings.fedex_label_stock_type, ALLOWED_THERMAL_STOCK_TYPES, "STOCK_4X6")
+    : normalizeEnum(
+        pkg.labelStockType || settings.fedex_label_stock_type,
+        ALLOWED_PLAIN_PAPER_STOCK_TYPES,
+        "PAPER_85X11_TOP_HALF_LABEL",
+      );
 
   return { imageType, labelStockType };
 };
@@ -262,32 +316,39 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
   const length = Number(pkg.length || settings.fedex_default_length || 12);
   const width = Number(pkg.width || settings.fedex_default_width || 10);
   const height = Number(pkg.height || settings.fedex_default_height || 8);
-  const serviceType = normalizeEnum(
+  const normalizedRequestedServiceType = normalizeEnum(
     pkg.serviceType || settings.fedex_default_service_type,
     ALLOWED_SERVICE_TYPES,
     "FEDEX_GROUND",
   );
+  const isResidentialRecipient = shipment.recipient?.residential === true;
+  const serviceType =
+    isResidentialRecipient && normalizedRequestedServiceType === "FEDEX_GROUND"
+      ? "GROUND_HOME_DELIVERY"
+      : normalizedRequestedServiceType;
   const packagingType = normalizeEnum(
     pkg.packagingType || settings.fedex_default_packaging_type,
     ALLOWED_PACKAGING_TYPES,
     "YOUR_PACKAGING",
   );
   const pickupType = normalizeEnum(
-    pkg.pickupType || settings.fedex_default_pickup_type,
+    pkg.pickupType,
     ALLOWED_PICKUP_TYPES,
     "DROPOFF_AT_FEDEX_LOCATION",
   );
-  const { imageType, labelStockType } = normalizeLabelOptions(settings);
+  const { imageType, labelStockType } = normalizeLabelOptions(settings, pkg);
   const shipper = buildShipper(settings);
   const selectedPickupType = options?.minimal ? "DROPOFF_AT_FEDEX_LOCATION" : pickupType;
-  const selectedImageType = options?.minimal ? "PDF" : imageType;
-  const selectedLabelStockType = options?.minimal ? "PAPER_85X11_TOP_HALF_LABEL" : labelStockType;
+  // Keep the user's requested label output on retry; only strip optional shipment
+  // fields that commonly fail in sandbox/fallback paths.
+  const selectedImageType = imageType;
+  const selectedLabelStockType = labelStockType;
   const requestedShipment = {
     shipDatestamp: new Date().toISOString().slice(0, 10),
     pickupType: selectedPickupType,
     serviceType,
     packagingType,
-    ...(options?.minimal ? {} : { rateRequestType: ["ACCOUNT"] }),
+    rateRequestType: ["ACCOUNT"],
     totalPackageCount: 1,
     ...(options?.minimal
       ? {}
@@ -303,7 +364,11 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
         contact: {
           personName: shipment.recipient?.name || "Customer",
           phoneNumber: shipment.recipient?.phone || "",
-          ...(options?.minimal ? {} : { companyName: shipment.recipient?.name || "Customer" }),
+          ...(options?.minimal || !shipment.recipient?.companyName
+            ? {}
+            : {
+                companyName: shipment.recipient.companyName,
+              }),
           ...(shipment.recipient?.email ? { emailAddress: shipment.recipient.email } : {}),
         },
         address: {
@@ -365,6 +430,24 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
   return cleanObject(requestedShipment);
 };
 
+const buildRequestedRateQuoteShipment = (
+  settings: JsonRecord,
+  shipment: JsonRecord,
+  options?: { minimal?: boolean },
+) => {
+  const requestedShipment = buildRequestedShipment(settings, shipment, options) as JsonRecord;
+  const recipient = Array.isArray(requestedShipment.recipients)
+    ? requestedShipment.recipients[0]
+    : undefined;
+
+  if (recipient) {
+    requestedShipment.recipient = recipient;
+    delete requestedShipment.recipients;
+  }
+
+  return requestedShipment;
+};
+
 const extractShipmentResult = (result: JsonRecord) => {
   const completed = result?.output?.transactionShipments?.[0] || result?.transactionShipments?.[0] || {};
   const packageResult = completed?.pieceResponses?.[0]?.packageDocuments?.[0] || completed?.packageDocuments?.[0] || {};
@@ -424,12 +507,20 @@ Deno.serve(async (req) => {
       case "test_auth": {
         requireAccountNumber();
         validateShipperSettings(settings);
+        const shipper = buildShipper(settings);
         return jsonResponse({
           success: true,
           data: {
             connected: true,
             mode: settings.fedex_use_sandbox === false ? "production" : "sandbox",
             accountNumber,
+            shipper: {
+              companyName: shipper.contact.companyName,
+              city: shipper.address.city,
+              state: shipper.address.stateOrProvinceCode,
+              postalCode: shipper.address.postalCode,
+              countryCode: shipper.address.countryCode,
+            },
           },
         });
       }
@@ -455,10 +546,23 @@ Deno.serve(async (req) => {
         requireAccountNumber();
         validateShipperSettings(settings);
         validateRecipient(body.shipment || {});
-        const data = await fedexRequest(settings, token, "/rate/v1/rates/quotes", {
-          accountNumber: { value: accountNumber },
-          requestedShipment: buildRequestedShipment(settings, body.shipment || {}),
-        });
+        let data: JsonRecord;
+        try {
+          data = await fedexRequest(settings, token, "/rate/v1/rates/quotes", {
+            accountNumber: { value: accountNumber },
+            requestedShipment: buildRequestedRateQuoteShipment(settings, body.shipment || {}),
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "";
+          if (!/invalid field value|unable to process this request/i.test(message)) {
+            throw error;
+          }
+
+          data = await fedexRequest(settings, token, "/rate/v1/rates/quotes", {
+            accountNumber: { value: accountNumber },
+            requestedShipment: buildRequestedRateQuoteShipment(settings, body.shipment || {}, { minimal: true }),
+          });
+        }
         return jsonResponse({ success: true, data });
       }
 
@@ -477,7 +581,7 @@ Deno.serve(async (req) => {
           data = await fedexRequest(settings, token, "/ship/v1/shipments", createPayload);
         } catch (error) {
           const message = error instanceof Error ? error.message : "";
-          if (!/invalid field value/i.test(message)) {
+          if (!/invalid field value|unable to process this request/i.test(message)) {
             throw error;
           }
 
