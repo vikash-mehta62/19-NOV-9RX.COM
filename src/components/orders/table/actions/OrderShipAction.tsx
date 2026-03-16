@@ -11,11 +11,13 @@ import { OrderActivityService } from "@/services/orderActivityService";
 interface OrderShipActionProps {
   order: OrderFormValues;
   onShipOrder?: (orderId: string) => void;
+  onOrderUpdate?: (updates: Record<string, any>) => void;
 }
 
 export const OrderShipAction = ({
   order,
   onShipOrder,
+  onOrderUpdate,
 }: OrderShipActionProps) => {
   const { toast } = useToast();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
@@ -25,6 +27,8 @@ export const OrderShipAction = ({
     "FedEx"
   );
   const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
+  const compactObject = <T extends Record<string, any>>(value: T): T =>
+    Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 
   const handleShipConfirm = () => {
     setShowConfirmDialog(false);
@@ -48,6 +52,55 @@ export const OrderShipAction = ({
         shippingMethod === "FedEx"
           ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
           : 0;
+      const existingShippingAddress =
+        (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
+      const existingShippingFields =
+        ((existingShippingAddress.shipping || {}) as Record<string, any>) || {};
+      const updatedShippingAddress = recipient
+        ? compactObject({
+            ...existingShippingAddress,
+            fullName: recipient.name,
+            email: recipient.email || "",
+            phone: recipient.phone,
+            address: {
+              street: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zip_code: recipient.zip_code,
+            },
+            shipping: compactObject({
+              ...existingShippingFields,
+              street1: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zipCode: recipient.zip_code,
+              phone: recipient.phone,
+            }),
+          })
+        : order.shippingAddress;
+      const updatedShipping = compactObject({
+        ...((order.shipping || {}) as Record<string, any>),
+        method: shippingMethod,
+        trackingNumber,
+        cost: shippingCost,
+        labelUrl: fedexData?.labelUrl || order.shipping?.labelUrl,
+        labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,
+        labelFormat: fedexData?.labelFormat || order.shipping?.labelFormat,
+        labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
+        serviceType: fedexData?.serviceType || order.shipping?.serviceType,
+        packagingType: fedexData?.packagingType || order.shipping?.packagingType,
+        pickupConfirmationNumber:
+          fedexData?.pickupConfirmationNumber || order.shipping?.pickupConfirmationNumber,
+        pickupScheduledDate:
+          fedexData?.pickupScheduledDate || order.shipping?.pickupScheduledDate,
+        trackingStatus: fedexData?.trackingStatus || order.shipping?.trackingStatus,
+        estimatedDelivery: fedexData?.estimatedDeliveryDate || order.shipping?.estimatedDelivery,
+        quotedAmount:
+          typeof fedexData?.quotedAmount === "number"
+            ? fedexData.quotedAmount
+            : order.shipping?.quotedAmount,
+        quotedCurrency: fedexData?.quotedCurrency || order.shipping?.quotedCurrency,
+      });
 
       console.log("Submitting tracking information:", {
         orderId: order.id,
@@ -63,35 +116,9 @@ export const OrderShipAction = ({
           return {
             ...o,
             shippingAddress: recipient
-              ? {
-                  ...(o.shippingAddress || {}),
-                  fullName: recipient.name,
-                  email: recipient.email || "",
-                  phone: recipient.phone,
-                  address: {
-                    street: recipient.street,
-                    city: recipient.city,
-                    state: recipient.state,
-                    zip_code: recipient.zip_code,
-                  },
-                }
+              ? updatedShippingAddress
               : o.shippingAddress,
-            shipping: {
-              ...(o.shipping || {}),
-              method: shippingMethod,
-              trackingNumber,
-              cost: shippingCost,
-              labelUrl: fedexData?.labelUrl,
-              labelBase64: fedexData?.labelBase64,
-              labelFormat: fedexData?.labelFormat,
-              labelStockType: fedexData?.labelStockType,
-              serviceType: fedexData?.serviceType,
-              packagingType: fedexData?.packagingType,
-              pickupConfirmationNumber: fedexData?.pickupConfirmationNumber,
-              estimatedDelivery: fedexData?.estimatedDeliveryDate,
-              quotedAmount: fedexData?.quotedAmount,
-              quotedCurrency: fedexData?.quotedCurrency,
-            },
+            shipping: updatedShipping,
             status: "shipped",
           };
         }
@@ -117,10 +144,12 @@ export const OrderShipAction = ({
         const orderNumber = oldOrder?.order_number || "N/A";
         
         const orderShippingUpdate = {
+          shipping: updatedShipping,
+          shippingAddress: updatedShippingAddress,
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
           shipping_cost: shippingCost,
-          estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+          estimated_delivery: updatedShipping.estimatedDelivery || null,
           status: "shipped",
         };
 
@@ -132,6 +161,12 @@ export const OrderShipAction = ({
           .single();
         
         if (error) throw error;
+
+        onOrderUpdate?.({
+          ...orderShippingUpdate,
+          shipping: updatedShipping,
+          shippingAddress: updatedShippingAddress,
+        });
     
         // Log the updated order
         console.log("Updated Order:", updatedOrder);
@@ -205,6 +240,7 @@ export const OrderShipAction = ({
         onShippingMethodChange={setShippingMethod}
         order={order}
         onFedExDataChange={setFedexData}
+        onOrderUpdate={onOrderUpdate}
         onSubmit={handleTrackingSubmit}
       />
     </>

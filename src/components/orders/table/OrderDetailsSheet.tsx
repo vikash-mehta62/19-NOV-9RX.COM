@@ -3291,6 +3291,7 @@ export const OrderDetailsSheet = ({
                   onSendEmail={!hideFinancialData ? sendMail : undefined}
                   onShipOrder={!poIs && onShipOrder ? () => handleStatusUpdate("ship") : undefined}
                   onPrint={!hideFinancialData ? handlePrint : undefined}
+                  onOrderUpdate={persistCurrentOrder}
                   isGeneratingPDF={isGeneratingPDF}
                   isSendingEmail={loading}
                   userRole={userRole}
@@ -4210,6 +4211,7 @@ export const OrderDetailsSheet = ({
                       onShipOrder={() => handleStatusUpdate("ship")}
                       onConfirmOrder={() => handleStatusUpdate("confirm")}
                       onDeleteOrder={onDeleteOrder}
+                      onOrderUpdate={persistCurrentOrder}
                     />
                   </div>
                 )}

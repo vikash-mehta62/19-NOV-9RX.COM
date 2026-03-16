@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign, ShoppingCart, TrendingUp, Users } from "lucide-react";
 import { DashboardStats } from "@/pages/admin/dashboardService";
 import { LineChart, Line, ResponsiveContainer } from "recharts";
+import { useNavigate } from "react-router-dom";
 
 interface StatsGridProps {
   stats: DashboardStats | null;
@@ -13,6 +14,8 @@ interface StatsGridProps {
 }
 
 export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialData = false }: StatsGridProps) {
+  const navigate = useNavigate();
+
   if (isLoading) {
     return (
       <div className="grid gap-3 sm:gap-4 md:gap-6 grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
@@ -50,6 +53,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           subtitle="vs previous period"
           color="red"
           icon={<ShoppingCart className="w-6 h-6" />}
+          onClick={() => navigate("/admin/orders")}
+          actionLabel="Open admin orders"
         />,
         <ModernStatCard
           key="customers"
@@ -60,6 +65,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           subtitle="vs previous period"
           color="green"
           icon={<Users className="w-6 h-6" />}
+          onClick={() => navigate("/admin/users")}
+          actionLabel="Open admin users"
         />,
       ]
     : [
@@ -82,6 +89,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
               </div>
             ) : undefined
           }
+          onClick={() => navigate("/admin/analytics")}
+          actionLabel="Open admin analytics"
         />,
         <ModernStatCard
           key="orders"
@@ -92,6 +101,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           subtitle="vs previous period"
           color="red"
           icon={<ShoppingCart className="w-6 h-6" />}
+          onClick={() => navigate("/admin/orders")}
+          actionLabel="Open admin orders"
         />,
         <ModernStatCard
           key="customers"
@@ -102,6 +113,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           subtitle="vs previous period"
           color="green"
           icon={<Users className="w-6 h-6" />}
+          onClick={() => navigate("/admin/users")}
+          actionLabel="Open admin users"
         />,
         <ModernStatCard
           key="average-order"
@@ -112,6 +125,8 @@ export function StatsGrid({ stats, revenueChartData, isLoading, hideFinancialDat
           subtitle="vs previous period"
           color="purple"
           icon={<TrendingUp className="w-6 h-6" />}
+          onClick={() => navigate("/admin/analytics")}
+          actionLabel="Open admin analytics"
         />,
       ];
 

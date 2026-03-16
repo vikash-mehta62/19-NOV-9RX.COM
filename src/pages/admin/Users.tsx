@@ -12,10 +12,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { PasswordResetRequests } from "@/components/users/PasswordResetRequests";
+import { useSearchParams } from "react-router-dom";
+import { ViewProfileModal } from "@/components/users/ViewProfileModal";
 
 const Users = () => {
   const { toast } = useToast();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isAddUserOpen, setIsAddUserOpen] = useState(false);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null);
 
   const {
     users,
@@ -37,10 +41,29 @@ const Users = () => {
   const hospitals = users.filter((user) => user.type.toLowerCase() === "hospital").length;
   const groups = users.filter((user) => user.type.toLowerCase() === "group").length;
 
+  useEffect(() => {
+    setSearchTerm(searchParams.get("search") || "");
+    setFilterType(searchParams.get("type") || "all");
+    setFilterStatus(searchParams.get("status") || "all");
+  }, [searchParams, setFilterStatus, setFilterType, setSearchTerm]);
 
   useEffect(() => {
-    console.log(selectedUsers)
-  }, [selectedUsers])
+    const userIdFromUrl = searchParams.get("userId");
+    setSelectedProfileId(userIdFromUrl || null);
+  }, [searchParams]);
+
+  const handleProfileModalChange = (open: boolean) => {
+    if (open) return;
+
+    setSelectedProfileId(null);
+
+    if (!searchParams.get("userId")) return;
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("userId");
+    setSearchParams(nextParams);
+  };
+
   const handleAddUser = () => {
     setIsAddUserOpen(true);
   };
@@ -148,6 +171,13 @@ const Users = () => {
           onOpenChange={setIsAddUserOpen}
           onUserAdded={handleUserAdded}
         />
+        {selectedProfileId && (
+          <ViewProfileModal
+            userId={selectedProfileId}
+            open={!!selectedProfileId}
+            onOpenChange={handleProfileModalChange}
+          />
+        )}
         <Toaster />
       </div>
     </DashboardLayout>

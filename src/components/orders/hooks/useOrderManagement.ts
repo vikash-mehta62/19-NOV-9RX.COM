@@ -216,14 +216,30 @@ setOrders([])
             purchase_number_external: order.purchase_number_external || "",
             shippingAddress: order.shippingAddress
               ? {
+                  ...order.shippingAddress,
                   fullName: order.shippingAddress.fullName || "",
                   email: order.shippingAddress.email || "",
-                  phone: order.shippingAddress.phone || "",
+                  phone:
+                    order.shippingAddress.phone ||
+                    order.shippingAddress.shipping?.phone ||
+                    "",
                   address: {
-                    street: order.shippingAddress.address?.street || "",
-                    city: order.shippingAddress.address?.city || "",
-                    state: order.shippingAddress.address?.state || "",
-                    zip_code: order.shippingAddress.address?.zip_code || "",
+                    street:
+                      order.shippingAddress.address?.street ||
+                      order.shippingAddress.shipping?.street1 ||
+                      "",
+                    city:
+                      order.shippingAddress.address?.city ||
+                      order.shippingAddress.shipping?.city ||
+                      "",
+                    state:
+                      order.shippingAddress.address?.state ||
+                      order.shippingAddress.shipping?.state ||
+                      "",
+                    zip_code:
+                      order.shippingAddress.address?.zip_code ||
+                      order.shippingAddress.shipping?.zipCode ||
+                      "",
                   },
                 }
               : {
@@ -245,6 +261,14 @@ setOrders([])
       );
 
       setOrders(formattedOrders);
+      if (selectedOrder?.id) {
+        const refreshedSelectedOrder =
+          formattedOrders.find((item) => item.id === selectedOrder.id) || null;
+        setSelectedOrder(refreshedSelectedOrder);
+        if (!refreshedSelectedOrder) {
+          setIsSheetOpen(false);
+        }
+      }
       setLoading(false);
     } catch (error) {
       console.error("Error loading orders:", error);

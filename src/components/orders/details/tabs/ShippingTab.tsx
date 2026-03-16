@@ -12,6 +12,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "../../utils/dateUtils";
+import {
+  hasShippingLabelDocument,
+  openShippingLabelDocument,
+  printShippingLabelDocument,
+} from "../../utils/shippingLabelDocuments";
 
 // Helper function to generate tracking URL based on carrier
 const getTrackingUrl = (method: string, trackingNumber: string): string => {
@@ -214,6 +219,7 @@ export const ShippingTab = ({
   };
 
   const statusStyle = getStatusStyle();
+  const hasSavedShippingLabel = hasShippingLabelDocument(order.shipping);
 
   return (
     <div className="space-y-6">
@@ -294,15 +300,37 @@ export const ShippingTab = ({
               </div>
               
               <div className="mt-4">
-                <a
-                  href={getTrackingUrl(order.shipping.method, order.shipping.trackingNumber)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Track Package
-                </a>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={getTrackingUrl(order.shipping.method, order.shipping.trackingNumber)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Track Package
+                  </a>
+                  {hasSavedShippingLabel && (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openShippingLabelDocument(order.shipping)}
+                        className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        Open Label
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => printShippingLabelDocument(order.shipping)}
+                        className="border-blue-200 text-blue-700 hover:bg-blue-100"
+                      >
+                        Print Label
+                      </Button>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           )}

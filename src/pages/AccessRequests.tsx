@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,11 +36,14 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { AccessRequestDetailDialog } from '@/components/admin/AccessRequestDetailDialog';
 import axios from 'axios';
+import { useSearchParams } from 'react-router-dom';
 
 const BASE_URL = import.meta.env.VITE_APP_BASE_URL || "https://9rx.mahitechnocrafts.in";
 
 export default function AccessRequests() {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  const openedRequestIdRef = useRef<string | null>(null);
   const [requests, setRequests] = useState<any[]>([]);
   const [filteredRequests, setFilteredRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -57,6 +60,35 @@ export default function AccessRequests() {
   useEffect(() => {
     filterRequests();
   }, [requests, search, typeFilter]);
+
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    const requestIdFromUrl = searchParams.get('requestId');
+
+    if (requestIdFromUrl && !statusFromUrl) {
+      setStatusFilter('all');
+      return;
+    }
+
+    setStatusFilter(statusFromUrl || 'pending');
+  }, [searchParams]);
+
+  useEffect(() => {
+    const requestIdFromUrl = searchParams.get('requestId');
+    if (!requestIdFromUrl) {
+      openedRequestIdRef.current = null;
+      return;
+    }
+
+    if (loading || openedRequestIdRef.current === requestIdFromUrl) return;
+
+    const matchedRequest = requests.find((request) => request.id === requestIdFromUrl);
+    if (!matchedRequest) return;
+
+    setSelectedRequest(matchedRequest);
+    setDetailDialogOpen(true);
+    openedRequestIdRef.current = requestIdFromUrl;
+  }, [loading, requests, searchParams]);
 
   const loadRequests = async () => {
     try {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModernCard } from "@/components/modern/ModernCard";
@@ -12,15 +13,10 @@ import {
   Users,
   PackageSearch,
   Bell,
-  CheckCircle,
-  XCircle,
-  Calendar,
   Clock,
   AlertTriangle,
-  Eye,
   DollarSign,
 } from "lucide-react";
-import { AccessRequestDetailDialog } from "@/components/admin/AccessRequestDetailDialog";
 import { DashboardHeader } from "@/components/admin/dashboard/DashboardHeader";
 import { StatsGrid } from "@/components/admin/dashboard/StatsGrid";
 import { LowStockAlert } from "@/components/admin/dashboard/LowStockAlert";
@@ -41,6 +37,7 @@ import { shouldHideAdminFinancials } from "@/lib/adminAccess";
 
 const AdminDashboard = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState('30d');
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -53,8 +50,8 @@ const AdminDashboard = () => {
   
   // Alerts
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
-  const [pendingAccessRequests, setPendingAccessRequests] = useState<any[]>([]);
   const [recentAccessRequests, setRecentAccessRequests] = useState<any[]>([]);
+  const [pendingAccessRequestCount, setPendingAccessRequestCount] = useState(0);
   
   // Lists
   const [topPharmacies, setTopPharmacies] = useState<any[]>([]);
@@ -67,11 +64,42 @@ const AdminDashboard = () => {
   const [userCounts, setUserCounts] = useState<any[]>([]);
   const [totalProducts, setTotalProducts] = useState(0);
   
-  // Dialog
-  const [selectedAccessRequest, setSelectedAccessRequest] = useState<any | null>(null);
-  const [accessRequestDialogOpen, setAccessRequestDialogOpen] = useState(false);
   const currentUserProfile = useSelector((state: RootState) => state.user.profile);
   const hideFinancialData = shouldHideAdminFinancials(currentUserProfile);
+
+  const buildSearch = (params: Record<string, string | undefined>) => {
+    const searchParams = new URLSearchParams();
+
+    Object.entries(params).forEach(([key, value]) => {
+      if (value && value.trim()) {
+        searchParams.set(key, value);
+      }
+    });
+
+    const search = searchParams.toString();
+    return search ? `?${search}` : "";
+  };
+
+  const navigateToOrders = (params: { orderId?: string; status?: string; search?: string } = {}) => {
+    navigate({
+      pathname: "/admin/orders",
+      search: buildSearch(params),
+    });
+  };
+
+  const navigateToUsers = (params: { search?: string; type?: string; status?: string; userId?: string } = {}) => {
+    navigate({
+      pathname: "/admin/users",
+      search: buildSearch(params),
+    });
+  };
+
+  const navigateToAccessRequests = (params: { requestId?: string; status?: string } = {}) => {
+    navigate({
+      pathname: "/admin/access-requests",
+      search: buildSearch(params),
+    });
+  };
 
   const loadAllData = useCallback(async () => {
     setIsLoading(true);
@@ -92,6 +120,7 @@ const AdminDashboard = () => {
 
       setStats(dashboardStats);
       setLowStockProducts(alerts.lowStockProducts);
+      setPendingAccessRequestCount(alerts.pendingAccessRequestsCount);
       setRevenueChartData(chartData);
       setBestPerformingProducts(topProducts);
 
@@ -106,7 +135,6 @@ const AdminDashboard = () => {
 
       if (!hideFinancialData) {
         dashboardLoaders.unshift(
-          loadPendingAccessRequests(),
           loadRecentAccessRequests(),
         );
       }
@@ -146,7 +174,8 @@ const AdminDashboard = () => {
           filter: 'status=eq.pending'
         },
         () => {
-          loadPendingAccessRequests();
+          loadRecentAccessRequests();
+          loadPendingAccessRequestCount();
         }
       )
       .subscribe();
@@ -155,20 +184,6 @@ const AdminDashboard = () => {
       supabase.removeChannel(channel);
     };
   }, []);
-
-  const loadPendingAccessRequests = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, first_name, last_name, email, company_name, type, created_at, status, mobile_phone, work_phone, billing_address, shipping_address, tax_id')
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false });
-    
-    if (error) {
-      console.error('Error fetching pending requests:', error);
-      return;
-    }
-    setPendingAccessRequests(data || []);
-  };
 
   // Load recent access requests (only PENDING status)
   const loadRecentAccessRequests = async () => {
@@ -185,6 +200,21 @@ const AdminDashboard = () => {
       return;
     }
     setRecentAccessRequests(data || []);
+  };
+
+  const loadPendingAccessRequestCount = async () => {
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .neq('type', 'admin');
+
+    if (error) {
+      console.error('Error fetching pending access request count:', error);
+      return;
+    }
+
+    setPendingAccessRequestCount(count || 0);
   };
 
   const loadRecentOrders = async () => {
@@ -341,68 +371,6 @@ const AdminDashboard = () => {
     setTotalProducts(count || 0);
   };
 
-  const handleViewAccessRequest = (request: any) => {
-    setSelectedAccessRequest(request);
-    setAccessRequestDialogOpen(true);
-  };
-
-  const handleApproveAccess = async (profileId: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Please log in again");
-
-      // Use backend API to approve (bypasses RLS with service role)
-      const response = await fetch(`/api/users/approve-access/${profileId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to approve user");
-      }
-
-      toast({ title: 'Access Approved', description: 'User has been granted access.' });
-      loadPendingAccessRequests();
-    } catch (error: any) {
-      console.error('Error approving access:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to approve access.', variant: 'destructive' });
-    }
-  };
-
-  const handleRejectAccess = async (profileId: string) => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("Please log in again");
-
-      // Use backend API to reject (bypasses RLS with service role)
-      const response = await fetch(`/api/users/reject-access/${profileId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ reason: 'Rejected by admin from dashboard' }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Failed to reject user");
-      }
-
-      toast({ title: 'Access Rejected', description: 'User request has been rejected.' });
-      loadPendingAccessRequests();
-    } catch (error: any) {
-      console.error('Error rejecting access:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to reject access.', variant: 'destructive' });
-    }
-  };
-
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
@@ -458,15 +426,25 @@ const AdminDashboard = () => {
             {recentOrders.length > 0 && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ShoppingCart className="h-5 w-5" />
-                    Recent Orders
-                  </CardTitle>
+                  <div className="flex items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <ShoppingCart className="h-5 w-5" />
+                      Recent Orders
+                    </CardTitle>
+                    <Button variant="ghost" size="sm" onClick={() => navigate("/admin/orders")}>
+                      View All
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-2">
                     {recentOrders.slice(0, 5).map((order) => (
-                      <div key={order.id} className="flex items-center justify-between p-2 hover:bg-muted rounded-lg">
+                      <button
+                        key={order.id}
+                        type="button"
+                        onClick={() => navigateToOrders({ orderId: order.id })}
+                        className="flex w-full items-center justify-between rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                      >
                         <div className="flex-1">
                           <div className="font-medium">Order #{order.order_number}</div>
                           <div className="text-sm text-muted-foreground">
@@ -485,7 +463,7 @@ const AdminDashboard = () => {
                             {order.status}
                           </Badge>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 </CardContent>
@@ -499,14 +477,14 @@ const AdminDashboard = () => {
                     <CardTitle className="flex items-center gap-2 text-base lg:text-xs lg:font-bold">
                       <Bell className="h-5 w-5 text-orange-600 lg:text-xs lg:font-bold" />
                       Access Requests
-                      {recentAccessRequests.length > 0 && (
-                        <Badge variant="destructive" className="ml-1">{recentAccessRequests.length} pending</Badge>
+                      {pendingAccessRequestCount > 0 && (
+                        <Badge variant="destructive" className="ml-1">{pendingAccessRequestCount} pending</Badge>
                       )}
                     </CardTitle>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => window.location.href = '/admin/access-requests'}
+                      onClick={() => navigateToAccessRequests({ status: 'pending' })}
                       className="text-orange-600 hover:text-orange-700 hover:bg-orange-50 lg:text-xs lg:font-bold lg:text-wrap"
                     >
                       View All
@@ -517,10 +495,11 @@ const AdminDashboard = () => {
                   {recentAccessRequests.length > 0 ? (
                     <div className="space-y-2">
                       {recentAccessRequests.map((request) => (
-                        <div 
+                        <button
                           key={request.id} 
-                          className="flex items-center justify-between p-2 hover:bg-orange-50 rounded-lg cursor-pointer transition-colors"
-                          onClick={() => handleViewAccessRequest(request)}
+                          type="button"
+                          className="flex w-full items-center justify-between rounded-lg p-2 text-left transition-colors hover:bg-orange-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                          onClick={() => navigateToAccessRequests({ requestId: request.id })}
                         >
                           <div className="flex-1 min-w-0">
                             <div className="font-medium text-sm truncate">
@@ -532,7 +511,7 @@ const AdminDashboard = () => {
                             <Badge variant="outline" className="capitalize text-xs">{request.type}</Badge>
                             <Badge variant="secondary" className="text-xs bg-orange-100 text-orange-700">Pending</Badge>
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   ) : (
@@ -548,15 +527,25 @@ const AdminDashboard = () => {
             {/* Best Performing Products */}
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Best Performing Products
-                </CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    Best Performing Products
+                  </CardTitle>
+                  <Button variant="ghost" size="sm" onClick={() => navigate("/admin/products")}>
+                    View All
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   {bestPerformingProducts.slice(0, 5).map((product, index) => (
-                    <div key={product.id} className="space-y-1">
+                    <button
+                      key={product.id}
+                      type="button"
+                      onClick={() => product.id && navigate(`/admin/product/${product.id}`)}
+                      className="w-full space-y-1 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500"
+                    >
                       <div className="flex flex-col gap-2 justify-between text-sm">
                         <div className="flex items-center gap-2">
                           <Badge variant="outline" className="w-6 h-6 flex items-center justify-center p-0">
@@ -565,7 +554,7 @@ const AdminDashboard = () => {
                           <span className="truncate">{product.name}</span>
                         </div>
                         <div className="text-muted-foreground">
-                          {hideFinancialData ? `${product.quantity} units` : `$${product.revenue.toFixed(2)} · ${product.quantity} units`}
+                          {hideFinancialData ? `${product.quantity} units` : `$${product.revenue.toFixed(2)} - ${product.quantity} units`}
                         </div>
                       </div>
                       <div className="h-2 rounded bg-muted">
@@ -574,7 +563,7 @@ const AdminDashboard = () => {
                           style={{ width: `${Math.min(100, (product.revenue / Math.max(1, bestPerformingProducts[0]?.revenue || 1)) * 100)}%` }}
                         />
                       </div>
-                    </div>
+                    </button>
                   ))}
                   {bestPerformingProducts.length === 0 && (
                     <div className="text-sm text-muted-foreground text-center py-4">No product data available</div>
@@ -589,17 +578,27 @@ const AdminDashboard = () => {
         {!hideFinancialData && outstandingPharmacies.length > 0 && (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5 text-red-600" />
-                Outstanding Payments & AR Aging
-              </CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5 text-red-600" />
+                  Outstanding Payments & AR Aging
+                </CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => navigate("/admin/invoices")}>
+                  View All
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid gap-6 lg:grid-cols-2">
                 <div className="space-y-2">
                   <h4 className="text-sm font-semibold mb-3">Pharmacies with Outstanding Payments</h4>
                   {outstandingPharmacies.map((p) => (
-                    <div key={p.id} className="space-y-1 p-2 hover:bg-muted rounded-lg">
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => navigateToUsers({ userId: p.id })}
+                      className="w-full space-y-1 rounded-lg p-2 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    >
                       <div className="flex justify-between text-sm">
                         <div className="truncate flex-1">{p.name}</div>
                         <div className="text-right ml-2">
@@ -613,7 +612,7 @@ const AdminDashboard = () => {
                       <div className="h-2 rounded bg-muted">
                         <div className="h-2 rounded bg-red-600" style={{ width: `${Math.min(100, (p.outstanding / Math.max(1, outstandingPharmacies[0]?.outstanding || 1)) * 100)}%` }} />
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
 
@@ -621,12 +620,17 @@ const AdminDashboard = () => {
                   <h4 className="text-sm font-semibold mb-3">AR Aging Analysis</h4>
                   <div className="space-y-4">
                     {[
-                      { label: '0–30 days', value: agingBuckets.b0_30, color: 'bg-green-500' },
-                      { label: '31–60 days', value: agingBuckets.b31_60, color: 'bg-yellow-500' },
-                      { label: '61–90 days', value: agingBuckets.b61_90, color: 'bg-orange-500' },
+                      { label: '0-30 days', value: agingBuckets.b0_30, color: 'bg-green-500' },
+                      { label: '31-60 days', value: agingBuckets.b31_60, color: 'bg-yellow-500' },
+                      { label: '61-90 days', value: agingBuckets.b61_90, color: 'bg-orange-500' },
                       { label: '90+ days', value: agingBuckets.b90_plus, color: 'bg-red-600' },
                     ].map((bucket) => (
-                      <div key={bucket.label}>
+                      <button
+                        key={bucket.label}
+                        type="button"
+                        onClick={() => navigate("/admin/invoices")}
+                        className="block w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                      >
                         <div className="flex justify-between text-sm mb-1">
                           <span className="flex items-center gap-2">
                             <div className={`w-3 h-3 rounded ${bucket.color}`}></div>
@@ -637,7 +641,7 @@ const AdminDashboard = () => {
                         <div className="h-2 rounded bg-muted">
                           <div className={`h-2 rounded ${bucket.color}`} style={{ width: `${agingBuckets.total ? Math.min(100, (bucket.value / agingBuckets.total) * 100) : 0}%` }} />
                         </div>
-                      </div>
+                      </button>
                     ))}
                     <div className="pt-3 border-t">
                       <div className="flex justify-between text-sm font-semibold">
@@ -655,7 +659,7 @@ const AdminDashboard = () => {
         {/* Charts Row */}
         {!isLoading && !hideFinancialData && (
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            <ModernCard className="lg:col-span-2 xl:col-span-2">
+            <ModernCard className="lg:col-span-2 xl:col-span-2" onClick={() => navigate("/admin/analytics")}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Sales Report</h3>
               </div>
@@ -672,7 +676,7 @@ const AdminDashboard = () => {
               </div>
             </ModernCard>
 
-            <ModernCard>
+            <ModernCard onClick={() => navigate("/admin/orders")}>
               <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-gray-900">Orders by Status</h3>
               </div>
@@ -682,7 +686,15 @@ const AdminDashboard = () => {
                     <XAxis type="number" stroke="#9ca3af" />
                     <YAxis dataKey="status" type="category" stroke="#9ca3af" width={80} />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#6366f1" radius={[0, 8, 8, 0]} />
+                    <Bar
+                      dataKey="count"
+                      fill="#6366f1"
+                      radius={[0, 8, 8, 0]}
+                      onClick={(data, _index, event) => {
+                        event?.stopPropagation?.();
+                        navigateToOrders({ status: data?.status });
+                      }}
+                    />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -695,7 +707,7 @@ const AdminDashboard = () => {
           <ModernCard>
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-lg font-semibold text-gray-900">Top Customers</h3>
-              <Button variant="ghost" size="sm" onClick={() => window.location.href = '/admin/users'}>View All</Button>
+              <Button variant="ghost" size="sm" onClick={() => navigate("/admin/users")}>View All</Button>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-5 gap-4 text-sm font-medium text-gray-500 pb-2 border-b">
@@ -705,7 +717,12 @@ const AdminDashboard = () => {
                 <div>{hideFinancialData ? "Status" : "Revenue"}</div>
               </div>
               {topPharmacies.slice(0, 5).map((pharmacy, idx) => (
-                <div key={pharmacy.id} className="grid grid-cols-5 gap-4 text-sm items-center">
+                <button
+                  key={pharmacy.id}
+                  type="button"
+                  onClick={() => navigateToUsers({ search: pharmacy.name })}
+                  className="grid w-full grid-cols-5 items-center gap-4 rounded-lg p-2 text-left text-sm transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
                   <div className="text-gray-600">{idx + 1}</div>
                   <div className="flex items-center gap-2 col-span-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-400 to-pink-400 flex items-center justify-center text-white text-xs font-semibold">
@@ -717,13 +734,13 @@ const AdminDashboard = () => {
                   <div className="font-medium text-gray-900">
                     {hideFinancialData ? "Restricted" : `$${pharmacy.value.toFixed(0)}`}
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </ModernCard>
 
           {!hideFinancialData && (
-            <ModernCard className="bg-gradient-to-br from-purple-50 to-blue-50">
+            <ModernCard className="bg-gradient-to-br from-purple-50 to-blue-50" onClick={() => navigate("/admin/analytics")}>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <p className="text-sm font-medium text-gray-600 mb-1">Period Sales</p>
@@ -754,52 +771,56 @@ const AdminDashboard = () => {
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold mb-4">Quick Stats</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="flex items-center justify-between border-r pr-4">
+              <button
+                type="button"
+                onClick={() => navigate("/admin/users")}
+                className="flex items-center justify-between border-r pr-4 text-left transition-colors hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 <div className="flex items-center space-x-2">
                   <Users className="h-5 w-5 text-muted-foreground" />
                   <span className="text-sm">Active Users</span>
                 </div>
                 <span className="text-sm font-semibold">{userCounts.reduce((sum, u: any) => sum + u.count, 0)}</span>
-              </div>
-              <div className="flex items-center justify-between border-r pr-4">
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/admin/products")}
+                className="flex items-center justify-between border-r pr-4 text-left transition-colors hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 <div className="flex items-center space-x-2">
                   <PackageSearch className="h-5 w-5 text-muted-foreground" />
                   <span className="text-sm">Products</span>
                 </div>
                 <span className="text-sm font-semibold">{totalProducts}</span>
-              </div>
-              <div className="flex items-center justify-between border-r pr-4">
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/admin/orders")}
+                className="flex items-center justify-between border-r pr-4 text-left transition-colors hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              >
                 <div className="flex items-center space-x-2">
                   <ShoppingCart className="h-5 w-5 text-muted-foreground" />
                   <span className="text-sm">Orders</span>
                 </div>
                 <span className="text-sm font-semibold">{stats?.totalOrders || 0}</span>
-              </div>
+              </button>
               {!hideFinancialData && (
-                <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/analytics")}
+                  className="flex items-center justify-between text-left transition-colors hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                >
                   <div className="flex items-center space-x-2">
                     <DollarSign className="h-5 w-5 text-muted-foreground" />
                     <span className="text-sm">Revenue</span>
                   </div>
                   <span className="text-sm font-semibold">${stats?.totalSales.toLocaleString() || '0'}</span>
-                </div>
+                </button>
               )}
             </div>
           </CardContent>
         </Card>
       </div>
-
-      {!hideFinancialData && (
-        <AccessRequestDetailDialog
-          request={selectedAccessRequest}
-          open={accessRequestDialogOpen}
-          onOpenChange={setAccessRequestDialogOpen}
-          onStatusUpdate={() => {
-            loadPendingAccessRequests();
-            setSelectedAccessRequest(null);
-          }}
-        />
-      )}
     </DashboardLayout>
   );
 };

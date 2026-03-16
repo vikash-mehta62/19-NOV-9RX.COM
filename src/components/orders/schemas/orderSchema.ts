@@ -61,6 +61,17 @@ const shippingSchema = z.object({
   cost: z.number().min(0, "Shipping cost must be a positive number"),
   trackingNumber: z.string().optional(),
   estimatedDelivery: z.string().optional(),
+  labelUrl: z.string().optional(),
+  labelBase64: z.string().optional(),
+  labelFormat: z.string().optional(),
+  labelStockType: z.string().optional(),
+  serviceType: z.string().optional(),
+  packagingType: z.string().optional(),
+  pickupConfirmationNumber: z.string().optional(),
+  pickupScheduledDate: z.string().optional(),
+  trackingStatus: z.string().optional(),
+  quotedAmount: z.number().optional(),
+  quotedCurrency: z.string().optional(),
 });
 
 const paymentSchema = z.object({

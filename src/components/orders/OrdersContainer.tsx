@@ -7,7 +7,7 @@ import { useOrderManagement } from "./hooks/useOrderManagement";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Download, Package, PlusCircle, Zap, Building2, ClipboardList, CircleDashed, BadgeDollarSign } from "lucide-react";
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { supabase } from "@/supabaseClient";
 import { OrderSummaryCards } from "./OrderSummaryCards";
 import { isAfter, subDays, subYears, isWithinInterval } from "date-fns";
@@ -44,7 +44,7 @@ interface OrderHistoryItem {
 }
 
 import ProductShowcase from "../pharmacy/ProductShowcase";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { OrderFormValues } from "./schemas/orderSchema";
 import { CSVLink } from "react-csv";
 import VendorDialogForm from "./vendor-dialof-form";
@@ -109,7 +109,9 @@ export const OrdersContainer = ({
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [orderStatus, setOrderStatus] = useState<string>("");
+  const openedOrderIdRef = useRef<string | null>(null);
 
   // Payment modal state for collect balance payment
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -355,6 +357,28 @@ export const OrdersContainer = ({
     filteredOrders,
   } = useOrderFilters(orders, poIs);
 
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get("orderId") || "";
+    const statusFromUrl = searchParams.get("status") || "all";
+    const searchFromUrl = searchParams.get("search") || "";
+    const paymentStatusFromUrl = searchParams.get("paymentStatus") || "all";
+
+    setStatusFilter(paymentStatusFromUrl);
+    setStatusFilter2(statusFromUrl);
+    setSearchQuery(searchFromUrl);
+
+    if ((orderIdFromUrl || statusFromUrl !== "all" || searchFromUrl || paymentStatusFromUrl !== "all") && page !== 1) {
+      setPage(1);
+    }
+  }, [
+    page,
+    searchParams,
+    setPage,
+    setSearchQuery,
+    setStatusFilter,
+    setStatusFilter2,
+  ]);
+
   // Filter orders for history cards
   const filteredHistoryOrders = useMemo(() => {
     return orders.filter(order => {
@@ -487,6 +511,27 @@ export const OrdersContainer = ({
       loadOrders({ statusFilter, statusFilter2, searchQuery, dateRange, poIs });
     }
   }, [poIs]);
+
+  useEffect(() => {
+    const orderIdFromUrl = searchParams.get("orderId");
+
+    if (!orderIdFromUrl) {
+      openedOrderIdRef.current = null;
+      return;
+    }
+
+    if (openedOrderIdRef.current === orderIdFromUrl) {
+      return;
+    }
+
+    const matchingOrder = orders.find((order) => order.id === orderIdFromUrl);
+    if (!matchingOrder) {
+      return;
+    }
+
+    handleOrderClick(matchingOrder);
+    openedOrderIdRef.current = orderIdFromUrl;
+  }, [handleOrderClick, orders, searchParams]);
 
   const handleVendorSubmit = (data: any) => {
     console.log("Vendor data submitted:", data);

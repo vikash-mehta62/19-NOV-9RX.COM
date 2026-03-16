@@ -10,6 +10,10 @@ import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from ".
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
+import {
+  hasShippingLabelDocument,
+  printShippingLabelDocument,
+} from "../utils/shippingLabelDocuments";
 
 interface OrderHeaderProps {
   order: OrderFormValues;
@@ -19,6 +23,7 @@ interface OrderHeaderProps {
   onSendEmail?: () => void;
   onShipOrder?: () => void;
   onPrint?: () => void;
+  onOrderUpdate?: (updates: Record<string, any>) => void;
   isGeneratingPDF?: boolean;
   isSendingEmail?: boolean;
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
@@ -45,6 +50,7 @@ export const OrderHeader = ({
   onSendEmail,
   onShipOrder,
   onPrint,
+  onOrderUpdate,
   isGeneratingPDF,
   isSendingEmail,
   userRole,
@@ -59,6 +65,8 @@ export const OrderHeader = ({
   const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
   const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
   const [isShipping, setIsShipping] = useState(false);
+  const compactObject = <T extends Record<string, any>>(value: T): T =>
+    Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -71,6 +79,12 @@ export const OrderHeader = ({
 
   const handleShipConfirm = () => {
     setShowShipConfirmDialog(false);
+    setShowTrackingDialog(true);
+  };
+
+  const openShippingDialog = () => {
+    setTrackingNumber(order.shipping?.trackingNumber || "");
+    setShippingMethod(order.shipping?.method === "custom" ? "custom" : "FedEx");
     setShowTrackingDialog(true);
   };
 
@@ -100,13 +114,64 @@ export const OrderHeader = ({
 
       const oldStatus = oldOrder?.status || "unknown";
       const orderNumber = oldOrder?.order_number || "N/A";
+      const existingShippingAddress =
+        (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
+      const existingShippingFields =
+        ((existingShippingAddress.shipping || {}) as Record<string, any>) || {};
+      const updatedShippingAddress = recipient
+        ? compactObject({
+            ...existingShippingAddress,
+            fullName: recipient.name,
+            email: recipient.email || "",
+            phone: recipient.phone,
+            address: {
+              street: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zip_code: recipient.zip_code,
+            },
+            shipping: compactObject({
+              ...existingShippingFields,
+              street1: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zipCode: recipient.zip_code,
+              phone: recipient.phone,
+            }),
+          })
+        : order.shippingAddress;
+      const updatedShipping = compactObject({
+        ...((order.shipping || {}) as Record<string, any>),
+        method: shippingMethod,
+        trackingNumber,
+        cost: shippingCost,
+        labelUrl: fedexData?.labelUrl || order.shipping?.labelUrl,
+        labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,
+        labelFormat: fedexData?.labelFormat || order.shipping?.labelFormat,
+        labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
+        serviceType: fedexData?.serviceType || order.shipping?.serviceType,
+        packagingType: fedexData?.packagingType || order.shipping?.packagingType,
+        pickupConfirmationNumber:
+          fedexData?.pickupConfirmationNumber || order.shipping?.pickupConfirmationNumber,
+        pickupScheduledDate:
+          fedexData?.pickupScheduledDate || order.shipping?.pickupScheduledDate,
+        trackingStatus: fedexData?.trackingStatus || order.shipping?.trackingStatus,
+        estimatedDelivery: fedexData?.estimatedDeliveryDate || order.shipping?.estimatedDelivery,
+        quotedAmount:
+          typeof fedexData?.quotedAmount === "number"
+            ? fedexData.quotedAmount
+            : order.shipping?.quotedAmount,
+        quotedCurrency: fedexData?.quotedCurrency || order.shipping?.quotedCurrency,
+      });
 
       // Update order in database with tracking info
       const orderShippingUpdate = {
+        shipping: updatedShipping,
+        shippingAddress: updatedShippingAddress,
         tracking_number: trackingNumber,
         shipping_method: shippingMethod,
         shipping_cost: shippingCost,
-        estimated_delivery: fedexData?.estimatedDeliveryDate || null,
+        estimated_delivery: updatedShipping.estimatedDelivery || null,
         status: "shipped",
       };
 
@@ -116,6 +181,12 @@ export const OrderHeader = ({
         .eq("id", order.id);
 
       if (error) throw error;
+
+      onOrderUpdate?.({
+        ...orderShippingUpdate,
+        shipping: updatedShipping,
+        shippingAddress: updatedShippingAddress,
+      });
 
       // Log status change activity (only if status actually changed)
       if (oldStatus !== "shipped") {
@@ -177,6 +248,7 @@ export const OrderHeader = ({
   };
 
   const status = statusConfig[order.status] || statusConfig.pending;
+  const hasSavedShippingLabel = hasShippingLabelDocument(order.shipping);
   const poWorkflowState = getPoWorkflowState(order);
   const poStatusLabel = getPoWorkflowLabel(poWorkflowState);
   const poStatusBadgeClass = getPoWorkflowBadgeClass(poWorkflowState);
@@ -380,15 +452,35 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {onShipOrder && order.status !== "shipped" && order.status !== "delivered" && (
+            {hasSavedShippingLabel && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setShowShipConfirmDialog(true)}
+                onClick={() => printShippingLabelDocument(order.shipping)}
+                className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
+              >
+                <Printer className="w-4 h-4 text-indigo-600" />
+                <span className="text-xs md:text-sm">Print Label</span>
+              </Button>
+            )}
+
+            {(hasSavedShippingLabel || (onShipOrder && order.status !== "shipped" && order.status !== "delivered")) && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (hasSavedShippingLabel) {
+                    openShippingDialog();
+                    return;
+                  }
+                  setShowShipConfirmDialog(true);
+                }}
                 className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
               >
                 <Truck className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs md:text-sm">Ship</span>
+                <span className="text-xs md:text-sm">
+                  {hasSavedShippingLabel ? "Open Label" : "Ship"}
+                </span>
               </Button>
             )}
 
@@ -427,6 +519,7 @@ export const OrderHeader = ({
         onShippingMethodChange={setShippingMethod}
         order={order}
         onFedExDataChange={setFedexData}
+        onOrderUpdate={onOrderUpdate}
         onSubmit={handleTrackingSubmit}
       />
     </Card>

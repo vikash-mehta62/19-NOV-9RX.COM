@@ -1,6 +1,7 @@
-import { ReactNode } from 'react';
+import { KeyboardEvent, ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TrendingUp, TrendingDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface ModernStatCardProps {
   title: string;
@@ -11,6 +12,8 @@ interface ModernStatCardProps {
   color?: 'blue' | 'red' | 'green' | 'purple' | 'orange';
   icon?: ReactNode;
   chart?: ReactNode;
+  onClick?: () => void;
+  actionLabel?: string;
 }
 
 const colorClasses = {
@@ -30,12 +33,34 @@ export function ModernStatCard({
   color = 'blue',
   icon,
   chart,
+  onClick,
+  actionLabel,
 }: ModernStatCardProps) {
   const colors = colorClasses[color];
   const [gradientClass, iconColorClass, bgClass] = colors.split(' ');
+  const isInteractive = typeof onClick === 'function';
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!isInteractive) return;
+
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick();
+    }
+  };
 
   return (
-    <Card className="relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1">
+    <Card
+      className={cn(
+        'relative overflow-hidden transition-all duration-200 hover:shadow-lg hover:-translate-y-1',
+        isInteractive && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2'
+      )}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      role={isInteractive ? 'button' : undefined}
+      tabIndex={isInteractive ? 0 : undefined}
+      aria-label={actionLabel || title}
+    >
       <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass}`} />
       <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1 sm:pb-2 relative p-4 sm:p-5 lg:p-6">
         <CardTitle className="text-sm font-medium text-gray-600 whitespace-nowrap">{title}</CardTitle>
