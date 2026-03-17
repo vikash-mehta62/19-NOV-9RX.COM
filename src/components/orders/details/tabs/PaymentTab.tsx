@@ -19,6 +19,7 @@ interface PaymentTabProps {
   poIs?: boolean;
   onCollectPayment?: () => void;
   hideFinancialData?: boolean;
+  userRole?: "admin" | "pharmacy" | "group" | "hospital";
 }
 
 export const PaymentTab = ({
@@ -28,6 +29,7 @@ export const PaymentTab = ({
   poIs,
   onCollectPayment,
   hideFinancialData = false,
+  userRole,
 }: PaymentTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [chargedAmount, setChargedAmount] = useState(0);
@@ -150,18 +152,23 @@ export const PaymentTab = ({
   const tax = parseFloat(order.tax_amount?.toString() || "0");
   const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
   const discountDetails = (order as any).discount_details || [];
+  const hasFedExShipmentData =
+    order.shipping?.method === "FedEx" ||
+    Boolean(order.shipping?.labelUrl || order.shipping?.labelBase64 || order.shipping?.serviceType);
+  const showAdminFedExCharge = userRole === "admin" && !poIs;
+  const fedexLabelCharge =
+    showAdminFedExCharge && hasFedExShipmentData
+      ? Number(order.shipping?.quotedAmount ?? order.shipping?.cost ?? 0)
+      : 0;
   
   // Use fetched PO charges from database ONLY for Purchase Orders
   // For Sales Orders, these should be 0
   const handling = poIs ? poCharges.handling : 0;
   const fred = poIs ? poCharges.fred : 0;
   
-  // Calculate total including all charges (PO charges only added for POs) and subtracting discount
-  const total = subtotal + shipping + tax + handling + fred + processingFeeAmount - discountAmount;
+  const orderTotalBeforeCardFee = subtotal + shipping + tax + handling + fred - discountAmount;
+  const total = orderTotalBeforeCardFee + processingFeeAmount;
   const effectiveChargedAmount =  paidAmount;
-  // Display total should be the base order total (not including processing fees)
-  // Processing fees are shown separately and added to the charged amount
-  const displayTotal = total;
   
   // Calculate balance due with proper rounding to avoid floating point issues
   const rawBalanceDue = total - paidAmount;
@@ -172,9 +179,11 @@ export const PaymentTab = ({
     subtotal,
     shipping,
     tax,
+    fedexLabelCharge,
     handling,
     fred,
-    total,
+    orderTotalBeforeCardFee,
+    totalCharged: total,
     paidAmount,
     balanceDue,
     paymentStatus: effectivePaymentStatus
@@ -401,7 +410,7 @@ export const PaymentTab = ({
             <div className="flex justify-between items-center py-2">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">Subtotal</span>
+                <span className="text-gray-600">Items Subtotal</span>
               </div>
               <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
             </div>
@@ -410,10 +419,26 @@ export const PaymentTab = ({
             <div className="flex justify-between items-center py-2">
               <div className="flex items-center gap-2">
                 <Truck className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">Shipping</span>
+                <div>
+                  <span className="text-gray-600">Shipping Collected From Buyer</span>
+                  <p className="text-xs text-gray-400">What the buyer paid for shipping on this order.</p>
+                </div>
               </div>
               <span className="font-medium text-gray-900">${shipping.toFixed(2)}</span>
             </div>
+
+            {showAdminFedExCharge && (
+              <div className="flex justify-between items-center py-2">
+                <div className="flex items-center gap-2">
+                  <Truck className="w-4 h-4 text-slate-500" />
+                  <div>
+                    <span className="text-slate-700">FedEx Label Charge</span>
+                    <p className="text-xs text-slate-400">Internal shipping cost paid by admin.</p>
+                  </div>
+                </div>
+                <span className="font-medium text-slate-900">${fedexLabelCharge.toFixed(2)}</span>
+              </div>
+            )}
 
             {/* PO Charges */}
             {poIs && handling > 0 && (
@@ -440,7 +465,10 @@ export const PaymentTab = ({
             <div className="flex justify-between items-center py-2">
               <div className="flex items-center gap-2">
                 <Receipt className="w-4 h-4 text-gray-400" />
-                <span className="text-gray-600">Tax</span>
+                <div>
+                  <span className="text-gray-600">Sales Tax Collected</span>
+                  <p className="text-xs text-gray-400">Tax charged to the buyer on this order.</p>
+                </div>
               </div>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
@@ -449,7 +477,10 @@ export const PaymentTab = ({
               <div className="flex justify-between items-center py-2">
                 <div className="flex items-center gap-2">
                   <CreditCard className="w-4 h-4 text-amber-500" />
-                  <span className="text-gray-600">Card Processing Fee</span>
+                  <div>
+                    <span className="text-gray-600">Card Processing Fee Collected</span>
+                    <p className="text-xs text-gray-400">Extra fee collected from the buyer on the card payment.</p>
+                  </div>
                 </div>
                 <span className="font-medium text-amber-600">${processingFeeAmount.toFixed(2)}</span>
               </div>
@@ -483,11 +514,28 @@ export const PaymentTab = ({
               </>
             )}
 
+            {processingFeeAmount > 0 && (
+              <div className="flex justify-between items-center py-2 border-t mt-2">
+                <div>
+                  <span className="text-gray-600">Order Total</span>
+                  <p className="text-xs text-gray-400">Before card processing fee</p>
+                </div>
+                <span className="font-semibold text-gray-900">${orderTotalBeforeCardFee.toFixed(2)}</span>
+              </div>
+            )}
+
             {/* Total */}
             <div className="border-t pt-4 mt-2">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
-                <span className="text-2xl font-bold text-emerald-600">${displayTotal.toFixed(2)}</span>
+                <div>
+                  <span className="text-lg font-bold text-gray-900">
+                    {processingFeeAmount > 0 ? "Total Charged to Buyer" : "Order Total"}
+                  </span>
+                  {processingFeeAmount > 0 && (
+                    <p className="text-xs text-gray-500">Order total plus the card fee collected from the buyer.</p>
+                  )}
+                </div>
+                <span className="text-2xl font-bold text-emerald-600">${total.toFixed(2)}</span>
               </div>
             </div>
 

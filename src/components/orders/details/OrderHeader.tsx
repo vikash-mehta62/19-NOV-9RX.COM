@@ -10,6 +10,7 @@ import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from ".
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
+import { getOrderStatusDisplay, getPaymentStatusDisplay } from "../utils/orderDisplay";
 import {
   hasShippingLabelDocument,
   printShippingLabelDocument,
@@ -31,16 +32,6 @@ interface OrderHeaderProps {
   hideFinancialData?: boolean;
   totalAmountOverride?: number;
 }
-
-const statusConfig = {
-  pending: { color: "bg-yellow-100 text-yellow-800 border-yellow-300", label: "Pending" },
-  confirmed: { color: "bg-blue-100 text-blue-800 border-blue-300", label: "Confirmed" },
-  processing: { color: "bg-purple-100 text-purple-800 border-purple-300", label: "Processing" },
-  shipped: { color: "bg-indigo-100 text-indigo-800 border-indigo-300", label: "Shipped" },
-  delivered: { color: "bg-green-100 text-green-800 border-green-300", label: "Delivered" },
-  cancelled: { color: "bg-red-100 text-red-800 border-red-300", label: "Cancelled" },
-  refunded: { color: "bg-gray-100 text-gray-800 border-gray-300", label: "Refunded" },
-};
 
 export const OrderHeader = ({
   order,
@@ -247,7 +238,7 @@ export const OrderHeader = ({
     });
   };
 
-  const status = statusConfig[order.status] || statusConfig.pending;
+  const status = getOrderStatusDisplay(order.status);
   const hasSavedShippingLabel = hasShippingLabelDocument(order.shipping);
   const poWorkflowState = getPoWorkflowState(order);
   const poStatusLabel = getPoWorkflowLabel(poWorkflowState);
@@ -260,17 +251,15 @@ export const OrderHeader = ({
     rawPaidAmount === 0 && String(order.payment_status || "").toLowerCase() === "paid"
       ? totalAmount
       : rawPaidAmount;
-  const rawBalanceDue = totalAmount - paidAmount;
-  const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
-  const storedPaymentStatus = String(order.payment_status || "").toLowerCase();
-  const normalizedPaymentStatus =
-    balanceDue === 0
-      ? "paid"
-      : storedPaymentStatus === "partial_paid" || paidAmount > 0
-        ? "partial_paid"
-        : storedPaymentStatus === "pending"
-          ? "pending"
-          : "unpaid";
+  const {
+    statusKey: normalizedPaymentStatus,
+    label: paymentStatusLabel,
+    badgeClass: paymentStatusBadgeClass,
+  } = getPaymentStatusDisplay({
+    paymentStatus: order.payment_status,
+    paidAmount,
+    totalAmount,
+  });
 
   return (
     <Card className="p-4 md:p-6 mb-4 md:mb-6 border-2">
@@ -322,27 +311,13 @@ export const OrderHeader = ({
               </Badge>
             )}
 
-            <Badge className={`${poIs ? poStatusBadgeClass : status.color} border px-3 py-1 text-xs md:text-sm font-semibold`}>
+            <Badge className={`${poIs ? poStatusBadgeClass : status.badgeClass} border px-3 py-1 text-xs md:text-sm font-semibold`}>
               {poIs ? poStatusLabel : status.label}
             </Badge>
 
             {order.payment_status && (
-              <Badge
-                className={`${
-                  normalizedPaymentStatus === "paid"
-                    ? "bg-green-100 text-green-800 border-green-300"
-                    : normalizedPaymentStatus === "partial_paid"
-                      ? "bg-yellow-100 text-yellow-800 border-yellow-300"
-                      : "bg-red-100 text-red-800 border-red-300"
-                } border px-3 py-1 text-xs md:text-sm font-semibold`}
-              >
-                {normalizedPaymentStatus === "paid"
-                  ? "Paid"
-                  : normalizedPaymentStatus === "partial_paid"
-                    ? "Partial Paid"
-                    : normalizedPaymentStatus === "pending"
-                      ? "Pending"
-                      : "Unpaid"}
+              <Badge className={`${paymentStatusBadgeClass} border px-3 py-1 text-xs md:text-sm font-semibold`}>
+                {paymentStatusLabel}
               </Badge>
             )}
           </div>
@@ -357,12 +332,12 @@ export const OrderHeader = ({
           )}
 
           <div className="flex flex-wrap gap-2">
-            {/* {userRole === "admin" && order.status !== "cancelled" && !order.void && onEdit && (
+            {userRole === "admin" && order.status !== "cancelled" && !order.void && onEdit && (
               <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
                 <Edit className="w-4 h-4" />
-                <span className="hidden sm:inline">Edit</span>
+                <span className="hidden sm:inline">Edit Order</span>
               </Button>
-            )} */}
+            )}
 
             {onDownload && !hideFinancialData && (
               <Button
@@ -426,6 +401,9 @@ export const OrderHeader = ({
       {/* Quick Actions Bar */}
       {userRole === "admin" && !order.void && order.status !== "cancelled" && (
         <div className="mt-4 pt-4 border-t">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Admin Actions
+          </p>
           <div className="flex flex-wrap gap-2">
             {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && !hideFinancialData && (
               <Button

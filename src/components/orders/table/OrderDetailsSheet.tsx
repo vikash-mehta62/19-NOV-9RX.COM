@@ -156,6 +156,13 @@ export const OrderDetailsSheet = ({
   const [poDocuments, setPoDocuments] = useState<any[]>([]);
   const [poPayments, setPoPayments] = useState<any[]>([]);
 
+  const handleSheetOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen) {
+      setIsEditing(false);
+    }
+    onOpenChange(nextOpen);
+  };
+
   // Ref to track if component is mounted (prevents memory leaks)
   const isMountedRef = useRef(true);
 
@@ -3240,19 +3247,25 @@ export const OrderDetailsSheet = ({
       <PharmacyOrderDetails
         order={currentOrder}
         open={open}
-        onOpenChange={onOpenChange}
+        onOpenChange={handleSheetOpenChange}
       />
     );
   }
 
   return (
     <>
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet open={open} onOpenChange={handleSheetOpenChange}>
         <SheetContent className="w-full sm:max-w-lg md:max-w-[52rem] lg:max-w-[60rem] xl:max-w-[66rem] max-h-[95vh] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
           <SheetHeader className="mb-1 sm:mb-2">
             <SheetTitle className="text-base sm:text-lg md:text-xl">{poIs ? "Purchase Order Workspace" : "Order Details"}</SheetTitle>
             <SheetDescription className="text-xs sm:text-sm md:text-base">
-              {isEditing ? "Edit order details" : poIs ? "Approve, schedule, receive, pay, and close the purchase order from one workspace" : "View and manage order information"}
+              {isEditing
+                ? "Edit order details and click Update Order to save your changes."
+                : poIs
+                  ? "Approve, schedule, receive, pay, and close the purchase order from one workspace"
+                  : userRole === "admin"
+                    ? "Review the order here. Click Edit Order to change details, then Update Order to save."
+                    : "View and manage order information"}
             </SheetDescription>
           </SheetHeader>
 
@@ -3281,11 +3294,7 @@ export const OrderDetailsSheet = ({
                 <OrderHeader
                   order={currentOrder}
                   totalAmountOverride={poIs ? poGrossAmount : undefined}
-                  onEdit={() => {
-                    // Navigate to new flow for editing
-                    const editUrl = poIs ? `/admin/po/edit/${currentOrder.id}` : `/admin/orders/edit/${currentOrder.id}`;
-                    window.location.href = editUrl;
-                  }}
+                  onEdit={() => setIsEditing(true)}
                   onDownload={!hideFinancialData ? handleDownloadPDF : undefined}
                   onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
                   onSendEmail={!hideFinancialData ? sendMail : undefined}
@@ -4104,6 +4113,7 @@ export const OrderDetailsSheet = ({
                         order={currentOrder}
                         companyName={companyName}
                         poIs={poIs}
+                        userRole={userRole}
                         hideFinancialData={hideFinancialData}
                         onCollectPayment={onCollectPayment ? () => onCollectPayment(currentOrder) : undefined}
                       />
@@ -4172,6 +4182,7 @@ export const OrderDetailsSheet = ({
                           onSendPaymentLink={sendMail}
                           isSendingLink={loading}
                           poIs={poIs}
+                          userRole={userRole}
                           hideFinancialData={hideFinancialData}
                           onCollectPayment={onCollectPayment ? () => onCollectPayment(currentOrder) : undefined}
                         />

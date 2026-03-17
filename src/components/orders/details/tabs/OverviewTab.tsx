@@ -12,6 +12,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { formatDate } from "../../utils/dateUtils";
+import { getOrderStatusDisplay, getPaymentStatusDisplay } from "../../utils/orderDisplay";
 
 interface OverviewTabProps {
   order: OrderFormValues;
@@ -19,6 +20,7 @@ interface OverviewTabProps {
   poIs?: boolean;
   onCollectPayment?: () => void;
   hideFinancialData?: boolean;
+  userRole?: "admin" | "pharmacy" | "group" | "hospital";
 }
 
 // Helper function to safely get address fields
@@ -56,6 +58,7 @@ export const OverviewTab = ({
   poIs: poIsProp,
   onCollectPayment,
   hideFinancialData = false,
+  userRole,
 }: OverviewTabProps) => {
   const [paidAmount, setPaidAmount] = useState(0);
   const [chargedAmount, setChargedAmount] = useState(0);
@@ -126,16 +129,22 @@ export const OverviewTab = ({
   const tax = parseFloat(order.tax_amount?.toString() || "0");
   const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
   const discountDetails = (order as any).discount_details || [];
+  const hasFedExShipmentData =
+    order.shipping?.method === "FedEx" ||
+    Boolean(order.shipping?.labelUrl || order.shipping?.labelBase64 || order.shipping?.serviceType);
+  const showAdminFedExCharge = userRole === "admin" && !poIs;
+  const fedexLabelCharge =
+    showAdminFedExCharge && hasFedExShipmentData
+      ? Number(order.shipping?.quotedAmount ?? order.shipping?.cost ?? 0)
+      : 0;
   
   // Add PO charges ONLY for Purchase Orders (check poIs flag)
   const handling = poIs ? parseFloat((order as any).po_handling_charges || "0") : 0;
   const fred = poIs ? parseFloat((order as any).po_fred_charges || "0") : 0;
   
-  // Calculate total including PO charges (only for POs)
-  const total = Number(order.total);
+  const orderTotalBeforeCardFee = subtotal + shipping + tax + handling + fred - discountAmount;
+  const total = orderTotalBeforeCardFee + processingFeeAmount;
   const effectiveChargedAmount =  paidAmount;
-  // Display total should be the base order total (not including processing fees)
-  // Processing fees are shown separately and added to the charged amount
   const displayTotal = total;
 
   // Debug logging
@@ -147,11 +156,12 @@ export const OverviewTab = ({
     subtotal,
     shipping,
     tax,
+    fedexLabelCharge,
     handling,
     fred,
     discountAmount,
     total,
-    displayTotal,
+    orderTotalBeforeCardFee,
     effectiveChargedAmount,
     processingFeeAmount,
     paidAmount,
@@ -160,9 +170,17 @@ export const OverviewTab = ({
     paymentStatus: order.payment_status
   });
 
-  const isPaid = order.payment_status === "paid";
-  const isPartiallyPaid = order.payment_status === "partial_paid" || (paidAmount > 0 && paidAmount < total);
-  const isUnpaid = !isPaid && !isPartiallyPaid;
+  const {
+    label: paymentStatusLabel,
+    badgeClass: paymentStatusBadgeClass,
+  } = getPaymentStatusDisplay({
+    paymentStatus: order.payment_status,
+    paidAmount,
+    totalAmount: total,
+  });
+  const statusDisplay = getOrderStatusDisplay(order.status);
+  const isPaid = paymentStatusLabel === "Paid";
+  const isPartiallyPaid = paymentStatusLabel === "Partial Paid";
   
   // Special case: Order paid via credit memo (paid_amount = 0 but payment_status = paid)
   const isPaidViaCreditMemo = isPaid && paidAmount === 0 && total > 0;
@@ -181,7 +199,7 @@ export const OverviewTab = ({
   const shippingZip = getAddressField(order.shippingAddress, "shipping", "zipCode") || 
                       order.shippingAddress?.address?.zip_code || "";
 
-  const totalItems = order.items.reduce(
+  const totalUnits = order.items.reduce(
     (total, item) => total + item.sizes.reduce((sum, size) => sum + size.quantity, 0),
     0
   );
@@ -199,8 +217,8 @@ export const OverviewTab = ({
               <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Items</p>
-              <p className="text-base sm:text-lg font-bold text-gray-900">{order.items.length}</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Units</p>
+              <p className="text-base sm:text-lg font-bold text-gray-900">{totalUnits}</p>
             </div>
           </div>
         </Card>
@@ -211,7 +229,7 @@ export const OverviewTab = ({
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Total</p>
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Customer Total</p>
               <p className="text-base sm:text-lg font-bold text-gray-900 truncate">
                 {hideFinancialData ? maskedAmountLabel : `$${displayTotal.toFixed(2)}`}
               </p>
@@ -225,18 +243,12 @@ export const OverviewTab = ({
               <CreditCard className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Payment</p>
-              <Badge 
-                variant="secondary" 
-                className={`mt-0.5 text-[10px] sm:text-xs ${
-                  order.payment_status === "paid" 
-                    ? "bg-green-100 text-green-700" 
-                    : isPartiallyPaid
-                    ? "bg-yellow-100 text-yellow-700"
-                    : "bg-red-100 text-red-700"
-                }`}
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Payment Status</p>
+              <Badge
+                variant="secondary"
+                className={`mt-0.5 border text-[10px] sm:text-xs ${paymentStatusBadgeClass}`}
               >
-                {order.payment_status === "paid" ? "Paid" : isPartiallyPaid ? "Partial" : "Unpaid"}
+                {paymentStatusLabel}
               </Badge>
             </div>
           </div>
@@ -248,18 +260,12 @@ export const OverviewTab = ({
               <Truck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-600" />
             </div>
             <div className="min-w-0">
-              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Status</p>
-              <Badge 
-                variant="secondary" 
-                className={`mt-0.5 text-[10px] sm:text-xs capitalize ${
-                  order.status === "delivered" 
-                    ? "bg-green-100 text-green-700" 
-                    : order.status === "shipped"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-gray-100 text-gray-700"
-                }`}
+              <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Order Stage</p>
+              <Badge
+                variant="secondary"
+                className={`mt-0.5 border text-[10px] sm:text-xs ${statusDisplay.badgeClass}`}
               >
-                {order.status}
+                {statusDisplay.label}
               </Badge>
             </div>
           </div>
@@ -359,13 +365,26 @@ export const OverviewTab = ({
         <CardContent className="p-4">
           <div className="space-y-3">
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Items ({totalItems} units)</span>
+              <span className="text-gray-600">Items Subtotal ({totalUnits} units)</span>
               <span className="font-medium text-gray-900">${subtotal.toFixed(2)}</span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Shipping</span>
+              <div>
+                <span className="text-gray-600">Shipping Collected From Buyer</span>
+                <p className="text-xs text-gray-400">What the buyer paid for shipping on this order.</p>
+              </div>
               <span className="font-medium text-gray-900">${shipping.toFixed(2)}</span>
             </div>
+
+            {showAdminFedExCharge && (
+              <div className="flex justify-between items-center py-2">
+                <div>
+                  <span className="text-slate-700">FedEx Label Charge</span>
+                  <p className="text-xs text-slate-400">Internal shipping cost paid by admin.</p>
+                </div>
+                <span className="font-medium text-slate-900">${fedexLabelCharge.toFixed(2)}</span>
+              </div>
+            )}
             
             {/* PO Charges - Show only for Purchase Orders */}
             {poIs && handling > 0 && (
@@ -383,13 +402,19 @@ export const OverviewTab = ({
             )}
             
             <div className="flex justify-between items-center py-2">
-              <span className="text-gray-600">Tax</span>
+              <div>
+                <span className="text-gray-600">Sales Tax Collected</span>
+                <p className="text-xs text-gray-400">Tax charged to the buyer on this order.</p>
+              </div>
               <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
             </div>
 
             {processingFeeAmount > 0 && (
               <div className="flex justify-between items-center py-2">
-                <span className="text-gray-600">Card Processing Fee</span>
+                <div>
+                  <span className="text-gray-600">Card Processing Fee Collected</span>
+                  <p className="text-xs text-gray-400">Extra fee collected from the buyer on the card payment.</p>
+                </div>
                 <span className="font-medium text-amber-600">${processingFeeAmount.toFixed(2)}</span>
               </div>
             )}
@@ -416,9 +441,26 @@ export const OverviewTab = ({
               </>
             )}
             
+            {processingFeeAmount > 0 && (
+              <div className="flex justify-between items-center py-2 border-t mt-2">
+                <div>
+                  <span className="text-gray-600">Order Total</span>
+                  <p className="text-xs text-gray-400">Before card processing fee</p>
+                </div>
+                <span className="font-semibold text-gray-900">${orderTotalBeforeCardFee.toFixed(2)}</span>
+              </div>
+            )}
+            
             <div className="border-t pt-3 mt-2">
               <div className="flex justify-between items-center">
-                <span className="text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
+                <div>
+                  <span className="text-lg font-bold text-gray-900">
+                    {processingFeeAmount > 0 ? "Total Charged to Buyer" : "Order Total"}
+                  </span>
+                  {processingFeeAmount > 0 && (
+                    <p className="text-xs text-gray-500">Order total plus the card fee collected from the buyer.</p>
+                  )}
+                </div>
                 <span className="text-2xl font-bold text-emerald-600">${displayTotal.toFixed(2)}</span>
               </div>
               
