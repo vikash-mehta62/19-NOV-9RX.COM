@@ -46,17 +46,21 @@ export function InvoiceTableContent({
   };
 
   const getDisplayInvoiceAmount = (invoice: Invoice) => {
-    const baseAmount =
-      Number(invoice.total_amount || 0) ||
-      (
-        Number(invoice.subtotal || 0) +
-        Number(invoice.tax_amount || 0) +
-        Number(invoice.shippin_cost || 0) -
-        Number((invoice as any).discount_amount || 0)
-      );
-
-    const processingFeeAmount = Number((invoice as any).processing_fee_amount || 0);
-    return processingFeeAmount > 0 ? baseAmount + processingFeeAmount : baseAmount;
+    // Use stored total_amount if available (it already includes processing fee)
+    const storedTotal = Number(invoice.total_amount || 0);
+    
+    if (storedTotal > 0) {
+      return storedTotal;
+    }
+    
+    // Otherwise calculate: subtotal + tax + shipping + processing_fee - discount
+    const subtotal = Number(invoice.subtotal || 0);
+    const tax = Number(invoice.tax_amount || 0);
+    const shipping = Number(invoice.shippin_cost || 0);
+    const discount = Number((invoice as any).discount_amount || 0);
+    const processingFee = Number((invoice as any).processing_fee_amount || 0);
+    
+    return subtotal + tax + shipping + processingFee - discount;
   };
 
   // Format date nicely

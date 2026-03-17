@@ -811,7 +811,8 @@ const OrderCreationWizardComponent = ({
       // In pharmacy mode, redirect to products page to edit items
       navigate("/pharmacy/products");
     } else {
-      wizardState.goToStep(3);
+      // wizardState.goToStep(3); // For admin, go to products step
+      navigate("/admin/products");
     }
   }, [wizardState, isPharmacyMode, navigate]);
 

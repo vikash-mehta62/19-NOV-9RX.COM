@@ -36,13 +36,13 @@ cusid :z.string().optional(),
 
 const sizeSchema = z.object({
   id: z.string().min(1, "Size ID is required"),
+  size_name: z.string().optional().default(""),
   price: z.number().min(0, "Price must be a positive number"),
   quantity: z.number().min(0, "Quantity must be at least 0"),
   size_unit: z.string().min(1, "Size unit is required"),
-  size_value: z.string().min(1, "Size value is required"),  
-  groupIds: z.array(z.string()).optional().default([]), // ✅ here
-  disAllogroupIds: z.array(z.string()).optional().default([]), // ✅ here
-
+  size_value: z.string().min(1, "Size value is required"),
+  groupIds: z.array(z.string()).optional().default([]),
+  disAllogroupIds: z.array(z.string()).optional().default([]),
 });
 
 const orderItemSchema = z.object({

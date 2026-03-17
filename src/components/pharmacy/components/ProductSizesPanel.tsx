@@ -158,6 +158,7 @@ export const ProductSizesPanel = ({
               }
               return {
                 id: size.id,
+                size_name: size.size_name || "",
                 size_value: size.size_value,
                 size_unit: size.size_unit,
                 rolls_per_case: size.rolls_per_case,
@@ -368,6 +369,7 @@ export const ProductSizesPanel = ({
         shipping_cost: size.shipping_cost || 0,
         sizes: [{
           id: sizeId,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: currentPrice,

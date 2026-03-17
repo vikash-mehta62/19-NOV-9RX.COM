@@ -70,7 +70,7 @@ export function ProductSelection({ form, products }: ProductSelectionProps) {
     label: group.label,
     options: group.options.map(option => ({
       ...option,
-      label: `${option.label} (${group.label})`,
+      label: option.sizeName ? `${option.label} (${option.sizeName})` : `${option.label}`,
       value: option.value
     }))
   }));

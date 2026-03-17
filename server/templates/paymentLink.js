@@ -44,8 +44,8 @@ const paymentLink = (order) => {
                             <div style="display: flex; align-items: center;">
                                 ${item.image ? `<img src="${item.image}" alt="${item.name}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px; margin-right: 12px;">` : ''}
                                 <div>
-                                    <p style="margin: 0; font-weight: 600; color: #1f2937;">${item.name}</p>
-                                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #6b7280;">Size: ${size.size || size.name || 'N/A'}</p>
+                                    <p style="margin: 0; font-weight: 600; color: #1f2937;">${size.size_name || item.size_name || item.name}</p>
+                                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #6b7280;">Size: ${[size.size_value, size.size_unit].filter(Boolean).join(' ') || size.size || size.name || 'N/A'}</p>
                                     ${item.ndc ? `<p style="margin: 2px 0 0 0; font-size: 12px; color: #9ca3af;">NDC: ${item.ndc}</p>` : ''}
                                 </div>
                             </div>

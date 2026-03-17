@@ -855,9 +855,9 @@ export const OrderDetailsSheet = ({
 
     const tableHead = poIs
       ? showPricing
-        ? [["#", "Item", "Size / Pack", "Qty", "Unit Cost", "Line Total"]]
-        : [["#", "Item", "Size / Pack", "Qty"]]
-      : [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+        ? [["SKU", "Item", "Size / Pack", "Qty", "Unit Cost", "Line Total"]]
+        : [["SKU", "Item", "Size / Pack", "Qty"]]
+      : [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]];
     const tableBody: any[] = [];
     let itemIndex = 1;
 
@@ -866,15 +866,14 @@ export const OrderDetailsSheet = ({
         const sizePack = [
           [size.size_value, size.size_unit].filter(Boolean).join(" "),
           size.quantity_per_case ? `${size.quantity_per_case}/case` : "",
-          size.sku || "",
         ].filter(Boolean).join(" • ");
 
         tableBody.push(
           poIs
             ? showPricing
-              ? [itemIndex.toString(), item.name, sizePack || "Standard", String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
-              : [itemIndex.toString(), item.name, sizePack || "Standard", String(size.quantity || 0)]
-            : [itemIndex.toString(), item.name, [size.size_value, size.size_unit].filter(Boolean).join(" "), String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
+              ? [size.sku || item.sku || '', size.size_name || item.name, sizePack || "Standard", String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
+              : [size.sku || item.sku || '', size.size_name || item.name, sizePack || "Standard", String(size.quantity || 0)]
+            : [size.sku || item.sku || '', size.size_name || item.name, [size.size_value, size.size_unit].filter(Boolean).join(" "), String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
         );
         itemIndex += 1;
 
@@ -891,9 +890,9 @@ export const OrderDetailsSheet = ({
       alternateRowStyles: { fillColor: [250, 250, 250] },
       columnStyles: poIs
         ? showPricing
-          ? { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: 56 }, 2: { cellWidth: 45 }, 3: { halign: "center", cellWidth: 14 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 26 } }
-          : { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: 75 }, 2: { cellWidth: 70 }, 3: { halign: "center", cellWidth: 20 } }
-        : { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
+          ? { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 56 }, 2: { halign: "center", cellWidth: 45 }, 3: { halign: "center", cellWidth: 14 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 26 } }
+          : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 75 }, 2: { halign: "center", cellWidth: 70 }, 3: { halign: "center", cellWidth: 20 } }
+        : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
       margin: { left: margin, right: margin, bottom: 30 },
       showHead: "everyPage",
       didDrawPage: () => {
@@ -1724,10 +1723,9 @@ export const OrderDetailsSheet = ({
 
       // ===== ITEMS TABLE =====
       const tableStartY = infoStartY + 42;
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
+      const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]];
       const tableBody: any[] = [];
 
-      let itemIndex = 1;
       currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size, sizeIndex) => {
           const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
@@ -1735,8 +1733,7 @@ export const OrderDetailsSheet = ({
           const pricePerUnit = `${Number(size.price).toFixed(2)}`;
           const totalPerSize = `${(size.quantity * size.price).toFixed(2)}`;
 
-          tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
-          itemIndex++;
+          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
 
         });
       });
@@ -1760,7 +1757,7 @@ export const OrderDetailsSheet = ({
           fillColor: [250, 250, 250]
         },
         columnStyles: {
-          0: { halign: "center", cellWidth: 10 },
+          0: { halign: "center", cellWidth: 22 },
           1: { cellWidth: "auto" },
           2: { halign: "center", cellWidth: 25 },
           3: { halign: "center", cellWidth: 15 },
@@ -3475,6 +3472,7 @@ export const OrderDetailsSheet = ({
                                   return (
                                     <div key={rowKey} className="grid gap-3 rounded-lg border bg-white p-3 md:grid-cols-[minmax(0,1.4fr)_90px_90px_110px]">
                                       <div>
+                                        <p className="font-bold text-gray-900">{size.size_name}</p>
                                         <p className="font-medium text-slate-900">{size.size_value} {size.size_unit}</p>
                                         <p className="text-xs text-slate-500">
                                           {size.quantity_per_case ? `${size.quantity_per_case}/case` : "No case pack"}

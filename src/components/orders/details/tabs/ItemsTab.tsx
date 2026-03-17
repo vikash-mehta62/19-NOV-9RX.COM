@@ -135,6 +135,62 @@ export const ItemsTab = ({
   const extraChargesTotal = freightCharges + handlingCharges;
   const grandTotal = subtotal + shippingCost + taxAmount + extraChargesTotal + processingFeeAmount- discountAmount;
 
+  // Check if items have actually changed
+  const hasItemsChanged = useMemo(() => {
+    if (!isEditMode) return false;
+    
+    // Deep comparison of items
+    try {
+      const originalJson = JSON.stringify(items);
+      const editedJson = JSON.stringify(editedItems);
+      return originalJson !== editedJson;
+    } catch (error) {
+      console.error("Error comparing items:", error);
+      return true; // If comparison fails, allow save
+    }
+  }, [items, editedItems, isEditMode]);
+
+  // Determine if save should be disabled
+  const isSaveDisabled = useMemo(() => {
+    if (isSaving) return true;
+    if (!hasItemsChanged) return true; // No changes made
+    if (editedItems.length === 0) return true; // No items
+    
+    // Check if any item has invalid data
+    const hasInvalidItems = editedItems.some(item => {
+      if (!item.sizes || item.sizes.length === 0) return true;
+      return item.sizes.some(size => {
+        return size.quantity <= 0 || size.price < 0;
+      });
+    });
+    
+    return hasInvalidItems;
+  }, [isSaving, hasItemsChanged, editedItems]);
+
+  // Get save button tooltip/message
+  const getSaveButtonMessage = () => {
+    if (isSaving) return "Saving changes...";
+    if (!hasItemsChanged) return "No changes to save";
+    if (editedItems.length === 0) return "Cannot save order with no items";
+    
+    // Check for invalid items
+    const invalidItem = editedItems.find(item => {
+      if (!item.sizes || item.sizes.length === 0) return true;
+      return item.sizes.some(size => size.quantity <= 0 || size.price < 0);
+    });
+    
+    if (invalidItem) {
+      return "Please fix invalid items (quantity must be > 0, price must be >= 0)";
+    }
+    
+    return "Save changes to order";
+  };
+
+  // Check if a specific item/size is invalid
+  const isItemSizeInvalid = (item: any, size: any) => {
+    return size.quantity <= 0 || size.price < 0;
+  };
+
   // Handle entering edit mode
   const handleEnterEditMode = useCallback(() => {
     setEditedItems([...items]);
@@ -477,16 +533,33 @@ export const ItemsTab = ({
      const orderUpdate: any = {
   items: itemsToSave,
 };
+const isDecrease = newTotal < oldTotal;
 
 // ❗ Only update total when NO payment adjustment
 if (
   !paymentAdjustmentResult ||
   paymentAdjustmentResult.adjustmentType === "none" ||
-  paymentAdjustmentResult.adjustmentType === "send_payment_link"
+  paymentAdjustmentResult.adjustmentType === "send_payment_link" ||
+  paymentAdjustmentResult.adjustmentType === "use_credit" ||
+    paymentAdjustmentResult.adjustmentType === "issue_credit_memo"
+
 ) {
   orderUpdate.total_amount = newTotal;
+  // Preserve processing_fee_amount when updating total
+  // Processing fee doesn't change when items are edited
+  if (currentOrderData?.processing_fee_amount) {
+    orderUpdate.processing_fee_amount = currentOrderData.processing_fee_amount;
+  }
 }
-      
+      if (paymentAdjustmentResult.adjustmentType === "none" && isDecrease) {
+  const adjustedPaid = Math.min(paidAmount, newTotal);
+  orderUpdate.paid_amount = adjustedPaid;
+
+  orderUpdate.payment_status = recalculateOrderPaymentStatus({
+    total_amount: newTotal,
+    paid_amount: adjustedPaid,
+  });
+}
       if (updatePaymentStatus) {
         orderUpdate.payment_status = updatePaymentStatus;
       }
@@ -500,6 +573,14 @@ if (
       if (error) throw error;
 
       // Update invoice if exists
+      // IMPORTANT: Fetch the LATEST order data to get updated processing_fee_amount
+      // (PaymentAdjustmentModal may have updated it with accumulated fees)
+      const { data: latestOrderData } = await supabase
+        .from("orders")
+        .select("processing_fee_amount, total_amount, paid_amount, payment_status")
+        .eq("id", orderId)
+        .single();
+
       const { data: invoiceData } = await supabase
         .from("invoices")
         .select("id")
@@ -510,10 +591,15 @@ if (
         const invoiceUpdate: any = {
           items: itemsToSave,
           subtotal: newSubtotal,
-          total_amount: newTotal,
+          // Use latest values from order (may have been updated by payment adjustment)
+          total_amount: latestOrderData?.total_amount || newTotal,
+          processing_fee_amount: latestOrderData?.processing_fee_amount || 0,
+          paid_amount: latestOrderData?.paid_amount || paidAmount,
         };
         
-        if (updatePaymentStatus) {
+        if (latestOrderData?.payment_status) {
+          invoiceUpdate.payment_status = latestOrderData.payment_status;
+        } else if (updatePaymentStatus) {
           invoiceUpdate.payment_status = updatePaymentStatus;
         }
         
@@ -841,8 +927,9 @@ if (
                   <Button 
                     size="sm" 
                     onClick={handleSaveChanges} 
-                    disabled={isSaving}
-                    className="gap-1.5 bg-blue-600 hover:bg-blue-700"
+                    disabled={isSaveDisabled}
+                    className="gap-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={getSaveButtonMessage()}
                   >
                     {isSaving ? (
                       <>Saving...</>
@@ -857,6 +944,23 @@ if (
               )}
             </div>
           </div>
+          
+          {/* Visual Feedback for Edit Mode */}
+          {isEditMode && (
+            <div className="mt-4 pt-4 border-t">
+              {!hasItemsChanged ? (
+                <div className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
+                  <AlertCircle className="w-4 h-4" />
+                  <span>No changes detected. Modify items to enable save.</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-sm text-green-600 bg-green-50 px-3 py-2 rounded-lg">
+                  <Check className="w-4 h-4" />
+                  <span>Changes detected. Click "Save Changes" to update the order.</span>
+                </div>
+              )}
+            </div>
+          )}
         </CardHeader>
       </Card>
 
@@ -941,7 +1045,10 @@ if (
                             : "grid-cols-4"
                       } gap-4 px-4 py-3 hover:bg-gray-50 transition-colors items-center`}
                     >
-                      <div>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900">
+                          {size.size_name}
+                          </span>
                         <span className="font-medium text-gray-900">
                           {size.size_value} {size.size_unit}
                         </span>

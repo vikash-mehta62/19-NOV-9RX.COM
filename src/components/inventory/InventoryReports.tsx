@@ -35,6 +35,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
             basePrice: item.customization?.price || 0,
           },
           sizes: item.product_sizes?.map((size: any) => ({
+            size_name: size.size_name || "",
             size_value: size.size_value,
             size_unit: size.size_unit,
             price: size.price,
@@ -60,8 +61,9 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
    */
   const exportAllProductsToCsv = () => {
     const headers = [
-      "Product Name",
+      "Sub Category",
       "Product Code",
+      "Product Name",
       "Size Value",
       "Size Unit",
       "Price",
@@ -76,6 +78,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
           csvContent += [
             `"${product.name}"`, // Enclose name in quotes to handle commas
             `"${product.sku}"`,
+            `"${size.size_name || ""}"`, // Include size name if available
             `"${size.size_value}"`,
             `"${size.size_unit}"`,
             `"${size.cost_price}"`,
@@ -112,6 +115,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
    */
   const exportSingleProductToCsv = (product: any) => {
     const headers = [
+      "Size Name",
       "Size Value",
       "Size Unit",
       "Price",
@@ -123,6 +127,7 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
     if (product.sizes && product.sizes.length > 0) {
       product.sizes.forEach((size: any) => {
         csvContent += [
+          `"${size.size_name}"`,
           `"${size.size_value}"`,
           `"${size.size_unit}"`,
           `"${size.cost_price}"`,
@@ -203,9 +208,16 @@ export const InventoryReports = ({ inventoryData }: InventoryReportsProps) => {
                             <ul className="space-y-3">
                               {item.sizes.map((size: any, sizeIndex: number) => (
                                 <li key={sizeIndex} className="flex justify-between p-3 border rounded-lg bg-gray-50 shadow-sm">
+                                  <p className="flex flex-col gap-1">
+                                  {size.size_name && (
+                                    <span>
+                                      <strong> Product Name: </strong>{size.size_name}
+                                    </span>
+                                  )}
                                   <span className="font-medium text-gray-700">
-                                    {size.size_value} {size.size_unit.toUpperCase()}
+                                    <strong>  Size: </strong> {size.size_value} {size.size_unit.toUpperCase()}
                                   </span>
+                                  </p>
                                   <span className="text-gray-600">Stock: {size.stock}</span>
                                   <span className="text-gray-600">Price: ${size.cost_price}</span>
                                 </li>

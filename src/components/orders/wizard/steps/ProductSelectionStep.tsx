@@ -26,6 +26,7 @@ import { fetchCategories } from "@/utils/categoryUtils";
 
 interface ProductSize {
   id: string;
+  size_name?: string;
   size_value: string;
   size_unit: string;
   price: number;
@@ -70,7 +71,7 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
     .select(`
       id, name, sku, category, subcategory, image_url,
       product_sizes!inner (
-        id, size_value, size_unit, price, price_per_case, stock, sku,
+        id, size_name, size_value, size_unit, price, price_per_case, stock, sku,
         groupIds, disAllogroupIds
       )
     `)
@@ -400,6 +401,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         quantity: 1,
         sizes: [{
           id: sizeId,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: price,
@@ -416,7 +418,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
       onCartUpdate?.();
       toast({
         title: "Added to Order",
-        description: `${product.name} - ${size.size_value} ${size.size_unit} (${type})`,
+        description: `${size.size_name || product.name} - ${size.size_value} ${size.size_unit} (${type})`,
       });
     } catch (error) {
       toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
@@ -975,6 +977,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           {product.product_sizes.map((size) => (
                             <div key={size.id} className={cn("bg-white rounded-lg border text-center", isLaptop ? "p-1.5" : "p-3")}>
                               <p className={cn("font-semibold text-gray-900", isLaptop ? "text-[11px]" : "text-sm")}>
+                                {size.size_name || `${size.size_value} ${size.size_unit}`}
+                              </p>
+                              <p className={cn("text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
                                 {size.size_value} {size.size_unit}
                               </p>
                               {size.sku && (
@@ -1051,6 +1056,9 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                         <div key={`${size.id}-${idx}`} className={cn("bg-gray-50 rounded-lg mb-1", isLaptop ? "p-1.5" : "p-3")}>
                           {/* Size Name */}
                           <p className={cn("font-medium text-gray-800 mb-0.5", isLaptop ? "text-[11px]" : "text-sm")}>
+                            {size.size_name || `${size.size_value} ${size.size_unit}`}
+                          </p>
+                          <p className={cn("text-gray-500", isLaptop ? "text-[9px] mb-0.5" : "text-xs mb-1")}>
                             {size.size_value} {size.size_unit}
                           </p>
                           {/* Size SKU - always show if available */}

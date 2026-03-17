@@ -55,7 +55,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
         const weightPerCase = size.weight_per_case || 2.5;
         items.push({
           sku: size.sku || "-",
-          name: item.name,
+          name: size.size_name || item.size_name || item.name,
           size: `${size.size_value} ${size.size_unit || ""}`.trim(),
           sizeId: size.id, // Store size ID for batch lookup
           qtyPerCase,

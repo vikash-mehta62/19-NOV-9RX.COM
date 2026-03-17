@@ -608,7 +608,7 @@ const CreateOrderPaymentForm = ({
         profile_id: profileID,
         location_id: pId,
         status: data.status || "new",
-        total_amount: finalTotal,
+        total_amount: finalTotal + cardProcessingFeeAmount, // Include card processing fee in total
         shipping_cost: shipping,
         tax_amount: Number(tax),
         items: cleanedCartItems,
@@ -626,6 +626,8 @@ const CreateOrderPaymentForm = ({
         // Add discount information
         discount_amount: discount,
         discount_details: discountDetails || data.appliedDiscounts || [],
+        // Add processing fee information
+        processing_fee_amount: cardProcessingFeeAmount,
       };
       const MAX_ORDER_RETRIES = 5;
       let finalOrderNumber = generatedOrderNumber;
@@ -685,7 +687,7 @@ const CreateOrderPaymentForm = ({
         status: "pending" as InvoiceStatus,
         amount: finalTotal,
         tax_amount: Number(tax),
-        total_amount: finalTotal,
+        total_amount: finalTotal + cardProcessingFeeAmount, // Include card processing fee in total
         payment_status: "paid",
         payment_transication: response.data.transactionId || "",
         payment_method: "card" as const,
@@ -703,6 +705,8 @@ const CreateOrderPaymentForm = ({
         // Add discount information
         discount_amount: discount,
         discount_details: discountDetails || [],
+        // Add processing fee information
+        processing_fee_amount: cardProcessingFeeAmount,
       };
 
       let finalInvoiceData;

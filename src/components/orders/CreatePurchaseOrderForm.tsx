@@ -694,6 +694,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       sizes: [
         {
           id: size.id,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price,
@@ -715,7 +716,8 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     }));
     toast({
       title: "Product added",
-      description: `${product.name} ${size.size_value} ${size.size_unit} added to purchase order.`,
+      description: `${size.size_name || size.size_value + size.size_unit} added to purchase order.`,
+      // description: `${product.name} ${size.size_value} ${size.size_unit} added to purchase order.`,
     });
   };
 
@@ -1353,7 +1355,12 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                             
                             return (
                               <div key={sizeIndex} className="bg-white p-3 rounded border">
-                                <div className="flex justify-between items-start text-sm mb-2">
+                                <div className="flex flex-col justify-between items-start text-sm mb-2">
+                                  {size.size_name && (
+                                    <span className="text-gray-600 font-bold">
+                                      Product name: {size.size_name}
+                                    </span>
+                                  )}
                                   <span className="text-gray-600 font-medium">
                                     Size: {size.size_value} {size.size_unit}
                                   </span>
@@ -1716,10 +1723,15 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                           className="grid gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 lg:grid-cols-[minmax(0,1.35fr)_130px_140px_90px_100px_140px] lg:items-center"
                                         >
                                           <div>
+                                            {size.size_name && (
+                                              <p className=" text-semibold text-slate-900">
+                                                <strong> Product Name: </strong> {size.size_name}
+                                              </p>
+                                            )}
                                             <p className="font-medium text-slate-900">
-                                              {size.size_value} {size.size_unit}
+                                              <strong> Size: </strong> {size.size_value} {size.size_unit}
                                             </p>
-                                            {size.sku && <p className="text-xs text-slate-500">Size SKU: {size.sku}</p>}
+                                            {size.sku && <p className="text-xs text-slate-500">SKU: {size.sku}</p>}
                                           </div>
                                           <div className="text-sm text-slate-600">
                                             {size.quantity_per_case

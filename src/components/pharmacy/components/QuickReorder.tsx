@@ -13,6 +13,7 @@ import { useNavigate } from "react-router-dom"
 
 interface OrderSize {
   id: string
+  size_name?: string
   size_value: string
   size_unit: string
   price: number
@@ -61,10 +62,15 @@ export const QuickReorder = () => {
           orders.forEach((order: any) => {
             const items = order.items || []
             items.forEach((item: any) => {
-              if (!itemsMap.has(item.productId)) {
+              const resolvedProductId = item.productId || item.product_id || item.id
+              if (!resolvedProductId || itemsMap.has(resolvedProductId)) {
+                return
+              }
+
                 // Get all sizes from the order item
                 const sizes = (item.sizes || []).map((size: any) => ({
                   id: size.id,
+                  size_name: size.size_name || "",
                   size_value: size.size_value,
                   size_unit: size.size_unit,
                   price: size.price,
@@ -74,16 +80,15 @@ export const QuickReorder = () => {
                   shipping_cost: size.shipping_cost
                 }))
 
-                itemsMap.set(item.productId, {
-                  id: item.productId,
-                  productId: item.productId,
+                itemsMap.set(resolvedProductId, {
+                  id: resolvedProductId,
+                  productId: resolvedProductId,
                   name: item.name,
                   image: item.image || "/placeholder.svg",
                   lastOrdered: order.created_at,
                   price: item.price,
                   sizes: sizes
                 })
-              }
             })
           })
           
@@ -122,6 +127,7 @@ export const QuickReorder = () => {
         quantity: item.sizes.reduce((sum, s) => sum + s.quantity, 0),
         sizes: item.sizes.map(size => ({
           id: size.id,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: size.price,

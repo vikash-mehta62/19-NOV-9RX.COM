@@ -349,14 +349,14 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       const colX = {
         num: PAGE_MARGIN + 2,
-        desc: PAGE_MARGIN + 12,
+        desc: PAGE_MARGIN + 20,
         size: PAGE_MARGIN + 85,
         qty: PAGE_MARGIN + 125,
         price: PAGE_MARGIN + 145,
         total: PAGE_MARGIN + 168,
       };
       
-      doc.text('#', mm(colX.num), mm(tableStartY + 3));
+      doc.text('SKU', mm(colX.num), mm(tableStartY + 3));
       doc.text('Description', mm(colX.desc), mm(tableStartY + 3));
       doc.text('Size', mm(colX.size), mm(tableStartY + 3));
       doc.text('Qty', mm(colX.qty), mm(tableStartY + 3));
@@ -379,7 +379,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         if (Array.isArray(item.sizes) && item.sizes.length > 0) {
           // Item has sizes array (frontend format)
           item.sizes.forEach((size) => {
-            const itemName = item.name || item.product_name || "Item";
+            const itemName = size.size_name || item.size_name || item.sizeName || item.name || item.product_name || "Item";
             const itemSize = `${size.size_value || ""} ${size.size_unit || ""}`.trim();
             const itemQty = toNumber(size.quantity || 0);
             const itemPrice = toNumber(size.price || 0);
@@ -392,8 +392,8 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             }
             
             doc.fillColor('#1F2937');
-            doc.text(itemIndex.toString(), mm(colX.num), mm(rowY + 2.5));
-            doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(70) });
+            doc.text(size.sku || item.size_sku || item.sizeSku || item.sku || '', mm(colX.num), mm(rowY + 2.5), { width: mm(16) });
+            doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(62) });
             doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
             doc.text(itemQty.toString(), mm(colX.qty), mm(rowY + 2.5));
             if (includePricingInPdf) {
@@ -406,20 +406,20 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           });
         } else {
           // Flat item structure (legacy format)
-          const itemName = item.name || item.product_name || "Item";
+          const itemName = item.size_name || item.sizeName || item.name || item.product_name || "Item";
           const itemSize = item.size || "";
           const itemQty = toNumber(item.quantity || 1);
           const itemPrice = toNumber(item.price || item.unit_price || 0);
           const itemTotal = itemPrice * itemQty;
-          
+
           if (itemIndex % 2 === 0) {
             doc.rect(mm(PAGE_MARGIN), mm(rowY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(rowHeight))
                .fill('#EFF6FF');
           }
-          
+
           doc.fillColor('#1F2937');
-          doc.text(itemIndex.toString(), mm(colX.num), mm(rowY + 2.5));
-          doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(70) });
+          doc.text(item.size_sku || item.sizeSku || item.sku || '', mm(colX.num), mm(rowY + 2.5), { width: mm(16) });
+          doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(62) });
           doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
           doc.text(itemQty.toString(), mm(colX.qty), mm(rowY + 2.5));
           if (includePricingInPdf) {

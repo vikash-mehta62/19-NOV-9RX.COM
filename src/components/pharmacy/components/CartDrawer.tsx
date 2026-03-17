@@ -184,7 +184,7 @@ export const CartDrawer = () => {
       setIsOpen(false);
       
       if (userType === "pharmacy") navigate("/pharmacy/order/create");
-      else if (userType === "admin") navigate("/admin/orders", { state: { createOrder: true } });
+      else if (userType === "admin") navigate("/admin/orders/create");
     } catch (error) {
       toast({
         title: "Error",

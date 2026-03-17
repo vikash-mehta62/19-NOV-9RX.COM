@@ -19,7 +19,23 @@ const orderStatusTemplate = (order) => {
     const totalAmt = parseFloat(total_amount) || 0;
     const taxAmt = parseFloat(tax_amount) || 0;
     const shippingAmt = parseFloat(shipping_cost) || 0;
-    const subtotal = items.reduce((s, i) => s + ((i.price || i.unit_price || 0) * (i.quantity || 1)), 0);
+    const normalizedItems = items.flatMap((item) => {
+        if (Array.isArray(item.sizes) && item.sizes.length > 0) {
+            return item.sizes.map((size) => ({
+                name: size.size_name || item.size_name || item.name || item.product_name || 'Product',
+                quantity: size.quantity || item.quantity || 1,
+                price: size.price || item.price || item.unit_price || 0,
+            }));
+        }
+
+        return [{
+            name: item.size_name || item.sizeName || item.name || item.product_name || 'Product',
+            quantity: item.quantity || 1,
+            price: item.price || item.unit_price || 0,
+        }];
+    });
+
+    const subtotal = normalizedItems.reduce((sum, item) => sum + ((item.price || 0) * (item.quantity || 1)), 0);
     
     // If payment_status is 'paid' but paid_amount is 0, assume full payment
     const actualPaidAmount = (payment_status?.toLowerCase() === 'paid' && paidAmt === 0) ? totalAmt : paidAmt;
@@ -77,9 +93,9 @@ const orderStatusTemplate = (order) => {
     };
 
     const generateItemsHtml = () => {
-        if (!items || items.length === 0) return '';
+        if (!normalizedItems.length) return '';
         
-        return items.map(item => `
+        return normalizedItems.map(item => `
             <tr>
                 <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
                     <p style="margin: 0; font-weight: 600; color: #1f2937; font-size: 14px;">${item.name || 'Product'}</p>

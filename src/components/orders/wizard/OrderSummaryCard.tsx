@@ -246,11 +246,20 @@ const OrderSummaryCardComponent = ({
                         )}
                         {/* Show sizes with SKU */}
                         {item.sizes && item.sizes.length > 0 && (
-                          <div className="mt-1 space-y-0.5">
+                          <div className="mt-2 space-y-1.5">
                             {item.sizes.map((size: any, sizeIdx: number) => (
-                              <div key={sizeIdx} className="text-xs text-gray-500">
-                                <span>{size.size_value} {size.size_unit} × {size.quantity}</span>
-                                {size.sku && <span className="text-gray-400 ml-1">(SKU: {size.sku})</span>}
+                              <div
+                                key={sizeIdx}
+                                className="rounded-md border border-slate-100 bg-slate-50/80 px-2 py-1.5"
+                              >
+                                <p className="truncate text-[11px] font-medium text-slate-700">
+                                  {size.size_name || item.name}
+                                </p>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
+                                  <span>{size.size_value} {size.size_unit}</span>
+                                  <span>x {size.quantity}</span>
+                                  {size.sku && <span>SKU: {size.sku}</span>}
+                                </div>
                               </div>
                             ))}
                           </div>

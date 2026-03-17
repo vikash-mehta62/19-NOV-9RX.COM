@@ -247,8 +247,36 @@ const refundCreditAmount = Math.max(
           .from('orders')
           .update({ payment_status: newPaymentStatus })
           .eq('id', orderId);
+
+        // Get updated order items and sync to invoice
+        const { data: updatedOrder } = await supabase
+          .from("orders")
+          .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal, total_amount, processing_fee_amount")
+          .eq("id", orderId)
+          .single();
+
+        if (updatedOrder) {
+          await supabase
+            .from('invoices')
+            .update({
+              payment_status: newPaymentStatus,
+              items: updatedOrder.items,
+              tax_amount: updatedOrder.tax_amount,
+              shippin_cost: updatedOrder.shipping_cost,
+              subtotal: updatedOrder.subtotal,
+              discount_amount: updatedOrder.discount_amount,
+              discount_details: updatedOrder.discount_details,
+              amount: updatedOrder.subtotal,
+              total_amount: updatedOrder.total_amount,
+              processing_fee_amount: updatedOrder.processing_fee_amount,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('order_id', orderId);
+
+          console.log('✅ Invoice items synced with order');
+        }
       } catch (error) {
-        console.error('Error updating payment status:', error);
+        console.error('Error updating order/invoice:', error);
       }
 
       toast({
@@ -460,7 +488,36 @@ const refundCreditAmount = Math.max(
               })
               .eq("id", orderId);
 
-            console.log('✅ Database updated:', updateResult);
+            console.log('✅ Order updated:', updateResult);
+
+            // Update invoice with same values
+            // First, get updated order items
+            const { data: updatedOrder } = await supabase
+              .from("orders")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal")
+              .eq("id", orderId)
+              .single();
+
+            await supabase
+              .from("invoices")
+              .update({
+                payment_status: newPaymentStatus,
+                paid_amount: newPaidAmount,
+                total_amount: newTotalAmount,
+                processing_fee_amount: totalProcessingFees,
+                // Update items and related fields from order
+                items: updatedOrder?.items || orderData?.items,
+                tax_amount: updatedOrder?.tax_amount,
+                shippin_cost: updatedOrder?.shipping_cost,
+                subtotal: updatedOrder?.subtotal,
+                discount_amount: updatedOrder?.discount_amount,
+                discount_details: updatedOrder?.discount_details,
+                amount: updatedOrder?.subtotal, // Base amount before tax/shipping
+                updated_at: new Date().toISOString(),
+              })
+              .eq("order_id", orderId);
+
+            console.log('✅ Invoice updated with items');
           } else if (selectedAction === 'send_payment_link') {
             // Send payment link via email
             setSendingEmail(true);
@@ -539,6 +596,36 @@ const refundCreditAmount = Math.max(
             }
 
             result = { success: true, data: rpcResult };
+
+            // Update invoice to match order (RPC updates order, we update invoice)
+            // Get the updated order data from database to get the correct processing_fee_amount
+            const { data: updatedOrderAfterCredit } = await supabase
+              .from("orders")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal, total_amount, processing_fee_amount, paid_amount, payment_status")
+              .eq("id", orderId)
+              .single();
+
+            // Use the values from the order that was just updated by the RPC
+            await supabase
+              .from('invoices')
+              .update({
+                paid_amount: updatedOrderAfterCredit?.paid_amount || currentPaidAmount + balanceDueAmount,
+                payment_status: updatedOrderAfterCredit?.payment_status || 'partial_paid',
+                total_amount: updatedOrderAfterCredit?.total_amount || newAmount,
+                processing_fee_amount: updatedOrderAfterCredit?.processing_fee_amount || processingFeeAmount,
+                // Update items and related fields from order
+                items: updatedOrderAfterCredit?.items || orderData?.items,
+                tax_amount: updatedOrderAfterCredit?.tax_amount,
+                shippin_cost: updatedOrderAfterCredit?.shipping_cost,
+                subtotal: updatedOrderAfterCredit?.subtotal,
+                discount_amount: updatedOrderAfterCredit?.discount_amount,
+                discount_details: updatedOrderAfterCredit?.discount_details,
+                amount: updatedOrderAfterCredit?.subtotal,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('order_id', orderId);
+
+            console.log('✅ Invoice updated after credit line adjustment with items');
 
             toast({
               title: "Credit Applied",
@@ -625,25 +712,60 @@ const refundCreditAmount = Math.max(
           // Normalize paid amount after decrease adjustment so the same
           // refund/credit is not prompted again on subsequent saves.
           if (result.success) {
-            const adjustedPaidAmount = Math.max(0, Number((currentPaidAmount - refundCreditAmount).toFixed(2)));
+            const money = (n: number) => Number(n.toFixed(2));
+            
+            // Calculate adjusted values
+            const adjustedPaidAmount = Math.max(0, money(currentPaidAmount - refundCreditAmount));
+            
+            // Base amount and total with fees
+            // newAmount already includes the old processing fee
+            const totalWithFees = money(newAmount);
+            
             const updatedPaymentStatus = calculatePaymentStatusAfterAdjustment(
-              newAmount,
+              totalWithFees,
               adjustedPaidAmount
             );
+
+            console.group('💾 DECREASE ADJUSTMENT - Order & Invoice Update');
+            console.log('  adjustedPaidAmount:', adjustedPaidAmount);
+            console.log('  total_amount:', totalWithFees);
+            console.log('  processing_fee_amount:', processingFeeAmount);
+            console.log('  payment_status:', updatedPaymentStatus);
+            console.groupEnd();
 
             await supabase
               .from('orders')
               .update({
                 paid_amount: adjustedPaidAmount,
                 payment_status: updatedPaymentStatus,
+                total_amount: totalWithFees,
+                processing_fee_amount: processingFeeAmount,
               })
               .eq('id', orderId);
+
+            // Get updated order items for invoice
+            const { data: updatedOrderForDecrease } = await supabase
+              .from("orders")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal")
+              .eq("id", orderId)
+              .single();
 
             await supabase
               .from('invoices')
               .update({
                 paid_amount: adjustedPaidAmount,
                 payment_status: updatedPaymentStatus,
+                total_amount: totalWithFees,
+                processing_fee_amount: processingFeeAmount,
+                // Update items and related fields from order
+                items: updatedOrderForDecrease?.items || orderData?.items,
+                tax_amount: updatedOrderForDecrease?.tax_amount,
+                shippin_cost: updatedOrderForDecrease?.shipping_cost,
+                subtotal: updatedOrderForDecrease?.subtotal,
+                discount_amount: updatedOrderForDecrease?.discount_amount,
+                discount_details: updatedOrderForDecrease?.discount_details,
+                amount: updatedOrderForDecrease?.subtotal,
+                updated_at: new Date().toISOString(),
               })
               .eq('order_id', orderId);
           }

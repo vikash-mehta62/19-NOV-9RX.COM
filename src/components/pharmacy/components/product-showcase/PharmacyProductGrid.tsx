@@ -17,6 +17,7 @@ export interface FlattenedSizeItem {
   productSku?: string
   productImages?: string[]
   sizeId: string
+  sizeName?: string
   sizeValue: string
   sizeUnit: string
   sizeSku?: string
@@ -162,6 +163,7 @@ export const PharmacyProductGrid = ({
               productSku: product.sku,
               productImages: product.images,
               sizeId: size.id,
+              sizeName: size.size_name || "",
               sizeValue: size.size_value,
               sizeUnit: size.size_unit,
               sizeSku: size.sku,

@@ -17,6 +17,7 @@ import { format } from "date-fns"
 
 interface OrderSize {
   id: string
+  size_name: string
   size_value: string
   size_unit: string
   price: number
@@ -102,6 +103,7 @@ export default function BuyAgain() {
         quantity: item.sizes.reduce((sum, s) => sum + (s.quantity || 1), 0),
         sizes: item.sizes.map(size => ({
           id: size.id,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: size.price,
@@ -287,6 +289,9 @@ export default function BuyAgain() {
                               >
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-3">
+                                    <span className="font-medium text-gray-900">
+                                      {size.size_name}
+                                    </span>
                                     <Badge variant="secondary" className="font-mono">
                                       {size.size_value} {size.size_unit}
                                     </Badge>

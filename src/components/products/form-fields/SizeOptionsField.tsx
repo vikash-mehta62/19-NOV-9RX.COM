@@ -27,8 +27,28 @@ const FALLBACK_CATEGORY_CONFIG: CategorySizingConfig = {
   requiresCase: false,
 };
 
+const calculateUnitPrice = (
+  size: {
+    price?: number | string;
+    quantity_per_case?: number | string;
+    rolls_per_case?: number | string;
+  },
+  hasRolls: boolean
+) => {
+  const price = Number(size.price) || 0;
+  const quantity = Number(size.quantity_per_case) || 1;
+  const rolls = Number(size.rolls_per_case) || 1;
+
+  if (hasRolls) {
+    return rolls > 0 && quantity > 0 ? Number((price / (rolls * quantity)).toFixed(2)) : 0;
+  }
+
+  return quantity > 0 ? Number((price / quantity).toFixed(2)) : 0;
+};
+
 export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
   const category = form.watch("category");
+  const productName = form.watch("name");
   const [categoryConfigMap, setCategoryConfigMap] = useState<Record<string, CategorySizingConfig>>({});
 
   useEffect(() => {
@@ -67,6 +87,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
   );
 
   const [newSize, setNewSize] = useState<NewSizeState>({
+    size_name: "",
     size_value: "",
     size_unit: categoryConfig?.defaultUnit || "",
     price: "",
@@ -97,6 +118,33 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
     }));
   }, [categoryConfig.defaultUnit, categoryConfig.hasRolls]);
 
+  useEffect(() => {
+    const currentSizes = form.getValues("sizes") || [];
+    if (currentSizes.length === 0) return;
+
+    let hasChanges = false;
+    const normalizedSizes = currentSizes.map((size) => {
+      const computedUnitPrice = calculateUnitPrice(size, categoryConfig.hasRolls);
+
+      if (Number(size.price_per_case) === computedUnitPrice) {
+        return size;
+      }
+
+      hasChanges = true;
+      return {
+        ...size,
+        price_per_case: computedUnitPrice,
+      };
+    });
+
+    if (hasChanges) {
+      form.setValue("sizes", normalizedSizes, {
+        shouldValidate: false,
+        shouldDirty: false,
+      });
+    }
+  }, [categoryConfig.hasRolls, form]);
+
   const handleAddSize = () => {
     if (!newSize.size_value || !newSize.price) {
       toast({
@@ -110,7 +158,14 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
     const currentSizes = form.getValues("sizes") || [];
 
     // 🔥 FIX: Proper calculation based on category
-    let calculatedPricePerUnit = 0;
+    let calculatedPricePerUnit = calculateUnitPrice(
+      {
+        price: parseFloat(newSize.price) || 0,
+        quantity_per_case: parseFloat(newSize.quantity_per_case) || 1,
+        rolls_per_case: parseFloat(newSize.rolls_per_case) || 1,
+      },
+      categoryConfig.hasRolls
+    );
     const price = parseFloat(newSize.price) || 0;
     const quantity = parseFloat(newSize.quantity_per_case) || 1;
     const rolls = parseFloat(newSize.rolls_per_case) || 1;
@@ -125,6 +180,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
     }
 
     const sizeToAdd = {
+      size_name: newSize.size_name || "",
       size_value: newSize.size_value,
       sku: newSize.sku || "",
       sizeSquanence: parseInt(newSize.sizeSquanence) || 0,
@@ -163,6 +219,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
 
     // Reset form with default values
     setNewSize({
+      size_name: "",
       size_value: "",
       size_unit: categoryConfig.defaultUnit,
       price: "",
@@ -284,7 +341,14 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
       }
     }
 
-    sizeItem.price_per_case = Number(pricePerUnit.toFixed(2));
+    sizeItem.price_per_case = calculateUnitPrice(
+      {
+        price,
+        quantity_per_case: quantity,
+        rolls_per_case: rolls,
+      },
+      categoryConfig.hasRolls
+    );
 
     updatedSizes[index] = sizeItem;
 
@@ -312,6 +376,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
           onSizeChange={setNewSize}
           onAddSize={handleAddSize}
           category={category}
+          productName={productName}
           categoryConfig={categoryConfig}
           setNewSize={setNewSize}
         // You might need to pass `groups` and `loadingGroups` to `AddSizeForm` if it also needs to display the group dropdown
@@ -325,10 +390,12 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
               <SizeList
                 sizes={(field.value || []).map((size) => ({
                   ...size,
+                  size_name: size.size_name || "",
                   size_value: size.size_value || "",
                   sizeSquanence: size.sizeSquanence || 0,
                   size_unit: size.size_unit || categoryConfig.defaultUnit,
                   price: size.price || 0,
+                  price_per_case: calculateUnitPrice(size, categoryConfig.hasRolls),
                   quantity_per_case: size?.quantity_per_case || 0,
                   stock: size.stock || 0,
                   groupIds: size.groupIds || [], // Ensure groupIds are initialized
@@ -337,6 +404,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
                 onRemoveSize={handleRemoveSize}
                 onUpdateSize={handleUpdateSize}
                 category={category}
+                productName={productName}
                 categoryConfig={categoryConfig}
                 setNewSize={setNewSize}
                 form={form}

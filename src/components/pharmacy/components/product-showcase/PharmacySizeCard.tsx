@@ -83,6 +83,7 @@ export const PharmacySizeCard = ({
         shipping_cost: item.shippingCost,
         sizes: [{
           id: item.sizeId,
+          size_name: item.sizeName || "",
           size_value: item.sizeValue,
           size_unit: item.sizeUnit,
           price: effectiveCasePrice,

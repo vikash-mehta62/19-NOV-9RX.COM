@@ -35,6 +35,7 @@ interface Product {
 interface ProductSize {
   id: string;
   product_id: string;
+  size_name: string;
   size_value: string;
   size_unit: string;
   sku: string;
@@ -165,11 +166,12 @@ export const SizeInventoryTable = () => {
   };
 
   const exportToCSV = () => {
-    const headers = ['Product Name', 'Category', 'Size', 'Unit', 'Size SKU', 'Stock', 'Price', 'Price/Case', 'Qty/Case'];
+    const headers = ['Category', 'Sub Category', 'Product Name', 'Size', 'Unit', 'Size SKU', 'Stock', 'Price', 'Price/Case', 'Qty/Case'];
     const rows = products.flatMap(p => 
       p.sizes.map(s => [
-        p.name,
-        p.category,
+        p.category, // Category
+        p.name,    // Sub Category
+        s.size_name || '', // Product Name (using size_name if available for better clarity)
         s.size_value,
         s.size_unit,
         s.sku || '',
@@ -387,7 +389,10 @@ export const SizeInventoryTable = () => {
                                           <CardContent className="p-4">
                                             <div className="flex justify-between items-start mb-3">
                                               <div>
-                                                <p className="font-bold text-lg text-gray-900">
+                                                <p>
+                                                  <span className="font-bold text-lg text-gray-900">{size.size_name}</span>
+                                                </p>
+                                                <p className="font-bold text-md text-gray-900">
                                                   {size.size_value} {size.size_unit.toUpperCase()}
                                                 </p>
                                                 {size.sku && (

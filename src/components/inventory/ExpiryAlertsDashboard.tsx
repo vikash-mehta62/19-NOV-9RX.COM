@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface ExpiringSizeItem {
   id: string;
+  size_name: string;
   size_value: string;
   size_unit: string;
   exipry: string;
@@ -39,6 +40,7 @@ export function ExpiryAlertsDashboard() {
         .from('product_sizes')
         .select(`
           id,
+          size_name,
           size_value,
           size_unit,
           exipry,
@@ -69,6 +71,7 @@ export function ExpiryAlertsDashboard() {
             
             return {
               id: item.id,
+              size_name: item.size_name || '',
               size_value: item.size_value,
               size_unit: item.size_unit,
               exipry: item.exipry,
@@ -121,6 +124,11 @@ export function ExpiryAlertsDashboard() {
     if (daysUntilExpiry <= 30) return 'HIGH';
     if (daysUntilExpiry <= 60) return 'MEDIUM';
     return 'LOW';
+  };
+
+  const formatSizeDetails = (item: ExpiringSizeItem) => {
+    // const sizeValue = [item.size_value, item.size_unit?.toUpperCase()].filter(Boolean).join(' ');
+    return item.size_name;
   };
 
   const expiredItems = expiringItems.filter(b => b.days_until_expiry < 0);
@@ -181,18 +189,23 @@ export function ExpiryAlertsDashboard() {
                   key={item.id}
                   className={`p-4 border rounded-lg ${getUrgencyColor(item.days_until_expiry)}`}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-2">
                         <Badge className={getUrgencyColor(item.days_until_expiry)}>
                           {getUrgencyLabel(item.days_until_expiry)}
                         </Badge>
-                        <span className="font-semibold">{item.product_name}</span>
+                        <span className="font-semibold text-slate-900">{item.product_name}</span>
                       </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div className="mb-3">
+                        <p className="text-base tracking-tight text-slate-900">
+                          <strong> Product Name: </strong> {formatSizeDetails(item)}
+                        </p>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 text-sm md:grid-cols-2">
                         <div>
                           <span className="text-gray-600">Size:</span>{' '}
-                          <span className="font-medium">{item.size_value} {item.size_unit}</span>
+                          <span className="font-medium">{item.size_value} {item.size_unit?.toUpperCase()}</span>
                         </div>
                         {item.sku && (
                           <div>
@@ -222,7 +235,7 @@ export function ExpiryAlertsDashboard() {
                         </div>
                       </div>
                     </div>
-                    <div className="text-right ml-4">
+                    <div className="ml-4 text-right">
                       <div className="text-2xl font-bold">
                         {item.days_until_expiry < 0 ? (
                           <span className="text-red-600">

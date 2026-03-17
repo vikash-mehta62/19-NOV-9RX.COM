@@ -20,6 +20,7 @@ type CategorySizingConfig = {
 };
 
 interface Size {
+  size_name?: string;
   size_value: string;
   size_unit: string;
   price: number;
@@ -53,6 +54,7 @@ interface SizeListProps {
   setNewSize: (boolean: boolean) => void;
   onUpdateSize: (index: number, field: string, value: string | number | boolean | string[]) => void;
   category: string;
+  productName?: string;
   categoryConfig: CategorySizingConfig;
   form?: ProductFormAdapter;
 }
@@ -62,6 +64,7 @@ export const SizeList = ({
   onRemoveSize,
   onUpdateSize,
   category,
+  productName,
   categoryConfig,
   setNewSize,
   form
@@ -73,7 +76,6 @@ export const SizeList = ({
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   
   // Form values - ye bhi top pe
-  const productName = String(form?.getValues("name") || "Product");
   const productUPCcode = String(form?.getValues("upcCode") || "");
   const productNdcCode = String(form?.getValues("ndcCode") || "");
   const productExpiry = String(form?.getValues("unitToggle") || "");
@@ -137,12 +139,19 @@ export const SizeList = ({
 
       {/* Size Cards Mapping */}
       {sizes.map((size, index) => {
+        const resolvedProductName = String(size.size_name || productName || form?.getValues("name") || "Product");
         return (
           <Card
             key={index}
             className="border border-gray-200 hover:border-purple-300 transition-all duration-200 bg-white/80 backdrop-blur-sm"
           >
             <CardContent className="p-4">
+              <div className="mb-2">
+                <p className="text-sm font-semibold text-gray-900">
+                  {resolvedProductName}
+                </p>
+              </div>
+
               {/* Single Line Display - Collapsed View */}
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-4 flex-1">
@@ -195,7 +204,7 @@ export const SizeList = ({
                       onClick={async () => {
                         try {
                           await generateSingleProductLabelPDF(
-                            productName,
+                            resolvedProductName,
                             { ...size, isUnit: isUnitToggle },
                             isUnitToggle
                           );
@@ -239,6 +248,18 @@ export const SizeList = ({
               {editingIndex === index && (
                 <div className="border-t pt-4 mt-4 bg-gray-50/50 -mx-4 px-4 pb-4 rounded-b-lg">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">
+                        Product Name
+                      </label>
+                      <Input
+                        type="text"
+                        value={size.size_name || ""}
+                        onChange={(e) => onUpdateSize(index, "size_name", e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </div>
+
                     {/* Size Value Input */}
                     <div>
                       <label className="text-xs font-medium text-gray-600 uppercase tracking-wide">

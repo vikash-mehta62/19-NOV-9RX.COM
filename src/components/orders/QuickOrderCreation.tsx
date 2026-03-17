@@ -45,6 +45,7 @@ interface Customer {
 
 interface ProductSize {
   id: string;
+  size_name?: string;
   size_value: string;
   size_unit: string;
   price: number;
@@ -136,7 +137,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         .from("products")
         .select(`
           id, name, sku, category, image_url,
-          product_sizes (id, size_value, size_unit, price, price_per_case, stock, sku)
+          product_sizes (id, size_name, size_value, size_unit, price, price_per_case, stock, sku)
         `)
         .eq("is_active", true)
         .order("name");
@@ -211,6 +212,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         quantity: 1,
         sizes: [{
           id: size.id,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: size.price,
@@ -223,7 +225,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         shipping_cost: 0,
       };
       await addToCart(cartItem);
-      toast({ title: "Added", description: `${product.name} added to order` });
+      toast({ title: "Added", description: `${size.size_name || product.name} added to order` });
     } catch (error) {
       toast({ title: "Error", description: "Failed to add product", variant: "destructive" });
     }
@@ -583,10 +585,18 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                           <div className="border-t bg-gray-50 p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {product.product_sizes.map((size: ProductSize) => (
                               <div key={size.id} className="bg-white rounded-lg p-2 border text-center">
-                                <p className="text-sm font-semibold text-gray-900">
-                                  {size.size_value} {size.size_unit}
-                                </p>
-                                <p className="text-base text-emerald-600 font-bold">
+                                <div className="space-y-0.5">
+                                  <p className="text-sm font-semibold text-gray-900 leading-tight">
+                                    {size.size_name || product.name}
+                                  </p>
+                                  <p className="text-xs font-medium text-slate-600">
+                                    {size.size_value} {size.size_unit}
+                                  </p>
+                                  <p className="text-[11px] text-slate-400">
+                                    {size.sku ? `SKU: ${size.sku}` : "SKU: -"}
+                                  </p>
+                                </div>
+                                <p className="mt-2 text-base text-emerald-600 font-bold">
                                   ${size.price?.toFixed(2)}
                                 </p>
                                 <Button 
@@ -657,7 +667,15 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                         </div>
                         {item.sizes?.map((size: any, idx: number) => (
                           <div key={`${size.id}-${idx}`} className="flex items-center justify-between mt-1">
-                            <span className="text-xs text-gray-500">{size.size_value} {size.size_unit}</span>
+                            <div className="min-w-0 pr-2">
+                              <p className="truncate text-xs font-medium text-gray-700">
+                                {size.size_name || item.name}
+                              </p>
+                              <p className="text-[11px] text-gray-500">
+                                {size.size_value} {size.size_unit}
+                                {size.sku ? ` • SKU: ${size.sku}` : ""}
+                              </p>
+                            </div>
                             <div className="flex items-center gap-1">
                               <Button 
                                 variant="outline" 

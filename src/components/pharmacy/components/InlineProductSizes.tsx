@@ -147,6 +147,7 @@ export const InlineProductSizes = ({
               }
               return {
                 id: size.id,
+                size_name: size.size_name || "",
                 size_value: size.size_value,
                 size_unit: size.size_unit,
                 rolls_per_case: size.rolls_per_case,
@@ -391,6 +392,7 @@ export const InlineProductSizes = ({
         shipping_cost: size.shipping_cost || 0,
         sizes: [{
           id: sizeId,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: currentPrice,
@@ -668,18 +670,17 @@ export const InlineProductSizes = ({
                       <div className="flex-1 min-w-0 flex flex-col">
                         {/* Product Name + Size */}
                         <div 
-                          className="mb-1.5 sm:mb-2 cursor-pointer hover:text-blue-600"
+                          className="mb-1.5 sm:mb-1 cursor-pointer hover:text-blue-600"
                           onClick={() => navigate(`/${userType}/product/${displayProduct.id}/${sizeId}`)}
                           title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
                         >
+                          <p className="text-[10px] sm:text-xs font-bold text-gray-900 line-clamp-2 break-words uppercase">
+                            {size.size_name}
+                          </p>
                           <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
                             {size.size_value} {size.size_unit}
                           </p>
-                          <p className="text-[10px] sm:text-xs text-gray-500 line-clamp-2 break-words uppercase">
-                            {displayProduct.name}
-                          </p>
                         </div>
-
                         {/* SKU */}
                         {size.sku && (
                           <p className="text-[9px] sm:text-[10px] text-gray-400 mb-1 sm:mb-2">SKU: {size.sku}</p>

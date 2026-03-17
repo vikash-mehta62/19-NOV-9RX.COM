@@ -1,6 +1,7 @@
 export interface ProductSize {
   id: string;
   product_id: string;
+  size_name?: string;
   size_value: string;
   size_unit: string;
   sku?: any;

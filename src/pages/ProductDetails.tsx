@@ -453,6 +453,7 @@ const ProductDetails = () => {
                 .map((size) => ({
                   id: size.id,
                   product_id: size.product_id,
+                  size_name: size.size_name || "",
                   size_value: size.size_value || "",
                   size_unit: size.size_unit || "",
                   sku: size.sku || "",
@@ -1320,11 +1321,11 @@ return (
                           }}
                           title={`${product.name} – ${size.size_value} ${size.size_unit}`}
                         >
+                          <p className="text-xs text-gray-500 line-clamp-1 uppercase">
+                            {size.size_name || product.name}
+                          </p>
                           <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
                             {size.size_value} {size.size_unit}
-                          </p>
-                          <p className="text-xs text-gray-500 line-clamp-1 uppercase">
-                            {product.name}
                           </p>
                         </div>
 

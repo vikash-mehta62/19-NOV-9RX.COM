@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,6 +18,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface LowStockSize {
   id: string;
+  size_name: string;
   size_value: string;
   size_unit: string;
   stock: number;
@@ -28,6 +29,7 @@ interface LowStockSize {
     name: string;
     sku: string;
     category: string;
+    subcategory?: string;
   };
 }
 
@@ -36,43 +38,50 @@ export const SizeLowStockAlerts = () => {
   const [lowStockSizes, setLowStockSizes] = useState<LowStockSize[]>([]);
   const [filteredSizes, setFilteredSizes] = useState<LowStockSize[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [subcategoryFilter, setSubcategoryFilter] = useState<string>('all');
   const [loading, setLoading] = useState(true);
 
-  // Get unique categories from the data
-  const categories = useMemo(() => {
-    const uniqueCategories = new Set(
+  const subcategories = useMemo(() => {
+    const uniqueSubcategories = new Set(
       lowStockSizes
-        .filter(item => item.product?.category)
-        .map(item => item.product.category)
+        .filter((item) => item.product?.subcategory)
+        .map((item) => item.product.subcategory as string)
     );
-    return Array.from(uniqueCategories).sort();
+    return Array.from(uniqueSubcategories).sort();
   }, [lowStockSizes]);
 
   useEffect(() => {
     fetchLowStockSizes();
   }, []);
 
+  const formatSizeDetails = (item: LowStockSize) => {
+    const sizeValue = [item.size_value, item.size_unit?.toUpperCase()].filter(Boolean).join(' ');
+    return item.size_name ? `${item.size_name} - ${sizeValue}` : sizeValue;
+  };
+
   useEffect(() => {
     filterSizes();
-  }, [searchQuery, categoryFilter, lowStockSizes]);
+  }, [searchQuery, subcategoryFilter, lowStockSizes]);
 
   const filterSizes = () => {
     let filtered = lowStockSizes;
 
-    // Apply category filter
-    if (categoryFilter !== 'all') {
-      filtered = filtered.filter(item => item.product?.category === categoryFilter);
+    if (subcategoryFilter !== 'all') {
+      filtered = filtered.filter((item) => item.product?.subcategory === subcategoryFilter);
     }
 
-    // Apply search filter
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(item => 
-        item.product?.name.toLowerCase().includes(query) ||
-        item.product?.category.toLowerCase().includes(query) ||
-        item.size_value.toLowerCase().includes(query) ||
-        item.sku?.toLowerCase().includes(query)
+      filtered = filtered.filter(
+        (item) =>
+          item.product?.name.toLowerCase().includes(query) ||
+          item.product?.category.toLowerCase().includes(query) ||
+          item.product?.subcategory?.toLowerCase().includes(query) ||
+          formatSizeDetails(item).toLowerCase().includes(query) ||
+          item.size_name?.toLowerCase().includes(query) ||
+          item.size_value.toLowerCase().includes(query) ||
+          item.size_unit?.toLowerCase().includes(query) ||
+          item.sku?.toLowerCase().includes(query)
       );
     }
 
@@ -83,9 +92,7 @@ export const SizeLowStockAlerts = () => {
     try {
       setLoading(true);
       const data = await SizeInventoryService.getLowStockSizes(20);
-      // Filter out items without product data
-      const validData = data.filter(item => item.product && item.product.name);
-      console.log('Low stock sizes data:', validData);
+      const validData = data.filter((item) => item.product && item.product.name);
       setLowStockSizes(validData);
       setFilteredSizes(validData);
     } catch (error) {
@@ -98,23 +105,23 @@ export const SizeLowStockAlerts = () => {
 
   const getStockStatus = (stock: number) => {
     const stockNum = Number(stock);
-    if (stockNum === 0) return { label: 'Out of Stock', color: 'destructive', bgColor: 'bg-red-50' };
-    if (stockNum <= 5) return { label: 'Critical', color: 'destructive', bgColor: 'bg-red-50' };
-    if (stockNum <= 10) return { label: 'Very Low', color: 'warning', bgColor: 'bg-amber-50' };
-    return { label: 'Low', color: 'warning', bgColor: 'bg-yellow-50' };
+    if (stockNum === 0) return { label: 'Out of Stock', color: 'destructive', bgColor: 'bg-red-50 border-red-200' };
+    if (stockNum <= 5) return { label: 'Critical', color: 'destructive', bgColor: 'bg-red-50 border-red-200' };
+    if (stockNum <= 10) return { label: 'Very Low', color: 'warning', bgColor: 'bg-amber-50 border-amber-200' };
+    return { label: 'Low', color: 'warning', bgColor: 'bg-yellow-50 border-yellow-200' };
   };
 
-  const criticalItems = filteredSizes.filter(s => Number(s.stock) <= 5);
-  const warningItems = filteredSizes.filter(s => Number(s.stock) > 5 && Number(s.stock) <= 20);
+  const criticalItems = filteredSizes.filter((s) => Number(s.stock) <= 5);
+  const warningItems = filteredSizes.filter((s) => Number(s.stock) > 5 && Number(s.stock) <= 20);
 
   if (loading) {
     return (
       <Card>
         <CardContent className="p-8">
           <div className="animate-pulse space-y-4">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-            <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+            <div className="h-4 w-3/4 rounded bg-gray-200"></div>
+            <div className="h-4 w-1/2 rounded bg-gray-200"></div>
+            <div className="h-4 w-5/6 rounded bg-gray-200"></div>
           </div>
         </CardContent>
       </Card>
@@ -123,8 +130,8 @@ export const SizeLowStockAlerts = () => {
 
   return (
     <Card className="transition-all duration-200 hover:shadow-lg">
-      <CardHeader className="flex flex-row items-center justify-between pb-2 border-b bg-gradient-to-r from-red-50 to-amber-50">
-        <CardTitle className="text-base font-semibold flex items-center gap-2">
+      <CardHeader className="flex flex-row items-center justify-between border-b bg-gradient-to-r from-red-50 to-amber-50 pb-2">
+        <CardTitle className="flex items-center gap-2 text-base font-semibold">
           <AlertTriangle className="h-5 w-5 text-rose-500" />
           Low Stock Alerts (Size Level)
         </CardTitle>
@@ -138,24 +145,24 @@ export const SizeLowStockAlerts = () => {
         </div>
       </CardHeader>
       <CardContent className="p-4">
-        <div className="mb-4 flex gap-2">
-          <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by category" />
+        <div className="mb-4 flex flex-col gap-2 md:flex-row">
+          <Select value={subcategoryFilter} onValueChange={setSubcategoryFilter}>
+            <SelectTrigger className="w-full md:w-[220px]">
+              <SelectValue placeholder="Filter by subcategory" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Categories</SelectItem>
-              {categories.map((category) => (
-                <SelectItem key={category} value={category}>
-                  {category}
+              <SelectItem value="all">All Subcategories</SelectItem>
+              {subcategories.map((subcategory) => (
+                <SelectItem key={subcategory} value={subcategory}>
+                  {subcategory}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
             <Input
-              placeholder="Search by product, size, or SKU..."
+              placeholder="Search by product, subcategory, size name, or SKU..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10"
@@ -164,12 +171,12 @@ export const SizeLowStockAlerts = () => {
         </div>
         <ScrollArea className="h-[500px] pr-4">
           {filteredSizes.length === 0 ? (
-            <div className="text-center py-12">
-              <Package className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+            <div className="py-12 text-center">
+              <Package className="mx-auto mb-3 h-12 w-12 text-gray-400" />
               <p className="text-gray-500">
                 {searchQuery ? 'No matching low stock items' : 'No low stock alerts'}
               </p>
-              <p className="text-sm text-gray-400 mt-1">
+              <p className="mt-1 text-sm text-gray-400">
                 {searchQuery ? 'Try a different search term' : 'All sizes are well stocked'}
               </p>
             </div>
@@ -179,8 +186,7 @@ export const SizeLowStockAlerts = () => {
                 const stockNum = Number(item.stock);
                 const status = getStockStatus(stockNum);
                 const stockPercentage = (stockNum / 20) * 100;
-                
-                // Skip items without product data
+
                 if (!item.product) {
                   return null;
                 }
@@ -188,71 +194,72 @@ export const SizeLowStockAlerts = () => {
                 return (
                   <div
                     key={item.id}
-                    className={`flex flex-col space-y-3 rounded-lg border-2 p-4 transition-all duration-200 hover:shadow-md ${status.bgColor}`}
+                    className={`rounded-xl border p-4 transition-all duration-200 hover:shadow-md ${status.bgColor}`}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-gray-900">{item.product.name}</p>
+                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-base font-semibold text-gray-900">{item.product.name}</p>
                           <Badge variant={status.color as any} className="rounded-full">
                             {status.label}
                           </Badge>
                         </div>
-                        <div className="flex items-center gap-2 text-sm text-gray-600">
-                          <span className="font-medium">
-                            {item.size_value} {item.size_unit.toUpperCase()}
-                          </span>
-                          <span>•</span>
-                          <span>{item.product.category}</span>
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                          <span className="font-medium text-slate-800">{formatSizeDetails(item)}</span>
                         </div>
-                        {item.sku && (
-                          <p className="text-xs text-gray-500">SKU: {item.sku}</p>
-                        )}
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600">
+                          {item.sku && <span>SKU: {item.sku}</span>}
+                          <span>Price: ${item.price.toFixed(2)}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className={`text-3xl font-bold ${
-                          stockNum === 0 ? 'text-red-600' :
-                          stockNum <= 5 ? 'text-red-500' :
-                          'text-amber-500'
-                        }`}>
-                          {stockNum}
-                        </p>
-                        <p className="text-xs text-gray-500">units left</p>
+
+                      <div className="flex items-start justify-between gap-4 md:block md:text-right">
+                        <div>
+                          <p
+                            className={`text-3xl font-bold leading-none ${
+                              stockNum === 0
+                                ? 'text-red-600'
+                                : stockNum <= 5
+                                  ? 'text-red-500'
+                                  : 'text-amber-500'
+                            }`}
+                          >
+                            {stockNum}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">units left</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-0 text-indigo-600 hover:bg-transparent hover:text-indigo-700 md:mt-4 md:px-3 md:hover:bg-indigo-50"
+                          onClick={() => navigate('/admin/po')}
+                        >
+                          Reorder <ArrowRight className="ml-2 h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between text-sm">
-                      <div className="flex items-center gap-2">
+                    <div className="mt-4 space-y-2">
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
                         <TrendingDown className="h-4 w-4 text-gray-400" />
-                        <span className="text-gray-600">
-                          Price: ${item.price.toFixed(2)}
-                        </span>
+                        <span>Inventory level</span>
                       </div>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        className="h-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
-                        onClick={()=> navigate('/admin/po')}
-                      >
-                        Reorder <ArrowRight className="ml-2 h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="h-2 w-full rounded-full bg-gray-200">
-                      <div
-                        className={`h-2 rounded-full transition-all duration-500 ${
-                          stockPercentage <= 25
-                            ? "bg-red-500"
-                            : stockPercentage <= 50
-                            ? "bg-amber-500"
-                            : "bg-yellow-500"
-                        }`}
-                        style={{ width: `${Math.min(stockPercentage, 100)}%` }}
-                      />
+                      <div className="h-2 w-full rounded-full bg-gray-200">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            stockPercentage <= 25
+                              ? 'bg-red-500'
+                              : stockPercentage <= 50
+                                ? 'bg-amber-500'
+                                : 'bg-yellow-500'
+                          }`}
+                          style={{ width: `${Math.min(stockPercentage, 100)}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                 );
-              }).filter(Boolean)}
+              })}
             </div>
           )}
         </ScrollArea>

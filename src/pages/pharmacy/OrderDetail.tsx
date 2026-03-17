@@ -489,6 +489,9 @@ export default function OrderDetail() {
                       <div className="mt-3 space-y-2">
                         {item.sizes.map((size, sizeIdx) => (
                           <div key={sizeIdx} className="flex justify-between items-center text-sm bg-gray-50 rounded px-3 py-2">
+                            {(size as any).size_name && (
+                              <span className="font-medium text-gray-900">{(size as any).size_name}</span>
+                            )}
                             <span className="text-gray-600">
                               {size.size_value} {size.size_unit} × {size.quantity}
                             </span>

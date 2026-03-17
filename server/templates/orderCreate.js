@@ -29,7 +29,25 @@ const orderConfirmationTemplate = (order) => {
     });
   };
 
-  const subtotal = items.reduce((s, i) => s + ((i.price || i.unit_price || 0) * (i.quantity || 1)), 0);
+  const normalizedItems = items.flatMap((item) => {
+    if (Array.isArray(item.sizes) && item.sizes.length > 0) {
+      return item.sizes.map((size) => ({
+        name: size.size_name || item.size_name || item.name || item.product_name || "Product",
+        qty: size.quantity || item.quantity || 1,
+        price: size.price || item.price || item.unit_price || 0,
+        size: [size.size_value, size.size_unit].filter(Boolean).join(" "),
+      }));
+    }
+
+    return [{
+      name: item.size_name || item.sizeName || item.name || item.product_name || "Product",
+      qty: item.quantity || 1,
+      price: item.price || item.unit_price || 0,
+      size: item.size || [item.size_value, item.size_unit].filter(Boolean).join(" "),
+    }];
+  });
+
+  const subtotal = normalizedItems.reduce((sum, item) => sum + ((item.price || 0) * (item.qty || 1)), 0);
 
   const generateItemsHtml = () => {
     if (!items.length) {
@@ -39,11 +57,11 @@ const orderConfirmationTemplate = (order) => {
         </tr>`;
     }
 
-    return items.map(item => {
-      const name = item.name || item.product_name || "Product";
-      const qty = item.quantity || 1;
-      const price = item.price || item.unit_price || 0;
-      const size = item.sizes?.map(s => `${s.size_value} ${s.size_unit}`).join(", ") || item.size || "";
+    return normalizedItems.map(item => {
+      const name = item.name || "Product";
+      const qty = item.qty || 1;
+      const price = item.price || 0;
+      const size = item.size || "";
 
       return `
         <tr>

@@ -8,6 +8,7 @@ export interface SizeOptionsFieldProps {
 }
 
 export interface NewSizeState {
+  size_name: string;
   size_value: string;
   size_unit: string;
   price: string;

@@ -93,7 +93,7 @@ export default function SizeDetail() {
 
     supabase
       .from("products")
-      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, product_sizes!inner(id, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
+      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, product_sizes!inner(id, size_name, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
       .eq("id", productId)
       .eq("is_active", true) // Only fetch active products
       .eq("product_sizes.is_active", true) // Only fetch active sizes
@@ -286,6 +286,7 @@ export default function SizeDetail() {
         shipping_cost: size.shipping_cost || 0,
         sizes: [{
           id: size.id,
+          size_name: size.size_name || "",
           size_value: size.size_value,
           size_unit: size.size_unit,
           price: effectiveCasePrice,
@@ -366,7 +367,7 @@ export default function SizeDetail() {
               {" / "}
             </>
           )}
-          <span className="text-gray-900">{size.size_value} {size.size_unit}</span>
+          <span className="text-gray-900">{size.size_name || size.size_value}</span>
         </div>
       </div>
 
@@ -430,7 +431,8 @@ export default function SizeDetail() {
                             >
                               <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
                               <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-gray-900 truncate">{s.size_value} {s.size_unit}</p>
+                                <p className="text-md font-bold text-gray-900">{s.size_name || ''}</p>
+                                <p className="font-semibold text-sm text-gray-600 truncate">{s.size_value} {s.size_unit}</p>
                                 {sUnitsPerCase > 0 && (
                                   <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
                                 )}
@@ -491,7 +493,7 @@ export default function SizeDetail() {
           <div className="space-y-4">
             {/* Product Title */}
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 uppercase">{product.name}</h1>
+              <h1 className="text-2xl font-bold text-gray-900 uppercase">{size.size_name || product.name}</h1>
               <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {size.size_unit}</p>
             </div>
 

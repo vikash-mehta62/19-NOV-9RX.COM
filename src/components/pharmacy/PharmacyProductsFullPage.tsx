@@ -27,11 +27,22 @@ import {
   Loader2, Filter, X, ArrowLeft,
   ShoppingCart, Settings,
   Package, LogOut, Receipt, ChevronDown, Gift,
-  HelpCircle, Heart, History, Wallet, FileBarChart
+  HelpCircle, Heart, History, Wallet, FileBarChart,
+  ShieldAlert
 } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -73,6 +84,7 @@ export const PharmacyProductsFullPage = () => {
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
+  const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false)
   const userProfile = useSelector(selectUserProfile)
   const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
   const [categories, setCategories] = useState<string[]>([]); // Fetched categories from database
@@ -119,6 +131,13 @@ export const PharmacyProductsFullPage = () => {
     // Fallback to hardcoded images
     return imageArray[fallbackIndex] || imageArray[0];
   };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    sessionStorage.clear()
+    localStorage.clear()
+    navigate("/login")
+  }
 
   // Set category and product from navigation state (when coming back from product/size details)
   useEffect(() => {
@@ -253,6 +272,7 @@ export const PharmacyProductsFullPage = () => {
                 }
                 return {
                   id: size.id,
+                  size_name: size.size_name || "",
                   size_value: size.size_value,
                   size_unit: size.size_unit,
                   rolls_per_case: size.rolls_per_case,
@@ -694,12 +714,7 @@ export const PharmacyProductsFullPage = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     className="text-red-600 cursor-pointer"
-                    onClick={async () => {
-                      await supabase.auth.signOut()
-                      sessionStorage.clear()
-                      localStorage.clear()
-                      navigate("/login")
-                    }}
+                    onClick={() => setIsLogoutDialogOpen(true)}
                   >
                     <LogOut className="w-4 h-4 mr-2" />
                     Logout
@@ -710,6 +725,41 @@ export const PharmacyProductsFullPage = () => {
           </div>
         </div>
       </header>
+
+      <AlertDialog open={isLogoutDialogOpen} onOpenChange={setIsLogoutDialogOpen}>
+        <AlertDialogContent className="max-w-md overflow-hidden border-0 p-0 shadow-2xl">
+          <div className="bg-blue-600 px-6 py-5 text-white">
+            <div className="flex items-start gap-4">
+              <div className="rounded-2xl bg-white/20 p-3 backdrop-blur-sm">
+                <ShieldAlert className="h-6 w-6" />
+              </div>
+              <div className="space-y-1">
+                <AlertDialogTitle className="text-2xl font-semibold text-white">
+                  Are sure you want logout from your account ?
+                </AlertDialogTitle>
+              </div>
+            </div>
+          </div>
+          <div>
+            <AlertDialogDescription className="text-lg text-center font-bold text-black/70 dark:text-white/70 px-6 py-4">
+              You will need to login again to access your account.
+            </AlertDialogDescription>
+          </div>
+
+          <AlertDialogFooter className="px-6 pb-6 pt-0 sm:justify-end">
+            <AlertDialogCancel className="rounded-xl border-slate-200">
+              Stay Logged In
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleLogout}
+              className="rounded-xl bg-red-600 text-white hover:bg-red-700 focus:ring-red-500"
+            >
+              <LogOut className="mr-2 h-4 w-4" />
+              Yes, Logout
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-4 sm:space-y-6">

@@ -106,7 +106,7 @@ export class SizeInventoryService {
         .from('product_sizes')
         .select(`
           *,
-          product:products!inner(id, name, sku, category)
+          product:products!inner(id, name, sku, category, subcategory)
         `)
         .not('product_id', 'is', null);
 

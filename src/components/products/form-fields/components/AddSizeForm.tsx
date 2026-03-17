@@ -27,6 +27,7 @@ interface AddSizeFormProps {
   onAddSize: () => void
   setNewSize: (boolean) => void
   category: string
+  productName?: string
   categoryConfig: CategorySizingConfig
 }
 
@@ -35,6 +36,7 @@ export const AddSizeForm = ({
   onSizeChange,
   onAddSize,
   category,
+  productName,
   categoryConfig,
 }: AddSizeFormProps) => {
 
@@ -72,8 +74,20 @@ export const AddSizeForm = ({
     <Card className="border border-dashed border-purple-300 bg-white/50 backdrop-blur-sm">
       <CardContent className="p-4">
         <div className="flex flex-col gap-4">
-
           {/* ➤ Size and Unit in one row */}
+          <div>
+            <FormLabel className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+              Product Name
+            </FormLabel>
+            <Input
+              type="text"
+              value={newSize.size_name}
+              onChange={(e) => handleFieldChange("size_name", e.target.value)}
+              placeholder={"Product Name"}
+              className="h-9 text-sm"
+            />
+          </div>
+
           <div className="flex gap-2 items-end">
             <div className="w-3/4">
               <FormLabel className="text-xs font-semibold text-gray-600 uppercase tracking-wide">

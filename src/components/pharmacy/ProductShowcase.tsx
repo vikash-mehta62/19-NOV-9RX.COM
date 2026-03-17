@@ -151,6 +151,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
       return {
         id: size.id,
+        size_name: size.size_name || "",
         size_value: size.size_value,
         size_unit: size.size_unit,
         rolls_per_case: size.rolls_per_case,

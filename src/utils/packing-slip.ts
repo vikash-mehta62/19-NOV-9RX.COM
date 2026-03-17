@@ -238,7 +238,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
         
         tableBody.push([
           item.sku || "-",
-          item.name || "-",
+          item.size_name || item.name || "-",
           item.size || "-",
           item.qtyPerCase?.toString() || "1",
           item.casesOrdered?.toString() || item.masterCases?.toString() || "0",

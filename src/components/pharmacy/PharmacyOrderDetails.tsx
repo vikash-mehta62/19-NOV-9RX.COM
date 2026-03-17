@@ -364,17 +364,15 @@ console.log(order,"PHARorder")
 
       // ===== ITEMS TABLE =====
       const tableStartY = infoStartY + 42
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]]
+      const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
-      let itemIndex = 1
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
           const sizeValueUnit = `${size.size_value} ${size.size_unit}`
           const quantity = size.quantity.toString()
           const pricePerUnit = `$${Number(size.price).toFixed(2)}`
           const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`
-          tableBody.push([itemIndex.toString(), item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize])
-          itemIndex++
+          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize])
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push([
               "",
@@ -394,7 +392,7 @@ console.log(order,"PHARorder")
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         columnStyles: {
-          0: { halign: "center", cellWidth: 10 },
+          0: { halign: "center", cellWidth: 22 },
           1: { cellWidth: "auto" },
           2: { halign: "center", cellWidth: 25 },
           3: { halign: "center", cellWidth: 15 },
@@ -680,13 +678,11 @@ console.log(order,"PHARorder")
       drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines)
 
       const tableStartY = infoStartY + 42
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]]
+      const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
-      let itemIndex = 1
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
-          tableBody.push([itemIndex.toString(), item.name, `${size.size_value} ${size.size_unit}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${(size.quantity * size.price).toFixed(2)}`])
-          itemIndex++
+          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${size.size_unit}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${(size.quantity * size.price).toFixed(2)}`])
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
           }
@@ -698,7 +694,7 @@ console.log(order,"PHARorder")
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
         alternateRowStyles: { fillColor: [250, 250, 250] },
-        columnStyles: { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
+        columnStyles: { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
         margin: { left: margin, right: margin, bottom: 45 }, tableWidth: "auto",
         showHead: 'everyPage',
         didDrawPage: (data: any) => {
@@ -1021,6 +1017,9 @@ console.log(order,"PHARorder")
                                 {/* Mobile: Stack layout, Desktop: Row layout */}
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
                                   <div className="flex flex-col gap-0.5">
+                                    {(size as any).size_name && (
+                                      <span className="text-xs sm:text-sm font-medium text-gray-900">{(size as any).size_name}</span>
+                                    )}
                                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                                       <span className="text-xs sm:text-sm text-gray-700">{size.size_value} {size.size_unit}</span>
                                       {(size as any).type && (

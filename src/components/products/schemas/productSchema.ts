@@ -107,6 +107,7 @@ export const productFormSchema = z.object({
     .array(
       z.object({
         id: z.string().optional(),
+        size_name: z.string().optional().default(""),
         size_value: z.string().min(1, "Size value is required"),
         size_unit: z.string(),
         sku: z.string(),

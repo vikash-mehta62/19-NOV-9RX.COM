@@ -188,6 +188,7 @@ export function CreateGroupPricingDialog({ onSubmit, initialData }: CreateGroupP
         options: product.product_sizes.map(size => ({
           value: size.id,
           label: `${size.size_value} ${size.size_unit}`,
+          sizeName: size.size_name || "",
           actual_price: size.price,
           groupLabel: product.name // To show group name in search
         }))

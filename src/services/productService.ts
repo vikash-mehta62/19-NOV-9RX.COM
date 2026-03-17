@@ -46,6 +46,7 @@ const toNumber = (value: unknown, fallback = 0) => {
 };
 
 const buildSizeWritePayload = (size: ProductSizeInput) => ({
+  size_name: size.size_name || "",
   size_value: size.size_value || "0",
   size_unit: size.size_unit || "unit",
   price: toNumber(size.price, 0),

@@ -40,6 +40,7 @@ interface InvoicePreviewProps {
     profile_id: string
     invoice_number: any
     order_number: any
+    sku?: string
     order_id?: string
     customerInfo?: {
       name: string
@@ -214,7 +215,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     const shippingCost = Number(invoice?.shippin_cost || 0)
     const discountAmount = Number((invoice as any)?.discount_amount || 0)
     const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
-    const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount
+  const calculatedTotal = subtotalAmount + taxAmount + shippingCost + processingFeeAmount - discountAmount
+  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal
     return storedTotal > 0 ? storedTotal : calculatedTotal
   }
 
@@ -310,11 +312,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const discountAmount = Number((invoice as any)?.discount_amount || 0)
   
   // Calculate total - use stored total if available, otherwise calculate
-  const calculatedTotal = subtotalAmount + taxAmount + shippingCost - discountAmount
-  const baseTotal = storedTotal > 0 ? storedTotal : calculatedTotal
-  // Include processing fee in the displayed total since the customer was charged for it
-  const totalAmount = baseTotal + processingFeeAmount
-  
+   const calculatedTotal = subtotalAmount + taxAmount + shippingCost + processingFeeAmount - discountAmount
+  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal
   console.log("Invoice totals:", {
     subtotal: subtotalAmount,
     tax: taxAmount,
@@ -466,23 +465,21 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       // ===== ITEMS TABLE =====
       const tableStartY = infoStartY + 42
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]]
+      const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
-      let itemIndex = 1
 
       if (invoice?.items && Array.isArray(invoice.items)) {
         invoice.items.forEach((item: any) => {
           if (Array.isArray(item.sizes)) {
             item.sizes.forEach((size: any, sizeIndex: number) => {
               tableBody.push([
-                itemIndex.toString(),
-                item.name,
+                size.sku || item.sku || '',
+                size.size_name || item.name,
                 `${size.size_value} ${size.size_unit}`,
                 size.quantity?.toString() || '0',
                 `$${Number(size.price).toFixed(2)}`,
                 `$${Number(size.price * size.quantity).toFixed(2)}`
               ])
-              itemIndex++
               if (false && sizeIndex === 0 && item.description && item.description.trim()) {
                 tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
               }
@@ -496,7 +493,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
         alternateRowStyles: { fillColor: [250, 250, 250] },
-        columnStyles: { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
+        columnStyles: { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
         margin: { left: margin, right: margin, bottom: 45 }, tableWidth: "auto",
         showHead: 'everyPage',
         didDrawPage: (data: any) => {
@@ -527,7 +524,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       // Build summary body with discount if applicable
       const resolvedProcessingFeeAmount = await fetchProcessingFeeAmount()
       // Include processing fee in total since the customer was charged for it
-      const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (calculatedTotal + resolvedProcessingFeeAmount)
+      // const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (calculatedTotal + resolvedProcessingFeeAmount)
+
+
+            const pdfTotalAmount = storedTotal > 0 ? storedTotal : (subtotalAmount + shippingCost + taxAmount + resolvedProcessingFeeAmount - invoiceDiscountAmount)
 
       const invoiceSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
 
@@ -745,15 +745,13 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines)
 
       const tableStartY = infoStartY + 42
-      const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]]
+      const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
-      let itemIndex = 1
       if (invoice?.items && Array.isArray(invoice.items)) {
         invoice.items.forEach((item: any) => {
           if (Array.isArray(item.sizes)) {
             item.sizes.forEach((size: any, sizeIndex: number) => {
-              tableBody.push([itemIndex.toString(), item.name, `${size.size_value} ${size.size_unit}`, size.quantity?.toString() || '0', `$${Number(size.price).toFixed(2)}`, `$${Number(size.price * size.quantity).toFixed(2)}`])
-              itemIndex++
+              tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${size.size_unit}`, size.quantity?.toString() || '0', `$${Number(size.price).toFixed(2)}`, `$${Number(size.price * size.quantity).toFixed(2)}`])
               if (false && sizeIndex === 0 && item.description && item.description.trim()) {
                 tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
               }
@@ -767,7 +765,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
         headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
         alternateRowStyles: { fillColor: [250, 250, 250] },
-        columnStyles: { 0: { halign: "center", cellWidth: 10 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
+        columnStyles: { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
         margin: { left: margin, right: margin, bottom: 45 }, tableWidth: "auto",
         showHead: 'everyPage',
         didDrawPage: (data: any) => {
@@ -794,7 +792,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       // Build summary body with discount if applicable
       const resolvedProcessingFeeAmount = await fetchProcessingFeeAmount()
       // Include processing fee in total since the customer was charged for it
-      const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (printCalculatedTotal + resolvedProcessingFeeAmount)
+      // const pdfTotalAmount = totalAmount > 0 ? (totalAmount - processingFeeAmount + resolvedProcessingFeeAmount) : (printCalculatedTotal + resolvedProcessingFeeAmount)
+
+
+            const pdfTotalAmount = storedTotal > 0 ? storedTotal : (subtotalAmount + shippingCost + taxAmount + resolvedProcessingFeeAmount - printDiscountAmount)
 
       const printSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
 
@@ -1023,7 +1024,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             <table className="w-full">
               <thead className="bg-blue-500 text-[10px] sm:text-xs font-semibold text-white uppercase tracking-wider">
                 <tr>
-                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center w-10">#</th>
+                  <th className="px-2 sm:px-4 py-2 sm:py-3 text-center w-10">Sku</th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-left">Description</th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-center">Size</th>
                   <th className="px-2 sm:px-4 py-2 sm:py-3 text-center">Qty</th>
@@ -1041,8 +1042,8 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                     
                     return (
                       <tr key={`item-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
-                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{rowNumber}</td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{item.name}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{size.sku}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{size.size_name || item.name}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.size_value} {size.size_unit}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.quantity}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">${Number(size.price).toFixed(2)}</td>

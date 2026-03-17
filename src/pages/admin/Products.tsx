@@ -34,6 +34,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
 import { fetchCategories, fetchCategoryConfigs } from "@/utils/categoryUtils";
+import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 import image1 from "../../assests/home/image1.jpg";
 import image2 from "../../assests/home/image2.jpg";
 import image3 from "../../assests/home/image3.jpg";
@@ -76,6 +77,7 @@ const Products = () => {
   const [hoveredCategory, setHoveredCategory] = useState<string | null>(null);
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [showUploadOverlay, setShowUploadOverlay] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle product active/inactive toggle
@@ -156,6 +158,16 @@ const Products = () => {
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(category);
   }
+
+  const handleDeleteClick = (productId: string, productName: string) => {
+    setProductToDelete({ id: productId, name: productName });
+  };
+
+  const confirmDeleteProduct = async () => {
+    if (!productToDelete) return;
+    await handleDeleteProduct(productToDelete.id);
+    setProductToDelete(null);
+  };
 
   // Handle category image upload
   const handleCategoryImageUpload = async (categoryId: string, file: File) => {
@@ -633,7 +645,7 @@ const Products = () => {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-red-600 rounded-lg"
-                              onClick={() => handleDeleteProduct(product.id)}
+                              onClick={() => handleDeleteClick(product.id, product.name)}
                             >
                               <Trash2 className="w-4 h-4 mr-3" />
                               Delete
@@ -843,7 +855,7 @@ const Products = () => {
                               </DropdownMenuItem>
                               <DropdownMenuItem
                                 className="text-red-600 rounded-lg"
-                                onClick={() => handleDeleteProduct(product.id)}
+                                onClick={() => handleDeleteClick(product.id, product.name)}
                               >
                                 <Trash2 className="w-4 h-4 mr-3" />
                                 Delete
@@ -892,6 +904,16 @@ const Products = () => {
               initialData={editingProduct}
             />
           )}
+
+          <ConfirmDeleteDialog
+            open={!!productToDelete}
+            onOpenChange={(open) => {
+              if (!open) setProductToDelete(null);
+            }}
+            onConfirm={confirmDeleteProduct}
+            title={`Delete "${productToDelete?.name || "this product"}"?`}
+            description="This action cannot be undone. The product will be permanently removed from your catalog."
+          />
         </div>
       </div>
     </DashboardLayout>

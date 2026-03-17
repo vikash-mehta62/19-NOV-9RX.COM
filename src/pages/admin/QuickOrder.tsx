@@ -126,7 +126,25 @@ export default function QuickOrder() {
           .single();
 
         if (customerProfileData?.email_notifaction || customerProfileData?.order_updates) {
-          await axios.post("/order-place", insertedOrder);
+          const emailPayload = {
+            id: insertedOrder.id,
+            order_number: orderId,
+            customerInfo: {
+              name: orderData.customer?.name || "",
+              email: orderData.customer?.email || "",
+              phone: orderData.customer?.phone || "",
+            },
+            items,
+            total_amount: totalAmount,
+            tax_amount: taxAmount,
+            shipping_cost: shippingCost,
+            payment_method: "manual",
+            payment_status: "pending",
+            status: "new",
+            shippingAddress: shippingAddressData,
+          };
+
+          await axios.post("/order-place", emailPayload);
           console.log("Quick order confirmation email sent");
         } else {
           console.log("Quick order email notification disabled for this customer");

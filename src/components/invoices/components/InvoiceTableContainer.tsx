@@ -73,10 +73,10 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
   const [limit, setLimit] = useState(20);
   const [totalInvoices, setTotalInvoices] = useState(0);
 
-  const getInvoiceDisplayAmount = (invoice: { amount?: number | null; total_amount?: number | null; processing_fee_amount?: number | null }) => {
-    const baseAmount = Number(invoice.amount || invoice.total_amount || 0);
-    const processingFeeAmount = Number(invoice.processing_fee_amount || 0);
-    return processingFeeAmount > 0 ? baseAmount + processingFeeAmount : baseAmount;
+ const getInvoiceDisplayAmount = (invoice: { amount?: number | null; total_amount?: number | null; processing_fee_amount?: number | null }) => {
+    // total_amount already includes processing fee if it was charged
+    // Use total_amount if available, otherwise use amount
+    return Number(invoice.total_amount || invoice.amount || 0);
   };
 
   const hydrateInvoiceProcessingFees = async <T extends { order_id?: string | null; processing_fee_amount?: number | null; payment_method?: string | null; profile_id?: string | null; subtotal?: number | null; tax_amount?: number | null; total_amount?: number | null; shippin_cost?: string | number | null }>(rows: T[]) => {
@@ -408,6 +408,7 @@ export function InvoiceTableContainer({ filterStatus }: DataTableProps) {
         invoice_number: invoice.invoice_number,
         order_number: invoice.orders.order_number,
         id: invoice.id,
+        sku: invoice.sku,
         order_id: invoice.order_id,
         customerInfo,
         shippingInfo,
