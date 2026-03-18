@@ -436,7 +436,7 @@ export function AddProductDialog({
                     </div>
 
                     {/* Product Name - Full Width */}
-                    <FormField
+                    {/* <FormField
                       control={form.control}
                       name="name"
                       render={({ field }) => (
@@ -454,7 +454,7 @@ export function AddProductDialog({
                           <FormMessage />
                         </FormItem>
                       )}
-                    />
+                    /> */}
 
                     {/* Description */}
                     <FormField

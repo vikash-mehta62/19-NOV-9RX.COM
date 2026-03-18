@@ -216,7 +216,7 @@ export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) =
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <FormField
+            {/* <FormField
               control={form.control}
               name="name"
               render={({ field }) => (
@@ -235,7 +235,7 @@ export const BasicInfoSection = ({ form, generateSKU }: BasicInfoSectionProps) =
                   <FormMessage />
                 </FormItem>
               )}
-            />
+            /> */}
 
             <FormField
               control={form.control}
