@@ -49,6 +49,7 @@ import {
   formatDocumentMetaLine,
 } from "@/lib/documentSettings";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
+import { fetchOrderedSubcategories, insertSubcategorySafely } from "@/services/productTreeService";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -88,6 +89,25 @@ const sanitizeJsonObject = <T extends Record<string, any>>(value: T): T => {
   return Object.fromEntries(
     Object.entries(value).filter(([, entry]) => entry !== undefined && !(typeof entry === "number" && Number.isNaN(entry)))
   ) as T;
+};
+
+const isManualPoSize = (item: any, size: any) =>
+  String(size?.type || "").toLowerCase() === "manual" ||
+  String(size?.id || "").startsWith("manual-po-") ||
+  String(item?.productId || "").startsWith("manual-po-");
+
+const isUuid = (value: unknown) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
+const calculateUnitPrice = (size: any) => {
+  const price = Number(size?.price || 0);
+  const quantity = Number(size?.quantity_per_case || 0);
+  const rolls = Number(size?.rolls_per_case || 1);
+
+  if (quantity <= 0) return 0;
+
+  return Number((price / (rolls > 0 ? rolls * quantity : quantity)).toFixed(2));
 };
 
 interface OrderDetailsSheetProps {
@@ -2532,6 +2552,168 @@ export const OrderDetailsSheet = ({
     }));
   };
 
+  const ensureManualPoInventoryTarget = async (item: any, size: any) => {
+    if (isUuid(size.id)) {
+      const existingSizeRes = await supabase
+        .from("product_sizes")
+        .select("id, product_id")
+        .eq("id", size.id)
+        .maybeSingle();
+
+      if (existingSizeRes.data?.id) {
+        return {
+          productId: existingSizeRes.data.product_id,
+          sizeId: existingSizeRes.data.id,
+        };
+      }
+    }
+
+    let resolvedSubcategory = item.subcategory || null;
+    const pendingNewSubcategory = String(item.pendingNewSubcategory || "").trim();
+
+    if (pendingNewSubcategory && item.category) {
+      const existingSubcategories = await fetchOrderedSubcategories(item.category);
+      const matchingSubcategory = existingSubcategories.find(
+        (entry) => entry.subcategory_name.toLowerCase() === pendingNewSubcategory.toLowerCase()
+      );
+
+      if (matchingSubcategory) {
+        resolvedSubcategory = matchingSubcategory.subcategory_name;
+      } else {
+        const insertedSubcategory = await insertSubcategorySafely({
+          category_name: item.category,
+          subcategory_name: pendingNewSubcategory,
+        });
+        resolvedSubcategory = insertedSubcategory.subcategory_name;
+      }
+    }
+
+    const resolvedCategory = item.category || "Manual Item";
+    const resolvedSku = item.sku || size.sku || `MANUAL-${Date.now()}`;
+    const resolvedParentProductName = resolvedSubcategory || resolvedCategory;
+
+    let existingProductQuery = supabase
+      .from("products")
+      .select("id")
+      .eq("name", resolvedParentProductName)
+      .eq("category", resolvedCategory);
+
+    existingProductQuery = resolvedSubcategory
+      ? existingProductQuery.eq("subcategory", resolvedSubcategory)
+      : existingProductQuery.is("subcategory", null);
+
+    let { data: existingProduct } = await existingProductQuery.maybeSingle();
+
+    if (!existingProduct) {
+      let existingManualProductQuery = supabase
+        .from("products")
+        .select("id")
+        .eq("name", resolvedParentProductName)
+        .eq("category", resolvedCategory)
+        .eq("is_active", false)
+        .eq("key_features", "Manual PO Item");
+
+      existingManualProductQuery = resolvedSubcategory
+        ? existingManualProductQuery.eq("subcategory", resolvedSubcategory)
+        : existingManualProductQuery.is("subcategory", null);
+
+      const { data: existingManualProduct } = await existingManualProductQuery.maybeSingle();
+      existingProduct = existingManualProduct;
+    }
+
+    let createdProduct = existingProduct;
+
+    if (!createdProduct) {
+      const productPayload = sanitizeJsonObject({
+        name: resolvedParentProductName,
+        sku: resolvedSku,
+        description: item.description || item.notes || `Manual inventory item created from PO ${currentOrder.order_number || currentOrder.id}`,
+        category: resolvedCategory,
+        subcategory: resolvedSubcategory || null,
+        base_price: Number(size.price || item.price || 0),
+        current_stock: 0,
+        min_stock: 0,
+        reorder_point: 0,
+        quantity_per_case: Number(size.quantity_per_case || 1),
+        key_features: "Manual PO Item",
+        image_url: "",
+        images: [],
+        similar_products: [],
+        customization: {
+          allowed: false,
+          options: [],
+          price: 0,
+        },
+        is_active: false,
+      });
+
+      const { data: insertedProduct, error: productError } = await supabase
+        .from("products")
+        .insert(productPayload)
+        .select("id")
+        .single();
+
+      if (productError || !insertedProduct) {
+        throw new Error(productError?.message || "Failed to create manual product");
+      }
+
+      createdProduct = insertedProduct;
+    }
+
+    const sizePayload = sanitizeJsonObject({
+      product_id: createdProduct.id,
+      size_name: item.name || size.size_name || "Manual PO Size",
+      size_value: size.size_value || "Standard",
+      size_unit: size.size_unit || "unit",
+      sku: size.sku || item.sku || "",
+      price: Number(size.price || 0),
+      cost_price: Number(size.price || 0),
+      stock: 0,
+      price_per_case: calculateUnitPrice(size),
+      quantity_per_case: Number(size.quantity_per_case || 1),
+      rolls_per_case: Number(size.rolls_per_case || 1),
+      shipping_cost: Number(size.shipping_cost || item.shipping_cost || 0),
+      sizeSquanence: Number(size.sizeSquanence || 0),
+      unit: Boolean(size.unit),
+      case: size.case !== false,
+      ndcCode: size.ndcCode || "",
+      upcCode: size.upcCode || "",
+      lotNumber: size.lotNumber || "",
+      exipry: size.exipry || null,
+      image: size.image || "",
+      is_active: false,
+      type: "manual",
+    });
+
+    // Insert new size record for this item/size combination with reference to the newly created product
+    const { data: createdSize, error: sizeError } = await supabase
+      .from("product_sizes")
+      .insert(sizePayload)
+      .select("id")
+      .single();
+
+    if (sizeError || !createdSize) {
+      throw new Error(sizeError?.message || "Failed to create manual size");
+    }
+
+    if (isUuid(size.id)) {
+      await supabase
+        .from("order_items")
+        .update({
+          product_id: createdProduct.id,
+          product_size_id: createdSize.id,
+        })
+        .eq("order_id", currentOrder.id)
+        .eq("product_size_id", size.id);
+    }
+
+    return {
+      productId: createdProduct.id,
+      sizeId: createdSize.id,
+      subcategory: resolvedSubcategory || null,
+    };
+  };
+
   const handleApproveWorkflow = async () => {
     if ((currentOrder as any).poApproved) return;
     if ((currentOrder as any).poRejected) {
@@ -2842,6 +3024,22 @@ export const OrderDetailsSheet = ({
           sizes: nextSizes,
         };
       });
+
+      for (const item of updatedItems as any[]) {
+        for (const size of item.sizes || []) {
+          if (!isManualPoSize(item, size)) continue;
+          if (Number(size.receive_now || 0) <= 0) continue;
+
+          const ensured = await ensureManualPoInventoryTarget(item, size);
+          item.productId = ensured.productId;
+          item.subcategory = ensured.subcategory || item.subcategory || "";
+          item.pendingNewSubcategory = "";
+          size.id = ensured.sizeId;
+          size.product_id = ensured.productId;
+          size.type = "manual";
+          size.size_name = item.name || size.size_name;
+        }
+      }
 
       const itemsToReceive = updatedItems.flatMap((item: any) => item.sizes || []).filter((size: any) => Number(size.receive_now) > 0);
 
@@ -3477,7 +3675,7 @@ export const OrderDetailsSheet = ({
                           {(currentOrder.items || []).map((item: any, itemIndex: number) => (
                             <div key={`${item.productId || item.id || itemIndex}`} className="rounded-xl border bg-slate-50 p-3">
                               <div className="mb-3">
-                                <p className="font-semibold text-slate-900">{item.name}</p>
+                                <p className="font-semibold text-slate-900">{item.subcategory || item.name}</p>
                                 <p className="text-xs text-slate-500">{item.sku || "No SKU"}{item.description ? ` • ${item.description}` : ""}</p>
                               </div>
                               <div className="space-y-2">

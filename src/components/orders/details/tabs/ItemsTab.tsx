@@ -566,7 +566,7 @@ if (
     orderUpdate.processing_fee_amount = currentOrderData.processing_fee_amount;
   }
 }
-      if (paymentAdjustmentResult.adjustmentType === "none" && isDecrease) {
+      if (paymentAdjustmentResult?.adjustmentType === "none" && isDecrease) {
   const adjustedPaid = Math.min(paidAmount, newTotal);
   orderUpdate.paid_amount = adjustedPaid;
 
@@ -1004,7 +1004,7 @@ if (
                     <Package className="w-5 h-5 text-gray-600" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-gray-900">{item.name}</h4>
+                    <h4 className="font-semibold text-gray-900">{item.subcategory || item.name}</h4>
                     {item.description && (
                       <p className="text-sm text-gray-500 mt-1">{item.description}</p>
                     )}

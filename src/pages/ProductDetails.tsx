@@ -1,19 +1,18 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { ChangeEvent, useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import type { Product } from "@/types/product"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-
 import { Skeleton } from "@/components/ui/skeleton"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
-import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check, Gift, HelpCircle, MoreHorizontal, Palette } from "lucide-react"
+import { ArrowLeft, Package, Info, Layers, UserPlus, Loader2, ShoppingCart, Plus, Minus, Check, Gift, HelpCircle, MoreHorizontal, Palette, Pencil, Save, Upload, X } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import logo from "../assests/home/9rx_logo.png"
 import { useCart } from "@/hooks/use-cart"
@@ -31,9 +30,58 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { getProductEffectivePrice } from "@/services/productOfferService"
 import axios from "../../axiosconfig"
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
+import Select from "react-select"
+
+type GroupOption = {
+  id: string
+  name: string
+}
+
+type EditableSize = {
+  id: string
+  size_name?: string
+  size_value: string
+  size_unit: string
+  sku?: string
+  price: number
+  price_per_case?: number
+  stock: number
+  quantity_per_case: number
+  shipping_cost?: number
+  ndcCode?: string
+  upcCode?: string
+  lotNumber?: string
+  exipry?: string
+  groupIds?: string[]
+  disAllogroupIds?: string[]
+  image?: string
+  is_active?: boolean
+}
+
+const calculateSizeUnitPrice = (size: {
+  price?: number | string
+  quantity_per_case?: number | string
+  rolls_per_case?: number | string
+}) => {
+  const price = Number(size.price) || 0
+  const quantity = Number(size.quantity_per_case) || 0
+  const rolls = Number(size.rolls_per_case) || 1
+
+  if (quantity <= 0) return 0
+
+  return Number((price / (rolls > 0 ? rolls * quantity : quantity)).toFixed(2))
+}
 
 // Apply group pricing to sizes - SAME LOGIC AS PRODUCT SHOWCASE
 const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string) => {
@@ -190,12 +238,178 @@ const ProductDetails = () => {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
   const [addingToCart, setAddingToCart] = useState(false)
+  const [groupOptions, setGroupOptions] = useState<GroupOption[]>([])
+  const [editingSize, setEditingSize] = useState<EditableSize | null>(null)
+  const [isEditSizeDialogOpen, setIsEditSizeDialogOpen] = useState(false)
+  const [isSavingSize, setIsSavingSize] = useState(false)
+  const [uploadingSizeImage, setUploadingSizeImage] = useState(false)
   const [productOffer, setProductOffer] = useState<{
     effectivePrice: number
     discountPercent: number
     offerBadge: string | null
     hasOffer: boolean
   } | null>(null)
+  const isAdmin = userProfile?.type === "admin" || userProfile?.role === "admin"
+
+  const updateProductSizeInState = (sizeId: string, updates: Partial<EditableSize>) => {
+    setProduct((prev) => {
+      if (!prev) return prev
+
+      return {
+        ...prev,
+        sizes: prev.sizes.map((size) =>
+          size.id === sizeId
+            ? {
+                ...size,
+                ...updates,
+              }
+            : size
+        ),
+      }
+    })
+  }
+
+  const openEditSizeDialog = (size: any) => {
+    setEditingSize({
+      id: size.id,
+      size_name: size.size_name || "",
+      size_value: size.size_value || "",
+      size_unit: size.size_unit || "",
+      sku: size.sku || "",
+      price: Number(size.price || 0),
+      price_per_case: calculateSizeUnitPrice(size),
+      stock: Number(size.stock || 0),
+      quantity_per_case: Number(size.quantity_per_case || 0),
+      shipping_cost: Number(size.shipping_cost || 0),
+      ndcCode: size.ndcCode || "",
+      upcCode: size.upcCode || "",
+      lotNumber: size.lotNumber || "",
+      exipry: size.exipry || "",
+      groupIds: Array.isArray(size.groupIds) ? size.groupIds : [],
+      disAllogroupIds: Array.isArray(size.disAllogroupIds) ? size.disAllogroupIds : [],
+      image: size.image || "",
+      is_active: size.is_active !== false,
+    })
+    setIsEditSizeDialogOpen(true)
+  }
+
+  const handleEditSizeFieldChange = (field: keyof EditableSize, value: string | number | string[]) => {
+    setEditingSize((prev) => (prev ? { ...prev, [field]: value } : prev))
+  }
+
+  const handleEditSizeImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setUploadingSizeImage(true)
+
+      const fileExt = file.name.split(".").pop()
+      const fileName = `${crypto.randomUUID()}.${fileExt}`
+      const { error } = await supabase.storage.from("product-images").upload(fileName, file)
+
+      if (error) throw error
+
+      const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
+
+      setImageUrls((prev) => ({ ...prev, [fileName]: data.publicUrl }))
+      setEditingSize((prev) => (prev ? { ...prev, image: fileName } : prev))
+
+      toast({
+        title: "Success",
+        description: "Size image uploaded successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to upload size image",
+        variant: "destructive",
+      })
+    } finally {
+      setUploadingSizeImage(false)
+      event.target.value = ""
+    }
+  }
+
+  const handleRemoveEditSizeImage = async () => {
+    if (!editingSize?.image) return
+
+    try {
+      const existingImage = editingSize.image
+      const { error } = await supabase.storage.from("product-images").remove([existingImage])
+
+      if (error) throw error
+
+      setEditingSize((prev) => (prev ? { ...prev, image: "" } : prev))
+      setImageUrls((prev) => {
+        const next = { ...prev }
+        delete next[existingImage]
+        return next
+      })
+
+      toast({
+        title: "Success",
+        description: "Size image removed successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to remove size image",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleSaveSizeEdit = async () => {
+    if (!editingSize) return
+
+    try {
+      setIsSavingSize(true)
+
+      const updates = {
+        size_name: editingSize.size_name || null,
+        size_value: editingSize.size_value,
+        size_unit: editingSize.size_unit,
+        sku: editingSize.sku || null,
+        price: Number(editingSize.price || 0),
+        price_per_case: calculateSizeUnitPrice(editingSize),
+        stock: Number(editingSize.stock || 0),
+        quantity_per_case: Number(editingSize.quantity_per_case || 0),
+        shipping_cost: Number(editingSize.shipping_cost || 0),
+        ndcCode: editingSize.ndcCode || null,
+        upcCode: editingSize.upcCode || null,
+        lotNumber: editingSize.lotNumber || null,
+        exipry: editingSize.exipry || null,
+        groupIds: editingSize.groupIds || [],
+        disAllogroupIds: editingSize.disAllogroupIds || [],
+        image: editingSize.image || null,
+      }
+
+      const { error } = await supabase
+        .from("product_sizes")
+        .update(updates)
+        .eq("id", editingSize.id)
+
+      if (error) throw error
+
+      updateProductSizeInState(editingSize.id, updates)
+      setIsEditSizeDialogOpen(false)
+      setEditingSize(null)
+
+      toast({
+        title: "Success",
+        description: "Size updated successfully",
+      })
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update size",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSavingSize(false)
+    }
+  }
 
   const getSupabaseImageUrl = async (path: string): Promise<string> => {
     if (!path || path === "/placeholder.svg") return "/placeholder.svg"
@@ -368,6 +582,41 @@ const ProductDetails = () => {
   }
 
   useEffect(() => {
+    if (!isAdmin) return
+
+    const fetchGroupOptions = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("id, company_name, first_name, last_name, display_name, email")
+          .eq("type", "pharmacy")
+          .eq("status", "active")
+
+        if (error) throw error
+
+        const pharmacies = (data || [])
+          .map((profile) => {
+            let name = ""
+            if (!name) name = profile.display_name?.trim()
+            if (!name && (profile.first_name || profile.last_name)) {
+              name = `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
+            }
+            if (!name) name = profile.email?.split("@")[0] || "Unnamed Pharmacy"
+
+            return { id: profile.id, name }
+          })
+          .sort((a, b) => a.name.localeCompare(b.name))
+
+        setGroupOptions(pharmacies)
+      } catch (error) {
+        console.error("Error fetching pharmacy options:", error)
+      }
+    }
+
+    fetchGroupOptions()
+  }, [isAdmin])
+
+  useEffect(() => {
     const fetchProduct = async () => {
       // Guard against undefined, null, empty string, or the literal string "undefined"
       if (!actualId || actualId === "undefined" || actualId === "null") {
@@ -461,6 +710,13 @@ const ProductDetails = () => {
                   price_per_case: size.price_per_case || 0,
                   stock: size.stock || 0,
                   quantity_per_case: size.quantity_per_case || 0,
+                  shipping_cost: size.shipping_cost || 0,
+                  ndcCode: size.ndcCode || "",
+                  upcCode: size.upcCode || "",
+                  lotNumber: size.lotNumber || "",
+                  exipry: size.exipry || "",
+                  groupIds: Array.isArray(size.groupIds) ? size.groupIds : [],
+                  disAllogroupIds: Array.isArray(size.disAllogroupIds) ? size.disAllogroupIds : [],
                   image: size.image || "",
                   is_active: size.is_active !== false, // Include is_active field, default to true
                   created_at: size.created_at,
@@ -895,6 +1151,257 @@ return (
       onSubmit={handleSendCustomizationEnquiry}
       isSubmitting={isSendingCustomizationEnquiry}
     />
+    <Dialog
+      open={isEditSizeDialogOpen}
+      onOpenChange={(open) => {
+        setIsEditSizeDialogOpen(open)
+        if (!open) {
+          setEditingSize(null)
+        }
+      }}
+    >
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Size</DialogTitle>
+          <DialogDescription>
+            Update this size option. Changes are only available to admins here.
+          </DialogDescription>
+        </DialogHeader>
+
+        {editingSize && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center gap-3 border border-purple-200 rounded-2xl p-4">
+              <Badge className="bg-gray-100 text-gray-900 hover:bg-gray-100">
+                {editingSize.size_value} {editingSize.size_unit}
+              </Badge>
+              {editingSize.sku && (
+                <Badge variant="outline">{editingSize.sku}</Badge>
+              )}
+              <span className="text-green-600 font-semibold">${Number(editingSize.price || 0).toFixed(2)}/CS</span>
+              <span className="text-blue-600 font-semibold">${calculateSizeUnitPrice(editingSize).toFixed(2)}/Unit</span>
+              <span className="text-orange-600 font-semibold">{editingSize.stock || 0} Stock</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Product Name</Label>
+                <Input
+                  value={editingSize.size_name || ""}
+                  onChange={(e) => handleEditSizeFieldChange("size_name", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Size Value</Label>
+                <Input
+                  value={editingSize.size_value}
+                  onChange={(e) => handleEditSizeFieldChange("size_value", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">SKU</Label>
+                <Input
+                  value={editingSize.sku || ""}
+                  onChange={(e) => handleEditSizeFieldChange("sku", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">$/CS</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editingSize.price}
+                  onChange={(e) => handleEditSizeFieldChange("price", parseFloat(e.target.value) || 0)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">$/Unit</Label>
+                <Input
+                  type="number"
+                  value={calculateSizeUnitPrice(editingSize)}
+                  readOnly
+                  disabled
+                  className="mt-1 bg-gray-100 text-blue-600 font-medium cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Stock</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editingSize.stock}
+                  onChange={(e) => handleEditSizeFieldChange("stock", parseInt(e.target.value, 10) || 0)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Q.Per Case</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  value={editingSize.quantity_per_case}
+                  onChange={(e) => handleEditSizeFieldChange("quantity_per_case", parseInt(e.target.value, 10) || 0)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Shipping/CS</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={editingSize.shipping_cost || 0}
+                  onChange={(e) => handleEditSizeFieldChange("shipping_cost", parseFloat(e.target.value) || 0)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">NDC Code</Label>
+                <Input
+                  value={editingSize.ndcCode || ""}
+                  onChange={(e) => handleEditSizeFieldChange("ndcCode", e.target.value)}
+                  placeholder="12345-678-90"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">UPC Code</Label>
+                <Input
+                  value={editingSize.upcCode || ""}
+                  onChange={(e) => handleEditSizeFieldChange("upcCode", e.target.value)}
+                  placeholder="012345678901"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Lot Number</Label>
+                <Input
+                  value={editingSize.lotNumber || ""}
+                  onChange={(e) => handleEditSizeFieldChange("lotNumber", e.target.value)}
+                  placeholder="LOT-2024-001"
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Expiry Date</Label>
+                <Input
+                  type="date"
+                  value={editingSize.exipry || ""}
+                  onChange={(e) => handleEditSizeFieldChange("exipry", e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Allowed Pharmacies</Label>
+                <div className="mt-1">
+                  <Select
+                    isMulti
+                    options={groupOptions.map((group) => ({
+                      label: group.name,
+                      value: group.id,
+                    }))}
+                    value={(editingSize.groupIds || []).map((id) => {
+                      const group = groupOptions.find((item) => item.id === id)
+                      return group ? { label: group.name, value: group.id } : null
+                    }).filter(Boolean)}
+                    onChange={(selected) => handleEditSizeFieldChange("groupIds", selected.map((item) => item.value))}
+                    placeholder="Select pharmacies..."
+                  />
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Disallowed Pharmacies</Label>
+                <div className="mt-1">
+                  <Select
+                    isMulti
+                    options={groupOptions.map((group) => ({
+                      label: group.name,
+                      value: group.id,
+                    }))}
+                    value={(editingSize.disAllogroupIds || []).map((id) => {
+                      const group = groupOptions.find((item) => item.id === id)
+                      return group ? { label: group.name, value: group.id } : null
+                    }).filter(Boolean)}
+                    onChange={(selected) => handleEditSizeFieldChange("disAllogroupIds", selected.map((item) => item.value))}
+                    placeholder="Select pharmacies..."
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label className="text-base font-semibold text-gray-900">Size Images</Label>
+              <div className="mt-3 flex flex-wrap items-start gap-4">
+                {editingSize.image ? (
+                  <div className="relative w-32 h-40 border rounded-xl overflow-hidden bg-gray-50">
+                    <img
+                      src={imageUrls[editingSize.image] || editingSize.image}
+                      alt={`${editingSize.size_value} ${editingSize.size_unit}`}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/placeholder.svg"
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="destructive"
+                      className="absolute top-2 right-2 h-7 w-7"
+                      onClick={handleRemoveEditSizeImage}
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <label className="flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-600 hover:bg-gray-100">
+                    {uploadingSizeImage ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 mb-2" />
+                        Upload
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleEditSizeImageUpload}
+                    />
+                  </label>
+                )}
+                {editingSize.image && (
+                  <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-4 text-sm text-gray-700 hover:bg-gray-50">
+                    {uploadingSizeImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                    Change Image
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleEditSizeImageUpload}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setIsEditSizeDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveSizeEdit} disabled={!editingSize || isSavingSize}>
+            {isSavingSize ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+            Save Changes
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 ${topOffsetClass}`}>
       {/* Enhanced Header with Modern Design & Micro-interactions */}
@@ -1178,7 +1685,7 @@ return (
                       }`}
                     >
                       {/* Admin 3-Dot Menu */}
-                      {userProfile?.type === 'admin' && (
+                      {isAdmin && (
                         <div className="absolute top-2 right-2 z-20">
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
@@ -1191,6 +1698,10 @@ return (
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => openEditSizeDialog(size)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit
+                              </DropdownMenuItem>
                               <DropdownMenuItem
                                 onClick={async () => {
                                   try {
@@ -1206,9 +1717,8 @@ return (
                                       title: "Success",
                                       description: `Size ${newStatus ? 'activated' : 'deactivated'} successfully`,
                                     });
-                                    
-                                    // Refresh product data
-                                    window.location.reload();
+
+                                    updateProductSizeInState(size.id, { is_active: newStatus })
                                   } catch (error: any) {
                                     toast({
                                       title: "Error",
@@ -1226,7 +1736,7 @@ return (
                       )}
 
                       {/* Inactive Badge for Admin */}
-                      {userProfile?.type === 'admin' && !size.is_active && (
+                      {isAdmin && !size.is_active && (
                         <div className="absolute top-2 left-2 z-10">
                           <Badge className="bg-red-500 text-white text-[10px] px-2 py-0.5">
                             Inactive
@@ -1394,7 +1904,7 @@ return (
                         {!isOutOfStock && isLoggedIn && (
                           <div className="flex items-center gap-2 pt-2">
                             {/* Quantity Selector - Large buttons */}
-                            <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelected ? "opacity-60" : ""}`}>
+                            <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelectedForSize ? "opacity-60" : ""}`}>
                               <Button
                                 variant="ghost"
                                 size="icon"

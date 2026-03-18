@@ -15,12 +15,13 @@ import { useSelector, useDispatch } from "react-redux";
 import { selectUserProfile } from "../../store/selectors/userSelectors";
 import { useCart } from "@/hooks/use-cart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save, ClipboardList, Truck, Receipt, Sparkles, ScanLine } from "lucide-react";
+import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save, ClipboardList, Truck, Receipt, Sparkles, ScanLine, Trash2 } from "lucide-react";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { clearCart as clearCartAction, updateCartPrice } from "@/store/actions/cartActions";
 import { Textarea } from "@/components/ui/textarea";
 import { v4 as uuidv4 } from "uuid";
@@ -34,6 +35,9 @@ import {
   formatDocumentAddressLine,
 } from "@/lib/documentSettings";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
+import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService";
+
+const ADD_NEW_SUBCATEGORY_VALUE = "__add_new_subcategory__";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
@@ -52,6 +56,11 @@ type WarehouseAddressErrors = Partial<Record<
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const TEN_DIGIT_PHONE_PATTERN = /^\d{10}$/;
 const FIVE_DIGIT_ZIP_PATTERN = /^\d{5}$/;
+
+const isUuid = (value: string | null | undefined) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "")
+  );
 
 const purchaseOrderFormSchema = orderFormSchema.extend({
   customerInfo: z.object({
@@ -97,7 +106,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [isCus, setIsCus] = useState(false);
   const [showProductSelector, setShowProductSelector] = useState(false);
   const userProfile = useSelector(selectUserProfile);
-  const { cartItems, clearCart, addToCart } = useCart();
+  const { cartItems, clearCart, addToCart, removeFromCart } = useCart();
   const [vendorInfo, setVendorInfo] = useState<any>(null);
   const [loadingVendor, setLoadingVendor] = useState(true);
   const [documentSettings, setDocumentSettings] = useState<AdminDocumentSettings>(DEFAULT_ADMIN_DOCUMENT_SETTINGS);
@@ -123,17 +132,34 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [catalogCategory, setCatalogCategory] = useState("all");
+  const [manualCategories, setManualCategories] = useState<string[]>([]);
+  const [manualSubcategories, setManualSubcategories] = useState<string[]>([]);
+  const [manualSessionSubcategories, setManualSessionSubcategories] = useState<Record<string, string[]>>({});
+  const [isAddSubcategoryDialogOpen, setIsAddSubcategoryDialogOpen] = useState(false);
+  const [pendingSubcategoryName, setPendingSubcategoryName] = useState("");
   const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
   const [sizeSelections, setSizeSelections] = useState<Record<string, number>>({});
   const [sizePriceOverrides, setSizePriceOverrides] = useState<Record<string, string>>({});
   const hasInitializedPoCartRef = useRef(false);
   const [manualProduct, setManualProduct] = useState({
+    category: "",
+    subcategory: "",
+    pendingNewSubcategory: "",
     name: "",
+    stock: "1",
+    quantityPerCase: "100",
     sku: "",
     size: "",
     unit: "unit",
-    quantity: "1",
     price: "",
+    shippingCost: "0",
+    sequence: "0",
+    sellByUnit: false,
+    sellByCase: true,
+    ndcCode: "",
+    upcCode: "",
+    lotNumber: "",
+    expiryDate: "",
     notes: "",
   });
 
@@ -167,6 +193,95 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       fetchVendor();
     }
   }, [vendorId]);
+
+  useEffect(() => {
+    const loadManualCategories = async () => {
+      try {
+        const categories = await fetchOrderedCategories();
+        setManualCategories(categories.map((item) => item.category_name));
+      } catch (error) {
+        console.error("Error loading manual PO categories:", error);
+        setManualCategories([]);
+      }
+    };
+
+    loadManualCategories();
+  }, []);
+
+  useEffect(() => {
+    const loadManualSubcategories = async () => {
+      if (!manualProduct.category) {
+        setManualSubcategories([]);
+        return;
+      }
+
+      try {
+        const subcategories = await fetchOrderedSubcategories(manualProduct.category);
+        const serverSubcategories = subcategories.map((item) => item.subcategory_name);
+        const sessionSubcategories = manualSessionSubcategories[manualProduct.category] || [];
+        setManualSubcategories(Array.from(new Set([...serverSubcategories, ...sessionSubcategories])));
+      } catch (error) {
+        console.error("Error loading manual PO subcategories:", error);
+        setManualSubcategories(manualSessionSubcategories[manualProduct.category] || []);
+      }
+    };
+
+    loadManualSubcategories();
+  }, [manualProduct.category, manualSessionSubcategories]);
+
+  const isAdmin = userProfile?.type === "admin" || userProfile?.role === "admin";
+
+  const handleOpenAddSubcategoryDialog = () => {
+    if (!manualProduct.category) {
+      toast({
+        title: "Category required",
+        description: "Select a category before adding a new subcategory.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setPendingSubcategoryName("");
+    setIsAddSubcategoryDialogOpen(true);
+  };
+
+  const handleConfirmPendingSubcategory = () => {
+    const normalizedSubcategory = pendingSubcategoryName.trim();
+
+    if (!normalizedSubcategory) {
+      toast({
+        title: "Subcategory required",
+        description: "Enter a new subcategory name.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const alreadyExists = manualSubcategories.some(
+      (subcategory) => subcategory.toLowerCase() === normalizedSubcategory.toLowerCase()
+    );
+
+    if (!alreadyExists && manualProduct.category) {
+      setManualSessionSubcategories((prev) => {
+        const existing = prev[manualProduct.category] || [];
+        if (existing.some((subcategory) => subcategory.toLowerCase() === normalizedSubcategory.toLowerCase())) {
+          return prev;
+        }
+
+        return {
+          ...prev,
+          [manualProduct.category]: [...existing, normalizedSubcategory],
+        };
+      });
+    }
+
+    setManualProduct((prev) => ({
+      ...prev,
+      subcategory: normalizedSubcategory,
+      pendingNewSubcategory: alreadyExists ? "" : normalizedSubcategory,
+    }));
+    setIsAddSubcategoryDialogOpen(false);
+  };
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(purchaseOrderFormSchema),
@@ -572,7 +687,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
   };
 
   const handleManualProductAdd = async () => {
-    const quantity = Number(manualProduct.quantity);
+    const quantity = Number(manualProduct.stock);
     const price = Number(manualProduct.price);
 
     if (!manualProduct.name.trim()) {
@@ -612,30 +727,55 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       price: quantity * price,
       image: "",
       description: manualProduct.notes.trim(),
+      category: manualProduct.category || "Manual Item",
+      subcategory: manualProduct.subcategory || "",
+      pendingNewSubcategory: manualProduct.pendingNewSubcategory || "",
       quantity,
       sizes: [
         {
           id: sizeId,
+          size_name: manualProduct.name.trim(),
           size_value: manualProduct.size.trim() || "Standard",
           size_unit: manualProduct.unit.trim() || "unit",
           price,
           quantity,
           sku: manualProduct.sku.trim() || "",
           type: "manual",
+          quantity_per_case: Number(manualProduct.quantityPerCase) || 0,
+          shipping_cost: Number(manualProduct.shippingCost) || 0,
+          sizeSquanence: Number(manualProduct.sequence) || 0,
+          unit: manualProduct.sellByUnit,
+          case: manualProduct.sellByCase,
+          ndcCode: manualProduct.ndcCode.trim(),
+          upcCode: manualProduct.upcCode.trim(),
+          lotNumber: manualProduct.lotNumber.trim(),
+          exipry: manualProduct.expiryDate,
         },
       ],
       customizations: {},
       notes: manualProduct.notes.trim(),
-      shipping_cost: 0,
+      shipping_cost: Number(manualProduct.shippingCost) || 0,
     });
 
     setManualProduct({
+      category: "",
+      subcategory: "",
+      pendingNewSubcategory: "",
       name: "",
+      stock: "1",
+      quantityPerCase: "100",
       sku: "",
       size: "",
       unit: "unit",
-      quantity: "1",
       price: "",
+      shippingCost: "0",
+      sequence: "0",
+      sellByUnit: false,
+      sellByCase: true,
+      ndcCode: "",
+      upcCode: "",
+      lotNumber: "",
+      expiryDate: "",
       notes: "",
     });
 
@@ -669,6 +809,11 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       return matchesCategory && matchesSearch;
     });
   }, [catalogProducts, catalogCategory, catalogSearch]);
+
+  const addedManualItems = useMemo(
+    () => cartItems.filter((item: any) => String(item.productId || "").startsWith("manual-po-")),
+    [cartItems]
+  );
 
   const handleCatalogAdd = async (product: any, size: any) => {
     const quantity = Math.max(1, Number(sizeSelections[size.id] || 1));
@@ -843,17 +988,27 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       const orderItemsData = cartItems.flatMap((item: any) => {
         if (item.sizes && item.sizes.length > 0) {
           // For items with sizes, create separate entries for each size
-          return item.sizes.map((size: any) => ({
-            order_id: poResponse.id,
-            product_id: item.productId,
-            quantity: size.quantity,
-            unit_price: size.price,
-            total_price: size.quantity * size.price,
-            product_size_id: size.id,
-            notes: `Size: ${size.size_value} ${size.size_unit}`,
-          }));
+          return item.sizes.flatMap((size: any) => {
+            if (!isUuid(item.productId) || !isUuid(size.id)) {
+              return [];
+            }
+
+            return [{
+              order_id: poResponse.id,
+              product_id: item.productId,
+              quantity: size.quantity,
+              unit_price: size.price,
+              total_price: size.quantity * size.price,
+              product_size_id: size.id,
+              notes: `Size: ${size.size_value} ${size.size_unit}`,
+            }];
+          });
         } else {
           // For items without sizes
+          if (!isUuid(item.productId)) {
+            return [];
+          }
+
           return [{
             order_id: poResponse.id,
             product_id: item.productId,
@@ -865,10 +1020,17 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         }
       });
 
-      const { data: insertedItems, error: itemsError } = await supabase
-        .from("order_items")
-        .insert(orderItemsData)
-        .select();
+      let insertedItems = null;
+      let itemsError = null;
+
+      if (orderItemsData.length > 0) {
+        const result = await supabase
+          .from("order_items")
+          .insert(orderItemsData)
+          .select();
+        insertedItems = result.data;
+        itemsError = result.error;
+      }
 
       if (itemsError) {
         console.error("❌ PO CREATION - Failed to insert order items:", itemsError);
@@ -983,6 +1145,35 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
 
   return (
     <div className="container mx-auto space-y-6 py-6">
+      <Dialog open={isAddSubcategoryDialogOpen} onOpenChange={setIsAddSubcategoryDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add New Subcategory</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Category</Label>
+              <Input value={manualProduct.category} readOnly className="mt-1 bg-gray-100" />
+            </div>
+            <div>
+              <Label htmlFor="pending-subcategory-name">Subcategory name</Label>
+              <Input
+                id="pending-subcategory-name"
+                value={pendingSubcategoryName}
+                onChange={(e) => setPendingSubcategoryName(e.target.value)}
+                placeholder="Enter new subcategory"
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsAddSubcategoryDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirmPendingSubcategory}>Add</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <Card className="overflow-hidden border-0 bg-blue-600 text-white shadow-xl">
         <CardContent className="grid gap-5 p-6 md:grid-cols-[1.4fr_1fr]">
           <div>
@@ -1343,7 +1534,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                     className="flex items-start justify-between p-4 border rounded-lg bg-gray-50"
                   >
                     <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{item.name}</h4>
+                      <h4 className="font-medium text-gray-900">{item.subcategory || item.name}</h4>
                       {item.sizes && item.sizes.length > 0 && (
                         <div className="mt-2 space-y-2">
                           {item.sizes.map((size: any, sizeIndex: number) => {
@@ -1796,102 +1987,312 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                   </ScrollArea>
                 </div>
               ) : (
-                <div className="mx-auto max-w-3xl space-y-6">
-                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-6">
+                <div className="mx-auto max-w-5xl space-y-4">
+                  <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 lg:p-5">
                     <h3 className="text-lg font-semibold text-slate-900">Manual purchase order item</h3>
                     <p className="mt-1 text-sm text-slate-500">
                       Add vendor-specific products or charges that are not in the product catalog.
                     </p>
 
-                    <div className="mt-6 grid gap-4 md:grid-cols-2">
-                      <div className="md:col-span-2">
-                        <Label htmlFor="manual-name">Product name</Label>
-                        <Input
-                          id="manual-name"
-                          value={manualProduct.name}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, name: e.target.value }))}
-                          placeholder="Enter item name"
-                          className="mt-1"
-                        />
+                    <div className="mt-4 space-y-4">
+                      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                        <div className="mb-3">
+                          <p className="text-sm font-semibold text-slate-900">Classification</p>
+                          <p className="text-xs text-slate-500">Choose where this manual item belongs before receiving it.</p>
+                        </div>
+
+                        <div className="grid gap-3 lg:grid-cols-4">
+                          <div className="lg:col-span-2">
+                            <Label>Category</Label>
+                            <Select
+                              value={manualProduct.category || undefined}
+                              onValueChange={(value) =>
+                                setManualProduct((prev) => ({
+                                  ...prev,
+                                  category: value,
+                                  subcategory: "",
+                                  pendingNewSubcategory: "",
+                                }))
+                              }
+                            >
+                              <SelectTrigger className="mt-1 h-10">
+                                <SelectValue placeholder="Select category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {manualCategories.map((category) => (
+                                  <SelectItem key={category} value={category}>
+                                    {category}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="lg:col-span-2">
+                            <Label>Subcategory</Label>
+                            <Select
+                              value={manualProduct.subcategory || undefined}
+                              onValueChange={(value) => {
+                                if (value === ADD_NEW_SUBCATEGORY_VALUE) {
+                                  handleOpenAddSubcategoryDialog();
+                                  return;
+                                }
+
+                                setManualProduct((prev) => ({
+                                  ...prev,
+                                  subcategory: value,
+                                  pendingNewSubcategory: "",
+                                }));
+                              }}
+                              disabled={!manualProduct.category || manualSubcategories.length === 0}
+                            >
+                              <SelectTrigger className="mt-1 h-10">
+                                <SelectValue
+                                  placeholder={
+                                    manualProduct.category
+                                      ? manualSubcategories.length > 0
+                                        ? "Select subcategory"
+                                        : "No subcategories available"
+                                      : "Select category first"
+                                  }
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {[
+                                  ...manualSubcategories,
+                                  ...(manualProduct.pendingNewSubcategory &&
+                                  !manualSubcategories.some(
+                                    (subcategory) =>
+                                      subcategory.toLowerCase() === manualProduct.pendingNewSubcategory.toLowerCase()
+                                  )
+                                    ? [manualProduct.pendingNewSubcategory]
+                                    : []),
+                                ].map((subcategory) => (
+                                  <SelectItem key={subcategory} value={subcategory}>
+                                    {subcategory}
+                                  </SelectItem>
+                                ))}
+                                {isAdmin && (
+                                  <SelectItem value={ADD_NEW_SUBCATEGORY_VALUE} className="bg-blue-600 text-white hover:bg-blue-700">
+                                    + Add New Subcategory
+                                  </SelectItem>
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <Label htmlFor="manual-sku">SKU / Vendor code</Label>
-                        <Input
-                          id="manual-sku"
-                          value={manualProduct.sku}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, sku: e.target.value }))}
-                          placeholder="Optional reference"
-                          className="mt-1"
-                        />
-                      </div>
+                      <div className="rounded-2xl border border-blue-100 bg-blue-50/40 p-4 shadow-sm">
+                        <div className="mb-3">
+                          <p className="text-sm font-semibold text-slate-900">Size and inventory details</p>
+                          <p className="text-xs text-slate-500">These values will be used to create the manual product size when stock is received.</p>
+                        </div>
 
-                      <div>
-                        <Label htmlFor="manual-size">Pack / size</Label>
-                        <Input
-                          id="manual-size"
-                          value={manualProduct.size}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, size: e.target.value }))}
-                          placeholder="Ex: 1 case, 500 ct, pallet"
-                          className="mt-1"
-                        />
-                      </div>
+                        <div className="grid gap-3 lg:grid-cols-6">
+                          <div className="lg:col-span-6">
+                            <Label htmlFor="manual-name">Product name</Label>
+                            <Input
+                              id="manual-name"
+                              value={manualProduct.name}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, name: e.target.value }))}
+                              placeholder="Enter item name"
+                              className="mt-1 h-10"
+                            />
+                          </div>
 
-                      <div>
-                        <Label htmlFor="manual-unit">Unit</Label>
-                        <Input
-                          id="manual-unit"
-                          value={manualProduct.unit}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, unit: e.target.value }))}
-                          placeholder="case"
-                          className="mt-1"
-                        />
-                      </div>
+                          <div className="lg:col-span-2">
+                            <Label htmlFor="manual-sku">SKU</Label>
+                            <Input
+                              id="manual-sku"
+                              value={manualProduct.sku}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, sku: e.target.value }))}
+                              placeholder="SKU-001"
+                              className="mt-1 h-10"
+                            />
+                          </div>
 
-                      <div>
-                        <Label htmlFor="manual-quantity">Quantity</Label>
-                        <Input
-                          id="manual-quantity"
-                          type="number"
-                          min="1"
-                          value={manualProduct.quantity}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, quantity: e.target.value }))}
-                          className="mt-1"
-                        />
-                      </div>
+                          <div className="lg:col-span-4">
+                            <Label htmlFor="manual-size">Size</Label>
+                            <Input
+                              id="manual-size"
+                              value={manualProduct.size}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, size: e.target.value }))}
+                              placeholder="500"
+                              className="mt-1 h-10"
+                            />
+                          </div>
 
-                      <div className="md:col-span-2">
-                        <Label htmlFor="manual-price">Unit price</Label>
-                        <Input
-                          id="manual-price"
-                          type="number"
-                          min="0.01"
-                          step="0.01"
-                          value={manualProduct.price}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, price: e.target.value }))}
-                          placeholder="0.00"
-                          className="mt-1"
-                        />
-                      </div>
+                          <div className="lg:col-span-2">
+                            <Label htmlFor="manual-unit">Unit</Label>
+                            <Select
+                              value={manualProduct.unit}
+                              onValueChange={(value) => setManualProduct((prev) => ({ ...prev, unit: value }))}
+                            >
+                              <SelectTrigger id="manual-unit" className="mt-1 h-10">
+                                <SelectValue placeholder="Select unit" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {["unit", "case", "box", "pack", "roll", "pallet"].map((unit) => (
+                                  <SelectItem key={unit} value={unit}>
+                                    {unit}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
 
-                      <div className="md:col-span-2">
-                        <Label htmlFor="manual-notes">Notes</Label>
-                        <Textarea
-                          id="manual-notes"
-                          rows={4}
-                          value={manualProduct.notes}
-                          onChange={(e) => setManualProduct((prev) => ({ ...prev, notes: e.target.value }))}
-                          placeholder="Add vendor item notes, specifications, or internal receiving comments."
-                          className="mt-1"
-                        />
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-stock">Stock</Label>
+                            <Input
+                              id="manual-stock"
+                              type="number"
+                              min="1"
+                              value={manualProduct.stock}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, stock: e.target.value }))}
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-qpercase">Q.Per Case</Label>
+                            <Input
+                              id="manual-qpercase"
+                              type="number"
+                              min="1"
+                              value={manualProduct.quantityPerCase}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, quantityPerCase: e.target.value }))}
+                              className="mt-1 h-10 bg-yellow-50 border-yellow-200"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-2">
+                            <Label htmlFor="manual-price">$/CS</Label>
+                            <Input
+                              id="manual-price"
+                              type="number"
+                              min="0.01"
+                              step="0.01"
+                              value={manualProduct.price}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, price: e.target.value }))}
+                              placeholder="0.00"
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-unit-price">$/Unit (Auto)</Label>
+                            <Input
+                              id="manual-unit-price"
+                              value={(
+                                (Number(manualProduct.price) || 0) /
+                                Math.max(Number(manualProduct.quantityPerCase) || 0, 1)
+                              ).toFixed(2)}
+                              readOnly
+                              disabled
+                              className="mt-1 h-10 bg-gray-100 text-slate-500 cursor-not-allowed"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-shipcs">Ship/CS</Label>
+                            <Input
+                              id="manual-shipcs"
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={manualProduct.shippingCost}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, shippingCost: e.target.value }))}
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-sequence">Sequence</Label>
+                            <Input
+                              id="manual-sequence"
+                              type="number"
+                              min="0"
+                              value={manualProduct.sequence}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, sequence: e.target.value }))}
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-2">
+                            <Label>Sell Type</Label>
+                            <div className="mt-2 flex flex-wrap gap-4 text-sm text-slate-700">
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={manualProduct.sellByUnit}
+                                  onChange={(e) => setManualProduct((prev) => ({ ...prev, sellByUnit: e.target.checked }))}
+                                />
+                                Sell by Unit
+                              </label>
+                              <label className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={manualProduct.sellByCase}
+                                  onChange={(e) => setManualProduct((prev) => ({ ...prev, sellByCase: e.target.checked }))}
+                                />
+                                Sell by Case
+                              </label>
+                            </div>
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-ndc">NDC Code</Label>
+                            <Input
+                              id="manual-ndc"
+                              value={manualProduct.ndcCode}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, ndcCode: e.target.value }))}
+                              placeholder="12345-678-90"
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-upc">UPC Code</Label>
+                            <Input
+                              id="manual-upc"
+                              value={manualProduct.upcCode}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, upcCode: e.target.value }))}
+                              placeholder="012345678901"
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-lot">Lot Number</Label>
+                            <Input
+                              id="manual-lot"
+                              value={manualProduct.lotNumber}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, lotNumber: e.target.value }))}
+                              placeholder="LOT-2024-001"
+                              className="mt-1 h-10"
+                            />
+                          </div>
+
+                          <div className="lg:col-span-1">
+                            <Label htmlFor="manual-expiry">Expiry Date</Label>
+                            <Input
+                              id="manual-expiry"
+                              type="date"
+                              value={manualProduct.expiryDate}
+                              onChange={(e) => setManualProduct((prev) => ({ ...prev, expiryDate: e.target.value }))}
+                              className="mt-1 h-10"
+                            />
+                          </div>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="mt-6 flex flex-col gap-3 rounded-2xl border border-blue-100 bg-white p-4 md:flex-row md:items-center md:justify-between">
+                    <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-blue-100 bg-white p-3 md:flex-row md:items-center md:justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-900">Estimated line total</p>
                         <p className="text-2xl font-semibold text-blue-700">
-                          ${((Number(manualProduct.quantity) || 0) * (Number(manualProduct.price) || 0)).toFixed(2)}
+                          ${((Number(manualProduct.stock) || 0) * (Number(manualProduct.price) || 0)).toFixed(2)}
                         </p>
                       </div>
                       <Button
@@ -1902,6 +2303,74 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                         Add Manual Item to PO
                       </Button>
                     </div>
+
+                    {addedManualItems.length > 0 && (
+                      <div className="mt-3 rounded-2xl border border-slate-200 bg-white p-3">
+                        <div className="mb-2 flex items-center justify-between">
+                          <p className="text-sm font-semibold text-slate-900">
+                            Added manual items
+                          </p>
+                          <Badge variant="secondary" className="bg-blue-50 text-blue-700">
+                            {addedManualItems.length} item{addedManualItems.length > 1 ? "s" : ""}
+                          </Badge>
+                        </div>
+                        <div className="grid gap-2">
+                          {addedManualItems.map((item: any) => {
+                            const firstSize = item.sizes?.[0];
+                            return (
+                              <div
+                                key={item.productId}
+                                className="grid gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-sm lg:grid-cols-[minmax(0,2fr)_120px_90px_120px_40px]"
+                              >
+                                <div className="min-w-0">
+                                  <p className="truncate font-medium text-slate-900">{item.name}</p>
+                                  <p className="truncate text-xs text-slate-500">
+                                    {item.category || "Manual Item"}
+                                    {item.subcategory ? ` / ${item.subcategory}` : ""}
+                                    {firstSize?.size_value ? ` • ${firstSize.size_value} ${firstSize.size_unit || ""}` : ""}
+                                  </p>
+                                </div>
+                                <div className="text-slate-600">
+                                  Qty: {item.quantity || firstSize?.quantity || 0}
+                                </div>
+                                <div className="text-slate-600">
+                                  ${Number(firstSize?.price || 0).toFixed(2)}
+                                </div>
+                                <div className="font-semibold text-blue-700">
+                                  ${Number(item.price || 0).toFixed(2)}
+                                </div>
+                                <div className="flex justify-end">
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-red-500 hover:bg-red-50 hover:text-red-600"
+                                    onClick={async () => {
+                                      const removed = await removeFromCart(item.productId);
+
+                                      if (removed) {
+                                        toast({
+                                          title: "Manual item removed",
+                                          description: `${item.name} was removed from this purchase order.`,
+                                        });
+                                      } else {
+                                        toast({
+                                          title: "Remove failed",
+                                          description: "Unable to remove this manual item.",
+                                          variant: "destructive",
+                                        });
+                                      }
+                                    }}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

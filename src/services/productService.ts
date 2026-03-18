@@ -45,13 +45,27 @@ const toNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(parsed) ? parsed : fallback;
 };
 
+const calculateUnitPrice = (size: {
+  price?: unknown;
+  quantity_per_case?: unknown;
+  rolls_per_case?: unknown;
+}) => {
+  const price = toNumber(size.price, 0);
+  const quantity = toNumber(size.quantity_per_case, 0);
+  const rolls = toNumber(size.rolls_per_case, 1);
+
+  if (quantity <= 0) return 0;
+
+  return Number((price / (rolls > 0 ? rolls * quantity : quantity)).toFixed(2));
+};
+
 const buildSizeWritePayload = (size: ProductSizeInput) => ({
   size_name: size.size_name || "",
   size_value: size.size_value || "0",
   size_unit: size.size_unit || "unit",
   price: toNumber(size.price, 0),
   stock: toNumber(size.stock, 0),
-  price_per_case: toNumber(size.price_per_case, 0),
+  price_per_case: calculateUnitPrice(size),
   sku: size.sku || "",
   image: size.image || "",
   quantity_per_case: toNumber(size.quantity_per_case, 1),

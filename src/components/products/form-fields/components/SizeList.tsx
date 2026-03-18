@@ -59,6 +59,25 @@ interface SizeListProps {
   form?: ProductFormAdapter;
 }
 
+const calculateUnitPrice = (size: {
+  price?: number | string;
+  quantity_per_case?: number | string;
+  rolls_per_case?: number | string;
+}, hasRolls: boolean) => {
+  const price = Number(size.price) || 0;
+  const quantity = Number(size.quantity_per_case) || 0;
+  const rolls = Number(size.rolls_per_case) || 1;
+
+  if (quantity <= 0) return 0;
+
+  if (hasRolls) {
+    return rolls > 0 ? Number((price / (rolls * quantity)).toFixed(2)) : 0;
+  }
+
+  return Number((price / quantity).toFixed(2));
+};
+
+
 export const SizeList = ({
   sizes = [],
   onRemoveSize,
@@ -192,7 +211,7 @@ export const SizeList = ({
                       <DollarSign className="h-3 w-3" />${size.price}/CS
                     </span>
                     <span className="flex items-center gap-1 text-blue-600 font-medium">
-                      <Package className="h-3 w-3" />${size.price_per_case || 0}/Unit
+                      <Package className="h-3 w-3" />${calculateUnitPrice(size, categoryConfig?.hasRolls)}/Unit
                     </span>
                     <span className="flex items-center gap-1 text-orange-600 font-medium">
                       <Warehouse className="h-3 w-3" />
@@ -327,11 +346,10 @@ export const SizeList = ({
                       </label>
                       <Input
                         type="number"
-                        value={size.price_per_case || 0}
-                        onChange={(e) => onUpdateSize(index, "price_per_case", parseFloat(e.target.value) || 0)}
-                        className="h-8 text-sm"
-                        min="0"
-                        step="0.01"
+                        value={calculateUnitPrice(size, categoryConfig?.hasRolls)}
+                        readOnly
+                        disabled
+                        className="h-8 text-sm bg-gray-100 text-blue-600 cursor-not-allowed"
                       />
                     </div>
 
