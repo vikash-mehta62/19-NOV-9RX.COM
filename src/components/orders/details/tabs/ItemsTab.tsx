@@ -322,6 +322,7 @@ export const ItemsTab = ({
       }
 
       const originalAmount = Number(currentOrder?.total_amount || 0);
+      const originalProcessingFee = Number(currentOrder?.processing_fee_amount || 0);
 
       // Get the paid_amount - if not set and order is paid, use original total_amount
       let paidAmount = Number(currentOrder?.paid_amount || 0);
@@ -379,6 +380,8 @@ export const ItemsTab = ({
         editedItems,
         newSubtotal,
         newTotal,
+        originalTotalBeforeAdjustment: originalAmount, // Capture original total for reward points
+        originalProcessingFee: originalProcessingFee, // Capture original processing fee
       });
 
       setPaymentAdjustmentData({
@@ -449,16 +452,29 @@ export const ItemsTab = ({
     newSubtotal: number,
     newTotal: number,
     newPaymentStatus?: string,
-    paymentAdjustmentResult?: { adjustmentType?: string; adjustmentKey?: string },
+    paymentAdjustmentResult?: { 
+      adjustmentType?: string; 
+      adjustmentKey?: string; 
+      originalTotalBeforeAdjustment?: number;
+      originalProcessingFee?: number;
+    },
     shouldIncludePricingInEmail: boolean = includePricingInPdf,
   ) {
     try {
       // Get current order data for activity logging
       const { data: currentOrderData } = await supabase
         .from("orders")
-        .select("total_amount, items, order_number, payment_status, paid_amount, profile_id, location_id, payment_method")
+        .select("total_amount, items, order_number, payment_status, paid_amount, profile_id, location_id, payment_method, processing_fee_amount")
         .eq("id", orderId)
         .single();
+
+      // Use original total if provided (for reward points calculation after payment adjustment)
+      // Otherwise use current total from database
+      const oldTotal = paymentAdjustmentResult?.originalTotalBeforeAdjustment ?? Number(currentOrderData?.total_amount || 0);
+      
+      // Use original processing fee if provided (for reward points calculation after payment adjustment)
+      // Otherwise use current processing fee from database
+      const oldProcessingFeeForRewards = paymentAdjustmentResult?.originalProcessingFee ?? Number(currentOrderData?.processing_fee_amount || 0);
 
       const shouldApplyInventoryAdjustment = [
         "collect_payment",
@@ -503,7 +519,6 @@ export const ItemsTab = ({
         }
       }
 
-      const oldTotal = Number(currentOrderData?.total_amount || 0);
       const oldItemCount = currentOrderData?.items?.length || 0;
       const newItemCount = itemsToSave.length;
       const paidAmountFromDb = Number(currentOrderData?.paid_amount || 0);
@@ -624,13 +639,24 @@ if (
           console.log('🎁 Adjusting reward points for order edit...');
           console.log(`📊 Payment Status: ${currentOrderData?.payment_status}, Payment Method: ${currentOrderData?.payment_method}`);
           
+          // Calculate totals WITHOUT processing fee for reward points
+          // Reward points should only be based on items price, not processing fees
+          // Use oldProcessingFeeForRewards which is either:
+          // - Original processing fee (if payment adjustment happened)
+          // - Current processing fee (if direct save)
+          const oldTotalForRewards = oldTotal - oldProcessingFeeForRewards;
+          const newTotalForRewards = newTotal - oldProcessingFeeForRewards;
+          
+          console.log(`💰 Old Total: ${oldTotal.toFixed(2)} (Processing Fee: ${oldProcessingFeeForRewards.toFixed(2)}) = ${oldTotalForRewards.toFixed(2)} for rewards`);
+          console.log(`💰 New Total: ${newTotal.toFixed(2)} (Processing Fee: ${oldProcessingFeeForRewards.toFixed(2)}) = ${newTotalForRewards.toFixed(2)} for rewards`);
+          
           const { adjustRewardPointsForOrderEdit } = await import("@/services/rewardPointsAdjustmentService");
           
           const adjustmentResult = await adjustRewardPointsForOrderEdit(
             customerIdForPoints,
             orderId!,
-            oldTotal,
-            newTotal,
+            oldTotalForRewards,
+            newTotalForRewards,
             currentOrderData?.order_number || ''
           );
 
@@ -750,10 +776,12 @@ if (
 
     setIsSaving(true);
     try {
-      const { editedItems: itemsToSave, newSubtotal, newTotal } = pendingEditData;
+      const { editedItems: itemsToSave, newSubtotal, newTotal, originalTotalBeforeAdjustment, originalProcessingFee } = pendingEditData;
       await saveOrderChanges(itemsToSave, newSubtotal, newTotal, undefined, {
         adjustmentType: result.adjustmentType,
         adjustmentKey: result.adjustmentKey,
+        originalTotalBeforeAdjustment, // Pass original total for reward points calculation
+        originalProcessingFee, // Pass original processing fee
       });
       
       toast({

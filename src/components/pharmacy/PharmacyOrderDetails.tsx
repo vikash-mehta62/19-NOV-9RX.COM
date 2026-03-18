@@ -420,16 +420,23 @@ console.log(order,"PHARorder")
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
       const isPurchaseOrder = (order as any)?.poAccept === false
       const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
+      const pdfProcessingFee = !isPurchaseOrder ? Number(processingFeeAmount || 0) : 0
       const fred = isPurchaseOrder ? Number((order as any)?.po_fred_charges || 0) : 0
       const pdfDiscountAmount = discountAmount
-      const pdfTotal = subtotal + handling + fred + shipping + tax - pdfDiscountAmount
+      const pdfTotal = subtotal + handling + fred + shipping + tax + pdfProcessingFee- pdfDiscountAmount
 
       const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
+       
       ]
-      
+      if (pdfProcessingFee > 0) {
+  summaryBody.push([
+    "Card Processing Fee",
+    `$${pdfProcessingFee.toFixed(2)}`
+  ])
+}
       // Add discount row if applicable
       if (pdfDiscountAmount > 0) {
         const discountName = discountDetails.length > 0 ? discountDetails[0].name || "Discount" : "Discount"

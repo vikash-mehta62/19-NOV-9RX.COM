@@ -711,7 +711,8 @@ export const OrderDetailsSheet = ({
     const shipping = Number(currentOrder?.shipping_cost || 0);
     const tax = Number(currentOrder?.tax_amount || 0);
     const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
-    const total = subtotal + handling + freight + shipping + tax - discountAmount;
+    const processingFee = Number((currentOrder as any)?.processing_fee_amount || 0);
+    const total = subtotal + handling + freight + shipping + tax + processingFee - discountAmount;
 
     doc.setFillColor(...brandColor);
     doc.rect(0, 0, pageWidth, 5, "F");
@@ -910,6 +911,11 @@ export const OrderDetailsSheet = ({
 
       if (!poIs && discountAmount > 0) {
         summaryBody.push(["Discount", `-$${discountAmount.toFixed(2)}`]);
+      }
+
+      // Add processing fee for sales orders (not POs)
+      if (!poIs && processingFee > 0) {
+        summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
       }
 
       autoTable(doc as any, {
@@ -1316,8 +1322,9 @@ export const OrderDetailsSheet = ({
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
       const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
-      // Correct formula: Total = Subtotal + Shipping + Tax + PO Charges (if PO) - Discount
-      const total = subtotal + handling + fred + shipping + tax - discountAmount;
+      const processingFee = Number((currentOrder as any)?.processing_fee_amount || 0);
+      // Correct formula: Total = Subtotal + Shipping + Tax + Processing Fee + PO Charges (if PO) - Discount
+      const total = subtotal + handling + fred + shipping + tax + processingFee - discountAmount;
 
       // Get discount details for display
       const discountDetails = (currentOrder as any)?.discount_details || [];
@@ -1336,6 +1343,11 @@ export const OrderDetailsSheet = ({
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
       }
 
+
+      // Add processing fee for sales orders (not POs)
+      if (!poIs && processingFee > 0) {
+        summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
+      }
       autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
@@ -1809,6 +1821,11 @@ export const OrderDetailsSheet = ({
         summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
       }
 
+
+      // Add processing fee for sales orders (not POs)
+      if (!poIs && processingFee > 0) {
+        summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
+      }
       autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
@@ -4278,3 +4295,4 @@ export const OrderDetailsSheet = ({
     </>
   );
 };
+
