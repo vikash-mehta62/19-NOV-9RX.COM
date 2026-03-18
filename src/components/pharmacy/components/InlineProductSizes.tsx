@@ -84,6 +84,13 @@ export const InlineProductSizes = ({
         if (error) throw error
 
         let ID = userProfile?.id
+        const userType = userProfile?.type
+
+        console.log('=== INLINE PRODUCT SIZES FILTERING DEBUG ===');
+        console.log('InlineProductSizes - Current User ID:', ID);
+        console.log('InlineProductSizes - Current User Type:', userType);
+        console.log('InlineProductSizes - User Profile:', userProfile);
+        console.log('InlineProductSizes - Product:', productData.name);
 
         // Map the product with pricing
         const mappedProduct: ProductDetails = {
@@ -120,14 +127,68 @@ export const InlineProductSizes = ({
             ?.filter((size: any) => {
               const groupIds = size.groupIds || []
               const disAllowGroupIds = size.disAllogroupIds || []
-              const isDisallowed = groupData?.some(
-                (group: any) => disAllowGroupIds.includes(group.id) && group.group_ids.includes(ID)
-              )
-              if (isDisallowed) return false
-              if (groupIds.length === 0) return true
-              return groupData?.some(
-                (group: any) => group.group_ids.includes(ID) && groupIds.includes(group.id)
-              )
+              
+              console.log('🔍 InlineProductSizes - Filtering size:', {
+                productName: productData.name,
+                sizeId: size.id,
+                sizeName: size.size_name,
+                groupIds,
+                disAllowGroupIds,
+                currentUserId: ID,
+                currentUserType: userType
+              });
+              
+              // For ADMIN users: Show all sizes
+              if (userType === 'admin') {
+                console.log('✅ Size allowed - admin user sees all');
+                return true;
+              }
+              
+              // For GROUP users: Check if user's group is in group_pricing
+              if (userType === 'group') {
+                const isDisallowed = groupData?.some(
+                  (group: any) => disAllowGroupIds.includes(group.id) && group.group_ids.includes(ID)
+                );
+                if (isDisallowed) {
+                  console.log('❌ Size blocked for group - in disallow list');
+                  return false;
+                }
+                
+                if (groupIds.length === 0) {
+                  console.log('✅ Size allowed for group - no restrictions (public)');
+                  return true;
+                }
+                
+                const isAllowed = groupData?.some(
+                  (group: any) => group.group_ids.includes(ID) && groupIds.includes(group.id)
+                );
+                console.log(isAllowed ? '✅ Size allowed for group' : '❌ Size blocked for group', '- group check');
+                return isAllowed;
+              }
+              
+              // For PHARMACY users: Direct pharmacy ID check
+              if (userType === 'pharmacy') {
+                // ❌ If this pharmacy is in disAllowGroupIds, skip this size
+                if (disAllowGroupIds.includes(ID)) {
+                  console.log('❌ Size blocked - pharmacy in disallow list');
+                  return false;
+                }
+                
+                // ✅ If size has no pharmacy restriction, it's public (available to all)
+                if (groupIds.length === 0) {
+                  console.log('✅ Size allowed - no restrictions (public)');
+                  return true;
+                }
+                
+                // ✅ Allow if this pharmacy ID is in the allowed groupIds
+                const isAllowed = groupIds.includes(ID);
+                console.log(isAllowed ? '✅ Size allowed' : '❌ Size blocked', '- pharmacy ID', isAllowed ? 'IS' : 'NOT', 'in allowed list');
+                return isAllowed;
+              }
+              
+              // For other user types: Show all
+              console.log('✅ Size allowed - unknown user type, showing all');
+              return true;
             })
             .map((size: any) => {
               let newPrice = size.price

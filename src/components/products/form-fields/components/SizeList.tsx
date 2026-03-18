@@ -85,24 +85,43 @@ export const SizeList = ({
   // ⚠️ useEffect MUST be before any return statement
   useEffect(() => {
     // Define function inside useEffect to avoid re-creation
-    const fetchGroupPricings = async () => {
+    const fetchPharmacies = async () => {
       setLoading(true);
       try {
         const { data, error } = await supabase
-          .from("group_pricing")
-          .select("id, name")
-          .order("created_at", { ascending: false });
+          .from("profiles")
+          .select("id, company_name, first_name, last_name, display_name, email")
+          .eq("type", "pharmacy")
+          .eq("status", "active");
 
+        console.log(data, "DATA PHARMACY")
+        
         if (error) throw error;
-        setGroups(data || []);
+        
+        // Map and sort pharmacies by name
+        const pharmacies = (data || [])
+          .map(p => {
+            // Priority: company_name > display_name > first_name + last_name > email
+            let name = "";
+            if (!name) name = p.display_name?.trim();
+            if (!name && (p.first_name || p.last_name)) {
+              name = `${p.first_name || ''} ${p.last_name || ''}`.trim();
+            }
+            if (!name) name = p.email?.split('@')[0] || 'Unnamed Pharmacy';
+            
+            return { id: p.id, name };
+          })
+          .sort((a, b) => a.name.localeCompare(b.name));
+        
+        setGroups(pharmacies);
       } catch (error) {
-        console.error("Error fetching group pricings:", error);
+        console.error("Error fetching pharmacies:", error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchGroupPricings();
+    fetchPharmacies();
   }, []); // Empty dependency array - sirf component mount pe chalega
 
   // ✅ Ab aap conditional return kar sakte ho
@@ -448,10 +467,10 @@ export const SizeList = ({
                         className="h-8 text-sm"
                       />
                     </div>
-                    {/* Allowed Groups Multi-Select */}
+                    {/* Allowed Pharmacies Multi-Select */}
                     <div className="col-span-2">
                       <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
-                        Allowed Groups
+                        Allowed Pharmacies
                       </label>
                       <Select
                         isMulti
@@ -470,14 +489,14 @@ export const SizeList = ({
                         }}
                         className="react-select-container text-sm"
                         classNamePrefix="react-select"
-                        placeholder="Select groups..."
+                        placeholder="Select pharmacies..."
                       />
                     </div>
 
-                    {/* Disallowed Groups Multi-Select */}
+                    {/* Disallowed Pharmacies Multi-Select */}
                     <div className="col-span-2">
                       <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
-                        Disallowed Groups
+                        Disallowed Pharmacies
                       </label>
                       <Select
                         isMulti
@@ -496,7 +515,7 @@ export const SizeList = ({
                         }}
                         className="react-select-container text-sm"
                         classNamePrefix="react-select"
-                        placeholder="Select groups..."
+                        placeholder="Select pharmacies..."
                       />
                     </div>
                   </div>

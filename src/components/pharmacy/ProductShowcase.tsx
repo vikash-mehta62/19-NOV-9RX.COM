@@ -78,6 +78,13 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
 
         let ID = userProfile?.id;
+        const userType = userProfile?.type;
+        
+        console.log('=== PRODUCT SHOWCASE FILTERING DEBUG ===');
+        console.log('Current User ID:', ID);
+        console.log('Current User Type:', userType);
+        console.log('User Profile:', userProfile);
+        console.log('Total products fetched:', productsData.length);
  
         const mappedProducts: ProductDetails[] = productsData.map((item) => {
           return {
@@ -114,19 +121,67 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
     const groupIds = size.groupIds || [];
     const disAllowGroupIds = size.disAllogroupIds || [];
 
-    // ❌ If any group in disAllowGroupIds includes this user, skip this size
-    const isDisallowed = groupData.some(
-      (group) => disAllowGroupIds.includes(group.id) && group.group_ids.includes(ID)
-    );
-    if (isDisallowed) return false;
+    console.log('🔍 Filtering size:', {
+      productName: item.name,
+      sizeId: size.id,
+      sizeName: size.size_name,
+      groupIds,
+      disAllowGroupIds,
+      currentUserId: ID,
+      currentUserType: userType
+    });
 
-    // ✅ If size has no group restriction, it's public
-    if (groupIds.length === 0) return true;
+    // For ADMIN users: Show all sizes
+    if (userType === 'admin') {
+      console.log('✅ Size allowed - admin user sees all');
+      return true;
+    }
 
-    // ✅ Allow if this user is part of any allowed group
-    return groupData.some(
-      (group) => group.group_ids.includes(ID) && groupIds.includes(group.id)
-    );
+    // For GROUP users: Check if user's group is in group_pricing
+    if (userType === 'group') {
+      const isDisallowed = groupData.some(
+        (group) => disAllowGroupIds.includes(group.id) && group.group_ids.includes(ID)
+      );
+      if (isDisallowed) {
+        console.log('❌ Size blocked for group - in disallow list');
+        return false;
+      }
+      
+      if (groupIds.length === 0) {
+        console.log('✅ Size allowed for group - no restrictions (public)');
+        return true;
+      }
+      
+      const isAllowed = groupData.some(
+        (group) => group.group_ids.includes(ID) && groupIds.includes(group.id)
+      );
+      console.log(isAllowed ? '✅ Size allowed for group' : '❌ Size blocked for group', '- group check');
+      return isAllowed;
+    }
+    
+    // For PHARMACY users: Direct pharmacy ID check
+    if (userType === 'pharmacy') {
+      // ❌ If this pharmacy is in disAllowGroupIds, skip this size
+      if (disAllowGroupIds.includes(ID)) {
+        console.log('❌ Size blocked - pharmacy in disallow list');
+        return false;
+      }
+
+      // ✅ If size has no pharmacy restriction, it's public (available to all)
+      if (groupIds.length === 0) {
+        console.log('✅ Size allowed - no restrictions (public)');
+        return true;
+      }
+
+      // ✅ Allow if this pharmacy ID is in the allowed groupIds
+      const isAllowed = groupIds.includes(ID);
+      console.log(isAllowed ? '✅ Size allowed' : '❌ Size blocked', '- pharmacy ID', isAllowed ? 'IS' : 'NOT', 'in allowed list');
+      return isAllowed;
+    }
+    
+    // For other user types: Show all
+    console.log('✅ Size allowed - unknown user type, showing all');
+    return true;
   })
 
     .map((size) => {
