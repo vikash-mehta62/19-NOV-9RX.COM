@@ -136,7 +136,7 @@ export const OrderConfirmAction = ({ order, onConfirmOrder }: OrderConfirmAction
       const orderShippingUpdate = {
         shipping_method: shippingMethod,
         tracking_number: trackingNumber,
-        shipping_cost: shippingCost,
+        // shipping_cost: shippingCost,  // Don't update - FedEx charge only in shipping JSON
         estimated_delivery: fedexData?.estimatedDeliveryDate || null,
         status: 'shipped',
         updated_at: new Date().toISOString(),

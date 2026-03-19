@@ -148,7 +148,7 @@ export const OrderShipAction = ({
           shippingAddress: updatedShippingAddress,
           tracking_number: trackingNumber,
           shipping_method: shippingMethod,
-          shipping_cost: shippingCost,
+          // shipping_cost: shippingCost,  // Don't update - FedEx charge only in shipping JSON
           estimated_delivery: updatedShipping.estimatedDelivery || null,
           status: "shipped",
         };

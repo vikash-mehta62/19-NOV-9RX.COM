@@ -377,12 +377,12 @@ export const OverviewTab = ({
             </div>
 
             {showAdminFedExCharge && (
-              <div className="flex justify-between items-center py-2">
+              <div className="flex justify-between items-center py-2 px-3 -mx-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
                 <div>
-                  <span className="text-slate-700">FedEx Label Charge</span>
-                  <p className="text-xs text-slate-400">Internal shipping cost paid by admin.</p>
+                  <span className="text-slate-700 font-medium">FedEx Label Charge</span>
+                  <p className="text-xs text-slate-600">Internal shipping cost paid by admin (not included in order total).</p>
                 </div>
-                <span className="font-medium text-slate-900">${fedexLabelCharge.toFixed(2)}</span>
+                <span className="font-semibold text-slate-900">${fedexLabelCharge.toFixed(2)}</span>
               </div>
             )}
             

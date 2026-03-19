@@ -378,11 +378,20 @@ const extractRateQuote = (result: Record<string, any>): FedExRateQuoteResult => 
   const totalBaseCharge = ratedShipment?.totalBaseCharge || {};
   const totalSurcharges = ratedShipment?.totalSurcharges || {};
 
+  // Handle both formats: direct number or object with amount property
+  const extractAmount = (value: any): number | undefined => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'object' && value !== null && 'amount' in value) {
+      return toFiniteNumber(value.amount);
+    }
+    return toFiniteNumber(value);
+  };
+
   return {
-    totalNetCharge: toFiniteNumber(totalNetCharge?.amount),
-    totalBaseCharge: toFiniteNumber(totalBaseCharge?.amount),
-    totalSurcharges: toFiniteNumber(totalSurcharges?.amount),
-    currency: totalNetCharge?.currency || totalBaseCharge?.currency || "USD",
+    totalNetCharge: extractAmount(totalNetCharge),
+    totalBaseCharge: extractAmount(totalBaseCharge),
+    totalSurcharges: extractAmount(totalSurcharges),
+    currency: totalNetCharge?.currency || totalBaseCharge?.currency || ratedShipment?.currency || "USD",
     serviceType: rateReply?.serviceType,
     deliveryTimestamp:
       rateReply?.commit?.dateDetail ||

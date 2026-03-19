@@ -410,7 +410,7 @@ export const TrackingDialog = ({
       cost: shippingCost,
       trackingNumber: shipment.trackingNumber,
       labelUrl: shipment.labelUrl,
-      labelBase64: shipment.labelBase64,
+      // labelBase64: shipment.labelBase64,  // Don't save base64 - too large for database
       labelFormat: shipment.labelFormat || labelImageType,
       labelStockType,
       serviceType: shipment.serviceType || selectedServiceType,
@@ -444,25 +444,29 @@ export const TrackingDialog = ({
       }),
     });
 
-    const orderUpdates = {
-      shipping: savedShipping,
-      shippingAddress: savedShippingAddress,
-      tracking_number: shipment.trackingNumber,
-      shipping_method: "FedEx",
-      shipping_cost: shippingCost,
-      estimated_delivery: shipment.estimatedDeliveryDate || null,
-    };
-
-    const { error } = await supabase
+    // Don't modify order total or shipping_cost field - FedEx charge only in shipping JSON
+    const { error } = await (supabase
       .from("orders")
-      .update(orderUpdates)
+      .update({
+        shipping: savedShipping,
+        shippingAddress: savedShippingAddress,
+        tracking_number: shipment.trackingNumber,
+        shipping_method: "FedEx",
+        estimated_delivery: shipment.estimatedDeliveryDate || null,
+      }) as any)
       .eq("id", order.id);
 
     if (error) {
       throw error;
     }
 
-    onOrderUpdate?.(orderUpdates);
+    onOrderUpdate?.({
+      shipping: savedShipping,
+      shippingAddress: savedShippingAddress,
+      tracking_number: shipment.trackingNumber,
+      shipping_method: "FedEx",
+      estimated_delivery: shipment.estimatedDeliveryDate || null,
+    });
   };
 
   const updateRecipientField = (field: keyof FedExRecipientInput, value: string) => {
@@ -662,19 +666,23 @@ export const TrackingDialog = ({
       const activeRecipient = normalizeRecipientDraft(recipientDraft);
       const quote = await fedexService.rateQuote(order, buildPackageInput(), activeRecipient);
       if (quote.serviceType) setServiceType(quote.serviceType);
-      updateFedExData({
+      
+      const newFedExData = {
         ...(fedexData || {}),
         quotedAmount: quote.totalNetCharge,
         quotedCurrency: quote.currency || "USD",
         labelStockType,
         serviceType: quote.serviceType || serviceType,
         estimatedDeliveryDate: quote.deliveryTimestamp || fedexData?.estimatedDeliveryDate,
-      });
+      };
+      
+      updateFedExData(newFedExData);
+      
       toast({
         title: "FedEx rate loaded",
         description:
           quote.totalNetCharge != null
-            ? `Quoted ${quote.currency || "USD"} ${quote.totalNetCharge.toFixed(2)}`
+            ? `Shipping Cost: ${quote.currency || "USD"} $${quote.totalNetCharge.toFixed(2)}`
             : "FedEx returned a shipment quote.",
       });
     } catch (error) {
@@ -727,9 +735,8 @@ export const TrackingDialog = ({
       if (!shipment.trackingNumber) throw new Error("FedEx did not return a tracking number");
 
       onTrackingNumberChange(shipment.trackingNumber);
-      const shippingCost = Number(
-        quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0,
-      );
+      // Use the quoted amount as shipping cost, fallback to 0 if not available
+      const shippingCost = Number(quotedAmount ?? 0);
       updateFedExData({
         labelUrl: shipment.labelUrl,
         labelBase64: shipment.labelBase64,
@@ -764,7 +771,7 @@ export const TrackingDialog = ({
 
       toast({
         title: "FedEx label created",
-        description: `Tracking number ${shipment.trackingNumber} is ready and saved to this order.`,
+        description: `Tracking: ${shipment.trackingNumber}. FedEx label charge: $${shippingCost.toFixed(2)} (admin cost).`,
       });
     } catch (error) {
       toast({
@@ -1084,6 +1091,37 @@ export const TrackingDialog = ({
                 </Alert>
               ) : null}
 
+              {fedexData?.quotedAmount != null && (
+                <div className="rounded-lg border-2 border-green-300 bg-gradient-to-r from-green-50 to-blue-50 p-4 shadow-md">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2 className="h-6 w-6 text-green-600 mt-1 flex-shrink-0" />
+                    <div className="space-y-2 flex-1">
+                      <div className="flex items-baseline gap-2">
+                        <span className="text-sm font-medium text-gray-600">FedEx Label Charge:</span>
+                        <span className="text-2xl font-bold text-green-700">
+                          {fedexData.quotedCurrency || "USD"} ${fedexData.quotedAmount.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="space-y-1 text-sm text-gray-700">
+                        <p>
+                          <span className="font-medium">Service:</span>{" "}
+                          {FEDEX_SERVICE_OPTIONS.find(opt => opt.value === serviceType)?.label || serviceType}
+                        </p>
+                        {fedexData.estimatedDeliveryDate && (
+                          <p>
+                            <span className="font-medium">Estimated Delivery:</span>{" "}
+                            {new Date(fedexData.estimatedDeliveryDate).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 italic">
+                        This is the FedEx label charge (admin shipping cost). Customer shipping is separate.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {hasSuggestedAddress ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3">
                   <p className="text-sm text-blue-800">
@@ -1228,20 +1266,62 @@ export const TrackingDialog = ({
               </div>
 
               {(fedexData?.labelUrl || fedexData?.labelBase64 || fedexData?.trackingStatus || fedexData?.pickupConfirmationNumber || fedexData?.quotedAmount != null) && (
-                <div className="space-y-2 rounded-lg bg-muted/50 p-3 text-sm">
+                <div className="space-y-3 rounded-lg border-2 border-green-300 bg-gradient-to-br from-green-50 to-blue-50 p-4 shadow-sm">
+                  <div className="flex items-center gap-2 border-b border-green-200 pb-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    <h4 className="font-semibold text-green-900">Shipping Summary</h4>
+                  </div>
+                  
                   {fedexData?.quotedAmount != null && (
-                    <p><span className="font-medium">Quoted Shipping:</span> {fedexData.quotedCurrency || "USD"} {fedexData.quotedAmount.toFixed(2)}</p>
+                    <div className="rounded-lg bg-white p-3 border-2 border-green-300 shadow-sm">
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium text-gray-600">FedEx Label Charge:</span>
+                          <span className="text-xl font-bold text-green-700">
+                            {fedexData.quotedCurrency || "USD"} ${fedexData.quotedAmount.toFixed(2)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500 italic">Admin shipping cost (not added to order total)</span>
+                      </div>
+                    </div>
                   )}
-                  <p>
-                    <span className="font-medium">Label Output:</span> {labelImageType} /{" "}
-                    {getLabelStockOptions(labelImageType).find((option) => option.value === labelStockType)?.label || labelStockType}
-                  </p>
-                  {fedexData?.trackingStatus && <p><span className="font-medium">Tracking Status:</span> {fedexData.trackingStatus}</p>}
-                  {fedexData?.estimatedDeliveryDate && <p><span className="font-medium">Estimated Delivery:</span> {fedexData.estimatedDeliveryDate}</p>}
-                  {fedexData?.pickupConfirmationNumber && <p><span className="font-medium">Pickup Confirmation:</span> {fedexData.pickupConfirmationNumber}</p>}
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div className="space-y-2">
+                      <p>
+                        <span className="font-medium text-gray-700">Service Type:</span>{" "}
+                        <span className="text-gray-900">{FEDEX_SERVICE_OPTIONS.find(opt => opt.value === serviceType)?.label || serviceType}</span>
+                      </p>
+                      <p>
+                        <span className="font-medium text-gray-700">Label Format:</span>{" "}
+                        <span className="text-gray-900">{labelImageType} / {getLabelStockOptions(labelImageType).find((option) => option.value === labelStockType)?.label || labelStockType}</span>
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {fedexData?.estimatedDeliveryDate && (
+                        <p>
+                          <span className="font-medium text-gray-700">Estimated Delivery:</span>{" "}
+                          <span className="text-gray-900">{new Date(fedexData.estimatedDeliveryDate).toLocaleDateString()}</span>
+                        </p>
+                      )}
+                      {fedexData?.trackingStatus && (
+                        <p>
+                          <span className="font-medium text-gray-700">Tracking Status:</span>{" "}
+                          <span className="text-gray-900">{fedexData.trackingStatus}</span>
+                        </p>
+                      )}
+                      {fedexData?.pickupConfirmationNumber && (
+                        <p>
+                          <span className="font-medium text-gray-700">Pickup Confirmation:</span>{" "}
+                          <span className="text-gray-900">{fedexData.pickupConfirmationNumber}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  
                   {(fedexData?.labelUrl || fedexData?.labelBase64) && currentLabelMatchesSelection && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="secondary" onClick={previewLabel}>
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-green-200">
+                      <Button type="button" variant="default" className="bg-green-600 hover:bg-green-700" onClick={previewLabel}>
                         Preview Label
                       </Button>
                       <Button type="button" variant="outline" onClick={printLabel}>
@@ -1253,8 +1333,8 @@ export const TrackingDialog = ({
                     </div>
                   )}
                   {(fedexData?.labelUrl || fedexData?.labelBase64) && !currentLabelMatchesSelection && (
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" variant="secondary" onClick={previewLabel}>
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-green-200">
+                      <Button type="button" variant="default" className="bg-green-600 hover:bg-green-700" onClick={previewLabel}>
                         Preview Saved Label
                       </Button>
                       <Button type="button" variant="outline" onClick={printLabel}>
