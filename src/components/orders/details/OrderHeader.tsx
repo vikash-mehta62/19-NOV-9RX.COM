@@ -173,6 +173,24 @@ export const OrderHeader = ({
 
       if (error) throw error;
 
+      // Create FedEx label expense if FedEx method and has quoted amount
+      if (shippingMethod === "FedEx" && fedexData?.quotedAmount && fedexData.quotedAmount > 0) {
+        try {
+          await supabase.from("expenses").insert({
+            name: "FedEx Label Charge",
+            amount: fedexData.quotedAmount,
+            description: `FedEx shipping label for order ${order.order_number}. Tracking: ${trackingNumber}`,
+            category: "shipping",
+            source_type: "fedex_label",
+            source_id: order.id,
+            date: new Date().toISOString(),
+          } as any);
+        } catch (expenseError) {
+          console.error("Failed to create FedEx expense:", expenseError);
+          // Don't throw - expense creation failure shouldn't block shipping
+        }
+      }
+
       onOrderUpdate?.({
         ...orderShippingUpdate,
         shipping: updatedShipping,
