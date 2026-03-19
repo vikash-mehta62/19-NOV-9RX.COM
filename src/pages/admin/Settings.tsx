@@ -21,7 +21,7 @@ import {
 } from "@/components/settings/settingsTypes";
 import { Button } from "@/components/ui/button";
 import { Form } from "@/components/ui/form";
-import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_PUBLISHABLE_KEY, supabase } from "@/integrations/supabase/client";
 import type { Json } from "@/integrations/supabase/types";
 import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
@@ -113,6 +113,8 @@ const validateFedExShippingSettings = (values: SettingsFormValues): string | nul
 export default function Settings() {
   const [loading, setLoading] = useState<boolean>(false);
   const [saving, setSaving] = useState<boolean>(false);
+  const [savingFedExEnvironment, setSavingFedExEnvironment] = useState<"sandbox" | "production" | null>(null);
+  const [testingFedEx, setTestingFedEx] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const userProfile = useSelector(selectUserProfile);
 
@@ -208,7 +210,7 @@ export default function Settings() {
         fortispay_location_id: fortisPaySettings.locationId,
         fortispay_product_transaction_id_ach: fortisPaySettings.productTransactionIdAch,
         fortispay_test_mode: fortisPaySettings.testMode,
-      };
+      } as SettingsFormValues;
 
       return combinedSettings;
     } catch (err) {
@@ -254,11 +256,16 @@ export default function Settings() {
       const generalSettingsPayload = buildGeneralSettingsPayload(normalizedData);
 
       // Save general settings
-      const { error: settingsError } = await supabase.from("settings").upsert({
-        profile_id: userProfile.id,
-        ...generalSettingsPayload,
-        updated_at: new Date().toISOString(),
-      });
+      const { error: settingsError } = await supabase.from("settings").upsert(
+        {
+          profile_id: userProfile.id,
+          ...generalSettingsPayload,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "profile_id",
+        }
+      );
 
       if (settingsError) {
         console.error("Settings save error:", settingsError);
@@ -353,6 +360,110 @@ export default function Settings() {
 
   const handleSubmit = (data: SettingsFormValues) => {
     saveSettings(data);
+  };
+
+  const saveFedExCredentials = async (environment: "sandbox" | "production") => {
+    if (!userProfile?.id) {
+      toast.error("User profile not found. Please log in again.");
+      return;
+    }
+
+    setSavingFedExEnvironment(environment);
+    try {
+      const values = form.getValues();
+      const normalizedValues = normalizeShippingSettings(values);
+      const payload = {
+        profile_id: userProfile.id,
+        fedex_enabled: normalizedValues.fedex_enabled,
+        fedex_use_sandbox: normalizedValues.fedex_use_sandbox,
+        [`fedex_${environment}_api_key`]: String(normalizedValues[`fedex_${environment}_api_key`] || "").trim(),
+        [`fedex_${environment}_secret_key`]: String(normalizedValues[`fedex_${environment}_secret_key`] || "").trim(),
+        [`fedex_${environment}_child_key`]: String(normalizedValues[`fedex_${environment}_child_key`] || "").trim(),
+        [`fedex_${environment}_child_secret`]: String(normalizedValues[`fedex_${environment}_child_secret`] || "").trim(),
+        [`fedex_${environment}_account_number`]: String(normalizedValues[`fedex_${environment}_account_number`] || "").trim(),
+        [`fedex_${environment}_meter_number`]: String(normalizedValues[`fedex_${environment}_meter_number`] || "").trim(),
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: settingsError } = await supabase.from("settings").upsert(payload, {
+        onConflict: "profile_id",
+      });
+
+      if (settingsError) {
+        toast.error(`Failed to save ${environment} FedEx credentials: ${settingsError.message}`);
+        return;
+      }
+
+      toast.success(`${environment === "sandbox" ? "Sandbox" : "Production"} FedEx credentials saved`);
+    } catch (err: any) {
+      toast.error(err.message || `Failed to save ${environment} FedEx credentials`);
+    } finally {
+      setSavingFedExEnvironment(null);
+    }
+  };
+
+  const testFedExConnection = async () => {
+    if (!userProfile?.id) {
+      toast.error("User profile not found. Please log in again.");
+      return;
+    }
+
+    setTestingFedEx(true);
+    try {
+      const values = normalizeShippingSettings(form.getValues());
+      const activeEnvironment = values.fedex_use_sandbox ? "sandbox" : "production";
+      const payload = {
+        action: "test_auth",
+        settingsOverride: {
+          fedex_enabled: values.fedex_enabled,
+          fedex_use_sandbox: values.fedex_use_sandbox,
+          shipping_company_name: values.shipping_company_name,
+          shipping_street: values.shipping_street,
+          shipping_suite: values.shipping_suite,
+          shipping_city: values.shipping_city,
+          shipping_state: values.shipping_state,
+          shipping_zip_code: values.shipping_zip_code,
+          shipping_phone: values.shipping_phone,
+          shipping_country: values.shipping_country,
+          business_name: values.business_name,
+          phone: values.phone,
+          address: values.address,
+          city: values.city,
+          state: values.state,
+          zip_code: values.zip_code,
+          [`fedex_${activeEnvironment}_api_key`]: String(values[`fedex_${activeEnvironment}_api_key`] || "").trim(),
+          [`fedex_${activeEnvironment}_secret_key`]: String(values[`fedex_${activeEnvironment}_secret_key`] || "").trim(),
+          [`fedex_${activeEnvironment}_child_key`]: String(values[`fedex_${activeEnvironment}_child_key`] || "").trim(),
+          [`fedex_${activeEnvironment}_child_secret`]: String(values[`fedex_${activeEnvironment}_child_secret`] || "").trim(),
+          [`fedex_${activeEnvironment}_account_number`]: String(values[`fedex_${activeEnvironment}_account_number`] || "").trim(),
+          [`fedex_${activeEnvironment}_meter_number`]: String(values[`fedex_${activeEnvironment}_meter_number`] || "").trim(),
+        },
+      };
+
+      const { data, error: invokeError } = await supabase.functions.invoke("fedex-api", {
+        headers: {
+          apikey: SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        },
+        body: payload,
+      });
+
+      if (invokeError) {
+        throw new Error(invokeError.message || "FedEx test failed");
+      }
+
+      if (!data?.success) {
+        throw new Error(data?.error || "FedEx test failed");
+      }
+
+      const mode = data.data?.mode || activeEnvironment;
+      const accountNumber = data.data?.accountNumber ? ` - Account ${data.data.accountNumber}` : "";
+      toast.success(`FedEx ${mode} test passed${accountNumber}`);
+    } catch (err: any) {
+      toast.error(err.message || "FedEx connection test failed");
+    } finally {
+      setTestingFedEx(false);
+    }
   };
 
   return (
@@ -454,7 +565,13 @@ export default function Settings() {
 
               {/* Shipping Tab */}
               <TabsContent value="shipping" className="space-y-6">
-                <ShippingSettingsSection form={form} />
+                <ShippingSettingsSection
+                  form={form}
+                  onSaveFedExCredentials={saveFedExCredentials}
+                  savingFedExEnvironment={savingFedExEnvironment}
+                  onTestFedExConnection={testFedExConnection}
+                  testingFedEx={testingFedEx}
+                />
               </TabsContent>
 
               {/* Payments Tab */}

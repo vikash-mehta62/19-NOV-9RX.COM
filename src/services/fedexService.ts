@@ -196,6 +196,7 @@ const toFiniteNumber = (value: unknown): number | undefined => {
 const invokeFedEx = async <T>(action: string, payload: Record<string, any>): Promise<T> => {
   const { data, error } = await supabase.functions.invoke("fedex-api", {
     headers: {
+      apikey: SUPABASE_PUBLISHABLE_KEY,
       Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
     },
     body: {

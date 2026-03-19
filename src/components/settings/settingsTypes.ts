@@ -126,6 +126,18 @@ export interface SettingsFormValues {
   handling_fee: number;
   fedex_enabled: boolean;
   fedex_use_sandbox: boolean;
+  fedex_sandbox_api_key: string;
+  fedex_sandbox_secret_key: string;
+  fedex_sandbox_child_key: string;
+  fedex_sandbox_child_secret: string;
+  fedex_sandbox_account_number: string;
+  fedex_sandbox_meter_number: string;
+  fedex_production_api_key: string;
+  fedex_production_secret_key: string;
+  fedex_production_child_key: string;
+  fedex_production_child_secret: string;
+  fedex_production_account_number: string;
+  fedex_production_meter_number: string;
   fedex_api_key: string;
   fedex_secret_key: string;
   fedex_child_key: string;
@@ -302,6 +314,18 @@ export const defaultValues: SettingsFormValues = {
   handling_fee: 0,
   fedex_enabled: false,
   fedex_use_sandbox: true,
+  fedex_sandbox_api_key: "",
+  fedex_sandbox_secret_key: "",
+  fedex_sandbox_child_key: "",
+  fedex_sandbox_child_secret: "",
+  fedex_sandbox_account_number: "",
+  fedex_sandbox_meter_number: "",
+  fedex_production_api_key: "",
+  fedex_production_secret_key: "",
+  fedex_production_child_key: "",
+  fedex_production_child_secret: "",
+  fedex_production_account_number: "",
+  fedex_production_meter_number: "",
   fedex_api_key: "",
   fedex_secret_key: "",
   fedex_child_key: "",

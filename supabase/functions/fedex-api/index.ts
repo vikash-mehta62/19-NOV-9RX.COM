@@ -82,11 +82,43 @@ const getFedExSettings = async (supabase: ReturnType<typeof createClient>) => {
 const getBaseUrl = (settings: JsonRecord) =>
   settings.fedex_use_sandbox === false ? FEDEX_BASE_URL.production : FEDEX_BASE_URL.sandbox;
 
+const getFedExMode = (settings: JsonRecord) =>
+  settings.fedex_use_sandbox === false ? "production" : "sandbox";
+
+const getFedExCredentials = (settings: JsonRecord) => {
+  const mode = getFedExMode(settings);
+  const apiKey = String(
+    settings[`fedex_${mode}_api_key`] || "",
+  ).trim();
+  const secretKey = String(
+    settings[`fedex_${mode}_secret_key`] || "",
+  ).trim();
+  const childKey = String(
+    settings[`fedex_${mode}_child_key`] || "",
+  ).trim();
+  const childSecret = String(
+    settings[`fedex_${mode}_child_secret`] || "",
+  ).trim();
+  const accountNumber = String(
+    settings[`fedex_${mode}_account_number`] || "",
+  ).trim();
+  const meterNumber = String(
+    settings[`fedex_${mode}_meter_number`] || "",
+  ).trim();
+
+  return {
+    mode,
+    apiKey,
+    secretKey,
+    childKey,
+    childSecret,
+    accountNumber,
+    meterNumber,
+  };
+};
+
 const getAuthToken = async (settings: JsonRecord) => {
-  const apiKey = String(settings.fedex_api_key || "").trim();
-  const secretKey = String(settings.fedex_secret_key || "").trim();
-  const childKey = String(settings.fedex_child_key || "").trim();
-  const childSecret = String(settings.fedex_child_secret || "").trim();
+  const { apiKey, secretKey, childKey, childSecret } = getFedExCredentials(settings);
 
   if (!apiKey || !secretKey) {
     throw new Error("FedEx API credentials are missing");
@@ -309,6 +341,7 @@ const cleanObject = (value: unknown): unknown => {
 };
 
 const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, options?: { minimal?: boolean }) => {
+  const { accountNumber } = getFedExCredentials(settings);
   const pkg = shipment.package || {};
   const weightUnits = pkg.weightUnits || settings.fedex_default_weight_units || "LB";
   const weightValue = Number(pkg.weightValue || settings.fedex_default_weight_value || 1);
@@ -386,7 +419,7 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
       payor: {
         responsibleParty: {
           accountNumber: {
-            value: String(settings.fedex_account_number || "").trim(),
+            value: accountNumber,
           },
           address: {
             countryCode: shipper.address.countryCode || "US",
@@ -494,25 +527,31 @@ Deno.serve(async (req) => {
     );
 
     const settings = await getFedExSettings(supabase);
-    const token = await getAuthToken(settings);
-    const accountNumber = String(settings.fedex_account_number || "").trim();
+    const activeSettings =
+      action === "test_auth" && body.settingsOverride && typeof body.settingsOverride === "object"
+        ? { ...settings, ...(body.settingsOverride as JsonRecord) }
+        : settings;
+    const token = await getAuthToken(activeSettings);
+    const activeCredentials = getFedExCredentials(activeSettings);
+    const accountNumber = activeCredentials.accountNumber;
 
     const requireAccountNumber = () => {
       if (!accountNumber) {
-        throw new Error("FedEx account number is missing in admin shipping settings");
+        throw new Error(`FedEx ${activeCredentials.mode} account number is missing in admin shipping settings`);
       }
     };
 
     switch (action) {
       case "test_auth": {
         requireAccountNumber();
-        validateShipperSettings(settings);
-        const shipper = buildShipper(settings);
+        validateShipperSettings(activeSettings);
+        const shipper = buildShipper(activeSettings);
         return jsonResponse({
           success: true,
           data: {
             connected: true,
-            mode: settings.fedex_use_sandbox === false ? "production" : "sandbox",
+            mode: activeCredentials.mode,
+            credentialSet: `${activeCredentials.mode} credentials`,
             accountNumber,
             shipper: {
               companyName: shipper.contact.companyName,
@@ -548,9 +587,9 @@ Deno.serve(async (req) => {
         validateRecipient(body.shipment || {});
         let data: JsonRecord;
         try {
-          data = await fedexRequest(settings, token, "/rate/v1/rates/quotes", {
+          data = await fedexRequest(activeSettings, token, "/rate/v1/rates/quotes", {
             accountNumber: { value: accountNumber },
-            requestedShipment: buildRequestedRateQuoteShipment(settings, body.shipment || {}),
+            requestedShipment: buildRequestedRateQuoteShipment(activeSettings, body.shipment || {}),
           });
         } catch (error) {
           const message = error instanceof Error ? error.message : "";
@@ -558,9 +597,9 @@ Deno.serve(async (req) => {
             throw error;
           }
 
-          data = await fedexRequest(settings, token, "/rate/v1/rates/quotes", {
+          data = await fedexRequest(activeSettings, token, "/rate/v1/rates/quotes", {
             accountNumber: { value: accountNumber },
-            requestedShipment: buildRequestedRateQuoteShipment(settings, body.shipment || {}, { minimal: true }),
+            requestedShipment: buildRequestedRateQuoteShipment(activeSettings, body.shipment || {}, { minimal: true }),
           });
         }
         return jsonResponse({ success: true, data });
@@ -573,22 +612,22 @@ Deno.serve(async (req) => {
         const createPayload = {
           labelResponseOptions: "LABEL",
           accountNumber: { value: accountNumber },
-          requestedShipment: buildRequestedShipment(settings, body.shipment || {}),
+          requestedShipment: buildRequestedShipment(activeSettings, body.shipment || {}),
         };
 
         let data: JsonRecord;
         try {
-          data = await fedexRequest(settings, token, "/ship/v1/shipments", createPayload);
+          data = await fedexRequest(activeSettings, token, "/ship/v1/shipments", createPayload);
         } catch (error) {
           const message = error instanceof Error ? error.message : "";
           if (!/invalid field value|unable to process this request/i.test(message)) {
             throw error;
           }
 
-          data = await fedexRequest(settings, token, "/ship/v1/shipments", {
+          data = await fedexRequest(activeSettings, token, "/ship/v1/shipments", {
             labelResponseOptions: "LABEL",
             accountNumber: { value: accountNumber },
-            requestedShipment: buildRequestedShipment(settings, body.shipment || {}, { minimal: true }),
+            requestedShipment: buildRequestedShipment(activeSettings, body.shipment || {}, { minimal: true }),
           });
         }
 
@@ -596,7 +635,7 @@ Deno.serve(async (req) => {
       }
 
       case "track": {
-        const data = await fedexRequest(settings, token, "/track/v1/trackingnumbers", {
+        const data = await fedexRequest(activeSettings, token, "/track/v1/trackingnumbers", {
           includeDetailedScans: true,
           trackingInfo: [
             {
@@ -611,9 +650,9 @@ Deno.serve(async (req) => {
 
       case "pickup_availability": {
         requireAccountNumber();
-        validateShipperSettings(settings);
-        const shipper = buildShipper(settings);
-        const data = await fedexRequest(settings, token, "/pickup/v1/pickups/availabilities", {
+        validateShipperSettings(activeSettings);
+        const shipper = buildShipper(activeSettings);
+        const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups/availabilities", {
           associatedAccountNumber: { value: accountNumber },
           originDetail: {
             pickupLocation: shipper.contact.companyName,
@@ -631,10 +670,10 @@ Deno.serve(async (req) => {
 
       case "create_pickup": {
         requireAccountNumber();
-        validateShipperSettings(settings);
-        const shipper = buildShipper(settings);
+        validateShipperSettings(activeSettings);
+        const shipper = buildShipper(activeSettings);
         const pickupDate = body.pickupDate || new Date().toISOString().slice(0, 10);
-        const data = await fedexRequest(settings, token, "/pickup/v1/pickups", {
+        const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups", {
           associatedAccountNumber: { value: accountNumber },
           originDetail: {
             pickupLocation: shipper.contact.companyName,
@@ -647,8 +686,8 @@ Deno.serve(async (req) => {
           carrierCode: "FDXG",
           totalPackageCount: 1,
           totalWeight: {
-            units: settings.fedex_default_weight_units || "LB",
-            value: Number(settings.fedex_default_weight_value || 1),
+            units: activeSettings.fedex_default_weight_units || "LB",
+            value: Number(activeSettings.fedex_default_weight_value || 1),
           },
           trackingNumber: String(body.trackingNumber || "").trim(),
         });
@@ -670,7 +709,7 @@ Deno.serve(async (req) => {
 
       case "cancel_pickup": {
         requireAccountNumber();
-        const data = await fedexRequest(settings, token, "/pickup/v1/pickups/cancel", {
+        const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups/cancel", {
           associatedAccountNumber: { value: accountNumber },
           pickupConfirmationCode: String(body.confirmationNumber || "").trim(),
           scheduledDate: body.scheduledDate,

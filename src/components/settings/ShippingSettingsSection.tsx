@@ -26,45 +26,147 @@ import { UseFormReturn } from "react-hook-form";
 import { SettingsFormValues } from "./settingsTypes";
 import { Truck } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
-import { SUPABASE_PUBLISHABLE_KEY, supabase } from "@/integrations/supabase/client";
-import { toast } from "sonner";
 
 interface ShippingSettingsSectionProps {
   form: UseFormReturn<SettingsFormValues>;
+  onSaveFedExCredentials: (environment: "sandbox" | "production") => void;
+  savingFedExEnvironment: "sandbox" | "production" | null;
+  onTestFedExConnection: () => Promise<void>;
+  testingFedEx: boolean;
 }
 
-export function ShippingSettingsSection({ form }: ShippingSettingsSectionProps) {
-  const [testingFedEx, setTestingFedEx] = useState(false);
+export function ShippingSettingsSection({
+  form,
+  onSaveFedExCredentials,
+  savingFedExEnvironment,
+  onTestFedExConnection,
+  testingFedEx,
+}: ShippingSettingsSectionProps) {
+  const sandboxMode = form.watch("fedex_use_sandbox");
+  const activeModeTitle = sandboxMode ? "Sandbox" : "Production";
+  const sandboxAccountNumber = form.watch("fedex_sandbox_account_number");
+  const sandboxApiKey = form.watch("fedex_sandbox_api_key");
+  const productionAccountNumber = form.watch("fedex_production_account_number");
+  const productionApiKey = form.watch("fedex_production_api_key");
+  const credentialSetsMatch =
+    Boolean(sandboxAccountNumber && productionAccountNumber && sandboxApiKey && productionApiKey) &&
+    sandboxAccountNumber === productionAccountNumber &&
+    sandboxApiKey === productionApiKey;
 
-  const testFedExConnection = async () => {
-    setTestingFedEx(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("fedex-api", {
-        headers: {
-          Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        },
-        body: {
-          action: "test_auth",
-        },
-      });
+  const renderFedExCredentialCard = (environment: "sandbox" | "production") => {
+    const title = environment === "sandbox" ? "Sandbox" : "Production";
+    const isActive = sandboxMode === (environment === "sandbox");
+    const label = environment;
 
-      if (error) {
-        throw new Error(error.message || "FedEx test failed");
-      }
+    return (
+      <div
+        className={`rounded-lg border p-4 space-y-4 transition-opacity ${
+          isActive ? "border-primary/50 bg-primary/5" : "opacity-60"
+        }`}
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h4 className="font-semibold">{title} Credentials</h4>
+            <p className="text-sm text-muted-foreground">
+              {isActive
+                ? `Currently selected. FedEx will use these ${label} credentials right now.`
+                : `Stored ${label} credentials. Turn ${title === "Sandbox" ? "Sandbox Mode on" : "Sandbox Mode off"} to use them.`}
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant={isActive ? "default" : "outline"}
+            onClick={() => onSaveFedExCredentials(environment)}
+            disabled={!isActive || savingFedExEnvironment !== null}
+          >
+            {savingFedExEnvironment === environment ? `Saving ${title}...` : `Save ${title}`}
+          </Button>
+        </div>
 
-      if (!data?.success) {
-        throw new Error(data?.error || "FedEx test failed");
-      }
+        <fieldset disabled={!isActive} className="grid grid-cols-1 md:grid-cols-2 gap-4 disabled:cursor-not-allowed">
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_account_number" : "fedex_production_account_number"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} Account Number</FormLabel>
+                <FormControl>
+                  <Input placeholder={`Enter ${label} account number`} {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
 
-      toast.success(
-        `FedEx auth and ship-from settings are valid (${data.data?.mode || "unknown mode"})${data.data?.accountNumber ? ` - Account ${data.data.accountNumber}` : ""}`
-      );
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "FedEx connection test failed");
-    } finally {
-      setTestingFedEx(false);
-    }
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_meter_number" : "fedex_production_meter_number"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} Meter Number</FormLabel>
+                <FormControl>
+                  <Input placeholder={`Optional ${label} meter number`} {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_api_key" : "fedex_production_api_key"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} API Key</FormLabel>
+                <FormControl>
+                  <Input placeholder={`Enter ${label} API key`} {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_secret_key" : "fedex_production_secret_key"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} Secret Key</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder={`Enter ${label} secret key`} {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_child_key" : "fedex_production_child_key"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} Child Key</FormLabel>
+                <FormControl>
+                  <Input placeholder={`Optional ${label} child key`} {...field} />
+                </FormControl>
+                <FormDescription>
+                  Leave empty unless your {label} FedEx project requires child credentials.
+                </FormDescription>
+              </FormItem>
+            )}
+          />
+
+          <FormField
+            control={form.control}
+            name={environment === "sandbox" ? "fedex_sandbox_child_secret" : "fedex_production_child_secret"}
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{title} Child Secret</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder={`Optional ${label} child secret`} {...field} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+        </fieldset>
+      </div>
+    );
   };
 
   return (
@@ -231,7 +333,7 @@ export function ShippingSettingsSection({ form }: ShippingSettingsSectionProps) 
                     <div className="space-y-0.5">
                       <FormLabel className="text-base">Sandbox Mode</FormLabel>
                       <FormDescription>
-                        Use FedEx test credentials and endpoints.
+                        Toggle which saved credential set and endpoint FedEx should use.
                       </FormDescription>
                     </div>
                     <FormControl>
@@ -240,96 +342,27 @@ export function ShippingSettingsSection({ form }: ShippingSettingsSectionProps) 
                   </FormItem>
                 )}
               />
+            </div>
 
-              <FormField
-                control={form.control}
-                name="fedex_account_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FedEx Account Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter FedEx account number" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+            {credentialSetsMatch && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Sandbox and production currently have the same Account Number and API Key saved. If these are sandbox credentials,
+                production mode will fail until you replace the production values with real FedEx production credentials.
+              </div>
+            )}
 
-              <FormField
-                control={form.control}
-                name="fedex_api_key"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FedEx API Key</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter FedEx API key" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="fedex_secret_key"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FedEx Secret Key</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Enter FedEx secret key" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="fedex_child_key"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FedEx Child Key</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional child key" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      Leave empty unless your FedEx project requires child credentials.
-                    </FormDescription>
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="fedex_child_secret"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>FedEx Child Secret</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="Optional child secret" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {renderFedExCredentialCard("sandbox")}
+              {renderFedExCredentialCard("production")}
             </div>
 
             <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={testFedExConnection} disabled={testingFedEx}>
-                {testingFedEx ? "Testing FedEx..." : "Test FedEx Connection"}
+              <Button type="button" variant="outline" onClick={onTestFedExConnection} disabled={testingFedEx}>
+                {testingFedEx ? `Testing ${activeModeTitle}...` : `Test ${activeModeTitle} Connection`}
               </Button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <FormField
-                control={form.control}
-                name="fedex_meter_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Meter Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Optional meter number" {...field} />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="fedex_default_service_type"
