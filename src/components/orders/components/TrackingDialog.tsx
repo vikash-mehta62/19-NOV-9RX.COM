@@ -280,6 +280,14 @@ export const TrackingDialog = ({
   const [addressValidated, setAddressValidated] = useState(false);
   const [addressValidationMessage, setAddressValidationMessage] = useState("");
   const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
+  const [pendingShipmentData, setPendingShipmentData] = useState<{
+    shipment: Awaited<ReturnType<typeof fedexService.createShipment>>;
+    recipient: FedExRecipientInput;
+    shippingCost: number;
+    serviceType: string;
+    quotedCurrency: string;
+    quotedAmount?: number;
+  } | null>(null);
   const [isValidatingAddress, setIsValidatingAddress] = useState(false);
   const [isGeneratingLabel, setIsGeneratingLabel] = useState(false);
   const [isGettingRate, setIsGettingRate] = useState(false);
@@ -749,29 +757,10 @@ export const TrackingDialog = ({
         quotedCurrency,
       });
 
-      try {
-        await persistGeneratedLabel(
-          shipment,
-          activeRecipient,
-          shippingCost,
-          selectedServiceType,
-          quotedCurrency,
-          quotedAmount,
-        );
-      } catch (persistError) {
-        toast({
-          title: "Label created but not saved",
-          description:
-            persistError instanceof Error
-              ? persistError.message
-              : "The FedEx label was created, but it could not be auto-saved to this order.",
-          variant: "destructive",
-        });
-      }
-
+      // Don't save to database immediately - parent component will save when "Save Shipping" is clicked
       toast({
         title: "FedEx label created",
-        description: `Tracking: ${shipment.trackingNumber}. FedEx label charge: $${shippingCost.toFixed(2)} (admin cost).`,
+        description: `Tracking: ${shipment.trackingNumber}. Click "Save Shipping" to save.`,
       });
     } catch (error) {
       toast({
