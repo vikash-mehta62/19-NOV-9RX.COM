@@ -3,6 +3,7 @@ const router = express.Router();
 const { createClient } = require("@supabase/supabase-js");
 const PDFDocument = require("pdfkit");
 const { requireAdmin } = require("../middleware/auth");
+const PHARMACY_PROFILE_LOGO_URL = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png";
 
 // Initialize Supabase Admin Client
 const supabaseUrl = process.env.SUPABASE_URL || "https://qiaetxkxweghuoxyhvml.supabase.co";
@@ -126,6 +127,18 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
   console.log('Profile ID:', req.params.profileId);
   
   try {
+    let pharmacyProfileLogo = null;
+    try {
+      const logoResponse = await fetch(PHARMACY_PROFILE_LOGO_URL);
+      if (logoResponse.ok) {
+        pharmacyProfileLogo = Buffer.from(await logoResponse.arrayBuffer());
+      } else {
+        console.warn("Pharmacy profile logo fetch failed:", logoResponse.status);
+      }
+    } catch (logoError) {
+      console.warn("Pharmacy profile logo fetch error:", logoError.message);
+    }
+
     console.log('Step 1: Creating Supabase client...');
     const supabaseAdmin = getSupabaseAdmin();
     console.log('Step 1: ✅ Supabase client created');
@@ -243,11 +256,17 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
     doc.rect(0, 0, pageWidth, 9).fill(primaryBlue);
     
     // === COMPANY LOGO (left side) ===
-    doc.fontSize(24).fillColor(darkText).font('Helvetica-Bold');
-    t('9RX', margin, 20);
-    
-    doc.fontSize(8).fillColor(mediumText).font('Helvetica');
-    t('Your Trusted Pharmacy Partner', margin, 44);
+    if (pharmacyProfileLogo) {
+      doc.image(pharmacyProfileLogo, margin, 16, {
+        fit: [125, 42],
+      });
+    } else {
+      doc.fontSize(24).fillColor(darkText).font('Helvetica-Bold');
+      t('9RX', margin, 20);
+      
+      doc.fontSize(8).fillColor(mediumText).font('Helvetica');
+      t('Your Trusted Pharmacy Partner', margin, 44);
+    }
     
     // === DOCUMENT TITLE (right side - two lines, no overlap) ===
     doc.fontSize(20).fillColor(primaryBlue).font('Helvetica-Bold');

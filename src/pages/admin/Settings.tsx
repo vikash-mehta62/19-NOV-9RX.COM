@@ -115,6 +115,12 @@ export default function Settings() {
   const [saving, setSaving] = useState<boolean>(false);
   const [savingFedExEnvironment, setSavingFedExEnvironment] = useState<"sandbox" | "production" | null>(null);
   const [testingFedEx, setTestingFedEx] = useState<boolean>(false);
+  const [fedexTestStatus, setFedexTestStatus] = useState<{
+    status: "success" | "error";
+    message: string;
+    testedAt: string;
+    mode: "sandbox" | "production";
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const userProfile = useSelector(selectUserProfile);
 
@@ -458,8 +464,20 @@ export default function Settings() {
 
       const mode = data.data?.mode || activeEnvironment;
       const accountNumber = data.data?.accountNumber ? ` - Account ${data.data.accountNumber}` : "";
+      setFedexTestStatus({
+        status: "success",
+        message: `FedEx ${mode} test passed${accountNumber}`,
+        testedAt: new Date().toISOString(),
+        mode,
+      });
       toast.success(`FedEx ${mode} test passed${accountNumber}`);
     } catch (err: any) {
+      setFedexTestStatus({
+        status: "error",
+        message: err.message || "FedEx connection test failed",
+        testedAt: new Date().toISOString(),
+        mode: form.getValues("fedex_use_sandbox") ? "sandbox" : "production",
+      });
       toast.error(err.message || "FedEx connection test failed");
     } finally {
       setTestingFedEx(false);
@@ -571,6 +589,7 @@ export default function Settings() {
                   savingFedExEnvironment={savingFedExEnvironment}
                   onTestFedExConnection={testFedExConnection}
                   testingFedEx={testingFedEx}
+                  fedexTestStatus={fedexTestStatus}
                 />
               </TabsContent>
 

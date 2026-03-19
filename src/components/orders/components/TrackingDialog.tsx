@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, AlertCircle } from "lucide-react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import {
@@ -31,10 +32,19 @@ import {
 } from "@/services/fedexService";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  buildShippingLabelFileName,
+  downloadShippingLabelDocument,
+  hasShippingLabelDocument,
+  openShippingLabelDocument,
+  printShippingLabelDocument,
+} from "../utils/shippingLabelDocuments";
 
 export interface FedExDialogState {
   labelUrl?: string;
   labelBase64?: string;
+  labelStoragePath?: string;
+  labelFileName?: string;
   labelFormat?: string;
   labelStockType?: string;
   serviceType?: string;
@@ -43,8 +53,13 @@ export interface FedExDialogState {
   pickupConfirmationNumber?: string;
   pickupScheduledDate?: string;
   trackingStatus?: string;
+  latestScan?: string;
+  deliveredAt?: string;
+  signedBy?: string;
+  deliveryLocation?: string;
   quotedAmount?: number;
   quotedCurrency?: string;
+  trackingRaw?: Record<string, any>;
 }
 
 export interface TrackingDialogSubmitPayload {
@@ -219,12 +234,6 @@ const detectLabelDocumentInfo = (format?: string, labelBase64?: string) => {
 const getLabelStockOptions = (format: string) =>
   format === "ZPLII" ? FEDEX_THERMAL_STOCK_OPTIONS : FEDEX_PAPER_STOCK_OPTIONS;
 
-const buildLabelFileName = (order?: OrderFormValues, format?: string) => {
-  const { extension } = resolveLabelDocumentInfo(format);
-  const orderNumber = (order?.order_number || "fedex-label").replace(/[^a-zA-Z0-9-_]/g, "_");
-  return `${orderNumber}-fedex-label.${extension}`;
-};
-
 const normalizeRecipientDraft = (draft: FedExRecipientInput): FedExRecipientInput => ({
   name: draft.name.trim(),
   email: (draft.email || "").trim(),
@@ -303,11 +312,19 @@ export const TrackingDialog = ({
     setAddressValidated(false);
     setAddressValidationMessage("");
     const storedShipping = ((order as any)?.shipping as Record<string, any> | null) || null;
+    const storedTrackingNumber = String(
+      storedShipping?.trackingNumber ||
+        (order as any)?.tracking_number ||
+        trackingNumber ||
+        "",
+    ).trim();
     setFedexData(
       storedShipping
         ? {
             labelUrl: storedShipping.labelUrl,
             labelBase64: storedShipping.labelBase64,
+            labelStoragePath: storedShipping.labelStoragePath,
+            labelFileName: storedShipping.labelFileName,
             labelFormat: storedShipping.labelFormat,
             labelStockType: storedShipping.labelStockType,
             serviceType: storedShipping.serviceType,
@@ -315,6 +332,10 @@ export const TrackingDialog = ({
             estimatedDeliveryDate: storedShipping.estimatedDelivery,
             pickupConfirmationNumber: storedShipping.pickupConfirmationNumber,
             trackingStatus: storedShipping.trackingStatus,
+            latestScan: storedShipping.latestScan,
+            deliveredAt: storedShipping.deliveredAt,
+            signedBy: storedShipping.signedBy,
+            deliveryLocation: storedShipping.deliveryLocation,
             quotedAmount:
               typeof storedShipping.quotedAmount === "number"
                 ? storedShipping.quotedAmount
@@ -322,9 +343,15 @@ export const TrackingDialog = ({
                   ? storedShipping.cost
                   : undefined,
             quotedCurrency: storedShipping.quotedCurrency,
+            trackingRaw: storedShipping.trackingRaw,
           }
         : null,
     );
+    if (storedTrackingNumber && storedTrackingNumber !== trackingNumber) {
+      onTrackingNumberChange(storedTrackingNumber);
+    }
+    setPickupDate(String(storedShipping?.pickupScheduledDate || ""));
+    setServiceType(String(storedShipping?.serviceType || "FEDEX_GROUND"));
     const nextImageType = String(storedShipping?.labelFormat || "PDF").toUpperCase();
     const normalizedImageType =
       nextImageType === "PNG" || nextImageType === "ZPLII" || nextImageType === "PDF"
@@ -337,7 +364,7 @@ export const TrackingDialog = ({
         ? storedShipping.labelStockType
         : nextStockOptions[0].value,
     );
-  }, [isOpen, order]);
+  }, [isOpen, onTrackingNumberChange, order, trackingNumber]);
 
   const recipientSummary = useMemo(
     () =>
@@ -376,7 +403,7 @@ export const TrackingDialog = ({
   }, [recipientDraft, suggestedRecipientDraft]);
 
   const canContinueFedExFlow = addressValidated && !hasSuggestedAddress;
-  const hasGeneratedLabel = Boolean(fedexData?.labelBase64 || fedexData?.labelUrl);
+  const hasGeneratedLabel = hasShippingLabelDocument(fedexData);
   const currentLabelMatchesSelection =
     hasGeneratedLabel &&
     (String(fedexData?.labelFormat || "").toUpperCase() === labelImageType) &&
@@ -388,7 +415,7 @@ export const TrackingDialog = ({
   };
 
   const invalidateGeneratedLabel = (reason?: string) => {
-    if ((!fedexData?.labelBase64 && !fedexData?.labelUrl) || !reason) return;
+    if (!hasShippingLabelDocument(fedexData) || !reason) return;
 
     toast({
       title: "Generate a new label for these settings",
@@ -748,6 +775,8 @@ export const TrackingDialog = ({
       updateFedExData({
         labelUrl: shipment.labelUrl,
         labelBase64: shipment.labelBase64,
+        labelStoragePath: fedexData?.labelStoragePath,
+        labelFileName: fedexData?.labelFileName,
         labelFormat: shipment.labelFormat,
         labelStockType,
         serviceType: shipment.serviceType || selectedServiceType,
@@ -778,10 +807,16 @@ export const TrackingDialog = ({
     setIsCheckingTracking(true);
     try {
       const result = await fedexService.track(trackingNumber);
+      const proof = extractProofOfDelivery(result.raw);
       updateFedExData({
         ...(fedexData || {}),
         trackingStatus: result.statusDescription || result.status,
         estimatedDeliveryDate: result.estimatedDeliveryDate || fedexData?.estimatedDeliveryDate,
+        latestScan: result.latestScan,
+        deliveredAt: proof.deliveredAt,
+        signedBy: proof.signedBy,
+        deliveryLocation: proof.deliveryLocation,
+        trackingRaw: result.raw,
       });
       toast({
         title: "Tracking refreshed",
@@ -799,10 +834,9 @@ export const TrackingDialog = ({
   };
 
   const handlePickupAvailability = async () => {
-    if (!trackingNumber.trim()) return;
     setIsCheckingPickup(true);
     try {
-      await fedexService.getPickupAvailability(trackingNumber);
+      await fedexService.getPickupAvailability(pickupDate || undefined);
       toast({
         title: "Pickup availability loaded",
         description: "FedEx pickup options are available for this shipment.",
@@ -872,35 +906,29 @@ export const TrackingDialog = ({
     }
   };
 
-  const downloadLabel = () => {
-    if (fedexData?.labelUrl) {
-      window.open(fedexData.labelUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-    if (fedexData?.labelBase64) {
-      const { mimeType, extension } = detectLabelDocumentInfo(
-        fedexData.labelFormat,
-        fedexData.labelBase64,
-      );
-      const { bytes } = decodeBase64Label(fedexData.labelBase64);
-      const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = buildLabelFileName(order, extension);
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    }
+  const downloadLabel = async () => {
+    if (!fedexData) return;
+
+    await downloadShippingLabelDocument(
+      fedexData,
+      buildShippingLabelFileName(order?.order_number || "fedex-label", fedexData.labelFormat, fedexData.labelFileName),
+    );
   };
 
-  const previewLabel = () => {
-    if (fedexData?.labelUrl) {
+  const previewLabel = async () => {
+    if (!fedexData) return;
+
+    if (fedexData.labelStoragePath) {
+      await openShippingLabelDocument(fedexData);
+      return;
+    }
+
+    if (fedexData.labelUrl) {
       window.open(fedexData.labelUrl, "_blank", "noopener,noreferrer");
       return;
     }
-    if (fedexData?.labelBase64) {
+
+    if (fedexData.labelBase64) {
       const { mimeType } = detectLabelDocumentInfo(
         fedexData.labelFormat,
         fedexData.labelBase64,
@@ -926,58 +954,48 @@ export const TrackingDialog = ({
     }
   };
 
-  const printLabel = () => {
-    if (fedexData?.labelBase64) {
-      const { mimeType } = detectLabelDocumentInfo(
-        fedexData.labelFormat,
-        fedexData.labelBase64,
-      );
-      const { bytes } = decodeBase64Label(fedexData.labelBase64);
-      const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const iframe = document.createElement("iframe");
-      iframe.style.position = "fixed";
-      iframe.style.right = "0";
-      iframe.style.bottom = "0";
-      iframe.style.width = "0";
-      iframe.style.height = "0";
-      iframe.style.border = "none";
-      iframe.src = url;
-      document.body.appendChild(iframe);
+  const printLabel = async () => {
+    if (!fedexData) return;
+    await printShippingLabelDocument(fedexData);
+  };
 
-      iframe.onload = () => {
-        try {
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-        } finally {
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-            URL.revokeObjectURL(url);
-          }, 1000);
-        }
-      };
-      return;
-    }
+  const rateLoaded = fedexData?.quotedAmount != null;
+  const pickupScheduled = Boolean(fedexData?.pickupConfirmationNumber);
+  const canSaveShipping = Boolean(trackingNumber.trim());
+  const hasShipmentActions = Boolean(hasGeneratedLabel || trackingNumber.trim());
+  const proofOfDeliveryAvailable = Boolean(fedexData?.deliveredAt || fedexData?.signedBy || fedexData?.deliveryLocation);
+  const existingShipping = (((order as any)?.shipping || {}) as Record<string, any>) || {};
+  const shipmentAlreadySaved = Boolean(
+    existingShipping?.trackingNumber ||
+      existingShipping?.labelStoragePath ||
+      existingShipping?.labelUrl ||
+      existingShipping?.pickupConfirmationNumber ||
+      (order as any)?.tracking_number,
+  );
+  const recipientFieldsReadOnly = shipmentAlreadySaved;
+  const packageFieldsReadOnly = shipmentAlreadySaved;
 
-    if (fedexData?.labelUrl) {
-      const printWindow = window.open(fedexData.labelUrl, "_blank", "noopener,noreferrer");
-      if (!printWindow) return;
+  const extractProofOfDelivery = (raw?: Record<string, any>) => {
+    const track = raw?.output?.completeTrackResults?.[0]?.trackResults?.[0] || raw?.completeTrackResults?.[0]?.trackResults?.[0] || {};
+    const latestEvent = track?.scanEvents?.[0] || {};
+    const deliveryDetails = track?.deliveryDetails || {};
+    const latestStatus = track?.latestStatusDetail || {};
 
-      try {
-        printWindow.onload = () => {
-          try {
-            printWindow.focus();
-            printWindow.print();
-          } catch {
-            // Leave the document open as a manual print fallback.
-          }
-        };
-      } catch {
-        // Cross-origin previews may block scripted printing.
-      }
-    }
+    return {
+      deliveredAt:
+        latestEvent?.date ||
+        deliveryDetails?.actualDeliveryTimestamp ||
+        track?.actualDeliveryTimestamp ||
+        track?.dateAndTimes?.find?.((entry: any) => /DEL/i.test(String(entry?.type || "")))?.dateTime,
+      signedBy:
+        deliveryDetails?.receivedByName ||
+        latestStatus?.ancillaryDetails?.[0]?.value ||
+        track?.packageDetails?.proofOfDelivery?.receivedByName,
+      deliveryLocation:
+        deliveryDetails?.deliveryLocationDescription ||
+        latestEvent?.eventDescription ||
+        latestStatus?.description,
+    };
   };
 
   return (
@@ -986,60 +1004,79 @@ export const TrackingDialog = ({
         <div className="flex max-h-[90vh] flex-col">
         <DialogHeader>
           <div className="px-6 pt-6">
-            <DialogTitle>Shipping & Tracking</DialogTitle>
+            <DialogTitle>Create Shipment</DialogTitle>
             <DialogDescription>
-            Edit the recipient, validate it with FedEx, then rate and create the shipment label in the same flow.
+            Validate the recipient, quote the shipment, generate the label, and save shipping in one guided flow.
             </DialogDescription>
           </div>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4">
         <div className="space-y-4">
-          <div className="space-y-2">
-            <Label>Shipping Method</Label>
-            <RadioGroup value={shippingMethod} onValueChange={onShippingMethodChange}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="FedEx" id="fedex" />
-                <Label htmlFor="fedex">FedEx</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value="custom" id="custom" />
-                <Label htmlFor="custom">Self Ship</Label>
-              </div>
-            </RadioGroup>
+          <div className="rounded-2xl border bg-slate-50 p-4 space-y-4">
+            <div className="space-y-2">
+              <Label>Shipping Method</Label>
+              <RadioGroup value={shippingMethod} onValueChange={onShippingMethodChange} className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <label className={`flex cursor-pointer items-start space-x-3 rounded-xl border p-3 ${shippingMethod === "FedEx" ? "border-blue-500 bg-white shadow-sm" : "border-slate-200 bg-white/70"}`}>
+                  <RadioGroupItem value="FedEx" id="fedex" className="mt-1" />
+                  <div className="space-y-1">
+                    <Label htmlFor="fedex" className="cursor-pointer">FedEx</Label>
+                    <p className="text-xs text-muted-foreground">Validate address, get rate, generate label, then save shipping.</p>
+                  </div>
+                </label>
+                <label className={`flex cursor-pointer items-start space-x-3 rounded-xl border p-3 ${shippingMethod === "custom" ? "border-blue-500 bg-white shadow-sm" : "border-slate-200 bg-white/70"}`}>
+                  <RadioGroupItem value="custom" id="custom" className="mt-1" />
+                  <div className="space-y-1">
+                    <Label htmlFor="custom" className="cursor-pointer">Self Ship</Label>
+                    <p className="text-xs text-muted-foreground">Use your own carrier and save only the tracking details.</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
           </div>
 
           {shippingMethod === "FedEx" && (
             <div className="space-y-4 rounded-lg border p-4">
-              <div className="space-y-1">
-                <Label>Recipient</Label>
-                <p className="text-sm text-muted-foreground">{recipientSummary || "Enter recipient details"}</p>
+              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Step 1: Recipient</div>
+                  <p className="text-sm text-muted-foreground">
+                    {shipmentAlreadySaved
+                      ? "Shipping is already saved. Recipient details are locked for review."
+                      : "Confirm the delivery contact and validate the address with FedEx first."}
+                  </p>
+                  <p className="text-sm text-slate-700">{recipientSummary || "Enter recipient details"}</p>
+                </div>
+                <Badge variant="outline" className={addressValidated ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}>
+                  {shipmentAlreadySaved ? "Saved" : addressValidated ? "Validated" : "Needs Validation"}
+                </Badge>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+              <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${shipmentAlreadySaved ? "opacity-80" : ""}`}>
                 <div className="space-y-2">
                   <Label>Recipient Name</Label>
-                  <Input value={recipientDraft.name} onChange={(e) => updateRecipientField("name", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.name} onChange={(e) => updateRecipientField("name", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>Recipient Phone</Label>
-                  <Input value={recipientDraft.phone} onChange={(e) => updateRecipientField("phone", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.phone} onChange={(e) => updateRecipientField("phone", e.target.value)} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Recipient Email</Label>
-                  <Input value={recipientDraft.email || ""} onChange={(e) => updateRecipientField("email", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.email || ""} onChange={(e) => updateRecipientField("email", e.target.value)} />
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Street Address</Label>
-                  <Input value={recipientDraft.street} onChange={(e) => updateRecipientField("street", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.street} onChange={(e) => updateRecipientField("street", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>City</Label>
-                  <Input value={recipientDraft.city} onChange={(e) => updateRecipientField("city", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.city} onChange={(e) => updateRecipientField("city", e.target.value)} />
                 </div>
                 <div className="space-y-2">
                   <Label>State</Label>
-                  <Select value={recipientDraft.state} onValueChange={(value) => updateRecipientField("state", value)}>
+                  <Select value={recipientDraft.state} onValueChange={(value) => updateRecipientField("state", value)} disabled={recipientFieldsReadOnly}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select state" />
                     </SelectTrigger>
@@ -1054,18 +1091,17 @@ export const TrackingDialog = ({
                 </div>
                 <div className="space-y-2">
                   <Label>ZIP Code</Label>
-                  <Input value={recipientDraft.zip_code} maxLength={10} onChange={(e) => updateRecipientField("zip_code", e.target.value)} />
+                  <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.zip_code} maxLength={10} onChange={(e) => updateRecipientField("zip_code", e.target.value)} />
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={handleValidateAddress} disabled={isValidatingAddress}>
-                  {isValidatingAddress ? "Validating..." : "Validate with FedEx"}
+              {!shipmentAlreadySaved && (
+                <div className="flex flex-wrap gap-2">
+                <Button type="button" onClick={handleValidateAddress} disabled={isValidatingAddress}>
+                  {isValidatingAddress ? "Validating..." : "Validate Address"}
                 </Button>
-                <Button type="button" variant="outline" onClick={handleGetRate} disabled={!canContinueFedExFlow || isGettingRate}>
-                  {isGettingRate ? "Loading Rate..." : "Get FedEx Rate"}
-                </Button>
-              </div>
+                </div>
+              )}
 
               {addressValidationMessage ? (
                 <Alert className={addressValidated ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}>
@@ -1080,7 +1116,17 @@ export const TrackingDialog = ({
                 </Alert>
               ) : null}
 
-              {fedexData?.quotedAmount != null && (
+              <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Step 2: Package & Rate</div>
+                  <p className="text-sm text-muted-foreground">Choose service and label settings, then request the FedEx rate.</p>
+                </div>
+                <Badge variant="outline" className={rateLoaded ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}>
+                  {rateLoaded ? "Rate Loaded" : "Awaiting Quote"}
+                </Badge>
+              </div>
+
+              {/* {fedexData?.quotedAmount != null && (
                 <div className="rounded-lg border-2 border-green-300 bg-gradient-to-r from-green-50 to-blue-50 p-4 shadow-md">
                   <div className="flex items-start gap-3">
                     <CheckCircle2 className="h-6 w-6 text-green-600 mt-1 flex-shrink-0" />
@@ -1109,7 +1155,7 @@ export const TrackingDialog = ({
                     </div>
                   </div>
                 </div>
-              )}
+              )} */}
 
               {hasSuggestedAddress ? (
                 <div className="flex flex-wrap items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3">
@@ -1142,10 +1188,10 @@ export const TrackingDialog = ({
                 </Alert>
               ) : null}
 
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              <div className={`grid grid-cols-2 gap-3 md:grid-cols-5 ${shipmentAlreadySaved ? "opacity-80" : ""}`}>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Service Type</Label>
-                  <Select value={serviceType} onValueChange={setServiceType}>
+                  <Select value={serviceType} onValueChange={setServiceType} disabled={packageFieldsReadOnly}>
                     <SelectTrigger>
                       <SelectValue placeholder="Select FedEx service" />
                     </SelectTrigger>
@@ -1162,6 +1208,7 @@ export const TrackingDialog = ({
                   <Label>Label Format</Label>
                   <Select
                     value={labelImageType}
+                    disabled={packageFieldsReadOnly}
                     onValueChange={(value: "PDF" | "PNG" | "ZPLII") => {
                       if (value === labelImageType) return;
                       invalidateGeneratedLabel("Label format changed. Generate a new FedEx label to apply this output type.");
@@ -1185,6 +1232,7 @@ export const TrackingDialog = ({
                   <Label>Label Size</Label>
                   <Select
                     value={labelStockType}
+                    disabled={packageFieldsReadOnly}
                     onValueChange={(value) => {
                       if (value === labelStockType) return;
                       invalidateGeneratedLabel("Label size changed. Generate a new FedEx label to apply this stock size.");
@@ -1205,68 +1253,85 @@ export const TrackingDialog = ({
                 </div>
                 <div className="space-y-2">
                   <Label>Length (in)</Label>
-                  <Input value={length} onChange={(e) => setLength(e.target.value)} type="number" min="1" />
+                  <Input readOnly={packageFieldsReadOnly} value={length} onChange={(e) => setLength(e.target.value)} type="number" min="1" />
                 </div>
                 <div className="space-y-2">
                   <Label>Width (in)</Label>
-                  <Input value={width} onChange={(e) => setWidth(e.target.value)} type="number" min="1" />
+                  <Input readOnly={packageFieldsReadOnly} value={width} onChange={(e) => setWidth(e.target.value)} type="number" min="1" />
                 </div>
                 <div className="space-y-2">
                   <Label>Height (in)</Label>
-                  <Input value={height} onChange={(e) => setHeight(e.target.value)} type="number" min="1" />
+                  <Input readOnly={packageFieldsReadOnly} value={height} onChange={(e) => setHeight(e.target.value)} type="number" min="1" />
                 </div>
                 <div className="space-y-2">
                   <Label>Weight (lb)</Label>
-                  <Input value={weightValue} onChange={(e) => setWeightValue(e.target.value)} type="number" min="0.1" step="0.1" />
+                  <Input readOnly={packageFieldsReadOnly} value={weightValue} onChange={(e) => setWeightValue(e.target.value)} type="number" min="0.1" step="0.1" />
                 </div>
               </div>
 
               <div className="flex flex-wrap gap-2">
+                {!shipmentAlreadySaved && (
+                  <>
+                <Button type="button" variant="outline" onClick={handleGetRate} disabled={!canContinueFedExFlow || isGettingRate}>
+                  {isGettingRate ? "Loading Rate..." : "Get FedEx Rate"}
+                </Button>
                 <Button
                   type="button"
                   onClick={handleGenerateLabel}
-                  disabled={!canContinueFedExFlow || isGeneratingLabel || hasGeneratedLabel}
+                  disabled={!canContinueFedExFlow || isGeneratingLabel}
                 >
-                  {hasGeneratedLabel
-                    ? "FedEx Label Saved"
-                    : isGeneratingLabel
-                      ? "Generating..."
+                  {isGeneratingLabel
+                    ? "Generating..."
+                    : hasGeneratedLabel
+                      ? "Regenerate FedEx Label"
                       : "Generate FedEx Label"}
                 </Button>
-                <Button type="button" variant="outline" onClick={handleTrack} disabled={!trackingNumber || isCheckingTracking}>
+                  </>
+                )}
+                {/* <Button type="button" variant="outline" onClick={handleTrack} disabled={!trackingNumber || isCheckingTracking}>
                   {isCheckingTracking ? "Refreshing..." : "Refresh Tracking"}
-                </Button>
-                <Button type="button" variant="outline" onClick={handlePickupAvailability} disabled={!trackingNumber || isCheckingPickup}>
-                  {isCheckingPickup ? "Checking..." : "Check Pickup"}
-                </Button>
+                </Button> */}
               </div>
 
-              <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_auto_auto]">
+              {/* <div className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4 md:flex-row md:items-start md:justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-semibold">Step 3: Pickup & Save</div>
+                  <p className="text-sm text-muted-foreground">After the label is ready, review tracking, optionally schedule pickup, then save shipping.</p>
+                </div>
+                <Badge variant="outline" className={pickupScheduled ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}>
+                  {pickupScheduled ? "Pickup Scheduled" : "Pickup Optional"}
+                </Badge>
+              </div> */}
+
+              {/* <div className="grid grid-cols-1 items-end gap-3 md:grid-cols-[1fr_auto_auto]">
                 <div className="space-y-2">
-                  <Label>Pickup Date</Label>
+                  <Label>Pickup dDate</Label>
                   <Input type="date" value={pickupDate} onChange={(e) => setPickupDate(e.target.value)} />
                 </div>
+                <Button type="button" variant="outline" onClick={handlePickupAvailability} disabled={isCheckingPickup}>
+                  {isCheckingPickup ? "Checking..." : "Check Pickup"}
+                </Button>
                 <Button type="button" variant="outline" onClick={handleCreatePickup} disabled={!trackingNumber || isCreatingPickup}>
                   {isCreatingPickup ? "Scheduling..." : "Schedule Pickup"}
                 </Button>
                 <Button type="button" variant="outline" onClick={handleCancelPickup} disabled={!fedexData?.pickupConfirmationNumber || isCancellingPickup}>
                   {isCancellingPickup ? "Cancelling..." : "Cancel Pickup"}
                 </Button>
-              </div>
+              </div> */}
 
-              {(fedexData?.labelUrl || fedexData?.labelBase64 || fedexData?.trackingStatus || fedexData?.pickupConfirmationNumber || fedexData?.quotedAmount != null) && (
-                <div className="space-y-3 rounded-lg border-2 border-green-300 bg-gradient-to-br from-green-50 to-blue-50 p-4 shadow-sm">
-                  <div className="flex items-center gap-2 border-b border-green-200 pb-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-600" />
-                    <h4 className="font-semibold text-green-900">Shipping Summary</h4>
+              {(hasShippingLabelDocument(fedexData) || fedexData?.trackingStatus || fedexData?.pickupConfirmationNumber || fedexData?.quotedAmount != null) && (
+                <div className="space-y-3 rounded-lg border-2 border-blue-300 bg-gradient-to-br from-blue-50 to-sky-50 p-4 shadow-sm">
+                  <div className="flex items-center gap-2 border-b border-blue-200 pb-2">
+                    <CheckCircle2 className="h-5 w-5 text-blue-600" />
+                    <h4 className="font-semibold text-blue-900">Shipping Summary</h4>
                   </div>
                   
                   {fedexData?.quotedAmount != null && (
-                    <div className="rounded-lg bg-white p-3 border-2 border-green-300 shadow-sm">
+                    <div className="rounded-lg bg-white p-3 border-2 border-blue-300 shadow-sm">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-baseline gap-2">
                           <span className="text-sm font-medium text-gray-600">FedEx Label Charge:</span>
-                          <span className="text-xl font-bold text-green-700">
+                          <span className="text-xl font-bold text-blue-700">
                             {fedexData.quotedCurrency || "USD"} ${fedexData.quotedAmount.toFixed(2)}
                           </span>
                         </div>
@@ -1308,9 +1373,9 @@ export const TrackingDialog = ({
                     </div>
                   </div>
                   
-                  {(fedexData?.labelUrl || fedexData?.labelBase64) && currentLabelMatchesSelection && (
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-green-200">
-                      <Button type="button" variant="default" className="bg-green-600 hover:bg-green-700" onClick={previewLabel}>
+                  {hasShippingLabelDocument(fedexData) && currentLabelMatchesSelection && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-blue-200">
+                      <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={previewLabel}>
                         Preview Label
                       </Button>
                       <Button type="button" variant="outline" onClick={printLabel}>
@@ -1321,9 +1386,9 @@ export const TrackingDialog = ({
                       </Button>
                     </div>
                   )}
-                  {(fedexData?.labelUrl || fedexData?.labelBase64) && !currentLabelMatchesSelection && (
-                    <div className="flex flex-wrap gap-2 pt-3 border-t border-green-200">
-                      <Button type="button" variant="default" className="bg-green-600 hover:bg-green-700" onClick={previewLabel}>
+                  {hasShippingLabelDocument(fedexData) && !currentLabelMatchesSelection && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-blue-200">
+                      <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={previewLabel}>
                         Preview Saved Label
                       </Button>
                       <Button type="button" variant="outline" onClick={printLabel}>
@@ -1347,6 +1412,11 @@ export const TrackingDialog = ({
               onChange={(e) => onTrackingNumberChange(e.target.value)}
               placeholder={shippingMethod === "FedEx" ? "Generate a label or enter tracking number" : "Enter tracking number"}
             />
+            <p className="text-xs text-muted-foreground">
+              {shippingMethod === "FedEx"
+                ? "Tracking is usually filled automatically after label generation, but you can edit it before saving."
+                : "Enter the carrier tracking number to save the shipment."}
+            </p>
           </div>
         </div>
         </div>
@@ -1355,7 +1425,7 @@ export const TrackingDialog = ({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={() => onSubmit({ recipient: shippingMethod === "FedEx" ? recipientDraft : null })}>
+          <Button disabled={!canSaveShipping} onClick={() => onSubmit({ recipient: shippingMethod === "FedEx" ? recipientDraft : null })}>
             Save Shipping
           </Button>
         </DialogFooter>

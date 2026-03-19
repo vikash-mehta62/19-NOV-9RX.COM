@@ -14,6 +14,7 @@ import { getOrderStatusDisplay, getPaymentStatusDisplay } from "../utils/orderDi
 import {
   hasShippingLabelDocument,
   printShippingLabelDocument,
+  uploadShippingLabelToStorage,
 } from "../utils/shippingLabelDocuments";
 
 interface OrderHeaderProps {
@@ -95,6 +96,16 @@ export const OrderHeader = ({
         shippingMethod === "FedEx"
           ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
           : 0;
+      const storedLabel =
+        shippingMethod === "FedEx" && fedexData?.labelBase64 && order.id
+          ? await uploadShippingLabelToStorage({
+              orderId: order.id,
+              orderNumber: order.order_number,
+              labelBase64: fedexData.labelBase64,
+              labelFormat: fedexData.labelFormat,
+              previousStoragePath: order.shipping?.labelStoragePath,
+            })
+          : null;
 
       // Get old status before update
       const { data: oldOrder } = await supabase
@@ -136,8 +147,9 @@ export const OrderHeader = ({
         method: shippingMethod,
         trackingNumber,
         cost: shippingCost,
-        labelUrl: fedexData?.labelUrl || order.shipping?.labelUrl,
-        // labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,  // Don't save - too large
+        labelUrl: storedLabel ? undefined : fedexData?.labelUrl || order.shipping?.labelUrl,
+        labelStoragePath: storedLabel?.storagePath || fedexData?.labelStoragePath || order.shipping?.labelStoragePath,
+        labelFileName: storedLabel?.fileName || fedexData?.labelFileName || order.shipping?.labelFileName,
         labelFormat: fedexData?.labelFormat || order.shipping?.labelFormat,
         labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || order.shipping?.serviceType,
@@ -475,7 +487,7 @@ export const OrderHeader = ({
               >
                 <Truck className="w-4 h-4 text-indigo-600" />
                 <span className="text-xs md:text-sm">
-                  {hasSavedShippingLabel ? "Open Label" : "Ship"}
+                  {hasSavedShippingLabel ? "Shipment" : "Ship"}
                 </span>
               </Button>
             )}

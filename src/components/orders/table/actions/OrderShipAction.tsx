@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { uploadShippingLabelToStorage } from "../../utils/shippingLabelDocuments";
 
 interface OrderShipActionProps {
   order: OrderFormValues;
@@ -52,6 +53,16 @@ export const OrderShipAction = ({
         shippingMethod === "FedEx"
           ? Number(fedexData?.quotedAmount ?? (order as any)?.shipping_cost ?? (order as any)?.shipping?.cost ?? 0)
           : 0;
+      const storedLabel =
+        shippingMethod === "FedEx" && fedexData?.labelBase64 && order.id
+          ? await uploadShippingLabelToStorage({
+              orderId: order.id,
+              orderNumber: order.order_number,
+              labelBase64: fedexData.labelBase64,
+              labelFormat: fedexData.labelFormat,
+              previousStoragePath: order.shipping?.labelStoragePath,
+            })
+          : null;
       const existingShippingAddress =
         (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
       const existingShippingFields =
@@ -83,8 +94,9 @@ export const OrderShipAction = ({
         method: shippingMethod,
         trackingNumber,
         cost: shippingCost,
-        labelUrl: fedexData?.labelUrl || order.shipping?.labelUrl,
-        labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,
+        labelUrl: storedLabel ? undefined : fedexData?.labelUrl || order.shipping?.labelUrl,
+        labelStoragePath: storedLabel?.storagePath || fedexData?.labelStoragePath || order.shipping?.labelStoragePath,
+        labelFileName: storedLabel?.fileName || fedexData?.labelFileName || order.shipping?.labelFileName,
         labelFormat: fedexData?.labelFormat || order.shipping?.labelFormat,
         labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || order.shipping?.serviceType,

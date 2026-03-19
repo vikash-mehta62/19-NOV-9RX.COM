@@ -131,7 +131,7 @@ export const OverviewTab = ({
   const discountDetails = (order as any).discount_details || [];
   const hasFedExShipmentData =
     order.shipping?.method === "FedEx" ||
-    Boolean(order.shipping?.labelUrl || order.shipping?.labelBase64 || order.shipping?.serviceType);
+    Boolean(order.shipping?.labelUrl || order.shipping?.labelBase64 || order.shipping?.labelStoragePath || order.shipping?.serviceType);
   const showAdminFedExCharge = userRole === "admin" && !poIs;
   const fedexLabelCharge =
     showAdminFedExCharge && hasFedExShipmentData

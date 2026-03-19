@@ -1,6 +1,21 @@
 import { image } from "html2canvas/dist/types/css/types/image";
 import * as z from "zod";
 
+const nullableString = (fallback = "") =>
+  z.preprocess((value) => (value == null ? fallback : String(value)), z.string());
+
+const nullableNumber = (fallback = 0) =>
+  z.preprocess(
+    (value) => (value == null || value === "" ? fallback : value),
+    z.coerce.number()
+  );
+
+const nullableMinNumber = (fallback = 0, min = 0, message = "Value must be positive") =>
+  z.preprocess(
+    (value) => (value == null || value === "" ? fallback : value),
+    z.coerce.number().min(min, message)
+  );
+
 // Define category-specific configurations
 export const CATEGORY_CONFIGS = {
   "RX VIALS": {
@@ -93,13 +108,11 @@ export const productFormSchema = z.object({
   sku: z.string().optional().default(""),
   key_features: z.string().optional().default(""),
   squanence: z.any().optional(),
-
   ndcCode: z.any().optional(),
   upcCode: z.any().optional(),
   lotNumber: z.any().optional(),
   exipry: z.any().optional(),
   unitToggle: z.boolean().optional(),
-
   category: z.string(),
   subcategory: z.string().optional(),
   images: z.array(z.string()).default([]),
@@ -107,43 +120,33 @@ export const productFormSchema = z.object({
     .array(
       z.object({
         id: z.string().optional(),
-        size_name: z.string().optional().default(""),
-        size_value: z.string().min(1, "Size value is required"),
-        size_unit: z.string(),
-        sku: z.string(),
+        size_name: nullableString("").optional().default(""),
+        size_value: z.preprocess(
+          (value) => (value == null ? "" : String(value)),
+          z.string().min(1, "Size value is required")
+        ),
+        size_unit: nullableString("unit"),
+        sku: nullableString(""),
         image: z.string().nullish(),
         price: z.coerce.number().min(0.01, "Price must be greater than 0"),
-        groupIds: z.array(z.string().uuid()).optional().default([]),
-        disAllogroupIds: z.array(z.string().uuid()).optional().default([]),
-
+        groupIds: z.array(z.string().uuid()).nullish().transform((value) => value ?? []),
+        disAllogroupIds: z.array(z.string().uuid()).nullish().transform((value) => value ?? []),
         ndcCode: z.any().optional(),
         upcCode: z.any().optional(),
         lotNumber: z.any().optional(),
         exipry: z.any().optional(),
-  unitToggle: z.boolean().optional(),
-
-        price_per_case: z.coerce
-          .number()
-          .min(0, "Price per case must be positive"),
-        stock: z.coerce.number().min(0, "Stock must be positive"),
+        unitToggle: z.boolean().optional(),
+        price_per_case: nullableMinNumber(0, 0, "Price per case must be positive"),
+        stock: nullableMinNumber(0, 0, "Stock must be positive"),
         unit: z.coerce.boolean().optional(),
         case: z.coerce.boolean().optional(),
-        rolls_per_case: z.coerce
-          .number()
-          .min(0, "Rolls per case must be positive"),
-        sizeSquanence: z.coerce
-          .number()
-          .min(0, "sizeSquanence must be positive"),
-        shipping_cost: z.coerce
-          .number()
-          .min(0, "Shipping cost must be positive"),
-        quantity_per_case: z.coerce
-          .number()
-          .min(0, "Quantity per case must be positive"), // ✅ Added this field
+        rolls_per_case: nullableMinNumber(0, 0, "Rolls per case must be positive"),
+        sizeSquanence: nullableMinNumber(0, 0, "sizeSquanence must be positive"),
+        shipping_cost: nullableMinNumber(0, 0, "Shipping cost must be positive"),
+        quantity_per_case: nullableMinNumber(0, 0, "Quantity per case must be positive"),
       })
     )
     .default([]),
-
   base_price: z.coerce
     .number()
     .min(0, "Base price must be positive")
@@ -184,11 +187,16 @@ export const productFormSchema = z.object({
     .number()
     .min(0, "Shipping cost must be positive")
     .default(15),
-  similar_products: z.array(z.object({
-    id: z.number(),
-    category_name: z.string(),  
-    subcategory_name: z.string(),
-  })).max(2, "Maximum 2 similar products allowed").default([]),
+  similar_products: z
+    .array(
+      z.object({
+        id: z.number(),
+        category_name: z.string(),
+        subcategory_name: z.string(),
+      })
+    )
+    .max(2, "Maximum 2 similar products allowed")
+    .default([]),
 });
 
 export type ProductFormValues = z.infer<typeof productFormSchema>;

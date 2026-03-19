@@ -462,21 +462,23 @@ export const fedexService = {
     });
   },
 
-  async getPickupAvailability(trackingNumber: string) {
-    return invokeFedEx<Record<string, any>>("pickup_availability", { trackingNumber });
+  async getPickupAvailability(pickupDate?: string, serviceType?: string) {
+    return invokeFedEx<Record<string, any>>("pickup_availability", { pickupDate, serviceType });
   },
 
-  async createPickup(trackingNumber: string, pickupDate?: string): Promise<FedExPickupResult> {
+  async createPickup(trackingNumber: string, pickupDate?: string, serviceType?: string): Promise<FedExPickupResult> {
     return invokeFedEx<FedExPickupResult>("create_pickup", {
       trackingNumber,
       pickupDate,
+      serviceType,
     });
   },
 
-  async cancelPickup(confirmationNumber: string, scheduledDate: string): Promise<FedExPickupResult> {
+  async cancelPickup(confirmationNumber: string, scheduledDate: string, serviceType?: string): Promise<FedExPickupResult> {
     return invokeFedEx<FedExPickupResult>("cancel_pickup", {
       confirmationNumber,
       scheduledDate,
+      serviceType,
     });
   },
 };

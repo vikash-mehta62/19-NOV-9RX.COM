@@ -85,6 +85,19 @@ const getBaseUrl = (settings: JsonRecord) =>
 const getFedExMode = (settings: JsonRecord) =>
   settings.fedex_use_sandbox === false ? "production" : "sandbox";
 
+const resolvePickupCarrierCode = (serviceType?: string) => {
+  const normalized = String(serviceType || "").trim().toUpperCase();
+
+  if (normalized.includes("GROUND") || normalized.includes("HOME_DELIVERY")) {
+    return "FDXG";
+  }
+
+  return "FDXE";
+};
+
+const resolvePickupAccountType = (carrierCode: string) =>
+  carrierCode === "FDXG" ? "FEDEX_GROUND" : "FEDEX_EXPRESS";
+
 const getFedExCredentials = (settings: JsonRecord) => {
   const mode = getFedExMode(settings);
   const apiKey = String(
@@ -193,6 +206,58 @@ const buildShipper = (settings: JsonRecord) => ({
   },
 });
 
+const buildPickupOrigin = (settings: JsonRecord) => ({
+  contact: {
+    personName:
+      settings.warehouse_name ||
+      settings.shipping_company_name ||
+      settings.business_name ||
+      "Warehouse",
+    phoneNumber:
+      settings.warehouse_phone ||
+      settings.shipping_phone ||
+      settings.phone ||
+      "",
+    companyName:
+      settings.warehouse_name ||
+      settings.shipping_company_name ||
+      settings.business_name ||
+      "Warehouse",
+  },
+  address: {
+    streetLines: [
+      settings.warehouse_street || settings.shipping_street || settings.address || "",
+      settings.warehouse_suite || settings.shipping_suite || settings.suite || "",
+    ].filter(Boolean),
+    city: settings.warehouse_city || settings.shipping_city || settings.city || "",
+    stateOrProvinceCode:
+      settings.warehouse_state || settings.shipping_state || settings.state || "",
+    postalCode:
+      settings.warehouse_zip_code || settings.shipping_zip_code || settings.zip_code || "",
+    countryCode:
+      String(
+        settings.warehouse_country ||
+          settings.shipping_country ||
+          "USA",
+      ).toUpperCase() === "USA"
+        ? "US"
+        : String(
+            settings.warehouse_country ||
+              settings.shipping_country ||
+              "US",
+          ),
+  },
+});
+
+const buildPickupLocation = (settings: JsonRecord, accountNumber: string) => {
+  const origin = buildPickupOrigin(settings);
+  return {
+    contact: origin.contact,
+    address: origin.address,
+    accountNumber: { value: accountNumber },
+  };
+};
+
 const validateShipperSettings = (settings: JsonRecord) => {
   const shipper = buildShipper(settings);
   const missingFields: string[] = [];
@@ -228,6 +293,44 @@ const validateShipperSettings = (settings: JsonRecord) => {
 
   if (phone.length < 10) {
     throw new Error("FedEx shipper phone number is required in Shipping Settings");
+  }
+};
+
+const validatePickupOriginSettings = (settings: JsonRecord) => {
+  const origin = buildPickupOrigin(settings);
+  const missingFields: string[] = [];
+  const state = String(origin.address.stateOrProvinceCode || "").trim().toUpperCase();
+  const postalCode = String(origin.address.postalCode || "").trim();
+  const city = String(origin.address.city || "").trim();
+  const countryCode = String(origin.address.countryCode || "").trim().toUpperCase();
+  const phone = String(origin.contact.phoneNumber || "").replace(/\D/g, "");
+
+  if (!origin.contact.companyName) missingFields.push("warehouse name");
+  if (!origin.address.streetLines?.length) missingFields.push("warehouse street");
+  if (!origin.address.city) missingFields.push("warehouse city");
+  if (!origin.address.stateOrProvinceCode) missingFields.push("warehouse state");
+  if (!origin.address.postalCode) missingFields.push("warehouse ZIP code");
+
+  if (missingFields.length > 0) {
+    throw new Error(`FedEx pickup origin is incomplete: ${missingFields.join(", ")}`);
+  }
+
+  if (city.length < 3) {
+    throw new Error("FedEx warehouse city must contain at least 3 characters");
+  }
+
+  if (countryCode === "US") {
+    if (!/^[A-Z]{2}$/.test(state)) {
+      throw new Error("FedEx warehouse state must be a valid 2-letter US state code");
+    }
+
+    if (!/^\d{5}(-\d{4})?$/.test(postalCode)) {
+      throw new Error("FedEx warehouse ZIP code must be a valid US ZIP code");
+    }
+  }
+
+  if (phone.length < 10) {
+    throw new Error("FedEx warehouse phone number is required for pickup");
   }
 };
 
@@ -513,6 +616,144 @@ const extractTrackingResult = (result: JsonRecord) => {
   };
 };
 
+const extractPickupConfirmation = (result: JsonRecord) =>
+  result?.output?.pickupConfirmationCode ||
+  result?.output?.pickupConfirmationNumber ||
+  result?.output?.pickupNotifications?.[0]?.pickupConfirmationCode ||
+  result?.output?.pickupNotifications?.[0]?.pickupConfirmationNumber ||
+  result?.pickupConfirmationCode ||
+  result?.pickupConfirmationNumber ||
+  "";
+
+const extractPickupReadyDate = (result: JsonRecord, fallbackDate: string) =>
+  result?.output?.readyDate ||
+  result?.output?.readyPickupDate ||
+  result?.output?.pickupDate ||
+  result?.readyDate ||
+  result?.pickupDate ||
+  fallbackDate;
+
+const findFirstValueByKeys = (value: unknown, keys: string[]): unknown => {
+  if (!value || typeof value !== "object") return undefined;
+
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      const found = findFirstValueByKeys(entry, keys);
+      if (found !== undefined) return found;
+    }
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  for (const [key, entry] of Object.entries(record)) {
+    if (keys.includes(key)) {
+      return entry;
+    }
+  }
+
+  for (const entry of Object.values(record)) {
+    const found = findFirstValueByKeys(entry, keys);
+    if (found !== undefined) return found;
+  }
+
+  return undefined;
+};
+
+const normalizeTimeString = (value: unknown, fallback: string) => {
+  const raw = String(value || "").trim();
+  const match = raw.match(/(\d{2}:\d{2})(?::\d{2})?/);
+  if (!match) return fallback;
+  return `${match[1]}:00`;
+};
+
+const parseDurationMinutes = (value: unknown, fallback: number) => {
+  const raw = String(value || "").trim();
+  const match = raw.match(/^PT(?:(\d+)H)?(?:(\d+)M)?$/i);
+  if (!match) return fallback;
+
+  const hours = Number(match[1] || 0);
+  const minutes = Number(match[2] || 0);
+  return hours * 60 + minutes;
+};
+
+const timeStringToMinutes = (value: string) => {
+  const [hours, minutes] = value.split(":").map((entry) => Number(entry || 0));
+  return (hours * 60) + minutes;
+};
+
+const minutesToTimeString = (minutes: number) => {
+  const clamped = Math.max(0, Math.min(minutes, (23 * 60) + 59));
+  const hours = Math.floor(clamped / 60);
+  const mins = clamped % 60;
+  return `${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}:00`;
+};
+
+const buildPickupAvailabilityPayload = (
+  settings: JsonRecord,
+  accountNumber: string,
+  pickupDate: string,
+  carrierCode: string,
+) => {
+  const pickupLocation = buildPickupLocation(settings, accountNumber);
+  const pickupRequestType = pickupDate > new Date().toISOString().slice(0, 10) ? "FUTURE_DAY" : "SAME_DAY";
+
+  return {
+    associatedAccountNumber: { value: accountNumber },
+    associatedAccountNumberType: resolvePickupAccountType(carrierCode),
+    originDetail: {
+      pickupAddressType: "ACCOUNT",
+      pickupLocation,
+      readyDateTimestamp: `${pickupDate}T13:00:00`,
+      customerCloseTime: "18:00:00",
+      pickupDateType: pickupRequestType,
+      packageLocation: "FRONT",
+      buildingPart: "BUILDING",
+    },
+    totalWeight: {
+      units: settings.fedex_default_weight_units || "LB",
+      value: Number(settings.fedex_default_weight_value || 1),
+    },
+    packageCount: 1,
+    carrierCode,
+    accountAddressOfRecord: pickupLocation.address,
+    countryRelationships: "DOMESTIC",
+  };
+};
+
+const derivePickupWindow = (availabilityResult: JsonRecord, pickupDate: string) => {
+  const readyTimeValue = findFirstValueByKeys(availabilityResult, [
+    "defaultReadyTime",
+    "readyTime",
+    "defaultReadyPickupTime",
+  ]);
+  const cutoffTimeValue = findFirstValueByKeys(availabilityResult, [
+    "cutoffTime",
+    "cutOffTime",
+    "customerCloseTime",
+    "closeTime",
+  ]);
+  const accessTimeValue = findFirstValueByKeys(availabilityResult, [
+    "accessTime",
+    "accessDuration",
+  ]);
+
+  const customerCloseTime = normalizeTimeString(cutoffTimeValue, "18:00:00");
+  const defaultReadyTime = normalizeTimeString(readyTimeValue, "13:00:00");
+  const accessMinutes = parseDurationMinutes(accessTimeValue, 240);
+  const latestPickupMinutes = timeStringToMinutes(customerCloseTime);
+  const latestReadyMinutes = Math.max(0, latestPickupMinutes - accessMinutes);
+  const readyPickupTime = minutesToTimeString(
+    Math.min(timeStringToMinutes(defaultReadyTime), latestReadyMinutes),
+  );
+
+  return {
+    pickupDate,
+    customerCloseTime,
+    readyPickupDateTime: `${pickupDate}T${readyPickupTime}`,
+    latestPickupDateTime: `${pickupDate}T${customerCloseTime}`,
+  };
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -650,58 +891,61 @@ Deno.serve(async (req) => {
 
       case "pickup_availability": {
         requireAccountNumber();
-        validateShipperSettings(activeSettings);
-        const shipper = buildShipper(activeSettings);
-        const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups/availabilities", {
-          associatedAccountNumber: { value: accountNumber },
-          originDetail: {
-            pickupLocation: shipper.contact.companyName,
-            companyCloseTime: "18:00:00",
-            packageLocation: "FRONT",
-            buildingPartCode: "BUILDING",
-            readyDateTimestamp: new Date().toISOString(),
-            customerLocation: "FRONT",
-            address: shipper.address,
-          },
-          carriers: ["FEDEX_EXPRESS", "FEDEX_GROUND"],
-        });
+        validatePickupOriginSettings(activeSettings);
+        const carrierCode = resolvePickupCarrierCode(body.serviceType);
+        const requestedPickupDate = String(body.pickupDate || "").trim() || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const data = await fedexRequest(
+          activeSettings,
+          token,
+          "/pickup/v1/pickups/availabilities",
+          buildPickupAvailabilityPayload(activeSettings, accountNumber, requestedPickupDate, carrierCode),
+        );
         return jsonResponse({ success: true, data });
       }
 
       case "create_pickup": {
         requireAccountNumber();
-        validateShipperSettings(activeSettings);
-        const shipper = buildShipper(activeSettings);
-        const pickupDate = body.pickupDate || new Date().toISOString().slice(0, 10);
+        validatePickupOriginSettings(activeSettings);
+        const carrierCode = resolvePickupCarrierCode(body.serviceType);
+        const pickupDate = String(body.pickupDate || "").trim() || new Date(Date.now() + 86400000).toISOString().slice(0, 10);
+        const pickupLocation = buildPickupLocation(activeSettings, accountNumber);
+        const availability = await fedexRequest(
+          activeSettings,
+          token,
+          "/pickup/v1/pickups/availabilities",
+          buildPickupAvailabilityPayload(activeSettings, accountNumber, pickupDate, carrierCode),
+        );
+        const pickupWindow = derivePickupWindow(availability, pickupDate);
         const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups", {
           associatedAccountNumber: { value: accountNumber },
           originDetail: {
-            pickupLocation: shipper.contact.companyName,
+            pickupAddressType: "ACCOUNT",
+            pickupLocation,
             packageLocation: "FRONT",
-            buildingPartCode: "BUILDING",
-            readyPickupDateTime: `${pickupDate}T13:00:00`,
-            latestPickupDateTime: `${pickupDate}T17:00:00`,
-            address: shipper.address,
+            buildingPart: "BUILDING",
+            readyPickupDateTime: pickupWindow.readyPickupDateTime,
+            latestPickupDateTime: pickupWindow.latestPickupDateTime,
           },
-          carrierCode: "FDXG",
-          totalPackageCount: 1,
+          associatedAccountNumberType: resolvePickupAccountType(carrierCode),
+          carrierCode,
+          packageCount: 1,
           totalWeight: {
             units: activeSettings.fedex_default_weight_units || "LB",
             value: Number(activeSettings.fedex_default_weight_value || 1),
           },
+          accountAddressOfRecord: pickupLocation.address,
+          countryRelationships: "DOMESTIC",
           trackingNumber: String(body.trackingNumber || "").trim(),
         });
 
         return jsonResponse({
           success: true,
           data: {
-            confirmationNumber:
-              data?.output?.pickupConfirmationCode ||
-              data?.pickupConfirmationCode,
+            confirmationNumber: extractPickupConfirmation(data),
             location:
               data?.output?.location ||
-              shipper.contact.companyName,
-            readyDate: pickupDate,
+              pickupLocation.contact.companyName,
+            readyDate: extractPickupReadyDate(data, pickupDate),
             raw: data,
           },
         });
@@ -709,11 +953,12 @@ Deno.serve(async (req) => {
 
       case "cancel_pickup": {
         requireAccountNumber();
+        const carrierCode = resolvePickupCarrierCode(body.serviceType);
         const data = await fedexRequest(activeSettings, token, "/pickup/v1/pickups/cancel", {
           associatedAccountNumber: { value: accountNumber },
           pickupConfirmationCode: String(body.confirmationNumber || "").trim(),
           scheduledDate: body.scheduledDate,
-          carrierCode: "FDXG",
+          carrierCode,
         });
         return jsonResponse({ success: true, data: { confirmationNumber: body.confirmationNumber, raw: data } });
       }

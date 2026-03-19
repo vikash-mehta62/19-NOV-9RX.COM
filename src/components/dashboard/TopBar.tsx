@@ -301,7 +301,7 @@ export const TopBar = ({ hideCartDrawer = false }: TopBarProps) => {
         {/* <ThemeToggle /> */}
         
         {/* Hide CartDrawer for pharmacy users as they have cart in sidebar */}
-        {sessionStorage.getItem('userType') !== 'pharmacy' && !hideCartDrawer && <CartDrawer />}
+        {/* {sessionStorage.getItem('userType') !== 'pharmacy' && !hideCartDrawer && <CartDrawer />} */}
         
         {/* Notification Bell - Admin Only */}
         {userType === 'admin' && <DropdownMenu>

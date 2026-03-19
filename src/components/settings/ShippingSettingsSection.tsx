@@ -22,9 +22,21 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { UseFormReturn } from "react-hook-form";
 import { SettingsFormValues } from "./settingsTypes";
-import { Truck } from "lucide-react";
+import {
+  Truck,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldCheck,
+  PackageCheck,
+  MapPinned,
+  RefreshCw,
+  ExternalLink,
+  Clock3,
+} from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
 interface ShippingSettingsSectionProps {
@@ -33,6 +45,12 @@ interface ShippingSettingsSectionProps {
   savingFedExEnvironment: "sandbox" | "production" | null;
   onTestFedExConnection: () => Promise<void>;
   testingFedEx: boolean;
+  fedexTestStatus?: {
+    status: "success" | "error";
+    message: string;
+    testedAt: string;
+    mode: "sandbox" | "production";
+  } | null;
 }
 
 export function ShippingSettingsSection({
@@ -41,17 +59,75 @@ export function ShippingSettingsSection({
   savingFedExEnvironment,
   onTestFedExConnection,
   testingFedEx,
+  fedexTestStatus,
 }: ShippingSettingsSectionProps) {
   const sandboxMode = form.watch("fedex_use_sandbox");
   const activeModeTitle = sandboxMode ? "Sandbox" : "Production";
   const sandboxAccountNumber = form.watch("fedex_sandbox_account_number");
   const sandboxApiKey = form.watch("fedex_sandbox_api_key");
+  const sandboxSecretKey = form.watch("fedex_sandbox_secret_key");
   const productionAccountNumber = form.watch("fedex_production_account_number");
   const productionApiKey = form.watch("fedex_production_api_key");
+  const productionSecretKey = form.watch("fedex_production_secret_key");
+  const shippingCompany = form.watch("shipping_company_name");
+  const shippingStreet = form.watch("shipping_street");
+  const shippingCity = form.watch("shipping_city");
+  const shippingState = form.watch("shipping_state");
+  const shippingZipCode = form.watch("shipping_zip_code");
+  const shippingPhone = form.watch("shipping_phone");
   const credentialSetsMatch =
     Boolean(sandboxAccountNumber && productionAccountNumber && sandboxApiKey && productionApiKey) &&
     sandboxAccountNumber === productionAccountNumber &&
     sandboxApiKey === productionApiKey;
+
+  const sandboxCredentialsReady = Boolean(sandboxAccountNumber && sandboxApiKey && sandboxSecretKey);
+  const productionCredentialsReady = Boolean(productionAccountNumber && productionApiKey && productionSecretKey);
+  const activeCredentialsReady = sandboxMode ? sandboxCredentialsReady : productionCredentialsReady;
+  const shipFromReady = Boolean(
+    shippingCompany &&
+      shippingStreet &&
+      shippingCity &&
+      /^[A-Za-z]{2}$/.test(String(shippingState || "").trim()) &&
+      String(shippingZipCode || "").trim() &&
+      String(shippingPhone || "").trim(),
+  );
+  const fedexEnabled = form.watch("fedex_enabled");
+  const connectionState = !fedexEnabled
+    ? { label: "Disabled", className: "bg-slate-100 text-slate-700 border-slate-200" }
+    : !activeCredentialsReady
+      ? { label: "Setup Incomplete", className: "bg-amber-100 text-amber-800 border-amber-200" }
+      : fedexTestStatus?.status === "success"
+        ? { label: "Connected", className: "bg-emerald-100 text-emerald-800 border-emerald-200" }
+        : fedexTestStatus?.status === "error"
+          ? { label: "Needs Attention", className: "bg-red-100 text-red-800 border-red-200" }
+          : { label: "Ready to Test", className: "bg-blue-100 text-blue-800 border-blue-200" };
+
+  const capabilityItems = [
+    {
+      title: "Address Validation",
+      description: "Validate recipient addresses before requesting labels or quotes.",
+      icon: MapPinned,
+      enabled: fedexEnabled && activeCredentialsReady,
+    },
+    {
+      title: "Rate Quotes",
+      description: "Load FedEx shipping charges before label generation.",
+      icon: RefreshCw,
+      enabled: fedexEnabled && activeCredentialsReady,
+    },
+    {
+      title: "Label Creation",
+      description: "Generate and store shipment labels from the order flow.",
+      icon: PackageCheck,
+      enabled: fedexEnabled && activeCredentialsReady && shipFromReady,
+    },
+    {
+      title: "Tracking & Pickup",
+      description: "Track shipments and create or cancel FedEx pickup requests.",
+      icon: Truck,
+      enabled: fedexEnabled && activeCredentialsReady,
+    },
+  ];
 
   const renderFedExCredentialCard = (environment: "sandbox" | "production") => {
     const title = environment === "sandbox" ? "Sandbox" : "Production";
@@ -295,13 +371,150 @@ export function ShippingSettingsSection({
         <Separator />
 
         <div className="space-y-2">
-          <h3 className="text-lg font-semibold">FedEx Carrier Integration</h3>
-          <p className="text-sm text-muted-foreground">
-            Configure FedEx credentials and shipment defaults for label generation, tracking, and pickup requests.
-          </p>
-          <p className="text-sm text-muted-foreground">
-            FedEx uses the Shipping Address above as the ship-from origin for quotes, labels, and pickups.
-          </p>
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-lg font-semibold">FedEx Carrier Integration</h3>
+                <Badge variant="outline" className={connectionState.className}>
+                  {connectionState.label}
+                </Badge>
+                <Badge variant="outline">
+                  Active: {activeModeTitle}
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Configure one FedEx integration for address validation, rates, labels, tracking, and pickups.
+              </p>
+              <p className="text-sm text-muted-foreground">
+                FedEx uses the Shipping Address above as the ship-from origin for quotes, labels, and pickups.
+              </p>
+            </div>
+            <Button asChild variant="outline" size="sm">
+              <a
+                href="https://developer.fedex.com/api/en-us/home.html"
+                target="_blank"
+                rel="noreferrer"
+              >
+                FedEx Docs
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+          <div className="rounded-lg border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Connection</p>
+                <p className="mt-1 text-base font-semibold">{connectionState.label}</p>
+              </div>
+              {connectionState.label === "Connected" ? (
+                <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+              ) : (
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+              )}
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {fedexEnabled
+                ? `FedEx is enabled and currently using ${activeModeTitle.toLowerCase()} credentials.`
+                : "FedEx is disabled. Order users cannot create labels or pickup requests."}
+            </p>
+          </div>
+
+          <div className="rounded-lg border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Credentials</p>
+                <p className="mt-1 text-base font-semibold">
+                  {activeCredentialsReady ? "Configured" : "Missing required values"}
+                </p>
+              </div>
+              <ShieldCheck className="h-5 w-5 text-blue-600" />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Required for the active environment: account number, API key, and secret key.
+            </p>
+          </div>
+
+          <div className="rounded-lg border bg-background p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Ship-From Address</p>
+                <p className="mt-1 text-base font-semibold">{shipFromReady ? "Ready" : "Needs review"}</p>
+              </div>
+              <MapPinned className="h-5 w-5 text-indigo-600" />
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Company, street, city, state, ZIP code, and phone are needed for label creation.
+            </p>
+          </div>
+        </div>
+
+        {fedexTestStatus && (
+          <Alert variant={fedexTestStatus.status === "error" ? "destructive" : "default"}>
+            {fedexTestStatus.status === "success" ? (
+              <CheckCircle2 className="h-4 w-4" />
+            ) : (
+              <AlertTriangle className="h-4 w-4" />
+            )}
+            <AlertTitle>
+              Last FedEx Test: {fedexTestStatus.status === "success" ? "Passed" : "Failed"}
+            </AlertTitle>
+            <AlertDescription>
+              <div className="space-y-1">
+                <p>{fedexTestStatus.message}</p>
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Badge variant="outline">{fedexTestStatus.mode}</Badge>
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <Clock3 className="h-3.5 w-3.5" />
+                    {new Date(fedexTestStatus.testedAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-3">
+          <div>
+            <h4 className="font-semibold">Supported Capabilities</h4>
+            <p className="text-sm text-muted-foreground">
+              These are features available through the single FedEx integration in this app.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {capabilityItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div key={item.title} className="rounded-lg border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex gap-3">
+                      <div className="rounded-md bg-muted p-2">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{item.title}</p>
+                        <p className="text-sm text-muted-foreground">{item.description}</p>
+                      </div>
+                    </div>
+                    <Badge
+                      variant="outline"
+                      className={
+                        item.enabled
+                          ? "bg-emerald-100 text-emerald-800 border-emerald-200"
+                          : "bg-slate-100 text-slate-700 border-slate-200"
+                      }
+                    >
+                      {item.enabled ? "Available" : "Blocked"}
+                    </Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         <FormField
@@ -324,6 +537,27 @@ export function ShippingSettingsSection({
 
         {form.watch("fedex_enabled") && (
           <>
+            {!activeCredentialsReady && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Finish the active credential set</AlertTitle>
+                <AlertDescription>
+                  Add the required account number, API key, and secret key for {activeModeTitle.toLowerCase()} before testing
+                  or using FedEx from orders.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {!shipFromReady && (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertTitle>Ship-from address needs completion</AlertTitle>
+                <AlertDescription>
+                  Update the Shipping Address section with company name, street, city, 2-letter state, ZIP code, and phone.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
@@ -357,7 +591,12 @@ export function ShippingSettingsSection({
             </div>
 
             <div className="flex justify-end">
-              <Button type="button" variant="outline" onClick={onTestFedExConnection} disabled={testingFedEx}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={onTestFedExConnection}
+                disabled={testingFedEx || !activeCredentialsReady}
+              >
                 {testingFedEx ? `Testing ${activeModeTitle}...` : `Test ${activeModeTitle} Connection`}
               </Button>
             </div>

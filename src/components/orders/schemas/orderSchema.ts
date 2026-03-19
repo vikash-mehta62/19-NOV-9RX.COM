@@ -63,6 +63,8 @@ const shippingSchema = z.object({
   estimatedDelivery: z.string().optional(),
   labelUrl: z.string().optional(),
   labelBase64: z.string().optional(),
+  labelStoragePath: z.string().optional(),
+  labelFileName: z.string().optional(),
   labelFormat: z.string().optional(),
   labelStockType: z.string().optional(),
   serviceType: z.string().optional(),
