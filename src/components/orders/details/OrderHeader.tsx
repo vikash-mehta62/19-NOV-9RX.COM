@@ -137,7 +137,7 @@ export const OrderHeader = ({
         trackingNumber,
         cost: shippingCost,
         labelUrl: fedexData?.labelUrl || order.shipping?.labelUrl,
-        labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,
+        // labelBase64: fedexData?.labelBase64 || order.shipping?.labelBase64,  // Don't save - too large
         labelFormat: fedexData?.labelFormat || order.shipping?.labelFormat,
         labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || order.shipping?.serviceType,
