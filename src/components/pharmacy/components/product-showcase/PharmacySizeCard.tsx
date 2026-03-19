@@ -101,10 +101,6 @@ export const PharmacySizeCard = ({
       const success = await addToCart(cartItem)
       
       if (success) {
-        toast({
-          title: "✓ Added to Cart",
-          description: `${quantity} case${quantity > 1 ? 's' : ''} of ${item.productName} added`,
-        })
         setQuantity(1)
       }
     } catch (error) {

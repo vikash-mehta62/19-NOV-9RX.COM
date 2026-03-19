@@ -553,10 +553,6 @@ const ProductDetails = () => {
       const success = await addToCart(cartItem)
 
       if (success) {
-        toast({
-          title: "✅ Added to Cart",
-          description: `${product!.name} with ${selectedSizes.size} size(s) added successfully!`,
-        })
         setSelectedSizes(new Map()) // Clear selections
       } else {
         throw new Error('Failed to add to cart')
@@ -1904,7 +1900,7 @@ return (
                         {!isOutOfStock && isLoggedIn && (
                           <div className="flex items-center gap-2 pt-2">
                             {/* Quantity Selector - Large buttons */}
-                            <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelectedForSize ? "opacity-60" : ""}`}>
+                            {/* <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelectedForSize ? "opacity-60" : ""}`}>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1938,10 +1934,10 @@ return (
                               >
                                 <Plus className="w-4 h-4" />
                               </Button>
-                            </div>
+                            </div> */}
 
                             {/* Add to Cart Button */}
-                            <Button
+                            {/* <Button
                               className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1968,7 +1964,7 @@ return (
                                   Add to Cart
                                 </>
                               )}
-                            </Button>
+                            </Button> */}
                           </div>
                         )}
 

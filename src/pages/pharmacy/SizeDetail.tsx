@@ -304,10 +304,6 @@ export default function SizeDetail() {
         } : {},
         notes: customization.enabled ? `Customization: ${customization.text}` : "",
       })
-      toast({
-        title: "✓ Added to Cart",
-        description: `${quantity} case${quantity > 1 ? 's' : ''} added successfully`
-      })
       setQuantity(1)
       setCustomization({ enabled: false, text: '' })
     } catch {

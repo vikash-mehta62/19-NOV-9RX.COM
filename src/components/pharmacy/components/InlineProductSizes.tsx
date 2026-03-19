@@ -475,10 +475,6 @@ export const InlineProductSizes = ({
       const success = await addToCart(cartItem)
       
       if (success) {
-        toast({
-          title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value} ${size.size_unit}${customizationEnabled ? ' with customization' : ''} added!`,
-        })
         // Reset quantity and customization after adding
         setSelectedSizes(prev => ({
           ...prev,

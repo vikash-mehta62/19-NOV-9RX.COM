@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { useCart } from "@/hooks/use-cart"
 import { useState, useMemo } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { useToast } from "@/hooks/use-toast"
 
 export const StickyCartSummary = () => {
   const { cartItems, cartTotal, totalItems, removeFromCart } = useCart()
@@ -13,7 +12,6 @@ export const StickyCartSummary = () => {
   const [isVisible, setIsVisible] = useState(true)
   const navigate = useNavigate()
   const location = useLocation()
-  const { toast } = useToast()
 
   // Memoize displayed items for performance
   const displayedItems = useMemo(() => cartItems.slice(0, 5), [cartItems])
@@ -25,13 +23,7 @@ export const StickyCartSummary = () => {
   if (!isVisible || totalItems === 0 || isOnOrderCreatePage) return null
 
   const handleRemoveItem = async (productId: string, productName: string) => {
-    const success = await removeFromCart(productId)
-    if (success) {
-      toast({
-        title: "Item Removed",
-        description: `${productName} has been removed from your cart`,
-      })
-    }
+    await removeFromCart(productId)
   }
 
   const handleViewDetails = (productId: string) => {

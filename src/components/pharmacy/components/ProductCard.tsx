@@ -164,18 +164,6 @@ export const ProductCard = ({
 
         if (success) {
           setShowCartSuccess(true);
-          toast({
-            title: "Added to Cart",
-            description: (
-              <Alert className="border-blue-500 bg-blue-50">
-                <Check className="h-4 w-4 text-blue-500" />
-                <AlertDescription className="ml-2">
-                  {product.name} has been added to your cart successfully!
-                </AlertDescription>
-              </Alert>
-            ),
-          });
-
           setTimeout(() => {
             setDialogOpen(false);
             setShowCartSuccess(false);

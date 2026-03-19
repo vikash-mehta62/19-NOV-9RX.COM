@@ -120,10 +120,6 @@ export default function BuyAgain() {
 
       await addToCart(cartItem)
       
-      toast({
-        title: "Added to Cart",
-        description: `${item.name} added to cart`,
-      })
     } catch (error) {
       console.error("Error adding to cart:", error)
       toast({
@@ -167,10 +163,6 @@ export default function BuyAgain() {
         }
       }
       
-      toast({
-        title: "Order Added to Cart",
-        description: `All items from order ${order.order_number} added to cart`,
-      })
     } catch (error) {
       console.error("Error reordering:", error)
       toast({

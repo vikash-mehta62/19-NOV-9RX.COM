@@ -144,13 +144,13 @@ export const CartDrawer = () => {
 
   const handleRemoveItem = async (productId: string) => {
     const success = await removeFromCart(productId);
-    toast({
-      title: success ? "Item Removed" : "Error",
-      description: success
-        ? "Item has been removed from your cart"
-        : "Failed to remove item",
-      variant: success ? "default" : "destructive",
-    });
+    if (!success) {
+      toast({
+        title: "Error",
+        description: "Failed to remove item",
+        variant: "destructive",
+      });
+    }
   };
 
   const handleCheckout = async () => {

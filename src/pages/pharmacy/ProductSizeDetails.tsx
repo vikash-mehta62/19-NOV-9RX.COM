@@ -191,10 +191,6 @@ const ProductSizeDetails = () => {
       const success = await addToCart(cartItem)
 
       if (success) {
-        toast({
-          title: "✓ Added to Cart",
-          description: `${quantity} case${quantity > 1 ? 's' : ''} added successfully`,
-        })
       }
     } catch (error) {
       toast({ title: "Error", description: "Failed to add to cart", variant: "destructive" })

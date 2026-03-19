@@ -463,10 +463,6 @@ export const ProductSizesPanel = ({
       const success = await addToCart(cartItem)
       
       if (success) {
-        toast({
-          title: "✅ Added to Cart",
-          description: `${displayProduct.name} ${size.size_value} ${size.size_unit} added!`,
-        })
         // Reset quantity after adding
         setSelectedSizes(prev => ({
           ...prev,

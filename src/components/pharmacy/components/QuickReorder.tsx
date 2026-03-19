@@ -142,11 +142,6 @@ export const QuickReorder = () => {
       }
 
       await addToCart(cartItem)
-      
-      toast({
-        title: "Added to Cart",
-        description: `${item.name} with ${item.sizes.length} size(s) added to cart`,
-      })
     } catch (error) {
       console.error("Error adding to cart:", error)
       toast({

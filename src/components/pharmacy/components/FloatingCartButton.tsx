@@ -7,7 +7,6 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useCart } from "@/hooks/use-cart";
 import { ShoppingCart, X, ChevronUp, ArrowRight, Trash2, Eye } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useToast } from "@/hooks/use-toast";
 
 export const FloatingCartButton = () => {
   const navigate = useNavigate();
@@ -17,7 +16,6 @@ export const FloatingCartButton = () => {
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [lastScrollY, setLastScrollY] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
-  const { toast } = useToast();
 
   const totalItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0);
 
@@ -50,13 +48,7 @@ export const FloatingCartButton = () => {
   };
 
   const handleRemoveItem = async (productId: string, productName: string) => {
-    const success = await removeFromCart(productId);
-    if (success) {
-      toast({
-        title: "Item Removed",
-        description: `${productName} removed from cart`,
-      });
-    }
+    await removeFromCart(productId);
   };
 
   const handleViewDetails = (productId: string) => {
