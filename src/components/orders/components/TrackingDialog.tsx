@@ -249,13 +249,16 @@ const buildRecipientDraft = (order?: OrderFormValues): FedExRecipientInput => {
   const customerAddress = order?.customerInfo?.address;
   const address = shippingAddress || customerAddress;
 
+  const rawState = address?.state || "";
+  const normalizedState = normalizeUsStateCode(rawState);
+
   return {
     name: order?.shippingAddress?.fullName || order?.customerInfo?.name || "",
     email: order?.shippingAddress?.email || order?.customerInfo?.email || "",
     phone: order?.shippingAddress?.phone || order?.customerInfo?.phone || "",
     street: address?.street || "",
     city: address?.city || "",
-    state: normalizeUsStateCode(address?.state),
+    state: normalizedState || rawState, // Fallback to original if normalization fails
     zip_code: address?.zip_code || "",
   };
 };
@@ -307,6 +310,13 @@ export const TrackingDialog = ({
 
   useEffect(() => {
     if (!isOpen) return;
+    
+    // Only reset if we're opening fresh (not already validated)
+    if (addressValidated && recipientDraft.name) {
+      // Dialog is already in use, don't reset
+      return;
+    }
+    
     setRecipientDraft(buildRecipientDraft(order));
     setSuggestedRecipientDraft(null);
     setAddressValidated(false);
@@ -364,7 +374,7 @@ export const TrackingDialog = ({
         ? storedShipping.labelStockType
         : nextStockOptions[0].value,
     );
-  }, [isOpen, onTrackingNumberChange, order, trackingNumber]);
+  }, [isOpen]);
 
   const recipientSummary = useMemo(
     () =>
@@ -657,13 +667,56 @@ export const TrackingDialog = ({
     );
   };
 
-  const handleUseSuggestedAddress = () => {
+  const handleUseSuggestedAddress = async () => {
     if (!suggestedRecipientDraft) return;
 
     setRecipientDraft(suggestedRecipientDraft);
     setSuggestedRecipientDraft(null);
     setAddressValidated(false);
     setAddressValidationMessage("Applied FedEx suggested address. Validate again to confirm it before rating or generating the label.");
+    
+    // Save suggested address to order's shipping address
+    if (order?.id && onOrderUpdate) {
+      const existingShippingAddress = (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
+      const existingShippingFields = ((existingShippingAddress.shipping || {}) as Record<string, any>) || {};
+      
+      const updatedShippingAddress = compactObject({
+        ...existingShippingAddress,
+        fullName: suggestedRecipientDraft.name,
+        email: suggestedRecipientDraft.email || "",
+        phone: suggestedRecipientDraft.phone,
+        address: {
+          street: suggestedRecipientDraft.street,
+          city: suggestedRecipientDraft.city,
+          state: suggestedRecipientDraft.state,
+          zip_code: suggestedRecipientDraft.zip_code,
+        },
+        shipping: compactObject({
+          ...existingShippingFields,
+          street1: suggestedRecipientDraft.street,
+          city: suggestedRecipientDraft.city,
+          state: suggestedRecipientDraft.state,
+          zipCode: suggestedRecipientDraft.zip_code,
+          phone: suggestedRecipientDraft.phone,
+        }),
+      });
+
+      const { error } = await (supabase
+        .from("orders")
+        .update({
+          shippingAddress: updatedShippingAddress,
+        }) as any)
+        .eq("id", order.id);
+
+      if (error) {
+        console.error("Failed to save suggested address:", error);
+      } else {
+        onOrderUpdate({
+          shippingAddress: updatedShippingAddress,
+        });
+      }
+    }
+    
     toast({
       title: "FedEx suggestion applied",
       description: "The recipient address was updated with FedEx's suggested values.",
@@ -675,6 +728,49 @@ export const TrackingDialog = ({
     setIsValidatingAddress(true);
     try {
       await ensureAddressValidated();
+      
+      // Save validated address to order's shipping address
+      if (order.id && onOrderUpdate) {
+        const existingShippingAddress = (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
+        const existingShippingFields = ((existingShippingAddress.shipping || {}) as Record<string, any>) || {};
+        
+        const updatedShippingAddress = compactObject({
+          ...existingShippingAddress,
+          fullName: recipientDraft.name,
+          email: recipientDraft.email || "",
+          phone: recipientDraft.phone,
+          address: {
+            street: recipientDraft.street,
+            city: recipientDraft.city,
+            state: recipientDraft.state,
+            zip_code: recipientDraft.zip_code,
+          },
+          shipping: compactObject({
+            ...existingShippingFields,
+            street1: recipientDraft.street,
+            city: recipientDraft.city,
+            state: recipientDraft.state,
+            zipCode: recipientDraft.zip_code,
+            phone: recipientDraft.phone,
+          }),
+        });
+
+        const { error } = await (supabase
+          .from("orders")
+          .update({
+            shippingAddress: updatedShippingAddress,
+          }) as any)
+          .eq("id", order.id);
+
+        if (error) {
+          console.error("Failed to save validated address:", error);
+        } else {
+          onOrderUpdate({
+            shippingAddress: updatedShippingAddress,
+          });
+        }
+      }
+      
       toast({
         title: "Address validated",
         description: "FedEx confirmed the recipient address for shipment.",
@@ -772,7 +868,7 @@ export const TrackingDialog = ({
       onTrackingNumberChange(shipment.trackingNumber);
       // Use the quoted amount as shipping cost, fallback to 0 if not available
       const shippingCost = Number(quotedAmount ?? 0);
-      updateFedExData({
+      const newFedExData = {
         labelUrl: shipment.labelUrl,
         labelBase64: shipment.labelBase64,
         labelStoragePath: fedexData?.labelStoragePath,
@@ -784,13 +880,20 @@ export const TrackingDialog = ({
         estimatedDeliveryDate: shipment.estimatedDeliveryDate,
         quotedAmount,
         quotedCurrency,
-      });
+      };
+      
+      updateFedExData(newFedExData);
 
-      // Don't save to database immediately - parent component will save when "Save Shipping" is clicked
+      // Automatically open PDF preview after label generation
       toast({
         title: "FedEx label created",
-        description: `Tracking: ${shipment.trackingNumber}. Click "Save Shipping" to save.`,
+        description: `Tracking: ${shipment.trackingNumber}. Preview the label, then click "Save Shipping".`,
       });
+
+      // Auto-open preview after a short delay to ensure state is updated
+      setTimeout(() => {
+        previewLabel();
+      }, 500);
     } catch (error) {
       toast({
         title: "FedEx label failed",
@@ -1422,10 +1525,10 @@ export const TrackingDialog = ({
         </div>
 
         <DialogFooter className="border-t bg-background px-6 py-4">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={!canSaveShipping} onClick={() => onSubmit({ recipient: shippingMethod === "FedEx" ? recipientDraft : null })}>
+          <Button type="button" disabled={!canSaveShipping} onClick={() => onSubmit({ recipient: shippingMethod === "FedEx" ? recipientDraft : null })}>
             Save Shipping
           </Button>
         </DialogFooter>

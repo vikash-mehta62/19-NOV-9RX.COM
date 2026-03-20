@@ -159,57 +159,98 @@ export const downloadShippingLabelDocument = async (
 export const printShippingLabelDocument = async (shipping?: ShippingLabelData | null) => {
   if (!shipping) return false;
 
+  // First, try to get the label content (either from base64 or remote URL)
+  let blobUrl: string | null = null;
+  let shouldRevoke = false;
+
   if (shipping.labelBase64) {
     const blobInfo = createLabelBlobUrl(shipping);
     if (!blobInfo) return false;
+    blobUrl = blobInfo.url;
+    shouldRevoke = true;
+  } else {
+    const remoteUrl = await resolveRemoteShippingLabelUrl(shipping);
+    if (!remoteUrl) return false;
+    
+    // For remote URLs, fetch and convert to blob for consistent printing
+    try {
+      const response = await fetch(remoteUrl);
+      const blob = await response.blob();
+      blobUrl = URL.createObjectURL(blob);
+      shouldRevoke = true;
+    } catch (error) {
+      console.error("Failed to fetch remote label:", error);
+      // Fallback to direct URL
+      blobUrl = remoteUrl;
+      shouldRevoke = false;
+    }
+  }
 
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "fixed";
-    iframe.style.right = "0";
-    iframe.style.bottom = "0";
-    iframe.style.width = "0";
-    iframe.style.height = "0";
-    iframe.style.border = "none";
-    iframe.src = blobInfo.url;
-    document.body.appendChild(iframe);
+  if (!blobUrl) return false;
 
+  // Create hidden iframe for printing
+  const iframe = document.createElement("iframe");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "none";
+  iframe.style.visibility = "hidden";
+  
+  document.body.appendChild(iframe);
+
+  // Set up print handler
+  return new Promise<boolean>((resolve) => {
     iframe.onload = () => {
       try {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-      } finally {
+        // Small delay to ensure content is fully loaded
         setTimeout(() => {
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
+          try {
+            if (iframe.contentWindow) {
+              iframe.contentWindow.focus();
+              iframe.contentWindow.print();
+            }
+          } catch (printError) {
+            console.error("Print failed:", printError);
           }
-          URL.revokeObjectURL(blobInfo.url);
-        }, 1000);
+          
+          // Cleanup after print dialog is shown
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+            if (shouldRevoke && blobUrl) {
+              URL.revokeObjectURL(blobUrl);
+            }
+            resolve(true);
+          }, 1000);
+        }, 100);
+      } catch (error) {
+        console.error("Print setup failed:", error);
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+        if (shouldRevoke && blobUrl) {
+          URL.revokeObjectURL(blobUrl);
+        }
+        resolve(false);
       }
     };
 
-    return true;
-  }
-
-  const remoteUrl = await resolveRemoteShippingLabelUrl(shipping);
-  if (!remoteUrl) return false;
-
-  const printWindow = window.open(remoteUrl, "_blank", "noopener,noreferrer");
-  if (!printWindow) return false;
-
-  try {
-    printWindow.onload = () => {
-      try {
-        printWindow.focus();
-        printWindow.print();
-      } catch {
-        // Leave the document open as a fallback when auto-print is blocked.
+    iframe.onerror = () => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
       }
+      if (shouldRevoke && blobUrl) {
+        URL.revokeObjectURL(blobUrl);
+      }
+      resolve(false);
     };
-  } catch {
-    // Cross-origin previews may block onload/print access.
-  }
 
-  return true;
+    // Load the document
+    iframe.src = blobUrl;
+  });
 };
 
 export const uploadShippingLabelToStorage = async ({
