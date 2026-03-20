@@ -1,6 +1,6 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowLeftRight, Building2, FileUp, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeftRight, Building2, Download, FileUp, RefreshCw, Wallet } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,6 +108,14 @@ type BatchAggregate = {
 
 const money = (value: number) => Number(value.toFixed(2));
 
+function escapeCsvValue(value: string | number | null | undefined) {
+  const normalized = String(value ?? "");
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, "\"\"")}"`;
+  }
+  return normalized;
+}
+
 function parseCsv(text: string): Record<string, string>[] {
   const rows: string[][] = [];
   let currentRow: string[] = [];
@@ -184,6 +192,10 @@ export default function PaymentReconciliation() {
   const [deposits, setDeposits] = useState<BankDeposit[]>([]);
   const [statementEntries, setStatementEntries] = useState<ProcessorStatementEntry[]>([]);
   const [bankFilter, setBankFilter] = useState("all");
+  const [dateRange, setDateRange] = useState({
+    startDate: "",
+    endDate: "",
+  });
   const [selectedBatch, setSelectedBatch] = useState<ReconciliationBatch | null>(null);
   const [resolutionState, setResolutionState] = useState({
     statementEntryId: "none",
@@ -760,9 +772,26 @@ export default function PaymentReconciliation() {
   }, [batches, deposits, statementEntries]);
 
   const filteredBatches = useMemo(() => {
-    if (bankFilter === "all") return batches;
-    return batches.filter((batch) => batch.bank_account_name === bankFilter);
-  }, [batches, bankFilter]);
+    return batches.filter((batch) => {
+      if (bankFilter !== "all" && batch.bank_account_name !== bankFilter) {
+        return false;
+      }
+
+      if (dateRange.startDate) {
+        if (!batch.settlement_date || batch.settlement_date < dateRange.startDate) {
+          return false;
+        }
+      }
+
+      if (dateRange.endDate) {
+        if (!batch.settlement_date || batch.settlement_date > dateRange.endDate) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [batches, bankFilter, dateRange.endDate, dateRange.startDate]);
 
   const summary = useMemo(() => {
     const gross = filteredBatches.reduce((sum, item) => sum + Number(item.gateway_amount || 0), 0);
@@ -780,6 +809,62 @@ export default function PaymentReconciliation() {
       ).length,
       reviewRequired: filteredBatches.filter((item) => item.reconciliation_status === "review_required").length,
     };
+  }, [filteredBatches]);
+
+  const exportSettlementBatchesCsv = useCallback(() => {
+    const headers = [
+      "Batch",
+      "Settlement Date",
+      "Gross",
+      "Recorded in App",
+      "Fees",
+      "Expected Net",
+      "Bank Deposit",
+      "Difference",
+      "Mismatch",
+      "Status",
+      "Bank Account",
+      "Processor Statement Entry ID",
+      "Bank Deposit ID",
+      "Gateway Status",
+      "Notes",
+      "Last Synced At",
+    ];
+
+    const rows = filteredBatches.map((batch) => [
+      batch.gateway_batch_id,
+      batch.settlement_date || "",
+      Number(batch.gateway_amount || 0).toFixed(2),
+      Number(batch.local_amount || 0).toFixed(2),
+      Number(batch.processor_fee_amount || 0).toFixed(2),
+      Number(batch.expected_net_amount || 0).toFixed(2),
+      batch.bank_deposit_amount != null ? Number(batch.bank_deposit_amount).toFixed(2) : "",
+      Number(batch.difference_amount || 0).toFixed(2),
+      batch.mismatch_category || "",
+      batch.reconciliation_status || "",
+      batch.bank_account_name || "",
+      batch.processor_statement_entry_id || "",
+      batch.bank_deposit_id || "",
+      batch.gateway_status || "",
+      batch.notes || "",
+      batch.last_synced_at || "",
+    ]);
+
+    const csvContent = [headers, ...rows]
+      .map((row) => row.map((value) => escapeCsvValue(value)).join(","))
+      .join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const dateSuffix = format(new Date(), "yyyy-MM-dd");
+
+    link.href = url;
+    link.download = `settlement-batches-${dateSuffix}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   }, [filteredBatches]);
 
   const reconciliationBadge = (status: string) => {
@@ -1154,18 +1239,56 @@ export default function PaymentReconciliation() {
                   Click a status badge to review that batch. Start with rows marked `review required` or `unmatched`.
                 </p>
               </div>
-              <div className="w-full max-w-xs">
-                <Select value={bankFilter} onValueChange={setBankFilter}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Filter by bank account" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Bank Accounts</SelectItem>
-                    {bankOptions.map((bank) => (
-                      <SelectItem key={bank} value={bank}>{bank}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="w-full lg:w-auto">
+                <div className="flex flex-col items-stretch gap-3 lg:min-w-[640px]">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto_auto]">
+                    <Input
+                      type="date"
+                      value={dateRange.startDate}
+                      onChange={(event) => setDateRange((prev) => ({ ...prev, startDate: event.target.value }))}
+                      aria-label="Start settlement date"
+                    />
+                    <Input
+                      type="date"
+                      value={dateRange.endDate}
+                      onChange={(event) => setDateRange((prev) => ({ ...prev, endDate: event.target.value }))}
+                      aria-label="End settlement date"
+                    />
+                    {dateRange.startDate || dateRange.endDate ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setDateRange({ startDate: "", endDate: "" })}
+                        className="w-full sm:w-auto"
+                      >
+                        Clear Date Filter
+                      </Button>
+                    ) : (
+                      <div className="hidden sm:block" />
+                    )}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={exportSettlementBatchesCsv}
+                      disabled={filteredBatches.length === 0}
+                      className="w-full sm:w-auto"
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Export CSV
+                    </Button>
+                  </div>
+                  <Select value={bankFilter} onValueChange={setBankFilter}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Filter by bank account" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Bank Accounts</SelectItem>
+                      {bankOptions.map((bank) => (
+                        <SelectItem key={bank} value={bank}>{bank}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </CardHeader>
