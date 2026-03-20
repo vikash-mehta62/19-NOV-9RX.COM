@@ -12,6 +12,7 @@ import { setUserProfile } from "../../store/actions/userAction";
 import { supabase } from "@/integrations/supabase/client";
 import { PasswordResetNotification } from "./PasswordResetNotification";
 import { UnverifiedAccountNotification } from "./UnverifiedAccountNotification";
+import { TermsAcceptanceDialog } from "./TermsAcceptanceDialog";
 
 export const OTPLoginForm = () => {
   const [email, setEmail] = useState("");
@@ -26,6 +27,7 @@ export const OTPLoginForm = () => {
   const [countdown, setCountdown] = useState(0);
   const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
   const [showUnverifiedDialog, setShowUnverifiedDialog] = useState(false);
+  const [showTermsDialog, setShowTermsDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
   const dispatch = useDispatch();
@@ -249,6 +251,23 @@ export const OTPLoginForm = () => {
           description: `Welcome back, ${user.firstName}!`,
         });
 
+        // Check if user has accepted Terms & Privacy Policy
+        const { data: profileCheck } = await supabase
+          .from("profiles")
+          .select("terms_and_conditions, privacy_policy")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        // Check if terms and privacy policy are accepted
+        const termsAccepted = profileCheck?.terms_and_conditions?.accepted === true;
+        const privacyAccepted = profileCheck?.privacy_policy?.accepted === true;
+
+        if (!termsAccepted || !privacyAccepted) {
+          // Show dialog and redirect to update profile page
+          setShowTermsDialog(true);
+          return;
+        }
+
         // Navigate to appropriate dashboard
         const dashboardRoutes: Record<string, string> = {
           admin: "/admin/dashboard",
@@ -339,6 +358,18 @@ export const OTPLoginForm = () => {
     setError("");
   };
 
+  const handleTermsDialogAccept = () => {
+    setShowTermsDialog(false);
+    toast({
+      title: "Action Required",
+      description: "Please accept Terms & Conditions and Privacy Policy to continue.",
+    });
+    navigate("/update-profile", { 
+      replace: true,
+      state: { requireTermsAcceptance: true }
+    });
+  };
+
   return (
     <div className="space-y-6">
       <PasswordResetNotification
@@ -350,6 +381,11 @@ export const OTPLoginForm = () => {
         open={showUnverifiedDialog}
         onClose={handleUnverifiedDialogClose}
         email={email}
+      />
+
+      <TermsAcceptanceDialog
+        open={showTermsDialog}
+        onAccept={handleTermsDialogAccept}
       />
       
       {error && (

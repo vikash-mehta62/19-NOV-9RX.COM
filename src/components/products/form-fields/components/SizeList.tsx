@@ -512,7 +512,7 @@ export const SizeList = ({
                     </div>
 
                     {/* Disallowed Pharmacies Multi-Select */}
-                    <div className="col-span-2">
+                    {/* <div className="col-span-2">
                       <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
                         Disallowed Pharmacies
                       </label>
@@ -535,7 +535,7 @@ export const SizeList = ({
                         classNamePrefix="react-select"
                         placeholder="Select pharmacies..."
                       />
-                    </div>
+                    </div> */}
                   </div>
 
                   {/* Image Uploader Section */}

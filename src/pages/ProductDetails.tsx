@@ -1309,7 +1309,7 @@ return (
                   />
                 </div>
               </div>
-              <div className="md:col-span-2">
+              {/* <div className="md:col-span-2">
                 <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Disallowed Pharmacies</Label>
                 <div className="mt-1">
                   <Select
@@ -1326,7 +1326,7 @@ return (
                     placeholder="Select pharmacies..."
                   />
                 </div>
-              </div>
+              </div> */}
             </div>
 
             <div>
