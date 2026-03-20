@@ -6,6 +6,7 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useCart } from "@/hooks/use-cart";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { detectCardType, logPaymentTransaction, processPayment } from "@/services/paymentService";
 import axios from "../../../axiosconfig";
 
 export default function QuickOrder() {
@@ -13,7 +14,22 @@ export default function QuickOrder() {
   const { toast } = useToast();
   const { clearCart } = useCart();
 
+  const splitName = (fullName: string) => {
+    const trimmed = String(fullName || "").trim();
+    if (!trimmed) {
+      return { firstName: "Customer", lastName: "Customer" };
+    }
+
+    const parts = trimmed.split(/\s+/);
+    return {
+      firstName: parts[0] || "Customer",
+      lastName: parts.slice(1).join(" ") || parts[0] || "Customer",
+    };
+  };
+
   const handleOrderComplete = async (orderData: any) => {
+    let createdOrderNumber: string | null = null;
+
     try {
       console.log("Quick Order Data:", orderData);
 
@@ -75,9 +91,11 @@ export default function QuickOrder() {
         shippingAddress: shippingAddressData,
         items: items,
         total_amount: totalAmount,
+        paid_amount: 0,
         tax_amount: taxAmount,
         shipping_cost: shippingCost,
-        payment_method: "manual",
+        processing_fee_amount: 0,
+        payment_method: orderData.paymentMethod || "manual",
         notes: orderData.specialInstructions || "",
         purchase_number_external: orderData.poNumber || "",
         status: "new",
@@ -100,6 +118,107 @@ export default function QuickOrder() {
         throw new Error(orderError.message);
       }
 
+      createdOrderNumber = orderId;
+
+      let paymentResult: Awaited<ReturnType<typeof processPayment>> | null = null;
+      let paymentProcessed = false;
+
+      if (orderData.paymentMethod === "card" || orderData.paymentMethod === "ach") {
+        const name = splitName(
+          orderData.paymentMethod === "card"
+            ? orderData.paymentDetails?.cardholderName || orderData.customer?.name || ""
+            : orderData.paymentDetails?.nameOnAccount || orderData.customer?.name || ""
+        );
+
+        const billing = {
+          firstName: name.firstName,
+          lastName: name.lastName,
+          address: orderData.billingAddress?.street || "",
+          city: orderData.billingAddress?.city || "",
+          state: orderData.billingAddress?.state || "",
+          zip: orderData.billingAddress?.zip_code || "",
+          country: "USA",
+        };
+
+        paymentResult = await processPayment(
+          orderData.paymentMethod === "card"
+            ? {
+                payment: {
+                  type: "card",
+                  cardNumber: String(orderData.paymentDetails?.cardNumber || "").replace(/\s/g, ""),
+                  expirationDate: String(orderData.paymentDetails?.expirationDate || "").replace("/", ""),
+                  cvv: String(orderData.paymentDetails?.cvv || ""),
+                  cardholderName: String(orderData.paymentDetails?.cardholderName || orderData.customer?.name || ""),
+                },
+                amount: totalAmount,
+                chargedAmount: totalAmount,
+                appliedAmount: totalAmount,
+                processingFeeAmount: 0,
+                invoiceNumber: orderId,
+                orderId: insertedOrder.id,
+                customerEmail: orderData.customer?.email,
+                billing,
+              }
+            : {
+                payment: {
+                  type: "ach",
+                  accountType: orderData.paymentDetails?.accountType || "checking",
+                  routingNumber: String(orderData.paymentDetails?.routingNumber || ""),
+                  accountNumber: String(orderData.paymentDetails?.accountNumber || ""),
+                  nameOnAccount: String(orderData.paymentDetails?.nameOnAccount || orderData.customer?.name || ""),
+                  echeckType: "WEB",
+                },
+                amount: totalAmount,
+                chargedAmount: totalAmount,
+                appliedAmount: totalAmount,
+                processingFeeAmount: 0,
+                invoiceNumber: orderId,
+                orderId: insertedOrder.id,
+                customerEmail: orderData.customer?.email,
+                billing,
+              }
+        );
+
+        await logPaymentTransaction(
+          orderData.customerId,
+          insertedOrder.id,
+          null,
+          "auth_capture",
+          totalAmount,
+          {
+            success: !!paymentResult?.success,
+            transactionId: paymentResult?.transactionId,
+            authCode: paymentResult?.authCode,
+            message: paymentResult?.message || paymentResult?.error || "Payment attempted",
+            errorCode: paymentResult?.errorCode,
+            errorMessage: paymentResult?.error,
+          },
+          orderData.paymentMethod === "card" ? "card" : "ach",
+          orderData.paymentMethod === "card" ? String(orderData.paymentDetails?.cardNumber || "").replace(/\s/g, "").slice(-4) : undefined,
+          orderData.paymentMethod === "card" ? detectCardType(String(orderData.paymentDetails?.cardNumber || "")) : undefined
+        );
+
+        if (!paymentResult?.success) {
+          throw new Error(paymentResult?.error || paymentResult?.message || "Payment failed");
+        }
+
+        const { error: paymentUpdateError } = await supabase
+          .from("orders")
+          .update({
+            payment_status: "paid",
+            payment_method: orderData.paymentMethod,
+            paid_amount: totalAmount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", insertedOrder.id);
+
+        if (paymentUpdateError) {
+          throw new Error(paymentUpdateError.message);
+        }
+
+        paymentProcessed = true;
+      }
+
       // Log order creation activity
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -113,6 +232,21 @@ export default function QuickOrder() {
           performedByName: session?.user?.user_metadata?.first_name || "Admin",
           performedByEmail: session?.user?.email,
         });
+
+        if (paymentProcessed && paymentResult?.transactionId) {
+          await OrderActivityService.logPaymentReceived({
+            orderId: insertedOrder.id,
+            orderNumber: orderId,
+            amount: totalAmount,
+            chargedAmount: totalAmount,
+            processingFeeAmount: 0,
+            paymentMethod: orderData.paymentMethod,
+            paymentId: paymentResult.transactionId,
+            performedBy: session?.user?.id,
+            performedByName: session?.user?.user_metadata?.first_name || "Admin",
+            performedByEmail: session?.user?.email,
+          });
+        }
       } catch (activityError) {
         console.error("Failed to log order creation activity:", activityError);
       }
@@ -138,8 +272,8 @@ export default function QuickOrder() {
             total_amount: totalAmount,
             tax_amount: taxAmount,
             shipping_cost: shippingCost,
-            payment_method: "manual",
-            payment_status: "pending",
+            payment_method: orderData.paymentMethod || "manual",
+            payment_status: paymentProcessed ? "paid" : "pending",
             status: "new",
             shippingAddress: shippingAddressData,
           };
@@ -158,8 +292,10 @@ export default function QuickOrder() {
       await clearCart();
 
       toast({
-        title: "Order Created Successfully!",
-        description: `Order ${orderId} has been created`,
+        title: paymentProcessed ? "Order Created And Paid" : "Order Created Successfully!",
+        description: paymentProcessed
+          ? `Order ${orderId} was created and payment was captured`
+          : `Order ${orderId} has been created`,
       });
 
       // Navigate to orders list
@@ -167,9 +303,11 @@ export default function QuickOrder() {
     } catch (error: any) {
       console.error("Quick order error:", error);
       toast({
-        title: "Error Creating Order",
-        description: error.message || "Something went wrong",
-        variant: "destructive",
+        title: createdOrderNumber ? "Order Created, Payment Failed" : "Error Creating Order",
+        description: createdOrderNumber
+          ? `Order ${createdOrderNumber} was created, but payment could not be completed: ${error.message || "Unknown error"}`
+          : error.message || "Something went wrong",
+        variant: createdOrderNumber ? "default" : "destructive",
       });
     }
   };

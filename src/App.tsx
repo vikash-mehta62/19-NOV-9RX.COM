@@ -82,6 +82,7 @@ const AdminCostTracking = lazy(() => import("./pages/admin/CostTracking"));
 const AdminRewards = lazy(() => import("./pages/admin/Rewards"));
 const AdminCreditManagement = lazy(() => import("./pages/admin/CreditManagement"));
 const AdminPaymentTransactions = lazy(() => import("./pages/admin/PaymentTransactions"));
+const AdminPaymentReconciliation = lazy(() => import("./pages/admin/PaymentReconciliation"));
 const AdminTermsManagement = lazy(() => import("./pages/admin/TermsManagement"));
 const Expenses = lazy(() => import("./pages/admin/Expenses"));
 const AdminLogs = lazy(() => import("./pages/admin/AdminLogs"));
@@ -539,6 +540,11 @@ function App() {
           <Route path="/admin/payment-transactions" element={
             <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['payments']} fallbackPath="/admin/dashboard">
               <AdminPaymentTransactions />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/payment-reconciliation" element={
+            <ProtectedRoute allowedRoles={['admin']} allowedPermissions={['payments']} fallbackPath="/admin/dashboard">
+              <AdminPaymentReconciliation />
             </ProtectedRoute>
           } />
           <Route path="/admin/banners" element={

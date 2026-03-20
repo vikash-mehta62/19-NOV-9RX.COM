@@ -148,6 +148,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: Settings, label: "Settings", path: "/admin/settings", requiredPermission: "settings" },
           { icon: Shield, label: "Launch Reset", path: "/admin/launch-password-reset", requiredPermission: "users" },
           { icon: CreditCard, label: "Payments", path: "/admin/payment-transactions", requiredPermission: "payments" },
+          { icon: Wallet, label: "Reconciliation", path: "/admin/payment-reconciliation", requiredPermission: "payments" },
           { icon: Users, label: "Store Approval", path: "/admin/access-requests", requiredPermission: "users" },
           { icon: Logs, label: "Activity Logs", path: "/admin/logs", requiredPermission: "logs" },
           { icon: LogIn, label: "Login Logs", path: "/admin/login-logs", requiredPermission: "logs" },

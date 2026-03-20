@@ -385,7 +385,10 @@ exports.orderPlacedCtrl = async (req, res) => {
       tax_amount: order.tax_amount,
       shipping_cost: order.shipping_cost,
       items_count: order.items?.length,
-      customer_email: order.customerInfo?.email
+      customer_email: order.customerInfo?.email,
+      processing_fee_amount: order?.processing_fee_amount,
+      discount_amount: order?.discount_amount,
+      discount_details: order?.discount_details,
     });
 
     // Ensure required fields are present
@@ -406,6 +409,8 @@ exports.orderPlacedCtrl = async (req, res) => {
       invoice_number: order.invoice_number,
       documentType: documentType
     });
+
+    console.log("All Data:", order);
 
     // Generate email content using the template
     const pdfMeta = await buildOrderDocument(order, { documentType });

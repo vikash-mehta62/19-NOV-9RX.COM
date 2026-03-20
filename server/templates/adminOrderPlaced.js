@@ -9,8 +9,10 @@ const adminOrderNotificationTemplate = (order) => {
         total_amount = 0,
         tax_amount = 0,
         shipping_cost = 0,
+        discount_amount = 0,
         discount_details = [],
-        adjustment_amount = 0
+        adjustment_amount = 0,
+        processing_fee_amount = 0
     } = order;
 
     const formatCurrency = (amount) => {
@@ -203,10 +205,32 @@ const adminOrderNotificationTemplate = (order) => {
                                         <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Shipping</td>
                                         <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${shipping_cost ? formatCurrency(shipping_cost) : 'FREE'}</td>
                                     </tr>
-                                    ${creditMemoApplied > 0 ? `
+                                    ${processing_fee_amount > 0 ? `
                                     <tr>
-                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Credit Memo Applied</td>
-                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; text-align: right;">-${formatCurrency(creditMemoApplied)}</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Card Processing Fee</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(processing_fee_amount)}</td>
+                                    </tr>
+                                    ` : ''}
+                                    ${discount_amount > 0 ? `
+                                    <tr>
+                                        <td colspan="2" style="padding-top: 8px; padding-bottom: 4px;">
+                                            <div style="border-top: 1px solid #e5e7eb;"></div>
+                                        </td>
+                                    </tr>
+                                    ${discount_details.map(discount => `
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600;">${discount.name || 'Discount'}</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600; text-align: right;">-${formatCurrency(discount.amount || 0)}</td>
+                                    </tr>
+                                    `).join('')}
+                                    ` : ''}
+                                    ${discount_amount > 0 ? `
+                                    <tr>
+                                        <td colspan="2" style="padding: 4px 0;">
+                                            <div style="text-align: right; font-size: 13px; color: #059669; font-weight: 600;">
+                                                You saved: ${formatCurrency(discount_amount)}
+                                            </div>
+                                        </td>
                                     </tr>
                                     ` : ''}
                                     <tr>
@@ -215,7 +239,7 @@ const adminOrderNotificationTemplate = (order) => {
                                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         <td style="font-size: 16px; font-weight: 700; color: #1f2937;">Total</td>
-                                                        <td style="font-size: 18px; font-weight: 700; color: #1f2937; text-align: right;">${formatCurrency(total_amount)}</td>
+                                                        <td style="font-size: 20px; font-weight: 700; color: #059669; text-align: right;">${formatCurrency(total_amount)}</td>
                                                     </tr>
                                                 </table>
                                             </div>

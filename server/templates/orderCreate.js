@@ -11,7 +11,8 @@ const orderConfirmationTemplate = (order) => {
     shipping_cost = 0,
     discount_amount = 0,
     discount_details = [],
-    status = "new"
+    status = "new",
+    processing_fee_amount = 0
   } = order;
 
   const formatCurrency = (amount) => {
@@ -212,6 +213,12 @@ const orderConfirmationTemplate = (order) => {
                                         <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Shipping</td>
                                         <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${shipping_cost ? formatCurrency(shipping_cost) : 'FREE'}</td>
                                     </tr>
+                                    ${processing_fee_amount > 0 ? `
+                                    <tr>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #6b7280;">Card Processing Fee</td>
+                                        <td style="padding: 6px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(processing_fee_amount)}</td>
+                                    </tr>
+                                    ` : ''}
                                     ${discount_amount > 0 ? `
                                     <tr>
                                         <td colspan="2" style="padding-top: 8px; padding-bottom: 4px;">

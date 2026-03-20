@@ -8,6 +8,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { supabase } from "@/supabaseClient";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,6 +78,7 @@ interface QuickOrderCreationProps {
 
 // Step type
 type Step = "search" | "confirm" | "products";
+type QuickOrderPaymentMethod = "manual" | "card" | "ach";
 
 const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreationProps) => {
   const navigate = useNavigate();
@@ -89,6 +98,15 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   const [productSearch, setProductSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
   const [showCustomProductDialog, setShowCustomProductDialog] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<QuickOrderPaymentMethod>("manual");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [cardholderName, setCardholderName] = useState("");
+  const [achAccountType, setAchAccountType] = useState<"checking" | "savings">("checking");
+  const [achRoutingNumber, setAchRoutingNumber] = useState("");
+  const [achAccountNumber, setAchAccountNumber] = useState("");
+  const [achNameOnAccount, setAchNameOnAccount] = useState("");
 
   // Fetch customers
   useEffect(() => {
@@ -254,6 +272,20 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
       return;
     }
 
+    if (paymentMethod === "card") {
+      if (!cardNumber || !cardExpiry || !cardCvv || !cardholderName) {
+        toast({ title: "Missing payment details", description: "Complete all card fields before creating the order.", variant: "destructive" });
+        return;
+      }
+    }
+
+    if (paymentMethod === "ach") {
+      if (!achRoutingNumber || !achAccountNumber || !achNameOnAccount) {
+        toast({ title: "Missing payment details", description: "Complete all ACH fields before creating the order.", variant: "destructive" });
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     try {
       const billingAddr = selectedCustomer.billing_address || {};
@@ -278,7 +310,25 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
           zip_code: shippingAddr.zip_code || "",
         },
         cartItems,
-        paymentMethod: "manual",
+        paymentMethod,
+        paymentDetails: paymentMethod === "card"
+          ? {
+              type: "card",
+              cardNumber,
+              expirationDate: cardExpiry,
+              cvv: cardCvv,
+              cardholderName,
+            }
+          : paymentMethod === "ach"
+            ? {
+                type: "ach",
+                accountType: achAccountType,
+                routingNumber: achRoutingNumber,
+                accountNumber: achAccountNumber,
+                nameOnAccount: achNameOnAccount,
+                echeckType: "WEB",
+              }
+            : null,
         specialInstructions: "",
         poNumber: "",
         termsAccepted: true,
@@ -287,7 +337,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         tax: orderTotals.tax,
         shipping: orderTotals.shipping,
         total: orderTotals.total,
-        skipPayment: true,
+        skipPayment: paymentMethod === "manual",
         status: "pending",
         createdAt: new Date().toISOString(),
       };
@@ -300,7 +350,23 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedCustomer, cartItems, sameAsShipping, orderTotals, toast, onComplete]);
+  }, [
+    achAccountNumber,
+    achAccountType,
+    achNameOnAccount,
+    achRoutingNumber,
+    cardCvv,
+    cardExpiry,
+    cardNumber,
+    cardholderName,
+    cartItems,
+    onComplete,
+    orderTotals,
+    paymentMethod,
+    sameAsShipping,
+    selectedCustomer,
+    toast,
+  ]);
 
   // Helper functions
   const getTypeIcon = (type: string) => {
@@ -326,6 +392,118 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     const zip = addr.zip_code || "";
     return [street, cityState, zip].filter(Boolean).join(", ") || "No address";
   };
+
+  const renderPaymentSection = () => (
+    <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <div>
+        <h5 className="text-sm font-semibold text-slate-900">Payment</h5>
+        <p className="text-xs text-slate-500">Choose manual order creation or charge the customer now.</p>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="quick-order-payment-method">Payment Method</Label>
+        <Select value={paymentMethod} onValueChange={(value) => setPaymentMethod(value as QuickOrderPaymentMethod)}>
+          <SelectTrigger id="quick-order-payment-method">
+            <SelectValue placeholder="Select payment method" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manual">Manual / Pending</SelectItem>
+            <SelectItem value="card">Credit Card</SelectItem>
+            <SelectItem value="ach">ACH / Bank</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {paymentMethod === "card" && (
+        <div className="grid grid-cols-1 gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="quick-order-cardholder-name">Cardholder Name</Label>
+            <Input
+              id="quick-order-cardholder-name"
+              value={cardholderName}
+              onChange={(e) => setCardholderName(e.target.value)}
+              placeholder="Name on card"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="quick-order-card-number">Card Number</Label>
+            <Input
+              id="quick-order-card-number"
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value)}
+              placeholder="4111 1111 1111 1111"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <Label htmlFor="quick-order-card-expiry">Expiry</Label>
+              <Input
+                id="quick-order-card-expiry"
+                value={cardExpiry}
+                onChange={(e) => setCardExpiry(e.target.value)}
+                placeholder="MM/YY"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="quick-order-card-cvv">CVV</Label>
+              <Input
+                id="quick-order-card-cvv"
+                value={cardCvv}
+                onChange={(e) => setCardCvv(e.target.value)}
+                placeholder="123"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {paymentMethod === "ach" && (
+        <div className="grid grid-cols-1 gap-2">
+          <div className="space-y-1">
+            <Label htmlFor="quick-order-ach-name">Name On Account</Label>
+            <Input
+              id="quick-order-ach-name"
+              value={achNameOnAccount}
+              onChange={(e) => setAchNameOnAccount(e.target.value)}
+              placeholder="Account holder"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="quick-order-ach-type">Account Type</Label>
+            <Select value={achAccountType} onValueChange={(value) => setAchAccountType(value as "checking" | "savings")}>
+              <SelectTrigger id="quick-order-ach-type">
+                <SelectValue placeholder="Select account type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="checking">Checking</SelectItem>
+                <SelectItem value="savings">Savings</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="quick-order-ach-routing">Routing Number</Label>
+              <Input
+                id="quick-order-ach-routing"
+                value={achRoutingNumber}
+                onChange={(e) => setAchRoutingNumber(e.target.value)}
+                placeholder="021000021"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="quick-order-ach-account">Account Number</Label>
+              <Input
+                id="quick-order-ach-account"
+                value={achAccountNumber}
+                onChange={(e) => setAchAccountNumber(e.target.value)}
+                placeholder="Bank account number"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   // Render Step 1: Search & Select Store
   const renderSearchStep = () => (
@@ -728,6 +906,8 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                 </div>
               </div>
 
+              {renderPaymentSection()}
+
               {/* Create Order Button */}
               <Button 
                 className="w-full h-11 mt-3 bg-green-600 hover:bg-green-700 text-base"
@@ -739,7 +919,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                 ) : (
                   <>
                     <Check className="h-5 w-5 mr-2" />
-                    Create Order
+                    {paymentMethod === "manual" ? "Create Order" : `Create & Charge ${paymentMethod === "card" ? "Card" : "ACH"}`}
                   </>
                 )}
               </Button>

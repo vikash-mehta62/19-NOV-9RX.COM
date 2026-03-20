@@ -1,1 +1,7 @@
 project_id = "qiaetxkxweghuoxyhvml"
+
+[functions.reconcile-authorize-transactions]
+verify_jwt = false
+
+[functions.reconcile-authorize-transactions-v2]
+verify_jwt = false

@@ -11,7 +11,7 @@ import type { Database } from './types';
 // const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indydm1iZ21tdW9pdnNmYW5jZ2Z0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjMwMzIzMTcsImV4cCI6MjA3ODYwODMxN30.qtTYnhBes4nd7n_kDH_S3HxS7Zl0pf1JW708wOJ7e08";
 
 //9RX DB - US West
-const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
+export const SUPABASE_URL = "https://qiaetxkxweghuoxyhvml.supabase.co";
 //9RX DB - US West
 export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFpYWV0eGt4d2VnaHVveHlodm1sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNTM1MzMsImV4cCI6MjA4NjkyOTUzM30.LqjfwdltknPXai8oEBALGpl7nLIxDp4YB9yO3G7O37E";
 

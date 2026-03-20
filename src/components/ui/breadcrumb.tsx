@@ -50,6 +50,7 @@ const routeLabels: Record<string, string> = {
   "email-automations": "Email Automations",
   "email-settings": "Email Settings",
   "payment-transactions": "Payments",
+  "payment-reconciliation": "Payment Reconciliation",
   
   // Pharmacy routes
   pharmacy: "Pharmacy",

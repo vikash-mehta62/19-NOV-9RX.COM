@@ -40,8 +40,9 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 interface PaymentTransaction {
   id: string;
@@ -59,6 +60,12 @@ interface PaymentTransaction {
   status: string;
   response_message: string | null;
   error_message: string | null;
+  gateway_transaction_status: string | null;
+  gateway_batch_id: string | null;
+  gateway_settlement_time: string | null;
+  reconciliation_status: string | null;
+  reconciliation_reason: string | null;
+  reconciliation_last_checked_at: string | null;
   created_at: string;
   profiles?: {
     first_name: string;
@@ -81,10 +88,13 @@ const statusConfig: Record<string, { icon: any; color: string; bg: string; order
 };
 
 export default function PaymentTransactions() {
+  const { toast } = useToast();
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reconciling, setReconciling] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [reconciliationFilter, setReconciliationFilter] = useState("all");
   const [selectedTransaction, setSelectedTransaction] = useState<PaymentTransaction | null>(null);
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -119,6 +129,99 @@ export default function PaymentTransactions() {
     fetchTransactions();
   }, []);
 
+  const getValidatedAccessToken = async () => {
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    if (session?.access_token) {
+      const { error: userError } = await supabase.auth.getUser(session.access_token);
+      if (!userError) {
+        return session.access_token;
+      }
+    }
+
+    if (!session?.refresh_token) {
+      return null;
+    }
+
+    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession({
+      refresh_token: session.refresh_token,
+    });
+
+    if (refreshError) {
+      throw refreshError;
+    }
+
+    return refreshed.session?.access_token || null;
+  };
+
+  const reconcileTransactions = async () => {
+    setReconciling(true);
+    let accessToken: string | null = null;
+
+    try {
+      accessToken = await getValidatedAccessToken();
+    } catch (error) {
+      toast({
+        title: "Authentication required",
+        description: error instanceof Error ? error.message : "Please log in again and retry reconciliation.",
+        variant: "destructive",
+      });
+      setReconciling(false);
+      return;
+    }
+
+    if (!accessToken) {
+      toast({
+        title: "Authentication required",
+        description: "No active admin session was found. Please log in again and retry reconciliation.",
+        variant: "destructive",
+      });
+      setReconciling(false);
+      return;
+    }
+
+    const { data, error } = await supabase.functions.invoke("reconcile-authorize-transactions-v2", {
+      headers: {
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        "x-user-jwt": accessToken,
+      },
+      body: {
+        mode: "reconcile_transactions",
+        transactionIds: transactions
+          .filter((transaction) => Boolean(transaction.transaction_id))
+          .slice(0, 25)
+          .map((transaction) => transaction.id),
+        maxTransactions: 25,
+        accessToken,
+      },
+    });
+
+    if (error || !data?.success) {
+      toast({
+        title: "Reconciliation failed",
+        description: error?.message || data?.error || "Could not sync with Authorize.Net.",
+        variant: "destructive",
+      });
+      setReconciling(false);
+      return;
+    }
+
+    await fetchTransactions();
+    setReconciling(false);
+    toast({
+      title: "Reconciliation complete",
+      description: `Checked ${data.summary?.checked || 0} transactions.`,
+    });
+  };
+
   // Handle column header click for sorting
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -148,6 +251,10 @@ export default function PaymentTransactions() {
       filtered = filtered.filter(t => t.status === statusFilter);
     }
 
+    if (reconciliationFilter !== "all") {
+      filtered = filtered.filter(t => (t.reconciliation_status || "not_checked") === reconciliationFilter);
+    }
+
     // Apply search filter
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
@@ -157,7 +264,9 @@ export default function PaymentTransactions() {
         t.profiles?.company_name?.toLowerCase().includes(search) ||
         t.profiles?.first_name?.toLowerCase().includes(search) ||
         t.profiles?.last_name?.toLowerCase().includes(search) ||
-        t.card_last_four?.includes(search)
+        t.card_last_four?.includes(search) ||
+        t.gateway_transaction_status?.toLowerCase().includes(search) ||
+        t.reconciliation_reason?.toLowerCase().includes(search)
       );
     }
 
@@ -193,7 +302,7 @@ export default function PaymentTransactions() {
     });
 
     return sorted;
-  }, [transactions, statusFilter, searchTerm, sortField, sortDirection]);
+  }, [transactions, statusFilter, reconciliationFilter, searchTerm, sortField, sortDirection]);
 
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status] || statusConfig.pending;
@@ -213,11 +322,29 @@ export default function PaymentTransactions() {
     return <CreditCard className="h-4 w-4 text-blue-600" />;
   };
 
+  const getReconciliationBadge = (status: string | null) => {
+    const value = status || "not_checked";
+    const variants: Record<string, string> = {
+      matched: "bg-green-100 text-green-700",
+      mismatch: "bg-red-100 text-red-700",
+      not_found: "bg-amber-100 text-amber-700",
+      error: "bg-red-100 text-red-700",
+      not_checked: "bg-slate-100 text-slate-700",
+    };
+
+    return (
+      <Badge className={variants[value] || variants.not_checked}>
+        {value.replace(/_/g, " ")}
+      </Badge>
+    );
+  };
+
   // Calculate stats
   const stats = {
     total: transactions.length,
     approved: transactions.filter(t => t.status === "approved").length,
     declined: transactions.filter(t => t.status === "declined").length,
+    mismatched: transactions.filter(t => t.reconciliation_status === "mismatch").length,
     totalAmount: transactions
       .filter(t => t.status === "approved")
       .reduce((sum, t) => sum + t.amount, 0),
@@ -246,14 +373,20 @@ export default function PaymentTransactions() {
               View and manage all payment transactions
             </p>
           </div>
-          <Button variant="outline" onClick={fetchTransactions} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={reconcileTransactions} className="gap-2" disabled={reconciling}>
+              <RefreshCw className={`h-4 w-4 ${reconciling ? "animate-spin" : ""}`} />
+              Reconcile Now
+            </Button>
+            <Button variant="outline" onClick={fetchTransactions} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{stats.total}</div>
@@ -270,6 +403,12 @@ export default function PaymentTransactions() {
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-red-600">{stats.declined}</div>
               <p className="text-sm text-muted-foreground">Declined</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-2xl font-bold text-red-600">{stats.mismatched}</div>
+              <p className="text-sm text-muted-foreground">Mismatched</p>
             </CardContent>
           </Card>
           <Card>
@@ -307,6 +446,19 @@ export default function PaymentTransactions() {
                   <SelectItem value="voided">Voided</SelectItem>
                 </SelectContent>
               </Select>
+              <Select value={reconciliationFilter} onValueChange={setReconciliationFilter}>
+                <SelectTrigger className="w-[200px]">
+                  <SelectValue placeholder="Reconciliation status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Reconciliation</SelectItem>
+                  <SelectItem value="matched">Matched</SelectItem>
+                  <SelectItem value="mismatch">Mismatch</SelectItem>
+                  <SelectItem value="not_found">Missing In Gateway</SelectItem>
+                  <SelectItem value="error">Sync Error</SelectItem>
+                  <SelectItem value="not_checked">Not Checked</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -323,19 +475,21 @@ export default function PaymentTransactions() {
                   <SortableHeader field="payment_method">Payment</SortableHeader>
                   <SortableHeader field="amount">Amount</SortableHeader>
                   <SortableHeader field="status">Status</SortableHeader>
+                  <TableHead>Gateway</TableHead>
+                  <TableHead>Reconciliation</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8">
+                    <TableCell colSpan={9} className="text-center py-8">
                       Loading transactions...
                     </TableCell>
                   </TableRow>
                 ) : sortedTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       No transactions found
                     </TableCell>
                   </TableRow>
@@ -375,6 +529,26 @@ export default function PaymentTransactions() {
                         ${transaction.amount.toFixed(2)}
                       </TableCell>
                       <TableCell>{getStatusBadge(transaction.status)}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="space-y-1">
+                          <p className="font-medium">{transaction.gateway_transaction_status || "-"}</p>
+                          <p className="text-muted-foreground">
+                            {transaction.gateway_settlement_time
+                              ? format(new Date(transaction.gateway_settlement_time), "MMM d, yyyy")
+                              : "Unsettled"}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="space-y-1">
+                          {getReconciliationBadge(transaction.reconciliation_status)}
+                          {transaction.reconciliation_reason && (
+                            <p className="max-w-[220px] truncate text-xs text-muted-foreground">
+                              {transaction.reconciliation_reason}
+                            </p>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
@@ -438,6 +612,32 @@ export default function PaymentTransactions() {
                   <div className="p-3 bg-red-50 rounded-lg">
                     <p className="text-sm text-red-600 font-medium">Error</p>
                     <p className="text-red-700">{selectedTransaction.error_message}</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Gateway Status</p>
+                    <p>{selectedTransaction.gateway_transaction_status || "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Reconciliation</p>
+                    <div className="mt-1">{getReconciliationBadge(selectedTransaction.reconciliation_status)}</div>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Settlement Time</p>
+                    <p>{selectedTransaction.gateway_settlement_time ? format(new Date(selectedTransaction.gateway_settlement_time), "PPpp") : "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Batch ID</p>
+                    <p className="font-mono">{selectedTransaction.gateway_batch_id || "-"}</p>
+                  </div>
+                </div>
+
+                {selectedTransaction.reconciliation_reason && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Reconciliation Note</p>
+                    <p>{selectedTransaction.reconciliation_reason}</p>
                   </div>
                 )}
 
