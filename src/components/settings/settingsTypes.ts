@@ -124,6 +124,9 @@ export interface SettingsFormValues {
   free_shipping_enabled: boolean;
   shipping_calculation_method: string;
   handling_fee: number;
+  auto_shipping_charge_enabled: boolean;
+  auto_shipping_charge_threshold: number;
+  auto_shipping_charge_amount: number;
   fedex_enabled: boolean;
   fedex_use_sandbox: boolean;
   fedex_sandbox_api_key: string;
@@ -312,6 +315,9 @@ export const defaultValues: SettingsFormValues = {
   free_shipping_enabled: false,
   shipping_calculation_method: "flat_rate",
   handling_fee: 0,
+  auto_shipping_charge_enabled: false,
+  auto_shipping_charge_threshold: 0,
+  auto_shipping_charge_amount: 0,
   fedex_enabled: false,
   fedex_use_sandbox: true,
   fedex_sandbox_api_key: "",

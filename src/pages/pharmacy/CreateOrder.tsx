@@ -306,6 +306,7 @@ export default function PharmacyCreateOrder() {
         total_amount: finalTotal, // Use final total after discounts
         tax_amount: orderData.tax,
         shipping_cost: orderData.shipping,
+        shipping_override_reason: orderData.shippingOverrideReason || null,
         payment_method: paymentMethod,
         notes: orderData.specialInstructions,
         purchase_number_external: orderData.poNumber,

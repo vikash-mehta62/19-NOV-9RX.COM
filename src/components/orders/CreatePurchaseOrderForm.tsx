@@ -512,9 +512,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
         country: editableWarehouseAddress.country.trim(),
       };
 
-      const { error } = await supabase.from("settings").upsert(
-        {
-          profile_id: userProfile.id,
+      // Update global warehouse settings (organization-wide)
+      const { error } = await supabase
+        .from("settings")
+        .update({
           warehouse_name: updatedWarehouse.name,
           warehouse_email: updatedWarehouse.email,
           warehouse_phone: updatedWarehouse.phone,
@@ -525,11 +526,8 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           warehouse_zip_code: updatedWarehouse.zipCode,
           warehouse_country: updatedWarehouse.country,
           updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "profile_id",
-        }
-      );
+        })
+        .eq("is_global", true);
 
       if (error) throw error;
 

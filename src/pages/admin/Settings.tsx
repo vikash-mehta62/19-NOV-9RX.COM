@@ -136,10 +136,12 @@ export default function Settings() {
         return null;
       }
 
+      // Fetch global settings (organization-wide configuration)
+      // All admins see and edit the same settings using is_global flag
       const { data: settingsData, error: fetchError } = await supabase
         .from("settings")
         .select("*")
-        .eq("profile_id", userProfile.id)
+        .eq("is_global", true)
         .maybeSingle();
 
       if (fetchError) {
@@ -149,9 +151,10 @@ export default function Settings() {
       }
 
       if (!settingsData) {
+        // No global settings exist yet - create the global settings record
         const generalSettingsPayload = buildGeneralSettingsPayload(defaultValues);
         const { error: insertError } = await supabase.from("settings").insert({
-          profile_id: userProfile.id,
+          is_global: true,
           ...generalSettingsPayload,
         });
 
@@ -261,17 +264,15 @@ export default function Settings() {
 
       const generalSettingsPayload = buildGeneralSettingsPayload(normalizedData);
 
-      // Save general settings
-      const { error: settingsError } = await supabase.from("settings").upsert(
-        {
-          profile_id: userProfile.id,
+      // Update global settings (organization-wide)
+      // All admins update the same settings record using is_global flag
+      const { error: settingsError } = await supabase
+        .from("settings")
+        .update({
           ...generalSettingsPayload,
           updated_at: new Date().toISOString(),
-        },
-        {
-          onConflict: "profile_id",
-        }
-      );
+        })
+        .eq("is_global", true);
 
       if (settingsError) {
         console.error("Settings save error:", settingsError);
@@ -379,7 +380,6 @@ export default function Settings() {
       const values = form.getValues();
       const normalizedValues = normalizeShippingSettings(values);
       const payload = {
-        profile_id: userProfile.id,
         fedex_enabled: normalizedValues.fedex_enabled,
         fedex_use_sandbox: normalizedValues.fedex_use_sandbox,
         [`fedex_${environment}_api_key`]: String(normalizedValues[`fedex_${environment}_api_key`] || "").trim(),
@@ -391,9 +391,10 @@ export default function Settings() {
         updated_at: new Date().toISOString(),
       };
 
-      const { error: settingsError } = await supabase.from("settings").upsert(payload, {
-        onConflict: "profile_id",
-      });
+      const { error: settingsError } = await supabase
+        .from("settings")
+        .update(payload)
+        .eq("is_global", true);
 
       if (settingsError) {
         toast.error(`Failed to save ${environment} FedEx credentials: ${settingsError.message}`);

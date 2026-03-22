@@ -11,6 +11,7 @@ import { CustomerAndAddressStep } from "./steps/CustomerAndAddressStep";
 import { ProductSelectionStep } from "./steps/ProductSelectionStep";
 import { ReviewOrderStep } from "./steps/ReviewOrderStep";
 import { PaymentConfirmationStep } from "./steps/PaymentConfirmationStep";
+import { ShippingOverrideSection } from "./ShippingOverrideSection";
 import type { BillingAddress, ShippingAddress, PaymentMethod } from "./types";
 import { validateStep, ValidationError } from "./validation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -92,6 +93,34 @@ const OrderCreationWizardComponent = ({
   const [customerHasFreeShipping, setCustomerHasFreeShipping] = useState(
     initialData?.customer?.freeShipping === true || sessionStorage.getItem("shipping") === "true"
   );
+  
+  // Shipping settings state
+  const [shippingSettings, setShippingSettings] = useState<{
+    auto_shipping_charge_enabled: boolean;
+    auto_shipping_charge_threshold: number;
+    auto_shipping_charge_amount: number;
+    free_shipping_enabled: boolean;
+    free_shipping_threshold: number;
+    default_shipping_rate: number;
+    handling_fee: number;
+  }>({
+    auto_shipping_charge_enabled: false,
+    auto_shipping_charge_threshold: 0,
+    auto_shipping_charge_amount: 0,
+    free_shipping_enabled: false,
+    free_shipping_threshold: 0,
+    default_shipping_rate: 0,
+    handling_fee: 0,
+  });
+  
+  // Shipping override state
+  const [shippingOverride, setShippingOverride] = useState<{
+    amount: number | null;
+    reason: string;
+  }>({
+    amount: null,
+    reason: "",
+  });
   
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
@@ -249,6 +278,40 @@ const OrderCreationWizardComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEditMode, isPharmacyMode, initialData, isInitialized]); // Run when these change
 
+  // Fetch shipping settings (global - organization-wide settings)
+  useEffect(() => {
+    const fetchShippingSettings = async () => {
+      try {
+        // Fetch global settings (organization-wide settings)
+        // All users (admins, pharmacies) will use the same shipping configuration
+        const { data: settings } = await supabase
+          .from("settings")
+          .select("auto_shipping_charge_enabled, auto_shipping_charge_threshold, auto_shipping_charge_amount, free_shipping_enabled, free_shipping_threshold, default_shipping_rate, handling_fee")
+          .eq("is_global", true)
+          .maybeSingle();
+
+        if (settings) {
+          console.log("Fetched global shipping settings:", settings);
+          setShippingSettings({
+            auto_shipping_charge_enabled: settings.auto_shipping_charge_enabled || false,
+            auto_shipping_charge_threshold: settings.auto_shipping_charge_threshold || 0,
+            auto_shipping_charge_amount: settings.auto_shipping_charge_amount || 0,
+            free_shipping_enabled: settings.free_shipping_enabled || false,
+            free_shipping_threshold: settings.free_shipping_threshold || 0,
+            default_shipping_rate: settings.default_shipping_rate || 0,
+            handling_fee: settings.handling_fee || 0,
+          });
+        } else {
+          console.warn("No shipping settings found in database");
+        }
+      } catch (error) {
+        console.error("Error fetching shipping settings:", error);
+      }
+    };
+
+    fetchShippingSettings();
+  }, []);
+
   // Calculate order totals - memoized to prevent unnecessary recalculations
   // Using single source of truth from orderCalculations utility
   const { subtotal, tax, shipping, total } = useMemo(() => {
@@ -267,8 +330,30 @@ const OrderCreationWizardComponent = ({
              (d.type === "offer" && d.name?.toLowerCase().includes("free shipping"))
     );
     
-    // Calculate shipping using utility function
-    const shipping = calculateShipping(cartItems, hasFreeShipping || hasFreeShippingReward);
+    // Debug logging
+    console.log("=== SHIPPING CALCULATION DEBUG ===");
+    console.log("Subtotal:", subtotal);
+    console.log("Cart Items:", cartItems.length);
+    console.log("Has Free Shipping:", hasFreeShipping);
+    console.log("Has Free Shipping Reward:", hasFreeShippingReward);
+    console.log("Shipping Settings:", shippingSettings);
+    console.log("Shipping Override:", shippingOverride);
+    
+    // Use override shipping if set, otherwise calculate
+    let shipping: number;
+    if (shippingOverride.amount !== null) {
+      shipping = shippingOverride.amount;
+      console.log("Using Override Shipping:", shipping);
+    } else {
+      // Calculate shipping using utility function with settings
+      shipping = calculateShipping(
+        cartItems, 
+        hasFreeShipping || hasFreeShippingReward,
+        subtotal,
+        shippingSettings
+      );
+      console.log("Calculated Shipping:", shipping);
+    }
     
     // Calculate tax using utility function
     const tax = calculateTax(subtotal, taxPer);
@@ -282,8 +367,12 @@ const OrderCreationWizardComponent = ({
       discount: 0, // Discount applied separately via totalDiscount
     });
     
+    console.log("Final Shipping:", shipping);
+    console.log("Final Total:", total);
+    console.log("=================================");
+    
     return { subtotal, tax, shipping, total };
-  }, [cartItems, appliedDiscounts]);
+  }, [cartItems, appliedDiscounts, shippingOverride, shippingSettings]);
 
   // Persist form data whenever key state changes
   useEffect(() => {
@@ -305,6 +394,7 @@ const OrderCreationWizardComponent = ({
       appliedDiscounts,
       totalDiscount,
       finalTotal: Math.max(0, total - totalDiscount),
+      shippingOverrideReason: shippingOverride.reason || null,
     });
   }, [
     selectedCustomer,
@@ -322,12 +412,18 @@ const OrderCreationWizardComponent = ({
     total,
     appliedDiscounts,
     totalDiscount,
+    shippingOverride,
   ]);
 
   // Handle discount changes from OrderSummaryCard
   const handleDiscountChange = useCallback((discounts: AppliedDiscount[], discount: number) => {
     setAppliedDiscounts(discounts);
     setTotalDiscount(discount);
+  }, []);
+
+  // Handle shipping override
+  const handleShippingOverride = useCallback((amount: number, reason: string) => {
+    setShippingOverride({ amount, reason });
   }, []);
 
   // Define wizard steps - memoized to prevent recreation on every render
@@ -1133,7 +1229,7 @@ const OrderCreationWizardComponent = ({
 
           {/* Order Summary - Sidebar on 2xl screens, top on smaller screens */}
           <aside 
-            className="min-w-0 order-first 2xl:order-last"
+            className="min-w-0 order-first 2xl:order-last space-y-4"
             aria-label="Order summary"
             role="complementary"
           >
@@ -1149,6 +1245,21 @@ const OrderCreationWizardComponent = ({
               disableRewards={userType === "group"}
               onDiscountChange={handleDiscountChange}
             />
+            
+            {/* Shipping Override Section - Show on review step for admin/pharmacy */}
+            {(wizardState.currentStep === 4 || (isPharmacyMode && wizardState.currentStep === 2)) && 
+             userType !== "group" && (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                <ShippingOverrideSection
+                  subtotal={subtotal}
+                  currentShipping={shipping}
+                  autoChargeEnabled={shippingSettings.auto_shipping_charge_enabled}
+                  autoChargeThreshold={shippingSettings.auto_shipping_charge_threshold}
+                  autoChargeAmount={shippingSettings.auto_shipping_charge_amount}
+                  onShippingChange={handleShippingOverride}
+                />
+              </div>
+            )}
           </aside>
         </div>
       </div>

@@ -94,6 +94,25 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Shipping settings state
+  const [shippingSettings, setShippingSettings] = useState<{
+    auto_shipping_charge_enabled: boolean;
+    auto_shipping_charge_threshold: number;
+    auto_shipping_charge_amount: number;
+    free_shipping_enabled: boolean;
+    free_shipping_threshold: number;
+    default_shipping_rate: number;
+    handling_fee: number;
+  }>({
+    auto_shipping_charge_enabled: false,
+    auto_shipping_charge_threshold: 0,
+    auto_shipping_charge_amount: 0,
+    free_shipping_enabled: false,
+    free_shipping_threshold: 0,
+    default_shipping_rate: 0,
+    handling_fee: 0,
+  });
+  
   // Product state
   const [productSearch, setProductSearch] = useState("");
   const [expandedProduct, setExpandedProduct] = useState<string | null>(null);
@@ -147,6 +166,35 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     fetchCustomers();
   }, [toast]);
 
+  // Fetch shipping settings (global - organization-wide settings)
+  useEffect(() => {
+    const fetchShippingSettings = async () => {
+      try {
+        const { data: settings } = await supabase
+          .from("settings")
+          .select("auto_shipping_charge_enabled, auto_shipping_charge_threshold, auto_shipping_charge_amount, free_shipping_enabled, free_shipping_threshold, default_shipping_rate, handling_fee")
+          .eq("is_global", true)
+          .maybeSingle();
+
+        if (settings) {
+          setShippingSettings({
+            auto_shipping_charge_enabled: settings.auto_shipping_charge_enabled || false,
+            auto_shipping_charge_threshold: settings.auto_shipping_charge_threshold || 0,
+            auto_shipping_charge_amount: settings.auto_shipping_charge_amount || 0,
+            free_shipping_enabled: settings.free_shipping_enabled || false,
+            free_shipping_threshold: settings.free_shipping_threshold || 0,
+            default_shipping_rate: settings.default_shipping_rate || 0,
+            handling_fee: settings.handling_fee || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching shipping settings:", error);
+      }
+    };
+
+    fetchShippingSettings();
+  }, []);
+
   // Fetch products
   const { data: products = [], isLoading: loadingProducts } = useQuery({
     queryKey: ['quick-order-products'],
@@ -192,14 +240,14 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     const subtotal = calculateSubtotal(cartItems);
     const taxPer = selectedCustomer?.tax_percentage || 0;
     const hasFreeShipping = selectedCustomer?.freeShipping || false;
-    const shipping = calculateShipping(cartItems, hasFreeShipping);
+    const shipping = calculateShipping(cartItems, hasFreeShipping, subtotal, shippingSettings);
     const tax = calculateTax(subtotal, taxPer);
     const total = calculateFinalTotal({ subtotal, shipping, tax, discount: 0 });
     const itemCount = cartItems.reduce((sum, item) => 
       sum + (item.sizes?.reduce((s: number, size: any) => s + size.quantity, 0) || item.quantity || 0), 0
     );
     return { subtotal, tax, shipping, total, itemCount };
-  }, [cartItems, selectedCustomer]);
+  }, [cartItems, selectedCustomer, shippingSettings]);
 
   // Handlers
   const handleCustomerSelect = useCallback((customer: Customer) => {

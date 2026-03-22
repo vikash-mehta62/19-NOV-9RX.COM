@@ -36,6 +36,7 @@ import {
   RefreshCw,
   ExternalLink,
   Clock3,
+  AlertCircle,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 
@@ -366,6 +367,94 @@ export function ShippingSettingsSection({
               </FormItem>
             )}
           />
+        )}
+
+        <Separator />
+
+        <div className="space-y-2">
+          <h3 className="text-lg font-semibold">Automatic Shipping Charges</h3>
+          <p className="text-sm text-muted-foreground">
+            Configure automatic shipping charges for orders below a specified amount. This overrides the default shipping rate and product-level shipping costs when the order subtotal is below the threshold.
+          </p>
+        </div>
+
+        <FormField
+          control={form.control}
+          name="auto_shipping_charge_enabled"
+          render={({ field }) => (
+            <FormItem className="flex items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base">Enable Auto Shipping Charges</FormLabel>
+                <FormDescription>
+                  Automatically add shipping charges for orders below a threshold
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        {form.watch("auto_shipping_charge_enabled") && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <FormField
+              control={form.control}
+              name="auto_shipping_charge_threshold"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Shipping Charge Threshold ($)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="50.00"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Orders below this amount will include shipping charges
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="auto_shipping_charge_amount"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Shipping Charge Amount ($)</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="12.00"
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormDescription>
+                    Amount to charge for shipping on qualifying orders
+                  </FormDescription>
+                </FormItem>
+              )}
+            />
+          </div>
+        )}
+
+        {form.watch("auto_shipping_charge_enabled") && (
+          <Alert className="border-blue-200 bg-blue-50">
+            <AlertCircle className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-sm text-blue-800">
+              <strong>How it works:</strong> When an order's subtotal is below ${form.watch("auto_shipping_charge_threshold") || 0}, 
+              a shipping charge of ${form.watch("auto_shipping_charge_amount") || 0} will be automatically applied. 
+              This overrides product-level shipping costs. Admins can override this charge during order creation with a documented reason.
+            </AlertDescription>
+          </Alert>
         )}
 
         <Separator />

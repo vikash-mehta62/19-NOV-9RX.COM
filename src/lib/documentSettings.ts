@@ -143,33 +143,17 @@ export const getAdminDocumentSettingsFromRecord = (settings: RawSettings): Admin
 
 export const fetchAdminDocumentSettings = async (): Promise<AdminDocumentSettings> => {
   try {
-    const { data: adminProfiles, error: profileError } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .eq("type", "admin");
-
-    if (profileError) throw profileError;
-
-    const adminIds = (adminProfiles || []).map((profile: any) => profile.id).filter(Boolean);
-    if (adminIds.length === 0) return DEFAULT_ADMIN_DOCUMENT_SETTINGS;
-
-    const preferredIds = (adminProfiles || [])
-      .filter((profile: any) => ["admin", "superadmin"].includes(String(profile.role || "").toLowerCase()))
-      .map((profile: any) => profile.id);
-
-    const { data: settingsRows, error: settingsError } = await supabase
+    // Fetch global document settings (organization-wide configuration)
+    // All admins/pharmacies use the same business information for documents
+    const { data: settingsRow, error: settingsError } = await supabase
       .from("settings")
       .select("*")
-      .in("profile_id", preferredIds.length > 0 ? preferredIds : adminIds)
-      .order("updated_at", { ascending: false });
+      .eq("is_global", true)
+      .maybeSingle();
 
     if (settingsError) throw settingsError;
 
-    const activeSettings = Array.isArray(settingsRows) && settingsRows.length > 0
-      ? settingsRows[0]
-      : null;
-
-    return getAdminDocumentSettingsFromRecord(activeSettings);
+    return getAdminDocumentSettingsFromRecord(settingsRow);
   } catch (error) {
     console.error("Failed to fetch admin document settings:", error);
     return DEFAULT_ADMIN_DOCUMENT_SETTINGS;

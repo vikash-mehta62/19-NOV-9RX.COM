@@ -63,13 +63,13 @@ const buildFedExErrorMessage = (result: JsonRecord) => {
 };
 
 const getFedExSettings = async (supabase: ReturnType<typeof createClient>) => {
+  // Fetch global FedEx settings (organization-wide configuration)
+  // All admins/pharmacies use the same FedEx integration settings
   const { data, error } = await supabase
     .from("settings")
-    .select("*, profiles!inner(id, type, role)")
-    .eq("profiles.type", "admin")
+    .select("*")
     .eq("fedex_enabled", true)
-    .order("updated_at", { ascending: false })
-    .limit(1)
+    .eq("is_global", true)
     .maybeSingle();
 
   if (error || !data) {
