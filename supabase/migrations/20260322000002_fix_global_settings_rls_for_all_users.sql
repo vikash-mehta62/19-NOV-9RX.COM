@@ -1,0 +1,3 @@
+-- Fix RLS policy to allow ALL authenticated users to read global settings
+-- 
+-- Problem: C

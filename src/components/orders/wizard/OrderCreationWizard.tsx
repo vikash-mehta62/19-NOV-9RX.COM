@@ -94,6 +94,16 @@ const OrderCreationWizardComponent = ({
     initialData?.customer?.freeShipping === true || sessionStorage.getItem("shipping") === "true"
   );
   
+  // Profile shipping settings state (per-customer)
+  const [profileShippingSettings, setProfileShippingSettings] = useState<{
+    free_shipping_enabled?: boolean;
+    free_shipping_threshold?: number;
+    custom_shipping_rate?: number;
+    auto_shipping_enabled?: boolean;
+    auto_shipping_threshold?: number;
+    auto_shipping_amount?: number;
+  } | null>(null);
+  
   // Shipping settings state
   const [shippingSettings, setShippingSettings] = useState<{
     auto_shipping_charge_enabled: boolean;
@@ -173,6 +183,35 @@ const OrderCreationWizardComponent = ({
             });
             setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
             
+            // Fetch profile shipping settings for group customer
+            if (profile.id) {
+              try {
+                const { data: profileData, error: profileError } = await supabase
+                  .from("profiles")
+                  .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+                  .eq("id", profile.id)
+                  .maybeSingle();
+
+                if (!profileError && profileData) {
+                  console.log("✅ Profile shipping settings fetched for group customer:", profile.id, profileData);
+                  setProfileShippingSettings({
+                    free_shipping_enabled: profileData.free_shipping_enabled,
+                    free_shipping_threshold: profileData.free_shipping_threshold,
+                    custom_shipping_rate: profileData.custom_shipping_rate,
+                    auto_shipping_enabled: profileData.auto_shipping_enabled,
+                    auto_shipping_threshold: profileData.auto_shipping_threshold,
+                    auto_shipping_amount: profileData.auto_shipping_amount,
+                  });
+                } else {
+                  console.log("❌ No profile shipping settings found for group customer:", profile.id);
+                  setProfileShippingSettings(null);
+                }
+              } catch (err) {
+                console.error("Error fetching profile shipping settings for group customer:", err);
+                setProfileShippingSettings(null);
+              }
+            }
+            
             // Fetch locations for group customer
             if (profile.id) {
               const { data: locationsData } = await supabase
@@ -202,6 +241,35 @@ const OrderCreationWizardComponent = ({
       // Set customer
       if (initialData.customer) {
         setSelectedCustomer(initialData.customer);
+        
+        // Fetch profile shipping settings for pre-loaded customer
+        if (initialData.customer.id) {
+          try {
+            const { data: profileData, error: profileError } = await supabase
+              .from("profiles")
+              .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+              .eq("id", initialData.customer.id)
+              .maybeSingle();
+
+            if (!profileError && profileData) {
+              console.log("✅ Profile shipping settings fetched for pre-loaded customer:", initialData.customer.id, profileData);
+              setProfileShippingSettings({
+                free_shipping_enabled: profileData.free_shipping_enabled,
+                free_shipping_threshold: profileData.free_shipping_threshold,
+                custom_shipping_rate: profileData.custom_shipping_rate,
+                auto_shipping_enabled: profileData.auto_shipping_enabled,
+                auto_shipping_threshold: profileData.auto_shipping_threshold,
+                auto_shipping_amount: profileData.auto_shipping_amount,
+              });
+            } else {
+              console.log("❌ No profile shipping settings found for pre-loaded customer:", initialData.customer.id);
+              setProfileShippingSettings(null);
+            }
+          } catch (err) {
+            console.error("Error fetching profile shipping settings for pre-loaded customer:", err);
+            setProfileShippingSettings(null);
+          }
+        }
         
         // Fetch locations for pre-loaded customer
         if (initialData.customer.id) {
@@ -282,16 +350,24 @@ const OrderCreationWizardComponent = ({
   useEffect(() => {
     const fetchShippingSettings = async () => {
       try {
+        console.log("🔍 Fetching global shipping settings...");
+        
         // Fetch global settings (organization-wide settings)
         // All users (admins, pharmacies) will use the same shipping configuration
-        const { data: settings } = await supabase
+        const { data: settings, error: settingsError } = await supabase
           .from("settings")
           .select("auto_shipping_charge_enabled, auto_shipping_charge_threshold, auto_shipping_charge_amount, free_shipping_enabled, free_shipping_threshold, default_shipping_rate, handling_fee")
           .eq("is_global", true)
           .maybeSingle();
 
+        if (settingsError) {
+          console.error("❌ Error fetching shipping settings:", settingsError);
+          console.log("⚠️ Using default shipping settings (all zeros)");
+          return;
+        }
+
         if (settings) {
-          console.log("Fetched global shipping settings:", settings);
+          console.log("✅ Global shipping settings fetched successfully:", settings);
           setShippingSettings({
             auto_shipping_charge_enabled: settings.auto_shipping_charge_enabled || false,
             auto_shipping_charge_threshold: settings.auto_shipping_charge_threshold || 0,
@@ -302,10 +378,13 @@ const OrderCreationWizardComponent = ({
             handling_fee: settings.handling_fee || 0,
           });
         } else {
-          console.warn("No shipping settings found in database");
+          console.warn("⚠️ No global shipping settings found in database (is_global = true row missing)");
+          console.log("💡 Using default shipping settings (all zeros)");
+          console.log("💡 Tip: Go to Admin Settings page to configure global shipping settings");
         }
       } catch (error) {
-        console.error("Error fetching shipping settings:", error);
+        console.error("❌ Exception while fetching shipping settings:", error);
+        console.log("⚠️ Using default shipping settings (all zeros)");
       }
     };
 
@@ -334,9 +413,10 @@ const OrderCreationWizardComponent = ({
     console.log("=== SHIPPING CALCULATION DEBUG ===");
     console.log("Subtotal:", subtotal);
     console.log("Cart Items:", cartItems.length);
-    console.log("Has Free Shipping:", hasFreeShipping);
+    console.log("Has Free Shipping (Legacy):", hasFreeShipping);
     console.log("Has Free Shipping Reward:", hasFreeShippingReward);
-    console.log("Shipping Settings:", shippingSettings);
+    console.log("Profile Shipping Settings:", profileShippingSettings);
+    console.log("Global Shipping Settings:", shippingSettings);
     console.log("Shipping Override:", shippingOverride);
     
     // Use override shipping if set, otherwise calculate
@@ -350,7 +430,8 @@ const OrderCreationWizardComponent = ({
         cartItems, 
         hasFreeShipping || hasFreeShippingReward,
         subtotal,
-        shippingSettings
+        shippingSettings,
+        profileShippingSettings || undefined
       );
       console.log("Calculated Shipping:", shipping);
     }
@@ -372,7 +453,7 @@ const OrderCreationWizardComponent = ({
     console.log("=================================");
     
     return { subtotal, tax, shipping, total };
-  }, [cartItems, appliedDiscounts, shippingOverride, shippingSettings]);
+  }, [cartItems, appliedDiscounts, shippingOverride, shippingSettings, profileShippingSettings]);
 
   // Persist form data whenever key state changes
   useEffect(() => {
@@ -560,6 +641,36 @@ const OrderCreationWizardComponent = ({
     const hasFreeShipping = customer.freeShipping === true;
     sessionStorage.setItem("shipping", hasFreeShipping.toString());
     setCustomerHasFreeShipping(hasFreeShipping);
+    
+    // Reset profile shipping settings immediately to prevent stale data
+    setProfileShippingSettings(null);
+    
+    // Fetch profile shipping settings (new system)
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+        .eq("id", customer.id)
+        .maybeSingle();
+
+      if (!profileError && profileData) {
+        console.log("✅ Profile shipping settings fetched for customer:", customer.id, profileData);
+        setProfileShippingSettings({
+          free_shipping_enabled: profileData.free_shipping_enabled,
+          free_shipping_threshold: profileData.free_shipping_threshold,
+          custom_shipping_rate: profileData.custom_shipping_rate,
+          auto_shipping_enabled: profileData.auto_shipping_enabled,
+          auto_shipping_threshold: profileData.auto_shipping_threshold,
+          auto_shipping_amount: profileData.auto_shipping_amount,
+        });
+      } else {
+        console.log("❌ No profile shipping settings found for customer:", customer.id);
+        setProfileShippingSettings(null);
+      }
+    } catch (err) {
+      console.error("Error fetching profile shipping settings:", err);
+      setProfileShippingSettings(null);
+    }
     
     // Autofill billing address from customer data if available
     if (customer.billing_address && Object.keys(customer.billing_address).length > 0) {

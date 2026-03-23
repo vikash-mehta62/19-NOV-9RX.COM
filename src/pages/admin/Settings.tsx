@@ -78,9 +78,12 @@ const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
     ...generalSettings
   } = values;
 
+  // Remove database-only fields that shouldn't be in the update payload
+  const { profile_id, is_global, id, created_at, updated_at, ...cleanSettings } = generalSettings as any;
+
   return {
-    ...generalSettings,
-    store_hours: JSON.parse(JSON.stringify(generalSettings.store_hours)) as Json,
+    ...cleanSettings,
+    store_hours: JSON.parse(JSON.stringify(cleanSettings.store_hours)) as Json,
   };
 };
 

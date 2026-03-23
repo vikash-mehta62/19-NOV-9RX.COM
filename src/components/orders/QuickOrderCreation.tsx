@@ -94,6 +94,16 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   const [sameAsShipping, setSameAsShipping] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
+  // Profile shipping settings state (per-customer)
+  const [profileShippingSettings, setProfileShippingSettings] = useState<{
+    free_shipping_enabled?: boolean;
+    free_shipping_threshold?: number;
+    custom_shipping_rate?: number;
+    auto_shipping_enabled?: boolean;
+    auto_shipping_threshold?: number;
+    auto_shipping_amount?: number;
+  } | null>(null);
+  
   // Shipping settings state
   const [shippingSettings, setShippingSettings] = useState<{
     auto_shipping_charge_enabled: boolean;
@@ -170,13 +180,22 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
   useEffect(() => {
     const fetchShippingSettings = async () => {
       try {
-        const { data: settings } = await supabase
+        console.log("🔍 [QuickOrder] Fetching global shipping settings...");
+        
+        const { data: settings, error: settingsError } = await supabase
           .from("settings")
           .select("auto_shipping_charge_enabled, auto_shipping_charge_threshold, auto_shipping_charge_amount, free_shipping_enabled, free_shipping_threshold, default_shipping_rate, handling_fee")
           .eq("is_global", true)
           .maybeSingle();
 
+        if (settingsError) {
+          console.error("❌ [QuickOrder] Error fetching shipping settings:", settingsError);
+          console.log("⚠️ [QuickOrder] Using default shipping settings (all zeros)");
+          return;
+        }
+
         if (settings) {
+          console.log("✅ [QuickOrder] Global shipping settings fetched:", settings);
           setShippingSettings({
             auto_shipping_charge_enabled: settings.auto_shipping_charge_enabled || false,
             auto_shipping_charge_threshold: settings.auto_shipping_charge_threshold || 0,
@@ -186,9 +205,13 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
             default_shipping_rate: settings.default_shipping_rate || 0,
             handling_fee: settings.handling_fee || 0,
           });
+        } else {
+          console.warn("⚠️ [QuickOrder] No global shipping settings found (is_global = true row missing)");
+          console.log("💡 [QuickOrder] Using default shipping settings (all zeros)");
         }
       } catch (error) {
-        console.error("Error fetching shipping settings:", error);
+        console.error("❌ [QuickOrder] Exception while fetching shipping settings:", error);
+        console.log("⚠️ [QuickOrder] Using default shipping settings (all zeros)");
       }
     };
 
@@ -240,20 +263,51 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
     const subtotal = calculateSubtotal(cartItems);
     const taxPer = selectedCustomer?.tax_percentage || 0;
     const hasFreeShipping = selectedCustomer?.freeShipping || false;
-    const shipping = calculateShipping(cartItems, hasFreeShipping, subtotal, shippingSettings);
+    const shipping = calculateShipping(cartItems, hasFreeShipping, subtotal, shippingSettings, profileShippingSettings || undefined);
     const tax = calculateTax(subtotal, taxPer);
     const total = calculateFinalTotal({ subtotal, shipping, tax, discount: 0 });
     const itemCount = cartItems.reduce((sum, item) => 
       sum + (item.sizes?.reduce((s: number, size: any) => s + size.quantity, 0) || item.quantity || 0), 0
     );
     return { subtotal, tax, shipping, total, itemCount };
-  }, [cartItems, selectedCustomer, shippingSettings]);
+  }, [cartItems, selectedCustomer, shippingSettings, profileShippingSettings]);
 
   // Handlers
-  const handleCustomerSelect = useCallback((customer: Customer) => {
+  const handleCustomerSelect = useCallback(async (customer: Customer) => {
     setSelectedCustomer(customer);
     sessionStorage.setItem("taxper", (customer.tax_percentage || 0).toString());
     sessionStorage.setItem("shipping", (customer.freeShipping || false).toString());
+    
+    // Reset profile shipping settings immediately to prevent stale data
+    setProfileShippingSettings(null);
+    
+    // Fetch profile shipping settings (new system)
+    try {
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+        .eq("id", customer.id)
+        .maybeSingle();
+
+      if (!profileError && profileData) {
+        console.log("✅ Profile shipping settings fetched for customer:", customer.id, profileData);
+        setProfileShippingSettings({
+          free_shipping_enabled: profileData.free_shipping_enabled,
+          free_shipping_threshold: profileData.free_shipping_threshold,
+          custom_shipping_rate: profileData.custom_shipping_rate,
+          auto_shipping_enabled: profileData.auto_shipping_enabled,
+          auto_shipping_threshold: profileData.auto_shipping_threshold,
+          auto_shipping_amount: profileData.auto_shipping_amount,
+        });
+      } else {
+        console.log("❌ No profile shipping settings found for customer:", customer.id);
+        setProfileShippingSettings(null);
+      }
+    } catch (err) {
+      console.error("Error fetching profile shipping settings:", err);
+      setProfileShippingSettings(null);
+    }
+    
     setCurrentStep("confirm");
   }, []);
 
