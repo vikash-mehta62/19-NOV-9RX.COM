@@ -157,6 +157,7 @@ const CreateOrderPaymentForm = ({
     sessionStorage.getItem("shipping") == "true"
       ? 0
       : Math.max(...cartItems.map((item) => item.shipping_cost || 0));
+  const effectiveShippingCost = orderShipping !== undefined ? orderShipping : totalShippingCost;
 
   function cleanCartItems(cartItems: any[]) {
     const cleanedItems = cartItems.map((item) => {
@@ -243,7 +244,7 @@ const CreateOrderPaymentForm = ({
     if (formDataa) {
       // Calculate subtotal from cart items
       const subtotal = orderSubtotal || calculateSubtotal(cleanedCartItems);
-      const shipping = orderShipping !== undefined ? orderShipping : totalShippingCost;
+      const shipping = effectiveShippingCost;
       const taxAmount = orderTax || 0;
       const discount = Number((discountAmount || 0).toFixed(2));
       
@@ -267,7 +268,7 @@ const CreateOrderPaymentForm = ({
         amount: finalTotal,
       }));
     }
-  }, [orderTotal, orderSubtotal, orderTax, orderShipping, discountAmount, cartItems, totalShippingCost]);
+  }, [orderTotal, orderSubtotal, orderTax, discountAmount, cartItems, effectiveShippingCost]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -574,7 +575,7 @@ const CreateOrderPaymentForm = ({
       // Use formData.amount as single source of truth - DO NOT recalculate
       const finalTotal = formData.amount;
       const subtotal = orderSubtotal || calculateSubtotal(cleanedCartItems);
-      const shipping = orderShipping !== undefined ? orderShipping : totalShippingCost;
+      const shipping = effectiveShippingCost;
       const discount = Number((discountAmount || 0).toFixed(2));
 
       if (userProfile?.id == null) {
@@ -1630,12 +1631,12 @@ const CreateOrderPaymentForm = ({
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Shipping</span>
                       <span className="font-medium">
-                        {totalShippingCost === 0 ? (
+                        {effectiveShippingCost === 0 ? (
                           <Badge variant="secondary" className="bg-blue-100 text-blue-700">
                             FREE
                           </Badge>
                         ) : (
-                          `$${totalShippingCost.toFixed(2)}`
+                          `$${effectiveShippingCost.toFixed(2)}`
                         )}
                       </span>
                     </div>
