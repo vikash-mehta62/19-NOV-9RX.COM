@@ -33,6 +33,41 @@ const replaceTemplateVariables = (htmlContent, variables) => {
   });
 };
 
+async function syncCampaignDeliveryStatus(campaignId) {
+  if (!campaignId) return;
+
+  const { data: queueRows, error } = await supabase
+    .from("email_queue")
+    .select("status")
+    .eq("campaign_id", campaignId);
+
+  if (error) return;
+
+  const counts = (queueRows || []).reduce((acc, row) => {
+    const key = row.status || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const sentCount = counts.sent || 0;
+  const pendingCount = (counts.pending || 0) + (counts.processing || 0);
+  const failedCount = counts.failed || 0;
+
+  let status = "sending";
+  if (pendingCount === 0) {
+    status = sentCount > 0 ? "sent" : failedCount > 0 ? "failed" : "draft";
+  }
+
+  await supabase
+    .from("email_campaigns")
+    .update({
+      sent_count: sentCount,
+      status,
+      sent_at: status === "sent" ? new Date().toISOString() : null,
+    })
+    .eq("id", campaignId);
+}
+
 // Process pending emails from queue
 exports.processQueue = async (req, res) => {
   const results = { processed: 0, sent: 0, failed: 0, errors: [] };
@@ -76,7 +111,7 @@ exports.processQueue = async (req, res) => {
           userName: metadata.first_name 
             ? `${metadata.first_name} ${metadata.last_name || ''}`.trim() 
             : (metadata.user_name || "Valued Customer"),
-          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/unsubscribe?t=${metadata.tracking_id || ''}&e=${encodeURIComponent(recipientEmail || '')}`,
+          unsubscribe_url: `${process.env.APP_URL || 'https://9rx.com'}/api/email/unsubscribe?t=${metadata.tracking_id || ''}&e=${encodeURIComponent(recipientEmail || '')}`,
           // Add aliases for convenience
           name: metadata.first_name || "Valued Customer",
           first_name: metadata.first_name || "",
@@ -155,18 +190,7 @@ exports.processQueue = async (req, res) => {
 
           // Update campaign sent count if applicable
           if (queuedEmail.campaign_id) {
-            const { data: campaign } = await supabase
-              .from("email_campaigns")
-              .select("sent_count")
-              .eq("id", queuedEmail.campaign_id)
-              .single();
-
-            if (campaign) {
-              await supabase
-                .from("email_campaigns")
-                .update({ sent_count: (campaign.sent_count || 0) + 1 })
-                .eq("id", queuedEmail.campaign_id);
-            }
+            await syncCampaignDeliveryStatus(queuedEmail.campaign_id);
           }
 
           // Update automation sent count if applicable
@@ -208,6 +232,10 @@ exports.processQueue = async (req, res) => {
 
         results.failed++;
         results.errors.push(`${recipientEmail || "unknown-recipient"}: ${sendError.message}`);
+
+        if (queuedEmail.campaign_id) {
+          await syncCampaignDeliveryStatus(queuedEmail.campaign_id);
+        }
       }
 
       // Small delay between emails to avoid rate limiting

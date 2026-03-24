@@ -1139,7 +1139,7 @@ export default function PaymentReconciliation() {
             <div className="rounded-lg border bg-white p-3">
               <div className="font-semibold">1. Refresh Authorize</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pull the latest settlement batches from Authorize.Net.
+                Pull the latest settlement batches from Authorize.Net. 
               </p>
             </div>
             <div className="rounded-lg border bg-white p-3">

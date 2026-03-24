@@ -84,6 +84,67 @@ const log = (emoji, message, data = null) => {
   }
 };
 
+async function syncCampaignDeliveryStatus(campaignId) {
+  if (!campaignId) return;
+
+  const { data: queueRows, error } = await supabase
+    .from("email_queue")
+    .select("status")
+    .eq("campaign_id", campaignId);
+
+  if (error) return;
+
+  const counts = (queueRows || []).reduce((acc, row) => {
+    const key = row.status || "unknown";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+
+  const sentCount = counts.sent || 0;
+  const pendingCount = (counts.pending || 0) + (counts.processing || 0);
+  const failedCount = counts.failed || 0;
+
+  let status = "sending";
+  if (pendingCount === 0) {
+    status = sentCount > 0 ? "sent" : failedCount > 0 ? "failed" : "draft";
+  }
+
+  await supabase
+    .from("email_campaigns")
+    .update({
+      sent_count: sentCount,
+      status,
+      sent_at: status === "sent" ? new Date().toISOString() : null,
+    })
+    .eq("id", campaignId);
+}
+
+async function syncAutomationExecutionStatus(queueId, status, providerMessageId = null) {
+  if (!queueId || !["completed", "failed", "processing"].includes(status)) return;
+
+  const update = {
+    status,
+    email_queue_id: queueId,
+  };
+
+  if (status === "completed") {
+    update.executed_at = new Date().toISOString();
+    if (providerMessageId) {
+      update.provider_message_id = providerMessageId;
+    }
+  }
+
+  if (status === "failed") {
+    update.executed_at = null;
+  }
+
+  await supabase
+    .from("automation_executions")
+    .update(update)
+    .eq("email_queue_id", queueId)
+    .in("status", ["pending", "processing"]);
+}
+
 /**
  * Format cart items HTML - Handle both simple items and items with sizes
  * @param {Array} cartItems - Array of cart items
@@ -148,7 +209,7 @@ async function isDuplicateEmail(email, automationId, triggerType, userId = null)
     let queueQuery = supabase
       .from("email_queue")
       .select("id, status, created_at")
-      .eq("email", email)
+      .eq("to_email", email)
       .in("status", ["pending", "processing", "sent"]);
     
     // If automation_id provided, check for same automation
@@ -265,6 +326,10 @@ async function processEmailQueue() {
         continue;
       }
 
+      if (queuedEmail.automation_id) {
+        await syncAutomationExecutionStatus(queuedEmail.id, "processing");
+      }
+
       try {
         // Prepare variables for substitution
         const metadata = queuedEmail.metadata || {};
@@ -360,22 +425,13 @@ async function processEmailQueue() {
 
           // Update campaign sent count
           if (queuedEmail.campaign_id) {
-            const { data: campaign } = await supabase
-              .from("email_campaigns")
-              .select("sent_count")
-              .eq("id", queuedEmail.campaign_id)
-              .single();
-
-            if (campaign) {
-              await supabase
-                .from("email_campaigns")
-                .update({ sent_count: (campaign.sent_count || 0) + 1 })
-                .eq("id", queuedEmail.campaign_id);
-            }
+            await syncCampaignDeliveryStatus(queuedEmail.campaign_id);
           }
 
           // Update automation sent count
           if (queuedEmail.automation_id) {
+            await syncAutomationExecutionStatus(queuedEmail.id, "completed", sendResult.messageId);
+
             const { data: automation } = await supabase
               .from("email_automations")
               .select("total_sent")
@@ -413,6 +469,14 @@ async function processEmailQueue() {
 
         results.failed++;
         log("❌", `Failed to send to ${queuedEmail.to_email}: ${sendError.message}`);
+
+        if (queuedEmail.campaign_id) {
+          await syncCampaignDeliveryStatus(queuedEmail.campaign_id);
+        }
+
+        if (queuedEmail.automation_id && !shouldRetry) {
+          await syncAutomationExecutionStatus(queuedEmail.id, "failed");
+        }
       }
 
       // Small delay to avoid rate limiting
@@ -599,7 +663,7 @@ async function checkAbandonedCarts() {
         const { data: existingEmail } = await supabase
           .from("email_queue")
           .select("id, status")
-          .eq("email", profile.email)
+          .eq("to_email", profile.email)
           .eq("automation_id", automation.id)
           .in("status", ["pending", "processing", "sent"])
           .limit(1);
@@ -615,7 +679,7 @@ async function checkAbandonedCarts() {
         }
 
         // Queue email
-        const { error: queueError } = await supabase.from("email_queue").insert({
+        const { data: queueData, error: queueError } = await supabase.from("email_queue").insert({
           to_email: profile.email,
           to_name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || profile.email,
           subject,
@@ -638,7 +702,9 @@ async function checkAbandonedCarts() {
             cart_total: cartFormatted.total > 0 ? cartFormatted.total.toFixed(2) : (cart.total || 0).toFixed(2),
             item_count: cartFormatted.itemCount.toString(),
           },
-        });
+        })
+        .select("id")
+        .single();
 
         if (queueError) {
           log("❌", `Failed to queue email for ${profile.email}: ${queueError.message}`);
@@ -649,8 +715,8 @@ async function checkAbandonedCarts() {
         await supabase.from("automation_executions").insert({
           automation_id: automation.id,
           user_id: cart.user_id,
-          status: "completed",
-          executed_at: new Date().toISOString(),
+          status: "pending",
+          email_queue_id: queueData?.id || null,
           trigger_data: { 
             cart_id: cart.id, 
             cart_total: cartFormatted.total > 0 ? cartFormatted.total : cart.total,
@@ -783,7 +849,7 @@ async function checkInactiveUsers() {
         const { data: existingEmail } = await supabase
           .from("email_queue")
           .select("id, status")
-          .eq("email", user.email)
+          .eq("to_email", user.email)
           .eq("automation_id", automation.id)
           .in("status", ["pending", "processing", "sent"])
           .limit(1);
@@ -794,7 +860,7 @@ async function checkInactiveUsers() {
         }
 
         // Queue email
-        await supabase.from("email_queue").insert({
+        const { data: queueData, error: queueError } = await supabase.from("email_queue").insert({
           to_email: user.email,
           to_name: `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email,
           subject,
@@ -812,14 +878,21 @@ async function checkInactiveUsers() {
             last_name: user.last_name,
             trigger_type: "inactive_user",
           },
-        });
+        })
+        .select("id")
+        .single();
+
+        if (queueError) {
+          log("❌", `Failed to queue inactive user email for ${user.email}: ${queueError.message}`);
+          continue;
+        }
 
         // Record execution
         await supabase.from("automation_executions").insert({
           automation_id: automation.id,
           user_id: user.id,
-          status: "completed",
-          executed_at: new Date().toISOString(),
+          status: "pending",
+          email_queue_id: queueData?.id || null,
           trigger_data: { inactive_days: inactiveDays },
         });
 
@@ -927,7 +1000,8 @@ async function processScheduledAutomations() {
       const { data: queueData, error: queueError } = await supabase
         .from("email_queue")
         .insert({
-          email: triggerData.email,
+          to_email: triggerData.email,
+          to_name: triggerData.userName || triggerData.user_name || triggerData.first_name || triggerData.email,
           subject,
           html_content: htmlContent,
           text_content: template.text_content || null,
@@ -948,8 +1022,7 @@ async function processScheduledAutomations() {
       await supabase
         .from("automation_executions")
         .update({ 
-          status: "completed", 
-          executed_at: new Date().toISOString(),
+          status: "pending",
           email_queue_id: queueData?.id || null,
         })
         .eq("id", execution.id);
@@ -1011,51 +1084,6 @@ async function cleanupOldData() {
     log("❌", "Cleanup error:", error.message);
     return { queueCleaned: 0, eventsCleaned: 0, webhooksCleaned: 0 };
   }
-}
-
-// ============================================
-// MAIN CRON STARTER
-// ============================================
-function startEmailCron() {
-  log("🚀", "========================================");
-  log("🚀", "Email Cron Service Starting...");
-  log("📋", "Configuration:", {
-    queueInterval: `${CONFIG.queueInterval / 1000}s`,
-    abandonedCartInterval: `${CONFIG.abandonedCartInterval / 60000}m`,
-    inactiveUserInterval: `${CONFIG.inactiveUserInterval / 60000}m`,
-    automationInterval: `${CONFIG.automationInterval / 1000}s`,
-    retryInterval: `${CONFIG.retryInterval / 60000}m`,
-  });
-  log("🚀", "========================================");
-
-  // 1. Process email queue (every 30 seconds)
-  setInterval(processEmailQueue, CONFIG.queueInterval);
-
-  // 2. Retry failed emails (every 5 minutes)
-  setInterval(retryFailedEmails, CONFIG.retryInterval);
-
-  // 3. Check abandoned carts (every 5 minutes)
-  setInterval(checkAbandonedCarts, CONFIG.abandonedCartInterval);
-
-  // 4. Check inactive users (every hour)
-  setInterval(checkInactiveUsers, CONFIG.inactiveUserInterval);
-
-  // 5. Process scheduled automations (every minute)
-  setInterval(processScheduledAutomations, CONFIG.automationInterval);
-
-  // 6. Cleanup old data (every 24 hours)
-  setInterval(cleanupOldData, CONFIG.cleanupInterval);
-
-  // Run initial checks after 5 seconds
-  setTimeout(async () => {
-    log("🔄", "Running initial checks...");
-    await processEmailQueue();
-    await checkAbandonedCarts();
-    await processScheduledAutomations();
-    log("✅", "Initial checks complete");
-  }, 5000);
-
-  log("✅", "Email Cron Service Started Successfully");
 }
 
 // ============================================
@@ -1172,7 +1200,7 @@ async function triggerAutomation(triggerType, eventData) {
         const htmlContent = replaceTemplateVariables(template.html_content, variables);
 
         // Queue email (with delay if configured)
-        const { error: queueError } = await supabase.from("email_queue").insert({
+        const { data: queueData, error: queueError } = await supabase.from("email_queue").insert({
           to_email: email,
           to_name: `${firstName || ''} ${lastName || ''}`.trim() || email,
           subject,
@@ -1191,7 +1219,9 @@ async function triggerAutomation(triggerType, eventData) {
             trigger_type: triggerType,
             ...extraData,
           },
-        });
+        })
+        .select("id")
+        .single();
 
         if (queueError) {
           results.errors.push(`Failed to queue for ${automation.name}: ${queueError.message}`);
@@ -1202,8 +1232,8 @@ async function triggerAutomation(triggerType, eventData) {
         await supabase.from("automation_executions").insert({
           automation_id: automation.id,
           user_id: userId || null,
-          status: "completed",
-          executed_at: new Date().toISOString(),
+          status: "pending",
+          email_queue_id: queueData?.id || null,
           trigger_data: { email, trigger_type: triggerType, ...extraData },
         });
 

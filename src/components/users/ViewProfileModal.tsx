@@ -93,6 +93,11 @@ import { orderStatementService } from "@/services/orderStatementService";
 import { orderStatementDownloadService } from "@/services/orderStatementDownloadService";
 import axios from "../../../axiosconfig";
 import {
+  CUSTOMER_DOCUMENT_CATEGORIES,
+  getCustomerDocumentStatus,
+  getDocumentCategoryLabel,
+} from "@/lib/customerDocumentStatus";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -273,6 +278,12 @@ export function ViewProfileModal({
   const [documents, setDocuments] = useState<any[]>([]);
   const [isUploadingDocument, setIsUploadingDocument] = useState(false);
   const [deleteDocumentId, setDeleteDocumentId] = useState<string | null>(null);
+  const [documentCategory, setDocumentCategory] = useState("other");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [documentIssuedAt, setDocumentIssuedAt] = useState("");
+  const [documentExpiresAt, setDocumentExpiresAt] = useState("");
+  const [documentReminderDaysBefore, setDocumentReminderDaysBefore] = useState("30");
+  const [editingDocumentId, setEditingDocumentId] = useState<string | null>(null);
 
   // Note form state
   const [noteForm, setNoteForm] = useState({
@@ -1008,6 +1019,24 @@ export function ViewProfileModal({
   };
 
   // Document upload handler
+  const resetDocumentMetadata = () => {
+    setDocumentCategory("other");
+    setDocumentNumber("");
+    setDocumentIssuedAt("");
+    setDocumentExpiresAt("");
+    setDocumentReminderDaysBefore("30");
+    setEditingDocumentId(null);
+  };
+
+  const startEditingDocument = (doc: any) => {
+    setEditingDocumentId(doc.id);
+    setDocumentCategory(doc.document_category || "other");
+    setDocumentNumber(doc.document_number || "");
+    setDocumentIssuedAt(doc.issued_at || "");
+    setDocumentExpiresAt(doc.expires_at || "");
+    setDocumentReminderDaysBefore(String(doc.reminder_days_before || 30));
+  };
+
   const handleDocumentUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1039,6 +1068,11 @@ export function ViewProfileModal({
         name: file.name,
         file_path: uploadData.path,
         file_type: docType,
+        document_category: documentCategory,
+        document_number: documentNumber.trim() || null,
+        issued_at: documentIssuedAt || null,
+        expires_at: documentExpiresAt || null,
+        reminder_days_before: Number(documentReminderDaysBefore) || 30,
         file_size: file.size,
         uploaded_by: currentUser?.id,
       });
@@ -1046,6 +1080,7 @@ export function ViewProfileModal({
       if (dbError) throw dbError;
 
       toast({ title: "Success", description: "Document uploaded successfully" });
+      resetDocumentMetadata();
       fetchAllData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to upload document", variant: "destructive" });
@@ -1124,6 +1159,65 @@ export function ViewProfileModal({
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  };
+
+  const formatDocumentDate = (value?: string | null) => {
+    if (!value) return null;
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString();
+  };
+
+  const getDocumentPromptSummary = () => {
+    let missingExpiry = 0;
+    let expiringSoon = 0;
+    let expired = 0;
+
+    documents.forEach((doc) => {
+      const status = getCustomerDocumentStatus(doc.expires_at).label;
+      if (!doc.expires_at) {
+        missingExpiry += 1;
+      } else if (status === "Expired") {
+        expired += 1;
+      } else if (status.startsWith("Expiring in")) {
+        const daysLeft = Number(status.replace("Expiring in ", "").replace("d", ""));
+        const reminderWindow = Number(doc.reminder_days_before || 30);
+        if (!Number.isNaN(daysLeft) && daysLeft <= reminderWindow) {
+          expiringSoon += 1;
+        }
+      }
+    });
+
+    return { missingExpiry, expiringSoon, expired };
+  };
+
+  const handleUpdateDocumentMetadata = async () => {
+    if (!editingDocumentId) return;
+
+    try {
+      const { error } = await supabase
+        .from("customer_documents")
+        .update({
+          document_category: documentCategory,
+          document_number: documentNumber.trim() || null,
+          issued_at: documentIssuedAt || null,
+          expires_at: documentExpiresAt || null,
+          reminder_days_before: Number(documentReminderDaysBefore) || 30,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", editingDocumentId);
+
+      if (error) throw error;
+
+      toast({ title: "Success", description: "Document metadata updated successfully" });
+      resetDocumentMetadata();
+      fetchAllData();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update document metadata",
+        variant: "destructive",
+      });
+    }
   };
 
   // Handle order statement download
@@ -2191,8 +2285,88 @@ export function ViewProfileModal({
                       <p className="text-sm text-muted-foreground mt-1">
                         Licenses, contracts, agreements, and other documents
                       </p>
+                      {documents.length > 0 && (() => {
+                        const summary = getDocumentPromptSummary();
+                        const totalAttention =
+                          summary.missingExpiry + summary.expiringSoon + summary.expired;
+
+                        if (totalAttention === 0) return null;
+
+                        return (
+                          <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                            <p className="font-medium">Document follow-up needed</p>
+                            <p className="mt-1 text-xs">
+                              {summary.expired > 0 && `${summary.expired} expired. `}
+                              {summary.expiringSoon > 0 && `${summary.expiringSoon} expiring soon. `}
+                              {summary.missingExpiry > 0 &&
+                                `${summary.missingExpiry} missing expiry date.`}
+                            </p>
+                          </div>
+                        );
+                      })()}
                     </div>
-                    <div>
+                    <div className="space-y-3">
+                      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Category</label>
+                          <Select value={documentCategory} onValueChange={setDocumentCategory}>
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {CUSTOMER_DOCUMENT_CATEGORIES.map((category) => (
+                                <SelectItem key={category.value} value={category.value}>
+                                  {category.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Document Number</label>
+                          <Input
+                            className="h-9"
+                            placeholder="Reference number"
+                            value={documentNumber}
+                            onChange={(e) => setDocumentNumber(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Issued</label>
+                          <Input
+                            className="h-9"
+                            type="date"
+                            value={documentIssuedAt}
+                            onChange={(e) => setDocumentIssuedAt(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Expires</label>
+                          <Input
+                            className="h-9"
+                            type="date"
+                            value={documentExpiresAt}
+                            onChange={(e) => setDocumentExpiresAt(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-muted-foreground">Reminder</label>
+                          <Select
+                            value={documentReminderDaysBefore}
+                            onValueChange={setDocumentReminderDaysBefore}
+                          >
+                            <SelectTrigger className="h-9">
+                              <SelectValue placeholder="Reminder" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="7">7 days</SelectItem>
+                              <SelectItem value="14">14 days</SelectItem>
+                              <SelectItem value="30">30 days</SelectItem>
+                              <SelectItem value="60">60 days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <Input
                         type="file"
                         className="hidden"
@@ -2210,6 +2384,16 @@ export function ViewProfileModal({
                           Upload Document
                         </label>
                       </Button>
+                      {editingDocumentId && (
+                        <div className="flex gap-2">
+                          <Button onClick={handleUpdateDocumentMetadata}>
+                            Save Details
+                          </Button>
+                          <Button variant="ghost" onClick={resetDocumentMetadata}>
+                            Cancel
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -2241,9 +2425,48 @@ export function ViewProfileModal({
                                 <span>•</span>
                                 <span>{getRelativeTime(doc.created_at)}</span>
                               </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className="text-xs">
+                                  {getDocumentCategoryLabel(doc.document_category)}
+                                </Badge>
+                                <div
+                                  className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${getCustomerDocumentStatus(doc.expires_at).className}`}
+                                >
+                                  {getCustomerDocumentStatus(doc.expires_at).label}
+                                </div>
+                                <span className="text-xs text-muted-foreground">
+                                  {doc.document_number
+                                    ? `Doc #: ${doc.document_number}`
+                                    : "No document number"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDocumentDate(doc.issued_at)
+                                    ? `Issued ${formatDocumentDate(doc.issued_at)}`
+                                    : "Issued date not set"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {formatDocumentDate(doc.expires_at)
+                                    ? `Expires ${formatDocumentDate(doc.expires_at)}`
+                                    : "No expiry date"}
+                                </span>
+                              </div>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    onClick={() => startEditingDocument(doc)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Edit details</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>

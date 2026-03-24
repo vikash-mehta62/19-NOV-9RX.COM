@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { queueBulkEmails } from "./emailQueueService";
 import { replaceTemplateVariables } from "./emailService";
 import { prepareEmailForTracking } from "./emailTrackingService";
+import { evaluateEmailHtmlReadiness } from "@/lib/emailReadiness";
 
 interface CampaignRecipient {
   id: string;
@@ -23,6 +24,10 @@ interface Campaign {
   track_opens: boolean;
   track_clicks: boolean;
   ab_test_id?: string;
+}
+
+function getCampaignBaseHtml(campaign: Campaign): string {
+  return campaign.html_content || "";
 }
 
 // Get recipients based on target audience
@@ -83,11 +88,47 @@ export async function getCampaignRecipients(
       query = query.contains("tags", ["hospital"]);
       break;
     case "active":
-      // Users active in last 30 days - would need to join with profiles
-      break;
-    case "inactive":
-      // Users inactive for 30+ days
-      break;
+    case "inactive": {
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: profiles, error: profileError } = audienceType === "active"
+        ? await supabase
+            .from("profiles")
+            .select("id, email")
+            .gte("last_sign_in_at", thirtyDaysAgo)
+        : await supabase
+            .from("profiles")
+            .select("id, email")
+            .lt("last_sign_in_at", thirtyDaysAgo);
+
+      if (profileError || !profiles?.length) {
+        if (profileError) {
+          console.error("Error fetching active/inactive profiles:", profileError);
+        }
+        return [];
+      }
+
+      const profileIds = new Set(profiles.map((profile) => profile.id));
+      const profileEmails = new Set(
+        profiles
+          .map((profile) => (profile.email || "").toLowerCase())
+          .filter(Boolean)
+      );
+
+      const { data, error } = await query;
+
+      if (error) {
+        console.error("Error fetching recipients:", error);
+        return [];
+      }
+
+      return (data || []).filter((subscriber) => {
+        const subscriberEmail = String(subscriber.email || "").toLowerCase();
+        return (
+          (subscriber.user_id && profileIds.has(subscriber.user_id)) ||
+          (subscriberEmail && profileEmails.has(subscriberEmail))
+        );
+      });
+    }
     case "high_value":
       query = query.contains("tags", ["high_value"]);
       break;
@@ -167,6 +208,13 @@ export async function sendCampaign(campaignId: string): Promise<{
 
     if (campaign.status === "sent" || campaign.status === "sending") {
       results.errors.push("Campaign already sent or sending");
+      return results;
+    }
+
+    const readinessIssues = evaluateEmailHtmlReadiness(getCampaignBaseHtml(campaign));
+    const blockingIssues = readinessIssues.filter((issue) => issue.severity === "error");
+    if (blockingIssues.length > 0) {
+      results.errors.push(`Campaign is not send-ready: ${blockingIssues[0].text}`);
       return results;
     }
 
@@ -380,10 +428,10 @@ export async function sendCampaign(campaignId: string): Promise<{
     await supabase
       .from("email_campaigns")
       .update({
-        status: queueResult.failed === emailsToQueue.length ? "failed" : "sent",
+        status: queueResult.failed === emailsToQueue.length ? "failed" : "sending",
         total_recipients: recipients.length,
-        sent_count: queueResult.queued,
-        sent_at: new Date().toISOString(),
+        sent_count: 0,
+        sent_at: null,
       })
       .eq("id", campaignId);
 

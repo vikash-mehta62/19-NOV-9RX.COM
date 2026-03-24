@@ -52,6 +52,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
+import { evaluateEmailHtmlReadiness } from "@/lib/emailReadiness";
 import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
 
@@ -590,6 +591,12 @@ export default function EmailAutomations() {
 
       if (templateError || !template) {
         throw new Error("Template not found");
+      }
+
+      const readinessIssues = evaluateEmailHtmlReadiness(template.html_content || "");
+      const blockingIssues = readinessIssues.filter((issue) => issue.severity === "error");
+      if (blockingIssues.length > 0) {
+        throw new Error(`Template is not send-ready: ${blockingIssues[0].text}`);
       }
 
       // Queue test email

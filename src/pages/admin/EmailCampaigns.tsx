@@ -52,6 +52,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
+import { getCampaignRecipients, sendCampaign as sendEmailCampaign } from "@/services/emailCampaignService";
+import { evaluateEmailHtmlReadiness } from "@/lib/emailReadiness";
 
 
 interface EmailCampaign {
@@ -346,25 +348,8 @@ export default function EmailCampaigns() {
         setRecipientCount(0);
         return;
       }
-
-      let query = supabase.from("profiles").select("id", { count: "exact", head: true });
-      
-      if (audience === "pharmacy") {
-        query = query.eq("type", "pharmacy");
-      } else if (audience === "group") {
-        query = query.eq("type", "group");
-      } else if (audience === "hospital") {
-        query = query.eq("type", "hospital");
-      } else if (audience === "active") {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.gte("last_sign_in_at", thirtyDaysAgo);
-      } else if (audience === "inactive") {
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        query = query.lt("last_sign_in_at", thirtyDaysAgo);
-      }
-
-      const { count } = await query;
-      setRecipientCount(count || 0);
+      const recipients = await getCampaignRecipients({ type: audience });
+      setRecipientCount(recipients.length);
     } catch (error) {
       console.error("Error fetching recipient count:", error);
     }
@@ -532,6 +517,18 @@ export default function EmailCampaigns() {
 
 
   const sendCampaign = async (campaign: EmailCampaign) => {
+    const readinessIssues = evaluateEmailHtmlReadiness(campaign.html_content || "");
+    const blockingIssues = readinessIssues.filter((issue) => issue.severity === "error");
+
+    if (blockingIssues.length > 0) {
+      toast({
+        title: "Campaign Not Send-Ready",
+        description: blockingIssues[0].text,
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSelectedCampaign(campaign);
     setConfirmSendOpen(true);
   };
@@ -543,9 +540,7 @@ export default function EmailCampaigns() {
     setConfirmSendOpen(false);
 
     try {
-      // Use the proper email campaign service that handles variable replacement
-      const { sendCampaign } = await import("@/services/emailCampaignService");
-      const result = await sendCampaign(selectedCampaign.id);
+      const result = await sendEmailCampaign(selectedCampaign.id);
 
       if (result.success) {
         toast({

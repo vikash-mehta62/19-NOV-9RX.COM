@@ -254,10 +254,6 @@ router.get("/track/open/:trackingId", async (req, res) => {
           await incrementStat("email_campaigns", log.campaign_id, "open_count");
         }
 
-        // Update automation stats
-        if (log.automation_id) {
-          await incrementStat("email_automations", log.automation_id, "total_sent");
-        }
       }
     }
   } catch (error) {

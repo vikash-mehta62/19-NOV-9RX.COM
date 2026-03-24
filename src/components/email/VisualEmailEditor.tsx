@@ -17,10 +17,11 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, Copy, X,
   AlignLeft, AlignCenter, AlignRight, Palette, Layout, Undo2, Redo2,
   Mail, Smartphone, Monitor, MousePointerClick, Layers, Settings2, Wand2, LayoutTemplate, Sparkles, GripVertical,
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Columns, Download, Upload, Bold, Italic, Link, Save, FlaskConical, Zap, ShoppingCart
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Columns, Download, Upload, Bold, Italic, Link, Save, FlaskConical, Zap, ShoppingCart, Search
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { evaluateEmailHtmlReadiness, type EmailReadinessIssue } from "@/lib/emailReadiness";
 
 // Utility to move items in array
 const moveItem = <T,>(array: T[], fromIndex: number, toIndex: number): T[] => {
@@ -138,16 +139,23 @@ const emailTemplates = [
 ];
 
 const blockTypes = [
-  { type: "header", name: "Header", icon: Type, color: "bg-blue-500" },
-  { type: "text", name: "Text", icon: Type, color: "bg-gray-500" },
-  { type: "button", name: "Button", icon: MousePointerClick, color: "bg-green-500" },
-  { type: "image", name: "Image", icon: ImageIcon, color: "bg-purple-500" },
-  { type: "divider", name: "Divider", icon: Minus, color: "bg-gray-400" },
-  { type: "spacer", name: "Spacer", icon: Square, color: "bg-gray-300" },
-  { type: "product", name: "Product", icon: Package, color: "bg-orange-500" },
-  { type: "cart_items", name: "Cart Items", icon: ShoppingCart, color: "bg-amber-500" },
-  { type: "coupon", name: "Coupon", icon: Gift, color: "bg-yellow-500" },
-  { type: "footer", name: "Footer", icon: Mail, color: "bg-indigo-500" },
+  { type: "header", name: "Header", icon: Type, color: "bg-blue-500", category: "Structure", description: "Hero title or intro band" },
+  { type: "text", name: "Text", icon: Type, color: "bg-gray-500", category: "Content", description: "Paragraphs, notes, and copy" },
+  { type: "button", name: "Button", icon: MousePointerClick, color: "bg-green-500", category: "Content", description: "Primary CTA button" },
+  { type: "image", name: "Image", icon: ImageIcon, color: "bg-purple-500", category: "Media", description: "Banner, logo, or product image" },
+  { type: "divider", name: "Divider", icon: Minus, color: "bg-gray-400", category: "Structure", description: "Visual separator line" },
+  { type: "spacer", name: "Spacer", icon: Square, color: "bg-gray-300", category: "Structure", description: "Add breathing room" },
+  { type: "product", name: "Product", icon: Package, color: "bg-orange-500", category: "Commerce", description: "Featured product card" },
+  { type: "cart_items", name: "Cart Items", icon: ShoppingCart, color: "bg-amber-500", category: "Commerce", description: "Dynamic abandoned cart block" },
+  { type: "coupon", name: "Coupon", icon: Gift, color: "bg-yellow-500", category: "Commerce", description: "Discount code spotlight" },
+  { type: "footer", name: "Footer", icon: Mail, color: "bg-indigo-500", category: "Structure", description: "Brand and compliance footer" },
+];
+
+const blockCategories = [
+  { name: "Structure", description: "Layout and framing blocks" },
+  { name: "Content", description: "Core message and CTA blocks" },
+  { name: "Media", description: "Visual storytelling blocks" },
+  { name: "Commerce", description: "Merchandising and conversion blocks" },
 ];
 
 function generateHtml(rows: EmailRow[], globalStyle: any): string {
@@ -277,6 +285,39 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDraggingNewBlock, setIsDraggingNewBlock] = useState(false);
+  const [blockSearch, setBlockSearch] = useState("");
+
+  const normalizedBlockSearch = blockSearch.trim().toLowerCase();
+  const filteredBlockTypes = blockTypes.filter((block) => {
+    if (!normalizedBlockSearch) return true;
+    return [block.name, block.type, block.category, block.description]
+      .join(" ")
+      .toLowerCase()
+      .includes(normalizedBlockSearch);
+  });
+  const filteredSavedBlockTemplates = savedBlockTemplates.filter((template) => {
+    if (!normalizedBlockSearch) return true;
+    return [template.name, template.type].join(" ").toLowerCase().includes(normalizedBlockSearch);
+  });
+
+  const insertSavedBlockTemplate = useCallback((template: SavedBlockTemplate) => {
+    const newBlock: EmailBlock = {
+      id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: template.type,
+      content: { ...template.content }
+    };
+    const newRow: EmailRow = {
+      id: `row-${Date.now()}`,
+      columns: [{ id: `col-${Date.now()}`, width: 100, block: newBlock }]
+    };
+    const footerIndex = rows.findIndex(r => r.columns.some(c => c.block.type === 'footer'));
+    const insertIndex = footerIndex !== -1 ? footerIndex : rows.length;
+    const newRows = [...rows];
+    newRows.splice(insertIndex, 0, newRow);
+    setRows(newRows);
+    setSelectedBlock(newBlock.id);
+    toast({ title: "Added!", description: `Block "${template.name}" added` });
+  }, [rows, toast]);
 
   // Load saved block templates from localStorage
   useEffect(() => {
@@ -609,6 +650,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
       
       .block-preview-smooth {
         transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        animation: fadeInUp 0.28s ease-out;
       }
       
       .block-preview-smooth h1,
@@ -623,6 +665,34 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                     border-radius 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                     background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1),
                     color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .editor-float-in {
+        animation: fadeInUp 0.24s ease-out;
+      }
+
+      .editor-pulse-ring {
+        animation: pulseRing 1.8s ease-in-out infinite;
+      }
+
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @keyframes pulseRing {
+        0%, 100% {
+          box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.18);
+        }
+        50% {
+          box-shadow: 0 0 0 8px rgba(59, 130, 246, 0);
+        }
       }
       
       /* Premium focus states */
@@ -1346,6 +1416,134 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
   const selectedColumnData = (selectedRowIndex !== -1 && selectedColIndex !== -1) ? rows[selectedRowIndex].columns[selectedColIndex] : null;
 
   const currentHtml = htmlEditMode ? htmlContent : (rows.length > 0 ? generateHtml(rows, globalStyle) : (editingExistingHtml && initialHtml ? initialHtml : generateHtml(rows, globalStyle)));
+  const validationHints: Array<{ level: "warning" | "info"; text: string }> = [];
+  const readinessIssues: Array<{ severity: "error" | "warning"; text: string }> = [];
+  const htmlReadinessIssues = evaluateEmailHtmlReadiness(currentHtml);
+
+  rows.forEach((row, rowIndex) => {
+    row.columns.forEach((col, colIndex) => {
+      const blockLabel = `Row ${rowIndex + 1}, block ${colIndex + 1}`;
+      const blockContent = col.block.content || {};
+
+      switch (col.block.type) {
+        case "header":
+          if (!String(blockContent.text || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: header text is required.` });
+          break;
+        case "text":
+          if (!String(blockContent.text || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: text content is empty.` });
+          break;
+        case "button":
+          if (!String(blockContent.text || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: button text is required.` });
+          if (!String(blockContent.url || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: button URL is missing.` });
+          break;
+        case "image":
+          if (!String(blockContent.url || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: image URL is missing.` });
+          if (String(blockContent.url || "").trim() && !/^https?:\/\//i.test(String(blockContent.url))) readinessIssues.push({ severity: "warning", text: `${blockLabel}: image URL should start with http:// or https://.` });
+          if (!String(blockContent.alt || "").trim()) readinessIssues.push({ severity: "warning", text: `${blockLabel}: add alt text for better accessibility and email compatibility.` });
+          break;
+        case "product":
+          if (!String(blockContent.name || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: product name is required.` });
+          if (!String(blockContent.buttonUrl || "").trim()) readinessIssues.push({ severity: "warning", text: `${blockLabel}: product CTA URL is missing.` });
+          break;
+        case "coupon":
+          if (!String(blockContent.code || "").trim()) readinessIssues.push({ severity: "error", text: `${blockLabel}: coupon code is required.` });
+          break;
+        case "footer":
+          if (!String(blockContent.companyName || "").trim()) readinessIssues.push({ severity: "warning", text: `${blockLabel}: footer company name is missing.` });
+          if (blockContent.showUnsubscribe && !currentHtml.includes("{{unsubscribe_url}}")) readinessIssues.push({ severity: "error", text: `${blockLabel}: unsubscribe link placeholder is missing from the footer.` });
+          break;
+      }
+    });
+  });
+
+  const readinessSummary = {
+    errors: [...readinessIssues, ...htmlReadinessIssues].filter((issue) => issue.severity === "error"),
+    warnings: [...readinessIssues, ...htmlReadinessIssues].filter((issue) => issue.severity === "warning"),
+  };
+  const isSendReady = readinessSummary.errors.length === 0;
+
+  if (/<(script|form|video|iframe)\b/i.test(currentHtml)) {
+    validationHints.push({ level: "warning", text: "Some email clients block script, form, video, or iframe content." });
+  }
+  if (/http:\/\//i.test(currentHtml)) {
+    validationHints.push({ level: "warning", text: "Use HTTPS assets where possible to avoid mixed-content or blocked-image issues." });
+  }
+  if (rows.some((row) => row.columns.some((col) => col.block.type === "footer")) && !currentHtml.includes("{{unsubscribe_url}}")) {
+    validationHints.push({ level: "warning", text: "Marketing emails should include an unsubscribe link in the footer." });
+  }
+  if (rows.length > 8 || rows.some((row) => row.columns.length > 1)) {
+    validationHints.push({ level: "info", text: "Preview on mobile before saving because this layout is long or uses multiple columns." });
+  }
+
+  if (!isSendReady) {
+    validationHints.unshift({ level: "warning", text: `${readinessSummary.errors.length} blocking issue(s) must be fixed before this template is send-ready.` });
+  } else if (readinessSummary.warnings.length > 0) {
+    validationHints.unshift({ level: "info", text: `${readinessSummary.warnings.length} recommended improvement(s) found before sending.` });
+  }
+
+  const insertVariableIntoSelectedBlock = (variableName: string) => {
+    const token = `{{${variableName}}}`;
+
+    if (!selectedBlockData) {
+      navigator.clipboard.writeText(token);
+      toast({ title: "Variable copied", description: `${token} copied because no editable block is selected.` });
+      return;
+    }
+
+    switch (selectedBlockData.type) {
+      case "text":
+      case "header":
+      case "button": {
+        const key = selectedBlockData.type === "button" ? "text" : "text";
+        updateBlock(selectedBlockData.id, { [key]: `${selectedBlockData.content[key] || ""}${token}` });
+        toast({ title: "Variable inserted", description: `${token} added to the selected ${selectedBlockData.type} block.` });
+        return;
+      }
+      case "image":
+        updateBlock(selectedBlockData.id, { alt: `${selectedBlockData.content.alt || ""}${token}` });
+        toast({ title: "Variable inserted", description: `${token} added to the image alt text.` });
+        return;
+      case "footer":
+        updateBlock(selectedBlockData.id, { companyName: `${selectedBlockData.content.companyName || ""}${token}` });
+        toast({ title: "Variable inserted", description: `${token} added to the footer company field.` });
+        return;
+      default:
+        navigator.clipboard.writeText(token);
+        toast({ title: "Variable copied", description: `${token} copied. Select a text-based block to insert it directly.` });
+        return;
+    }
+  };
+
+  const handlePreviewMode = () => {
+    if (readinessSummary.errors.length > 0) {
+      toast({
+        title: "Preview with caution",
+        description: `${readinessSummary.errors.length} blocking issue(s) still need attention. Review the readiness strip before sending.`,
+      });
+    }
+    setViewMode("preview");
+  };
+
+  const handleSaveTemplate = () => {
+    if (!onSave) return;
+
+    if (readinessSummary.errors.length > 0) {
+      toast({
+        title: "Template not send-ready",
+        description: readinessSummary.errors[0].text,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    onSave(currentHtml);
+    toast({
+      title: "Template saved",
+      description: readinessSummary.warnings.length > 0
+        ? `Saved with ${readinessSummary.warnings.length} recommendation(s) to review.`
+        : "This template passed the send-readiness checks.",
+    });
+  };
 
 
 
@@ -1418,7 +1616,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
         <div className="flex items-center gap-1">
           <TooltipProvider>
             <Tooltip><TooltipTrigger asChild><Button type="button" variant={viewMode === "edit" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewMode("edit"); }} className="gap-1.5 h-8"><Layout className="w-4 h-4" /><span className="hidden sm:inline">Edit</span></Button></TooltipTrigger><TooltipContent>Edit Mode</TooltipContent></Tooltip>
-            <Tooltip><TooltipTrigger asChild><Button type="button" variant={viewMode === "preview" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewMode("preview"); }} className="gap-1.5 h-8"><Eye className="w-4 h-4" /><span className="hidden sm:inline">Preview</span></Button></TooltipTrigger><TooltipContent>Preview Mode</TooltipContent></Tooltip>
+            <Tooltip><TooltipTrigger asChild><Button type="button" variant={viewMode === "preview" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); handlePreviewMode(); }} className="gap-1.5 h-8"><Eye className="w-4 h-4" /><span className="hidden sm:inline">Preview</span></Button></TooltipTrigger><TooltipContent>Preview Mode</TooltipContent></Tooltip>
             <Tooltip><TooltipTrigger asChild><Button type="button" variant={viewMode === "code" ? "secondary" : "ghost"} size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewMode("code"); }} className="gap-1.5 h-8"><Code className="w-4 h-4" /><span className="hidden sm:inline">Code</span></Button></TooltipTrigger><TooltipContent>View HTML Code</TooltipContent></Tooltip>
           </TooltipProvider>
           
@@ -1459,6 +1657,18 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
         </div>
         <div className="flex items-center gap-2">
           {variables.length > 0 && viewMode === "edit" && (
+            <Select onValueChange={(v) => insertVariableIntoSelectedBlock(v)}>
+              <SelectTrigger className="w-[170px] h-8 text-xs">
+                <SelectValue placeholder={selectedBlockData ? "Insert Variable" : "Copy Variable"} />
+              </SelectTrigger>
+              <SelectContent>
+                {variables.map(v => (
+                  <SelectItem key={`insert-${v}`} value={v} className="text-xs">{`{{${v}}}`}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {false && variables.length > 0 && viewMode === "edit" && (
             <Select onValueChange={(v) => navigator.clipboard.writeText(`{{${v}}}`)}><SelectTrigger className="w-[140px] h-8 text-xs"><SelectValue placeholder="📋 Variables" /></SelectTrigger><SelectContent>{variables.map(v => (<SelectItem key={v} value={v} className="text-xs">{`{{${v}}}`}</SelectItem>))}</SelectContent></Select>
           )}
           
@@ -1480,6 +1690,28 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
               <TooltipContent>Download as HTML file</TooltipContent>
             </Tooltip>
           </TooltipProvider>
+
+          {onSave && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveTemplate(); }}
+                    className="h-8 gap-1"
+                    variant={isSendReady ? "default" : "secondary"}
+                  >
+                    <Save className="w-4 h-4" />
+                    <span className="hidden sm:inline">Save</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isSendReady ? "Save send-ready template" : "Fix blocking readiness issues before saving"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
           
           {/* Desktop/Mobile Toggle - Only in Edit mode */}
           {viewMode === "edit" && (
@@ -1571,48 +1803,116 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
 
       {/* Context Toolbar - Fixed at Top */}
       {selectedColumnData && selectedRowIndex !== -1 && viewMode === "edit" && (
-        <div className="border-b bg-gradient-to-r from-gray-50 to-white px-3 py-1.5 flex items-center gap-2 overflow-x-auto shadow-sm z-40 sticky top-0">
-          {/* Move Controls */}
-          <div className="flex items-center gap-0.5 bg-white rounded-lg border border-gray-200 p-0.5">
-             <span className="text-[9px] uppercase font-semibold text-gray-400 px-1.5">Move</span>
-             <TooltipProvider delayDuration={300}>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-6 w-6 hover:bg-gray-100" onClick={() => moveColumnToPrevRow(selectedRowIndex, selectedColIndex)}><ArrowUp className="w-3 h-3" /></Button></TooltipTrigger><TooltipContent>Move Up</TooltipContent></Tooltip>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-6 w-6 hover:bg-gray-100" onClick={() => moveColumnToNextRow(selectedRowIndex, selectedColIndex)}><ArrowDown className="w-3 h-3" /></Button></TooltipTrigger><TooltipContent>Move Down</TooltipContent></Tooltip>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-6 w-6 hover:bg-gray-100" onClick={() => moveColumnLeft(selectedRowIndex, selectedColIndex)}><ArrowLeft className="w-3 h-3" /></Button></TooltipTrigger><TooltipContent>Move Left</TooltipContent></Tooltip>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-6 w-6 hover:bg-gray-100" onClick={() => moveColumnRight(selectedRowIndex, selectedColIndex)}><ArrowRight className="w-3 h-3" /></Button></TooltipTrigger><TooltipContent>Move Right</TooltipContent></Tooltip>
-             </TooltipProvider>
-          </div>
+        <div className="sticky top-0 z-40 border-b border-slate-200 bg-white/90 px-3 py-2 shadow-sm backdrop-blur">
+          <div className="flex min-w-max flex-wrap items-center gap-2 xl:min-w-0">
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 px-2.5 py-2 shadow-sm">
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${blockTypes.find(b => b.type === selectedColumnData.block.type)?.color || "bg-slate-400"} text-white shadow-sm`}>
+                {(() => {
+                  const Icon = blockTypes.find(b => b.type === selectedColumnData.block.type)?.icon || Square;
+                  return <Icon className="h-4 w-4" />;
+                })()}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-slate-700">
+                  {blockTypes.find(b => b.type === selectedColumnData.block.type)?.name || selectedColumnData.block.type}
+                </p>
+                <p className="text-[10px] text-slate-400">
+                  Row {selectedRowIndex + 1} · {deviceView === "mobile" ? "Full width" : `${selectedColumnData.width}% width`}
+                </p>
+              </div>
+            </div>
 
-          {/* Width Controls */}
-          <div className="flex items-center gap-0.5 bg-white rounded-lg border border-gray-200 p-0.5">
-             <span className="text-[9px] uppercase font-semibold text-gray-400 px-1.5">Width</span>
-             {[25, 33, 50, 100].map(w => (
-               <Button 
-                 key={w}
-                 type="button"
-                 variant="ghost"
-                 size="sm"
-                 className={`h-6 px-2 text-[10px] font-medium rounded transition-all ${
-                   selectedColumnData.width === w 
-                     ? 'bg-blue-500 text-white hover:bg-blue-600' 
-                     : 'hover:bg-gray-100 text-gray-600'
-                 }`}
-                 onClick={() => setColumnWidth(selectedRowIndex, selectedColIndex, w)}
-               >
-                 {w === 33 ? '1/3' : w === 25 ? '1/4' : w === 50 ? '1/2' : 'Full'}
-               </Button>
-             ))}
-          </div>
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Move</span>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-slate-600 hover:bg-slate-100" onClick={() => moveColumnToPrevRow(selectedRowIndex, selectedColIndex)}><ArrowUp className="w-3.5 h-3.5" /></Button></TooltipTrigger><TooltipContent>Move Up</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-slate-600 hover:bg-slate-100" onClick={() => moveColumnToNextRow(selectedRowIndex, selectedColIndex)}><ArrowDown className="w-3.5 h-3.5" /></Button></TooltipTrigger><TooltipContent>Move Down</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-slate-600 hover:bg-slate-100" onClick={() => moveColumnLeft(selectedRowIndex, selectedColIndex)}><ArrowLeft className="w-3.5 h-3.5" /></Button></TooltipTrigger><TooltipContent>Move Left</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="icon" variant="ghost" className="h-8 w-8 rounded-xl text-slate-600 hover:bg-slate-100" onClick={() => moveColumnRight(selectedRowIndex, selectedColIndex)}><ArrowRight className="w-3.5 h-3.5" /></Button></TooltipTrigger><TooltipContent>Move Right</TooltipContent></Tooltip>
+              </TooltipProvider>
+            </div>
 
-          {/* Action Controls */}
-          <div className="flex items-center gap-0.5 bg-white rounded-lg border border-gray-200 p-0.5">
-             <span className="text-[9px] uppercase font-semibold text-gray-400 px-1.5">Actions</span>
-             <TooltipProvider delayDuration={300}>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-6 px-2 gap-1 text-[10px] font-medium text-gray-600 hover:bg-blue-50 hover:text-blue-600" onClick={() => splitColumn(selectedColumnData.block.id)}><Columns className="w-3 h-3" />Split</Button></TooltipTrigger><TooltipContent>Add Column</TooltipContent></Tooltip>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-6 px-2 gap-1 text-[10px] font-medium text-gray-600 hover:bg-purple-50 hover:text-purple-600" onClick={() => duplicateBlock(selectedColumnData.block.id)}><Copy className="w-3 h-3" />Clone</Button></TooltipTrigger><TooltipContent>Clone Row</TooltipContent></Tooltip>
-                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-6 px-2 gap-1 text-[10px] font-medium text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => deleteBlock(selectedColumnData.block.id)}><Trash2 className="w-3 h-3" />Delete</Button></TooltipTrigger><TooltipContent>Delete Block</TooltipContent></Tooltip>
-             </TooltipProvider>
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Width</span>
+              {[25, 33, 50, 100].map(w => (
+                <Button
+                  key={w}
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={`h-8 rounded-xl px-2.5 text-[10px] font-semibold transition-all ${
+                    selectedColumnData.width === w
+                      ? "bg-blue-600 text-white shadow-sm hover:bg-blue-700"
+                      : "text-slate-600 hover:bg-slate-100"
+                  }`}
+                  onClick={() => setColumnWidth(selectedRowIndex, selectedColIndex, w)}
+                >
+                  {w === 33 ? "1/3" : w === 25 ? "1/4" : w === 50 ? "1/2" : "Full"}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm">
+              <span className="px-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">Actions</span>
+              <TooltipProvider delayDuration={300}>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-8 rounded-xl px-3 gap-1.5 text-[10px] font-semibold text-slate-600 hover:bg-blue-50 hover:text-blue-600" onClick={() => splitColumn(selectedColumnData.block.id)}><Columns className="w-3.5 h-3.5" />Split</Button></TooltipTrigger><TooltipContent>Add Column</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-8 rounded-xl px-3 gap-1.5 text-[10px] font-semibold text-slate-600 hover:bg-violet-50 hover:text-violet-600" onClick={() => duplicateBlock(selectedColumnData.block.id)}><Copy className="w-3.5 h-3.5" />Clone</Button></TooltipTrigger><TooltipContent>Clone Row</TooltipContent></Tooltip>
+                <Tooltip><TooltipTrigger asChild><Button type="button" size="sm" variant="ghost" className="h-8 rounded-xl px-3 gap-1.5 text-[10px] font-semibold text-red-500 hover:bg-red-50 hover:text-red-600" onClick={() => deleteBlock(selectedColumnData.block.id)}><Trash2 className="w-3.5 h-3.5" />Delete</Button></TooltipTrigger><TooltipContent>Delete Block</TooltipContent></Tooltip>
+              </TooltipProvider>
+            </div>
           </div>
+        </div>
+      )}
+
+      {viewMode === "edit" && (validationHints.length > 0 || readinessIssues.length > 0) && (
+        <div className="border-b border-amber-100 bg-amber-50/70 px-4 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={`rounded-full px-3 py-1 text-[10px] font-semibold ${
+              isSendReady
+                ? "bg-emerald-100 text-emerald-700 ring-1 ring-emerald-200"
+                : "bg-red-100 text-red-700 ring-1 ring-red-200"
+            }`}>
+              {isSendReady ? "Send-ready" : `${readinessSummary.errors.length} blocking issue(s)`}
+            </div>
+            {readinessSummary.warnings.length > 0 && (
+              <div className="rounded-full bg-white px-3 py-1 text-[10px] font-medium text-slate-600 ring-1 ring-slate-200">
+                {readinessSummary.warnings.length} recommendation(s)
+              </div>
+            )}
+            {validationHints.map((hint, index) => (
+              <div
+                key={`${hint.level}-${index}`}
+                className={`rounded-full px-3 py-1 text-[10px] font-medium ${
+                  hint.level === "warning"
+                    ? "bg-white text-amber-700 ring-1 ring-amber-200"
+                    : "bg-white text-slate-600 ring-1 ring-slate-200"
+                }`}
+              >
+                {hint.level === "warning" ? "Warning:" : "Tip:"} {hint.text}
+              </div>
+            ))}
+          </div>
+          {[...readinessIssues, ...htmlReadinessIssues].length > 0 && (
+            <div className="mt-2 grid gap-1">
+              {[...readinessIssues, ...htmlReadinessIssues].slice(0, 4).map((issue, index) => (
+                <div
+                  key={`${issue.severity}-${index}`}
+                  className={`rounded-xl px-3 py-2 text-[11px] ${
+                    issue.severity === "error"
+                      ? "bg-white text-red-700 ring-1 ring-red-200"
+                      : "bg-white text-slate-600 ring-1 ring-slate-200"
+                  }`}
+                >
+                  {issue.text}
+                </div>
+              ))}
+              {[...readinessIssues, ...htmlReadinessIssues].length > 4 && (
+                <div className="text-[10px] text-slate-500">
+                  {[...readinessIssues, ...htmlReadinessIssues].length - 4} more issue(s) remain in the current layout.
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
@@ -1620,52 +1920,63 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
       {viewMode === "code" ? (
         <div className="p-4 bg-gray-900"><pre className="text-green-400 text-sm font-mono overflow-auto max-h-[500px] p-4">{currentHtml}</pre></div>
       ) : viewMode === "preview" ? (
-        <div className="bg-gray-100 p-4 min-h-[450px] overflow-auto">
-          {/* Combined Mobile + Laptop Preview - Scaled to fit */}
-          <div className="flex items-start justify-center gap-6" style={{ transform: 'scale(0.7)', transformOrigin: 'top center' }}>
-            {/* Mobile Preview */}
-            <div className="flex flex-col items-center">
-              <div className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
-                <Smartphone className="w-3 h-3" /> Mobile (375px)
+        <div className="min-h-[520px] overflow-auto bg-gradient-to-br from-slate-100 via-slate-50 to-slate-200 p-4 sm:p-6">
+          <div className="mx-auto grid max-w-7xl gap-6 xl:grid-cols-[minmax(0,1.2fr)_420px]">
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Desktop Preview</p>
+                  <p className="text-xs text-slate-500">Primary rendering canvas for larger inbox layouts.</p>
+                </div>
+                <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
+                  <Monitor className="h-3.5 w-3.5" />
+                  600px canvas
+                </div>
               </div>
-              <div 
-                className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden border-[10px] border-gray-800 relative"
-                style={{ width: '375px', height: '700px' }}
-              >
-                {/* Notch */}
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-28 h-6 bg-gray-800 rounded-b-2xl z-10"></div>
-                <iframe 
-                  srcDoc={currentHtml} 
-                  className="w-full h-full bg-white"
-                  title="Email Preview Mobile" 
-                  style={{ border: 'none' }}
-                />
+              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 shadow-2xl">
+                <div className="flex items-center gap-2 border-b border-slate-700 px-4 py-3">
+                  <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                  <div className="ml-3 rounded-full bg-slate-800 px-3 py-1 text-[11px] text-slate-400">
+                    Desktop inbox preview
+                  </div>
+                </div>
+                <div className="bg-white p-3 sm:p-4">
+                  <iframe
+                    srcDoc={currentHtml}
+                    className="h-[540px] w-full rounded-xl border border-slate-200 bg-white"
+                    title="Email Preview Desktop"
+                    style={{ border: "none" }}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* Laptop Preview */}
-            <div className="flex flex-col items-center">
-              <div className="text-xs text-gray-500 mb-2 font-medium flex items-center gap-1">
-                <Monitor className="w-3 h-3" /> Desktop (600px)
-              </div>
-              <div className="relative">
-                {/* Screen */}
-                <div 
-                  className="bg-gray-800 rounded-t-lg p-3"
-                  style={{ width: '640px' }}
-                >
-                  <div className="bg-white rounded overflow-hidden" style={{ height: '420px' }}>
-                    <iframe 
-                      srcDoc={currentHtml} 
-                      className="w-full h-full bg-white"
-                      title="Email Preview Desktop" 
-                      style={{ border: 'none' }}
-                    />
-                  </div>
+            <div className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm backdrop-blur sm:p-5">
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Mobile Preview</p>
+                  <p className="text-xs text-slate-500">Check spacing, button size, and fold visibility on narrow screens.</p>
                 </div>
-                {/* Stand */}
-                <div className="bg-gray-300 h-4 rounded-b mx-auto" style={{ width: '660px' }}></div>
-                <div className="bg-gray-400 h-2 rounded-b-lg mx-auto" style={{ width: '180px' }}></div>
+                <div className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500">
+                  <Smartphone className="h-3.5 w-3.5" />
+                  375px viewport
+                </div>
+              </div>
+              <div className="flex justify-center">
+                <div className="relative overflow-hidden rounded-[2.25rem] border-[10px] border-slate-900 bg-white shadow-2xl" style={{ width: "375px", maxWidth: "100%" }}>
+                  <div className="absolute left-1/2 top-0 z-10 h-6 w-28 -translate-x-1/2 rounded-b-2xl bg-slate-900" />
+                  <iframe
+                    srcDoc={currentHtml}
+                    className="h-[667px] w-full bg-white"
+                    title="Email Preview Mobile"
+                    style={{ border: "none" }}
+                  />
+                </div>
+              </div>
+              <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-500">
+                Preview both canvases before saving if the email has multiple columns, large images, or long CTA text.
               </div>
             </div>
           </div>
@@ -1695,129 +2006,198 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           </div>
         </div>
       ) : (
-        <div className="flex h-[600px]">
+        <div className="flex min-h-[720px] flex-col xl:h-[600px] xl:min-h-0 xl:flex-row">
           {/* Left Panel - Blocks (Scrollable) */}
-          <div className="w-56 border-r bg-gray-50/80 flex flex-col">
-            <div className="p-2.5 border-b bg-white/80 backdrop-blur-sm flex-shrink-0">
-              <h3 className="font-semibold text-xs text-gray-600 flex items-center gap-1.5">
-                <Layers className="w-3.5 h-3.5 text-blue-500" />Content Blocks
-              </h3>
+          <div className="max-h-[320px] w-full border-b bg-slate-50/80 flex flex-col xl:max-h-none xl:w-80 xl:border-b-0 xl:border-r">
+            <div className="border-b bg-white/90 p-3 backdrop-blur-sm flex-shrink-0">
+              <div className="flex items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <Layers className="h-4 w-4 text-blue-600" />
+                    Block Library
+                  </h3>
+                  <p className="text-[11px] leading-4 text-slate-500">
+                    Search, tap to add, or drag blocks into the canvas.
+                  </p>
+                </div>
+                <Badge variant="secondary" className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-600">
+                  {filteredBlockTypes.length} blocks
+                </Badge>
+              </div>
+              <div className="relative mt-3">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                <Input
+                  value={blockSearch}
+                  onChange={(e) => setBlockSearch(e.target.value)}
+                  placeholder="Search blocks or saved snippets"
+                  className="h-9 rounded-xl border-slate-200 bg-slate-50 pl-9 text-xs focus:bg-white"
+                />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {blockCategories.map((category) => {
+                  const count = filteredBlockTypes.filter((block) => block.category === category.name).length;
+                  if (count === 0) return null;
+                  return (
+                    <div key={category.name} className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-medium text-slate-600">
+                      {category.name} {count}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-            <ScrollArea className="flex-1 p-2">
-              <div className="grid grid-cols-3 gap-1.5">
-                {blockTypes.map(block => (
-                  <button 
-                    key={block.type} 
-                    type="button" 
-                    draggable={true}
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('blockType', block.type);
-                      e.dataTransfer.effectAllowed = 'copy';
-                      setIsDraggingNewBlock(true);
-                    }}
-                    onDragEnd={() => {
-                      setIsDraggingNewBlock(false);
-                      setDragOverIndex(null);
-                    }}
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); addBlock(block.type); }} 
-                    className="group p-2 rounded-lg border border-gray-200 bg-white hover:border-blue-400 hover:shadow-md transition-all text-center cursor-grab active:cursor-grabbing"
-                  >
-                    <div className={`w-8 h-8 mx-auto rounded-md ${block.color} text-white flex items-center justify-center mb-1 group-hover:scale-110 transition-transform shadow-sm`}><block.icon className="w-4 h-4" /></div>
-                    <span className="text-[10px] font-medium text-gray-600">{block.name}</span>
-                  </button>
-                ))}
-              </div>
-              
-              {/* Email Style Section */}
-              <div className="mt-4 p-2.5 rounded-lg bg-white border border-gray-200">
-                <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5 flex items-center gap-1"><Settings2 className="w-3 h-3" /> Style</h4>
-                <div className="space-y-2.5">
-                  <div>
-                    <Label className="text-[10px] text-gray-500 mb-1 block">Background</Label>
-                    <div className="flex gap-1">
-                      <input type="color" value={globalStyle.bgColor} onChange={(e) => setGlobalStyle({ ...globalStyle, bgColor: e.target.value })} className="w-7 h-7 rounded cursor-pointer border border-gray-200" />
-                      <Input value={globalStyle.bgColor} onChange={(e) => setGlobalStyle({ ...globalStyle, bgColor: e.target.value })} className="flex-1 h-7 text-[10px] font-mono" />
-                    </div>
-                  </div>
-                  <div>
-                    <Label className="text-[10px] text-gray-500 mb-1 block">Content BG</Label>
-                    <div className="flex gap-1">
-                      <input type="color" value={globalStyle.contentBg} onChange={(e) => setGlobalStyle({ ...globalStyle, contentBg: e.target.value })} className="w-7 h-7 rounded cursor-pointer border border-gray-200" />
-                      <Input value={globalStyle.contentBg} onChange={(e) => setGlobalStyle({ ...globalStyle, contentBg: e.target.value })} className="flex-1 h-7 text-[10px] font-mono" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Saved Block Templates */}
-              {savedBlockTemplates.length > 0 && (
-                <div className="mt-3 p-2.5 rounded-lg bg-white border border-gray-200">
-                  <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1">
-                    <Save className="w-3 h-3" /> Saved Blocks
-                  </h4>
-                  <div className="space-y-1.5">
-                    {savedBlockTemplates.map(template => (
-                      <div 
-                        key={template.id} 
-                        className="flex items-center justify-between p-1.5 rounded-md bg-gray-50 hover:bg-blue-50 transition-colors group"
-                      >
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            // Add the saved block
-                            const newBlock: EmailBlock = {
-                              id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                              type: template.type,
-                              content: { ...template.content }
-                            };
-                            const newRow: EmailRow = {
-                              id: `row-${Date.now()}`,
-                              columns: [{ id: `col-${Date.now()}`, width: 100, block: newBlock }]
-                            };
-                            const footerIndex = rows.findIndex(r => r.columns.some(c => c.block.type === 'footer'));
-                            const insertIndex = footerIndex !== -1 ? footerIndex : rows.length;
-                            const newRows = [...rows];
-                            newRows.splice(insertIndex, 0, newRow);
-                            setRows(newRows);
-                            setSelectedBlock(newBlock.id);
-                            toast({ title: "Added!", description: `Block "${template.name}" added` });
-                          }}
-                          className="flex items-center gap-1.5 text-left flex-1"
-                        >
-                          <div className={`w-5 h-5 rounded ${blockTypes.find(b => b.type === template.type)?.color || 'bg-gray-400'} flex items-center justify-center flex-shrink-0`}>
-                            {(() => {
-                              const Icon = blockTypes.find(b => b.type === template.type)?.icon || Square;
-                              return <Icon className="w-2.5 h-2.5 text-white" />;
-                            })()}
-                          </div>
-                          <span className="text-[10px] font-medium text-gray-600 truncate">{template.name}</span>
-                        </button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-5 w-5 opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 hover:bg-red-50"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            deleteBlockTemplate(template.id);
-                          }}
-                        >
-                          <Trash2 className="w-2.5 h-2.5" />
-                        </Button>
+            <ScrollArea className="flex-1 p-3">
+              <div className="space-y-4">
+                {blockCategories.map((category) => {
+                  const categoryBlocks = filteredBlockTypes.filter((block) => block.category === category.name);
+                  if (categoryBlocks.length === 0) return null;
+                  return (
+                    <div key={category.name} className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <h4 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{category.name}</h4>
+                          <p className="text-[10px] text-slate-400">{category.description}</p>
+                        </div>
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{categoryBlocks.length}</span>
                       </div>
-                    ))}
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-1">
+                        {categoryBlocks.map((block) => (
+                          <button
+                            key={block.type}
+                            type="button"
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData('blockType', block.type);
+                              e.dataTransfer.effectAllowed = 'copy';
+                              setIsDraggingNewBlock(true);
+                            }}
+                            onDragEnd={() => {
+                              setIsDraggingNewBlock(false);
+                              setDragOverIndex(null);
+                            }}
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); addBlock(block.type); }}
+                            className="group rounded-2xl border border-slate-200 bg-white p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md cursor-grab active:cursor-grabbing"
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className={`mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl ${block.color} text-white shadow-sm transition-transform group-hover:scale-105`}>
+                                <block.icon className="h-4 w-4" />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold text-slate-700">{block.name}</span>
+                                  <Plus className="h-3.5 w-3.5 text-slate-300 transition-colors group-hover:text-blue-500" />
+                                </div>
+                                <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-500">{block.description}</p>
+                                <div className="mt-2 flex items-center gap-1.5 text-[10px] text-slate-400">
+                                  <GripVertical className="h-3 w-3" />
+                                  Drag or tap to add
+                                </div>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {filteredBlockTypes.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-center">
+                    <p className="text-xs font-medium text-slate-600">No matching blocks</p>
+                    <p className="mt-1 text-[10px] text-slate-400">Try a broader search like “button”, “media”, or “commerce”.</p>
+                  </div>
+                )}
+
+                {savedBlockTemplates.length > 0 && (
+                  <div className="space-y-2 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          <Save className="h-3 w-3" /> Reusable Blocks
+                        </h4>
+                        <p className="text-[10px] text-slate-400">Saved snippets for faster assembly.</p>
+                      </div>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">{filteredSavedBlockTemplates.length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {filteredSavedBlockTemplates.length > 0 ? filteredSavedBlockTemplates.map((template) => (
+                        <div
+                          key={template.id}
+                          className="group flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 transition-colors hover:border-blue-200 hover:bg-blue-50/60"
+                        >
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              insertSavedBlockTemplate(template);
+                            }}
+                            className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                          >
+                            <div className={`flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl ${blockTypes.find(b => b.type === template.type)?.color || 'bg-gray-400'}`}>
+                              {(() => {
+                                const Icon = blockTypes.find(b => b.type === template.type)?.icon || Square;
+                                return <Icon className="h-3.5 w-3.5 text-white" />;
+                              })()}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[11px] font-medium text-slate-700">{template.name}</p>
+                              <p className="text-[10px] text-slate-400">{blockTypes.find(b => b.type === template.type)?.name || template.type}</p>
+                            </div>
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              deleteBlockTemplate(template.id);
+                            }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      )) : (
+                        <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-center text-[10px] text-slate-400">
+                          No saved snippets match the current search.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                  <div>
+                    <h4 className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      <Settings2 className="h-3 w-3" /> Canvas Style
+                    </h4>
+                    <p className="text-[10px] text-slate-400">Adjust the email shell before fine-tuning individual blocks.</p>
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <FieldLabel>Background</FieldLabel>
+                      <div className="flex gap-2">
+                        <input type="color" value={globalStyle.bgColor} onChange={(e) => setGlobalStyle({ ...globalStyle, bgColor: e.target.value })} className="h-9 w-10 rounded-xl border border-slate-200 bg-white" />
+                        <Input value={globalStyle.bgColor} onChange={(e) => setGlobalStyle({ ...globalStyle, bgColor: e.target.value })} className="h-9 rounded-xl border-slate-200 bg-slate-50 text-xs font-mono focus:bg-white" />
+                      </div>
+                    </div>
+                    <div>
+                      <FieldLabel>Content Surface</FieldLabel>
+                      <div className="flex gap-2">
+                        <input type="color" value={globalStyle.contentBg} onChange={(e) => setGlobalStyle({ ...globalStyle, contentBg: e.target.value })} className="h-9 w-10 rounded-xl border border-slate-200 bg-white" />
+                        <Input value={globalStyle.contentBg} onChange={(e) => setGlobalStyle({ ...globalStyle, contentBg: e.target.value })} className="h-9 rounded-xl border-slate-200 bg-slate-50 text-xs font-mono focus:bg-white" />
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
+              </div>
             </ScrollArea>
           </div>
 
           {/* Center - Canvas (Scrollable) */}
-          <div className="flex-1 flex items-start justify-center p-8 bg-gray-100/50 overflow-y-auto" style={{ backgroundColor: globalStyle.bgColor }}>
-            <div className={`relative transition-all duration-300 ${deviceView === "mobile" ? "w-[375px]" : "w-full max-w-[500px]"}`}>
+          <div className="order-2 flex min-h-[360px] flex-1 items-start justify-center overflow-y-auto bg-gray-100/50 p-4 sm:p-6 xl:order-none xl:p-8" style={{ backgroundColor: globalStyle.bgColor }}>
+            <div className={`relative transition-all duration-300 ${deviceView === "mobile" ? "w-full max-w-[375px]" : "w-full max-w-[500px]"}`}>
               <div 
                 className={`bg-white shadow-xl transition-all h-fit min-h-[400px] ${deviceView === "mobile" ? "border-4 border-gray-800 rounded-[2rem]" : ""}`}
                 style={{ backgroundColor: globalStyle.contentBg, borderRadius: deviceView === "mobile" ? "2rem" : `${globalStyle.borderRadius}px` }}
@@ -1866,43 +2246,78 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
               >
                 {rows.length === 0 ? (
                   editingExistingHtml ? (
-                    <div className="p-8 text-center">
-                      <div className="w-16 h-16 mx-auto rounded-2xl bg-blue-100 flex items-center justify-center mb-4"><Code className="w-8 h-8 text-blue-500" /></div>
-                      <p className="text-gray-700 font-medium mb-2">Saved Template Loaded</p>
-                      <p className="text-gray-500 text-sm mb-4">This template contains HTML content. Choose how you'd like to edit it:</p>
-                      <div className="flex gap-2 justify-center mb-4">
+                    <div className="editor-float-in p-8 text-center">
+                      <div className="editor-pulse-ring mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-100"><Code className="h-8 w-8 text-blue-500" /></div>
+                      <p className="mb-2 text-gray-700 font-medium">Saved Template Loaded</p>
+                      <p className="mb-4 text-sm text-gray-500">This template contains HTML content. Choose whether you want a quick preview, direct HTML editing, or block conversion.</p>
+                      <div className="mb-4 flex flex-wrap justify-center gap-2">
                         <Button type="button" variant="default" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setViewMode("preview"); }} className="gap-1"><Eye className="w-4 h-4" />Preview</Button>
                         <Button type="button" variant="outline" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setHtmlEditMode(true); setViewMode("edit"); }} className="gap-1"><Code className="w-4 h-4" />Edit HTML</Button>
                         <Button type="button" variant="outline" size="sm" onClick={(e) => { e.preventDefault(); e.stopPropagation(); convertToBlocks(); }} className="gap-1"><Wand2 className="w-4 h-4" />Convert to Blocks</Button>
                       </div>
-                      <div className="mt-4 pt-4 border-t">
-                        <p className="text-gray-400 text-xs mb-2">Or start over with a new design:</p>
+                      <div className="mt-4 border-t pt-4">
+                        <p className="mb-2 text-xs text-gray-400">Use block conversion if you want drag-and-drop editing on mobile and desktop.</p>
                         <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setEditingExistingHtml(false); setShowTemplates(true); }} className="text-blue-600 text-sm"><LayoutTemplate className="w-4 h-4 mr-1" />Choose Different Template</Button>
                       </div>
                     </div>
                   ) : (
-                    <div className="p-16 text-center">
-                      <div className="w-16 h-16 mx-auto rounded-2xl bg-gray-100 flex items-center justify-center mb-4"><Plus className="w-8 h-8 text-gray-400" /></div>
-                      <p className="text-gray-500 font-medium">Click a block to add content</p>
-                      <p className="text-gray-400 text-sm mt-1">Or choose a template to get started</p>
-                      <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTemplates(true); }} className="mt-2 text-blue-600"><LayoutTemplate className="w-4 h-4 mr-1" />Browse Templates</Button>
+                    <div className="editor-float-in p-10 text-center sm:p-16">
+                      <div className="editor-pulse-ring mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100"><Plus className="h-8 w-8 text-gray-400" /></div>
+                      <p className="text-gray-600 font-medium">Start with a block or a template</p>
+                      <p className="mt-1 text-sm text-gray-400">Tap a block from the library, drag it into the canvas, or load a ready-made template.</p>
+                      <div className="mx-auto mt-4 grid max-w-md gap-2 text-left sm:grid-cols-3">
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 shadow-sm">
+                          <span className="font-semibold text-slate-700">1.</span> Choose a starter block
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 shadow-sm">
+                          <span className="font-semibold text-slate-700">2.</span> Click the canvas to edit
+                        </div>
+                        <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-[11px] text-slate-500 shadow-sm">
+                          <span className="font-semibold text-slate-700">3.</span> Preview desktop and mobile
+                        </div>
+                      </div>
+                      <Button type="button" variant="link" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowTemplates(true); }} className="mt-3 text-blue-600"><LayoutTemplate className="w-4 h-4 mr-1" />Browse Templates</Button>
                     </div>
                   )
                 ) : (
                   <div className="relative">
+                    <div className="editor-float-in sticky top-2 z-10 mx-3 mb-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-[11px] text-slate-500 shadow-sm backdrop-blur">
+                      Tip: hover a row to reorganize it, click a block to edit it, and use preview before saving multi-column emails.
+                    </div>
+                    {isDraggingNewBlock && dragOverIndex !== null && (
+                      <div
+                        className="pointer-events-none absolute left-3 right-3 z-20"
+                        style={{ top: `${Math.max(dragOverIndex, 0) * 12}px` }}
+                      >
+                        <div className="editor-float-in flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/95 px-3 py-2 text-[11px] font-medium text-blue-600 shadow-sm backdrop-blur">
+                          <Plus className="h-3.5 w-3.5" />
+                          Drop block here
+                        </div>
+                      </div>
+                    )}
                     {rows.map((row, index) => {
                       const isRowSelected = row.columns.some(c => c.block.id === selectedBlock);
                       return (
-                      <div key={row.id} className={`relative group/row mb-1 transition-all ${isRowSelected ? 'z-50' : 'z-0'}`} data-row-index={index}>
+                      <div key={row.id} className={`relative group/row mb-2 transition-all ${isRowSelected ? 'z-50' : 'z-0'}`} data-row-index={index}>
                         {/* Row Hover Outline */}
-                        <div className="absolute inset-0 border border-transparent group-hover/row:border-dashed group-hover/row:border-gray-300 pointer-events-none rounded-lg" />
+                        <div className={`absolute inset-0 pointer-events-none rounded-2xl border transition-all ${
+                          isRowSelected
+                            ? "border-blue-300 bg-blue-50/30 shadow-[0_0_0_1px_rgba(59,130,246,0.12)]"
+                            : "border-transparent group-hover/row:border-dashed group-hover/row:border-slate-300 group-hover/row:bg-slate-50/40"
+                        }`} />
                         
                         {/* Row Controls (Left Side) */}
                         {!row.locked && (
-                            <div className="absolute -left-10 top-2 flex flex-col gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity z-20">
+                            <div className={`absolute -left-12 top-2 flex flex-col gap-1.5 transition-all z-20 ${
+                              isRowSelected ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-1 group-hover/row:opacity-100 group-hover/row:translate-x-0"
+                            }`}>
+                               <div className="flex h-7 items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 shadow-sm backdrop-blur">
+                                  <GripVertical className="h-3 w-3 text-slate-400" />
+                                  <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">Row {index + 1}</span>
+                               </div>
                                <TooltipProvider>
-                                  <Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-8 w-8 bg-white shadow-sm border hover:bg-gray-50 text-gray-600" onClick={() => moveRow(row.columns[0].block.id, "up")}><ArrowUp className="w-4 h-4" /></Button></TooltipTrigger><TooltipContent side="left">Move Row Up</TooltipContent></Tooltip>
-                                  <Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-8 w-8 bg-white shadow-sm border hover:bg-gray-50 text-gray-600" onClick={() => moveRow(row.columns[0].block.id, "down")}><ArrowDown className="w-4 h-4" /></Button></TooltipTrigger><TooltipContent side="left">Move Row Down</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-slate-200 bg-white/95 shadow-sm hover:bg-slate-50 text-slate-600" onClick={() => moveRow(row.columns[0].block.id, "up")}><ArrowUp className="w-4 h-4" /></Button></TooltipTrigger><TooltipContent side="left">Move Row Up</TooltipContent></Tooltip>
+                                  <Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-xl border border-slate-200 bg-white/95 shadow-sm hover:bg-slate-50 text-slate-600" onClick={() => moveRow(row.columns[0].block.id, "down")}><ArrowDown className="w-4 h-4" /></Button></TooltipTrigger><TooltipContent side="left">Move Row Down</TooltipContent></Tooltip>
                                </TooltipProvider>
                             </div>
                         )}
@@ -1910,18 +2325,43 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                         <div className={`flex w-full items-start ${deviceView === "mobile" ? "flex-col" : ""}`} style={{ gap: '0' }}>
                             {row.columns.map((col, colIndex) => {
                                const isSelected = selectedBlock === col.block.id;
+                               const blockMeta = blockTypes.find(b => b.type === col.block.type);
                                
                                return (
-                               <div key={col.id} style={{ width: deviceView === "mobile" ? "100%" : `${col.width}%` }} className={`relative group/col transition-all p-1 ${isSelected ? 'z-10' : 'z-0'}`}>
+                               <div key={col.id} style={{ width: deviceView === "mobile" ? "100%" : `${col.width}%` }} className={`relative group/col transition-all p-1.5 ${isSelected ? 'z-10' : 'z-0'}`}>
                                   {/* Hover Outline for Column */}
                                   {!row.locked && !isSelected && (
-                                     <div className="absolute inset-0 border-2 border-transparent group-hover/col:border-blue-400 pointer-events-none rounded transition-colors" />
+                                     <div className="absolute inset-0 rounded-2xl border-2 border-transparent group-hover/col:border-blue-300 group-hover/col:bg-blue-50/30 pointer-events-none transition-all" />
                                   )}
+
+                                  <div className={`absolute left-3 right-3 top-3 z-10 flex items-center justify-between transition-all ${
+                                    isSelected ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-1 group-hover/col:opacity-100 group-hover/col:translate-y-0"
+                                  }`}>
+                                    <div className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-white/95 px-2.5 py-1 shadow-sm backdrop-blur">
+                                      <div className={`flex h-5 w-5 items-center justify-center rounded-full ${blockMeta?.color || "bg-slate-400"} text-white`}>
+                                        {(() => {
+                                          const Icon = blockMeta?.icon || Square;
+                                          return <Icon className="h-2.5 w-2.5" />;
+                                        })()}
+                                      </div>
+                                      <span className="text-[10px] font-medium text-slate-600">{blockMeta?.name || col.block.type}</span>
+                                      <span className="text-[10px] text-slate-400">{deviceView === "mobile" ? "Full" : `${col.width}%`}</span>
+                                    </div>
+                                    {!row.locked && (
+                                      <div className="rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[10px] font-medium text-slate-400 shadow-sm backdrop-blur">
+                                        Tap to edit
+                                      </div>
+                                    )}
+                                  </div>
 
                                   {/* Block Content */}
                                   <div 
                                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); setSelectedBlock(col.block.id); }} 
-                                    className={`cursor-pointer transition-all ${isSelected ? "ring-2 ring-blue-500 ring-offset-2 rounded" : ""}`}
+                                    className={`cursor-pointer overflow-hidden rounded-2xl transition-all ${
+                                      isSelected
+                                        ? "ring-2 ring-blue-500 ring-offset-2 ring-offset-slate-100 shadow-[0_12px_30px_rgba(59,130,246,0.18)]"
+                                        : "hover:shadow-md"
+                                    }`}
                                   >
                                       <BlockPreview block={col.block} onReplace={(type) => replaceBlock(col.block.id, type)} />
                                   </div>
@@ -1939,7 +2379,7 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           </div>
 
           {/* Right Panel - Editor (Scrollable) */}
-          <div className="w-64 border-l bg-white flex flex-col">
+          <div className="order-3 min-h-[220px] w-full border-t bg-white flex flex-col xl:order-none xl:min-h-0 xl:w-64 xl:border-l xl:border-t-0">
             {selectedBlockData ? (
               <>
                 <div className="p-2.5 border-b bg-gradient-to-r from-white to-gray-50 flex items-center justify-between flex-shrink-0">
@@ -2007,24 +2447,37 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                   </div>
                 )}
                 
-                <ScrollArea className="flex-1 p-3">
-                  <BlockEditor 
-                    block={selectedBlockData} 
-                    onUpdate={(content) => updateBlock(selectedBlockData.id, content)} 
-                    variables={variables}
-                    onImageUpload={uploadImageToSupabase}
-                    uploadingImage={uploadingImage}
-                  />
+                <ScrollArea className="flex-1 bg-slate-50/70 p-3">
+                  <div className="space-y-3">
+                    <div className="rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Inspector
+                      </p>
+                      <p className="mt-1 text-[11px] leading-4 text-slate-500">
+                        Adjust content, layout, and style for the selected block.
+                      </p>
+                    </div>
+                    <BlockEditor 
+                      block={selectedBlockData} 
+                      onUpdate={(content) => updateBlock(selectedBlockData.id, content)} 
+                      variables={variables}
+                      onImageUpload={uploadImageToSupabase}
+                      uploadingImage={uploadingImage}
+                    />
+                  </div>
                 </ScrollArea>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center p-4 text-center bg-gray-50/50">
-                <div>
-                  <div className="w-10 h-10 mx-auto rounded-lg bg-white border border-gray-200 flex items-center justify-center mb-2 shadow-sm">
+              <div className="flex flex-1 items-center justify-center bg-gray-50/50 p-4 text-center">
+                <div className="editor-float-in max-w-[220px]">
+                  <div className="mx-auto mb-2 flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white shadow-sm">
                     <MousePointerClick className="w-4 h-4 text-gray-400" />
                   </div>
-                  <p className="text-gray-500 text-xs font-medium">Click to edit</p>
-                  <p className="text-gray-400 text-[10px] mt-0.5">Select a block</p>
+                  <p className="text-xs font-medium text-gray-600">Select a block to edit</p>
+                  <p className="mt-0.5 text-[10px] text-gray-400">The inspector will show content, layout, and styling options here.</p>
+                  <div className="mt-3 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-left text-[10px] text-slate-500 shadow-sm">
+                    Quick start: add a block, click it in the canvas, then use the toolbar for width and layout controls.
+                  </div>
                 </div>
               </div>
             )}
@@ -2146,9 +2599,33 @@ function BlockPreview({ block, onReplace }: { block: EmailBlock, onReplace?: (ty
   }
 }
 
+const FieldLabel = ({ children }: { children: React.ReactNode }) => (
+  <Label className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+    {children}
+  </Label>
+);
+
+const InspectorSection = ({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) => (
+  <div className="space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    <div className="space-y-1">
+      <p className="text-xs font-semibold text-slate-800">{title}</p>
+      {description ? <p className="text-[11px] leading-4 text-slate-500">{description}</p> : null}
+    </div>
+    {children}
+  </div>
+);
+
 const ColorPicker = ({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) => (
   <div>
-    <Label className="text-[11px] font-medium text-gray-500 mb-1.5 block">{label}</Label>
+    <FieldLabel>{label}</FieldLabel>
     <div className="flex gap-1.5" onClick={(e) => e.stopPropagation()}>
       <div className="relative group">
         <input 
@@ -2176,7 +2653,7 @@ const ColorPicker = ({ label, value, onChange }: { label: string; value: string;
         }} 
         onClick={(e) => e.stopPropagation()}
         onFocus={(e) => e.target.select()}
-        className="flex-1 h-8 text-[10px] font-mono bg-gray-50 border-gray-200 focus:bg-white" 
+        className="flex-1 h-8 rounded-lg border-slate-200 bg-slate-50 text-[10px] font-mono focus:bg-white" 
         placeholder="#000000"
       />
     </div>
@@ -2185,8 +2662,8 @@ const ColorPicker = ({ label, value, onChange }: { label: string; value: string;
 
 const AlignPicker = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
   <div>
-    <Label className="text-[11px] font-medium text-gray-500 mb-1.5 block">Alignment</Label>
-    <div className="flex gap-0.5 bg-gray-100 p-0.5 rounded-lg" onClick={(e) => e.stopPropagation()}>
+    <FieldLabel>Alignment</FieldLabel>
+    <div className="flex gap-0.5 rounded-xl bg-slate-100 p-0.5" onClick={(e) => e.stopPropagation()}>
       {[{ v: "left", i: AlignLeft }, { v: "center", i: AlignCenter }, { v: "right", i: AlignRight }].map(({ v, i: Icon }) => (
         <Button 
           key={v} 
@@ -2254,9 +2731,9 @@ const SliderField = ({ label, value, onChange, min, max }: { label: string; valu
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2.5">
       <div className="flex justify-between items-center">
-        <Label className="text-xs text-gray-500">{label}</Label>
+        <FieldLabel>{label}</FieldLabel>
         <div className="flex items-center gap-1">
           <Input
             type="number"
@@ -2271,7 +2748,7 @@ const SliderField = ({ label, value, onChange, min, max }: { label: string; valu
             onBlur={() => {
               isInteracting.current = false;
             }}
-            className="w-16 h-6 text-xs font-mono text-center border-0 bg-gray-50 hover:bg-white focus:bg-white transition-all duration-200"
+            className="h-7 w-16 rounded-lg border-0 bg-slate-50 text-center text-xs font-mono transition-all duration-200 hover:bg-white focus:bg-white"
             min={min}
             max={max}
             title="Use ↑↓ arrows (Shift+↑↓ for +10)"
@@ -2291,7 +2768,7 @@ const SliderField = ({ label, value, onChange, min, max }: { label: string; valu
           className="w-full"
         />
       </div>
-      <div className="flex justify-between text-xs text-gray-400">
+      <div className="flex justify-between text-[10px] text-slate-400">
         <span>{min}px</span>
         <span>{max}px</span>
       </div>
@@ -2342,15 +2819,37 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
     onUpdate({ text: newText });
   };
 
+  const insertVariableAtCursor = (variableName: string) => {
+    const token = `{{${variableName}}}`;
+    const textarea = document.querySelector(`textarea[data-block-id="${block.id}"]`) as HTMLTextAreaElement;
+
+    if (!textarea) {
+      onUpdate({ text: `${content.text || ""}${token}` });
+      return;
+    }
+
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+    const currentValue = content.text || "";
+    const newText = currentValue.substring(0, start) + token + currentValue.substring(end);
+    onUpdate({ text: newText });
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const nextPosition = start + token.length;
+      textarea.setSelectionRange(nextPosition, nextPosition);
+    });
+  };
+
   return (
     <div onClick={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
       {(() => {
         switch (type) {
     case "header": return (
-      <div className="space-y-3">
+      <InspectorSection title="Header Content" description="Set the main headline and visual emphasis.">
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Heading Text</Label>
-          <Input value={content.text} onChange={(e) => { e.stopPropagation(); onUpdate({ text: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" placeholder="Enter heading..." />
+          <FieldLabel>Heading Text</FieldLabel>
+          <Input value={content.text} onChange={(e) => { e.stopPropagation(); onUpdate({ text: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" placeholder="Enter heading..." />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <ColorPicker label="Background" value={content.bgColor || "#10b981"} onChange={(v) => onUpdate({ bgColor: v })} />
@@ -2358,15 +2857,14 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
         </div>
         <SliderField label="Font Size" value={parseInt(content.fontSize || "28")} onChange={(v) => onUpdate({ fontSize: v.toString() })} min={18} max={48} />
         <SliderField label="Padding" value={parseInt(content.padding || "30")} onChange={(v) => onUpdate({ padding: v.toString() })} min={10} max={60} />
-      </div>
+      </InspectorSection>
     );
     case "text": return (
-      <div className="space-y-3">
+      <InspectorSection title="Text Content" description="Write body copy, apply formatting, and insert template variables.">
         <div>
-          <div className="flex items-center justify-between mb-1">
-            <Label className="text-[11px] font-medium text-gray-500">Text Content</Label>
-            {/* Rich Text Formatting Toolbar */}
-            <div className="flex items-center gap-0.5 bg-gray-100 rounded p-0.5">
+          <div className="mb-1 flex items-center justify-between">
+            <FieldLabel>Text Content</FieldLabel>
+            <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
               <TooltipProvider delayDuration={300}>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -2374,7 +2872,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
                       type="button" 
                       variant="ghost" 
                       size="icon" 
-                      className="h-5 w-5 hover:bg-white"
+                      className="h-6 w-6 hover:bg-white"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); applyTextFormat('bold'); }}
                     >
                       <Bold className="w-3 h-3" />
@@ -2388,7 +2886,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
                       type="button" 
                       variant="ghost" 
                       size="icon" 
-                      className="h-5 w-5 hover:bg-white"
+                      className="h-6 w-6 hover:bg-white"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); applyTextFormat('italic'); }}
                     >
                       <Italic className="w-3 h-3" />
@@ -2402,7 +2900,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
                       type="button" 
                       variant="ghost" 
                       size="icon" 
-                      className="h-5 w-5 hover:bg-white"
+                      className="h-6 w-6 hover:bg-white"
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); applyTextFormat('link'); }}
                     >
                       <Link className="w-3 h-3" />
@@ -2419,28 +2917,50 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
             onChange={(e) => { e.stopPropagation(); onUpdate({ text: e.target.value }); }} 
             onClick={(e) => e.stopPropagation()} 
             rows={4} 
-            className="text-xs" 
+            className="min-h-[120px] rounded-xl border-slate-200 text-xs" 
             placeholder="Enter your text..." 
           />
-          <p className="text-[10px] text-gray-400 mt-1">
-            Select text → use buttons above for formatting
+          <p className="mt-1 text-[10px] text-slate-400">
+            Select text, then use the controls above for formatting.
           </p>
-          {variables.length > 0 && <div className="flex flex-wrap gap-1 mt-2">{variables.map(v => (<Badge key={v} variant="secondary" className="cursor-pointer text-[10px] h-5 hover:bg-blue-100 hover:text-blue-700 transition-colors" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onUpdate({ text: content.text + `{{${v}}}` }); }}>{`{{${v}}}`}</Badge>))}</div>}
+          {variables.length > 0 && (
+            <div className="mt-2 space-y-2">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-[10px] text-slate-500">
+                Variable tip: click a variable to insert it at the text cursor, not just at the end.
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {variables.map(v => (
+                  <Badge
+                    key={v}
+                    variant="secondary"
+                    className="h-6 cursor-pointer rounded-full px-2.5 text-[10px] transition-colors hover:bg-blue-100 hover:text-blue-700"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      insertVariableAtCursor(v);
+                    }}
+                  >
+                    {`{{${v}}}`}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <ColorPicker label="Text Color" value={content.color || "#374151"} onChange={(v) => onUpdate({ color: v })} />
         <AlignPicker value={content.align || "left"} onChange={(v) => onUpdate({ align: v })} />
         <SliderField label="Font Size" value={parseInt(content.fontSize || "16")} onChange={(v) => onUpdate({ fontSize: v.toString() })} min={12} max={24} />
-      </div>
+      </InspectorSection>
     );
     case "button": return (
-      <div className="space-y-3">
+      <InspectorSection title="Button Settings" description="Configure the primary CTA text, link destination, and style.">
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Button Text</Label>
-          <Input value={content.text} onChange={(e) => { e.stopPropagation(); onUpdate({ text: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+          <FieldLabel>Button Text</FieldLabel>
+          <Input value={content.text} onChange={(e) => { e.stopPropagation(); onUpdate({ text: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Link URL</Label>
-          <Input value={content.url} onChange={(e) => { e.stopPropagation(); onUpdate({ url: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" placeholder="https://..." />
+          <FieldLabel>Link URL</FieldLabel>
+          <Input value={content.url} onChange={(e) => { e.stopPropagation(); onUpdate({ url: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" placeholder="https://..." />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <ColorPicker label="Background" value={content.bgColor || "#10b981"} onChange={(v) => onUpdate({ bgColor: v })} />
@@ -2448,9 +2968,9 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
         </div>
         <AlignPicker value={content.align || "center"} onChange={(v) => onUpdate({ align: v })} />
         <div onClick={(e) => e.stopPropagation()}>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Size</Label>
+          <FieldLabel>Size</FieldLabel>
           <Select value={content.size || "medium"} onValueChange={(v) => onUpdate({ size: v })}>
-            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="h-9 rounded-xl border-slate-200 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="small">Small</SelectItem>
               <SelectItem value="medium">Medium</SelectItem>
@@ -2459,12 +2979,12 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
           </Select>
         </div>
         <SliderField label="Border Radius" value={parseInt(content.radius || "8")} onChange={(v) => onUpdate({ radius: v.toString() })} min={0} max={30} />
-      </div>
+      </InspectorSection>
     );
     case "image": return (
-      <div className="space-y-3">
+      <InspectorSection title="Image Settings" description="Upload imagery, confirm previews, and adjust layout safely for email clients.">
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Image</Label>
+          <FieldLabel>Image</FieldLabel>
           
           {/* Image Upload Section */}
           {onImageUpload && (
@@ -2489,7 +3009,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full h-8 gap-1.5 text-xs"
+                className="h-9 w-full gap-1.5 rounded-xl border-slate-200 text-xs"
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -2531,7 +3051,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
               const newUrl = e.target.value;
               onUpdate({ url: newUrl });
             }}
-            className="h-8 text-xs" 
+            className="h-9 rounded-xl border-slate-200 text-xs" 
             placeholder="https://example.com/image.jpg"
           />
           <div className="mt-1.5 flex flex-wrap gap-1">
@@ -2539,7 +3059,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
               type="button" 
               variant="outline" 
               size="sm" 
-              className="h-5 text-[10px] px-1.5"
+              className="h-6 rounded-full px-2 text-[10px]"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2553,7 +3073,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
               type="button" 
               variant="outline" 
               size="sm" 
-              className="h-5 text-[10px] px-1.5"
+              className="h-6 rounded-full px-2 text-[10px]"
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -2565,7 +3085,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
             </Button>
           </div>
           {content.url && content.url.trim() && (
-            <div className="mt-2 p-1.5 bg-gray-50 rounded-md">
+            <div className="mt-2 rounded-xl bg-slate-50 p-2">
               <img 
                 src={content.url} 
                 alt="Preview" 
@@ -2585,7 +3105,7 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
           )}
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Alt Text</Label>
+          <FieldLabel>Alt Text</FieldLabel>
           <Input 
             value={content.alt || ""} 
             onChange={(e) => { 
@@ -2593,13 +3113,13 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
               onUpdate({ alt: e.target.value }); 
             }} 
             onClick={(e) => e.stopPropagation()} 
-            className="h-8 text-xs" 
+            className="h-9 rounded-xl border-slate-200 text-xs" 
             placeholder="Describe the image"
           />
         </div>
         <AlignPicker value={content.align || "center"} onChange={(v) => onUpdate({ align: v })} />
         <SliderField label="Width" value={parseInt(content.width || "100")} onChange={(v) => onUpdate({ width: v.toString() })} min={20} max={100} />
-      </div>
+      </InspectorSection>
     );
     case "divider": return (
       <div className="space-y-3">
@@ -2624,28 +3144,28 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
       </div>
     );
     case "product": return (
-      <div className="space-y-3">
+      <InspectorSection title="Product Card" description="Control merchandising details for a featured product block.">
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Product Name</Label>
-          <Input value={content.name} onChange={(e) => { e.stopPropagation(); onUpdate({ name: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+          <FieldLabel>Product Name</FieldLabel>
+          <Input value={content.name} onChange={(e) => { e.stopPropagation(); onUpdate({ name: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Price</Label>
-          <Input value={content.price} onChange={(e) => { e.stopPropagation(); onUpdate({ price: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" placeholder="$99.99" />
+          <FieldLabel>Price</FieldLabel>
+          <Input value={content.price} onChange={(e) => { e.stopPropagation(); onUpdate({ price: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" placeholder="$99.99" />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Image URL</Label>
-          <Input value={content.imageUrl} onChange={(e) => { e.stopPropagation(); onUpdate({ imageUrl: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" placeholder="https://..." />
+          <FieldLabel>Image URL</FieldLabel>
+          <Input value={content.imageUrl} onChange={(e) => { e.stopPropagation(); onUpdate({ imageUrl: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" placeholder="https://..." />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Button Text</Label>
-          <Input value={content.buttonText} onChange={(e) => { e.stopPropagation(); onUpdate({ buttonText: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+          <FieldLabel>Button Text</FieldLabel>
+          <Input value={content.buttonText} onChange={(e) => { e.stopPropagation(); onUpdate({ buttonText: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Button URL</Label>
-          <Input value={content.buttonUrl} onChange={(e) => { e.stopPropagation(); onUpdate({ buttonUrl: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" placeholder="https://..." />
+          <FieldLabel>Button URL</FieldLabel>
+          <Input value={content.buttonUrl} onChange={(e) => { e.stopPropagation(); onUpdate({ buttonUrl: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" placeholder="https://..." />
         </div>
-      </div>
+      </InspectorSection>
     );
     case "cart_items": return (
       <div className="space-y-3">
@@ -2699,62 +3219,61 @@ function BlockEditor({ block, onUpdate, variables, onImageUpload, uploadingImage
     );
     case "footer": return (
       <div className="space-y-3">
+        <InspectorSection title="Brand Details" description="Set the business identity and contact information shown in the footer.">
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Company Name</Label>
-          <Input value={content.companyName || "9RX LLC"} onChange={(e) => { e.stopPropagation(); onUpdate({ companyName: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+          <FieldLabel>Company Name</FieldLabel>
+          <Input value={content.companyName || "9RX LLC"} onChange={(e) => { e.stopPropagation(); onUpdate({ companyName: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Address</Label>
-          <Textarea value={content.address || "936 Broad River Ln, Charlotte, NC 28211"} onChange={(e) => { e.stopPropagation(); onUpdate({ address: e.target.value }); }} onClick={(e) => e.stopPropagation()} rows={2} className="text-xs" />
+          <FieldLabel>Address</FieldLabel>
+          <Textarea value={content.address || "936 Broad River Ln, Charlotte, NC 28211"} onChange={(e) => { e.stopPropagation(); onUpdate({ address: e.target.value }); }} onClick={(e) => e.stopPropagation()} rows={2} className="rounded-xl border-slate-200 text-xs" />
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Phone</Label>
-            <Input value={content.phone || "+1 (800) 940-9619"} onChange={(e) => { e.stopPropagation(); onUpdate({ phone: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+            <FieldLabel>Phone</FieldLabel>
+            <Input value={content.phone || "+1 (800) 940-9619"} onChange={(e) => { e.stopPropagation(); onUpdate({ phone: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
           </div>
           <div>
-            <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Email</Label>
-            <Input value={content.email || "info@9rx.com"} onChange={(e) => { e.stopPropagation(); onUpdate({ email: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+            <FieldLabel>Email</FieldLabel>
+            <Input value={content.email || "info@9rx.com"} onChange={(e) => { e.stopPropagation(); onUpdate({ email: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
           </div>
         </div>
         <div>
-          <Label className="text-[11px] font-medium text-gray-500 mb-1 block">Website</Label>
-          <Input value={content.website || "www.9rx.com"} onChange={(e) => { e.stopPropagation(); onUpdate({ website: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-8 text-xs" />
+          <FieldLabel>Website</FieldLabel>
+          <Input value={content.website || "www.9rx.com"} onChange={(e) => { e.stopPropagation(); onUpdate({ website: e.target.value }); }} onClick={(e) => e.stopPropagation()} className="h-9 rounded-xl border-slate-200 text-xs" />
         </div>
-        
-        {/* Colors Section */}
-        <div className="pt-2 border-t border-gray-100">
-          <Label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Colors</Label>
+        </InspectorSection>
+
+        <InspectorSection title="Colors" description="Tune the footer palette for contrast and brand consistency.">
           <div className="space-y-2">
             <ColorPicker label="Background" value={content.bgColor || "#1f2937"} onChange={(v) => onUpdate({ bgColor: v })} />
             <ColorPicker label="Text Color" value={content.textColor || "#9ca3af"} onChange={(v) => onUpdate({ textColor: v })} />
             <ColorPicker label="Link Color" value={content.linkColor || "#10b981"} onChange={(v) => onUpdate({ linkColor: v })} />
           </div>
-        </div>
-        
-        {/* Options Section */}
-        <div className="pt-2 border-t border-gray-100 space-y-2" onClick={(e) => e.stopPropagation()}>
-          <Label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Options</Label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={content.showUnsubscribe !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showUnsubscribe: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-blue-500" />
-            <span className="text-[11px] text-gray-600">Show Unsubscribe Link</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={content.showSocial !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showSocial: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="rounded w-3.5 h-3.5 text-blue-500" />
-            <span className="text-[11px] text-gray-600">Show Social Links</span>
-          </label>
-        </div>
+        </InspectorSection>
+
+        <InspectorSection title="Options" description="Toggle utility links and social sections in the footer." >
+          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <input type="checkbox" checked={content.showUnsubscribe !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showUnsubscribe: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="h-3.5 w-3.5 rounded text-blue-500" />
+              <span className="text-[11px] text-slate-600">Show Unsubscribe Link</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <input type="checkbox" checked={content.showSocial !== false} onChange={(e) => { e.stopPropagation(); onUpdate({ showSocial: e.target.checked }); }} onClick={(e) => e.stopPropagation()} className="h-3.5 w-3.5 rounded text-blue-500" />
+              <span className="text-[11px] text-slate-600">Show Social Links</span>
+            </label>
+          </div>
+        </InspectorSection>
         
         {content.showSocial && (
-          <div className="pt-2 border-t border-gray-100" onClick={(e) => e.stopPropagation()}>
-            <Label className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2 block">Social Links</Label>
+          <InspectorSection title="Social Links" description="Add destination URLs for the social links shown in the footer.">
             <div className="grid grid-cols-2 gap-1.5">
-              <Input value={content.socialLinks?.facebook || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, facebook: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Facebook" className="h-7 text-[10px]" />
-              <Input value={content.socialLinks?.twitter || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, twitter: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Twitter" className="h-7 text-[10px]" />
-              <Input value={content.socialLinks?.linkedin || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, linkedin: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="LinkedIn" className="h-7 text-[10px]" />
-              <Input value={content.socialLinks?.instagram || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, instagram: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Instagram" className="h-7 text-[10px]" />
+              <Input value={content.socialLinks?.facebook || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, facebook: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Facebook" className="h-8 rounded-xl border-slate-200 text-[10px]" />
+              <Input value={content.socialLinks?.twitter || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, twitter: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Twitter" className="h-8 rounded-xl border-slate-200 text-[10px]" />
+              <Input value={content.socialLinks?.linkedin || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, linkedin: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="LinkedIn" className="h-8 rounded-xl border-slate-200 text-[10px]" />
+              <Input value={content.socialLinks?.instagram || ""} onChange={(e) => { e.stopPropagation(); onUpdate({ socialLinks: { ...content.socialLinks, instagram: e.target.value } }); }} onClick={(e) => e.stopPropagation()} placeholder="Instagram" className="h-8 rounded-xl border-slate-200 text-[10px]" />
             </div>
-          </div>
+          </InspectorSection>
         )}
       </div>
     );

@@ -5,7 +5,7 @@ const TRACKING_DOMAIN = import.meta.env.VITE_TRACKING_DOMAIN || window.location.
 
 // Generate tracking pixel HTML
 export function generateTrackingPixel(trackingId: string): string {
-  const pixelUrl = `${TRACKING_DOMAIN}/api/track/open/${trackingId}`;
+  const pixelUrl = `${TRACKING_DOMAIN}/api/email/track/open/${trackingId}`;
   return `<img src="${pixelUrl}" width="1" height="1" style="display:none;" alt="" />`;
 }
 
@@ -31,19 +31,19 @@ export function wrapLinksForTracking(
     }
 
     linkIndex++;
-    const trackingUrl = `${TRACKING_DOMAIN}/api/track/click/${trackingId}?url=${encodeURIComponent(url)}&lid=${linkIndex}`;
+    const trackingUrl = `${TRACKING_DOMAIN}/api/email/track/click/${trackingId}?url=${encodeURIComponent(url)}&lid=${linkIndex}`;
     return `href="${trackingUrl}"`;
   });
 }
 
 // Add unsubscribe link to email
 export function addUnsubscribeLink(html: string, trackingId: string, email: string): string {
-  const unsubscribeUrl = `${TRACKING_DOMAIN}/unsubscribe?t=${trackingId}&e=${encodeURIComponent(email)}`;
+  const unsubscribeUrl = `${TRACKING_DOMAIN}/api/email/unsubscribe?t=${trackingId}&e=${encodeURIComponent(email)}`;
   
   const unsubscribeHtml = `
     <div style="text-align: center; padding: 20px; font-size: 12px; color: #666; border-top: 1px solid #eee; margin-top: 30px;">
       <p>You're receiving this email because you subscribed to updates from 9RX.</p>
-      <p><a href="${unsubscribeUrl}" style="color: #666;">Unsubscribe</a> | <a href="${TRACKING_DOMAIN}/email-preferences?t=${trackingId}" style="color: #666;">Manage Preferences</a></p>
+      <p><a href="${unsubscribeUrl}" style="color: #666;">Unsubscribe</a> | <a href="${TRACKING_DOMAIN}/api/email/email-preferences?t=${trackingId}" style="color: #666;">Manage Preferences</a></p>
     </div>
   `;
 

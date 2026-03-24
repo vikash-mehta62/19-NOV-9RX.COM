@@ -4,6 +4,7 @@
 import { processEmailQueue, retryFailedEmails, getQueueStats } from "./emailQueueService";
 import { processScheduledAutomations, triggerAutomation } from "./emailAutomationEngine";
 import { evaluateABTest } from "./emailCampaignService";
+import { processCustomerDocumentReminders } from "./documentReminderService";
 import { supabase } from "@/integrations/supabase/client";
 
 interface CronJobResult {
@@ -112,7 +113,26 @@ export async function runEmailCronJobs(): Promise<CronJobResult[]> {
     });
   }
 
-  // 6. Check abandoned carts (Moved to Backend Server Cron)
+  // 6. Process customer document reminders
+  const documentReminderStart = Date.now();
+  try {
+    const reminderResult = await processCustomerDocumentReminders();
+    results.push({
+      job: "processCustomerDocumentReminders",
+      success: true,
+      details: reminderResult,
+      duration: Date.now() - documentReminderStart,
+    });
+  } catch (error: any) {
+    results.push({
+      job: "processCustomerDocumentReminders",
+      success: false,
+      details: { error: error.message },
+      duration: Date.now() - documentReminderStart,
+    });
+  }
+
+  // 7. Check abandoned carts (Moved to Backend Server Cron)
   // const abandonedStart = Date.now();
   // try {
   //   const abandonedResult = await checkAbandonedCarts();

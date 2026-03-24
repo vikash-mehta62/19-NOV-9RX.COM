@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,7 +32,18 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Pencil, Trash2, Mail, Eye, Code, FileText, Wand2 } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Mail,
+  Eye,
+  Code,
+  FileText,
+  Wand2,
+  Monitor,
+  Smartphone,
+} from "lucide-react";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
 import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 
@@ -81,6 +92,7 @@ export default function EmailTemplates() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewHtml, setPreviewHtml] = useState("");
+  const [previewDevice, setPreviewDevice] = useState<"desktop" | "mobile">("desktop");
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -111,7 +123,7 @@ export default function EmailTemplates() {
     e.preventDefault();
     try {
       const variablesArray = formData.variables
-        ? formData.variables.split(",").map((v) => v.trim()).filter(Boolean)
+        ? formData.variables.split(",").map((value) => value.trim()).filter(Boolean)
         : null;
 
       const payload = {
@@ -164,105 +176,60 @@ export default function EmailTemplates() {
 
   const handleDelete = async () => {
     if (!templateToDelete) return;
-    
+
     try {
-      console.log("🗑️ Starting deletion process for template:", templateToDelete);
-      
-      // Step 1: Update email_queue to remove template references
-      console.log("Step 1: Updating email_queue...");
       const { error: queueError } = await supabase
         .from("email_queue")
         .update({ template_id: null })
         .eq("template_id", templateToDelete);
-      
-      if (queueError) {
-        console.error("❌ Error updating email_queue:", queueError);
-      } else {
-        console.log("✅ email_queue updated");
-      }
+      if (queueError) console.error("Error updating email_queue:", queueError);
 
-      // Step 2: Update email_automations to remove template references
-      console.log("Step 2: Updating email_automations...");
       const { error: automationsError } = await supabase
         .from("email_automations")
         .update({ template_id: null })
         .eq("template_id", templateToDelete);
-      
-      if (automationsError) {
-        console.error("❌ Error updating email_automations:", automationsError);
-      } else {
-        console.log("✅ email_automations updated");
-      }
+      if (automationsError) console.error("Error updating email_automations:", automationsError);
 
-      // Step 3: Update email_campaigns to remove template references
-      console.log("Step 3: Updating email_campaigns...");
       const { error: campaignsError } = await supabase
         .from("email_campaigns")
         .update({ template_id: null })
         .eq("template_id", templateToDelete);
-      
-      if (campaignsError) {
-        console.error("❌ Error updating email_campaigns:", campaignsError);
-      } else {
-        console.log("✅ email_campaigns updated");
-      }
+      if (campaignsError) console.error("Error updating email_campaigns:", campaignsError);
 
-      // Step 4: Update email_tracking
-      console.log("Step 4: Updating email_tracking...");
       const { error: trackingError } = await supabase
         .from("email_tracking")
         .update({ template_id: null })
         .eq("template_id", templateToDelete);
-      
-      if (trackingError) {
-        console.error("❌ Error updating email_tracking:", trackingError);
-      } else {
-        console.log("✅ email_tracking updated");
-      }
+      if (trackingError) console.error("Error updating email_tracking:", trackingError);
 
-      // Step 5: Update email_logs
-      console.log("Step 5: Updating email_logs...");
       const { error: logsError } = await supabase
         .from("email_logs")
         .update({ template_id: null })
         .eq("template_id", templateToDelete);
-      
-      if (logsError) {
-        console.error("❌ Error updating email_logs:", logsError);
-      } else {
-        console.log("✅ email_logs updated");
-      }
+      if (logsError) console.error("Error updating email_logs:", logsError);
 
-      // Step 6: Now delete the template
-      console.log("Step 6: Deleting template...");
       const { error } = await supabase
         .from("email_templates")
         .delete()
         .eq("id", templateToDelete);
-        
-      if (error) {
-        console.error("❌ Error deleting template:", error);
-        throw error;
-      }
-      
-      console.log("✅ Template deleted successfully!");
-      toast({ 
-        title: "Success ✅", 
-        description: "Template and all related records deleted successfully" 
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: "Template and related references were removed successfully",
       });
       fetchTemplates();
     } catch (error: any) {
-      console.error("❌ Delete error:", error);
-      
       let errorMsg = error.message || "Failed to delete template";
       if (error.message && error.message.includes("foreign key")) {
         errorMsg = "Database constraint error. Please run the migration: 20260206_fix_all_foreign_key_constraints.sql";
       }
-      
-      toast({ 
-        title: "Error", 
+
+      toast({
+        title: "Error",
         description: errorMsg,
-        variant: "destructive" 
+        variant: "destructive",
       });
     } finally {
       setDeleteDialogOpen(false);
@@ -277,153 +244,243 @@ export default function EmailTemplates() {
 
   const handlePreview = (html: string) => {
     setPreviewHtml(html);
+    setPreviewDevice("desktop");
     setPreviewOpen(true);
   };
 
   const getTypeLabel = (type: string) => {
-    return templateTypes.find((t) => t.value === type)?.label || type;
+    return templateTypes.find((template) => template.value === type)?.label || type;
   };
+
+  const variableList = formData.variables
+    ? formData.variables.split(",").map((value) => value.trim()).filter(Boolean)
+    : [];
 
   return (
     <DashboardLayout role="admin">
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold">Email Templates</h1>
-            <p className="text-muted-foreground">Create and manage email templates</p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight">Email Templates</h1>
+            <p className="max-w-2xl text-sm text-muted-foreground sm:text-base">
+              Manage reusable email layouts with a cleaner editor flow, responsive previews, and a better mobile editing experience.
+            </p>
           </div>
+
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={() => { setEditingTemplate(null); setFormData(initialFormState); }}>
+              <Button
+                className="w-full sm:w-auto"
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setFormData(initialFormState);
+                }}
+              >
                 <Plus className="mr-2 h-4 w-4" /> New Template
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+
+            <DialogContent className="flex h-[95vh] w-[calc(100vw-1rem)] max-w-7xl flex-col overflow-hidden p-0 sm:w-[calc(100vw-2rem)]">
               <DialogHeader>
-                <DialogTitle>{editingTemplate ? "Edit Template" : "Create New Template"}</DialogTitle>
+                <div className="border-b bg-background px-4 py-4 sm:px-6">
+                  <DialogTitle className="text-xl">
+                    {editingTemplate ? "Edit Template" : "Create New Template"}
+                  </DialogTitle>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Update settings, copy, and layout in one workspace that is easier to review on desktop and mobile.
+                  </p>
+                </div>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="name">Template Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      placeholder="Welcome Email"
-                      required
-                    />
+
+              <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+                <div className="grid min-h-0 flex-1 gap-0 xl:grid-cols-[320px_minmax(0,1fr)]">
+                  <div className="order-2 border-t bg-slate-50/70 p-4 sm:p-6 xl:order-1 xl:overflow-y-auto xl:border-r xl:border-t-0">
+                    <div className="space-y-6">
+                      <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="name">Template Name *</Label>
+                            <Input
+                              id="name"
+                              value={formData.name}
+                              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                              placeholder="Welcome Email"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <Label htmlFor="template_type">Template Type</Label>
+                            <Select
+                              value={formData.template_type}
+                              onValueChange={(value) => setFormData({ ...formData, template_type: value })}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {templateTypes.map((type) => (
+                                  <SelectItem key={type.value} value={type.value}>
+                                    {type.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label htmlFor="subject">Email Subject *</Label>
+                            <Input
+                              id="subject"
+                              value={formData.subject}
+                              onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                              placeholder="Welcome to 9RX!"
+                              required
+                            />
+                          </div>
+
+                          <div>
+                            <Label htmlFor="preview_text">Preview Text</Label>
+                            <Input
+                              id="preview_text"
+                              value={formData.preview_text}
+                              onChange={(e) => setFormData({ ...formData, preview_text: e.target.value })}
+                              placeholder="Short inbox preview copy"
+                            />
+                          </div>
+
+                          <div className="flex items-center justify-between rounded-xl border bg-slate-50 px-3 py-3">
+                            <div>
+                              <Label htmlFor="is_active">Status</Label>
+                              <p className="text-xs text-muted-foreground">
+                                Control whether the template is available for campaigns and automations.
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={formData.is_active ? "default" : "secondary"}>
+                                {formData.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                              <Switch
+                                id="is_active"
+                                checked={formData.is_active}
+                                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                        <div className="space-y-3">
+                          <div>
+                            <Label htmlFor="variables">Variables</Label>
+                            <Input
+                              id="variables"
+                              value={formData.variables}
+                              onChange={(e) => setFormData({ ...formData, variables: e.target.value })}
+                              placeholder="first_name, order_number, cart_total"
+                            />
+                            <p className="mt-2 text-xs text-muted-foreground">
+                              Use {"{{variable_name}}"} placeholders anywhere in the template.
+                            </p>
+                          </div>
+                          {variableList.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {variableList.map((variable) => (
+                                <Badge key={variable} variant="secondary" className="rounded-full px-3 py-1">
+                                  {`{{${variable}}}`}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border bg-background p-4 shadow-sm">
+                        <p className="text-sm font-medium">Writing Tips</p>
+                        <ul className="mt-3 space-y-2 text-xs text-muted-foreground">
+                          <li>Keep the subject line concise so it survives smaller inbox widths.</li>
+                          <li>Lead with one primary call-to-action.</li>
+                          <li>Use preview text to support the subject instead of repeating it.</li>
+                        </ul>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <Label htmlFor="template_type">Template Type</Label>
-                    <Select
-                      value={formData.template_type}
-                      onValueChange={(value) => setFormData({ ...formData, template_type: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {templateTypes.map((type) => (
-                          <SelectItem key={type.value} value={type.value}>
-                            {type.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="subject">Email Subject *</Label>
-                    <Input
-                      id="subject"
-                      value={formData.subject}
-                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                      placeholder="Welcome to 9RX! 🎉"
-                      required
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="preview_text">Preview Text (shown in inbox)</Label>
-                    <Input
-                      id="preview_text"
-                      value={formData.preview_text}
-                      onChange={(e) => setFormData({ ...formData, preview_text: e.target.value })}
-                      placeholder="Thank you for joining us..."
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="variables">Variables (comma separated)</Label>
-                    <Input
-                      id="variables"
-                      value={formData.variables}
-                      onChange={(e) => setFormData({ ...formData, variables: e.target.value })}
-                      placeholder="first_name, order_number, cart_total"
-                    />
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Use {"{{variable_name}}"} in your template
-                    </p>
-                  </div>
-                  <div className="col-span-2">
-                    <Tabs defaultValue="visual">
-                      <TabsList>
-                        <TabsTrigger value="visual"><Wand2 className="h-4 w-4 mr-2" /> Visual Editor</TabsTrigger>
-                        <TabsTrigger value="html"><Code className="h-4 w-4 mr-2" /> HTML Code</TabsTrigger>
-                        <TabsTrigger value="text"><FileText className="h-4 w-4 mr-2" /> Plain Text</TabsTrigger>
-                      </TabsList>
-                      <TabsContent value="visual" className="mt-4">
-                        <VisualEmailEditor
-                          key={editingTemplate?.id || 'new'}
-                          initialHtml={formData.html_content}
-                          onChange={(html) => setFormData({ ...formData, html_content: html })}
-                          variables={formData.variables ? formData.variables.split(",").map(v => v.trim()).filter(Boolean) : []}
-                        />
+
+                  <div className="order-1 min-h-0 p-4 sm:p-6 xl:order-2 xl:overflow-y-auto">
+                    <Tabs defaultValue="visual" className="flex h-full min-h-0 flex-col">
+                      <div className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <h3 className="text-base font-semibold">Template Content</h3>
+                          <p className="text-sm text-muted-foreground">
+                            Edit visually, inspect HTML directly, or maintain a plain-text fallback.
+                          </p>
+                        </div>
+                        <TabsList className="grid w-full grid-cols-3 sm:w-auto">
+                          <TabsTrigger value="visual"><Wand2 className="mr-2 h-4 w-4" /> Visual</TabsTrigger>
+                          <TabsTrigger value="html"><Code className="mr-2 h-4 w-4" /> HTML</TabsTrigger>
+                          <TabsTrigger value="text"><FileText className="mr-2 h-4 w-4" /> Text</TabsTrigger>
+                        </TabsList>
+                      </div>
+
+                      <TabsContent value="visual" className="mt-4 min-h-0 flex-1">
+                        <div className="overflow-hidden rounded-2xl border bg-background shadow-sm">
+                          <VisualEmailEditor
+                            key={editingTemplate?.id || "new"}
+                            initialHtml={formData.html_content}
+                            onChange={(html) => setFormData({ ...formData, html_content: html })}
+                            variables={variableList}
+                          />
+                        </div>
                       </TabsContent>
-                      <TabsContent value="html">
-                        <Label htmlFor="html_content">HTML Content *</Label>
-                        <Textarea
-                          id="html_content"
-                          value={formData.html_content}
-                          onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                          placeholder="<html><body>...</body></html>"
-                          rows={15}
-                          className="font-mono text-sm"
-                          required
-                        />
+
+                      <TabsContent value="html" className="mt-4 min-h-0 flex-1">
+                        <div className="space-y-3">
+                          <Label htmlFor="html_content">HTML Content *</Label>
+                          <Textarea
+                            id="html_content"
+                            value={formData.html_content}
+                            onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
+                            placeholder="<html><body>...</body></html>"
+                            rows={18}
+                            className="min-h-[420px] font-mono text-sm"
+                            required
+                          />
+                        </div>
                       </TabsContent>
-                      <TabsContent value="text">
-                        <Label htmlFor="text_content">Plain Text Content</Label>
-                        <Textarea
-                          id="text_content"
-                          value={formData.text_content}
-                          onChange={(e) => setFormData({ ...formData, text_content: e.target.value })}
-                          placeholder="Plain text version for email clients that don't support HTML"
-                          rows={15}
-                        />
+
+                      <TabsContent value="text" className="mt-4 min-h-0 flex-1">
+                        <div className="space-y-3">
+                          <Label htmlFor="text_content">Plain Text Content</Label>
+                          <Textarea
+                            id="text_content"
+                            value={formData.text_content}
+                            onChange={(e) => setFormData({ ...formData, text_content: e.target.value })}
+                            placeholder="Plain text version for email clients that don't support HTML"
+                            rows={18}
+                            className="min-h-[420px]"
+                          />
+                        </div>
                       </TabsContent>
                     </Tabs>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="is_active"
-                      checked={formData.is_active}
-                      onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                    />
-                    <Label htmlFor="is_active">Active</Label>
-                  </div>
                 </div>
-                <div className="flex justify-between">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handlePreview(formData.html_content)}
-                  >
-                    <Eye className="mr-2 h-4 w-4" /> Preview
-                  </Button>
-                  <div className="flex gap-2">
-                    <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancel
+
+                <div className="border-t bg-background px-4 py-4 sm:px-6">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handlePreview(formData.html_content)}
+                    >
+                      <Eye className="mr-2 h-4 w-4" /> Preview
                     </Button>
-                    <Button type="submit">{editingTemplate ? "Update" : "Create"} Template</Button>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                        Cancel
+                      </Button>
+                      <Button type="submit">{editingTemplate ? "Update" : "Create"} Template</Button>
+                    </div>
                   </div>
                 </div>
               </form>
@@ -431,23 +488,51 @@ export default function EmailTemplates() {
           </Dialog>
         </div>
 
-        {/* Preview Dialog */}
         <Dialog open={previewOpen} onOpenChange={setPreviewOpen}>
-          <DialogContent className="max-w-3xl max-h-[80vh]">
+          <DialogContent className="max-h-[92vh] w-[calc(100vw-1rem)] max-w-5xl overflow-hidden p-0 sm:w-[calc(100vw-2rem)]">
             <DialogHeader>
-              <DialogTitle>Email Preview</DialogTitle>
+              <div className="border-b px-4 py-4 sm:px-6">
+                <DialogTitle>Email Preview</DialogTitle>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Check spacing, readability, and CTA placement before saving the template.
+                </p>
+              </div>
             </DialogHeader>
-            <div className="border rounded-lg overflow-auto max-h-[60vh]">
-              <iframe
-                srcDoc={previewHtml}
-                className="w-full h-[500px]"
-                title="Email Preview"
-              />
+            <div className="space-y-4 p-4 sm:p-6">
+              <div className="flex justify-end">
+                <Tabs value={previewDevice} onValueChange={(value) => setPreviewDevice(value as "desktop" | "mobile")}>
+                  <TabsList className="grid grid-cols-2">
+                    <TabsTrigger value="desktop">
+                      <Monitor className="mr-2 h-4 w-4" /> Desktop
+                    </TabsTrigger>
+                    <TabsTrigger value="mobile">
+                      <Smartphone className="mr-2 h-4 w-4" /> Mobile
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+
+              <div className="flex max-h-[68vh] justify-center overflow-auto rounded-2xl border bg-slate-100 p-4 sm:p-6">
+                <div
+                  className={
+                    previewDevice === "mobile"
+                      ? "overflow-hidden rounded-[2rem] border-[10px] border-slate-900 bg-white shadow-xl"
+                      : "w-full max-w-4xl overflow-hidden rounded-2xl border bg-white shadow-lg"
+                  }
+                  style={previewDevice === "mobile" ? { width: "375px", minWidth: "375px" } : undefined}
+                >
+                  <iframe
+                    srcDoc={previewHtml}
+                    className={previewDevice === "mobile" ? "h-[667px] w-[375px]" : "h-[640px] w-full"}
+                    title="Email Preview"
+                  />
+                </div>
+              </div>
             </div>
           </DialogContent>
         </Dialog>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{templates.length}</div>
@@ -457,7 +542,7 @@ export default function EmailTemplates() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-green-600">
-                {templates.filter((t) => t.is_active).length}
+                {templates.filter((template) => template.is_active).length}
               </div>
               <p className="text-muted-foreground">Active</p>
             </CardContent>
@@ -465,7 +550,7 @@ export default function EmailTemplates() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-blue-600">
-                {templates.filter((t) => t.template_type === "promotional").length}
+                {templates.filter((template) => template.template_type === "promotional").length}
               </div>
               <p className="text-muted-foreground">Promotional</p>
             </CardContent>
@@ -473,7 +558,7 @@ export default function EmailTemplates() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-purple-600">
-                {templates.filter((t) => t.template_type === "abandoned_cart").length}
+                {templates.filter((template) => template.template_type === "abandoned_cart").length}
               </div>
               <p className="text-muted-foreground">Cart Recovery</p>
             </CardContent>
@@ -488,46 +573,34 @@ export default function EmailTemplates() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="text-center py-8">Loading...</div>
+              <div className="py-8 text-center">Loading...</div>
             ) : templates.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
+              <div className="py-8 text-center text-muted-foreground">
                 No templates found. Create your first template!
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Subject</TableHead>
-                    <TableHead>Variables</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <>
+                <div className="space-y-3 md:hidden">
                   {templates.map((template) => (
-                    <TableRow key={template.id}>
-                      <TableCell className="font-medium">{template.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{getTypeLabel(template.template_type)}</Badge>
-                      </TableCell>
-                      <TableCell className="max-w-[200px] truncate">{template.subject}</TableCell>
-                      <TableCell>
-                        {template.variables?.length || 0} vars
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant={template.is_active ? "default" : "secondary"}>
-                          {template.is_active ? "Active" : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePreview(template.html_content)}
-                          >
+                    <div key={template.id} className="rounded-2xl border bg-background p-4 shadow-sm">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-2">
+                          <div className="flex flex-wrap gap-2">
+                            <Badge variant="outline">{getTypeLabel(template.template_type)}</Badge>
+                            <Badge variant={template.is_active ? "default" : "secondary"}>
+                              {template.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </div>
+                          <div>
+                            <p className="font-medium">{template.name}</p>
+                            <p className="truncate text-sm text-muted-foreground">{template.subject}</p>
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            {template.variables?.length || 0} variables
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => handlePreview(template.html_content)}>
                             <Eye className="h-4 w-4" />
                           </Button>
                           <Button variant="ghost" size="sm" onClick={() => handleEdit(template)}>
@@ -537,11 +610,56 @@ export default function EmailTemplates() {
                             <Trash2 className="h-4 w-4 text-red-500" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
+                      </div>
+                    </div>
                   ))}
-                </TableBody>
-              </Table>
+                </div>
+
+                <div className="hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Name</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Variables</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {templates.map((template) => (
+                        <TableRow key={template.id}>
+                          <TableCell className="font-medium">{template.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{getTypeLabel(template.template_type)}</Badge>
+                          </TableCell>
+                          <TableCell className="max-w-[240px] truncate">{template.subject}</TableCell>
+                          <TableCell>{template.variables?.length || 0} vars</TableCell>
+                          <TableCell>
+                            <Badge variant={template.is_active ? "default" : "secondary"}>
+                              {template.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" onClick={() => handlePreview(template.html_content)}>
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => handleEdit(template)}>
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button variant="ghost" size="sm" onClick={() => openDeleteDialog(template.id)}>
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>
