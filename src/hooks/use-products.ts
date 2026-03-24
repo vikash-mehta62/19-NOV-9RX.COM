@@ -190,7 +190,8 @@ export const useProducts = (includeInactive: boolean = false) => {
       toast({ title: "Success", description: "Product updated successfully." });
       setIsEditDialogOpen(false);
       setEditingProduct(null);
-      fetchProducts();
+      // Maintain current filters and page when refreshing
+      fetchProducts(currentPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error("Error updating product:", error);
       toast({ 
