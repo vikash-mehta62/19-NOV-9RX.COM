@@ -100,6 +100,7 @@ export const SizeList = ({
   const [loading, setLoading] = useState<boolean>(false);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [savingIndex, setSavingIndex] = useState<number | null>(null);
+  const [originalSizes, setOriginalSizes] = useState<Size[]>([]); // Track original size values
   
   // Form values - ye bhi top pe
   const productUPCcode = String(form?.getValues("upcCode") || "");
@@ -107,6 +108,41 @@ export const SizeList = ({
   const productExpiry = String(form?.getValues("unitToggle") || "");
   const productLotNumber = String(form?.getValues("lotNumber") || "");
   const isUnitToggle = Boolean(form?.watch("unitToggle"));
+
+  // Store original sizes when component mounts or sizes change
+  useEffect(() => {
+    if (sizes.length > 0 && originalSizes.length === 0) {
+      setOriginalSizes(JSON.parse(JSON.stringify(sizes)));
+    }
+  }, [sizes]);
+
+  // Function to check if a size has been modified
+  const isSizeModified = (index: number, size: Size): boolean => {
+    if (!size.id) return false; // New sizes don't show Update button
+    
+    const original = originalSizes[index];
+    if (!original) return false;
+
+    // Compare relevant fields
+    return (
+      original.size_name !== size.size_name ||
+      original.size_value !== size.size_value ||
+      original.size_unit !== size.size_unit ||
+      original.price !== size.price ||
+      original.sku !== size.sku ||
+      original.stock !== size.stock ||
+      original.quantity_per_case !== size.quantity_per_case ||
+      original.rolls_per_case !== size.rolls_per_case ||
+      original.shipping_cost !== size.shipping_cost ||
+      original.ndcCode !== size.ndcCode ||
+      original.upcCode !== size.upcCode ||
+      original.lotNumber !== size.lotNumber ||
+      original.exipry !== size.exipry ||
+      original.image !== size.image ||
+      JSON.stringify(original.groupIds || []) !== JSON.stringify(size.groupIds || []) ||
+      JSON.stringify(original.disAllogroupIds || []) !== JSON.stringify(size.disAllogroupIds || [])
+    );
+  };
 
   console.log(productId)
   const handleSaveOrUpdateSize = async (index: number, size: Size) => {
@@ -179,6 +215,11 @@ export const SizeList = ({
           title: "Success",
           description: "Size updated successfully",
         });
+
+        // Update original sizes after successful update
+        const updatedOriginals = [...originalSizes];
+        updatedOriginals[index] = JSON.parse(JSON.stringify(size));
+        setOriginalSizes(updatedOriginals);
       } else {
         console.log("[SIZELIST]: Inserting new size");
         // Insert new size
@@ -196,6 +237,11 @@ export const SizeList = ({
         console.log("[SIZELIST]: Size inserted successfully, new ID:", data.id);
         // Update the size with the new ID
         onUpdateSize(index, "id", data.id);
+
+        // Add to original sizes after successful insert
+        const updatedOriginals = [...originalSizes];
+        updatedOriginals[index] = JSON.parse(JSON.stringify({ ...size, id: data.id }));
+        setOriginalSizes(updatedOriginals);
 
         toast({
           title: "Success",
@@ -343,22 +389,24 @@ export const SizeList = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
-                  {/* Save/Update Button */}
-                  <Button
-                    type="button"
-                    variant={size.id ? "outline" : "default"}
-                    size="sm"
-                    onClick={() => handleSaveOrUpdateSize(index, size)}
-                    disabled={savingIndex === index}
-                    className={`h-8 px-3 text-xs font-medium ${
-                      size.id 
-                        ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
-                        : "bg-green-600 hover:bg-green-700 text-white"
-                    }`}
-                  >
-                    <Save className="h-3 w-3 mr-1" />
-                    {savingIndex === index ? "Saving..." : size.id ? "Update" : "Save"}
-                  </Button>
+                  {/* Save/Update Button - Only show Update if size is modified */}
+                  {(!size.id || isSizeModified(index, size)) && (
+                    <Button
+                      type="button"
+                      variant={size.id ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => handleSaveOrUpdateSize(index, size)}
+                      disabled={savingIndex === index}
+                      className={`h-8 px-3 text-xs font-medium ${
+                        size.id 
+                          ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                          : "bg-green-600 hover:bg-green-700 text-white"
+                      }`}
+                    >
+                      <Save className="h-3 w-3 mr-1" />
+                      {savingIndex === index ? "Saving..." : size.id ? "Update" : "Save"}
+                    </Button>
+                  )}
 
                   {/* Download Label Button */}
                   <div className="flex items-center gap-2">
