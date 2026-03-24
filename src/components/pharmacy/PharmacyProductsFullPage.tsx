@@ -20,7 +20,7 @@ import { SizeMatchBanner } from "@/components/search/SizeMatchBanner"
 import { useToast } from "@/hooks/use-toast"
 import { ProductDetails } from "./types/product.types"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
-import { useSelector } from "react-redux"
+import { useSelector, useDispatch } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
 import { getProductsWithOffers } from "@/services/productOfferService"
 import {
@@ -68,6 +68,7 @@ export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
   const location = useLocation()
+  const dispatch = useDispatch()
   const { cartItems } = useCart()
   const [products, setProducts] = useState<ProductDetails[]>([])
   const [searchQuery, setSearchQuery] = useState("")
@@ -133,11 +134,20 @@ export const PharmacyProductsFullPage = () => {
   };
 
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    sessionStorage.clear()
-    localStorage.clear()
-    navigate("/login")
-  }
+    // Sign out from Supabase
+    await supabase.auth.signOut();
+    
+    // Clear all storage data
+    sessionStorage.clear();
+    localStorage.clear();
+
+    // Clear Redux store
+    dispatch({ type: 'CLEAR_USER_PROFILE' });
+    dispatch({ type: 'cart/clearCart' });
+
+    // Navigate to login page
+    navigate("/login");
+  };
 
   // Set category and product from navigation state (when coming back from product/size details)
   useEffect(() => {

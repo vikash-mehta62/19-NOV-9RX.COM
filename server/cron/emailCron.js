@@ -1549,6 +1549,288 @@ async function trackConversion(userId, orderId = null, orderTotal = null) {
 }
 
 // ============================================
+// 12. CUSTOMER DOCUMENT REMINDERS
+// ============================================
+/**
+ * Check customer documents for expiry and send reminders
+ * - 30 days before expiry (first reminder)
+ * - 7 days before expiry (second reminder)
+ * - After expired (final reminder)
+ * 
+ * Prevents duplicate reminders for same stage
+ */
+async function checkCustomerDocumentReminders() {
+  try {
+    log("📄", "Checking customer document reminders...");
+
+    let emailsSent = 0;
+    let notificationsCreated = 0;
+    let skipped = 0;
+    let checked = 0;
+
+    // Fetch all customer documents with profile info
+    const { data: documents, error: fetchError } = await supabase
+      .from("customer_documents")
+      .select(`
+        id,
+        customer_id,
+        name,
+        document_category,
+        document_number,
+        expires_at,
+        reminder_days_before,
+        profiles:customer_id (
+          id,
+          email,
+          first_name,
+          last_name,
+          display_name
+        )
+      `);
+
+    if (fetchError) {
+      log("❌", "Error fetching documents:", fetchError.message);
+      return { checked: 0, emailsSent: 0, notificationsCreated: 0, skipped: 0 };
+    }
+
+    if (!documents || documents.length === 0) {
+      log("📄", "No documents found to check");
+      return { checked: 0, emailsSent: 0, notificationsCreated: 0, skipped: 0 };
+    }
+
+    const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (const doc of documents) {
+      checked++;
+
+      // Skip if no profile or email
+      if (!doc.profiles || !doc.profiles.email) {
+        skipped++;
+        continue;
+      }
+
+      const profile = doc.profiles;
+      let reminderType = null;
+      let subject = "";
+      let message = "";
+      let daysLeft = null;
+
+      // Get document category label
+      const categoryLabels = {
+        license: "License",
+        insurance: "Insurance",
+        tax_form: "Tax Form",
+        id_proof: "ID Proof",
+        address_proof: "Address Proof",
+        other: "Document"
+      };
+      const categoryLabel = categoryLabels[doc.document_category] || "Document";
+      const displayName = doc.name || categoryLabel;
+
+      // Skip if no expiry date
+      if (!doc.expires_at) {
+        skipped++;
+        continue;
+      }
+
+      // Calculate days left
+      const expiryDate = new Date(doc.expires_at);
+      expiryDate.setHours(0, 0, 0, 0);
+      daysLeft = Math.ceil((expiryDate.getTime() - today.getTime()) / ONE_DAY_MS);
+
+      // Determine reminder type based on days left
+      // 1. 30 days before expiry (first reminder)
+      if (daysLeft === 30) {
+        reminderType = "30_days_before";
+        subject = `Reminder: ${displayName} expires in 30 days`;
+        message = `Your ${categoryLabel} "${displayName}" will expire on ${expiryDate.toLocaleDateString()}. Please renew it within the next 30 days.`;
+      }
+      // 2. 7 days before expiry (second reminder)
+      else if (daysLeft === 7) {
+        reminderType = "7_days_before";
+        subject = `Urgent: ${displayName} expires in 7 days`;
+        message = `Your ${categoryLabel} "${displayName}" will expire on ${expiryDate.toLocaleDateString()}. Please renew it within the next 7 days.`;
+      }
+      // 3. Already expired (final reminder)
+      else if (daysLeft < 0) {
+        // Only send expired reminder once (check if already sent)
+        const { data: expiredReminder } = await supabase
+          .from("customer_document_reminder_logs")
+          .select("id")
+          .eq("customer_document_id", doc.id)
+          .eq("reminder_type", "expired")
+          .limit(1);
+
+        if (expiredReminder && expiredReminder.length > 0) {
+          skipped++;
+          continue; // Already sent expired reminder
+        }
+
+        reminderType = "expired";
+        subject = `Action Required: ${displayName} has expired`;
+        message = `Your ${categoryLabel} "${displayName}" expired on ${expiryDate.toLocaleDateString()}. Please upload a renewed copy immediately.`;
+      }
+
+      // Skip if no reminder needed
+      if (!reminderType) {
+        skipped++;
+        continue;
+      }
+
+      // Check for duplicate reminder (same type already sent)
+      const { data: recentReminders, error: reminderCheckError } = await supabase
+        .from("customer_document_reminder_logs")
+        .select("id")
+        .eq("customer_document_id", doc.id)
+        .eq("reminder_type", reminderType)
+        .limit(1);
+
+      if (reminderCheckError) {
+        log("❌", "Error checking recent reminders:", reminderCheckError.message);
+        skipped++;
+        continue;
+      }
+
+      // Skip if already sent this reminder type
+      if (recentReminders && recentReminders.length > 0) {
+        skipped++;
+        continue;
+      }
+
+      // Prepare customer name
+      const customerName = profile.display_name ||
+        `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||
+        "Customer";
+
+      let emailSent = false;
+      let notificationSent = false;
+
+      // Send email directly using mailSender
+      try {
+        const urgencyColor = reminderType === "expired" ? "#dc2626" : 
+                            reminderType === "7_days_before" ? "#f59e0b" : "#3b82f6";
+        
+        const urgencyIcon = reminderType === "expired" ? "🚨" : 
+                           reminderType === "7_days_before" ? "⚠️" : "📄";
+
+        const htmlContent = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #111827; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${urgencyColor}dd 100%); padding: 30px; text-align: center; border-radius: 10px 10px 0 0;">
+              <h1 style="color: white; margin: 0; font-size: 28px;">${urgencyIcon} Document Reminder</h1>
+            </div>
+            <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 10px 10px;">
+              <p style="font-size: 16px; margin-bottom: 20px;">Hello ${customerName},</p>
+              <p style="font-size: 16px; margin-bottom: 20px;">${message}</p>
+              <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid ${urgencyColor};">
+                <p style="margin: 5px 0;"><strong>Document:</strong> ${displayName}</p>
+                <p style="margin: 5px 0;"><strong>Category:</strong> ${categoryLabel}</p>
+                ${doc.document_number ? `<p style="margin: 5px 0;"><strong>Number:</strong> ${doc.document_number}</p>` : ""}
+                <p style="margin: 5px 0;"><strong>Expires:</strong> ${expiryDate.toLocaleDateString()}</p>
+                ${daysLeft >= 0 ? `<p style="margin: 5px 0; color: ${urgencyColor}; font-weight: bold;"><strong>Days Left:</strong> ${daysLeft} days</p>` : `<p style="margin: 5px 0; color: ${urgencyColor}; font-weight: bold;"><strong>Status:</strong> EXPIRED</p>`}
+              </div>
+              <p style="font-size: 16px; margin-bottom: 20px;">Please sign in to your 9RX account and update the document details or upload a replacement.</p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="https://9rx.com/pharmacy/settings" style="background: ${urgencyColor}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Update Document Now</a>
+              </div>
+              <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">If you have any questions, please contact our support team.</p>
+            </div>
+            <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+              <p>© ${new Date().getFullYear()} 9RX. All rights reserved.</p>
+            </div>
+          </div>
+        `;
+
+        const emailResult = await mailSender(
+          profile.email,
+          subject,
+          htmlContent
+        );
+
+        if (emailResult.success) {
+          emailSent = true;
+          emailsSent++;
+          log("✅", `Email sent to ${profile.email} for ${displayName} (${reminderType})`);
+        } else {
+          log("❌", `Failed to send email to ${profile.email}:`, emailResult.error);
+        }
+      } catch (emailError) {
+        log("❌", "Error sending email:", emailError.message);
+      }
+
+      // Create in-app notification
+      try {
+        const notifType = reminderType === "expired" ? "error" : "warning";
+        const notifTitle = reminderType === "expired" ? "Document Expired" :
+                          reminderType === "7_days_before" ? "Urgent: Document Expiring Soon" :
+                          "Document Reminder";
+
+        const { error: notifError } = await supabase
+          .from("notifications")
+          .insert({
+            user_id: doc.customer_id,
+            title: notifTitle,
+            message: message,
+            type: notifType,
+            link: "/pharmacy/settings",
+            metadata: {
+              document_id: doc.id,
+              reminder_type: reminderType,
+              expires_at: doc.expires_at,
+              days_left: daysLeft,
+            },
+          });
+
+        if (!notifError) {
+          notificationSent = true;
+          notificationsCreated++;
+        } else {
+          log("❌", "Error creating notification:", notifError.message);
+        }
+      } catch (notifError) {
+        log("❌", "Error creating notification:", notifError.message);
+      }
+
+      // Log the reminder
+      try {
+        const { error: logError } = await supabase
+          .from("customer_document_reminder_logs")
+          .insert({
+            customer_document_id: doc.id,
+            customer_id: doc.customer_id,
+            reminder_type: reminderType,
+            reminder_window_days: daysLeft !== null ? Math.abs(daysLeft) : null,
+            sent_via_email: emailSent,
+            sent_via_notification: notificationSent,
+            metadata: {
+              document_name: doc.name,
+              document_category: doc.document_category || "other",
+              expires_at: doc.expires_at,
+              customer_email: profile.email,
+              days_left: daysLeft,
+            },
+          });
+
+        if (logError) {
+          log("❌", "Error logging reminder:", logError.message);
+        }
+      } catch (logError) {
+        log("❌", "Error logging reminder:", logError.message);
+      }
+    }
+
+    const result = { checked, emailsSent, notificationsCreated, skipped };
+    log("✅", "Document reminders processed:", result);
+    return result;
+
+  } catch (error) {
+    log("❌", "Document reminder check error:", error.message);
+    return { checked: 0, emailsSent: 0, notificationsCreated: 0, skipped: 0 };
+  }
+}
+
+// ============================================
 // MAIN CRON STARTER (UPDATED)
 // ============================================
 function startEmailCron() {
@@ -1590,6 +1872,9 @@ function startEmailCron() {
   // 9. Check restock reminders (every 6 hours)
   setInterval(checkRestockReminders, 6 * 60 * 60 * 1000);
 
+  // 10. Check customer document reminders (every 6 hours)
+  setInterval(checkCustomerDocumentReminders, 6 * 60 * 60 * 1000);
+
   // Run initial checks after 5 seconds
   setTimeout(async () => {
     log("🔄", "Running initial checks...");
@@ -1615,4 +1900,5 @@ module.exports = {
   checkSignupAnniversary,
   checkRestockReminders,
   trackConversion,
+  checkCustomerDocumentReminders,
 };

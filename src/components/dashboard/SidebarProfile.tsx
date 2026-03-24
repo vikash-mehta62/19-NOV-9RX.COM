@@ -26,9 +26,11 @@ import { selectUserProfile } from "../../store/selectors/userSelectors";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebar } from "../ui/sidebar";
 import { hasAdminPermission, isInternalAdminType } from "@/lib/adminAccess";
+import { supabase } from "@/supabaseClient";
 
 export const SidebarProfile = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -52,9 +54,17 @@ export const SidebarProfile = () => {
     return (nameParts[0]?.[0] || "" + nameParts[1]?.[0] || "").toUpperCase();
   };
 
-  const handleLogout = () => {
-    // Clear all session storage data
+  const handleLogout = async () => {
+    // Sign out from Supabase
+    await supabase.auth.signOut();
+    
+    // Clear all storage data
     sessionStorage.clear();
+    localStorage.clear();
+
+    // Clear Redux store
+    dispatch({ type: 'CLEAR_USER_PROFILE' });
+    dispatch({ type: 'cart/clearCart' });
 
     // Show success toast
     toast({

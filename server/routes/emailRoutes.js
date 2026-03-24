@@ -16,6 +16,7 @@ const {
   checkSignupAnniversary,
   checkRestockReminders,
   trackConversion,
+  checkCustomerDocumentReminders,
 } = require("../cron/emailCron");
 
 // Initialize Supabase client
@@ -191,6 +192,17 @@ router.post("/cron/restock", async (req, res) => {
     res.json({ success: true, message: "Restock reminder check completed", result });
   } catch (error) {
     res.status(500).json({ success: false, error: "Internal server error" });
+  }
+});
+
+// Check customer document reminders manually
+router.post("/cron/document-reminders", async (req, res) => {
+  try {
+    const result = await checkCustomerDocumentReminders();
+    res.json({ success: true, message: "Document reminder check completed", result });
+  } catch (error) {
+    console.error("Document reminder error:", error);
+    res.status(500).json({ success: false, error: error.message || "Internal server error" });
   }
 });
 
