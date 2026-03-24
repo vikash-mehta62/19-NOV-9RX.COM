@@ -49,35 +49,36 @@ const calculateUnitPrice = (
 export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
   const category = form.watch("category");
   const productName = form.watch("name");
+  const productId = form.watch("id") as string | undefined; // Get product ID from form
   const [categoryConfigMap, setCategoryConfigMap] = useState<Record<string, CategorySizingConfig>>({});
 
-  useEffect(() => {
-    const loadCategoryConfigs = async () => {
-      try {
-        const categories = await fetchOrderedCategories();
-        const configMap = categories.reduce<Record<string, CategorySizingConfig>>((acc, item) => {
-          acc[item.category_name] = {
-            sizeUnits: (item.size_units && item.size_units.length > 0)
-              ? item.size_units
-              : FALLBACK_CATEGORY_CONFIG.sizeUnits,
-            defaultUnit: item.default_unit || FALLBACK_CATEGORY_CONFIG.defaultUnit,
-            hasRolls: Boolean(item.has_rolls),
-            requiresCase: Boolean(item.requires_case),
-          };
-          return acc;
-        }, {});
+  const loadCategoryConfigs = async () => {
+    try {
+      const categories = await fetchOrderedCategories();
+      const configMap = categories.reduce<Record<string, CategorySizingConfig>>((acc, item) => {
+        acc[item.category_name] = {
+          sizeUnits: (item.size_units && item.size_units.length > 0)
+            ? item.size_units
+            : FALLBACK_CATEGORY_CONFIG.sizeUnits,
+          defaultUnit: item.default_unit || FALLBACK_CATEGORY_CONFIG.defaultUnit,
+          hasRolls: Boolean(item.has_rolls),
+          requiresCase: Boolean(item.requires_case),
+        };
+        return acc;
+      }, {});
 
-        if (!configMap.OTHER) {
-          configMap.OTHER = FALLBACK_CATEGORY_CONFIG;
-        }
-
-        setCategoryConfigMap(configMap);
-      } catch (error) {
-        console.error("Failed to fetch category configs for size form:", error);
-        setCategoryConfigMap({ OTHER: FALLBACK_CATEGORY_CONFIG });
+      if (!configMap.OTHER) {
+        configMap.OTHER = FALLBACK_CATEGORY_CONFIG;
       }
-    };
 
+      setCategoryConfigMap(configMap);
+    } catch (error) {
+      console.error("Failed to fetch category configs for size form:", error);
+      setCategoryConfigMap({ OTHER: FALLBACK_CATEGORY_CONFIG });
+    }
+  };
+
+  useEffect(() => {
     loadCategoryConfigs();
   }, []);
 
@@ -379,6 +380,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
           productName={productName}
           categoryConfig={categoryConfig}
           setNewSize={setNewSize}
+          onUnitsRefresh={loadCategoryConfigs}
         // You might need to pass `groups` and `loadingGroups` to `AddSizeForm` if it also needs to display the group dropdown
         />
 
@@ -408,6 +410,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
                 categoryConfig={categoryConfig}
                 setNewSize={setNewSize}
                 form={form}
+                productId={productId}
               />
             </FormItem>
           )}

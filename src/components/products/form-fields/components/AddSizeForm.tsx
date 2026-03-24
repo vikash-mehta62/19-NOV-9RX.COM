@@ -11,6 +11,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { useState } from "react"
+import { supabase } from "@/integrations/supabase/client"
+import { toast } from "@/hooks/use-toast"
 import type { NewSizeState } from "../../types/size.types"
 import { Card, CardContent } from "@/components/ui/card"
 
@@ -29,6 +39,7 @@ interface AddSizeFormProps {
   category: string
   productName?: string
   categoryConfig: CategorySizingConfig
+  onUnitsRefresh?: () => void
 }
 
 export const AddSizeForm = ({
@@ -38,7 +49,82 @@ export const AddSizeForm = ({
   category,
   productName,
   categoryConfig,
+  onUnitsRefresh,
 }: AddSizeFormProps) => {
+  const [addUnitDialogOpen, setAddUnitDialogOpen] = useState(false);
+  const [newUnitName, setNewUnitName] = useState("");
+  const [savingUnit, setSavingUnit] = useState(false);
+
+  const handleAddNewUnit = async () => {
+    if (!newUnitName.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a unit name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const unitToAdd = newUnitName.trim().toUpperCase();
+
+    // Check if unit already exists
+    if (categoryConfig.sizeUnits.includes(unitToAdd)) {
+      toast({
+        title: "Unit Already Exists",
+        description: `${unitToAdd} is already in the list`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSavingUnit(true);
+
+    try {
+      // Fetch current category config
+      const { data: categoryData, error: fetchError } = await supabase
+        .from("category_configs")
+        .select("*")
+        .eq("category_name", category)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      // Add new unit to the array
+      const updatedUnits = [...(categoryData.size_units || []), unitToAdd];
+
+      // Update category config
+      const { error: updateError } = await supabase
+        .from("category_configs")
+        .update({ size_units: updatedUnits })
+        .eq("category_name", category);
+
+      if (updateError) throw updateError;
+
+      toast({
+        title: "Success",
+        description: `Unit "${unitToAdd}" added successfully`,
+      });
+
+      // Refresh units list
+      if (onUnitsRefresh) {
+        onUnitsRefresh();
+      }
+
+      // Set the new unit as selected
+      onSizeChange({ ...newSize, size_unit: unitToAdd });
+
+      setAddUnitDialogOpen(false);
+      setNewUnitName("");
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to add unit",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingUnit(false);
+    }
+  };
 
   // 🔥 Auto-calculate price per unit when related fields change
   const handleFieldChange = (field: string, value: string | boolean) => {
@@ -70,8 +156,17 @@ export const AddSizeForm = ({
     onSizeChange(updatedSize);
   };
 
+  const handleUnitSelectChange = (value: string) => {
+    if (value === "__add_new__") {
+      setAddUnitDialogOpen(true);
+    } else {
+      handleFieldChange("size_unit", value);
+    }
+  };
+
   return (
-    <Card className="border border-dashed border-purple-300 bg-white/50 backdrop-blur-sm">
+    <>
+      <Card className="border border-dashed border-purple-300 bg-white/50 backdrop-blur-sm">
       <CardContent className="p-4">
         <div className="flex flex-col gap-4">
           {/* ➤ Size and Unit in one row */}
@@ -109,7 +204,7 @@ export const AddSizeForm = ({
               </FormLabel>
               <Select
                 value={newSize.size_unit}
-                onValueChange={(value) => handleFieldChange("size_unit", value)}
+                onValueChange={handleUnitSelectChange}
               >
                 <SelectTrigger className="h-9 w-full">
                   <SelectValue />
@@ -120,6 +215,9 @@ export const AddSizeForm = ({
                       {unit}
                     </SelectItem>
                   ))}
+                  <SelectItem value="__add_new__" className="text-blue-600 font-semibold">
+                    + Add New Unit
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -371,5 +469,49 @@ export const AddSizeForm = ({
         </div>
       </CardContent>
     </Card>
+
+    {/* Add New Unit Dialog */}
+    <Dialog open={addUnitDialogOpen} onOpenChange={setAddUnitDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add New Unit</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <FormLabel>Unit Name</FormLabel>
+            <Input
+              value={newUnitName}
+              onChange={(e) => setNewUnitName(e.target.value)}
+              placeholder="e.g., KG, LB, GAL"
+              className="uppercase"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  handleAddNewUnit();
+                }
+              }}
+            />
+            <p className="text-xs text-muted-foreground">
+              Enter the unit abbreviation (will be converted to uppercase)
+            </p>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setAddUnitDialogOpen(false);
+              setNewUnitName("");
+            }}
+            disabled={savingUnit}
+          >
+            Cancel
+          </Button>
+          <Button onClick={handleAddNewUnit} disabled={savingUnit || !newUnitName.trim()}>
+            {savingUnit ? "Adding..." : "Add Unit"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </>
   )
 }

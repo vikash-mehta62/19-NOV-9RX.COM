@@ -1,9 +1,9 @@
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
-import { DateRange } from "react-day-picker";
 
 interface DateRangePickerProps {
   dateRange: { from: Date; to: Date };
@@ -11,10 +11,29 @@ interface DateRangePickerProps {
 }
 
 export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePickerProps) {
-  const handleSelect = (range: DateRange | undefined) => {
-    if (range?.from && range?.to) {
-      onDateRangeChange({ from: range.from, to: range.to });
+  const [open, setOpen] = useState(false);
+  const [tempRange, setTempRange] = useState(dateRange);
+
+  const handleFromSelect = (date: Date | undefined) => {
+    if (date) {
+      setTempRange({ from: date, to: tempRange.to });
     }
+  };
+
+  const handleToSelect = (date: Date | undefined) => {
+    if (date) {
+      setTempRange({ from: tempRange.from, to: date });
+    }
+  };
+
+  const handleApply = () => {
+    onDateRangeChange(tempRange);
+    setOpen(false);
+  };
+
+  const handleCancel = () => {
+    setTempRange(dateRange);
+    setOpen(false);
   };
 
   const presets = [
@@ -28,19 +47,24 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
     const to = new Date();
     const from = new Date();
     from.setDate(from.getDate() - days);
-    onDateRangeChange({ from, to });
+    setTempRange({ from, to });
   };
 
   return (
     <div className="flex items-center gap-2">
-      <Popover>
+      <Popover open={open} onOpenChange={(isOpen) => {
+        setOpen(isOpen);
+        if (isOpen) {
+          setTempRange(dateRange);
+        }
+      }}>
         <PopoverTrigger asChild>
           <Button variant="outline" size="sm" className="justify-start text-left font-normal">
             <CalendarIcon className="mr-2 h-4 w-4" />
             {format(dateRange.from, "MMM dd, yyyy")} - {format(dateRange.to, "MMM dd, yyyy")}
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
+        <PopoverContent className="w-auto max-w-[95vw] p-0" align="end" side="bottom" sideOffset={8}>
           <div className="p-3 border-b">
             <div className="grid grid-cols-2 gap-2">
               {presets.map((preset) => (
@@ -55,12 +79,34 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
               ))}
             </div>
           </div>
-          <Calendar
-            mode="range"
-            selected={{ from: dateRange.from, to: dateRange.to }}
-            onSelect={handleSelect}
-            numberOfMonths={2}
-          />
+          <div className="grid grid-cols-1 gap-4 p-3 lg:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">Start Date</p>
+              <Calendar
+                mode="single"
+                selected={tempRange.from}
+                onSelect={handleFromSelect}
+                initialFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-center">End Date</p>
+              <Calendar
+                mode="single"
+                selected={tempRange.to}
+                onSelect={handleToSelect}
+                disabled={(date) => date < tempRange.from}
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 border-t p-3">
+            <Button variant="outline" size="sm" onClick={handleCancel}>
+              Cancel
+            </Button>
+            <Button size="sm" onClick={handleApply}>
+              Apply
+            </Button>
+          </div>
         </PopoverContent>
       </Popover>
     </div>

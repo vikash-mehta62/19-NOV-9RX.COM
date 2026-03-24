@@ -45,7 +45,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
       // Fetch all orders without nested relationships
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total_amount, created_at, poApproved')
+        .select('id, total_amount, created_at, poApproved, items')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .or('void.eq.false,void.is.null')
@@ -56,7 +56,7 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
         // Try without poApproved if column doesn't exist
         const { data: ordersWithoutPO } = await supabase
           .from('orders')
-          .select('id, total_amount, created_at')
+          .select('id, total_amount, created_at, items')
           .gte('created_at', dateRange.from.toISOString())
           .lte('created_at', dateRange.to.toISOString())
           .or('void.eq.false,void.is.null')
@@ -86,6 +86,9 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
       const salesOrders = filteredOrders?.filter(order => !order.poApproved) || [];
       const purchaseOrders = filteredOrders?.filter(order => order.poApproved === true) || [];
 
+      console.log('📊 OVERVIEW TAB - Sales orders:', salesOrders.length, 'Purchase orders:', purchaseOrders.length);
+      console.log('📊 OVERVIEW TAB - Sample sales order:', salesOrders[0]);
+
       processOrdersData(salesOrders, purchaseOrders);
 
     } catch (error) {
@@ -97,6 +100,8 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
 
   const filterOrdersByProducts = async (orders: any[]) => {
     if (selectedProducts.length === 0) return orders;
+
+    console.log('📊 FILTER - Filtering', orders.length, 'orders by', selectedProducts.length, 'products');
 
     const orderIds = orders.map(o => o.id);
     
@@ -120,8 +125,52 @@ export function SalesVsPurchaseAnalytics({ dateRange, refresh, selectedProducts 
       }
     }
 
+    // ALSO parse items from orders.items JSON column (legacy orders)
+    orders.forEach((order: any) => {
+      if (!order.items || !Array.isArray(order.items)) return;
+      
+      try {
+        order.items.forEach((itemWrapper: any) => {
+          const productId = itemWrapper.productId || itemWrapper.product_id;
+          
+          // Only include if product is in selected products
+          if (!selectedProducts.includes(productId)) return;
+          
+          const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+          
+          soldSizes.forEach((soldSize: any) => {
+            allOrderItems.push({
+              order_id: order.id,
+              product_id: productId,
+              quantity: Number(soldSize.quantity) || 0,
+              unit_price: Number(soldSize.price) || 0
+            });
+          });
+        });
+      } catch (e) {
+        console.error('Error parsing order items JSON:', e, order.id);
+      }
+    });
+
+    // Calculate actual revenue from filtered items
+    const orderRevenueMap = new Map<string, number>();
+    allOrderItems.forEach(item => {
+      const revenue = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+      const currentRevenue = orderRevenueMap.get(item.order_id) || 0;
+      orderRevenueMap.set(item.order_id, currentRevenue + revenue);
+    });
+
+    // Update order total_amount with calculated revenue from filtered products
     const orderIdsWithProducts = new Set(allOrderItems.map(item => item.order_id));
-    const filtered = orders.filter(order => orderIdsWithProducts.has(order.id));
+    const filtered = orders
+      .filter(order => orderIdsWithProducts.has(order.id))
+      .map(order => ({
+        ...order,
+        total_amount: orderRevenueMap.get(order.id) || 0
+      }));
+    
+    console.log('📊 FILTER - Found', allOrderItems.length, 'items,', filtered.length, 'orders');
+    console.log('📊 FILTER - Sample filtered order:', filtered[0]);
     
     return filtered;
   };

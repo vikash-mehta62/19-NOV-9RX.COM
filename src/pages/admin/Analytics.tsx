@@ -122,7 +122,7 @@ export default function Analytics() {
       // Fetch orders for revenue and count (without poApproved filter to get all orders)
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, total_amount, poApproved')
+        .select('id, total_amount, poApproved, items')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .or('void.eq.false,void.is.null')
@@ -133,7 +133,7 @@ export default function Analytics() {
         // Try without poApproved if column doesn't exist
         const { data: ordersWithoutPO } = await supabase
           .from('orders')
-          .select('id, total_amount')
+          .select('id, total_amount, items')
           .gte('created_at', dateRange.from.toISOString())
           .lte('created_at', dateRange.to.toISOString())
           .or('void.eq.false,void.is.null')
@@ -144,13 +144,41 @@ export default function Analytics() {
         if (matchingProductIds.length > 0) {
           const orderIds = ordersWithoutPO?.map(o => o.id) || [];
           if (orderIds.length > 0) {
+            // Fetch from order_items table
             const { data: orderItems } = await supabase
               .from('order_items')
-              .select('order_id')
+              .select('order_id, product_id, quantity')
               .in('order_id', orderIds)
               .in('product_id', matchingProductIds);
 
-            const orderIdsWithProducts = new Set(orderItems?.map(item => item.order_id));
+            const allOrderItems: any[] = [...(orderItems || [])];
+
+            // ALSO parse items from orders.items JSON column (legacy orders)
+            ordersWithoutPO?.forEach((order: any) => {
+              if (!order.items || !Array.isArray(order.items)) return;
+              
+              try {
+                order.items.forEach((itemWrapper: any) => {
+                  const productId = itemWrapper.productId || itemWrapper.product_id;
+                  
+                  if (!matchingProductIds.includes(productId)) return;
+                  
+                  const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+                  
+                  soldSizes.forEach((soldSize: any) => {
+                    allOrderItems.push({
+                      order_id: order.id,
+                      product_id: productId,
+                      quantity: Number(soldSize.quantity) || 0
+                    });
+                  });
+                });
+              } catch (e) {
+                console.error('Error parsing order items JSON:', e, order.id);
+              }
+            });
+
+            const orderIdsWithProducts = new Set(allOrderItems?.map(item => item.order_id));
             filteredOrders = ordersWithoutPO?.filter(order => orderIdsWithProducts.has(order.id)) || [];
           }
         }
@@ -170,6 +198,7 @@ export default function Analytics() {
         // Fetch products sold (count unique products) and units sold (sum of quantities)
         const orderIds = filteredOrders?.map(o => o.id) || [];
         if (orderIds.length > 0) {
+          // Fetch from order_items table
           let itemsQuery = supabase
             .from('order_items')
             .select('product_id, quantity')
@@ -181,13 +210,41 @@ export default function Analytics() {
           }
 
           const { data: items } = await itemsQuery;
+          const allItems: any[] = [...(items || [])];
+
+          // ALSO parse items from orders.items JSON column (legacy orders)
+          filteredOrders?.forEach((order: any) => {
+            if (!order.items || !Array.isArray(order.items)) return;
+            
+            try {
+              order.items.forEach((itemWrapper: any) => {
+                const productId = itemWrapper.productId || itemWrapper.product_id;
+                
+                // Skip if product filter is applied and this product is not selected
+                if (matchingProductIds.length > 0 && !matchingProductIds.includes(productId)) {
+                  return;
+                }
+                
+                const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+                
+                soldSizes.forEach((soldSize: any) => {
+                  allItems.push({
+                    product_id: productId,
+                    quantity: Number(soldSize.quantity) || 0
+                  });
+                });
+              });
+            } catch (e) {
+              console.error('Error parsing order items JSON:', e, order.id);
+            }
+          });
 
           // Count unique products
-          const uniqueProducts = new Set(items?.map(item => item.product_id).filter(Boolean));
+          const uniqueProducts = new Set(allItems?.map(item => item.product_id).filter(Boolean));
           const productsSold = uniqueProducts.size;
 
           // Sum total units
-          const unitsSold = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+          const unitsSold = allItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 
           setQuickStats({
             totalRevenue,
@@ -223,7 +280,7 @@ export default function Analytics() {
             const chunk = orderIds.slice(i, i + chunkSize);
             const { data: chunkItems, error } = await supabase
               .from('order_items')
-              .select('order_id')
+              .select('order_id, product_id, quantity')
               .in('order_id', chunk)
               .in('product_id', matchingProductIds);
             
@@ -231,6 +288,31 @@ export default function Analytics() {
               allOrderItems.push(...chunkItems);
             }
           }
+
+          // ALSO parse items from orders.items JSON column (legacy orders)
+          orders?.forEach((order: any) => {
+            if (!order.items || !Array.isArray(order.items)) return;
+            
+            try {
+              order.items.forEach((itemWrapper: any) => {
+                const productId = itemWrapper.productId || itemWrapper.product_id;
+                
+                if (!matchingProductIds.includes(productId)) return;
+                
+                const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+                
+                soldSizes.forEach((soldSize: any) => {
+                  allOrderItems.push({
+                    order_id: order.id,
+                    product_id: productId,
+                    quantity: Number(soldSize.quantity) || 0
+                  });
+                });
+              });
+            } catch (e) {
+              console.error('Error parsing order items JSON:', e, order.id);
+            }
+          });
 
           const orderIdsWithProducts = new Set(allOrderItems.map(item => item.order_id));
           orders = orders?.filter(order => orderIdsWithProducts.has(order.id)) || [];
@@ -252,6 +334,7 @@ export default function Analytics() {
       // Fetch products sold (count unique products) and units sold (sum of quantities)
       const orderIds = orders?.map(o => o.id) || [];
       if (orderIds.length > 0) {
+        // Fetch from order_items table
         let itemsQuery = supabase
           .from('order_items')
           .select('product_id, quantity')
@@ -263,13 +346,41 @@ export default function Analytics() {
         }
 
         const { data: items } = await itemsQuery;
+        const allItems: any[] = [...(items || [])];
+
+        // ALSO parse items from orders.items JSON column (legacy orders)
+        orders?.forEach((order: any) => {
+          if (!order.items || !Array.isArray(order.items)) return;
+          
+          try {
+            order.items.forEach((itemWrapper: any) => {
+              const productId = itemWrapper.productId || itemWrapper.product_id;
+              
+              // Skip if product filter is applied and this product is not selected
+              if (matchingProductIds.length > 0 && !matchingProductIds.includes(productId)) {
+                return;
+              }
+              
+              const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+              
+              soldSizes.forEach((soldSize: any) => {
+                allItems.push({
+                  product_id: productId,
+                  quantity: Number(soldSize.quantity) || 0
+                });
+              });
+            });
+          } catch (e) {
+            console.error('Error parsing order items JSON:', e, order.id);
+          }
+        });
 
         // Count unique products
-        const uniqueProducts = new Set(items?.map(item => item.product_id).filter(Boolean));
+        const uniqueProducts = new Set(allItems?.map(item => item.product_id).filter(Boolean));
         const productsSold = uniqueProducts.size;
 
         // Sum total units
-        const unitsSold = items?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
+        const unitsSold = allItems?.reduce((sum, item) => sum + (item.quantity || 0), 0) || 0;
 
         setQuickStats({
           totalRevenue,

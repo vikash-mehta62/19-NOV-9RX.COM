@@ -122,7 +122,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
 
   const processOrders = async (orders: any[]) => {
     try {
-      // Fetch order items separately - try with just product_id and quantity first
+      // Fetch order items from order_items table
       const orderIds = orders.map(o => o.id);
       let itemsQuery = supabase
         .from('order_items')
@@ -141,8 +141,48 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
         throw itemsError;
       }
 
+      // ALSO parse items from orders.items JSON column (legacy orders)
+      const itemsFromJson: any[] = [];
+      orders.forEach((order: any) => {
+        if (!order.items || !Array.isArray(order.items)) return;
+        
+        try {
+          // items is an array with a single object that contains the order line
+          order.items.forEach((itemWrapper: any) => {
+            // itemWrapper is the actual order line object
+            const productId = itemWrapper.productId || itemWrapper.product_id;
+            
+            // Skip if product filter is applied and this product is not selected
+            if (selectedProducts.length > 0 && !selectedProducts.includes(productId)) {
+              return;
+            }
+            
+            const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+            
+            soldSizes.forEach((soldSize: any) => {
+              itemsFromJson.push({
+                order_id: order.id,
+                product_id: productId,
+                product_size_id: soldSize.id,
+                quantity: Number(soldSize.quantity) || 0,
+                unit_price: Number(soldSize.price) || 0
+              });
+            });
+          });
+        } catch (e) {
+          console.error('Error parsing order items JSON:', e, order.id);
+        }
+      });
+
+      // Combine both sources
+      const allOrderItems = [...(orderItems || []), ...itemsFromJson];
+      
+      console.log('🟢 PRODUCTS TAB - Items from order_items table:', orderItems?.length || 0);
+      console.log('🟢 PRODUCTS TAB - Items from JSON:', itemsFromJson.length);
+      console.log('🟢 PRODUCTS TAB - Total items:', allOrderItems.length);
+
       // Get unique product IDs
-      const productIds = [...new Set(orderItems?.map(i => i.product_id).filter(Boolean))];
+      const productIds = [...new Set(allOrderItems?.map(i => i.product_id).filter(Boolean))];
 
       if (productIds.length === 0) {
         setStats({
@@ -246,25 +286,21 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       let totalRevenue = 0;
       let totalUnits = 0; 
 
-      // Calculate total revenue from FILTERED orders only
-      filteredOrders?.forEach(order => {
-        totalRevenue += parseFloat(order.total_amount || '0');
-      });
-
-      console.log('🟢 PRODUCTS TAB - Final Revenue:', totalRevenue, 'Orders:', filteredOrders.length);
-
-      // Calculate total units
-      orderItems?.forEach((item: any) => {
+      // Calculate total units from filtered items
+      allOrderItems?.forEach((item: any) => {
         totalUnits += item.quantity;
       });
 
-      // Aggregate product data - distribute revenue proportionally by quantity
-      orderItems?.forEach((item: any) => {
+      console.log('🟢 PRODUCTS TAB - Final Revenue (from items):', totalRevenue, 'Total Units:', totalUnits, 'Orders:', filteredOrders.length);
+
+      // Aggregate product data - use actual item prices
+      allOrderItems?.forEach((item: any) => {
         const product = productMap.get(item.product_id);
         if (!product) return;
 
-        // Estimate revenue based on proportion of total quantity
-        const estimatedRevenue = totalUnits > 0 ? (totalRevenue * item.quantity) / totalUnits : 0;
+        // Calculate actual revenue from unit_price * quantity
+        const itemRevenue = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+        totalRevenue += itemRevenue;
 
         // Product aggregation
         const existing = productAggMap.get(product.id) || {
@@ -278,7 +314,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
           revenue: 0
         };
         existing.quantity += item.quantity;
-        existing.revenue += estimatedRevenue;
+        existing.revenue += itemRevenue;
 
         if (!orderDerivedSizeMap.has(product.id)) {
           const sizeMeta = (product.product_sizes || []).find((size: any) => size.id === item.product_size_id);
@@ -296,13 +332,13 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
           const existingSize = existing.sizeBreakdown.find((size: any) => size.id === (item.product_size_id || sizeLabel));
           if (existingSize) {
             existingSize.quantity += Number(item.quantity) || 0;
-            existingSize.revenue += actualRevenue > 0 ? actualRevenue : estimatedRevenue;
+            existingSize.revenue += actualRevenue > 0 ? actualRevenue : itemRevenue;
           } else {
             existing.sizeBreakdown.push({
               id: item.product_size_id || sizeLabel,
               label: sizeLabel,
               quantity: Number(item.quantity) || 0,
-              revenue: actualRevenue > 0 ? actualRevenue : estimatedRevenue,
+              revenue: actualRevenue > 0 ? actualRevenue : itemRevenue,
               sku: matchingOrderSize?.sku || sizeMeta?.sku || "",
               quantityPerCase:
                 matchingOrderSize?.quantity_per_case ??
@@ -322,7 +358,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
           value: 0,
           count: 0
         };
-        catExisting.value += estimatedRevenue;
+        catExisting.value += itemRevenue;
         catExisting.count += item.quantity;
         categoryMap.set(category, catExisting);
       });

@@ -42,7 +42,7 @@ export function StoreAnalytics({ dateRange, refresh, selectedProducts = [] }: St
       // Fetch orders in date range
       const { data: allOrders, error: ordersError } = await supabase
         .from('orders')
-        .select('id, profile_id, total_amount, created_at, poApproved')
+        .select('id, profile_id, total_amount, created_at, poApproved, items')
         .gte('created_at', dateRange.from.toISOString())
         .lte('created_at', dateRange.to.toISOString())
         .or('void.eq.false,void.is.null')
@@ -57,15 +57,55 @@ export function StoreAnalytics({ dateRange, refresh, selectedProducts = [] }: St
 
       // Filter by selected products if any
       let filteredOrders = orders || [];
+      let orderRevenueMap = new Map<string, number>();
+      
       if (selectedProducts.length > 0) {
         const orderIds = orders?.map(o => o.id) || [];
+        
+        // Fetch order items with product filter from order_items table
         const { data: orderItems } = await supabase
           .from('order_items')
-          .select('order_id')
+          .select('order_id, product_id, quantity, unit_price')
           .in('order_id', orderIds)
           .in('product_id', selectedProducts);
 
-        const orderIdsWithProducts = new Set(orderItems?.map(item => item.order_id));
+        const allOrderItems: any[] = [...(orderItems || [])];
+
+        // ALSO parse items from orders.items JSON column (legacy orders)
+        orders?.forEach((order: any) => {
+          if (!order.items || !Array.isArray(order.items)) return;
+          
+          try {
+            order.items.forEach((itemWrapper: any) => {
+              const productId = itemWrapper.productId || itemWrapper.product_id;
+              
+              // Only include if product is in selected products
+              if (!selectedProducts.includes(productId)) return;
+              
+              const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+              
+              soldSizes.forEach((soldSize: any) => {
+                allOrderItems.push({
+                  order_id: order.id,
+                  product_id: productId,
+                  quantity: Number(soldSize.quantity) || 0,
+                  unit_price: Number(soldSize.price) || 0
+                });
+              });
+            });
+          } catch (e) {
+            console.error('Error parsing order items JSON:', e, order.id);
+          }
+        });
+
+        // Calculate actual revenue from filtered items
+        allOrderItems?.forEach(item => {
+          const revenue = (Number(item.unit_price) || 0) * (Number(item.quantity) || 0);
+          const currentRevenue = orderRevenueMap.get(item.order_id) || 0;
+          orderRevenueMap.set(item.order_id, currentRevenue + revenue);
+        });
+
+        const orderIdsWithProducts = new Set(allOrderItems?.map(item => item.order_id));
         filteredOrders = orders?.filter(order => orderIdsWithProducts.has(order.id)) || [];
         console.log('🟡 STORES TAB - Orders after product filter:', filteredOrders.length);
       }
@@ -88,7 +128,12 @@ export function StoreAnalytics({ dateRange, refresh, selectedProducts = [] }: St
         if (!storeId) return;
 
         activeStoreIds.add(storeId);
-        const amount = parseFloat(order.total_amount || 0);
+        
+        // Use calculated revenue from order items if product filter is applied
+        const amount = selectedProducts.length > 0 
+          ? (orderRevenueMap.get(order.id) || 0)
+          : parseFloat(order.total_amount || 0);
+        
         totalRevenue += amount;
 
         const existing = storeMap.get(storeId) || {
@@ -127,7 +172,13 @@ export function StoreAnalytics({ dateRange, refresh, selectedProducts = [] }: St
       filteredOrders?.forEach(order => {
         const month = new Date(order.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
         const existing = monthlyData.get(month) || { month, revenue: 0, orders: 0 };
-        existing.revenue += parseFloat(order.total_amount || 0);
+        
+        // Use calculated revenue from order items if product filter is applied
+        const amount = selectedProducts.length > 0 
+          ? (orderRevenueMap.get(order.id) || 0)
+          : parseFloat(order.total_amount || 0);
+        
+        existing.revenue += amount;
         existing.orders += 1;
         monthlyData.set(month, existing);
       });

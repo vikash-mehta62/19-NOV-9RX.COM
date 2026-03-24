@@ -233,6 +233,7 @@ export function AddProductDialog({
   useEffect(() => {
     if (open) {
       form.reset({
+        id: initialData?.id || "", // Add ID field
         name: initialData?.name || "",
         sku: initialData?.sku || "",
         key_features: initialData?.key_features || "",

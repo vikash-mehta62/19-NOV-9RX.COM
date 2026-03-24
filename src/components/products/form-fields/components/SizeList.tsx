@@ -3,7 +3,7 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { X, Edit3, Package, DollarSign, Warehouse, BarChart3, Printer } from "lucide-react";
+import { X, Edit3, Package, DollarSign, Warehouse, BarChart3, Printer, Save } from "lucide-react";
 import { SizeImageUploader } from "../SizeImageUploader";
 import { Card, CardContent } from "@/components/ui/card";
 import { useEffect, useState } from "react";
@@ -11,6 +11,7 @@ import { generateSingleProductLabelPDF } from "@/utils/size-lable-download";
 import { supabase } from "@/integrations/supabase/client";
 import Select from "react-select";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/hooks/use-toast";
 
 type CategorySizingConfig = {
   sizeUnits: string[];
@@ -20,6 +21,8 @@ type CategorySizingConfig = {
 };
 
 interface Size {
+  id?: string; // Add ID field to track if size is saved in DB
+  product_id?: string; // Add product_id field
   size_name?: string;
   size_value: string;
   size_unit: string;
@@ -40,6 +43,7 @@ interface Size {
   upcCode?: string;
   lotNumber?: string;
   exipry?: string;
+  image?: string;
 }
 
 interface ProductFormAdapter {
@@ -57,6 +61,7 @@ interface SizeListProps {
   productName?: string;
   categoryConfig: CategorySizingConfig;
   form?: ProductFormAdapter;
+  productId?: string; // Add productId prop
 }
 
 const calculateUnitPrice = (size: {
@@ -86,13 +91,15 @@ export const SizeList = ({
   productName,
   categoryConfig,
   setNewSize,
-  form
+  form,
+  productId, // Add productId parameter
 }: SizeListProps) => {
 
   // State hooks - ALWAYS keep at top
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+  const [savingIndex, setSavingIndex] = useState<number | null>(null);
   
   // Form values - ye bhi top pe
   const productUPCcode = String(form?.getValues("upcCode") || "");
@@ -100,6 +107,113 @@ export const SizeList = ({
   const productExpiry = String(form?.getValues("unitToggle") || "");
   const productLotNumber = String(form?.getValues("lotNumber") || "");
   const isUnitToggle = Boolean(form?.watch("unitToggle"));
+
+  console.log(productId)
+  const handleSaveOrUpdateSize = async (index: number, size: Size) => {
+    // Use passed productId prop first, then fallback to other sources
+    const sizeProductId = size.product_id;
+    const finalProductId = productId || sizeProductId;
+
+    console.log("[SIZELIST]: Prop Product ID:", productId);
+    console.log("[SIZELIST]: Size Product ID:", sizeProductId);
+    console.log("[SIZELIST]: Final Product ID:", finalProductId);
+    console.log("[SIZELIST]: Size data:", size);
+    console.log("[SIZELIST]: Size has ID?", !!size.id, "ID:", size.id);
+
+    if (!finalProductId) {
+      console.error("[SIZELIST]: Product ID not found!");
+      toast({
+        title: "Error",
+        description: "Product ID not found. Please save the product first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("[SIZELIST]: Starting save/update for size index:", index);
+    setSavingIndex(index);
+
+    try {
+      const sizeData = {
+        product_id: finalProductId,
+        size_name: size.size_name || "",
+        size_value: size.size_value,
+        size_unit: size.size_unit,
+        price: size.price,
+        sku: size.sku || "",
+        stock: size.stock,
+        quantity_per_case: size.quantity_per_case,
+        rolls_per_case: size.rolls_per_case || null,
+        price_per_case: calculateUnitPrice(size, categoryConfig?.hasRolls),
+        shipping_cost: size.shipping_cost || 0,
+        image: size.image || "",
+        unit: size.unit || false,
+        case: size.case || false,
+        ndcCode: size.ndcCode || "",
+        upcCode: size.upcCode || "",
+        lotNumber: size.lotNumber || "",
+        exipry: size.exipry || null,
+        groupIds: size.groupIds || [],
+        disAllogroupIds: size.disAllogroupIds || [],
+        sizeSquanence: size.sizeSquanence?.toString() || "0",
+        is_active: true,
+      };
+
+      console.log("[SIZELIST]: Size data to save:", sizeData);
+
+      if (size.id) {
+        console.log("[SIZELIST]: Updating existing size with ID:", size.id);
+        // Update existing size
+        const { error } = await supabase
+          .from("product_sizes")
+          .update(sizeData)
+          .eq("id", size.id);
+
+        if (error) {
+          console.error("[SIZELIST]: Update error:", error);
+          throw error;
+        }
+
+        console.log("[SIZELIST]: Size updated successfully");
+        toast({
+          title: "Success",
+          description: "Size updated successfully",
+        });
+      } else {
+        console.log("[SIZELIST]: Inserting new size");
+        // Insert new size
+        const { data, error } = await supabase
+          .from("product_sizes")
+          .insert([sizeData])
+          .select()
+          .single();
+
+        if (error) {
+          console.error("[SIZELIST]: Insert error:", error);
+          throw error;
+        }
+
+        console.log("[SIZELIST]: Size inserted successfully, new ID:", data.id);
+        // Update the size with the new ID
+        onUpdateSize(index, "id", data.id);
+
+        toast({
+          title: "Success",
+          description: "Size saved successfully",
+        });
+      }
+    } catch (error: any) {
+      console.error("[SIZELIST]: Save/Update failed:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save size",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingIndex(null);
+      console.log("[SIZELIST]: Save/Update process completed");
+    }
+  };
 
   // ⚠️ useEffect MUST be before any return statement
   useEffect(() => {
@@ -229,6 +343,23 @@ export const SizeList = ({
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2">
+                  {/* Save/Update Button */}
+                  <Button
+                    type="button"
+                    variant={size.id ? "outline" : "default"}
+                    size="sm"
+                    onClick={() => handleSaveOrUpdateSize(index, size)}
+                    disabled={savingIndex === index}
+                    className={`h-8 px-3 text-xs font-medium ${
+                      size.id 
+                        ? "text-blue-600 hover:text-blue-700 hover:bg-blue-50" 
+                        : "bg-green-600 hover:bg-green-700 text-white"
+                    }`}
+                  >
+                    <Save className="h-3 w-3 mr-1" />
+                    {savingIndex === index ? "Saving..." : size.id ? "Update" : "Save"}
+                  </Button>
+
                   {/* Download Label Button */}
                   <div className="flex items-center gap-2">
                     {/* Toggle for unit */}
