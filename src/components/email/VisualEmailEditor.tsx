@@ -107,26 +107,12 @@ const blockDefaults: Record<string, any> = {
 };
 
 const emailTemplates = [
-  { id: "welcome", name: "Welcome", description: "Greet new users", gradient: "from-blue-400 to-purple-500",
-    blocks: [
-      { type: "header", content: { text: "Welcome to 9RX! 🎉", bgColor: "#10b981", textColor: "#ffffff" } },
-      { type: "text", content: { text: "Hi {{first_name}},\n\nThank you for joining 9RX!", align: "left" } },
-      { type: "button", content: { text: "Start Shopping", url: "https://9rx.com/pharmacy", bgColor: "#10b981" } },
-      { type: "footer", content: { ...blockDefaults.footer } },
-    ]},
   { id: "abandoned", name: "Cart Recovery", description: "Win back customers", gradient: "from-orange-400 to-pink-500",
     blocks: [
       { type: "header", content: { text: "You left something behind! 🛒", bgColor: "#f97316", textColor: "#ffffff" } },
       { type: "text", content: { text: "Hi {{first_name}},\n\nYour cart is waiting!" } },
       { type: "coupon", content: { code: "COMEBACK10", discount: "10% OFF", description: "Complete your order" } },
       { type: "button", content: { text: "Complete Order", url: "https://9rx.com/cart", bgColor: "#f97316" } },
-      { type: "footer", content: { ...blockDefaults.footer } },
-    ]},
-  { id: "order", name: "Order Confirmed", description: "Confirmation email", gradient: "from-green-400 to-blue-500",
-    blocks: [
-      { type: "header", content: { text: "Order Confirmed! ✅", bgColor: "#22c55e", textColor: "#ffffff" } },
-      { type: "text", content: { text: "Hi {{first_name}},\n\nYour order #{{order_number}} is confirmed!" } },
-      { type: "button", content: { text: "Track Order", url: "https://9rx.com/orders", bgColor: "#22c55e" } },
       { type: "footer", content: { ...blockDefaults.footer } },
     ]},
   { id: "promo", name: "Promotion", description: "Special offers", gradient: "from-purple-400 to-pink-500",

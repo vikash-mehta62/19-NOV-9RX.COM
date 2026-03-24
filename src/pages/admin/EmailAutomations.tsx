@@ -93,10 +93,10 @@ interface AutomationExecution {
 
 const triggerTypes = [
   { value: "abandoned_cart", label: "Abandoned Cart", icon: ShoppingCart, description: "When user leaves items in cart", color: "bg-orange-500" },
-  { value: "welcome", label: "Welcome Email", icon: UserPlus, description: "When new user signs up", color: "bg-green-500" },
-  { value: "order_placed", label: "Order Placed", icon: Package, description: "When order is confirmed", color: "bg-blue-500" },
-  { value: "order_shipped", label: "Order Shipped", icon: Truck, description: "When order is shipped", color: "bg-purple-500" },
-  { value: "order_delivered", label: "Order Delivered", icon: Package, description: "When order is delivered", color: "bg-teal-500" },
+  // { value: "welcome", label: "Welcome Email", icon: UserPlus, description: "When new user signs up", color: "bg-green-500" },
+  // { value: "order_placed", label: "Order Placed", icon: Package, description: "When order is confirmed", color: "bg-blue-500" },
+  // { value: "order_shipped", label: "Order Shipped", icon: Truck, description: "When order is shipped", color: "bg-purple-500" },
+  // { value: "order_delivered", label: "Order Delivered", icon: Package, description: "When order is delivered", color: "bg-teal-500" },
   { value: "inactive_user", label: "Inactive User", icon: Clock, description: "When user hasn't logged in", color: "bg-red-500" },
   { value: "restock_reminder", label: "Restock Reminder", icon: Package, description: "Based on purchase frequency", color: "bg-amber-500" },
   { value: "birthday", label: "Birthday", icon: Gift, description: "On user's birthday", color: "bg-pink-500" },

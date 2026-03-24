@@ -61,11 +61,11 @@ interface EmailTemplate {
 }
 
 const templateTypes = [
-  { value: "welcome", label: "Welcome Email" },
+  // { value: "welcome", label: "Welcome Email" },
   { value: "abandoned_cart", label: "Abandoned Cart" },
-  { value: "order_confirmation", label: "Order Confirmation" },
-  { value: "order_shipped", label: "Order Shipped" },
-  { value: "order_delivered", label: "Order Delivered" },
+  // { value: "order_confirmation", label: "Order Confirmation" },
+  // { value: "order_shipped", label: "Order Shipped" },
+  // { value: "order_delivered", label: "Order Delivered" },
   { value: "promotional", label: "Promotional" },
   { value: "newsletter", label: "Newsletter" },
   { value: "restock_reminder", label: "Restock Reminder" },
@@ -108,6 +108,7 @@ export default function EmailTemplates() {
       const { data, error } = await supabase
         .from("email_templates")
         .select("*")
+        .eq("is_active", true)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
