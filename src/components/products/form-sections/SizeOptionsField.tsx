@@ -132,7 +132,7 @@ export const SizeOptionsField = ({ form }: SizeOptionsFieldProps) => {
                   <div className="grid grid-cols-4 gap-6 flex-1">
                     <div>
                       <span className="text-sm font-medium">Size</span>
-                      <p className="text-sm">{size.size_value} {size.size_unit}</p>
+                      <p className="text-sm">{size.size_value} {form.watch("unitToggle") ? size.size_unit : ""}</p>
                     </div>
                     <div>
                       <span className="text-sm font-medium">Unit Price</span>

@@ -665,15 +665,25 @@ const Products = () => {
                         </DropdownMenu>
                       </div>
 
-                      {/* Enhanced Category Badge */}
-                      {product.category && (
-                        <Badge
-                          variant="secondary"
-                          className="absolute bottom-3 left-3 bg-white/95 backdrop-blur-sm text-gray-700 text-xs px-2 py-1 rounded-lg shadow-sm"
-                        >
-                          {product.category}
-                        </Badge>
-                      )}
+                      {/* Enhanced Category and Subcategory Badges */}
+                      <div className="absolute bottom-3 left-3 flex flex-wrap gap-1.5">
+                        {product.category && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-white/95 backdrop-blur-sm text-blue-700 text-xs px-2 py-1 rounded-lg shadow-sm"
+                          >
+                            {product.category}
+                          </Badge>
+                        )}
+                        {/* {product.subcategory && (
+                          <Badge
+                            variant="secondary"
+                            className="bg-white/95 backdrop-blur-sm text-purple-700 text-xs px-2 py-1 rounded-lg shadow-sm"
+                          >
+                            {product.subcategory}
+                          </Badge>
+                        )} */}
+                      </div>
 
                       {/* Inactive Status Badge */}
                       {product.is_active === false && (
@@ -693,9 +703,17 @@ const Products = () => {
 
                     {/* Enhanced Product Info */}
                     <CardContent className="p-5">
-                      <h3 className="font-semibold text-gray-900 line-clamp-2 mb-2 group-hover:text-blue-600 transition-colors text-base leading-tight">
+                      {/* Subcategory (if available) */}
+                      {product.subcategory && (
+                        <h3 className="font-bold text-gray-900 line-clamp-1 mb-1 group-hover:text-blue-600 transition-colors text-base leading-tight">
+                          {product.subcategory}
+                        </h3>
+                      )}
+                      
+                      {/* Product Name */}
+                      <p className={`text-gray-600 line-clamp-2 ${product.subcategory ? 'text-xs mb-2' : 'font-semibold text-base mb-2 group-hover:text-blue-600 transition-colors'}`}>
                         {product.name}
-                      </h3>
+                      </p>
 
                       {/* Search Match Indicator */}
                       {searchQuery && (
@@ -783,7 +801,15 @@ const Products = () => {
                         <TableCell className="py-4">
                           <div>
                             <div className="flex items-center gap-2 mb-1">
-                              <p className="font-semibold text-gray-900 text-base">{product.name}</p>
+                              {/* Show Subcategory if available, otherwise product name */}
+                              {product.subcategory ? (
+                                <div className="flex flex-col">
+                                  <p className="font-bold text-gray-900 text-base">{product.subcategory}</p>
+                                  <p className="text-xs text-gray-500">{product.name}</p>
+                                </div>
+                              ) : (
+                                <p className="font-semibold text-gray-900 text-base">{product.name}</p>
+                              )}
                               {product.is_active === false && (
                                 <Badge variant="secondary" className="bg-red-500 text-white text-xs px-2 py-1 rounded-lg">
                                   Inactive
@@ -806,11 +832,18 @@ const Products = () => {
                           </div>
                         </TableCell>
                         <TableCell>
-                          {product.category && (
-                            <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-3 py-1 rounded-lg">
-                              {product.category}
-                            </Badge>
-                          )}
+                          <div className="flex flex-col gap-1">
+                            {product.category && (
+                              <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-3 py-1 rounded-lg w-fit">
+                                {product.category}
+                              </Badge>
+                            )}
+                            {product.subcategory && (
+                              <Badge variant="secondary" className="bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 border-purple-200 px-3 py-1 rounded-lg w-fit">
+                                {product.subcategory}
+                              </Badge>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <span className="text-lg font-bold bg-gradient-to-r from-blue-600 to-blue-700 bg-clip-text text-transparent">

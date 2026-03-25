@@ -49,7 +49,7 @@ exports.invoicesCtrl = async (req, res) => {
         const lineDesc = item.sizes
           .map(
             (size) =>
-              `${size.size_value} ${size.size_unit} (${size?.quantity})`
+              `${size.size_value} ${item.unitToggle ? size.size_unit : ""} (${size?.quantity})`
           )
           .join(", ");
   

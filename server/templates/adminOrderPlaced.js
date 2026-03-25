@@ -84,7 +84,7 @@ const adminOrderNotificationTemplate = (order) => {
         }
         
         return items.map(item => {
-            const sizeText = item.sizes?.map(size => `${size.size_value} ${size.size_unit}`).join(", ") || '-';
+            const sizeText = item.sizes?.map(size => `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`).join(", ") || '-';
             const qty = item.quantity || 1;
             const lineTotal = getItemLineTotal(item);
             return `

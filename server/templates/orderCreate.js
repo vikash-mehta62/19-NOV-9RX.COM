@@ -36,7 +36,7 @@ const orderConfirmationTemplate = (order) => {
         name: size.size_name || item.size_name || item.name || item.product_name || "Product",
         qty: size.quantity || item.quantity || 1,
         price: size.price || item.price || item.unit_price || 0,
-        size: [size.size_value, size.size_unit].filter(Boolean).join(" "),
+        size: item.unitToggle ? [size.size_value, size.size_unit].filter(Boolean).join(" ") : (size.size_value || ""),
       }));
     }
 
@@ -44,7 +44,7 @@ const orderConfirmationTemplate = (order) => {
       name: item.size_name || item.sizeName || item.name || item.product_name || "Product",
       qty: item.quantity || 1,
       price: item.price || item.unit_price || 0,
-      size: item.size || [item.size_value, item.size_unit].filter(Boolean).join(" "),
+      size: item.unitToggle ? (item.size || [item.size_value, item.size_unit].filter(Boolean).join(" ")) : (item.size_value || item.size || ""),
     }];
   });
 

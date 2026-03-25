@@ -75,7 +75,7 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
             calculatedTotal += sizeTotal;
             itemsHtml += `
               <div style="border-bottom: 1px solid #e5e7eb; padding: 10px 0;">
-                <p style="margin: 5px 0; color: #1f2937; font-weight: 600;">${item.name || 'Product'} - ${size.size_value || ''}</p>
+                <p style="margin: 5px 0; color: #1f2937; font-weight: 600;">${item.name || 'Product'} - ${size.size_value || ''} ${item.unitToggle ? (size.size_unit || '') : ''}</p>
                 <p style="margin: 5px 0; color: #6b7280; font-size: 14px;">
                   Quantity: ${size.quantity} × $${(size.price || 0).toFixed(2)} = $${sizeTotal.toFixed(2)}
                 </p>

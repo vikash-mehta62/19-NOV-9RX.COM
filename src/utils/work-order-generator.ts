@@ -277,7 +277,7 @@ if (workOrderData?.items && Array.isArray(workOrderData.items)) {
     if (Array.isArray(item.sizes)) {
       item.sizes.forEach((size) => {
         const itemSku = size.sku || "N/A";
-        const description = `${item.name || "N/A"} - ${size.size_value || ""} ${size.size_unit || ""}`;
+        const description = `${item.name || "N/A"} - ${size.size_value || ""} ${item.unitToggle ? (size.size_unit || "") : ""}`;
 
         let quantityPerCase = "N/A";
         let quantityPerRoll = null;

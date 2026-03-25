@@ -169,6 +169,22 @@ export const PharmacyProductCard = ({
 
       {/* Product Info */}
       <div className="p-2.5 sm:p-3 space-y-1.5 sm:space-y-2">
+        {/* Category and Subcategory Badges */}
+        {(product.category || product.subcategory) && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            {product.category && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-300 text-blue-700">
+                {product.category}
+              </Badge>
+            )}
+            {product.subcategory && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-300 text-purple-700">
+                {product.subcategory}
+              </Badge>
+            )}
+          </div>
+        )}
+        
         {/* Product Name */}
         <h3 className="font-semibold text-gray-900 text-xs sm:text-sm leading-tight line-clamp-2 hover:text-blue-600 transition-colors min-h-[32px] sm:min-h-[40px]" title={product.name}>
           {product.name}

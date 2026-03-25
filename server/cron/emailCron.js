@@ -168,7 +168,7 @@ const formatCartItemsForEmail = (cartItems) => {
         totalItemCount++;
         cartItemsHtml += `
           <div style="border-bottom:1px solid #eee; padding:10px 0;">
-            <strong>${item.name || item.product_name || "Product"} - ${size.size_value || ''}</strong>
+            <strong>${item.name || item.product_name || "Product"} - ${size.size_value || ''} ${item.unitToggle ? (size.size_unit || '') : ''}</strong>
             <div style="color:#666; font-size:14px;">Qty: ${size.quantity} Ã— $${(size.price || 0).toFixed(2)} = $${sizeTotal.toFixed(2)}</div>
           </div>
         `;

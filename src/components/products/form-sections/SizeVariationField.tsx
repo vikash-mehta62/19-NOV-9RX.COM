@@ -138,7 +138,7 @@ export const SizeVariationField = ({ form }: SizeVariationFieldProps) => {
                   <div className="flex items-center gap-8">
                     <div>
                       <span className="text-sm font-medium block">Size</span>
-                      <p className="text-sm">{size.size_value} {size.size_unit}</p>
+                      <p className="text-sm">{size.size_value} {form.watch("unitToggle") ? size.size_unit : ""}</p>
                     </div>
                     <div>
                       <span className="text-sm font-medium block">Unit Price</span>

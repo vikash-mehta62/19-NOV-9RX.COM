@@ -242,7 +242,7 @@ function PayNowOrder() {
 
               {item.sizes?.map((size: any, i: number) => (
                 <div key={i} className="text-sm text-gray-600 mt-1">
-                  {size.size_value} {size.size_unit} — Qty {size.quantity}
+                  {size.size_value} {item.unitToggle ? size.size_unit : ""} — Qty {size.quantity}
                 </div>
               ))}
             </div>

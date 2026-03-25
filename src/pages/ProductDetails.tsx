@@ -1448,10 +1448,10 @@ return (
                     {product.category}
                   </Badge>
                 )}
-                {/* Enhanced Subcategory badge */}
-                {product.category && (
-                  <Badge className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
-                    {product.category.split(' ')[0]} Series
+                {/* Enhanced Subcategory badge with fallback to product name */}
+                {(product.subcategory || product.name) && (
+                  <Badge className="bg-gradient-to-r from-purple-600 to-purple-700 text-white px-3 py-1 text-xs font-bold rounded-full shadow-sm hover:shadow-md transition-all duration-200 hover:scale-105">
+                    {product.subcategory || product.name}
                   </Badge>
                 )}
               </div>

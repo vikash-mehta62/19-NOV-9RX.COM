@@ -89,7 +89,7 @@ export const getSearchMatches = (product: any, searchQuery: string): SearchMatch
       if (size.size_value?.toLowerCase().includes(searchTerm)) {
         matches.push({
           field: `Size ${index + 1} Value`,
-          value: `${size.size_value} ${size.size_unit || ''}`.trim(),
+          value: `${size.size_value} ${product.unitToggle ? (size.size_unit || '') : ''}`.trim(),
           matchType: size.size_value.toLowerCase() === searchTerm ? 'exact' : 'partial'
         });
       }

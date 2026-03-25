@@ -274,7 +274,7 @@ export async function generateInvoicePdfBlob(
           tableBody.push([
             itemIndex.toString(),
             item.name,
-            `${size.size_value} ${size.size_unit}`,
+            `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`,
             size.quantity?.toString() || "0",
             `${Number(size.price).toFixed(2)}`,
             `${Number(size.price * size.quantity).toFixed(2)}`,

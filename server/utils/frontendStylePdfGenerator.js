@@ -380,7 +380,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           // Item has sizes array (frontend format)
           item.sizes.forEach((size) => {
             const itemName = size.size_name || item.size_name || item.sizeName || item.name || item.product_name || "Item";
-            const itemSize = `${size.size_value || ""} ${size.size_unit || ""}`.trim();
+            const itemSize = `${size.size_value || ""} ${item.unitToggle ? (size.size_unit || "") : ""}`.trim();
             const itemQty = toNumber(size.quantity || 0);
             const itemPrice = toNumber(size.price || 0);
             const itemTotal = itemPrice * itemQty;
