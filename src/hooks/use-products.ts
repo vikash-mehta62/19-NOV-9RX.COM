@@ -212,8 +212,10 @@ export const useProducts = (includeInactive: boolean = false) => {
       });
       const newTotalProducts = totalProducts - 1;
       const lastPage = Math.max(1, Math.ceil(newTotalProducts / PAGE_SIZE));
-      setCurrentPage(Math.min(currentPage, lastPage));
-      fetchProducts(currentPage);
+      const newPage = Math.min(currentPage, lastPage);
+      setCurrentPage(newPage);
+      // Refetch with current filters and updated page
+      fetchProducts(newPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error("Error deleting product:", error);
       toast({ 
