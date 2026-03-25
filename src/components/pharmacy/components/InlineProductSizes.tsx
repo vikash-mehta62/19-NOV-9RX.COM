@@ -55,6 +55,8 @@ export const InlineProductSizes = ({
   const userProfile = useSelector(selectUserProfile)
   const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
 
+
+  console.log(product)
   // Fetch complete product data with sizes when product changes
   useEffect(() => {
     const fetchProductWithSizes = async () => {
@@ -337,7 +339,7 @@ export const InlineProductSizes = ({
     productId: displayProduct.id.toString(),
     productName: displayProduct.name,
     sizeId: size.id,
-    sizeLabel: `${size.size_value} ${size.size_unit}`,
+    sizeLabel: `${size.size_value} ${displayProduct?.unitToggle ? size.size_unit : ""}`,
     sku: size.sku || displayProduct.sku || '',
     requestedQuantity: selectedSizes[size.id]?.quantity || 1,
   })
@@ -679,7 +681,7 @@ export const InlineProductSizes = ({
                       >
                         <img
                           src={getSizeImageUrl(size)}
-                          alt={`${size.size_value} ${size.size_unit}`}
+                          alt={`${size.size_value} ${displayProduct?.unitToggle ? size.size_unit : ""}`}
                           className="w-full h-full object-contain p-3 sm:p-4 group-hover:scale-105 transition-transform"
                           onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                         />
@@ -729,13 +731,13 @@ export const InlineProductSizes = ({
                         <div 
                           className="mb-1.5 sm:mb-1 cursor-pointer hover:text-blue-600"
                           onClick={() => navigate(`/${userType}/product/${displayProduct.id}/${sizeId}`)}
-                          title={`${displayProduct.name} – ${size.size_value} ${size.size_unit}`}
+                          title={`${displayProduct.name} – ${size.size_value} ${displayProduct?.unitToggle ? size.size_unit : ""}`}
                         >
                           <p className="text-[10px] sm:text-xs font-bold text-gray-900 line-clamp-2 break-words uppercase">
                             {size.size_name}
                           </p>
                           <p className="font-semibold text-blue-600 text-sm sm:text-base line-clamp-2">
-                            {size.size_value} {size.size_unit}
+                            {size.size_value} {displayProduct?.unitToggle ? size.size_unit : ""}
                           </p>
                         </div>
                         {/* SKU */}

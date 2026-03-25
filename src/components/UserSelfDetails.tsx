@@ -69,7 +69,17 @@ function UserSelfDetails() {
   // Close modal handler
   useEffect(() => {
     if (!editModalOpen && userData) {
-      navigate("/login");
+      // Sign out the user when modal closes (cancel button)
+      const signOutUser = async () => {
+        try {
+          await supabase.auth.signOut();
+          console.log("✅ User signed out after canceling profile completion");
+        } catch (err) {
+          console.error("❌ Error signing out:", err);
+        }
+        navigate("/login");
+      };
+      signOutUser();
     }
   }, [editModalOpen, navigate, userData]);
 
@@ -133,8 +143,12 @@ function UserSelfDetails() {
             console.log("Profile updated successfully");
             toast({
               title: "Success",
-              description: "Your profile has been updated successfully!",
+              description: "Your profile has been updated successfully! Please login to continue.",
             });
+            // Navigate to login after successful profile completion
+            setTimeout(() => {
+              navigate("/login");
+            }, 1500);
           }}
           self={true}
           isProfileCompletion={!!session} // TRUE if magic link session exists, FALSE if logged-in user

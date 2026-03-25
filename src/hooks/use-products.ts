@@ -139,7 +139,7 @@ export const useProducts = (includeInactive: boolean = false) => {
   // Page change effect (no debouncing needed)
   useEffect(() => {
     if (currentPage > 1) {
-      fetchProducts(currentPage);
+      fetchProducts(currentPage, searchQuery, selectedCategory);
     }
   }, [currentPage, fetchProducts]);
 
@@ -167,7 +167,8 @@ export const useProducts = (includeInactive: boolean = false) => {
     try {
       await addProductService(data);
       toast({ title: "Success", description: "Product added successfully." });
-      fetchProducts();
+      // Refetch with current filters and page
+      fetchProducts(currentPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error('Error adding product:', error);
       toast({ 
@@ -247,7 +248,8 @@ export const useProducts = (includeInactive: boolean = false) => {
         });
       }
 
-      fetchProducts();
+      // Refetch with current filters and page
+      fetchProducts(currentPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error("Error adding bulk products:", error);
       toast({ 
@@ -275,7 +277,8 @@ export const useProducts = (includeInactive: boolean = false) => {
     handleUpdateProduct,
     handleDeleteProduct,
     handleBulkAddProducts,
-    loading
+    loading,
+    refetchProducts: () => fetchProducts(currentPage, searchQuery, selectedCategory)
   };
 };
 import { Product } from "@/types/product";

@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge"
 
 interface ProductSizesProps {
   sizes: ProductSize[]
+  unitToggle?: boolean
 }
 
-export const ProductSizes = ({ sizes }: ProductSizesProps) => {
+export const ProductSizes = ({ sizes, unitToggle }: ProductSizesProps) => {
   if (!sizes || sizes.length === 0) {
     return <div className="text-sm text-muted-foreground">No size variations</div>
   }
@@ -25,7 +26,7 @@ export const ProductSizes = ({ sizes }: ProductSizesProps) => {
         <div key={size.id} className="flex items-center justify-between text-sm">
           <span>
             {size.size_value}
-            {size.size_unit}
+            {unitToggle && size.size_unit}
           </span>
           <span className="font-medium">${formatPrice(size.price)}</span>
         </div>
@@ -49,7 +50,7 @@ export const ProductSizes = ({ sizes }: ProductSizesProps) => {
                     <div className="flex flex-col">
                       <span className="font-medium">
                         {size.size_value}
-                        {size.size_unit}
+                        {unitToggle && size.size_unit}
                       </span>
                       <span>
                       </span>

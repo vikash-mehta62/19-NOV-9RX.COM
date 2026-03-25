@@ -66,7 +66,8 @@ const Products = () => {
     handleUpdateProduct,
     handleDeleteProduct,
     handleBulkAddProducts,
-    loading
+    loading,
+    refetchProducts
   } = useProducts(true); // Admin can see inactive products
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -90,10 +91,20 @@ const Products = () => {
 
       if (error) throw error;
 
-      // Refresh products list
-      window.location.reload();
+      toast({
+        title: "Success",
+        description: `Product ${!currentStatus ? 'activated' : 'deactivated'} successfully.`
+      });
+
+      // Refresh products list with current filters
+      refetchProducts();
     } catch (error) {
       console.error('Error toggling product status:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update product status.",
+        variant: "destructive"
+      });
     }
   };
 

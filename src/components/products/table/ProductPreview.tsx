@@ -137,7 +137,7 @@ export const ProductPreview = ({ product }: ProductPreviewProps) => {
                     >
                       <div className="flex flex-col">
                         <span className="text-lg font-semibold uppercase text-gray-800">
-                          {size.size_value} {size.size_unit}
+                          {size.size_value} {product.unitToggle ? size.size_unit : ""}
                         </span>
                         <span
                           className={`text-sm font-medium ${

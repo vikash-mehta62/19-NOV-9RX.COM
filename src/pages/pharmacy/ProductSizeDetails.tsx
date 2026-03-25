@@ -278,7 +278,7 @@ const ProductSizeDetails = () => {
             {/* Product Title */}
             <div>
               <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">{product.name}</h1>
-              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {size.size_unit || ''}</p>
+              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {product?.unitToggle ? size.size_unit : ''}</p>
             </div>
 
             {/* SKU & Stock */}

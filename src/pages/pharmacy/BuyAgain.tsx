@@ -285,7 +285,7 @@ export default function BuyAgain() {
                                       {size.size_name}
                                     </span>
                                     <Badge variant="secondary" className="font-mono">
-                                      {size.size_value} {size.size_unit}
+                                      {size.size_value} {item.unitToggle ? size.size_unit : ""}
                                     </Badge>
                                     <span className="text-gray-500">
                                       Qty: {size.quantity || 1}

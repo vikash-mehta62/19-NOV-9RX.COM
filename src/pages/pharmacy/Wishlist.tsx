@@ -180,7 +180,7 @@ const Wishlist = () => {
                     {sizeDetails && (
                       <Badge className="absolute top-2 left-2 bg-blue-600 text-white font-semibold">
                         <Package className="w-3 h-3 mr-1" />
-                        {sizeValue} {sizeUnit}
+                        {sizeValue} {product?.unitToggle ? sizeUnit : ""}
                       </Badge>
                     )}
 

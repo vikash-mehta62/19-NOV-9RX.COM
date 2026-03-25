@@ -613,7 +613,7 @@ export const ProductSizesPanel = ({
                           >
                             <img
                               src={getSizeImageUrl(size)}
-                              alt={`${size.size_value} ${size.size_unit}`}
+                              alt={`${size.size_value} ${displayProduct?.unitToggle ? size.size_unit : ""}`}
                               className="w-full h-full object-contain p-1 group-hover:scale-110 transition-transform"
                               onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg" }}
                             />
@@ -626,7 +626,7 @@ export const ProductSizesPanel = ({
                           <div className="flex-1">
                             <div className="flex items-center gap-2">
                               <h4 className="font-semibold text-gray-900">
-                                {size.size_value} {size.size_unit}
+                                {size.size_value} {productData?.unitToggle ? size.size_unit : ""}
                               </h4>
                               {hasDiscount && discountPercent > 5 && (
                                 <Badge className="bg-red-500 text-white text-xs">

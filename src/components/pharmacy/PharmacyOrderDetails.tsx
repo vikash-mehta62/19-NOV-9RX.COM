@@ -368,7 +368,7 @@ console.log(order,"PHARorder")
       const tableBody: any[] = []
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
-          const sizeValueUnit = `${size.size_value} ${size.size_unit}`
+          const sizeValueUnit = `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`
           const quantity = size.quantity.toString()
           const pricePerUnit = `$${Number(size.price).toFixed(2)}`
           const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`
@@ -689,7 +689,7 @@ console.log(order,"PHARorder")
       const tableBody: any[] = []
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
-          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${size.size_unit}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${(size.quantity * size.price).toFixed(2)}`])
+          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${(size.quantity * size.price).toFixed(2)}`])
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
           }
@@ -1028,7 +1028,7 @@ console.log(order,"PHARorder")
                                       <span className="text-xs sm:text-sm font-medium text-gray-900">{(size as any).size_name}</span>
                                     )}
                                     <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                                      <span className="text-xs sm:text-sm text-gray-700">{size.size_value} {size.size_unit}</span>
+                                      <span className="text-xs sm:text-sm text-gray-700">{size.size_value} {item.unitToggle ? size.size_unit : ""}</span>
                                       {(size as any).type && (
                                         <Badge variant="outline" className="text-[10px] sm:text-xs h-4 sm:h-5 px-1.5 capitalize">{(size as any).type}</Badge>
                                       )}

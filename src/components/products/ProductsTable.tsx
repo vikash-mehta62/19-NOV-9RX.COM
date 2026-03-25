@@ -72,7 +72,7 @@ export const ProductsTable = ({
           </div>
         </div>
         <div className="border-t pt-3">
-          <ProductSizes sizes={product.sizes || []} />
+          <ProductSizes sizes={product.sizes || []} unitToggle={product.unitToggle} />
         </div>
       </CardContent>
     </Card>
@@ -123,7 +123,7 @@ export const ProductsTable = ({
                       <code className="bg-gray-100 px-2 py-1 rounded text-sm font-mono">{product.sku}</code>
                     </TableCell>
                     <TableCell>
-                      <ProductSizes sizes={product.sizes || []} />
+                      <ProductSizes sizes={product.sizes || []} unitToggle={product.unitToggle} />
                     </TableCell>
                     {groupId && (
                       <TableCell>

@@ -105,7 +105,7 @@ export const ProductPreview = ({ product }: ProductPreviewProps) => {
                         <div>
                           <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Size</label>
                           <p className="text-lg font-semibold">
-                            {size.size_value} {size.size_unit}
+                            {size.size_value} {product.unitToggle ? size.size_unit : ""}
                           </p>
                         </div>
                         <div>

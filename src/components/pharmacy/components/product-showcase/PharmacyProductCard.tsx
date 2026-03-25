@@ -274,7 +274,7 @@ export const PharmacyProductCard = ({
                   >
                     <div className="flex items-center gap-2">
                       <span className={`font-medium ${isMatching ? 'text-blue-800' : 'text-gray-900'}`}>
-                        {size.size_value} {size.size_unit}
+                        {size.size_value} {product.unitToggle ? size.size_unit : ""}
                       </span>
                       {isMatching && (
                         <Badge variant="secondary" className="bg-blue-200 text-blue-800 text-xs px-1 py-0">

@@ -461,7 +461,7 @@ const ProductDetails = () => {
     productId: product?.id.toString() || "",
     productName: product?.name || "Unknown Product",
     sizeId: size.id,
-    sizeLabel: `${size.size_value} ${size.size_unit}`,
+    sizeLabel: `${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`,
     sku: size.sku || product?.sku || "",
     requestedQuantity: selectedSizes.get(size.id) || 1,
   })
@@ -1128,7 +1128,7 @@ const ProductDetails = () => {
       .map((size) => ({
         url: imageUrls[size.image] || size.image,
         originalPath: size.image,
-        label: `${size.size_value} ${size.size_unit}`,
+        label: `${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`,
         type: "size",
         sizeId: size.id,
       })) || []),
@@ -1168,7 +1168,7 @@ return (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center gap-3 border border-purple-200 rounded-2xl p-4">
               <Badge className="bg-gray-100 text-gray-900 hover:bg-gray-100">
-                {editingSize.size_value} {editingSize.size_unit}
+                {editingSize.size_value} {product?.unitToggle ? editingSize.size_unit : ""}
               </Badge>
               {editingSize.sku && (
                 <Badge variant="outline">{editingSize.sku}</Badge>
@@ -1336,7 +1336,7 @@ return (
                   <div className="relative w-32 h-40 border rounded-xl overflow-hidden bg-gray-50">
                     <img
                       src={imageUrls[editingSize.image] || editingSize.image}
-                      alt={`${editingSize.size_value} ${editingSize.size_unit}`}
+                      alt={`${editingSize.size_value} ${product?.unitToggle ? editingSize.size_unit : ""}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
                         (e.target as HTMLImageElement).src = "/placeholder.svg"
@@ -1789,7 +1789,7 @@ return (
                       >
                         <img
                           src={sizeImage}
-                          alt={`${size.size_value} ${size.size_unit}`}
+                          alt={`${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`}
                           className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = "/placeholder.svg"
@@ -1825,13 +1825,13 @@ return (
                               navigate(`/pharmacy/product/${product.id}/${size.id}`);
                             }
                           }}
-                          title={`${product.name} – ${size.size_value} ${size.size_unit}`}
+                          title={`${product.name} – ${size.size_value} ${product.unitToggle ? size.size_unit : ""}`}
                         >
                           <p className="text-xs text-gray-500 line-clamp-1 uppercase">
                             {size.size_name || product.name}
                           </p>
                           <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
-                            {size.size_value} {size.size_unit}
+                            {size.size_value} {product.unitToggle ? size.size_unit : ""}
                           </p>
                         </div>
 

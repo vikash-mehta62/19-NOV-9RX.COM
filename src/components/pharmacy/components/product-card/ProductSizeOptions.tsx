@@ -139,7 +139,7 @@ export const ProductSizeOptions = ({
             <div className="aspect-square bg-gray-50 p-3 relative">
               <img
                 src={imageUrl}
-                alt={`${size.size_value} ${size.size_unit}`}
+                alt={`${size.size_value} ${product.unitToggle ? size.size_unit : ""}`}
                 className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src = "/placeholder.svg";

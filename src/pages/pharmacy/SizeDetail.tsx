@@ -428,7 +428,7 @@ export default function SizeDetail() {
                               <img src={getImageUrl(s.image || product.image_url)} alt="" className="w-12 h-12 object-contain rounded bg-gray-50" />
                               <div className="flex-1 min-w-0">
                                 <p className="text-md font-bold text-gray-900">{s.size_name || ''}</p>
-                                <p className="font-semibold text-sm text-gray-600 truncate">{s.size_value} {s.size_unit}</p>
+                                <p className="font-semibold text-sm text-gray-600 truncate">{s.size_value} {product?.unitToggle ? s.size_unit : ""}</p>
                                 {sUnitsPerCase > 0 && (
                                   <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
                                 )}
@@ -490,7 +490,7 @@ export default function SizeDetail() {
             {/* Product Title */}
             <div>
               <h1 className="text-2xl font-bold text-gray-900 uppercase">{size.size_name || product.name}</h1>
-              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {size.size_unit}</p>
+              <p className="text-xl font-semibold text-blue-600 mt-1">{size.size_value} {product?.unitToggle ? size.size_unit : ""}</p>
             </div>
 
             {/* SKU & Stock */}

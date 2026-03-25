@@ -284,7 +284,7 @@ export default function OrderDetail() {
           tableBody.push([
             itemIndex.toString(),
             item.name,
-            `${size.size_value} ${size.size_unit}`,
+            `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`,
             size.quantity.toString(),
             `$${Number(size.price).toFixed(2)}`,
             `$${(size.quantity * size.price).toFixed(2)}`
@@ -493,7 +493,7 @@ export default function OrderDetail() {
                               <span className="font-medium text-gray-900">{(size as any).size_name}</span>
                             )}
                             <span className="text-gray-600">
-                              {size.size_value} {size.size_unit} × {size.quantity}
+                                      {size.size_value} {item.unitToggle ? size.size_unit : ""} × {size.quantity}
                             </span>
                             <span className="font-medium text-gray-900">
                               ${(size.quantity * size.price).toFixed(2)}
