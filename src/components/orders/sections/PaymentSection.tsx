@@ -20,6 +20,7 @@ import { useState, useEffect } from "react";
 import { AuthorizeNetCredentials } from "./payment/AuthorizeNetCredentials";
 import { ACHPaymentFields } from "./payment/ACHPaymentFields";
 import { processACHPayment } from "@/services/paymentService";
+import { getACHProcessor } from "@/config/paymentConfig";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -128,7 +129,9 @@ export function PaymentSection({
   };
 
   const handleACHSubmit = async (data: any) => {
-    if (!apiCredentials.apiLoginId || !apiCredentials.transactionKey) {
+    const processor = await getACHProcessor();
+
+    if (processor !== "fortispay" && (!apiCredentials.apiLoginId || !apiCredentials.transactionKey)) {
       toast({
         title: "Missing API Credentials",
         description: "Please enter your Authorize.Net API credentials",
@@ -147,9 +150,6 @@ export function PaymentSection({
     });
 
     try {
-      // Check which processor to use
-      const processor = import.meta.env.VITE_ACH_PAYMENT_PROCESSOR || "authorize_net";
-      
       let response;
       
       if (processor === "fortispay") {

@@ -64,6 +64,8 @@ import image5 from "../../assests/home/image5.jpg";
 import image6 from "../../assests/home/image6.jpg";
 import logo from "../../assests/home/9rx_logo.png";
 
+const DEFAULT_SUBCATEGORY = "General"
+
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -75,6 +77,7 @@ export const PharmacyProductsFullPage = () => {
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [selectedSubcategory, setSelectedSubcategory] = useState("all")
   const [priceRange, setPriceRange] = useState("all")
+  const [showProducts, setShowProducts] = useState("all")
   const [sortBy, setSortBy] = useState("featured")
   const [viewMode, setViewMode] = useState<"grid" | "compact">("grid")
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
@@ -231,7 +234,7 @@ export const PharmacyProductsFullPage = () => {
             price: item.base_price || 0,
             base_price: item.base_price || 0,
             category: item.category || "",
-            subcategory: item.subcategory || "",
+            subcategory: item.subcategory?.trim() || DEFAULT_SUBCATEGORY,
             shipping_cost: item.shipping_cost || "",
             stock: item.current_stock || 0,
             minOrder: item.min_stock || 0,
@@ -445,6 +448,7 @@ export const PharmacyProductsFullPage = () => {
     console.log('Search query:', searchQuery);
     console.log('Selected category:', selectedCategory);
     console.log('Selected subcategory:', selectedSubcategory);
+    console.log('Show products:', showProducts);
     console.log('Total products:', products.length);
 
     if (products.length === 0) return [];
@@ -461,12 +465,7 @@ export const PharmacyProductsFullPage = () => {
       // Subcategory filter
       // When a subcategory is selected, ONLY show products that match that specific subcategory
       if (selectedSubcategory !== "all") {
-        // Product must have a subcategory value that matches the selected one
-        if (!product.subcategory || product.subcategory.trim() === "") {
-          // Product has no subcategory, filter it out
-          return false;
-        }
-        if (product.subcategory.toLowerCase() !== selectedSubcategory.toLowerCase()) {
+        if ((product.subcategory || DEFAULT_SUBCATEGORY).toLowerCase() !== selectedSubcategory.toLowerCase()) {
           console.log(`Product "${product.name}" filtered out - subcategory: "${product.subcategory}" vs selected: "${selectedSubcategory}"`);
           return false;
         }
@@ -479,6 +478,23 @@ export const PharmacyProductsFullPage = () => {
         if (price < min || (max !== Infinity && price > max)) {
           return false;
         }
+      }
+
+      // Product visibility filter
+      if (showProducts === "in-stock") {
+        const hasProductStock = (product.stock || 0) > 0;
+        const hasSizeStock = product.sizes?.some((size) => (size.stock || 0) > 0) || false;
+        if (!hasProductStock && !hasSizeStock) {
+          return false;
+        }
+      }
+
+      if (showProducts === "on-sale" && !product.hasOffer) {
+        return false;
+      }
+
+      if (showProducts === "customizable" && !product.customization?.allowed) {
+        return false;
       }
 
       // Search query filter (if no query, include all products that passed other filters)
@@ -537,7 +553,7 @@ export const PharmacyProductsFullPage = () => {
 
     console.log('Final filtered products:', sortedProducts.length);
     return sortedProducts;
-  }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange, sortBy])
+  }, [products, searchQuery, selectedCategory, selectedSubcategory, priceRange, showProducts, sortBy])
 
   // Filter categories to only show those with active products
   const visibleCategories = useMemo(() => {
@@ -564,7 +580,7 @@ export const PharmacyProductsFullPage = () => {
   // If user changes filters/search while a product is open, close it so results update visibly.
   useEffect(() => {
     setSelectedProduct(null);
-  }, [selectedCategory, selectedSubcategory, searchQuery])
+  }, [selectedCategory, selectedSubcategory, searchQuery, showProducts])
 
   const handleProductClick = useCallback((product: ProductDetails) => {
     if (selectedProduct?.id === product.id) {
@@ -867,6 +883,8 @@ export const PharmacyProductsFullPage = () => {
                 setSelectedSubcategory={setSelectedSubcategory}
                 priceRange={priceRange}
                 setPriceRange={setPriceRange}
+                showProducts={showProducts}
+                setShowProducts={setShowProducts}
                 products={filteredProducts}
                 allProducts={products}
                 onProductSelect={handleProductClick}
@@ -902,6 +920,8 @@ export const PharmacyProductsFullPage = () => {
                           setSelectedSubcategory={setSelectedSubcategory}
                           priceRange={priceRange}
                           setPriceRange={setPriceRange}
+                          showProducts={showProducts}
+                          setShowProducts={setShowProducts}
                           products={filteredProducts}
                           allProducts={products}
                           onProductSelect={handleProductClick}
@@ -915,10 +935,8 @@ export const PharmacyProductsFullPage = () => {
                   <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 bg-blue-500 rounded-full"></div>
                   <span className="text-xs sm:text-sm text-gray-700">
                     <span className="font-semibold text-blue-600">
-                      {selectedCategory.toUpperCase() === "RX PAPER BAGS"
-                        ? filteredProducts.reduce((total, p) => total + (p.sizes?.length || 0), 0)
-                        : filteredProducts.length}
-                    </span> {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? "sizes" : "products"}
+                      {filteredProducts.length}
+                    </span> products
                     {selectedCategory !== "all" && (
                       <span className="hidden sm:inline text-gray-500"> in "{selectedCategory}"</span>
                     )}

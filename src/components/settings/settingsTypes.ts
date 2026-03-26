@@ -83,6 +83,7 @@ export interface SettingsFormValues {
   
   // FortisPay Settings
   fortispay_enabled: boolean;
+  fortispay_developer_id: string;
   fortispay_user_id: string;
   fortispay_user_api_key: string;
   fortispay_location_id: string;
@@ -274,6 +275,7 @@ export const defaultValues: SettingsFormValues = {
   
   // FortisPay
   fortispay_enabled: false,
+  fortispay_developer_id: "",
   fortispay_user_id: "",
   fortispay_user_api_key: "",
   fortispay_location_id: "",

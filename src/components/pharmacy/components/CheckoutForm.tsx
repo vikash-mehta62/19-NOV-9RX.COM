@@ -8,6 +8,7 @@ import { useCart } from "@/hooks/use-cart";
 import { ShippingFields } from "./checkout/ShippingFields";
 import { PaymentFields } from "./checkout/PaymentFields";
 import { processACHPayment, processCardPayment } from "@/services/paymentService";
+import { getACHProcessor } from "@/config/paymentConfig";
 import { useNavigate } from "react-router-dom";
 
 const checkoutFormSchema = z.object({
@@ -104,20 +105,44 @@ export function CheckoutForm({ onClose, total }: CheckoutFormProps) {
           return;
         }
 
-        const testMode =
-          localStorage.getItem("authorize_net_test_mode") === "true";
+        const achProcessor = await getACHProcessor();
+        const testMode = localStorage.getItem("authorize_net_test_mode") === "true";
         console.log("Test mode enabled:", testMode);
 
-        // Use Supabase Edge Function for ACH payment
-        const response = await processACHPayment({
-          accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
-          routingNumber: data.payment.achRoutingNumber,
-          accountNumber: data.payment.achAccountNumber,
-          nameOnAccount: data.payment.achAccountName,
-          amount: total,
-          customerEmail: data.shippingAddress.email,
-          testMode: testMode,
-        });
+        const response =
+          achProcessor === "fortispay"
+            ? await (async () => {
+                const { processACHPaymentFortisPay } = await import("@/services/paymentService");
+                return processACHPaymentFortisPay(
+                  {
+                    accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
+                    routingNumber: data.payment.achRoutingNumber,
+                    accountNumber: data.payment.achAccountNumber,
+                    nameOnAccount: data.payment.achAccountName,
+                  },
+                  {
+                    firstName: data.shippingAddress.fullName.split(" ").slice(0, -1).join(" ") || data.shippingAddress.fullName,
+                    lastName: data.shippingAddress.fullName.split(" ").slice(-1).join(" ") || data.shippingAddress.fullName,
+                    address: data.shippingAddress.address,
+                    city: data.shippingAddress.city,
+                    state: data.shippingAddress.state,
+                    zip: data.shippingAddress.zip_code,
+                    country: "USA",
+                  },
+                  total,
+                  undefined,
+                  `Checkout Payment - ${data.shippingAddress.email}`
+                );
+              })()
+            : await processACHPayment({
+                accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
+                routingNumber: data.payment.achRoutingNumber,
+                accountNumber: data.payment.achAccountNumber,
+                nameOnAccount: data.payment.achAccountName,
+                amount: total,
+                customerEmail: data.shippingAddress.email,
+                testMode: testMode,
+              });
 
         if (!response.success) {
           toast({

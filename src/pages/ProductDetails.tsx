@@ -1,7 +1,7 @@
 
 "use client"
 
-import { ChangeEvent, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import type { Product } from "@/types/product"
@@ -30,44 +30,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { getProductEffectivePrice } from "@/services/productOfferService"
 import axios from "../../axiosconfig"
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
-import Select from "react-select"
-
-type GroupOption = {
-  id: string
-  name: string
-}
-
-type EditableSize = {
-  id: string
-  size_name?: string
-  size_value: string
-  size_unit: string
-  sku?: string
-  price: number
-  price_per_case?: number
-  stock: number
-  quantity_per_case: number
-  shipping_cost?: number
-  ndcCode?: string
-  upcCode?: string
-  lotNumber?: string
-  exipry?: string
-  groupIds?: string[]
-  disAllogroupIds?: string[]
-  image?: string
-  is_active?: boolean
-}
+import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog"
 
 const calculateSizeUnitPrice = (size: {
   price?: number | string
@@ -238,11 +204,8 @@ const ProductDetails = () => {
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
   const [loadingImages, setLoadingImages] = useState<Record<string, boolean>>({})
   const [addingToCart, setAddingToCart] = useState(false)
-  const [groupOptions, setGroupOptions] = useState<GroupOption[]>([])
   const [editingSize, setEditingSize] = useState<EditableSize | null>(null)
   const [isEditSizeDialogOpen, setIsEditSizeDialogOpen] = useState(false)
-  const [isSavingSize, setIsSavingSize] = useState(false)
-  const [uploadingSizeImage, setUploadingSizeImage] = useState(false)
   const [productOffer, setProductOffer] = useState<{
     effectivePrice: number
     discountPercent: number
@@ -250,6 +213,7 @@ const ProductDetails = () => {
     hasOffer: boolean
   } | null>(null)
   const isAdmin = userProfile?.type === "admin" || userProfile?.role === "admin"
+  const userType = sessionStorage.getItem('userType')?.toLowerCase();
 
   const updateProductSizeInState = (sizeId: string, updates: Partial<EditableSize>) => {
     setProduct((prev) => {
@@ -293,106 +257,38 @@ const ProductDetails = () => {
     setIsEditSizeDialogOpen(true)
   }
 
-  const handleEditSizeFieldChange = (field: keyof EditableSize, value: string | number | string[]) => {
-    setEditingSize((prev) => (prev ? { ...prev, [field]: value } : prev))
-  }
-
-  const handleEditSizeImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
+  const handleSaveSizeEdit = async (sizeToSave?: EditableSize) => {
+    const targetSize = sizeToSave || editingSize
+    if (!targetSize) return
 
     try {
-      setUploadingSizeImage(true)
-
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${crypto.randomUUID()}.${fileExt}`
-      const { error } = await supabase.storage.from("product-images").upload(fileName, file)
-
-      if (error) throw error
-
-      const { data } = supabase.storage.from("product-images").getPublicUrl(fileName)
-
-      setImageUrls((prev) => ({ ...prev, [fileName]: data.publicUrl }))
-      setEditingSize((prev) => (prev ? { ...prev, image: fileName } : prev))
-
-      toast({
-        title: "Success",
-        description: "Size image uploaded successfully",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to upload size image",
-        variant: "destructive",
-      })
-    } finally {
-      setUploadingSizeImage(false)
-      event.target.value = ""
-    }
-  }
-
-  const handleRemoveEditSizeImage = async () => {
-    if (!editingSize?.image) return
-
-    try {
-      const existingImage = editingSize.image
-      const { error } = await supabase.storage.from("product-images").remove([existingImage])
-
-      if (error) throw error
-
-      setEditingSize((prev) => (prev ? { ...prev, image: "" } : prev))
-      setImageUrls((prev) => {
-        const next = { ...prev }
-        delete next[existingImage]
-        return next
-      })
-
-      toast({
-        title: "Success",
-        description: "Size image removed successfully",
-      })
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to remove size image",
-        variant: "destructive",
-      })
-    }
-  }
-
-  const handleSaveSizeEdit = async () => {
-    if (!editingSize) return
-
-    try {
-      setIsSavingSize(true)
-
       const updates = {
-        size_name: editingSize.size_name || null,
-        size_value: editingSize.size_value,
-        size_unit: editingSize.size_unit,
-        sku: editingSize.sku || null,
-        price: Number(editingSize.price || 0),
-        price_per_case: calculateSizeUnitPrice(editingSize),
-        stock: Number(editingSize.stock || 0),
-        quantity_per_case: Number(editingSize.quantity_per_case || 0),
-        shipping_cost: Number(editingSize.shipping_cost || 0),
-        ndcCode: editingSize.ndcCode || null,
-        upcCode: editingSize.upcCode || null,
-        lotNumber: editingSize.lotNumber || null,
-        exipry: editingSize.exipry || null,
-        groupIds: editingSize.groupIds || [],
-        disAllogroupIds: editingSize.disAllogroupIds || [],
-        image: editingSize.image || null,
+        size_name: targetSize.size_name || null,
+        size_value: targetSize.size_value,
+        size_unit: targetSize.size_unit,
+        sku: targetSize.sku || null,
+        price: Number(targetSize.price || 0),
+        price_per_case: calculateSizeUnitPrice(targetSize),
+        stock: Number(targetSize.stock || 0),
+        quantity_per_case: Number(targetSize.quantity_per_case || 0),
+        shipping_cost: Number(targetSize.shipping_cost || 0),
+        ndcCode: targetSize.ndcCode || null,
+        upcCode: targetSize.upcCode || null,
+        lotNumber: targetSize.lotNumber || null,
+        exipry: targetSize.exipry || null,
+        groupIds: targetSize.groupIds || [],
+        disAllogroupIds: targetSize.disAllogroupIds || [],
+        image: targetSize.image || null,
       }
 
       const { error } = await supabase
         .from("product_sizes")
         .update(updates)
-        .eq("id", editingSize.id)
+        .eq("id", targetSize.id)
 
       if (error) throw error
 
-      updateProductSizeInState(editingSize.id, updates)
+      updateProductSizeInState(targetSize.id, updates)
       setIsEditSizeDialogOpen(false)
       setEditingSize(null)
 
@@ -406,8 +302,6 @@ const ProductDetails = () => {
         description: error.message || "Failed to update size",
         variant: "destructive",
       })
-    } finally {
-      setIsSavingSize(false)
     }
   }
 
@@ -461,7 +355,7 @@ const ProductDetails = () => {
     productId: product?.id.toString() || "",
     productName: product?.name || "Unknown Product",
     sizeId: size.id,
-    sizeLabel: `${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`,
+    sizeLabel: `${size.size_value} ${size.size_unit}`,
     sku: size.sku || product?.sku || "",
     requestedQuantity: selectedSizes.get(size.id) || 1,
   })
@@ -576,41 +470,6 @@ const ProductDetails = () => {
       item.sizes.some((s: any) => s.id === sizeId)
     )
   }
-
-  useEffect(() => {
-    if (!isAdmin) return
-
-    const fetchGroupOptions = async () => {
-      try {
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("id, company_name, first_name, last_name, display_name, email")
-          .eq("type", "pharmacy")
-          .eq("status", "active")
-
-        if (error) throw error
-
-        const pharmacies = (data || [])
-          .map((profile) => {
-            let name = ""
-            if (!name) name = profile.display_name?.trim()
-            if (!name && (profile.first_name || profile.last_name)) {
-              name = `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
-            }
-            if (!name) name = profile.email?.split("@")[0] || "Unnamed Pharmacy"
-
-            return { id: profile.id, name }
-          })
-          .sort((a, b) => a.name.localeCompare(b.name))
-
-        setGroupOptions(pharmacies)
-      } catch (error) {
-        console.error("Error fetching pharmacy options:", error)
-      }
-    }
-
-    fetchGroupOptions()
-  }, [isAdmin])
 
   useEffect(() => {
     const fetchProduct = async () => {
@@ -1128,7 +987,7 @@ const ProductDetails = () => {
       .map((size) => ({
         url: imageUrls[size.image] || size.image,
         originalPath: size.image,
-        label: `${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`,
+        label: `${size.size_value} ${size.size_unit}`,
         type: "size",
         sizeId: size.id,
       })) || []),
@@ -1147,7 +1006,7 @@ return (
       onSubmit={handleSendCustomizationEnquiry}
       isSubmitting={isSendingCustomizationEnquiry}
     />
-    <Dialog
+    <EditSizeDialog
       open={isEditSizeDialogOpen}
       onOpenChange={(open) => {
         setIsEditSizeDialogOpen(open)
@@ -1155,249 +1014,11 @@ return (
           setEditingSize(null)
         }
       }}
-    >
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit Size</DialogTitle>
-          <DialogDescription>
-            Update this size option. Changes are only available to admins here.
-          </DialogDescription>
-        </DialogHeader>
-
-        {editingSize && (
-          <div className="space-y-6">
-            <div className="flex flex-wrap items-center gap-3 border border-purple-200 rounded-2xl p-4">
-              <Badge className="bg-gray-100 text-gray-900 hover:bg-gray-100">
-                {editingSize.size_value} {product?.unitToggle ? editingSize.size_unit : ""}
-              </Badge>
-              {editingSize.sku && (
-                <Badge variant="outline">{editingSize.sku}</Badge>
-              )}
-              <span className="text-green-600 font-semibold">${Number(editingSize.price || 0).toFixed(2)}/CS</span>
-              <span className="text-blue-600 font-semibold">${calculateSizeUnitPrice(editingSize).toFixed(2)}/Unit</span>
-              <span className="text-orange-600 font-semibold">{editingSize.stock || 0} Stock</span>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Product Name</Label>
-                <Input
-                  value={editingSize.size_name || ""}
-                  onChange={(e) => handleEditSizeFieldChange("size_name", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Size Value</Label>
-                <Input
-                  value={editingSize.size_value}
-                  onChange={(e) => handleEditSizeFieldChange("size_value", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">SKU</Label>
-                <Input
-                  value={editingSize.sku || ""}
-                  onChange={(e) => handleEditSizeFieldChange("sku", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">$/CS</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editingSize.price}
-                  onChange={(e) => handleEditSizeFieldChange("price", parseFloat(e.target.value) || 0)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">$/Unit</Label>
-                <Input
-                  type="number"
-                  value={calculateSizeUnitPrice(editingSize)}
-                  readOnly
-                  disabled
-                  className="mt-1 bg-gray-100 text-blue-600 font-medium cursor-not-allowed"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Stock</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editingSize.stock}
-                  onChange={(e) => handleEditSizeFieldChange("stock", parseInt(e.target.value, 10) || 0)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Q.Per Case</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  value={editingSize.quantity_per_case}
-                  onChange={(e) => handleEditSizeFieldChange("quantity_per_case", parseInt(e.target.value, 10) || 0)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Shipping/CS</Label>
-                <Input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={editingSize.shipping_cost || 0}
-                  onChange={(e) => handleEditSizeFieldChange("shipping_cost", parseFloat(e.target.value) || 0)}
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">NDC Code</Label>
-                <Input
-                  value={editingSize.ndcCode || ""}
-                  onChange={(e) => handleEditSizeFieldChange("ndcCode", e.target.value)}
-                  placeholder="12345-678-90"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">UPC Code</Label>
-                <Input
-                  value={editingSize.upcCode || ""}
-                  onChange={(e) => handleEditSizeFieldChange("upcCode", e.target.value)}
-                  placeholder="012345678901"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Lot Number</Label>
-                <Input
-                  value={editingSize.lotNumber || ""}
-                  onChange={(e) => handleEditSizeFieldChange("lotNumber", e.target.value)}
-                  placeholder="LOT-2024-001"
-                  className="mt-1"
-                />
-              </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Expiry Date</Label>
-                <Input
-                  type="date"
-                  value={editingSize.exipry || ""}
-                  onChange={(e) => handleEditSizeFieldChange("exipry", e.target.value)}
-                  className="mt-1"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Allowed Pharmacies</Label>
-                <div className="mt-1">
-                  <Select
-                    isMulti
-                    options={groupOptions.map((group) => ({
-                      label: group.name,
-                      value: group.id,
-                    }))}
-                    value={(editingSize.groupIds || []).map((id) => {
-                      const group = groupOptions.find((item) => item.id === id)
-                      return group ? { label: group.name, value: group.id } : null
-                    }).filter(Boolean)}
-                    onChange={(selected) => handleEditSizeFieldChange("groupIds", selected.map((item) => item.value))}
-                    placeholder="Select pharmacies..."
-                  />
-                </div>
-              </div>
-              {/* <div className="md:col-span-2">
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Disallowed Pharmacies</Label>
-                <div className="mt-1">
-                  <Select
-                    isMulti
-                    options={groupOptions.map((group) => ({
-                      label: group.name,
-                      value: group.id,
-                    }))}
-                    value={(editingSize.disAllogroupIds || []).map((id) => {
-                      const group = groupOptions.find((item) => item.id === id)
-                      return group ? { label: group.name, value: group.id } : null
-                    }).filter(Boolean)}
-                    onChange={(selected) => handleEditSizeFieldChange("disAllogroupIds", selected.map((item) => item.value))}
-                    placeholder="Select pharmacies..."
-                  />
-                </div>
-              </div> */}
-            </div>
-
-            <div>
-              <Label className="text-base font-semibold text-gray-900">Size Images</Label>
-              <div className="mt-3 flex flex-wrap items-start gap-4">
-                {editingSize.image ? (
-                  <div className="relative w-32 h-40 border rounded-xl overflow-hidden bg-gray-50">
-                    <img
-                      src={imageUrls[editingSize.image] || editingSize.image}
-                      alt={`${editingSize.size_value} ${product?.unitToggle ? editingSize.size_unit : ""}`}
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = "/placeholder.svg"
-                      }}
-                    />
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="destructive"
-                      className="absolute top-2 right-2 h-7 w-7"
-                      onClick={handleRemoveEditSizeImage}
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
-                  </div>
-                ) : (
-                  <label className="flex h-32 w-32 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50 text-sm text-gray-600 hover:bg-gray-100">
-                    {uploadingSizeImage ? (
-                      <Loader2 className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <>
-                        <Upload className="w-5 h-5 mb-2" />
-                        Upload
-                      </>
-                    )}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleEditSizeImageUpload}
-                    />
-                  </label>
-                )}
-                {editingSize.image && (
-                  <label className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-4 text-sm text-gray-700 hover:bg-gray-50">
-                    {uploadingSizeImage ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    Change Image
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={handleEditSizeImageUpload}
-                    />
-                  </label>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setIsEditSizeDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveSizeEdit} disabled={!editingSize || isSavingSize}>
-            {isSavingSize ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-            Save Changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      size={editingSize}
+      onSave={async (size) => {
+        await handleSaveSizeEdit(size)
+      }}
+    />
 
     <div className={`min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 ${topOffsetClass}`}>
       {/* Enhanced Header with Modern Design & Micro-interactions */}
@@ -1789,7 +1410,7 @@ return (
                       >
                         <img
                           src={sizeImage}
-                          alt={`${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`}
+                          alt={`${size.size_value} ${size.size_unit}`}
                           className="w-full h-full object-contain transition-transform duration-300 hover:scale-105"
                           onError={(e) => {
                             (e.target as HTMLImageElement).src = "/placeholder.svg"
@@ -1825,13 +1446,13 @@ return (
                               navigate(`/pharmacy/product/${product.id}/${size.id}`);
                             }
                           }}
-                          title={`${product.name} – ${size.size_value} ${product.unitToggle ? size.size_unit : ""}`}
+                          title={`${product.name} – ${size.size_value} ${size.size_unit}`}
                         >
                           <p className="text-xs text-gray-500 line-clamp-1 uppercase">
                             {size.size_name || product.name}
                           </p>
                           <p className="font-semibold text-blue-600 text-sm sm:text-base truncate">
-                            {size.size_value} {product.unitToggle ? size.size_unit : ""}
+                            {size.size_value} {size.size_unit}
                           </p>
                         </div>
 
@@ -1897,10 +1518,10 @@ return (
                         </div>
 
                         {/* Quantity Selector + Add to Cart */}
-                        {!isOutOfStock && isLoggedIn && (
+                        {!isOutOfStock && isLoggedIn && userType === 'pharmacy' && (
                           <div className="flex items-center gap-2 pt-2">
                             {/* Quantity Selector - Large buttons */}
-                            {/* <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelectedForSize ? "opacity-60" : ""}`}>
+                            <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelectedForSize ? "opacity-60" : ""}`}>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1934,10 +1555,10 @@ return (
                               >
                                 <Plus className="w-4 h-4" />
                               </Button>
-                            </div> */}
+                            </div>
 
                             {/* Add to Cart Button */}
-                            {/* <Button
+                            <Button
                               className="flex-1 h-10 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg"
                               onClick={(e) => {
                                 e.stopPropagation()
@@ -1964,7 +1585,7 @@ return (
                                   Add to Cart
                                 </>
                               )}
-                            </Button> */}
+                            </Button>
                           </div>
                         )}
 

@@ -3,8 +3,6 @@
  * All provider secrets must stay on the backend.
  */
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
-
 export interface FortisACHPaymentData {
   accountHolderName: string;
   accountNumber: string;
@@ -39,8 +37,7 @@ export interface FortisPaymentResult {
 export type FortisSecCode = "PPD" | "CCD" | "WEB" | "TEL" | "POP" | "C21";
 
 /**
- * Process ACH payment through backend Fortis endpoint.
- * Backend owns all provider credentials.
+ * Process ACH payment through the shared process-payment edge function.
  */
 export async function processFortisACHPayment(
   achData: FortisACHPaymentData,
@@ -51,61 +48,43 @@ export async function processFortisACHPayment(
   description?: string
 ): Promise<FortisPaymentResult> {
   try {
-    const validation = validateACHData(achData);
-    if (!validation.valid) {
-      return {
-        success: false,
-        message: "Validation failed",
-        errorMessage: validation.errors.join(", "),
-      };
-    }
-
-    const response = await fetch(`${API_BASE_URL}/pay-ach-fortispay`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        amount,
+    const { processACHPaymentFortisPay } = await import("./paymentService");
+    const result = await processACHPaymentFortisPay(
+      {
         accountType: achData.accountType,
         routingNumber: achData.routingNumber,
         accountNumber: achData.accountNumber,
         nameOnAccount: achData.accountHolderName,
-        address: billingAddress.street,
-        city: billingAddress.city,
-        state: billingAddress.state,
-        zip: billingAddress.zip,
-        country: "USA",
-        orderId,
-        description,
-        secCode,
         checkNumber: achData.checkNumber,
         dlNumber: achData.dlNumber,
         dlState: achData.dlState,
         ssn4: achData.ssn4,
         dobYear: achData.dobYear,
-      }),
-    });
-
-    const result = await response.json();
-    if (!response.ok) {
-      return {
-        success: false,
-        message: result.message || "FortisPay API error",
-        errorMessage: result.error || "Failed to process ACH payment",
-        errorCode: result.errorCode || result.code,
-      };
-    }
+      },
+      {
+        firstName: achData.accountHolderName,
+        lastName: "",
+        address: billingAddress.street,
+        city: billingAddress.city,
+        state: billingAddress.state,
+        zip: billingAddress.zip,
+        country: "USA",
+      },
+      amount,
+      orderId,
+      description,
+      secCode
+    );
 
     return {
-      success: !!result.success,
+      success: result.success,
       transactionId: result.transactionId,
       message: result.message,
       errorCode: result.errorCode,
-      errorMessage: result.error,
-      statusId: result.statusId,
+      errorMessage: result.errorMessage,
+      statusId: result.gatewayStatusId,
       authCode: result.authCode,
-      verbiage: result.verbiage,
+      verbiage: result.gatewayTransactionStatus,
     };
   } catch (error: unknown) {
     const err = error as { message?: string };

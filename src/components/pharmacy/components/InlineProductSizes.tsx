@@ -558,7 +558,7 @@ export const InlineProductSizes = ({
           <div className="flex-1 min-w-0">
             <h2 
               className="text-base sm:text-2xl font-bold text-gray-900 cursor-pointer hover:text-blue-600 transition-colors line-clamp-2 sm:line-clamp-none"
-              onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
+              // onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
               title="Click to view full product page"
             >
               {displayProduct.name}

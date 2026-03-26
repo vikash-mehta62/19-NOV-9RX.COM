@@ -8,6 +8,18 @@ const SDKConstants = require("authorizenet").Constants;
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const { createClient } = require("@supabase/supabase-js");
+const axios = require("axios");
+const {
+  buildFortisHeaders,
+  describeFortisStatus,
+  deriveFortisLocalStatus,
+  deriveFortisReconciliationStatus,
+  extractFortisBatchId,
+  extractFortisSettlementTime,
+  hasRequiredFortisConfig,
+  normalizeFortisAccountType,
+  resolveFortisConfig,
+} = require("./utils/fortis");
 
 dotenv.config();
 connectDB();
@@ -21,6 +33,115 @@ if (supabaseUrl && supabaseServiceKey) {
   supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     auth: { autoRefreshToken: false, persistSession: false }
   });
+}
+
+async function getActiveProviderSettings(provider) {
+  if (!supabaseAdmin) {
+    return null;
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from("payment_settings")
+    .select("profile_id, settings, updated_at")
+    .eq("provider", provider)
+    .order("updated_at", { ascending: false })
+    .limit(25);
+
+  if (error || !Array.isArray(data)) {
+    return null;
+  }
+
+  for (const row of data) {
+    const settings = row?.settings || {};
+    if (!settings.enabled) {
+      continue;
+    }
+
+    if (provider === "fortispay") {
+      if (settings.userId && settings.userApiKey && settings.locationId && settings.productTransactionIdAch) {
+        return settings;
+      }
+      continue;
+    }
+
+    if (provider === "authorize_net") {
+      if (settings.apiLoginId && settings.transactionKey) {
+        return settings;
+      }
+    }
+  }
+
+  return null;
+}
+
+async function getFortisConfig() {
+  const fortisSettings = await getActiveProviderSettings("fortispay");
+  return resolveFortisConfig(fortisSettings || {});
+}
+
+async function fetchFortisTransaction(config, transactionId) {
+  const response = await axios.get(`${config.apiUrl}/transactions/${transactionId}`, {
+    headers: buildFortisHeaders(config),
+  });
+
+  return response.data?.transaction || response.data;
+}
+
+async function syncFortisPaymentTransactionRecord(record) {
+  const now = new Date().toISOString();
+  const config = await getFortisConfig();
+
+  if (!hasRequiredFortisConfig(config)) {
+    throw new Error("FortisPay configuration missing");
+  }
+
+  const transaction = await fetchFortisTransaction(config, record.transaction_id);
+  const gatewayStatus = describeFortisStatus(transaction);
+  const normalizedStatus = deriveFortisLocalStatus(transaction);
+  const settlementTime = extractFortisSettlementTime(transaction);
+  const returnDetected = /return/i.test(
+    `${transaction?.verbiage || ""} ${transaction?.response_message || ""} ${transaction?.status || ""} ${transaction?.status_name || ""}`
+  );
+
+  const updatePayload = {
+    status: normalizedStatus,
+    processor: "fortispay",
+    gateway_status_id: transaction?.status_id || null,
+    gateway_transaction_status: gatewayStatus,
+    gateway_batch_id: extractFortisBatchId(transaction),
+    gateway_settlement_time: settlementTime,
+    gateway_last_checked_at: now,
+    reconciliation_last_checked_at: now,
+    reconciliation_status: deriveFortisReconciliationStatus(transaction),
+    reconciliation_reason: returnDetected
+      ? transaction?.response_message || transaction?.verbiage || "ACH return detected by Fortis"
+      : gatewayStatus,
+    gateway_return_code: returnDetected ? String(transaction?.reason_code_id || "") || null : null,
+    gateway_return_message: returnDetected
+      ? transaction?.response_message || transaction?.verbiage || gatewayStatus
+      : null,
+    gateway_response: transaction,
+    raw_response: transaction,
+    updated_at: now,
+  };
+
+  const { error } = await supabaseAdmin
+    .from("payment_transactions")
+    .update(updatePayload)
+    .eq("id", record.id);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return {
+    id: record.id,
+    transactionId: record.transaction_id,
+    status: normalizedStatus,
+    gatewayStatus,
+    statusId: transaction?.status_id || null,
+    returnDetected,
+  };
 }
 
 // Response compression for reduced bandwidth
@@ -484,14 +605,10 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "Incomplete bank account details" });
     }
 
-    // Validate FortisPay credentials
-    const FORTIS_API_URL = process.env.FORTIS_API_URL || process.env.VITE_FORTIS_API_URL || "https://api.fortispay.com/v2";
-    const FORTIS_USER_ID = process.env.FORTIS_USER_ID || process.env.VITE_FORTIS_USER_ID;
-    const FORTIS_USER_API_KEY = process.env.FORTIS_USER_API_KEY || process.env.VITE_FORTIS_USER_API_KEY;
-    const FORTIS_LOCATION_ID = process.env.FORTIS_LOCATION_ID || process.env.VITE_FORTIS_LOCATION_ID;
-    const FORTIS_PRODUCT_TRANSACTION_ID = process.env.FORTIS_PRODUCT_TRANSACTION_ID_ACH || process.env.VITE_FORTIS_PRODUCT_TRANSACTION_ID_ACH;
+    // Resolve FortisPay credentials from saved admin settings first, then env fallback.
+    const fortisConfig = await getFortisConfig();
 
-    if (!FORTIS_USER_ID || !FORTIS_USER_API_KEY || !FORTIS_LOCATION_ID || !FORTIS_PRODUCT_TRANSACTION_ID) {
+    if (!hasRequiredFortisConfig(fortisConfig)) {
       return res.status(500).json({ 
         error: "FortisPay configuration missing",
         message: "Please configure FortisPay API credentials" 
@@ -499,10 +616,7 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
     }
 
     // Map account type to FortisPay format
-    let fortisAccountType = "checking";
-    if (accountType?.toLowerCase() === "savings") {
-      fortisAccountType = "savings";
-    }
+    const fortisAccountType = normalizeFortisAccountType(accountType);
 
     // Build FortisPay transaction request
     const transactionRequest = {
@@ -515,8 +629,8 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
         routing: routingNumber,
         ach_sec_code: secCode,
         transaction_amount: amount.toFixed(2),
-        location_id: FORTIS_LOCATION_ID,
-        product_transaction_id: FORTIS_PRODUCT_TRANSACTION_ID,
+        location_id: fortisConfig.locationId,
+        product_transaction_id: fortisConfig.productTransactionIdAch,
         
         // Billing information
         billing_street: address || "",
@@ -541,13 +655,8 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
     };
 
     // Make API request to FortisPay
-    const axios = require("axios");
-    const response = await axios.post(`${FORTIS_API_URL}/transactions`, transactionRequest, {
-      headers: {
-        "Content-Type": "application/json",
-        "user-id": FORTIS_USER_ID,
-        "user-api-key": FORTIS_USER_API_KEY,
-      },
+    const response = await axios.post(`${fortisConfig.apiUrl}/transactions`, transactionRequest, {
+      headers: buildFortisHeaders(fortisConfig),
     });
 
     const result = response.data;
@@ -562,10 +671,9 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
     // 134 = Settled (ACH)
     // 301 = Declined
     
-    const isSuccess = transaction.status_id === 131 || 
-                     transaction.status_id === 132 || 
-                     transaction.status_id === 133 || 
-                     transaction.status_id === 134;
+    const normalizedStatus = deriveFortisLocalStatus(transaction);
+    const isSuccess = normalizedStatus === "pending" || normalizedStatus === "approved";
+    const gatewayStatus = describeFortisStatus(transaction);
 
     if (isSuccess) {
       return res.json({
@@ -574,6 +682,9 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
         transactionId: transaction.id,
         statusId: transaction.status_id,
         authCode: transaction.auth_code,
+        processor: "fortispay",
+        gatewayTransactionStatus: gatewayStatus,
+        rawResponse: transaction,
       });
     } else {
       return res.status(400).json({
@@ -582,6 +693,9 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
         error: transaction.response_message,
         errorCode: transaction.reason_code_id?.toString(),
         statusId: transaction.status_id,
+        processor: "fortispay",
+        gatewayTransactionStatus: gatewayStatus,
+        rawResponse: transaction,
       });
     }
   } catch (error) {
@@ -602,6 +716,99 @@ app.post("/pay-ach-fortispay", requireAuth, async (req, res) => {
     return res.status(500).json({ 
       success: false,
       error: "Internal Server Error"
+    });
+  }
+});
+
+app.post("/fortis/ach/sync-statuses", requireAdmin, async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({
+        success: false,
+        message: "Supabase admin client is not configured",
+      });
+    }
+
+    const requestedIds = Array.isArray(req.body?.transactionIds)
+      ? req.body.transactionIds.filter((value) => typeof value === "string" && value.trim())
+      : [];
+    const maxTransactions = Math.min(Math.max(Number(req.body?.maxTransactions || 25), 1), 100);
+
+    let query = supabaseAdmin
+      .from("payment_transactions")
+      .select("id, transaction_id, status, payment_method_type, processor, created_at")
+      .eq("payment_method_type", "ach")
+      .eq("processor", "fortispay")
+      .not("transaction_id", "is", null)
+      .order("created_at", { ascending: false })
+      .limit(maxTransactions);
+
+    if (requestedIds.length > 0) {
+      query = query.in("id", requestedIds);
+    }
+
+    const { data: records, error } = await query;
+    if (error) {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to load Fortis ACH transactions",
+      });
+    }
+
+    const summary = {
+      checked: 0,
+      updated: 0,
+      returned: 0,
+      failed: 0,
+    };
+    const details = [];
+
+    for (const record of records || []) {
+      summary.checked += 1;
+      try {
+        const synced = await syncFortisPaymentTransactionRecord(record);
+        summary.updated += 1;
+        if (synced.returnDetected) {
+          summary.returned += 1;
+        }
+        details.push(synced);
+      } catch (syncError) {
+        summary.failed += 1;
+        const gatewayMissing = syncError?.response?.status === 404;
+        const syncMessage = gatewayMissing
+          ? "Transaction not found in Fortis"
+          : syncError instanceof Error
+            ? syncError.message
+            : "Fortis status sync failed";
+
+        await supabaseAdmin
+          .from("payment_transactions")
+          .update({
+            processor: "fortispay",
+            gateway_last_checked_at: new Date().toISOString(),
+            reconciliation_last_checked_at: new Date().toISOString(),
+            reconciliation_status: gatewayMissing ? "not_found" : "error",
+            reconciliation_reason: syncMessage,
+          })
+          .eq("id", record.id);
+
+        details.push({
+          id: record.id,
+          transactionId: record.transaction_id,
+          error: syncMessage,
+        });
+      }
+    }
+
+    return res.json({
+      success: true,
+      summary,
+      details,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error instanceof Error ? error.message : "Fortis ACH status sync failed",
     });
   }
 });

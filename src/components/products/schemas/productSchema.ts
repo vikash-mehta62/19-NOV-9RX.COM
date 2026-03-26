@@ -116,6 +116,7 @@ export const productFormSchema = z.object({
   unitToggle: z.boolean().optional(),
   category: z.string(),
   subcategory: z.string().optional(),
+  is_active: z.boolean().default(true),
   images: z.array(z.string()).default([]),
   sizes: z
     .array(

@@ -309,6 +309,7 @@ export const addProductService = async (data: ProductFormValues) => {
     description: data.description || "",
     category: data.category,
     subcategory: normalizedSubcategory || null,
+    is_active: data.is_active ?? true,
     base_price: data.base_price || 0,
     current_stock: data.current_stock || 0,
     min_stock: data.min_stock || 0,
@@ -376,6 +377,7 @@ export const updateProductService = async (
         description: data.description || "",
         category: data.category,
         subcategory: normalizedSubcategory || null,
+        is_active: data.is_active ?? true,
         base_price: data.base_price || 0,
         current_stock: data.current_stock || 0,
         min_stock: data.min_stock || 0,
@@ -569,6 +571,25 @@ export const updateProductService = async (
 export const deleteProductService = async (id: string) => {
   const { error } = await supabase.from("products").delete().eq("id", id);
   if (error) throw error;
+};
+
+export const toggleProductStatusService = async (
+  productId: string,
+  nextStatus: boolean
+) => {
+  const { data, error } = await supabase
+    .from("products")
+    .update({
+      is_active: nextStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", productId)
+    .select("id, is_active")
+    .single();
+
+  if (error) throw error;
+
+  return data;
 };
 
 export const bulkAddProductsService = async (products: ProductFormValues[]) => {

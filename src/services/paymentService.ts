@@ -42,6 +42,11 @@ export interface PaymentResult {
   message: string;
   errorCode?: string;
   errorMessage?: string;
+  status?: "pending" | "approved" | "declined" | "error" | "refunded" | "voided";
+  processor?: "authorize_net" | "fortispay";
+  gatewayStatusId?: number;
+  gatewayTransactionStatus?: string;
+  rawResponse?: unknown;
 }
 
 export interface SavedPaymentMethod {
@@ -150,7 +155,6 @@ export function validateRoutingNumber(routingNumber: string): boolean {
   
   return checksum % 10 === 0;
 }
-
 
 // Process card payment - Uses Supabase Edge Function
 export async function processCardPayment(
@@ -279,7 +283,7 @@ export async function processACHPayment(
   }
 }
 
-// Process ACH payment via FortisPay (using backend endpoint)
+// Process ACH payment via FortisPay through the shared process-payment edge function
 export async function processACHPaymentFortisPay(
   achData: ACHPaymentData,
   billingAddress: BillingAddress,
@@ -310,61 +314,70 @@ export async function processACHPaymentFortisPay(
       };
     }
 
-    // Get API base URL
-    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
-
-    // Call backend FortisPay endpoint
-    const response = await fetch(`${apiBaseUrl}/pay-ach-fortispay`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
+    const { data, error } = await supabase.functions.invoke("process-payment", {
+      body: {
+        payment: {
+          type: "ach",
+          processor: "fortispay",
+          accountType: achData.accountType === "businessChecking" ? "checking" : achData.accountType,
+          routingNumber: achData.routingNumber,
+          accountNumber: achData.accountNumber,
+          nameOnAccount: achData.nameOnAccount,
+          echeckType: secCode,
+          secCode,
+          checkNumber: achData.checkNumber,
+          dlNumber: achData.dlNumber,
+          dlState: achData.dlState,
+          ssn4: achData.ssn4,
+          dobYear: achData.dobYear,
+        },
         amount,
-        accountType: achData.accountType === "businessChecking" ? "checking" : achData.accountType,
-        routingNumber: achData.routingNumber,
-        accountNumber: achData.accountNumber,
-        nameOnAccount: achData.nameOnAccount,
-        address: billingAddress.address,
-        city: billingAddress.city,
-        state: billingAddress.state,
-        zip: billingAddress.zip,
-        country: billingAddress.country || "USA",
         orderId,
+        invoiceNumber: orderId,
         description,
-        secCode,
-        checkNumber: achData.checkNumber,
-        dlNumber: achData.dlNumber,
-        dlState: achData.dlState,
-        ssn4: achData.ssn4,
-        dobYear: achData.dobYear,
-      }),
+        billing: {
+          firstName: billingAddress.firstName,
+          lastName: billingAddress.lastName,
+          address: billingAddress.address,
+          city: billingAddress.city,
+          state: billingAddress.state,
+          zip: billingAddress.zip,
+          country: billingAddress.country || "USA",
+        },
+      },
     });
 
-    const result = await response.json();
-
-    if (!response.ok) {
+    if (error) {
       return {
         success: false,
-        message: result.message || "FortisPay API error",
-        errorMessage: result.error || "Failed to process ACH payment",
-        errorCode: result.errorCode,
+        message: "FortisPay processing error",
+        errorMessage: error.message,
       };
     }
 
-    if (result.success) {
+    if (data?.success) {
       return {
         success: true,
-        transactionId: result.transactionId,
-        authCode: result.authCode,
-        message: result.message || "ACH payment initiated successfully",
+        transactionId: data.transactionId,
+        authCode: data.authCode,
+        message: data.message || "ACH payment initiated successfully",
+        status: data.statusId === 134 ? "approved" : "pending",
+        processor: data.processor || "fortispay",
+        gatewayStatusId: data.statusId,
+        gatewayTransactionStatus: data.gatewayTransactionStatus,
+        rawResponse: data.rawResponse,
       };
     } else {
       return {
         success: false,
-        message: result.message || "ACH payment failed",
-        errorCode: result.errorCode,
-        errorMessage: result.error,
+        message: data?.message || "ACH payment failed",
+        errorCode: data?.errorCode,
+        errorMessage: data?.error,
+        status: "declined",
+        processor: data?.processor || "fortispay",
+        gatewayStatusId: data?.statusId,
+        gatewayTransactionStatus: data?.gatewayTransactionStatus,
+        rawResponse: data?.rawResponse,
       };
     }
   } catch (error: any) {
@@ -536,11 +549,15 @@ export async function logPaymentTransaction(
       payment_method_type: paymentMethodType,
       card_last_four: cardLastFour,
       card_type: cardType,
-      status: result.success ? "approved" : "declined",
+      status: result.status || (result.success ? "approved" : "declined"),
+      processor: result.processor || "authorize_net",
+      gateway_status_id: result.gatewayStatusId,
+      gateway_transaction_status: result.gatewayTransactionStatus,
       response_code: result.errorCode,
       response_message: result.message,
       error_code: result.errorCode,
       error_message: result.errorMessage,
+      raw_response: result.rawResponse,
     });
   } catch (error) {
     console.error("Error logging transaction:", error);

@@ -57,12 +57,17 @@ interface PaymentTransaction {
   payment_method_type: string | null;
   card_last_four: string | null;
   card_type: string | null;
+  processor: string | null;
   status: string;
   response_message: string | null;
   error_message: string | null;
+  gateway_status_id: number | null;
   gateway_transaction_status: string | null;
   gateway_batch_id: string | null;
   gateway_settlement_time: string | null;
+  gateway_last_checked_at: string | null;
+  gateway_return_code: string | null;
+  gateway_return_message: string | null;
   reconciliation_status: string | null;
   reconciliation_reason: string | null;
   reconciliation_last_checked_at: string | null;
@@ -92,6 +97,7 @@ export default function PaymentTransactions() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [reconciling, setReconciling] = useState(false);
+  const [syncingFortis, setSyncingFortis] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [reconciliationFilter, setReconciliationFilter] = useState("all");
@@ -220,6 +226,70 @@ export default function PaymentTransactions() {
       title: "Reconciliation complete",
       description: `Checked ${data.summary?.checked || 0} transactions.`,
     });
+  };
+
+  const syncFortisTransactions = async () => {
+    setSyncingFortis(true);
+    let accessToken: string | null = null;
+
+    try {
+      accessToken = await getValidatedAccessToken();
+    } catch (error) {
+      toast({
+        title: "Authentication required",
+        description: error instanceof Error ? error.message : "Please log in again and retry Fortis sync.",
+        variant: "destructive",
+      });
+      setSyncingFortis(false);
+      return;
+    }
+
+    if (!accessToken) {
+      toast({
+        title: "Authentication required",
+        description: "No active admin session was found. Please log in again and retry Fortis sync.",
+        variant: "destructive",
+      });
+      setSyncingFortis(false);
+      return;
+    }
+
+    try {
+      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
+      const response = await fetch(`${apiBaseUrl}/fortis/ach/sync-statuses`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          transactionIds: transactions
+            .filter((transaction) => transaction.processor === "fortispay" && transaction.payment_method_type === "ach")
+            .slice(0, 25)
+            .map((transaction) => transaction.id),
+          maxTransactions: 25,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok || !result?.success) {
+        throw new Error(result?.message || "Could not sync Fortis ACH transactions.");
+      }
+
+      await fetchTransactions();
+      toast({
+        title: "Fortis ACH sync complete",
+        description: `Checked ${result.summary?.checked || 0} transactions and flagged ${result.summary?.returned || 0} potential returns.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Fortis ACH sync failed",
+        description: error instanceof Error ? error.message : "Could not sync Fortis ACH transactions.",
+        variant: "destructive",
+      });
+    } finally {
+      setSyncingFortis(false);
+    }
   };
 
   // Handle column header click for sorting
@@ -378,6 +448,10 @@ export default function PaymentTransactions() {
               <RefreshCw className={`h-4 w-4 ${reconciling ? "animate-spin" : ""}`} />
               Reconcile Now
             </Button>
+            <Button variant="outline" onClick={syncFortisTransactions} className="gap-2" disabled={syncingFortis}>
+              <RefreshCw className={`h-4 w-4 ${syncingFortis ? "animate-spin" : ""}`} />
+              Refresh Fortis ACH
+            </Button>
             <Button variant="outline" onClick={fetchTransactions} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -533,6 +607,9 @@ export default function PaymentTransactions() {
                         <div className="space-y-1">
                           <p className="font-medium">{transaction.gateway_transaction_status || "-"}</p>
                           <p className="text-muted-foreground">
+                            {(transaction.processor || "authorize_net").replace(/_/g, " ")}
+                          </p>
+                          <p className="text-muted-foreground">
                             {transaction.gateway_settlement_time
                               ? format(new Date(transaction.gateway_settlement_time), "MMM d, yyyy")
                               : "Unsettled"}
@@ -617,6 +694,10 @@ export default function PaymentTransactions() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
+                    <p className="text-sm text-muted-foreground">Processor</p>
+                    <p>{(selectedTransaction.processor || "authorize_net").replace(/_/g, " ")}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-muted-foreground">Gateway Status</p>
                     <p>{selectedTransaction.gateway_transaction_status || "-"}</p>
                   </div>
@@ -632,12 +713,30 @@ export default function PaymentTransactions() {
                     <p className="text-sm text-muted-foreground">Batch ID</p>
                     <p className="font-mono">{selectedTransaction.gateway_batch_id || "-"}</p>
                   </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Gateway Status ID</p>
+                    <p>{selectedTransaction.gateway_status_id ?? "-"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Gateway Checked</p>
+                    <p>{selectedTransaction.gateway_last_checked_at ? format(new Date(selectedTransaction.gateway_last_checked_at), "PPpp") : "-"}</p>
+                  </div>
                 </div>
 
                 {selectedTransaction.reconciliation_reason && (
                   <div>
                     <p className="text-sm text-muted-foreground">Reconciliation Note</p>
                     <p>{selectedTransaction.reconciliation_reason}</p>
+                  </div>
+                )}
+
+                {selectedTransaction.gateway_return_message && (
+                  <div className="p-3 bg-amber-50 rounded-lg">
+                    <p className="text-sm text-amber-700 font-medium">Return / ACH Exception</p>
+                    <p className="text-amber-800">{selectedTransaction.gateway_return_message}</p>
+                    {selectedTransaction.gateway_return_code && (
+                      <p className="text-xs text-amber-700 mt-1">Code: {selectedTransaction.gateway_return_code}</p>
+                    )}
                   </div>
                 )}
 

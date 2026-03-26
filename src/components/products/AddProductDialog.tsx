@@ -15,15 +15,17 @@ import { CustomizationSection } from "./form-fields/Customizations"
 import { CategorySubcategoryManager } from "./form-sections/CategorySubcategoryManager"
 import {
   Loader2, Package, Save, X, ChevronDown, ChevronUp,
-  Image, Ruler, Settings, Sparkles, Info, CheckCircle2, Plus
+  Image, Ruler, Settings, Sparkles, Info, CheckCircle2, Plus, Store, Tag, Boxes
 } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { cn } from "@/lib/utils"
 import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService"
+import { Switch } from "@/components/ui/switch"
+import { ProductThumbnail } from "./ProductThumbnail"
 
 interface AddProductDialogProps {
   open: boolean
@@ -135,6 +137,7 @@ export function AddProductDialog({
       description: initialData?.description || "",
       category: initialData?.category || "",
       subcategory: initialData?.subcategory || "",
+      is_active: initialData?.is_active ?? true,
       images: initialData?.images || [],
       sizes: initialData?.sizes
         ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))
@@ -156,10 +159,14 @@ export function AddProductDialog({
   })
 
   const selectedCategory = form.watch("category")
+  const selectedSubcategory = form.watch("subcategory")
   const productName = form.watch("name")
+  const productSku = form.watch("sku")
   const description = form.watch("description")
   const sizes = form.watch("sizes")
   const images = form.watch("images")
+  const isActive = form.watch("is_active")
+  const isVariantProduct = (sizes || []).length > 0
 
   // Fetch categories from database
   const fetchCategories = async () => {
@@ -209,11 +216,14 @@ export function AddProductDialog({
     }
     fetchSubcategories()
 
-    // Auto-fill name with category if empty
-    if (selectedCategory && !productName) {
-      form.setValue("name", selectedCategory)
+  }, [selectedCategory, form])
+
+  useEffect(() => {
+    const nextName = selectedSubcategory || ""
+    if ((form.getValues("name") || "") !== nextName) {
+      form.setValue("name", nextName, { shouldDirty: true, shouldValidate: true })
     }
-  }, [selectedCategory, form, productName])
+  }, [selectedSubcategory, form])
 
   // Fetch All subcategories on mount
   useEffect(() => {
@@ -246,6 +256,7 @@ export function AddProductDialog({
         description: initialData?.description || "",
         category: initialData?.category || "",
         subcategory: initialData?.subcategory || "",
+        is_active: initialData?.is_active ?? true,
         images: initialData?.images || [],
         sizes: initialData?.sizes
           ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))
@@ -306,11 +317,56 @@ export function AddProductDialog({
   const productNameTrimmed = String(productName || '').trim()
   const isBasicInfoComplete = selectedCategory && productNameTrimmed && descriptionText.length >= 10
   const progress = Math.round((completedSections.length / 3) * 100)
+  const isEditing = Boolean(initialData)
+  const dirtyCount = useMemo(() => {
+    const count = (value: unknown): number => {
+      if (!value || typeof value !== "object") return 0
+      if (Array.isArray(value)) {
+        return value.reduce((sum, item) => sum + count(item), 0)
+      }
+      return Object.values(value as Record<string, unknown>).reduce((sum, item) => {
+        if (item === true) return sum + 1
+        if (item && typeof item === "object") return sum + count(item)
+        return sum
+      }, 0)
+    }
+
+    return count(form.formState.dirtyFields)
+  }, [form.formState.dirtyFields])
+
+  const sizePriceRange = useMemo(() => {
+    const validPrices = (sizes || [])
+      .map((size) => Number(size.price || 0))
+      .filter((price) => Number.isFinite(price) && price > 0)
+
+    if (validPrices.length === 0) {
+      const currentBasePrice = Number(form.getValues("base_price") || 0)
+      return currentBasePrice > 0 ? `$${currentBasePrice.toFixed(2)}` : "Not set"
+    }
+
+    const min = Math.min(...validPrices)
+    const max = Math.max(...validPrices)
+    return min === max ? `$${min.toFixed(2)}` : `$${min.toFixed(2)} - $${max.toFixed(2)}`
+  }, [form, sizes])
+
+  const visibilitySummary = useMemo(() => {
+    if (!isVariantProduct) {
+      return "Visible to all stores unless restricted elsewhere"
+    }
+    const storeIds = new Set<string>()
+    ;(sizes || []).forEach((size) => {
+      ;(size.groupIds || []).forEach((id) => storeIds.add(id))
+    })
+
+    return storeIds.size === 0
+      ? "Visible to all stores"
+      : `Visible only to ${storeIds.size} selected store${storeIds.size === 1 ? "" : "s"}`
+  }, [isVariantProduct, sizes])
 
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="sm:max-w-5xl max-h-[95vh] p-0 gap-0 flex flex-col">
+        <DialogContent className="sm:max-w-6xl max-h-[95vh] p-0 gap-0 flex flex-col">
           {/* Header */}
           <DialogHeader className="px-6 py-4 border-b bg-white sticky top-0 z-10 flex-shrink-0">
             <div className="flex items-center justify-between">
@@ -347,6 +403,74 @@ export function AddProductDialog({
           <ScrollArea className="flex-1 overflow-auto">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(handleSubmit)} className="p-6 space-y-4 bg-gray-50">
+                {isEditing && (
+                  <Card className="border border-blue-100 bg-gradient-to-br from-white via-blue-50/40 to-slate-50 shadow-sm">
+                    <CardContent className="p-5">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex items-start gap-4">
+                          <ProductThumbnail
+                            product={{
+                              name: productNameTrimmed || "Product",
+                              image_url: initialData?.image_url,
+                              images: images || [],
+                              sizes: (sizes || []).map((size) => ({ image: size.image })),
+                            }}
+                          />
+                          <div className="space-y-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="text-xl font-semibold text-gray-900">
+                                {productNameTrimmed || "Untitled Product"}
+                              </h3>
+                              <Badge variant={isActive ? "default" : "secondary"}>
+                                {isActive ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                              {selectedCategory && <span className="rounded-full border bg-white px-3 py-1">{selectedCategory}</span>}
+                              {selectedCategory && (
+                                <span className="rounded-full border bg-white px-3 py-1">
+                                  {selectedSubcategory || "General"}
+                                </span>
+                              )}
+                              {/* {productSku && <span className="rounded-full border bg-white px-3 py-1 font-mono">{productSku}</span>} */}
+                            </div>
+                            <p className="max-w-2xl text-sm text-gray-600">
+                              {descriptionText || "Add a concise description so admins can identify this product quickly."}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="grid min-w-[300px] grid-cols-3 gap-3">
+                          <div className="rounded-2xl border bg-white p-3">
+                            <div className="flex items-center gap-2 text-md text-gray-500">
+                              <Tag className="h-3.5 w-3.5" />
+                              Pricing
+                            </div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900">{sizePriceRange}</div>
+                          </div>
+                          <div className="rounded-2xl border bg-white p-3">
+                            <div className="flex items-center gap-2 text-md text-gray-500">
+                              <Boxes className="h-3.5 w-3.5" />
+                              Sizes
+                            </div>
+                            <div className="mt-1 text-center text-lg font-semibold text-gray-900">{sizes?.length || 0}</div>
+                          </div>
+                          {/* <div className="rounded-2xl border bg-white p-3">
+                            <div className="text-xs text-gray-500">Images</div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900">{images?.length || 0}</div>
+                          </div> */}
+                          <div className="rounded-2xl border bg-white p-3">
+                            <div className="flex items-center gap-2 text-md text-gray-500">
+                              <Store className="h-3.5 w-3.5" />
+                              Visibility
+                            </div>
+                            <div className="mt-1 text-sm font-semibold text-gray-900">{visibilitySummary}</div>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
                 {/* Essential Info - Always Visible */}
                 <FormSection
@@ -430,32 +554,79 @@ export function AddProductDialog({
                                 )}
                               </SelectContent>
                             </Select>
+                            <p className="text-xs text-gray-500">
+                              Put the product under the correct subcategory. Leave it empty only if this category should use a general bucket.
+                            </p>
                             <FormMessage />
                           </FormItem>
                         )}
                       />
                     </div>
+                    
+                    {/* Product Name & Display Order Row */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+                      {/* Product Name */}
+                      <FormField
+                        control={form.control}
+                        name="name"
+                        render={({ field }) => (
+                          <FormItem className="xl:col-span-2">
+                            <FormLabel className="text-sm font-medium">
+                              Product Name <span className="text-red-500">*</span>
+                            </FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="Selected subcategory will appear here"
+                                className="h-11 bg-gray-50 text-gray-700"
+                                readOnly
+                                disabled
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                    {/* Product Name - Full Width */}
-                    {/* <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-medium">
-                            Product Name <span className="text-red-500">*</span>
-                          </FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="e.g., Premium RX Vial 30ml"
-                              className="h-11"
-                              {...field}
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    /> */}
+                      {/* SKU */}
+                      {/* <FormField
+                        control={form.control}
+                        name="sku"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">SKU</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="SKU or product code"
+                                className="h-11 font-mono"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      /> */}
+
+                      {/* Display Order Input */}
+                      {/* <FormField
+                        control={form.control}
+                        name="squanence"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-sm font-medium">Display Order</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="1"
+                                className="h-11"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      /> */}
+                    </div>
 
                     {/* Description */}
                     <FormField
@@ -479,6 +650,37 @@ export function AddProductDialog({
                       )}
                     />
                   </div>
+                </FormSection>
+
+                <FormSection
+                  title="Availability"
+                  description="Control whether the product is visible in the catalog"
+                  icon={CheckCircle2}
+                  iconColor="bg-emerald-500"
+                  defaultOpen={!!isBasicInfoComplete}
+                >
+                  <FormField
+                    control={form.control}
+                    name="is_active"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4">
+                        <div>
+                          <FormLabel className="text-sm font-medium text-gray-900">Product Status</FormLabel>
+                          <p className="mt-1 text-xs text-gray-500">
+                            Active products are shown in the catalog. Inactive products stay saved but hidden.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Badge variant={field.value ? "default" : "secondary"}>
+                            {field.value ? "Active" : "Inactive"}
+                          </Badge>
+                          <FormControl>
+                            <Switch checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
                 </FormSection>
 
                 {/* Product Images */}
@@ -505,7 +707,7 @@ export function AddProductDialog({
                 {/* Size Options & Pricing */}
                 <FormSection
                   title="Sizes & Pricing"
-                  description="Configure available sizes and prices"
+                  description="Configure sizes, pricing, and store-specific visibility"
                   icon={Ruler}
                   iconColor="bg-purple-500"
                   defaultOpen={!!isBasicInfoComplete}
@@ -539,27 +741,6 @@ export function AddProductDialog({
                             />
                           </FormControl>
                           <p className="text-xs text-gray-500">List main product features</p>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-
-                    {/* Display Order */}
-                    <FormField
-                      control={form.control}
-                      name="squanence"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel className="text-sm font-medium">Display Order</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="e.g., 1, 2, 3..."
-                              className="h-11 w-32"
-                              {...field}
-                            />
-                          </FormControl>
-                          <p className="text-xs text-gray-500">Lower numbers appear first</p>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -727,7 +908,14 @@ export function AddProductDialog({
           <DialogFooter className="px-6 py-4 border-t bg-white flex-shrink-0">
             <div className="flex items-center justify-between w-full">
               <div className="flex items-center gap-2 text-sm text-gray-500">
-                {completedSections.length === 3 ? (
+                {form.formState.isDirty ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-amber-500" />
+                    <span className="text-amber-700 font-medium">
+                      {dirtyCount || 1} unsaved change{dirtyCount === 1 ? "" : "s"}
+                    </span>
+                  </>
+                ) : completedSections.length === 3 ? (
                   <>
                     <CheckCircle2 className="w-4 h-4 text-blue-500" />
                     <span className="text-blue-600 font-medium">Ready to save</span>
@@ -747,7 +935,7 @@ export function AddProductDialog({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={loading || !isBasicInfoComplete}
+                  disabled={loading || isSubmitting || !isBasicInfoComplete}
                   onClick={() => {
                     form.handleSubmit(handleSubmit, (errors) => {
                       console.error('Form validation errors:', errors);
@@ -765,7 +953,7 @@ export function AddProductDialog({
                   ) : (
                     <>
                       <Save className="h-4 w-4 mr-2" />
-                      {initialData ? "Update Product" : "Add Product"}
+                      {initialData ? "Save Changes" : "Add Product"}
                     </>
                   )}
                 </Button>
@@ -784,3 +972,4 @@ export function AddProductDialog({
     </>
   )
 }
+

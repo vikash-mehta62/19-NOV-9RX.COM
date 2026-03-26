@@ -619,6 +619,26 @@ export function PaymentSection({ form }: PaymentSectionProps) {
 
                   <FormField
                     control={form.control}
+                    name="fortispay_developer_id"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Developer ID</FormLabel>
+                        <FormControl>
+                          <Input
+                            {...field}
+                            placeholder="Enter your FortisPay Developer ID"
+                            autoComplete="off"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Required legacy Fortis gateway developer identifier
+                        </FormDescription>
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
                     name="fortispay_user_id"
                     render={({ field }) => (
                       <FormItem>
@@ -708,6 +728,15 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </FormItem>
                     )}
                   />
+
+                  <Alert className="bg-slate-50">
+                    <Info className="h-4 w-4" />
+                    <AlertTitle>Configuration Completeness</AlertTitle>
+                    <AlertDescription>
+                      Fortis ACH needs Developer ID, User ID, User API Key, Location ID, and ACH Product Transaction ID.
+                      Sandbox mode also depends on valid sandbox-specific values.
+                    </AlertDescription>
+                  </Alert>
                 </div>
 
                 {/* Payment Methods Accepted */}

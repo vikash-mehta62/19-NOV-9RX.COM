@@ -338,6 +338,7 @@ export const SizeList = ({
       {/* Size Cards Mapping */}
       {sizes.map((size, index) => {
         const resolvedProductName = String(size.size_name || productName || form?.getValues("name") || "Product");
+        const allowedStoresCount = size.groupIds?.length || 0;
         return (
           <Card
             key={index}
@@ -385,6 +386,10 @@ export const SizeList = ({
                       {size.rolls_per_case} Rolls/CS
                     </Badge>
                   )}
+
+                  <Badge variant="outline" className="text-xs">
+                    {allowedStoresCount > 0 ? `${allowedStoresCount} store${allowedStoresCount === 1 ? "" : "s"} only` : "All stores"}
+                  </Badge>
                 </div>
 
                 {/* Action Buttons */}
@@ -669,6 +674,9 @@ export const SizeList = ({
                       <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
                         Allowed Pharmacies
                       </label>
+                      <p className="mb-2 text-xs text-gray-500">
+                        Leave empty to show this size to all stores. Select specific stores to restrict visibility.
+                      </p>
                       <Select
                         isMulti
                         isLoading={loading}

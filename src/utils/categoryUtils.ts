@@ -5,6 +5,8 @@ export interface CategoryConfig {
   category_name: string;
   display_order: number;
   image_url?: string;
+  size_units?: string[] | null;
+  default_unit?: string | null;
 }
 
 export interface SubcategoryConfig {

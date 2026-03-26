@@ -4,7 +4,6 @@ import { useEffect, useState, useMemo } from "react"
 import { Search, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { PharmacyProductCard } from "./PharmacyProductCard"
-import { PharmacySizeCard } from "./PharmacySizeCard"
 import { ProductDetails } from "../../types/product.types"
 
 // Export FlattenedSizeItem type for use in PharmacySizeCard
@@ -39,7 +38,6 @@ interface PharmacyProductGridProps {
   onViewModeChange?: (mode: "grid" | "compact") => void
   onProductClick?: (product: ProductDetails) => void
   searchQuery?: string
-  selectedCategory?: string
   onAddToWishlist?: (product: ProductDetails, sizeId?: string) => Promise<boolean>
   onRemoveFromWishlist?: (productId: string, sizeId?: string) => Promise<boolean>
   isInWishlist?: (productId: string, sizeId?: string) => boolean
@@ -51,7 +49,6 @@ export const PharmacyProductGrid = ({
   onViewModeChange,
   onProductClick,
   searchQuery = "",
-  selectedCategory = "",
   onAddToWishlist,
   onRemoveFromWishlist,
   isInWishlist
@@ -144,65 +141,15 @@ export const PharmacyProductGrid = ({
       ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-3 gap-3 sm:gap-4 lg:gap-5"
       : "grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4"
     }>
-      {/* Check if this is RX PAPER BAGS category - show sizes directly */}
-      {selectedCategory.toUpperCase() === "RX PAPER BAGS" ? (
-        productItems.flatMap(product => 
-          (product.sizes || []).map(size => {
-            // Calculate effective price for this size if parent has offer
-            let sizeEffectivePrice = size.price;
-            if (product.hasOffer && product.discountPercent) {
-              sizeEffectivePrice = size.price * (1 - product.discountPercent / 100);
-            }
-            
-            return {
-              productId: product.id.toString(),
-              productName: product.name,
-              productDescription: product.description,
-              productCategory: product.category,
-              productSubcategory: product.subcategory,
-              productSku: product.sku,
-              productImages: product.images,
-              sizeId: size.id,
-              sizeName: size.size_name || "",
-              sizeValue: size.size_value,
-              sizeUnit: size.size_unit,
-              sizeSku: size.sku,
-              price: size.price,
-              originalPrice: size.originalPrice,
-              stock: size.stock,
-              quantityPerCase: size.quantity_per_case,
-              image: size.image,
-              shippingCost: size.shipping_cost,
-              // Inherit offer data from parent product
-              offerBadge: product.offerBadge,
-              hasOffer: product.hasOffer,
-              effectivePrice: sizeEffectivePrice,
-              discountPercent: product.discountPercent
-            } as FlattenedSizeItem
-          })
-        ).map((item, index) => (
-          <PharmacySizeCard
-            key={`${item.productId}-${item.sizeId}-${index}`}
-            item={item}
-            onAddToWishlist={onAddToWishlist}
-            onRemoveFromWishlist={onRemoveFromWishlist}
-            isInWishlist={isInWishlist}
+      {productItems.map((product) => (
+        <div key={product.id}>
+          <PharmacyProductCard
+            product={product}
+            onProductClick={onProductClick}
+            searchQuery={searchQuery}
           />
-        ))
-      ) : (
-        // Regular products for other categories
-        productItems.map((product) => (
-          <div 
-            key={product.id} 
-          >
-            <PharmacyProductCard 
-              product={product} 
-              onProductClick={onProductClick}
-              searchQuery={searchQuery}
-            />
-          </div>
-        ))
-      )}
+        </div>
+      ))}
     </div>
   )
 }

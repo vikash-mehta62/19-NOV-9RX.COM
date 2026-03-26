@@ -12,6 +12,9 @@ export interface ProductSize {
   image?: any;
   created_at: string;
   updated_at: string;
+  groupIds?: string[];
+  disAllogroupIds?: string[];
+  is_active?: boolean;
   ndcCode?: string;
   unitToggle?: boolean;
   upcCode?: string;

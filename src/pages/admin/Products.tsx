@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import {
   Search, Grid3X3, List, Package, X, ArrowLeft,
-  Edit, Trash2, Eye, MoreHorizontal, Filter, CheckCircle, XCircle, Upload, Image as ImageIcon
+  Edit, Trash2, Eye, MoreHorizontal, Filter, CheckCircle, XCircle, Upload, Store, ShieldCheck
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -65,9 +65,9 @@ const Products = () => {
     handleAddProduct,
     handleUpdateProduct,
     handleDeleteProduct,
+    handleToggleProductStatus,
     handleBulkAddProducts,
-    loading,
-    refetchProducts
+    loading
   } = useProducts(true); // Admin can see inactive products
 
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
@@ -79,34 +79,9 @@ const Products = () => {
   const [uploadingFor, setUploadingFor] = useState<string | null>(null);
   const [showUploadOverlay, setShowUploadOverlay] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "restricted">("all");
+  const [pharmacyNames, setPharmacyNames] = useState<Record<string, string>>({});
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Handle product active/inactive toggle
-  const handleToggleActive = async (productId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('products')
-        .update({ is_active: !currentStatus })
-        .eq('id', productId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Product ${!currentStatus ? 'activated' : 'deactivated'} successfully.`
-      });
-
-      // Refresh products list with current filters
-      refetchProducts();
-    } catch (error) {
-      console.error('Error toggling product status:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update product status.",
-        variant: "destructive"
-      });
-    }
-  };
 
   // Set category from navigation state (when coming back from product details)
   useEffect(() => {
@@ -146,6 +121,38 @@ const Products = () => {
     fetchCategoriesFromDB();
   }, []);
 
+  useEffect(() => {
+    const fetchPharmacies = async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, company_name, display_name, first_name, last_name, email")
+        .eq("type", "pharmacy")
+        .eq("status", "active");
+
+      if (error) {
+        console.error("Error fetching pharmacies:", error);
+        return;
+      }
+
+      const nextMap = Object.fromEntries(
+        (data || []).map((pharmacy) => {
+          const label =
+            pharmacy.company_name?.trim() ||
+            pharmacy.display_name?.trim() ||
+            `${pharmacy.first_name || ""} ${pharmacy.last_name || ""}`.trim() ||
+            pharmacy.email ||
+            "Unnamed Store";
+
+          return [pharmacy.id, label];
+        })
+      );
+
+      setPharmacyNames(nextMap);
+    };
+
+    fetchPharmacies();
+  }, []);
+
   const handleSubmit = async (data: ProductFormValues): Promise<void> => {
     setIsSubmitting(true);
     try {
@@ -164,6 +171,7 @@ const Products = () => {
   const clearFilters = () => {
     setSearchQuery("");
     setSelectedCategory("all");
+    setStatusFilter("all");
   };
 
   const handleCategoryClick = (category: string) => {
@@ -261,6 +269,44 @@ const Products = () => {
     return config?.id || "";
   };
 
+  const getProductStoreIds = (product: typeof products[number]) => {
+    const ids = new Set<string>();
+    (product.sizes || []).forEach((size) => {
+      (size.groupIds || []).forEach((id) => ids.add(id));
+    });
+    return Array.from(ids);
+  };
+
+  const getVisibilityMeta = (product: typeof products[number]) => {
+    const storeIds = getProductStoreIds(product);
+    const storeNames = storeIds
+      .map((id) => pharmacyNames[id])
+      .filter((name): name is string => Boolean(name));
+
+    if (storeIds.length === 0) {
+      return { restricted: false, label: "Visible to all stores", storeNames: [] as string[] };
+    }
+
+    return {
+      restricted: true,
+      label: `${storeIds.length} selected store${storeIds.length === 1 ? "" : "s"}`,
+      storeNames,
+    };
+  };
+
+  const filteredProducts = products.filter((product) => {
+    const restricted = getProductStoreIds(product).length > 0;
+
+    if (statusFilter === "active") return product.is_active !== false;
+    if (statusFilter === "inactive") return product.is_active === false;
+    if (statusFilter === "restricted") return restricted;
+    return true;
+  });
+
+  const activeCount = products.filter((product) => product.is_active !== false).length;
+  const inactiveCount = products.filter((product) => product.is_active === false).length;
+  const restrictedCount = products.filter((product) => getProductStoreIds(product).length > 0).length;
+
   const hasActiveFilters = searchQuery || selectedCategory !== "all";
 
   return (
@@ -278,6 +324,23 @@ const Products = () => {
           {/* Enhanced Filters & Search */}
           <Card className="border-0 shadow-lg bg-white/90 backdrop-blur-sm">
             <CardContent className="p-6">
+              {selectedCategory !== "all" && (
+                <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-3">
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                    <div className="text-sm text-blue-700">Active Products</div>
+                    <div className="mt-1 text-2xl font-bold text-blue-900">{activeCount}</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="text-sm text-slate-600">Inactive Products</div>
+                    <div className="mt-1 text-2xl font-bold text-slate-900">{inactiveCount}</div>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-100 bg-emerald-50/80 p-4">
+                    <div className="text-sm text-emerald-700">Specific Stores Only</div>
+                    <div className="mt-1 text-2xl font-bold text-emerald-900">{restrictedCount}</div>
+                  </div>
+                </div>
+              )}
+
               <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center justify-between">
                 <div className="flex flex-1 gap-4 w-full lg:w-auto">
                   {/* Enhanced Search */}
@@ -315,6 +378,24 @@ const Products = () => {
                       ))}
                     </SelectContent>
                   </Select>
+
+                  {selectedCategory !== "all" && (
+                    <Select
+                      value={statusFilter}
+                      onValueChange={(value: "all" | "active" | "inactive" | "restricted") => setStatusFilter(value)}
+                    >
+                      <SelectTrigger className="w-[210px] h-11 bg-white border-gray-200 rounded-xl shadow-sm">
+                        <ShieldCheck className="w-4 h-4 mr-2 text-gray-400" />
+                        <SelectValue placeholder="All Products" />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-xl">
+                        <SelectItem value="all">All Products</SelectItem>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="inactive">Inactive</SelectItem>
+                        <SelectItem value="restricted">Specific Stores Only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  )}
 
                   {/* Clear Filters */}
                   {hasActiveFilters && (
@@ -543,7 +624,7 @@ const Products = () => {
                 </div>
               </CardContent>
             </Card>
-          ) : selectedCategory !== "all" && products.length === 0 ? (
+          ) : selectedCategory !== "all" && filteredProducts.length === 0 ? (
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6">
                 {/* Back button */}
@@ -597,7 +678,7 @@ const Products = () => {
                       {selectedCategory}
                     </h2>
                     <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-4 py-2 rounded-full text-sm font-medium">
-                      {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
+                      {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
                     </Badge>
                   </div>
                 </div>
@@ -605,7 +686,9 @@ const Products = () => {
 
               {/* Enhanced Product Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
-                {products.map((product) => (
+                {filteredProducts.map((product) => {
+                  const visibility = getVisibilityMeta(product);
+                  return (
                   <Card
                     key={product.id}
                     className="group border-0 shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden bg-white hover:-translate-y-1 cursor-pointer"
@@ -639,7 +722,7 @@ const Products = () => {
                               Edit Product
                             </DropdownMenuItem>
                             <DropdownMenuItem 
-                              onClick={() => handleToggleActive(product.id, product.is_active ?? true)}
+                              onClick={() => handleToggleProductStatus(product.id, product.is_active ?? true)}
                               className="rounded-lg"
                             >
                               {product.is_active !== false ? (
@@ -684,7 +767,6 @@ const Products = () => {
                           </Badge>
                         )} */}
                       </div>
-
                       {/* Inactive Status Badge */}
                       {product.is_active === false && (
                         <Badge
@@ -738,9 +820,17 @@ const Products = () => {
                             {(product.current_stock || 0) > 0 ? `${product.current_stock} In Stock` : "Out of Stock"}
                           </Badge> */}
                       </div>
+                      <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                        <div className="text-xs font-medium text-gray-700">{visibility.label}</div>
+                        {visibility.storeNames.length > 0 && (
+                          <div className="mt-1 text-xs text-gray-500 line-clamp-2">
+                            {visibility.storeNames.join(", ")}
+                          </div>
+                        )}
+                      </div>
                     </CardContent>
                   </Card>
-                ))}
+                )})}
               </div>
             </>
           ) : selectedCategory !== "all" && viewMode === "table" ? (
@@ -761,7 +851,7 @@ const Products = () => {
                       {selectedCategory}
                     </h2>
                     <Badge variant="secondary" className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border-blue-200 px-4 py-2 rounded-full text-sm font-medium">
-                      {totalProducts} {totalProducts === 1 ? 'product' : 'products'}
+                      {filteredProducts.length} {filteredProducts.length === 1 ? 'product' : 'products'}
                     </Badge>
                   </div>
                 </div>
@@ -781,7 +871,9 @@ const Products = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {products.map((product, index) => (
+                    {filteredProducts.map((product, index) => {
+                      const visibility = getVisibilityMeta(product);
+                      return (
                       <TableRow
                         key={product.id}
                         className={`hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 transition-all duration-200 ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
@@ -882,7 +974,7 @@ const Products = () => {
                                 Edit Product
                               </DropdownMenuItem>
                               <DropdownMenuItem 
-                                onClick={() => handleToggleActive(product.id, product.is_active ?? true)}
+                                onClick={() => handleToggleProductStatus(product.id, product.is_active ?? true)}
                                 className="rounded-lg"
                               >
                                 {product.is_active !== false ? (
@@ -908,7 +1000,7 @@ const Products = () => {
                           </DropdownMenu>
                         </TableCell>
                       </TableRow>
-                    ))}
+                    )})}
                   </TableBody>
                 </Table>
               </Card>
@@ -916,7 +1008,7 @@ const Products = () => {
           ) : null}
 
           {/* Enhanced Pagination */}
-          {selectedCategory !== "all" && products.length > 0 && (
+          {selectedCategory !== "all" && filteredProducts.length > 0 && statusFilter === "all" && (
             <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
               <CardContent className="p-6 flex justify-center">
                 <PaginationControls

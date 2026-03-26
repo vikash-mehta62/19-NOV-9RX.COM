@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -62,11 +62,11 @@ export const PharmacyProductCard = ({
   const hasMatchingSizes = product.matchingSizes && product.matchingSizes.length > 0
   
   // Auto-expand sizes if found via size search
-  useState(() => {
+  useEffect(() => {
     if (hasMatchingSizes && searchQuery) {
       setShowSizes(true)
     }
-  })
+  },[hasMatchingSizes, searchQuery])
 
   // Function to check if a size matches the search query
   const isSizeMatching = (size: any) => {
@@ -243,7 +243,7 @@ export const PharmacyProductCard = ({
         </div>
 
         {/* Size Toggle Button - Show if has sizes and search query */}
-        {sizesCount > 0 && (hasMatchingSizes || searchQuery) && (
+        {/* {sizesCount > 0 && (hasMatchingSizes || searchQuery) && (
           <Button
             variant="ghost"
             size="sm"
@@ -265,10 +265,10 @@ export const PharmacyProductCard = ({
               </>
             )}
           </Button>
-        )}
+        )} */}
 
         {/* Expanded Sizes Section */}
-        {showSizes && product.sizes && product.sizes.length > 0 && (
+        {/* {showSizes && product.sizes && product.sizes.length > 0 && (
           <div className="mt-2 p-2 bg-gray-50 rounded-lg border">
             <div className="text-xs font-medium text-gray-700 mb-2">Available Sizes:</div>
             <div className="space-y-1.5 max-h-32 overflow-y-auto">
@@ -332,7 +332,7 @@ export const PharmacyProductCard = ({
               })}
             </div>
           </div>
-        )}
+        )} */}
 
         {/* View Sizes Button */}
         {!isOutOfStock && (

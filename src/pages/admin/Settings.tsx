@@ -54,6 +54,7 @@ interface PaymentSettings {
 
 interface FortisPaySettings {
   enabled: boolean;
+  developerId: string;
   userId: string;
   userApiKey: string;
   locationId: string;
@@ -68,6 +69,7 @@ const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
     authorize_net_transaction_key,
     authorize_net_test_mode,
     fortispay_enabled,
+    fortispay_developer_id,
     fortispay_user_id,
     fortispay_user_api_key,
     fortispay_location_id,
@@ -203,6 +205,7 @@ export default function Settings() {
         ? (fortisPayData.settings as unknown as FortisPaySettings)
         : {
             enabled: false,
+            developerId: "",
             userId: "",
             userApiKey: "",
             locationId: "",
@@ -217,6 +220,7 @@ export default function Settings() {
         authorize_net_transaction_key: paymentSettings.transactionKey,
         authorize_net_test_mode: paymentSettings.testMode,
         fortispay_enabled: fortisPaySettings.enabled,
+        fortispay_developer_id: fortisPaySettings.developerId,
         fortispay_user_id: fortisPaySettings.userId,
         fortispay_user_api_key: fortisPaySettings.userApiKey,
         fortispay_location_id: fortisPaySettings.locationId,
@@ -258,6 +262,7 @@ export default function Settings() {
 
       const fortisPaySettings = {
         enabled: normalizedData.fortispay_enabled,
+        developerId: normalizedData.fortispay_developer_id,
         userId: normalizedData.fortispay_user_id,
         userApiKey: normalizedData.fortispay_user_api_key,
         locationId: normalizedData.fortispay_location_id,

@@ -9,6 +9,181 @@ const corsHeaders = {
 const AUTHORIZE_NET_SANDBOX = "https://apitest.authorize.net/xml/v1/request.api";
 const AUTHORIZE_NET_PRODUCTION = "https://api.authorize.net/xml/v1/request.api";
 
+function getFortisApiUrl(testMode: boolean) {
+  const explicitApiUrl = Deno.env.get("FORTIS_API_URL");
+  const sandboxApiUrl = Deno.env.get("FORTIS_SANDBOX_API_URL");
+  const productionApiUrl = Deno.env.get("FORTIS_PRODUCTION_API_URL");
+
+  return explicitApiUrl || (testMode ? sandboxApiUrl : productionApiUrl) || "https://api.fortispay.com/v2";
+}
+
+function buildFortisHeaders(config: {
+  developerId: string;
+  userId: string;
+  userApiKey: string;
+}) {
+  return {
+    "Content-Type": "application/json",
+    "developer-id": config.developerId,
+    "user-id": config.userId,
+    "user-api-key": config.userApiKey,
+  };
+}
+
+function normalizeFortisGatewayStatus(transaction: Record<string, unknown>) {
+  return (
+    transaction.status ||
+    transaction.status_name ||
+    transaction.verbiage ||
+    transaction.response_message ||
+    (transaction.status_id ? `status_${transaction.status_id}` : "unknown")
+  );
+}
+
+function normalizeFortisLocalStatus(transaction: Record<string, unknown>) {
+  const statusId = Number(transaction.status_id || 0);
+  const summary = `${transaction.verbiage || ""} ${transaction.response_message || ""} ${transaction.status || ""} ${transaction.status_name || ""}`.toLowerCase();
+
+  if (summary.includes("return")) return "error";
+  if (statusId === 134 || summary.includes("settled") || summary.includes("approved")) return "approved";
+  if ([131, 132, 133].includes(statusId) || summary.includes("originat") || summary.includes("pending")) return "pending";
+  if (statusId === 301 || summary.includes("declin") || summary.includes("reject")) return "declined";
+  return "error";
+}
+
+function getMissingFortisSettingFields(settings: Record<string, unknown>) {
+  const requiredFields = [
+    { key: "developerId", label: "developerId" },
+    { key: "userId", label: "userId" },
+    { key: "userApiKey", label: "userApiKey" },
+    { key: "locationId", label: "locationId" },
+    { key: "productTransactionIdAch", label: "productTransactionIdAch" },
+  ];
+
+  return requiredFields
+    .filter(({ key }) => String(settings[key] ?? "").trim().length === 0)
+    .map(({ label }) => label);
+}
+
+async function processFortisAchPayment(
+  supabase: ReturnType<typeof createClient>,
+  payment: any,
+  amount: number,
+  billing: any,
+  orderId?: string,
+  invoiceNumber?: string,
+  description?: string
+) {
+  const { data: fortisSettingsData, error: fortisSettingsError } = await supabase
+    .from("payment_settings")
+    .select("*")
+    .eq("provider", "fortispay")
+    .limit(1)
+    .maybeSingle();
+
+  if (fortisSettingsError || !fortisSettingsData) {
+    return jsonResponse({ success: false, error: "FortisPay gateway not configured.", errorCode: "NO_FORTIS_SETTINGS" });
+  }
+
+  const settings = fortisSettingsData.settings as any;
+  if (!settings?.enabled) {
+    return jsonResponse({ success: false, error: "FortisPay gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
+  }
+
+  const missingFields = getMissingFortisSettingFields(settings);
+  if (missingFields.length > 0) {
+    return jsonResponse({
+      success: false,
+      error: `FortisPay credentials are missing in payment settings: ${missingFields.join(", ")}`,
+      errorCode: "MISSING_FORTIS_SETTINGS_FIELDS",
+      missingFields,
+    });
+  }
+
+  const developerId = String(settings.developerId || "").trim();
+  const userId = String(settings.userId || "").trim();
+  const userApiKey = String(settings.userApiKey || "").trim();
+  const locationId = String(settings.locationId || "").trim();
+  const productTransactionIdAch = String(settings.productTransactionIdAch || "").trim();
+  const testMode = settings.testMode === true;
+  const apiUrl = getFortisApiUrl(testMode);
+
+  const transactionRequest = {
+    transaction: {
+      action: "debit",
+      payment_method: "ach",
+      account_holder_name: String(payment.nameOnAccount || "").trim(),
+      account_number: String(payment.accountNumber || "").trim(),
+      account_type: String(payment.accountType || "").toLowerCase() === "savings" ? "savings" : "checking",
+      routing: String(payment.routingNumber || "").trim(),
+      ach_sec_code: payment.secCode || payment.echeckType || "WEB",
+      transaction_amount: amount.toFixed(2),
+      location_id: locationId,
+      product_transaction_id: productTransactionIdAch,
+      billing_street: billing?.address || "",
+      billing_city: billing?.city || "",
+      billing_state: billing?.state || "",
+      billing_zip: billing?.zip || "",
+      description: description || "ACH Payment",
+      order_num: orderId || invoiceNumber || undefined,
+      check_number: payment.checkNumber,
+      dl_number: payment.dlNumber,
+      dl_state: payment.dlState,
+      ssn4: payment.ssn4,
+      dob_year: payment.dobYear,
+      effective_date: new Date().toISOString().split("T")[0],
+    },
+  };
+
+  try {
+    const fortisResponse = await fetch(`${apiUrl}/transactions`, {
+      method: "POST",
+      headers: buildFortisHeaders({ developerId, userId, userApiKey }),
+      body: JSON.stringify(transactionRequest),
+    });
+
+    const result = await fortisResponse.json();
+    const transaction = result?.transaction || {};
+    const gatewayStatus = normalizeFortisGatewayStatus(transaction);
+    const localStatus = normalizeFortisLocalStatus(transaction);
+    const success = localStatus === "pending" || localStatus === "approved";
+
+    if (!fortisResponse.ok || !success) {
+      return jsonResponse(
+        {
+          success: false,
+          error: transaction.response_message || transaction.verbiage || result?.error || "Fortis ACH payment failed",
+          errorCode: String(transaction.reason_code_id || result?.code || ""),
+          message: gatewayStatus,
+          processor: "fortispay",
+          statusId: transaction.status_id || null,
+          gatewayTransactionStatus: gatewayStatus,
+          rawResponse: transaction,
+        },
+        fortisResponse.ok ? 400 : 502,
+      );
+    }
+
+    return jsonResponse({
+      success: true,
+      transactionId: transaction.id,
+      authCode: transaction.auth_code,
+      amount,
+      message: transaction.verbiage || "ACH payment initiated successfully",
+      processor: "fortispay",
+      statusId: transaction.status_id || null,
+      gatewayTransactionStatus: gatewayStatus,
+      rawResponse: transaction,
+    });
+  } catch (error) {
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : "Fortis ACH processing failed",
+      errorCode: "FORTIS_API_ERROR",
+    }, 500);
+  }
+}
+
 async function createCustomerProfile(
   endpoint: string,
   apiLoginId: string,
@@ -234,34 +409,34 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { data: paymentSettingsData, error: settingsError } = await supabase
-      .from("payment_settings")
-      .select("*")
-      .eq("provider", "authorize_net")
-      .limit(1)
-      .maybeSingle();
-
-    if (settingsError || !paymentSettingsData) {
-      return jsonResponse({ success: false, error: "Payment gateway not configured.", errorCode: "NO_SETTINGS" });
-    }
-
-    const settings = paymentSettingsData.settings as any;
-    if (!settings || !settings.enabled) {
-      return jsonResponse({ success: false, error: "Payment gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
-    }
-
-    const API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
-    const TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
-    const IS_TEST_MODE = settings.testMode === true;
-
-    if (!API_LOGIN_ID || !TRANSACTION_KEY) {
-      return jsonResponse({ success: false, error: "API credentials are required.", errorCode: "MISSING_CREDENTIALS" });
-    }
-
-    const endpoint = IS_TEST_MODE ? AUTHORIZE_NET_SANDBOX : AUTHORIZE_NET_PRODUCTION;
     const body = await req.json();
 
     if (body.action === "saveCard") {
+      const { data: paymentSettingsData, error: settingsError } = await supabase
+        .from("payment_settings")
+        .select("*")
+        .eq("provider", "authorize_net")
+        .limit(1)
+        .maybeSingle();
+
+      if (settingsError || !paymentSettingsData) {
+        return jsonResponse({ success: false, error: "Payment gateway not configured.", errorCode: "NO_SETTINGS" });
+      }
+
+      const settings = paymentSettingsData.settings as any;
+      if (!settings || !settings.enabled) {
+        return jsonResponse({ success: false, error: "Payment gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
+      }
+
+      const API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
+      const TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
+      const IS_TEST_MODE = settings.testMode === true;
+
+      if (!API_LOGIN_ID || !TRANSACTION_KEY) {
+        return jsonResponse({ success: false, error: "API credentials are required.", errorCode: "MISSING_CREDENTIALS" });
+      }
+
+      const endpoint = IS_TEST_MODE ? AUTHORIZE_NET_SANDBOX : AUTHORIZE_NET_PRODUCTION;
       const { profileId, email, cardNumber, expirationDate, cvv, billing } = body;
       if (!profileId || !email || !cardNumber || !expirationDate || !cvv) {
         return jsonResponse({ success: false, error: "Missing required fields", errorCode: "INVALID_REQUEST" });
@@ -320,6 +495,31 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "chargeSavedCard") {
+      const { data: paymentSettingsData, error: settingsError } = await supabase
+        .from("payment_settings")
+        .select("*")
+        .eq("provider", "authorize_net")
+        .limit(1)
+        .maybeSingle();
+
+      if (settingsError || !paymentSettingsData) {
+        return jsonResponse({ success: false, error: "Payment gateway not configured.", errorCode: "NO_SETTINGS" });
+      }
+
+      const settings = paymentSettingsData.settings as any;
+      if (!settings || !settings.enabled) {
+        return jsonResponse({ success: false, error: "Payment gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
+      }
+
+      const API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
+      const TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
+      const IS_TEST_MODE = settings.testMode === true;
+
+      if (!API_LOGIN_ID || !TRANSACTION_KEY) {
+        return jsonResponse({ success: false, error: "API credentials are required.", errorCode: "MISSING_CREDENTIALS" });
+      }
+
+      const endpoint = IS_TEST_MODE ? AUTHORIZE_NET_SANDBOX : AUTHORIZE_NET_PRODUCTION;
       const { customerProfileId, paymentProfileId, amount, invoiceNumber, orderId } = body;
       if (!customerProfileId || !paymentProfileId || !amount) {
         return jsonResponse({ success: false, error: "Missing required fields", errorCode: "INVALID_REQUEST" });
@@ -345,6 +545,31 @@ Deno.serve(async (req) => {
     }
 
     if (body.action === "deleteCard") {
+      const { data: paymentSettingsData, error: settingsError } = await supabase
+        .from("payment_settings")
+        .select("*")
+        .eq("provider", "authorize_net")
+        .limit(1)
+        .maybeSingle();
+
+      if (settingsError || !paymentSettingsData) {
+        return jsonResponse({ success: false, error: "Payment gateway not configured.", errorCode: "NO_SETTINGS" });
+      }
+
+      const settings = paymentSettingsData.settings as any;
+      if (!settings || !settings.enabled) {
+        return jsonResponse({ success: false, error: "Payment gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
+      }
+
+      const API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
+      const TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
+      const IS_TEST_MODE = settings.testMode === true;
+
+      if (!API_LOGIN_ID || !TRANSACTION_KEY) {
+        return jsonResponse({ success: false, error: "API credentials are required.", errorCode: "MISSING_CREDENTIALS" });
+      }
+
+      const endpoint = IS_TEST_MODE ? AUTHORIZE_NET_SANDBOX : AUTHORIZE_NET_PRODUCTION;
       const { customerProfileId, paymentProfileId, savedMethodId } = body;
       if (!customerProfileId || !paymentProfileId) {
         return jsonResponse({ success: false, error: "Missing required fields", errorCode: "INVALID_REQUEST" });
@@ -366,6 +591,44 @@ Deno.serve(async (req) => {
     if (!payment || !normalizedChargedAmount) {
       return jsonResponse({ success: false, error: "Payment details and amount are required", errorCode: "INVALID_REQUEST" });
     }
+
+    if ((payment.type === "ach" || payment.type === "echeck") && payment.processor === "fortispay") {
+      return await processFortisAchPayment(
+        supabase,
+        payment,
+        normalizedChargedAmount,
+        billing,
+        orderId,
+        invoiceNumber,
+        body.description,
+      );
+    }
+
+    const { data: paymentSettingsData, error: settingsError } = await supabase
+      .from("payment_settings")
+      .select("*")
+      .eq("provider", "authorize_net")
+      .limit(1)
+      .maybeSingle();
+
+    if (settingsError || !paymentSettingsData) {
+      return jsonResponse({ success: false, error: "Payment gateway not configured.", errorCode: "NO_SETTINGS" });
+    }
+
+    const settings = paymentSettingsData.settings as any;
+    if (!settings || !settings.enabled) {
+      return jsonResponse({ success: false, error: "Payment gateway is disabled.", errorCode: "GATEWAY_DISABLED" });
+    }
+
+    const API_LOGIN_ID = (settings.apiLoginId || "").toString().trim();
+    const TRANSACTION_KEY = (settings.transactionKey || "").toString().trim();
+    const IS_TEST_MODE = settings.testMode === true;
+
+    if (!API_LOGIN_ID || !TRANSACTION_KEY) {
+      return jsonResponse({ success: false, error: "API credentials are required.", errorCode: "MISSING_CREDENTIALS" });
+    }
+
+    const endpoint = IS_TEST_MODE ? AUTHORIZE_NET_SANDBOX : AUTHORIZE_NET_PRODUCTION;
 
     let paymentData: any;
     if (payment.type === "card") {

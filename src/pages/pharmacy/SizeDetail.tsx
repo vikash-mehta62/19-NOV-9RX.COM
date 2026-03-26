@@ -430,7 +430,7 @@ export default function SizeDetail() {
                                 <p className="text-md font-bold text-gray-900">{s.size_name || ''}</p>
                                 <p className="font-semibold text-sm text-gray-600 truncate">{s.size_value} {product?.unitToggle ? s.size_unit : ""}</p>
                                 {sUnitsPerCase > 0 && (
-                                  <p className="text-xs text-gray-500">{sUnitsPerCase} units/case · ${sUnitPrice.toFixed(2)}/unit</p>
+                                  <p className="text-xs text-gray-500">{sUnitsPerCase} units/case / ${sUnitPrice.toFixed(2)}/unit</p>
                                 )}
                                 <p className="text-xs text-blue-600 flex items-center gap-1 mt-0.5">
                                   <Gift className="w-3 h-3" />
@@ -497,7 +497,7 @@ export default function SizeDetail() {
             <div className="flex flex-wrap items-center gap-2">
               {size.sku && <Badge variant="outline" className="text-xs">SKU: {size.sku}</Badge>}
               <Badge className={isOutOfStock ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}>
-                {isOutOfStock ? 'Out of Stock' : `In Stock (${size.stock})`}
+                {isOutOfStock ? 'Out of Stock' : `In Stock`}
               </Badge>
               {unitsPerCase > 0 && (
                 <Badge variant="outline" className="text-xs flex items-center gap-1">

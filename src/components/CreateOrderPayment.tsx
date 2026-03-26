@@ -35,7 +35,15 @@ import { InvoiceStatus } from "./invoices/types/invoice.types";
 import { useNavigate } from "react-router-dom";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints, calculateOrderPoints } from "@/services/rewardsService";
-import { getSavedPaymentMethods, SavedPaymentMethod, chargeSavedCard, saveCardToProfile, canChargeDirectly } from "@/services/paymentService";
+import {
+  getSavedPaymentMethods,
+  SavedPaymentMethod,
+  chargeSavedCard,
+  saveCardToProfile,
+  canChargeDirectly,
+  processACHPayment,
+  processACHPaymentFortisPay,
+} from "@/services/paymentService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +75,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
+import { getACHProcessor, getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
 
 interface CreateOrderPaymentFormProps {
   modalIsOpen: boolean;
@@ -439,63 +447,88 @@ const CreateOrderPaymentForm = ({
       // OPTION 2: Direct Card/ACH Payment
       // ============================================
       else {
-        // Build payment data for Supabase Edge Function
         const nameParts = (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount).split(" ");
         const firstName = nameParts[0] || "Customer";
         const lastName = nameParts.slice(1).join(" ") || "Customer";
+        const billing = {
+          firstName,
+          lastName,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip: formData.zip,
+          country: formData.country,
+        };
 
-        const paymentRequestData = {
-          payment: paymentType === "credit_card"
-            ? {
-                type: "card" as const,
-                cardNumber: formData.cardNumber.replace(/\s/g, ""),
-                expirationDate: formData.expirationDate,
-                cvv: formData.cvv,
-                cardholderName: formData.cardholderName,
-              }
-            : {
-                type: "ach" as const,
-                accountType: formData.accountType as "checking" | "savings",
+        if (paymentType === "credit_card") {
+          const paymentRequestData = {
+            payment: {
+              type: "card" as const,
+              cardNumber: formData.cardNumber.replace(/\s/g, ""),
+              expirationDate: formData.expirationDate,
+              cvv: formData.cvv,
+              cardholderName: formData.cardholderName,
+            },
+            amount: processorChargeAmount,
+            invoiceNumber,
+            customerEmail: formDataa?.customerInfo?.email || "",
+            billing,
+          };
+
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError || !session) {
+            throw new Error("You must be logged in to process payments. Please log in and try again.");
+          }
+
+          const { data: directPaymentResponse, error: paymentError } = await supabase.functions.invoke(
+            "process-payment",
+            { body: paymentRequestData }
+          );
+
+          if (paymentError) {
+            throw new Error(paymentError.message || "Payment processing failed");
+          }
+
+          if (!directPaymentResponse?.success) {
+            throw new Error(directPaymentResponse?.error || "Payment was declined");
+          }
+
+          paymentResponse = directPaymentResponse;
+        } else {
+          const achProcessor = await getACHProcessor();
+
+          if (achProcessor === "fortispay") {
+            paymentResponse = await processACHPaymentFortisPay(
+              {
+                accountType: formData.accountType as "checking" | "savings" | "businessChecking",
                 routingNumber: formData.routingNumber,
                 accountNumber: formData.accountNumber,
                 nameOnAccount: formData.nameOnAccount,
               },
-          amount: processorChargeAmount,
-          invoiceNumber: invoiceNumber,
-          customerEmail: formDataa?.customerInfo?.email || "",
-          billing: {
-            firstName,
-            lastName,
-            address: formData.address,
-            city: formData.city,
-            state: formData.state,
-            zip: formData.zip,
-            country: formData.country,
-          },
-        };
+              billing,
+              processorChargeAmount,
+              invoiceNumber,
+              `Order Payment - ${invoiceNumber}`,
+              "WEB"
+            );
+          } else {
+            paymentResponse = await processACHPayment(
+              {
+                accountType: formData.accountType as "checking" | "savings" | "businessChecking",
+                routingNumber: formData.routingNumber,
+                accountNumber: formData.accountNumber,
+                nameOnAccount: formData.nameOnAccount,
+              },
+              billing,
+              processorChargeAmount,
+              invoiceNumber
+            );
+          }
 
-        // Check if user is authenticated before calling the Edge Function
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-        
-        if (sessionError || !session) {
-          throw new Error("You must be logged in to process payments. Please log in and try again.");
+          if (!paymentResponse?.success) {
+            throw new Error(paymentResponse?.errorMessage || paymentResponse?.message || "Payment was declined");
+          }
         }
-
-        // Call Supabase Edge Function for payment processing
-        const { data: directPaymentResponse, error: paymentError } = await supabase.functions.invoke(
-          "process-payment",
-          { body: paymentRequestData }
-        );
-
-        if (paymentError) {
-          throw new Error(paymentError.message || "Payment processing failed");
-        }
-
-        if (!directPaymentResponse?.success) {
-          throw new Error(directPaymentResponse?.error || "Payment was declined");
-        }
-
-        paymentResponse = directPaymentResponse;
 
         // Save card if user opted to save it (create Authorize.net profile)
         if (saveCard && paymentType === "credit_card" && userProfile?.id && formDataa?.customerInfo?.email) {
@@ -614,7 +647,7 @@ const CreateOrderPaymentForm = ({
         tax_amount: Number(tax),
         items: cleanedCartItems,
         payment_status: "paid",
-        payment_method: "card",
+        payment_method: paymentType === "credit_card" ? "card" : "ach",
         paid_amount: processorChargeAmount,
         notes: data.specialInstructions,
         shipping_method: data.shipping?.method,
@@ -691,7 +724,7 @@ const CreateOrderPaymentForm = ({
         total_amount: finalTotal + cardProcessingFeeAmount, // Include card processing fee in total
         payment_status: "paid",
         payment_transication: response.data.transactionId || "",
-        payment_method: "card" as const,
+        payment_method: (paymentType === "credit_card" ? "card" : "ach") as "card" | "ach",
         shippin_cost: shipping,
         notes: newOrder.notes || null,
         items: newOrder.items || [],

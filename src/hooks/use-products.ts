@@ -7,7 +7,8 @@ import {
   addProductService, 
   updateProductService, 
   deleteProductService,
-  bulkAddProductsService 
+  bulkAddProductsService,
+  toggleProductStatusService,
 } from "@/services/productService";
 import { transformProductData } from "@/utils/productTransformers";
 import { testSizeSearch, getSizeReference } from "@/utils/testSizeSearch";
@@ -168,7 +169,7 @@ export const useProducts = (includeInactive: boolean = false) => {
       await addProductService(data);
       toast({ title: "Success", description: "Product added successfully." });
       // Refetch with current filters and page
-      fetchProducts(currentPage, searchQuery, selectedCategory);
+       fetchProducts(currentPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error('Error adding product:', error);
       toast({ 
@@ -213,15 +214,44 @@ export const useProducts = (includeInactive: boolean = false) => {
       });
       const newTotalProducts = totalProducts - 1;
       const lastPage = Math.max(1, Math.ceil(newTotalProducts / PAGE_SIZE));
-      const newPage = Math.min(currentPage, lastPage);
-      setCurrentPage(newPage);
-      // Refetch with current filters and updated page
-      fetchProducts(newPage, searchQuery, selectedCategory);
+      setCurrentPage(Math.min(currentPage, lastPage));
+       // Refetch with current filters and page
+      fetchProducts(currentPage, searchQuery, selectedCategory);
     } catch (error) {
       console.error("Error deleting product:", error);
       toast({ 
         title: "Error", 
         description: formatErrorMessage(error) 
+      });
+    }
+  };
+
+  const handleToggleProductStatus = async (id: string, currentStatus: boolean) => {
+    try {
+      const nextStatus = !currentStatus;
+      const data = await toggleProductStatusService(id, nextStatus);
+
+      setProducts((prev) =>
+        prev.map((product) =>
+          product.id === id ? { ...product, is_active: data.is_active } : product
+        )
+      );
+
+      if (!includeInactive && !nextStatus) {
+        setProducts((prev) => prev.filter((product) => product.id !== id));
+        setTotalProducts((prev) => Math.max(0, prev - 1));
+      }
+
+      toast({
+        title: `Product ${data.is_active ? "activated" : "deactivated"}`,
+        description: "Catalog visibility updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error toggling product status:", error);
+      toast({
+        title: "Error",
+        description: formatErrorMessage(error),
+        variant: "destructive",
       });
     }
   };
@@ -248,8 +278,7 @@ export const useProducts = (includeInactive: boolean = false) => {
         });
       }
 
-      // Refetch with current filters and page
-      fetchProducts(currentPage, searchQuery, selectedCategory);
+      fetchProducts();
     } catch (error) {
       console.error("Error adding bulk products:", error);
       toast({ 
@@ -276,6 +305,7 @@ export const useProducts = (includeInactive: boolean = false) => {
     handleAddProduct,
     handleUpdateProduct,
     handleDeleteProduct,
+    handleToggleProductStatus,
     handleBulkAddProducts,
     loading,
     refetchProducts: () => fetchProducts(currentPage, searchQuery, selectedCategory)
