@@ -366,6 +366,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
       toast.success('Subcategory added successfully!');
       await fetchSubcategories(selectedCategoryForSub);
+      onSuccess?.();
       resetSubcategoryForm();
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Failed to add subcategory'));

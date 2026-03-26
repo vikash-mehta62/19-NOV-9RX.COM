@@ -165,6 +165,7 @@ const ProductSizeDetails = () => {
         productId: productId!,
         name: `${product.name}${customization.enabled ? ' (Customized)' : ''}`,
         sku: product.sku || size.sku || "",
+        unitToggle: product.unitToggle,
         price: totalPrice,
         image: imageUrl,
         shipping_cost: Number(size.shipping_cost) || 0,

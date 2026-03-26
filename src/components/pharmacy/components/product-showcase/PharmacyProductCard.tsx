@@ -177,11 +177,11 @@ export const PharmacyProductCard = ({
                 {product.category}
               </Badge>
             )}
-            {product.subcategory && (
+            {/* {product.subcategory && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-purple-300 text-purple-700">
                 {product.subcategory}
               </Badge>
-            )}
+            )} */}
           </div>
         )}
         

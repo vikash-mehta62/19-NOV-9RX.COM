@@ -297,7 +297,7 @@ export const ReviewOrderStep = ({
                                       <div className="flex flex-col gap-0.5">
                                         <div className="flex items-center gap-2">
                                           <span className="font-medium text-gray-700">
-                                            {size.size_value} {size.size_unit}
+                                            {size.size_value} {item.unitToggle ? size.size_unit : ""}
                                           </span>
                                           <Badge variant="outline" className="text-xs">
                                             {size.type === "unit" ? "Unit" : "Case"}

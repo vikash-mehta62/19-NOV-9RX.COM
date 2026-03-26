@@ -93,7 +93,7 @@ export default function SizeDetail() {
 
     supabase
       .from("products")
-      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, product_sizes!inner(id, size_name, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
+      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, unitToggle, product_sizes!inner(id, size_name, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
       .eq("id", productId)
       .eq("is_active", true) // Only fetch active products
       .eq("product_sizes.is_active", true) // Only fetch active sizes
@@ -192,7 +192,7 @@ export default function SizeDetail() {
       // Fetch products that belong to any of the selected similar subcategories
       const { data: products, error } = await supabase
         .from("products")
-        .select("id, name, category, description, image_url, images, customization, sizes:product_sizes!inner(id, size_value, size_unit, price, stock, quantity_per_case, is_active)")
+        .select("id, name, category, description, image_url, images, customization, unitToggle, sizes:product_sizes!inner(id, size_value, size_unit, price, stock, quantity_per_case, is_active)")
         .in("subcategory", candidates)
         .neq("id", productId)
         .eq("is_active", true) // Only fetch active products
@@ -281,6 +281,7 @@ export default function SizeDetail() {
         productId: product.id,
         name: `${product.name}${customization.enabled ? ' (Customized)' : ''}`,
         sku: product.sku || size.sku || "",
+        unitToggle: product.unitToggle,
         price: totalPrice,
         image: getImageUrl(displayImage),
         shipping_cost: size.shipping_cost || 0,

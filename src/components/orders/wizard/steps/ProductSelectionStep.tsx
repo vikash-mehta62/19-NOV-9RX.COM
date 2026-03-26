@@ -45,6 +45,7 @@ interface Product {
   category: string;
   subcategory: string;
   image_url: string;
+  unitToggle?: boolean;
   product_sizes: ProductSize[];
 }
 
@@ -60,6 +61,31 @@ interface GroupPricing {
   product_arrayjson: { product_id: string; new_price: string }[];
 }
 
+const getSizeLabel = (size: ProductSize, showUnit?: boolean) =>
+  [size.size_value, showUnit ? size.size_unit : ""].filter(Boolean).join(" ").trim();
+
+const getPrimarySizeName = (size: ProductSize, showUnit?: boolean, fallbackName?: string) => {
+  const sizeLabel = getSizeLabel(size, showUnit);
+  const sizeName = size.size_name?.trim() || "";
+  if (!sizeName) return fallbackName || sizeLabel;
+  return sizeName.toLowerCase() === sizeLabel.toLowerCase() ? sizeLabel : sizeName;
+};
+
+const shouldShowSecondarySizeLabel = (
+  size: ProductSize,
+  showUnit?: boolean,
+  fallbackName?: string,
+) => {
+  const sizeLabel = getSizeLabel(size, showUnit);
+  if (!sizeLabel) return false;
+  return getPrimarySizeName(size, showUnit, fallbackName).toLowerCase() !== sizeLabel.toLowerCase();
+};
+
+const resolveUnitToggle = (
+  item: { productId: string; unitToggle?: boolean },
+  products: Product[],
+) => item.unitToggle ?? products.find((product) => product.id === item.productId)?.unitToggle;
+
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
 }
@@ -69,7 +95,7 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
   const { data, error } = await supabase
     .from("products")
     .select(`
-      id, name, sku, category, subcategory, image_url,
+      id, name, sku, category, subcategory, image_url, unitToggle,
       product_sizes!inner (
         id, size_name, size_value, size_unit, price, price_per_case, stock, sku,
         groupIds, disAllogroupIds
@@ -396,6 +422,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
         productId: product.id,
         name: product.name,
         sku: product.sku || "",
+        unitToggle: product.unitToggle,
         image: product.image_url || "",
         price: price,
         quantity: 1,
@@ -641,7 +668,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                                 <div key={size.id} className="bg-white rounded-lg p-3 border">
                                   <div className="flex items-center justify-between mb-2">
                                     <div>
-                                      <p className="text-sm font-semibold text-gray-900">{size.size_value} {size.size_unit}</p>
+                                      <p className="text-sm font-semibold text-gray-900">{getSizeLabel(size, product.unitToggle)}</p>
                                       {size.sku && <p className="text-xs text-gray-400">SKU: {size.sku}</p>}
                                     </div>
                                     <p className="text-lg text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
@@ -688,7 +715,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                                 <div key={size.id} className="bg-white rounded-lg p-3 border">
                                   <div className="flex items-center justify-between">
                                     <div>
-                                      <p className="text-sm font-semibold text-gray-900">{size.size_value} {size.size_unit}</p>
+                                      <p className="text-sm font-semibold text-gray-900">{getSizeLabel(size, product.unitToggle)}</p>
                                       {size.sku && <p className="text-xs text-gray-400">SKU: {size.sku}</p>}
                                     </div>
                                     <p className="text-base text-emerald-600 font-bold">${size.price?.toFixed(2)}</p>
@@ -743,7 +770,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           </div>
                           {item.sizes?.map((size: any, idx: number) => (
                             <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
-                              <p className="text-sm font-medium text-gray-800 mb-0.5">{size.size_value} {size.size_unit}</p>
+                              <p className="text-sm font-medium text-gray-800 mb-0.5">{getSizeLabel(size, resolveUnitToggle(item, products))}</p>
                               {size.sku && <p className="text-xs text-gray-400 mb-2">SKU: {size.sku}</p>}
                               <div className="flex items-center justify-center">
                                 <div className="flex items-center bg-white border rounded-lg overflow-hidden">
@@ -784,7 +811,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           </div>
                           {item.sizes?.map((size: any, idx: number) => (
                             <div key={`${size.id}-${idx}`} className="bg-gray-50 p-3 rounded-lg mb-2">
-                              <p className="text-sm font-medium text-gray-800 mb-0.5">{size.size_value} {size.size_unit}</p>
+                              <p className="text-sm font-medium text-gray-800 mb-0.5">{getSizeLabel(size, resolveUnitToggle(item, products))}</p>
                               {size.sku && <p className="text-xs text-gray-400 mb-2">SKU: {size.sku}</p>}
                               <div className="flex items-center justify-center">
                                 <div className="flex items-center bg-white border rounded-lg overflow-hidden">
@@ -977,11 +1004,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                           {product.product_sizes.map((size) => (
                             <div key={size.id} className={cn("bg-white rounded-lg border text-center", isLaptop ? "p-1.5" : "p-3")}>
                               <p className={cn("font-semibold text-gray-900", isLaptop ? "text-[11px]" : "text-sm")}>
-                                {size.size_name || `${size.size_value} ${size.size_unit}`}
+                                {getPrimarySizeName(size, product.unitToggle, product.name)}
                               </p>
-                              <p className={cn("text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
-                                {size.size_value} {size.size_unit}
-                              </p>
+                              {shouldShowSecondarySizeLabel(size, product.unitToggle, product.name) && (
+                                  <p className={cn("text-gray-500", isLaptop ? "text-[9px]" : "text-xs")}>
+                                    {getSizeLabel(size, product.unitToggle)}
+                                  </p>
+                              )}
                               {size.sku && (
                                 <p className={cn("text-gray-400", isLaptop ? "text-[9px]" : "text-xs")}>
                                   SKU: {size.sku}
@@ -1056,11 +1085,13 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                         <div key={`${size.id}-${idx}`} className={cn("bg-gray-50 rounded-lg mb-1", isLaptop ? "p-1.5" : "p-3")}>
                           {/* Size Name */}
                           <p className={cn("font-medium text-gray-800 mb-0.5", isLaptop ? "text-[11px]" : "text-sm")}>
-                            {size.size_name || `${size.size_value} ${size.size_unit}`}
+                            {getPrimarySizeName(size, resolveUnitToggle(item, products), item.name)}
                           </p>
-                          <p className={cn("text-gray-500", isLaptop ? "text-[9px] mb-0.5" : "text-xs mb-1")}>
-                            {size.size_value} {size.size_unit}
-                          </p>
+                          {shouldShowSecondarySizeLabel(size, resolveUnitToggle(item, products), item.name) && (
+                              <p className={cn("text-gray-500", isLaptop ? "text-[9px] mb-0.5" : "text-xs mb-1")}>
+                                {getSizeLabel(size, resolveUnitToggle(item, products))}
+                              </p>
+                          )}
                           {/* Size SKU - always show if available */}
                           <p className={cn("text-gray-400", isLaptop ? "text-[9px] mb-0.5" : "text-xs mb-2")}>
                             {size.sku ? `SKU: ${size.sku}` : ""}

@@ -440,6 +440,7 @@ export const ProductSizesPanel = ({
         productId: displayProduct.id,
         name: displayProduct.name,
         sku: displayProduct.sku || size.sku || "",
+        unitToggle: displayProduct.unitToggle,
         price: totalPrice,
         image: getImageUrl(size.image),
         shipping_cost: size.shipping_cost || 0,

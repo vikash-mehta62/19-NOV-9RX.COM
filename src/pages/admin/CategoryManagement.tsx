@@ -1,5 +1,6 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { AddProductDialog } from "@/components/products/AddProductDialog";
+import { CategorySubcategoryManager } from "@/components/products/form-sections/CategorySubcategoryManager";
 import { ProductFormValues } from "@/components/products/schemas/productSchema";
 import { Product } from "@/types/product";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { GripVertical, Save, RotateCcw, Image as ImageIcon, ChevronDown, Package, Pencil, Plus, Trash2 } from "lucide-react";
 import { fetchCategoryConfigs, bulkUpdateCategoryOrders, CategoryConfig } from "@/utils/categoryUtils";
+import { fetchOrderedSubcategories } from "@/services/productTreeService";
 import { supabase } from "@/supabaseClient";
 import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog";
 import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
@@ -54,6 +56,7 @@ interface CategoryProductSummary {
   base_price?: number | null;
   image_url?: string | null;
   sizes?: ProductSizeSummary[];
+  isPlaceholder?: boolean;
 }
 
 interface ProductSizeSummary {
@@ -85,6 +88,60 @@ const calculateSizeUnitPrice = (size: {
 
 const FALLBACK_SIZE_UNITS = ["unit", "OZ", "mm", "mL", "cc", "inch", "gram", "dram", "ROLL"];
 const FALLBACK_DEFAULT_UNIT = "unit";
+
+const buildProductsByCategory = (
+  products: CategoryProductSummary[],
+  subcategories: Array<{ category_name: string; subcategory_name: string }>
+) => {
+  const groupedProducts = products.reduce<Record<string, CategoryProductSummary[]>>(
+    (acc, product) => {
+      const categoryName = product.category || "Uncategorized";
+      if (!acc[categoryName]) {
+        acc[categoryName] = [];
+      }
+      acc[categoryName].push(product);
+      return acc;
+    },
+    {}
+  );
+
+  subcategories.forEach((subcategory) => {
+    const categoryName = subcategory.category_name || "Uncategorized";
+    const subcategoryName = subcategory.subcategory_name?.trim();
+    if (!subcategoryName) return;
+
+    if (!groupedProducts[categoryName]) {
+      groupedProducts[categoryName] = [];
+    }
+
+    const alreadyExists = groupedProducts[categoryName].some(
+      (product) => (product.subcategory?.trim() || "").toLowerCase() === subcategoryName.toLowerCase()
+    );
+
+    if (!alreadyExists) {
+      groupedProducts[categoryName].push({
+        id: `placeholder-${categoryName}-${subcategoryName}`,
+        name: subcategoryName,
+        category: categoryName,
+        subcategory: subcategoryName,
+        unitToggle: false,
+        is_active: false,
+        base_price: 0,
+        image_url: null,
+        sizes: [],
+        isPlaceholder: true,
+      });
+    }
+  });
+
+  Object.keys(groupedProducts).forEach((categoryName) => {
+    groupedProducts[categoryName] = groupedProducts[categoryName].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
+  });
+
+  return groupedProducts;
+};
 
 const SortableCategoryItem = ({
   category,
@@ -240,6 +297,19 @@ const SortableCategoryItem = ({
     return `${totalStock} units total stock`;
   };
 
+  const getDisplayPrice = (product: CategoryProductSummary) => {
+    const basePrice = Number(product.base_price || 0);
+    const sizePrices = (product.sizes || [])
+      .map((size) => Number(size.price || 0))
+      .filter((price) => price > 0);
+
+    if (sizePrices.length > 0) {
+      return Math.min(...sizePrices);
+    }
+
+    return basePrice;
+  };
+
   const getSizeLabel = (size: ProductSizeSummary, showUnit = true) =>
     [size.size_value?.toString().trim(), showUnit ? size.size_unit?.trim() : ""]
       .filter(Boolean)
@@ -327,12 +397,12 @@ const SortableCategoryItem = ({
                           <p className="truncate text-lg font-semibold text-slate-900">{product.name}</p>
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              product.is_active === false
+                              product.is_active === false || product.isPlaceholder
                                 ? "bg-rose-100 text-rose-700"
                                 : "bg-emerald-100 text-emerald-700"
                             }`}
                           >
-                            {product.is_active === false ? "Inactive" : "Active"}
+                            {product.is_active === false || product.isPlaceholder ? "Inactive" : "Active"}
                           </span>
                         </div>
 
@@ -353,39 +423,43 @@ const SortableCategoryItem = ({
                       </div>
                     </div>
 
-                    <div className="shrink-0 text-right">
-                      <p className="text-lg font-semibold text-slate-900">
-                        ${Number(product.base_price || 0).toFixed(2)}
+                      <div className="shrink-0 text-right">
+                        <p className="text-lg font-semibold text-slate-900">
+                        ${getDisplayPrice(product).toFixed(2)}
                       </p>
-                      <p className="text-sm text-slate-500">Base price</p>
+                      <p className="text-sm text-slate-500">{product.isPlaceholder ? "Placeholder" : "Base price"}</p>
                       <div className="mt-3 flex flex-row items-end gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => toggleProductSizes(product.id)}
-                        >
-                          <ChevronDown
-                            className={`mr-2 h-4 w-4 transition-transform ${
-                              expandedProductIds[product.id] ? "rotate-180" : ""
-                            }`}
-                          />
-                          {(product.sizes || []).length} size option{(product.sizes || []).length === 1 ? "" : "s"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => onEditProduct(product.id)}
-                        >
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit Product
-                        </Button>
+                        {!product.isPlaceholder && (
+                          <>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => toggleProductSizes(product.id)}
+                            >
+                              <ChevronDown
+                                className={`mr-2 h-4 w-4 transition-transform ${
+                                  expandedProductIds[product.id] ? "rotate-180" : ""
+                                }`}
+                              />
+                              {(product.sizes || []).length} size option{(product.sizes || []).length === 1 ? "" : "s"}
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onEditProduct(product.id)}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit Product
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
 
-                  {expandedProductIds[product.id] && (
+                  {expandedProductIds[product.id] && !product.isPlaceholder && (
                     <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
                       <div className="mb-4 flex items-center justify-between gap-3">
                         <div>
@@ -547,6 +621,7 @@ const CategoryManagement = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
   const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -562,8 +637,9 @@ const CategoryManagement = () => {
   const loadCategories = async () => {
     setLoading(true);
     try {
-      const [data, productsResponse] = await Promise.all([
+      const [data, subcategoriesResponse, productsResponse] = await Promise.all([
         fetchCategoryConfigs(),
+        fetchOrderedSubcategories(),
         supabase
           .from("products")
           .select("id, name, category, subcategory, unitToggle, is_active, base_price, image_url, sizes:product_sizes(id, size_name, size_value, size_unit, stock, sku, price, image, is_active)")
@@ -574,16 +650,9 @@ const CategoryManagement = () => {
         throw productsResponse.error;
       }
 
-      const groupedProducts = (productsResponse.data || []).reduce<Record<string, CategoryProductSummary[]>>(
-        (acc, product) => {
-          const categoryName = product.category || "Uncategorized";
-          if (!acc[categoryName]) {
-            acc[categoryName] = [];
-          }
-          acc[categoryName].push(product as CategoryProductSummary);
-          return acc;
-        },
-        {}
+      const groupedProducts = buildProductsByCategory(
+        (productsResponse.data || []) as CategoryProductSummary[],
+        (subcategoriesResponse || []) as Array<{ category_name: string; subcategory_name: string }>
       );
 
       setCategories(data);
@@ -1091,7 +1160,7 @@ const CategoryManagement = () => {
           <div className="flex gap-2">
             <Button
               variant="outline"
-              onClick={() => setIsAddProductDialogOpen(true)}
+              onClick={() => setIsCategoryManagerOpen(true)}
             >
               <Plus className="w-4 h-4 mr-2" />
               Add Category
@@ -1214,6 +1283,12 @@ const CategoryManagement = () => {
           onConfirm={handleDeleteSize}
           title={`Delete ${sizeToDelete ? [sizeToDelete.size_value?.toString().trim(), sizeToDelete.unitToggle === true ? sizeToDelete.size_unit?.trim() : ""].filter(Boolean).join(" ") || "this size" : "this size"}?`}
           description={`This will permanently remove ${sizeToDelete?.size_name?.trim() || "this size option"} from the product. This action cannot be undone.`}
+        />
+
+        <CategorySubcategoryManager
+          open={isCategoryManagerOpen}
+          onOpenChange={setIsCategoryManagerOpen}
+          onSuccess={loadCategories}
         />
 
         <AddProductDialog

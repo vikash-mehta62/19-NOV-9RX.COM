@@ -128,6 +128,7 @@ export const ProductCard = ({
         productId: product.id.toString(),
         name: product.name,
         sku: product.sku || "",
+        unitToggle: product.unitToggle,
         price: totalPrice,
         image: imageUrl,
         shipping_cost: Number(highestShippingCost) || 0,

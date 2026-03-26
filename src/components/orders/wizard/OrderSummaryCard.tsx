@@ -256,7 +256,7 @@ const OrderSummaryCardComponent = ({
                                   {size.size_name || item.name}
                                 </p>
                                 <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-slate-500">
-                                  <span>{size.size_value} {size.size_unit}</span>
+                                  <span>{size.size_value} {item.unitToggle ? ` ${size.size_unit || ""}` : ""}</span>
                                   <span>x {size.quantity}</span>
                                   {size.sku && <span>SKU: {size.sku}</span>}
                                 </div>

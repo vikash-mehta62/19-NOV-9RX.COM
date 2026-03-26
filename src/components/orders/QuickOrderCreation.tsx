@@ -68,6 +68,7 @@ interface Product {
   sku: string;
   category: string;
   image_url: string;
+  unitToggle?: boolean;
   product_sizes: ProductSize[];
 }
 
@@ -215,7 +216,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
       const { data, error } = await supabase
         .from("products")
         .select(`
-          id, name, sku, category, image_url,
+          id, name, sku, category, image_url, unitToggle,
           product_sizes (id, size_name, size_value, size_unit, price, price_per_case, stock, sku)
         `)
         .eq("is_active", true)
@@ -317,6 +318,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
         productId: product.id,
         name: product.name,
         sku: product.sku || "",
+        unitToggle: product.unitToggle,
         image: product.image_url || "",
         price: size.price,
         quantity: 1,
@@ -708,7 +710,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                                     {size.size_name || product.name}
                                   </p>
                                   <p className="text-xs font-medium text-slate-600">
-                                    {size.size_value} {size.size_unit}
+                                    {size.size_value} {product.unitToggle ? size.size_unit : ""}
                                   </p>
                                   <p className="text-[11px] text-slate-400">
                                     {size.sku ? `SKU: ${size.sku}` : "SKU: -"}
@@ -790,7 +792,7 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
                                 {size.size_name || item.name}
                               </p>
                               <p className="text-[11px] text-gray-500">
-                                {size.size_value} {size.size_unit}
+                                {size.size_value} {item.unitToggle ? size.size_unit : ""}
                                 {size.sku ? ` • SKU: ${size.sku}` : ""}
                               </p>
                             </div>

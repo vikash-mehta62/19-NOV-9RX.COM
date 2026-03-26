@@ -244,6 +244,7 @@ export const PharmacyProductsFullPage = () => {
             offer: "",
             endsIn: "",
             sku: item.sku,
+            unitToggle: item.unitToggle,
             customization: {
               allowed: item.customization?.allowed || false,
               options: item.customization?.options || [],

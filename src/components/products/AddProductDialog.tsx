@@ -121,6 +121,7 @@ export function AddProductDialog({
   const [categories, setCategories] = useState<string[]>([])
   const [allSubcategories, setAllSubcategories] = useState<Subcategory[]>([])
   const previousCategoryRef = useRef<string | null>(null)
+  const lastInitializedProductKeyRef = useRef<string | null>(null)
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(productFormSchema),
@@ -188,6 +189,7 @@ export function AddProductDialog({
   useEffect(() => {
     if (!open) {
       previousCategoryRef.current = null
+      lastInitializedProductKeyRef.current = null
     }
   }, [open])
 
@@ -239,44 +241,51 @@ export function AddProductDialog({
     fetchAllSubcategories()
   }, [])
   
-  // Reset form when dialog opens or initialData changes
+  // Initialize the form once per open cycle or when switching to a different product.
   useEffect(() => {
-    if (open) {
-      form.reset({
-        id: initialData?.id || "", // Add ID field
-        name: initialData?.name || "",
-        sku: initialData?.sku || "",
-        key_features: initialData?.key_features || "",
-        squanence: initialData?.squanence || "",
-        ndcCode: initialData?.ndcCode || "",
-        upcCode: initialData?.upcCode || "",
-        lotNumber: initialData?.lotNumber || "",
-        exipry: initialData?.exipry || "",
-        unitToggle: initialData?.unitToggle,
-        description: initialData?.description || "",
-        category: initialData?.category || "",
-        subcategory: initialData?.subcategory || "",
-        is_active: initialData?.is_active ?? true,
-        images: initialData?.images || [],
-        sizes: initialData?.sizes
-          ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))
-          : [],
-        base_price: initialData?.base_price || 0,
-        current_stock: initialData?.current_stock || 0,
-        min_stock: initialData?.min_stock || 0,
-        reorder_point: initialData?.reorder_point || 0,
-        quantityPerCase: initialData?.quantityPerCase || 1,
-        customization: initialData?.customization || {
-          allowed: false,
-          options: [],
-          price: 0,
-        },
-        trackInventory: initialData?.trackInventory ?? true,
-        image_url: initialData?.image_url || "",
-        similar_products: initialData?.similar_products || [],
-      })
+    if (!open) return
+
+    const currentProductKey = initialData?.id || "__new__"
+    if (lastInitializedProductKeyRef.current === currentProductKey) {
+      return
     }
-  }, [open, initialData, form])
+
+    form.reset({
+      id: initialData?.id || "",
+      name: initialData?.name || "",
+      sku: initialData?.sku || "",
+      key_features: initialData?.key_features || "",
+      squanence: initialData?.squanence || "",
+      ndcCode: initialData?.ndcCode || "",
+      upcCode: initialData?.upcCode || "",
+      lotNumber: initialData?.lotNumber || "",
+      exipry: initialData?.exipry || "",
+      unitToggle: initialData?.unitToggle,
+      description: initialData?.description || "",
+      category: initialData?.category || "",
+      subcategory: initialData?.subcategory || "",
+      is_active: initialData?.is_active ?? true,
+      images: initialData?.images || [],
+      sizes: initialData?.sizes
+        ? [...initialData.sizes].sort((a, b) => Number(a.sizeSquanence) - Number(b.sizeSquanence))
+        : [],
+      base_price: initialData?.base_price || 0,
+      current_stock: initialData?.current_stock || 0,
+      min_stock: initialData?.min_stock || 0,
+      reorder_point: initialData?.reorder_point || 0,
+      quantityPerCase: initialData?.quantityPerCase || 1,
+      customization: initialData?.customization || {
+        allowed: false,
+        options: [],
+        price: 0,
+      },
+      trackInventory: initialData?.trackInventory ?? true,
+      image_url: initialData?.image_url || "",
+      similar_products: initialData?.similar_products || [],
+    })
+
+    lastInitializedProductKeyRef.current = currentProductKey
+  }, [open, initialData?.id, form])
 
   // Track completed sections
   useEffect(() => {

@@ -112,6 +112,7 @@ export const InlineProductSizes = ({
           offer: "",
           endsIn: "",
           sku: productData.sku,
+          unitToggle: productData.unitToggle,
           customizations: null,
           customization: {
             allowed: productData.customization?.allowed || false,
@@ -450,6 +451,7 @@ export const InlineProductSizes = ({
         productId: displayProduct.id.toString(),
         name: `${displayProduct.name}${customizationEnabled ? ' (Customized)' : ''}`,
         sku: displayProduct.sku || size.sku || "",
+        unitToggle: displayProduct.unitToggle,
         price: totalPrice,
         image: getImageUrl(size.image),
         shipping_cost: size.shipping_cost || 0,
