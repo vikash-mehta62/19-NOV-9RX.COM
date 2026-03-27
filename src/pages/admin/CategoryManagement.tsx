@@ -520,7 +520,7 @@ const SortableCategoryItem = ({
                     </div>
                   </div>
 
-                  {expandedProductIds[product.id] && !product.isPlaceholder && (
+                  {expandedProductIds[product.id] && (
                     <div className="border-t-2 border-slate-200 bg-gradient-to-br from-slate-50 to-purple-50 px-4 py-4 md:px-6 md:py-5">
                       <div className="mb-4 md:mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
@@ -532,14 +532,21 @@ const SortableCategoryItem = ({
                         <Button
                           type="button"
                           size="sm"
-                          onClick={() => onAddSize(product.id)}
+                          onClick={() => {
+                            // If placeholder, create product entry first
+                            if (product.isPlaceholder) {
+                              onEditProduct(product.id);
+                            } else {
+                              onAddSize(product.id);
+                            }
+                          }}
                           className="rounded-lg md:rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-xs md:text-sm px-3 md:px-4"
                         >
                           <Plus className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
                           Add Product
                         </Button>
                       </div>
-                      {(product.sizes || []).length > 0 ? (
+                      {(product.sizes || []).length > 0 && !product.isPlaceholder ? (
                         <div className="grid gap-3 md:grid-cols-2">
                           {(product.sizes || []).map((size, index) => (
                             <div
@@ -641,8 +648,14 @@ const SortableCategoryItem = ({
                           ))}
                         </div>
                       ) : (
-                        <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-5 text-sm text-slate-500">
-                          No size options found for this product.
+                        <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-8 text-center">
+                          <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
+                          <p className="text-sm font-medium text-slate-700 mb-1">No products added yet</p>
+                          <p className="text-xs text-slate-500 mb-4">
+                            {product.isPlaceholder 
+                              ? 'Click "Add Product" button above to create this subcategory and add your first product'
+                              : 'Click "Add Product" button above to add your first product'}
+                          </p>
                         </div>
                       )}
                     </div>
