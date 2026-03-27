@@ -330,23 +330,6 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
               )}
             </div>
 
-            {/* Unit Toggle */}
-            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-              <div>
-                <Label htmlFor="unitToggle" className="text-base font-semibold">
-                  Show Unit in Product Display
-                </Label>
-                <p className="text-xs text-gray-500 mt-1">
-                  Display product unit (e.g., "8 OZ" vs "8")
-                </p>
-              </div>
-              <Switch
-                id="unitToggle"
-                checked={unitToggle}
-                onCheckedChange={setUnitToggle}
-              />
-            </div>
-
             {/* Customization Toggle */}
             <div>
               <Label className="text-base font-semibold mb-3 block">
@@ -476,6 +459,23 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
 
                 <p className="text-xs text-gray-500">Choose up to 2 subcategories for similar products</p>
               </div>
+            </div>
+
+            {/* Unit Toggle - Moved here, just above Products */}
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div>
+                <Label htmlFor="unitToggle" className="text-base font-semibold">
+                  Show Unit in Product Display
+                </Label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Display product unit (e.g., "8 OZ" vs "8")
+                </p>
+              </div>
+              <Switch
+                id="unitToggle"
+                checked={unitToggle}
+                onCheckedChange={setUnitToggle}
+              />
             </div>
 
             {/* Products List - Always visible, unit display changes based on toggle */}
