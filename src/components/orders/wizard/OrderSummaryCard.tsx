@@ -7,6 +7,7 @@ import { ChevronDown, ChevronUp, ShoppingCart, Tag, Gift, Package, Sparkles, Arr
 import { useState, useMemo, memo, useCallback } from "react";
 import { cn } from "@/lib/utils";
 import { PromoAndRewardsSection } from "./PromoAndRewardsSection";
+import { SUPABASE_URL } from "@/integrations/supabase/client";
 
 interface AppliedDiscount {
   type: "promo" | "rewards" | "offer" | "redeemed_reward" | "credit_memo";
@@ -52,6 +53,18 @@ const OrderSummaryCardComponent = ({
   disableRewards = false,
   onDiscountChange,
 }: OrderSummaryCardProps) => {
+  const resolveImageUrl = (image?: string) => {
+    if (!image || image === "/placeholder.svg") {
+      return "/placeholder.svg";
+    }
+
+    if (image.startsWith("http")) {
+      return image;
+    }
+
+    return `${SUPABASE_URL}/storage/v1/object/public/product-images/${image}`;
+  };
+
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
   const [totalDiscount, setTotalDiscount] = useState(0);
@@ -230,9 +243,12 @@ const OrderSummaryCardComponent = ({
                       role="listitem"
                     >
                       <img
-                        src={item.image}
+                        src={resolveImageUrl(item.image)}
                         alt=""
                         className="w-10 h-10 sm:w-12 sm:h-12 rounded object-cover flex-shrink-0"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = "/placeholder.svg";
+                        }}
                         aria-hidden="true"
                       />
                       <div className="flex-1 min-w-0">

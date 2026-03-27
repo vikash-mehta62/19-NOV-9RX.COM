@@ -85,7 +85,8 @@ export const PharmacyProductCard = ({
     
     // First check displayImage (which comes from image_url or images[0])
     if (product.displayImage && product.displayImage !== '/placeholder.svg') {
-      return product.displayImage
+      if (product.displayImage.startsWith("http")) return product.displayImage
+      return basePath + product.displayImage
     }
     
     // Fallback to images array

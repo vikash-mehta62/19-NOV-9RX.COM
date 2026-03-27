@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase, SUPABASE_URL } from "@/integrations/supabase/client";
 import { useCart } from "@/hooks/use-cart";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -60,6 +60,18 @@ interface GroupPricing {
   group_ids: string[];
   product_arrayjson: { product_id: string; new_price: string }[];
 }
+
+const resolveProductImageUrl = (image?: string) => {
+  if (!image || image === "/placeholder.svg") {
+    return "/placeholder.svg";
+  }
+
+  if (image.startsWith("http")) {
+    return image;
+  }
+
+  return `${SUPABASE_URL}/storage/v1/object/public/product-images/${image}`;
+};
 
 const getSizeLabel = (size: ProductSize, showUnit?: boolean) =>
   [size.size_value, showUnit ? size.size_unit : ""].filter(Boolean).join(" ").trim();
@@ -654,7 +666,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                         <div key={product.id} className={cn("border rounded-lg overflow-hidden transition-all", expandedProduct === product.id ? "border-blue-400 ring-1 ring-blue-100 col-span-2" : "hover:border-gray-300")}>
                           <div className={cn("flex items-center gap-3 p-3 cursor-pointer", expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50")} onClick={() => handleProductClick(product)}>
                             <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
-                              <img src={product.image_url || "/placeholder.svg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+                              <img src={resolveProductImageUrl(product.image_url)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
@@ -701,7 +713,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                         <div key={product.id} className={cn("border rounded-lg overflow-hidden transition-all", expandedProduct === product.id ? "border-blue-400 ring-1 ring-blue-100" : "hover:border-gray-300")}>
                           <div className={cn("flex items-center gap-3 p-3 cursor-pointer", expandedProduct === product.id ? "bg-blue-50" : "hover:bg-gray-50")} onClick={() => handleProductClick(product)}>
                             <div className="w-12 h-12 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border">
-                              <img src={product.image_url || "/placeholder.svg"} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
+                              <img src={resolveProductImageUrl(product.image_url)} alt="" className="w-full h-full object-cover" onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-sm font-medium text-gray-900 truncate">{product.name}</p>
@@ -961,7 +973,7 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
                       >
                         <div className={cn("rounded-lg overflow-hidden bg-gray-100 flex-shrink-0 border", isLaptop ? "w-7 h-7" : "w-10 h-10")}>
                           <img 
-                            src={product.image_url || "/placeholder.svg"} 
+                            src={resolveProductImageUrl(product.image_url)} 
                             alt="" 
                             className="w-full h-full object-cover"
                             onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder.svg"; }} 
