@@ -12,6 +12,7 @@ import { fetchCategoryConfigs, bulkUpdateCategoryOrders, CategoryConfig } from "
 import { fetchOrderedSubcategories } from "@/services/productTreeService";
 import { supabase } from "@/supabaseClient";
 import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog";
+import { EditSubcategoryDialog } from "@/components/products/EditSubcategoryDialog";
 import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 import { addProductService, updateProductService } from "@/services/productService";
 import { transformProductData } from "@/utils/productTransformers";
@@ -40,6 +41,7 @@ interface SortableCategoryItemProps {
   isExpanded: boolean;
   onToggleExpanded: (categoryId: string) => void;
   onEditProduct: (productId: string) => void;
+  onToggleProductStatus: (product: CategoryProductSummary) => void;
   onEditSize: (sizeId: string) => void;
   onAddSize: (productId: string) => void;
   onDeleteSize: (size: ProductSizeSummary) => void;
@@ -150,6 +152,7 @@ const SortableCategoryItem = ({
   isExpanded,
   onToggleExpanded,
   onEditProduct,
+  onToggleProductStatus,
   onEditSize,
   onAddSize,
   onDeleteSize,
@@ -310,10 +313,10 @@ const SortableCategoryItem = ({
     return basePrice;
   };
 
-  const getSizeLabel = (size: ProductSizeSummary, showUnit = true) =>
-    [size.size_value?.toString().trim(), showUnit ? size.size_unit?.trim() : ""]
-      .filter(Boolean)
-      .join(" ") || "Size";
+  const getSizeLabel = (size: ProductSizeSummary, showUnit = true) => {
+    const parts = [size.size_value?.toString().trim(), showUnit ? size.size_unit?.trim() : ""];
+    return parts.filter(Boolean).join(" ") || "Size";
+  };
 
   const toggleProductSizes = (productId: string) => {
     setExpandedProductIds((current) => ({
@@ -322,70 +325,94 @@ const SortableCategoryItem = ({
     }));
   };
 
+  // Render the sortable category item
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-white border rounded-lg hover:shadow-md transition-shadow"
+      className={`bg-white border-2 rounded-2xl hover:shadow-xl transition-all duration-200 ${
+        isDragging ? 'border-blue-400 shadow-2xl scale-105' : 'border-gray-200 hover:border-blue-300'
+      }`}
     >
-      <div className="flex items-center gap-3 p-4">
+      <div className="flex items-center gap-4 p-6">
+        {/* Drag Handle */}
         <button
           {...attributes}
           {...listeners}
-          className="cursor-grab active:cursor-grabbing p-2 hover:bg-gray-100 rounded"
+          className="cursor-grab active:cursor-grabbing p-3 hover:bg-blue-50 rounded-xl transition-colors group"
+          title="Drag to reorder"
         >
-          <GripVertical className="w-5 h-5 text-gray-400" />
+          <GripVertical className="w-6 h-6 text-gray-400 group-hover:text-blue-600 transition-colors" />
         </button>
 
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-slate-50 p-2">
+        {/* Category Image */}
+        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3 shadow-md">
           {imageUrl ? (
             <img
               src={imageUrl}
               alt={category.category_name}
-              className="h-full w-full object-contain"
+              className="h-full w-full object-contain hover:scale-110 transition-transform duration-300"
             />
           ) : (
-            <ImageIcon className="w-6 h-6 text-gray-400" />
+            <ImageIcon className="w-8 h-8 text-gray-400" />
           )}
         </div>
 
+        {/* Category Info */}
         <div className="flex-1 min-w-0">
-          <div className="font-medium">{category.category_name}</div>
-          <div className="text-sm text-gray-500">Display Order: {index + 1}</div>
-          <div className="text-xs text-gray-400 mt-1 font-mono break-all">ID: {category.id}</div>
+          <h3 className="text-2xl font-bold text-gray-900 mb-2">{category.category_name}</h3>
+          <div className="flex items-center gap-4 text-sm">
+            <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+              <span className="text-lg font-bold">#{index + 1}</span>
+            </span>
+            <span className="flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+              <Package className="w-4 h-4" />
+              <span className="font-bold">{products.length}</span> Subcategor{products.length === 1 ? 'y' : 'ies'}
+            </span>
+          </div>
         </div>
 
+        {/* Expand Button */}
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          size="lg"
           onClick={() => onToggleExpanded(category.id)}
-          className="shrink-0"
+          className="shrink-0 h-12 px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
         >
           <ChevronDown
-            className={`w-4 h-4 mr-2 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            className={`w-5 h-5 mr-2 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
           />
-          {isExpanded ? "Hide Products" : `View Products (${products.length})`}
+          {isExpanded ? "Hide Subcategories" : `View Subcategories (${products.length})`}
         </Button>
       </div>
 
       {isExpanded && (
-        <div className="border-t bg-slate-50/70 px-4 py-4">
+        <div className="border-t-2 bg-gradient-to-br from-slate-50 to-blue-50 px-4 py-4 md:px-6 md:py-6">
+          <div className="mb-4 md:mb-6 flex items-center justify-between">
+            <div>
+              <h4 className="text-lg md:text-xl font-bold text-gray-900">Subcategories in {category.category_name}</h4>
+              <p className="text-xs md:text-sm text-gray-600 mt-1">
+                {products.length} subcategor{products.length === 1 ? 'y' : 'ies'} • Click "Show Sizes" to see products
+              </p>
+            </div>
+          </div>
+          
           {products.length > 0 ? (
-            <div className="space-y-2">
+            <div className="space-y-4">
               {products.map((product) => (
                 <div
                   key={product.id}
-                  className="rounded-xl border border-slate-200 bg-white shadow-sm"
+                  className="rounded-2xl border-2 border-slate-200 bg-white shadow-md hover:shadow-xl transition-all"
                 >
-                  <div className="flex items-center justify-between gap-4 px-4 py-4">
+                  <div className="flex items-center justify-between gap-4 px-6 py-5">
                     <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                      <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm">
                         {productImageUrls[product.id] ? (
                           <img
                             src={productImageUrls[product.id]}
                             alt={product.name}
-                            className="h-full w-full object-contain"
+                            className="h-full w-full object-contain hover:scale-110 transition-transform"
                           />
                         ) : (
                           <Package className="h-8 w-8 text-slate-400" />
@@ -393,88 +420,123 @@ const SortableCategoryItem = ({
                       </div>
 
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="truncate text-lg font-semibold text-slate-900">{product.name}</p>
-                          <span
-                            className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                              product.is_active === false || product.isPlaceholder
-                                ? "bg-rose-100 text-rose-700"
-                                : "bg-emerald-100 text-emerald-700"
-                            }`}
-                          >
-                            {product.is_active === false || product.isPlaceholder ? "Inactive" : "Active"}
-                          </span>
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          {/* Show Subcategory as main name if available, otherwise product name */}
+                          {product.subcategory ? (
+                            <>
+                              <p className="truncate text-xl font-bold text-slate-900">{product.subcategory}</p>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  product.is_active === false || product.isPlaceholder
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                                }`}
+                              >
+                                {product.is_active === false || product.isPlaceholder ? "Inactive" : "Active"}
+                              </span>
+                            </>
+                          ) : (
+                            <>
+                              <p className="truncate text-lg font-semibold text-slate-900">{product.name}</p>
+                              <span
+                                className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                  product.is_active === false || product.isPlaceholder
+                                    ? "bg-rose-100 text-rose-700"
+                                    : "bg-emerald-100 text-emerald-700"
+                                }`}
+                              >
+                                {product.is_active === false || product.isPlaceholder ? "Inactive" : "Active"}
+                              </span>
+                            </>
+                          )}
                         </div>
 
-                        <div className="mt-2 grid gap-1 text-sm text-slate-600">
-                          <p>
-                            <span className="font-medium text-slate-800">Subcategory:</span>{" "}
-                            {product.subcategory?.trim() || "General"}
-                          </p>
-                          <p>
-                            <span className="font-medium text-slate-800">Sizes:</span>{" "}
-                            {getSizeSummary(product)}
-                          </p>
-                          <p>
-                            <span className="font-medium text-slate-800">Inventory:</span>{" "}
-                            {getStockSummary(product)}
-                          </p>
+                        {/* No need to show product name separately - subcategory IS the product */}
+
+                        <div className="flex flex-wrap gap-2 md:gap-3 text-xs md:text-sm mt-2 md:mt-3">
+                          <span className="flex items-center gap-1 md:gap-1.5 bg-purple-100 text-purple-700 px-2 md:px-3 py-1 rounded-full font-medium">
+                            <span className="font-bold">{(product.sizes || []).length}</span> Product{(product.sizes || []).length === 1 ? '' : 's'}
+                          </span>
+                          <span className="flex items-center gap-1 md:gap-1.5 bg-blue-100 text-blue-700 px-2 md:px-3 py-1 rounded-full font-medium">
+                            <span className="font-bold">{(product.sizes || []).reduce((sum, size) => sum + Number(size.stock || 0), 0)}</span> Units
+                          </span>
                         </div>
                       </div>
                     </div>
 
-                      <div className="shrink-0 text-right">
-                        <p className="text-lg font-semibold text-slate-900">
-                        ${getDisplayPrice(product).toFixed(2)}
-                      </p>
-                      <p className="text-sm text-slate-500">{product.isPlaceholder ? "Placeholder" : "Base price"}</p>
-                      <div className="mt-3 flex flex-row items-end gap-2">
-                        {!product.isPlaceholder && (
-                          <>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => toggleProductSizes(product.id)}
-                            >
-                              <ChevronDown
-                                className={`mr-2 h-4 w-4 transition-transform ${
-                                  expandedProductIds[product.id] ? "rotate-180" : ""
-                                }`}
-                              />
-                              {(product.sizes || []).length} size option{(product.sizes || []).length === 1 ? "" : "s"}
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => onEditProduct(product.id)}
-                            >
-                              <Pencil className="mr-2 h-4 w-4" />
-                              Edit Product
-                            </Button>
-                          </>
-                        )}
+                    {/* Price and Actions */}
+                    <div className="shrink-0 text-right">
+                      <div className="mb-4">
+                        <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
+                          ${getDisplayPrice(product).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">{product.isPlaceholder ? "Placeholder" : "Starting from"}</p>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        {/* Show button - always enabled, expands to show products section */}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleProductSizes(product.id)}
+                          className="w-full justify-center rounded-xl border-2 hover:border-purple-400 hover:bg-purple-50"
+                          title="Show products section"
+                        >
+                          <ChevronDown
+                            className={`mr-2 h-4 w-4 transition-transform ${
+                              expandedProductIds[product.id] ? "rotate-180" : ""
+                            }`}
+                          />
+                          {expandedProductIds[product.id] ? 'Hide' : 'Show'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onToggleProductStatus(product)}
+                          className={
+                            product.is_active === false || product.isPlaceholder
+                              ? "w-full justify-center rounded-xl border-2 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+                              : "w-full justify-center rounded-xl border-2 border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                          }
+                          disabled={product.isPlaceholder}
+                          title={product.isPlaceholder ? "Add a product first to update status" : "Update subcategory status"}
+                        >
+                          {product.is_active === false ? "Set Active" : "Set Inactive"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onEditProduct(product.id)}
+                          className="w-full justify-center rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50"
+                          disabled={product.isPlaceholder}
+                          title={product.isPlaceholder ? "Add a product first to edit subcategory" : "Edit subcategory details"}
+                        >
+                          <Pencil className="mr-2 h-4 w-4" />
+                          Edit Subcategory
+                        </Button>
                       </div>
                     </div>
                   </div>
 
                   {expandedProductIds[product.id] && !product.isPlaceholder && (
-                    <div className="border-t border-slate-200 bg-slate-50 px-4 py-4">
-                      <div className="mb-4 flex items-center justify-between gap-3">
+                    <div className="border-t-2 border-slate-200 bg-gradient-to-br from-slate-50 to-purple-50 px-4 py-4 md:px-6 md:py-5">
+                      <div className="mb-4 md:mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <div>
-                          <p className="text-sm font-semibold text-slate-900">Size Options</p>
-                          <p className="text-xs text-slate-500">
-                            Add a new size for this product from here.
+                          <p className="text-base md:text-lg font-bold text-slate-900">Products</p>
+                          <p className="text-xs md:text-sm text-slate-600">
+                            These are the actual products customers can purchase
                           </p>
                         </div>
                         <Button
                           type="button"
                           size="sm"
                           onClick={() => onAddSize(product.id)}
+                          className="rounded-lg md:rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-xs md:text-sm px-3 md:px-4"
                         >
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Size <br />
+                          <Plus className="mr-1 md:mr-2 h-3 w-3 md:h-4 md:w-4" />
+                          Add Product
                         </Button>
                       </div>
                       {(product.sizes || []).length > 0 ? (
@@ -620,6 +682,9 @@ const CategoryManagement = () => {
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false);
+  const [isEditSubcategoryDialogOpen, setIsEditSubcategoryDialogOpen] = useState(false);
+  const [editingSubcategoryId, setEditingSubcategoryId] = useState<string | null>(null);
+  const [placeholderInitialData, setPlaceholderInitialData] = useState<Partial<ProductFormValues> | undefined>(undefined);
   const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
 
@@ -961,6 +1026,51 @@ const CategoryManagement = () => {
     }
   };
 
+  const handleToggleProductStatus = async (product: CategoryProductSummary) => {
+    if (product.isPlaceholder) {
+      return;
+    }
+
+    try {
+      const newStatus = product.is_active === false;
+      const { error } = await supabase
+        .from("products")
+        .update({ is_active: newStatus })
+        .eq("id", product.id);
+
+      if (error) {
+        throw error;
+      }
+
+      setProductsByCategory((current) => {
+        const next = { ...current };
+        Object.keys(next).forEach((categoryName) => {
+          next[categoryName] = next[categoryName].map((currentProduct) =>
+            currentProduct.id === product.id
+              ? {
+                  ...currentProduct,
+                  is_active: newStatus,
+                }
+              : currentProduct
+          );
+        });
+        return next;
+      });
+
+      toast({
+        title: "Success",
+        description: `Subcategory ${newStatus ? "activated" : "deactivated"} successfully`,
+      });
+    } catch (error: any) {
+      console.error("Error updating subcategory status:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update subcategory status",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteSize = async () => {
     if (!sizeToDelete?.id) {
       return;
@@ -1001,35 +1111,59 @@ const CategoryManagement = () => {
   };
 
   const handleOpenProductEdit = async (productId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          *,
-          sizes:product_sizes(*)
-        `)
-        .eq("id", productId)
-        .single();
+    // Check if this is a placeholder - placeholders need a real product entry first
+    if (productId.startsWith('placeholder-')) {
+      // Find the placeholder product
+      const placeholderProduct = Object.values(productsByCategory)
+        .flat()
+        .find(p => p.id === productId);
+      
+      if (placeholderProduct) {
+        // First, we need to create a real product entry in the database
+        // Then open Add Size dialog
+        try {
+          // Create a minimal product entry
+          const { data: newProduct, error } = await supabase
+            .from('products')
+            .insert({
+              name: placeholderProduct.subcategory || placeholderProduct.name,
+              category: placeholderProduct.category,
+              subcategory: placeholderProduct.subcategory || placeholderProduct.name,
+              description: '',
+              base_price: 0,
+              is_active: true,
+              unitToggle: false,
+            })
+            .select('id')
+            .single();
 
-      if (error) {
-        throw error;
+          if (error) throw error;
+
+          // Reload categories to get the new product
+          await loadCategories();
+
+          // Now open Add Size dialog for this new product
+          handleOpenAddSize(newProduct.id);
+          
+          toast({
+            title: "Product Created",
+            description: `Now add products (sizes) for ${placeholderProduct.subcategory || placeholderProduct.name}`,
+          });
+        } catch (error) {
+          console.error('Error creating product:', error);
+          toast({
+            title: "Error",
+            description: "Failed to create product entry",
+            variant: "destructive",
+          });
+        }
       }
-
-      const transformed = transformProductData(data ? [data] : []);
-      if (!transformed[0]) {
-        throw new Error("Failed to load product details.");
-      }
-
-      setEditingProduct(transformed[0]);
-      setIsEditProductDialogOpen(true);
-    } catch (error) {
-      console.error("Error loading product details:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load product details",
-        variant: "destructive",
-      });
+      return;
     }
+    
+    // Open the new Edit Subcategory dialog for real products
+    setEditingSubcategoryId(productId);
+    setIsEditSubcategoryDialogOpen(true);
   };
 
   const handleAddProduct = async (data: ProductFormValues) => {
@@ -1149,172 +1283,283 @@ const CategoryManagement = () => {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Category Management</h1>
-            <p className="text-gray-500 mt-1">
-              Drag and drop to reorder categories. Changes affect all product displays.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setIsCategoryManagerOpen(true)}
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Add Category
-            </Button>
-            {hasChanges && (
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={saving}
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset
-              </Button>
-            )}
-            <Button
-              onClick={handleSave}
-              disabled={!hasChanges || saving}
-            >
-              <Save className="w-4 h-4 mr-2" />
-              {saving ? "Saving..." : "Save Order"}
-            </Button>
-          </div>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Product Categories</CardTitle>
-            <CardDescription>
-              Drag categories to reorder them. New categories will appear at the end by default.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
-            >
-              <SortableContext
-                items={categories.map(c => c.id)}
-                strategy={verticalListSortingStrategy}
-              >
-                <div className="space-y-2">
-                  {categories.map((category, index) => (
-                    <SortableCategoryItem
-                      key={category.id}
-                      category={category}
-                      index={index}
-                      products={productsByCategory[category.category_name] || []}
-                      isExpanded={!!expandedCategoryIds[category.id]}
-                      onToggleExpanded={handleToggleExpanded}
-                      onEditProduct={handleOpenProductEdit}
-                      onEditSize={handleOpenSizeEdit}
-                      onAddSize={handleOpenAddSize}
-                      onDeleteSize={setSizeToDelete}
-                      onToggleSizeStatus={handleToggleSizeStatus}
-                    />
-                  ))}
-                </div>
-              </SortableContext>
-            </DndContext>
-
-            {categories.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                No categories found
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+        <div className="max-w-7xl mx-auto space-y-6">
+          {/* Enhanced Header */}
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+                  Category Management
+                </h1>
+                <p className="text-gray-600 mt-2 text-lg">
+                  Manage product categories, subcategories, and their display order
+                </p>
               </div>
-            )}
-          </CardContent>
-        </Card>
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsCategoryManagerOpen(true)}
+                  className="h-11 px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                >
+                  <Plus className="w-5 h-5 mr-2" />
+                  Add Category / Subcategory
+                </Button>
+                {hasChanges && (
+                  <Button
+                    variant="outline"
+                    onClick={handleReset}
+                    disabled={saving}
+                    className="h-11 px-6 rounded-xl border-2 hover:border-orange-400 hover:bg-orange-50 transition-all"
+                  >
+                    <RotateCcw className="w-5 h-5 mr-2" />
+                    Reset Changes
+                  </Button>
+                )}
+                <Button
+                  onClick={handleSave}
+                  disabled={!hasChanges || saving}
+                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg disabled:opacity-50"
+                >
+                  <Save className="w-5 h-5 mr-2" />
+                  {saving ? "Saving..." : "Save Order"}
+                </Button>
+              </div>
+            </div>
+          </div>
 
-        <Card className="bg-blue-50 border-blue-200">
-          <CardHeader>
-            <CardTitle className="text-blue-900">How it works</CardTitle>
-          </CardHeader>
-          <CardContent className="text-blue-800 space-y-2">
-            <p>• Categories are displayed in this order across all product pages</p>
-            <p>• New categories added to the database will appear at the end automatically</p>
-            <p>• Changes take effect immediately after saving</p>
-            <p>• Users will see the new order on their next page load</p>
-          </CardContent>
-        </Card>
+          {/* Info Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-700 font-medium">Total Categories</p>
+                    <p className="text-2xl font-bold text-blue-900">{categories.length}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <EditSizeDialog
-          open={isEditSizeDialogOpen}
-          onOpenChange={(open) => {
-            setIsEditSizeDialogOpen(open);
-            if (!open) {
-              setEditingSize(null);
-            }
-          }}
-          size={editingSize}
-          onSave={handleSaveSizeEdit}
-          sizeUnits={activeSizeUnits}
-          defaultUnit={activeDefaultUnit}
-        />
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-green-700 font-medium">Total Subcategories</p>
+                    <p className="text-2xl font-bold text-green-900">
+                      {Object.values(productsByCategory).reduce((sum, products) => sum + products.length, 0)}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
 
-        <EditSizeDialog
-          open={isAddSizeDialogOpen}
-          onOpenChange={(open) => {
-            setIsAddSizeDialogOpen(open);
-            if (!open) {
-              setCreatingSize(null);
-              setAddingSizeProductId(null);
-            }
-          }}
-          size={creatingSize}
-          onSave={handleSaveNewSize}
-          title="Add Size"
-          saveLabel="Add Size"
-          sizeUnits={activeSizeUnits}
-          defaultUnit={activeDefaultUnit}
-        />
+            <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-purple-700 font-medium">Total Products</p>
+                    <p className="text-2xl font-bold text-purple-900">
+                      {Object.values(productsByCategory).reduce((sum, products) => 
+                        sum + products.reduce((pSum, product) => pSum + (product.sizes?.length || 0), 0), 0
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
 
-        <ConfirmDeleteDialog
-          open={!!sizeToDelete}
-          onOpenChange={(open) => {
-            if (!open) {
-              setSizeToDelete(null);
-            }
-          }}
-          onConfirm={handleDeleteSize}
-          title={`Delete ${sizeToDelete ? [sizeToDelete.size_value?.toString().trim(), sizeToDelete.unitToggle === true ? sizeToDelete.size_unit?.trim() : ""].filter(Boolean).join(" ") || "this size" : "this size"}?`}
-          description={`This will permanently remove ${sizeToDelete?.size_name?.trim() || "this size option"} from the product. This action cannot be undone.`}
-        />
+          {/* Main Categories Card */}
+          <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-2xl font-bold text-gray-900">Product Categories</CardTitle>
+                  <CardDescription className="text-base mt-2">
+                    Drag categories using the <GripVertical className="w-4 h-4 inline mx-1" /> icon to reorder. Click "View Products" to see and manage products in each category.
+                  </CardDescription>
+                </div>
+                {hasChanges && (
+                  <div className="bg-orange-100 border border-orange-300 rounded-lg px-4 py-2">
+                    <p className="text-sm font-medium text-orange-800">Unsaved Changes</p>
+                    <p className="text-xs text-orange-600">Click "Save Order" to apply</p>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent className="p-6">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={handleDragEnd}
+              >
+                <SortableContext
+                  items={categories.map(c => c.id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-3">
+                    {categories.map((category, index) => (
+                      <SortableCategoryItem
+                        key={category.id}
+                        category={category}
+                        index={index}
+                        products={productsByCategory[category.category_name] || []}
+                        isExpanded={!!expandedCategoryIds[category.id]}
+                        onToggleExpanded={handleToggleExpanded}
+                        onEditProduct={handleOpenProductEdit}
+                        onToggleProductStatus={handleToggleProductStatus}
+                        onEditSize={handleOpenSizeEdit}
+                        onAddSize={handleOpenAddSize}
+                        onDeleteSize={setSizeToDelete}
+                        onToggleSizeStatus={handleToggleSizeStatus}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
 
-        <CategorySubcategoryManager
-          open={isCategoryManagerOpen}
-          onOpenChange={setIsCategoryManagerOpen}
-          onSuccess={loadCategories}
-        />
+              {categories.length === 0 && (
+                <div className="text-center py-12">
+                  <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Package className="w-10 h-10 text-gray-400" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">No categories found</h3>
+                  <p className="text-gray-500 mb-6">Get started by adding your first category</p>
+                  <Button onClick={() => setIsCategoryManagerOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Category
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <AddProductDialog
-          open={isAddProductDialogOpen}
-          onOpenChange={setIsAddProductDialogOpen}
-          onSubmit={handleAddProduct}
-          isSubmitting={isSubmittingProduct}
-          onProductAdded={() => {}}
-        />
-
-        {editingProduct && (
-          <AddProductDialog
-            open={isEditProductDialogOpen}
-            onOpenChange={(open) => {
-              setIsEditProductDialogOpen(open);
-              if (!open) {
-                setEditingProduct(null);
-              }
-            }}
-            onSubmit={handleUpdateProduct}
-            isSubmitting={isUpdatingProduct}
-            onProductAdded={() => {}}
-            initialData={editingProduct}
-          />
-        )}
+          {/* Help Card */}
+          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-indigo-50">
+            <CardHeader>
+              <CardTitle className="text-blue-900 flex items-center gap-2">
+                <ImageIcon className="w-5 h-5" />
+                How to Use This Page
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="text-blue-800 space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">1</div>
+                <p><span className="font-semibold">Reorder Categories:</span> Click and drag the <GripVertical className="w-4 h-4 inline mx-1" /> icon to change category order</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">2</div>
+                <p><span className="font-semibold">View Products:</span> Click "View Products" button to expand and see all products in that category</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">3</div>
+                <p><span className="font-semibold">Manage Products:</span> Edit product details, add sizes, or manage inventory from the expanded view</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold shrink-0">4</div>
+                <p><span className="font-semibold">Save Changes:</span> Click "Save Order" button to apply your category reordering changes</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
+
+      {/* Dialogs */}
+      <EditSizeDialog
+        open={isEditSizeDialogOpen}
+        onOpenChange={(open) => {
+          setIsEditSizeDialogOpen(open);
+          if (!open) {
+            setEditingSize(null);
+          }
+        }}
+        size={editingSize}
+        onSave={handleSaveSizeEdit}
+        sizeUnits={activeSizeUnits}
+        defaultUnit={activeDefaultUnit}
+      />
+
+      <EditSizeDialog
+        open={isAddSizeDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddSizeDialogOpen(open);
+          if (!open) {
+            setCreatingSize(null);
+            setAddingSizeProductId(null);
+          }
+        }}
+        size={creatingSize}
+        onSave={handleSaveNewSize}
+        title="Add Size"
+        saveLabel="Add Size"
+        sizeUnits={activeSizeUnits}
+        defaultUnit={activeDefaultUnit}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!sizeToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSizeToDelete(null);
+          }
+        }}
+        onConfirm={handleDeleteSize}
+        title={`Delete ${sizeToDelete ? [sizeToDelete.size_value?.toString().trim(), sizeToDelete.unitToggle === true ? sizeToDelete.size_unit?.trim() : ""].filter(Boolean).join(" ") || "this size" : "this size"}?`}
+        description={`This will permanently remove ${sizeToDelete?.size_name?.trim() || "this size option"} from the product. This action cannot be undone.`}
+      />
+
+      <EditSubcategoryDialog
+        open={isEditSubcategoryDialogOpen}
+        onOpenChange={setIsEditSubcategoryDialogOpen}
+        productId={editingSubcategoryId || ''}
+        onSuccess={loadCategories}
+      />
+
+      <CategorySubcategoryManager
+        open={isCategoryManagerOpen}
+        onOpenChange={setIsCategoryManagerOpen}
+        onSuccess={loadCategories}
+      />
+
+      <AddProductDialog
+        open={isAddProductDialogOpen}
+        onOpenChange={(open) => {
+          setIsAddProductDialogOpen(open);
+          if (!open) {
+            setPlaceholderInitialData(undefined);
+          }
+        }}
+        onSubmit={handleAddProduct}
+        isSubmitting={isSubmittingProduct}
+        onProductAdded={() => {}}
+        initialData={placeholderInitialData}
+      />
+
+      {editingProduct && (
+        <AddProductDialog
+          open={isEditProductDialogOpen}
+          onOpenChange={(open) => {
+            setIsEditProductDialogOpen(open);
+            if (!open) {
+              setEditingProduct(null);
+            }
+          }}
+          onSubmit={handleUpdateProduct}
+          isSubmitting={isUpdatingProduct}
+          onProductAdded={() => {}}
+          initialData={editingProduct}
+        />
+      )}
     </DashboardLayout>
   );
 };

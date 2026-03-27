@@ -206,6 +206,7 @@ const Products = () => {
       // Update category_configs table
       const { error: updateError } = await supabase
         .from('category_configs')
+        // @ts-expect-error - image_url field exists but may not be in generated types
         .update({ image_url: filePath })
         .eq('id', categoryId);
 
@@ -930,11 +931,7 @@ const Products = () => {
                                 {product.category}
                               </Badge>
                             )}
-                            {product.subcategory && (
-                              <Badge variant="secondary" className="bg-gradient-to-r from-purple-50 to-purple-100 text-purple-700 border-purple-200 px-3 py-1 rounded-lg w-fit">
-                                {product.subcategory}
-                              </Badge>
-                            )}
+                            {/* Subcategory badge hidden - already shown in Product Details column */}
                           </div>
                         </TableCell>
                         <TableCell className="text-right">

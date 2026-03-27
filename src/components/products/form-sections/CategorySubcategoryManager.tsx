@@ -94,6 +94,11 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     category_name: '',
     subcategory_name: ''
   });
+  const [subcategoryImage, setSubcategoryImage] = useState<File | null>(null);
+  const [subcategoryImagePreview, setSubcategoryImagePreview] = useState<string>('');
+  const [uploadingSubcategoryImage, setUploadingSubcategoryImage] = useState(false);
+  const subcategoryFileInputRef = useRef<HTMLInputElement>(null);
+  const [existingProducts, setExistingProducts] = useState<string[]>([]);
 
   useEffect(() => {
     if (open) {
@@ -105,6 +110,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
   useEffect(() => {
     if (selectedCategoryForSub) {
       fetchSubcategories(selectedCategoryForSub);
+      fetchExistingProducts(selectedCategoryForSub);
     }
   }, [selectedCategoryForSub]);
 
@@ -125,6 +131,25 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     } catch (error) {
       console.error("Failed to fetch subcategories:", error);
       toast.error('Failed to fetch subcategories');
+    }
+  };
+
+  // Fetch existing products for selected category (to show as subcategories)
+  const fetchExistingProducts = async (category: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select('name, subcategory')
+        .eq('category', category)
+        .order('name');
+
+      if (error) throw error;
+
+      // Get unique product names (these are treated as subcategories)
+      const uniqueNames = Array.from(new Set(data?.map(p => p.subcategory || p.name).filter(Boolean))) as string[];
+      setExistingProducts(uniqueNames);
+    } catch (error) {
+      console.error("Failed to fetch existing products:", error);
     }
   };
 
@@ -348,6 +373,59 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
   };
 
   // Subcategory functions
+  const handleSubcategoryImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image size should be less than 5MB');
+        return;
+      }
+      setSubcategoryImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSubcategoryImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeSubcategoryImage = () => {
+    setSubcategoryImage(null);
+    setSubcategoryImagePreview('');
+    if (subcategoryFileInputRef.current) {
+      subcategoryFileInputRef.current.value = '';
+    }
+  };
+
+  const uploadSubcategoryImage = async (productId: string): Promise<string | null> => {
+    if (!subcategoryImage) return null;
+
+    setUploadingSubcategoryImage(true);
+    try {
+      const fileExt = subcategoryImage.name.split('.').pop();
+      const fileName = `product-${productId}-${Date.now()}.${fileExt}`;
+      const filePath = `products/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('product-images')
+        .upload(filePath, subcategoryImage, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      return filePath;
+    } catch (error: unknown) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image');
+      return null;
+    } finally {
+      setUploadingSubcategoryImage(false);
+    }
+  };
+
   const handleAddSubcategory = async () => {
     if (!subcategoryForm.category_name) {
       toast.error('Please select a category');
@@ -362,10 +440,52 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     setLoading(true);
 
     try {
+      // First, add to subcategory_configs table
       await insertSubcategorySafely(subcategoryForm);
 
-      toast.success('Subcategory added successfully!');
+      // Then, create/update product with same name as subcategory
+      const productData = {
+        name: subcategoryForm.subcategory_name,
+        category: subcategoryForm.category_name,
+        subcategory: subcategoryForm.subcategory_name,
+        sku: `${subcategoryForm.category_name.substring(0, 3)}-${subcategoryForm.subcategory_name.substring(0, 3)}-${Date.now()}`.toUpperCase(),
+        base_price: 0,
+        current_stock: 0,
+        min_stock: 0,
+        reorder_point: 0,
+        is_active: false // Admin will activate after adding sizes
+      };
+
+      const { data: newProduct, error: productError } = await supabase
+        .from('products')
+        .insert([productData])
+        .select()
+        .single();
+
+      if (productError) throw productError;
+
+      // Upload image if provided
+      if (subcategoryImage && newProduct) {
+        const imageUrl = await uploadSubcategoryImage(newProduct.id);
+        
+        if (imageUrl) {
+          const { error: updateError } = await supabase
+            .from('products')
+            .update({ 
+              image_url: imageUrl,
+              images: [imageUrl]
+            })
+            .eq('id', newProduct.id);
+
+          if (updateError) {
+            console.error('Error updating product image:', updateError);
+          }
+        }
+      }
+
+      toast.success('Subcategory added successfully! Product created.');
       await fetchSubcategories(selectedCategoryForSub);
+      await fetchExistingProducts(selectedCategoryForSub);
       onSuccess?.();
       resetSubcategoryForm();
     } catch (error: unknown) {
@@ -381,6 +501,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     setLoading(true);
 
     try {
+      // Update subcategory_configs table
       const { error } = await supabase
         .from('subcategory_configs')
         .update({ subcategory_name: subcategoryForm.subcategory_name })
@@ -388,10 +509,53 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
       if (error) throw error;
 
+      // Also update the corresponding product in products table
+      // Find product with old subcategory name and update it
+      const { error: productError } = await supabase
+        .from('products')
+        .update({ 
+          name: subcategoryForm.subcategory_name,
+          subcategory: subcategoryForm.subcategory_name 
+        })
+        .eq('category', editingSubcategory.category_name)
+        .eq('subcategory', editingSubcategory.subcategory_name);
+
+      if (productError) {
+        console.error('Error updating product:', productError);
+        // Don't throw - subcategory was updated successfully
+      }
+
+      // Upload image if provided
+      if (subcategoryImage) {
+        // Find the product we just updated
+        const { data: products } = await supabase
+          .from('products')
+          .select('id')
+          .eq('category', editingSubcategory.category_name)
+          .eq('subcategory', subcategoryForm.subcategory_name)
+          .limit(1);
+
+        if (products && products.length > 0) {
+          const imageUrl = await uploadSubcategoryImage(products[0].id);
+          
+          if (imageUrl) {
+            await supabase
+              .from('products')
+              .update({ 
+                image_url: imageUrl,
+                images: [imageUrl]
+              })
+              .eq('id', products[0].id);
+          }
+        }
+      }
+
       toast.success('Subcategory updated successfully!');
       await fetchSubcategories(selectedCategoryForSub);
+      await fetchExistingProducts(selectedCategoryForSub);
       setEditingSubcategory(null);
       resetSubcategoryForm();
+      onSuccess?.(); // Notify parent to refresh
     } catch (error: unknown) {
       toast.error(getErrorMessage(error, 'Failed to update subcategory'));
     } finally {
@@ -399,12 +563,44 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
     }
   };
 
-  const startEditSubcategory = (subcategory: Subcategory) => {
+  const startEditSubcategory = async (subcategory: Subcategory) => {
     setEditingSubcategory(subcategory);
     setSubcategoryForm({
       category_name: subcategory.category_name,
       subcategory_name: subcategory.subcategory_name
     });
+
+    // Load existing product image
+    try {
+      const { data: products, error } = await supabase
+        .from('products')
+        .select('image_url')
+        .eq('category', subcategory.category_name)
+        .eq('subcategory', subcategory.subcategory_name)
+        .limit(1);
+
+      if (error) throw error;
+
+      if (products && products.length > 0 && products[0].image_url) {
+        const imageUrl = products[0].image_url;
+        
+        // Check if it's a full URL or storage path
+        if (imageUrl.startsWith('http')) {
+          setSubcategoryImagePreview(imageUrl);
+        } else {
+          // Get public URL from storage
+          const { data } = supabase.storage
+            .from('product-images')
+            .getPublicUrl(imageUrl);
+          
+          if (data?.publicUrl) {
+            setSubcategoryImagePreview(data.publicUrl);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading product image:', error);
+    }
   };
 
   const resetSubcategoryForm = () => {
@@ -413,6 +609,11 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
       subcategory_name: ''
     });
     setEditingSubcategory(null);
+    setSubcategoryImage(null);
+    setSubcategoryImagePreview('');
+    if (subcategoryFileInputRef.current) {
+      subcategoryFileInputRef.current.value = '';
+    }
   };
 
   const handleDeleteCategory = async (category: Category) => {
@@ -821,6 +1022,72 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
                         }
                         className="mt-2"
                       />
+                      {existingProducts.length > 0 && (
+                        <div className="mt-2">
+                          <p className="text-xs text-gray-500 mb-2">Existing products in this category:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {existingProducts.map((name, idx) => (
+                              <Badge 
+                                key={idx} 
+                                variant="outline" 
+                                className="cursor-pointer hover:bg-green-100"
+                                onClick={() => setSubcategoryForm({ ...subcategoryForm, subcategory_name: name })}
+                              >
+                                {name}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Subcategory Image Upload */}
+                    <div>
+                      <Label className="flex items-center gap-2">
+                        <ImageIcon className="h-4 w-4" />
+                        Product Image
+                      </Label>
+                      <input
+                        ref={subcategoryFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSubcategoryImageSelect}
+                        className="hidden"
+                      />
+                      
+                      {subcategoryImagePreview ? (
+                        <div className="mt-2 relative">
+                          <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden border-2 border-dashed border-gray-300">
+                            <img
+                              src={subcategoryImagePreview}
+                              alt="Product preview"
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              onClick={removeSubcategoryImage}
+                              className="absolute top-2 right-2 p-1 bg-red-500 hover:bg-red-600 text-white rounded-full transition-colors"
+                              type="button"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">Click X to remove image</p>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => subcategoryFileInputRef.current?.click()}
+                          className="mt-2 w-full h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-400 hover:bg-green-50 transition-all flex flex-col items-center justify-center gap-2 group"
+                        >
+                          <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center group-hover:bg-green-200 transition-colors">
+                            <Upload className="w-6 h-6 text-green-600" />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-gray-700">Upload Product Image</p>
+                            <p className="text-xs text-gray-500">PNG, JPG up to 5MB</p>
+                          </div>
+                        </button>
+                      )}
                     </div>
 
                     <Button
