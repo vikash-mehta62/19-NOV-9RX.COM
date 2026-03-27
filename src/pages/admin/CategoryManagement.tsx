@@ -9,7 +9,11 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
 import { GripVertical, Save, RotateCcw, Image as ImageIcon, ChevronDown, Package, Pencil, Plus, Trash2 } from "lucide-react";
 import { fetchCategoryConfigs, bulkUpdateCategoryOrders, CategoryConfig } from "@/utils/categoryUtils";
-import { fetchOrderedSubcategories } from "@/services/productTreeService";
+import {
+  canDeleteSubcategory,
+  deleteSubcategoryById,
+  fetchOrderedSubcategories,
+} from "@/services/productTreeService";
 import { supabase } from "@/supabaseClient";
 import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog";
 import { EditSubcategoryDialog } from "@/components/products/EditSubcategoryDialog";
@@ -41,6 +45,7 @@ interface SortableCategoryItemProps {
   isExpanded: boolean;
   onToggleExpanded: (categoryId: string) => void;
   onEditProduct: (productId: string) => void;
+  onDeleteProduct: (product: CategoryProductSummary) => void;
   onToggleProductStatus: (product: CategoryProductSummary) => void;
   onEditSize: (sizeId: string) => void;
   onAddSize: (productId: string) => void;
@@ -53,6 +58,7 @@ interface CategoryProductSummary {
   name: string;
   category: string;
   subcategory?: string | null;
+  subcategoryConfigId?: number | null;
   unitToggle?: boolean | null;
   is_active?: boolean | null;
   base_price?: number | null;
@@ -93,7 +99,7 @@ const FALLBACK_DEFAULT_UNIT = "unit";
 
 const buildProductsByCategory = (
   products: CategoryProductSummary[],
-  subcategories: Array<{ category_name: string; subcategory_name: string }>
+  subcategories: Array<{ id: number; category_name: string; subcategory_name: string }>
 ) => {
   const groupedProducts = products.reduce<Record<string, CategoryProductSummary[]>>(
     (acc, product) => {
@@ -126,6 +132,7 @@ const buildProductsByCategory = (
         name: subcategoryName,
         category: categoryName,
         subcategory: subcategoryName,
+        subcategoryConfigId: subcategory.id,
         unitToggle: false,
         is_active: false,
         base_price: 0,
@@ -152,6 +159,7 @@ const SortableCategoryItem = ({
   isExpanded,
   onToggleExpanded,
   onEditProduct,
+  onDeleteProduct,
   onToggleProductStatus,
   onEditSize,
   onAddSize,
@@ -510,11 +518,21 @@ const SortableCategoryItem = ({
                           size="sm"
                           onClick={() => onEditProduct(product.id)}
                           className="w-full justify-center rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50"
-                          disabled={product.isPlaceholder}
-                          title={product.isPlaceholder ? "Add a product first to edit subcategory" : "Edit subcategory details"}
+                          title="Edit subcategory details"
                         >
                           <Pencil className="mr-2 h-4 w-4" />
                           Edit Subcategory
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => onDeleteProduct(product)}
+                          className="w-full justify-center rounded-xl border-2 border-rose-200 text-rose-700 hover:bg-rose-50 hover:text-rose-800"
+                          title="Delete subcategory"
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" />
+                          Delete Subcategory
                         </Button>
                       </div>
                     </div>
@@ -691,6 +709,7 @@ const CategoryManagement = () => {
   const [activeSizeUnits, setActiveSizeUnits] = useState<string[]>(FALLBACK_SIZE_UNITS);
   const [activeDefaultUnit, setActiveDefaultUnit] = useState<string>(FALLBACK_DEFAULT_UNIT);
   const [sizeToDelete, setSizeToDelete] = useState<ProductSizeSummary | null>(null);
+  const [subcategoryToDelete, setSubcategoryToDelete] = useState<CategoryProductSummary | null>(null);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
   const [isSubmittingProduct, setIsSubmittingProduct] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -728,9 +747,22 @@ const CategoryManagement = () => {
         throw productsResponse.error;
       }
 
+      console.log('Subcategories loaded:', subcategoriesResponse);
+
       const groupedProducts = buildProductsByCategory(
-        (productsResponse.data || []) as CategoryProductSummary[],
-        (subcategoriesResponse || []) as Array<{ category_name: string; subcategory_name: string }>
+        ((productsResponse.data || []) as CategoryProductSummary[]).map((product) => {
+          const matchedSubcategory = (subcategoriesResponse || []).find(
+            (subcategory) =>
+              subcategory.category_name === product.category &&
+              subcategory.subcategory_name.toLowerCase() === (product.subcategory || "").toLowerCase()
+          );
+
+          return {
+            ...product,
+            subcategoryConfigId: matchedSubcategory?.id ?? null,
+          };
+        }),
+        (subcategoriesResponse || []) as Array<{ id: number; category_name: string; subcategory_name: string }>
       );
 
       setCategories(data);
@@ -1084,6 +1116,110 @@ const CategoryManagement = () => {
     }
   };
 
+  const handleDeleteSubcategory = async (product: CategoryProductSummary) => {
+    const subcategoryName = product.subcategory?.trim();
+    
+    if (!subcategoryName) {
+      toast({
+        title: "Cannot Delete",
+        description: "Subcategory name is missing",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      // Check if this product has any sizes (actual products)
+      const hasSizes = (product.sizes || []).length > 0;
+      
+      if (hasSizes) {
+        toast({
+          title: "Cannot Delete Subcategory",
+          description: `"${subcategoryName}" has ${product.sizes?.length} product(s). Delete all products first.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      setSubcategoryToDelete(product);
+    } catch (error: unknown) {
+      console.error("Error preparing subcategory deletion:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to prepare subcategory deletion",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleConfirmDeleteSubcategory = async () => {
+    if (!subcategoryToDelete) {
+      return;
+    }
+
+    const subcategoryName = subcategoryToDelete.subcategory?.trim();
+
+    if (!subcategoryName) {
+      setSubcategoryToDelete(null);
+      return;
+    }
+
+    try {
+      const product = subcategoryToDelete;
+
+      // If it's a placeholder, just reload (nothing to delete from DB)
+      if (product.isPlaceholder) {
+        // Remove from subcategory_configs if it exists there
+        const { error: configError } = await supabase
+          .from('subcategory_configs')
+          .delete()
+          .eq('category_name', product.category)
+          .eq('subcategory_name', subcategoryName);
+        
+        if (configError) {
+          console.error('Error deleting subcategory config:', configError);
+        }
+        
+        await loadCategories();
+        setSubcategoryToDelete(null);
+        toast({
+          title: "Success",
+          description: "Subcategory deleted successfully",
+        });
+        return;
+      }
+
+      // Delete the product from products table
+      const { error } = await supabase
+        .from('products')
+        .delete()
+        .eq('id', product.id);
+
+      if (error) throw error;
+
+      // Also delete from subcategory_configs if it exists
+      await supabase
+        .from('subcategory_configs')
+        .delete()
+        .eq('category_name', product.category)
+        .eq('subcategory_name', subcategoryName);
+
+      await loadCategories();
+      setSubcategoryToDelete(null);
+      toast({
+        title: "Success",
+        description: "Subcategory deleted successfully",
+      });
+    } catch (error: unknown) {
+      console.error("Error deleting subcategory:", error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete subcategory",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteSize = async () => {
     if (!sizeToDelete?.id) {
       return;
@@ -1124,16 +1260,14 @@ const CategoryManagement = () => {
   };
 
   const handleOpenProductEdit = async (productId: string) => {
-    // Check if this is a placeholder - placeholders need a real product entry first
+    // Check if this is a placeholder
     if (productId.startsWith('placeholder-')) {
-      // Find the placeholder product
+      // For placeholders, we need to create a product entry first, then open edit dialog
       const placeholderProduct = Object.values(productsByCategory)
         .flat()
         .find(p => p.id === productId);
       
-      if (placeholderProduct) {
-        // First, we need to create a real product entry in the database
-        // Then open Add Size dialog
+      if (placeholderProduct && placeholderProduct.subcategoryConfigId) {
         try {
           // Create a minimal product entry
           const { data: newProduct, error } = await supabase
@@ -1144,7 +1278,7 @@ const CategoryManagement = () => {
               subcategory: placeholderProduct.subcategory || placeholderProduct.name,
               description: '',
               base_price: 0,
-              is_active: true,
+              is_active: false,
               unitToggle: false,
             })
             .select('id')
@@ -1155,12 +1289,13 @@ const CategoryManagement = () => {
           // Reload categories to get the new product
           await loadCategories();
 
-          // Now open Add Size dialog for this new product
-          handleOpenAddSize(newProduct.id);
+          // Open Edit Subcategory dialog for the new product
+          setEditingSubcategoryId(newProduct.id);
+          setIsEditSubcategoryDialogOpen(true);
           
           toast({
             title: "Product Created",
-            description: `Now add products (sizes) for ${placeholderProduct.subcategory || placeholderProduct.name}`,
+            description: `You can now edit ${placeholderProduct.subcategory || placeholderProduct.name}`,
           });
         } catch (error) {
           console.error('Error creating product:', error);
@@ -1174,7 +1309,7 @@ const CategoryManagement = () => {
       return;
     }
     
-    // Open the new Edit Subcategory dialog for real products
+    // Open the Edit Subcategory dialog for real products
     setEditingSubcategoryId(productId);
     setIsEditSubcategoryDialogOpen(true);
   };
@@ -1430,6 +1565,7 @@ const CategoryManagement = () => {
                         isExpanded={!!expandedCategoryIds[category.id]}
                         onToggleExpanded={handleToggleExpanded}
                         onEditProduct={handleOpenProductEdit}
+                        onDeleteProduct={handleDeleteSubcategory}
                         onToggleProductStatus={handleToggleProductStatus}
                         onEditSize={handleOpenSizeEdit}
                         onAddSize={handleOpenAddSize}
@@ -1517,6 +1653,19 @@ const CategoryManagement = () => {
         saveLabel="Add Size"
         sizeUnits={activeSizeUnits}
         defaultUnit={activeDefaultUnit}
+      />
+
+      <ConfirmDeleteDialog
+        open={!!subcategoryToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSubcategoryToDelete(null);
+          }
+        }}
+        onConfirm={handleConfirmDeleteSubcategory}
+        title={`Delete ${subcategoryToDelete?.subcategory?.trim() || "this subcategory"}?`}
+        description={`This will permanently remove "${subcategoryToDelete?.subcategory?.trim() || "this subcategory"}" from ${subcategoryToDelete?.category || "this category"}. This action cannot be undone.`}
+        confirmLabel="Confirm"
       />
 
       <ConfirmDeleteDialog

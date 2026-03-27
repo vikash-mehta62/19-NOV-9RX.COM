@@ -578,10 +578,29 @@ export const PharmacyProductsFullPage = () => {
     setSelectedProduct(null)
   }, [])
 
-  // If user changes filters/search while a product is open, close it so results update visibly.
+  // Keep the inline product view in sync with the selected subcategory.
   useEffect(() => {
-    setSelectedProduct(null);
-  }, [selectedCategory, selectedSubcategory, searchQuery, showProducts])
+    if (selectedSubcategory === "all") {
+      return
+    }
+
+    const matchingProduct = filteredProducts.find(
+      (product) =>
+        (product.subcategory?.trim() || DEFAULT_SUBCATEGORY).toLowerCase() ===
+        selectedSubcategory.toLowerCase()
+    )
+
+    setSelectedProduct(matchingProduct || null)
+  }, [filteredProducts, selectedSubcategory])
+
+  // If user changes broader filters/search while browsing a category, close the inline product view.
+  useEffect(() => {
+    if (selectedSubcategory !== "all") {
+      return
+    }
+
+    setSelectedProduct(null)
+  }, [selectedCategory, searchQuery, showProducts, selectedSubcategory])
 
   const handleProductClick = useCallback((product: ProductDetails) => {
     if (selectedProduct?.id === product.id) {
@@ -1052,7 +1071,11 @@ export const PharmacyProductsFullPage = () => {
                     <div className="mb-4">
                       <Button
                         variant="ghost"
-                        onClick={() => setSelectedCategory("all")}
+                        onClick={() => {
+                          setSelectedCategory("all")
+                          setSelectedSubcategory("all")
+                          setSelectedProduct(null)
+                        }}
                         className="text-gray-600 hover:text-blue-600 -ml-2"
                       >
                         <ArrowLeft className="w-4 h-4 mr-2" />
@@ -1082,7 +1105,10 @@ export const PharmacyProductsFullPage = () => {
                     onAddToWishlist={addToWishlist}
                     onRemoveFromWishlist={removeFromWishlist}
                     isInWishlist={isInWishlist}
-                    onClose={() => setSelectedProduct(null)}
+                    onClose={() => {
+                      setSelectedSubcategory("all")
+                      setSelectedProduct(null)
+                    }}
                     onImageClick={handleImageClick}
                   />
                 )}

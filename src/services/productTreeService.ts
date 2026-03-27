@@ -143,18 +143,36 @@ export const canDeleteSubcategory = async (
   categoryName: string,
   subcategoryName: string
 ): Promise<SubcategoryDeleteGuard> => {
-  const { count, error } = await supabase
+  // Get products for this subcategory
+  const { data: products, error: productsError } = await supabase
     .from("products")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("category", categoryName)
     .eq("subcategory", subcategoryName);
 
-  if (error) throw error;
+  if (productsError) throw productsError;
 
-  const productCount = count || 0;
+  if (!products || products.length === 0) {
+    return {
+      allowed: true,
+      productCount: 0,
+    };
+  }
+
+  // Count sizes for these products
+  const productIds = products.map(p => p.id);
+  const { count: sizeCount, error: sizeError } = await supabase
+    .from("product_sizes")
+    .select("id", { count: "exact", head: true })
+    .in("product_id", productIds);
+
+  if (sizeError) throw sizeError;
+
+  const actualProductCount = sizeCount || 0;
+  
   return {
-    allowed: productCount === 0,
-    productCount,
+    allowed: actualProductCount === 0,
+    productCount: actualProductCount,
   };
 };
 
@@ -164,6 +182,35 @@ export const deleteCategoryById = async (id: number) => {
 };
 
 export const deleteSubcategoryById = async (id: number) => {
+  // First, get the subcategory details
+  const { data: subcategory, error: fetchError } = await supabase
+    .from("subcategory_configs")
+    .select("category_name, subcategory_name")
+    .eq("id", id)
+    .single();
+
+  if (fetchError) throw fetchError;
+
+  if (subcategory) {
+    // Delete products without sizes (placeholders)
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, sizes:product_sizes(id)")
+      .eq("category", subcategory.category_name)
+      .eq("subcategory", subcategory.subcategory_name);
+
+    if (products) {
+      const productsWithoutSizes = products.filter(
+        (p: any) => !p.sizes || p.sizes.length === 0
+      );
+
+      for (const product of productsWithoutSizes) {
+        await supabase.from("products").delete().eq("id", product.id);
+      }
+    }
+  }
+
+  // Delete the subcategory config
   const { error } = await supabase.from("subcategory_configs").delete().eq("id", id);
   if (error) throw error;
 };
