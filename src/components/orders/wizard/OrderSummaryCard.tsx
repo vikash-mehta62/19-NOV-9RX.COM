@@ -239,11 +239,11 @@ const OrderSummaryCardComponent = ({
                         <p className="font-medium text-gray-900 truncate text-xs sm:text-sm" title={item.name}>
                           {item.name}
                         </p>
-                        {item.sku && (
+                        {/* {item.sku && (
                           <p className="text-gray-400 text-xs">
                             SKU: {item.sku}
                           </p>
-                        )}
+                        )} */}
                         {/* Show sizes with SKU */}
                         {item.sizes && item.sizes.length > 0 && (
                           <div className="mt-2 space-y-1.5">

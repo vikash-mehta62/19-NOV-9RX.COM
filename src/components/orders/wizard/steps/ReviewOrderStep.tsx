@@ -253,11 +253,11 @@ export const ReviewOrderStep = ({
                               <h4 className="font-semibold text-gray-900">
                                 {item.name}
                               </h4>
-                              {item.sku && (
+                              {/* {item.sku && (
                                 <p className="text-xs text-gray-400 mt-0.5">
                                   SKU: {item.sku}
                                 </p>
-                              )}
+                              )} */}
                               <p className="text-sm text-gray-500 mt-1">
                                 {item.sizes?.length || 0} size
                                 {item.sizes?.length !== 1 ? "s" : ""} • Qty:{" "}
