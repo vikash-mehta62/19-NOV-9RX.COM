@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/supabaseClient'
 import { selectUserProfile } from '@/store/selectors/userSelectors'
@@ -19,6 +19,8 @@ import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from './Cus
 
 interface InlineProductSizesProps {
   product: ProductDetails | null
+  focusedSizeIds?: string[]
+  searchQuery?: string
   wishlistItems: WishlistItem[]
   onAddToWishlist: (product: ProductDetails, sizeId?: string) => Promise<boolean>
   onRemoveFromWishlist: (productId: string, sizeId?: string) => Promise<boolean>
@@ -29,6 +31,8 @@ interface InlineProductSizesProps {
 
 export const InlineProductSizes = ({
   product,
+  focusedSizeIds = [],
+  searchQuery = '',
   onAddToWishlist,
   onRemoveFromWishlist,
   isInWishlist,
@@ -281,9 +285,25 @@ export const InlineProductSizes = ({
     fetchProductWithSizes()
   }, [product?.id, userProfile?.id])
 
-  if (!product) return null
-
   const displayProduct = fullProduct || product
+  const normalizedFocusedSizeIds = useMemo(
+    () => focusedSizeIds.map((sizeId) => String(sizeId)),
+    [focusedSizeIds]
+  )
+  const displayedSizes = useMemo(() => {
+    const allSizes = displayProduct?.sizes || []
+    if (normalizedFocusedSizeIds.length === 0) {
+      return allSizes
+    }
+
+    const focusedSizeIdSet = new Set(normalizedFocusedSizeIds)
+    const matchedSizes = allSizes.filter((size) => focusedSizeIdSet.has(String(size.id)))
+
+    return matchedSizes.length > 0 ? matchedSizes : allSizes
+  }, [displayProduct?.sizes, normalizedFocusedSizeIds])
+  const isFocusedSearchResult = normalizedFocusedSizeIds.length > 0
+
+  if (!displayProduct) return null
 
   const getImageUrl = (image?: string) => {
     const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/"
@@ -624,6 +644,12 @@ export const InlineProductSizes = ({
             </Button>
           )}
         </div>
+
+        {isFocusedSearchResult && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs sm:text-sm text-blue-800">
+            Showing matched size{displayedSizes.length > 1 ? "s" : ""} for "{searchQuery}".
+          </div>
+        )}
         
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
@@ -640,12 +666,13 @@ export const InlineProductSizes = ({
               </Card>
             ))}
           </div>
-        ) : displayProduct.sizes && displayProduct.sizes.length > 0 ? (
+        ) : displayedSizes.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
-            {displayProduct.sizes.map((size) => {
+            {displayedSizes.map((size) => {
               const sizeId = size.id
               const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
               const isCustomizationSelectedForSize = isCustomizationSelected(sizeId)
+              const isFocusedSize = normalizedFocusedSizeIds.includes(String(sizeId))
               
               // Check for group pricing discount OR product offer discount
               const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
@@ -671,7 +698,7 @@ export const InlineProductSizes = ({
               const sizeInCart = isInCart(sizeId)
 
               return (
-                <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden`}>
+                <Card key={sizeId} className={`${isFocusedSize ? 'border-blue-500 ring-2 ring-blue-200' : sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden`}>
                   <CardContent className="p-3 sm:p-4 min-w-0">
                     {/* Vertical Layout for all screens */}
                     <div className="flex flex-col gap-3">
@@ -704,6 +731,12 @@ export const InlineProductSizes = ({
                         {sizeInCart && (
                           <Badge className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-blue-500 text-white text-[8px] sm:text-[10px] px-1 sm:px-1.5">
                             <Check className="w-2.5 h-2.5 sm:w-3 sm:h-3 mr-0.5" /> In Cart
+                          </Badge>
+                        )}
+
+                        {isFocusedSize && !sizeInCart && (
+                          <Badge className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-blue-600 text-white text-[8px] sm:text-[10px] px-1 sm:px-1.5">
+                            Matched
                           </Badge>
                         )}
                         

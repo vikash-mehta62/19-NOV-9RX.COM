@@ -66,6 +66,34 @@ import logo from "../../assests/home/9rx_logo.png";
 
 const DEFAULT_SUBCATEGORY = "General"
 
+const normalizeSearchValue = (value: unknown) =>
+  String(value ?? "").toLowerCase().trim()
+
+const matchesSizeSearch = (
+  size: { size_name?: string | null; size_value?: unknown; size_unit?: string | null; sku?: string | null },
+  rawQuery: string
+) => {
+  const normalizedQuery = normalizeSearchValue(rawQuery)
+  if (!normalizedQuery) return false
+
+  const compactQuery = normalizedQuery.replace(/\s+/g, "")
+  const sizeName = normalizeSearchValue(size.size_name)
+  const sizeValue = normalizeSearchValue(size.size_value)
+  const sizeUnit = normalizeSearchValue(size.size_unit)
+  const sizeSku = normalizeSearchValue(size.sku)
+  const combined = `${String(size.size_value ?? "")}${String(size.size_unit ?? "")}`
+    .toLowerCase()
+    .replace(/\s+/g, "")
+
+  return (
+    sizeName.includes(normalizedQuery) ||
+    sizeValue.includes(normalizedQuery) ||
+    sizeUnit.includes(normalizedQuery) ||
+    sizeSku.includes(normalizedQuery) ||
+    combined.includes(compactQuery)
+  )
+}
+
 export const PharmacyProductsFullPage = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
@@ -83,6 +111,7 @@ export const PharmacyProductsFullPage = () => {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedProduct, setSelectedProduct] = useState<ProductDetails | null>(null)
+  const [selectedSizeIds, setSelectedSizeIds] = useState<string[]>([])
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
   const [imageZoom, setImageZoom] = useState(1)
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 })
@@ -93,6 +122,7 @@ export const PharmacyProductsFullPage = () => {
   const { wishlistItems, addToWishlist, removeFromWishlist, isInWishlist } = useWishlist()
   const [categories, setCategories] = useState<string[]>([]); // Fetched categories from database
   const [categoryConfigs, setCategoryConfigs] = useState<any[]>([]); // Full category configs with images
+  const [hadSearchQuery, setHadSearchQuery] = useState(false)
 
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
 
@@ -456,16 +486,18 @@ export const PharmacyProductsFullPage = () => {
 
     const query = searchQuery.toLowerCase().trim();
 
+    const hasSearchQuery = query.length > 0
+
     // Single-pass filtering with early returns
     const filtered = products.filter((product) => {
       // Category filter (early return for performance)
-      if (selectedCategory !== "all" && product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
+      if (!hasSearchQuery && selectedCategory !== "all" && product.category?.toLowerCase() !== selectedCategory.toLowerCase()) {
         return false;
       }
 
       // Subcategory filter
       // When a subcategory is selected, ONLY show products that match that specific subcategory
-      if (selectedSubcategory !== "all") {
+      if (!hasSearchQuery && selectedSubcategory !== "all") {
         if ((product.subcategory || DEFAULT_SUBCATEGORY).toLowerCase() !== selectedSubcategory.toLowerCase()) {
           console.log(`Product "${product.name}" filtered out - subcategory: "${product.subcategory}" vs selected: "${selectedSubcategory}"`);
           return false;
@@ -509,17 +541,7 @@ export const PharmacyProductsFullPage = () => {
       if (basicMatch) return true;
 
       // Size-based search (optimized)
-      return product.sizes?.some(size => {
-        const sizeValue = size.size_value?.toString().toLowerCase();
-        const sizeUnit = size.size_unit?.toLowerCase();
-        const sizeSku = size.sku?.toLowerCase();
-        const combined = `${size.size_value}${size.size_unit}`.toLowerCase();
-
-        return sizeValue?.includes(query) ||
-          sizeUnit?.includes(query) ||
-          sizeSku?.includes(query) ||
-          combined.includes(query.replace(/\s+/g, ''));
-      }) || false;
+      return product.sizes?.some((size) => matchesSizeSearch(size, query)) || false;
     });
 
     // Sort products (optimized with single sort)
@@ -543,12 +565,7 @@ export const PharmacyProductsFullPage = () => {
     if (query) {
       sortedProducts = sortedProducts.map(product => ({
         ...product,
-        matchingSizes: product.sizes?.filter(size =>
-          size.size_value?.toString().toLowerCase().includes(query) ||
-          size.size_unit?.toLowerCase().includes(query) ||
-          size.sku?.toLowerCase().includes(query) ||
-          `${size.size_value}${size.size_unit}`.toLowerCase().includes(query.replace(/\s+/g, ''))
-        ) || []
+        matchingSizes: product.sizes?.filter((size) => matchesSizeSearch(size, query)) || []
       }));
     }
 
@@ -571,11 +588,20 @@ export const PharmacyProductsFullPage = () => {
     );
   }, [categories, products]);
 
+  const hasActiveResultFilters = useMemo(
+    () =>
+      searchQuery.trim().length > 0 ||
+      showProducts !== "all" ||
+      priceRange !== "all",
+    [searchQuery, showProducts, priceRange]
+  )
+
   // Memoized handlers to prevent child re-renders
   const handleCategorySelect = useCallback((category: string) => {
     setSelectedCategory(category)
     setSelectedSubcategory("all")
     setSelectedProduct(null)
+    setSelectedSizeIds([])
   }, [])
 
   // Keep the inline product view in sync with the selected subcategory.
@@ -591,6 +617,7 @@ export const PharmacyProductsFullPage = () => {
     )
 
     setSelectedProduct(matchingProduct || null)
+    setSelectedSizeIds(matchingProduct?.matchingSizes?.map((size) => String(size.id)) || [])
   }, [filteredProducts, selectedSubcategory])
 
   // If user changes broader filters/search while browsing a category, close the inline product view.
@@ -600,13 +627,68 @@ export const PharmacyProductsFullPage = () => {
     }
 
     setSelectedProduct(null)
+    setSelectedSizeIds([])
   }, [selectedCategory, searchQuery, showProducts, selectedSubcategory])
+
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim()
+    if (!trimmedQuery) {
+      setSelectedSizeIds([])
+      return
+    }
+
+    const productsWithMatchedSizes = filteredProducts.filter(
+      (product) => (product.matchingSizes?.length || 0) > 0
+    )
+
+    if (productsWithMatchedSizes.length !== 1) {
+      return
+    }
+
+    const matchedProduct = productsWithMatchedSizes[0]
+    const matchedSizeIds = matchedProduct.matchingSizes?.map((size) => String(size.id)) || []
+
+    if (selectedCategory === "all" && matchedProduct.category) {
+      setSelectedCategory(matchedProduct.category)
+    }
+
+    setSelectedSubcategory(matchedProduct.subcategory?.trim() || DEFAULT_SUBCATEGORY)
+    setSelectedProduct(matchedProduct)
+    setSelectedSizeIds(matchedSizeIds)
+  }, [filteredProducts, searchQuery, selectedCategory])
+
+  useEffect(() => {
+    const trimmedQuery = searchQuery.trim()
+
+    if (trimmedQuery) {
+      if (!hadSearchQuery) {
+        setHadSearchQuery(true)
+        setSelectedCategory("all")
+        setSelectedSubcategory("all")
+        setSelectedProduct(null)
+        setSelectedSizeIds([])
+      }
+      return
+    }
+
+    if (!hadSearchQuery) {
+      return
+    }
+
+    setHadSearchQuery(false)
+    setSelectedCategory("all")
+    setSelectedSubcategory("all")
+    setSelectedProduct(null)
+    setSelectedSizeIds([])
+  }, [searchQuery, hadSearchQuery])
 
   const handleProductClick = useCallback((product: ProductDetails) => {
     if (selectedProduct?.id === product.id) {
       setSelectedProduct(null)
+      setSelectedSizeIds([])
     } else {
       setSelectedProduct(product)
+      setSelectedSizeIds(product.matchingSizes?.map((size) => String(size.id)) || [])
     }
   }, [selectedProduct?.id])
 
@@ -1018,7 +1100,7 @@ export const PharmacyProductsFullPage = () => {
                 )}
 
                 {/* Enhanced Category Grid - Only show when no specific category is selected */}
-                {selectedCategory === "all" && (
+                {selectedCategory === "all" && !hasActiveResultFilters && (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 sm:mb-12">
                     {visibleCategories.map((category, index) => {
                       const categoryImage = getCategoryImageUrl(category, index);
@@ -1065,24 +1147,26 @@ export const PharmacyProductsFullPage = () => {
                 )}
 
                 {/* Show all products when no product is selected */}
-                {selectedCategory !== "all" && !selectedProduct && (
+                {((selectedCategory !== "all") || hasActiveResultFilters) && !selectedProduct && (
                   <>
                     {/* Back to Categories Button */}
-                    <div className="mb-4">
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          setSelectedCategory("all")
-                          setSelectedSubcategory("all")
-                          setSelectedProduct(null)
-                        }}
-                        className="text-gray-600 hover:text-blue-600 -ml-2"
-                      >
-                        <ArrowLeft className="w-4 h-4 mr-2" />
-                        Back to Categories
-                      </Button>
-                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">{selectedCategory}</h2>
-                    </div>
+                    {selectedCategory !== "all" && (
+                      <div className="mb-4">
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setSelectedCategory("all")
+                            setSelectedSubcategory("all")
+                            setSelectedProduct(null)
+                          }}
+                          className="text-gray-600 hover:text-blue-600 -ml-2"
+                        >
+                          <ArrowLeft className="w-4 h-4 mr-2" />
+                          Back to Categories
+                        </Button>
+                        <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mt-2">{selectedCategory}</h2>
+                      </div>
+                    )}
                     <PharmacyProductGrid
                       products={filteredProducts}
                       viewMode={viewMode}
@@ -1101,6 +1185,8 @@ export const PharmacyProductsFullPage = () => {
                 {selectedCategory !== "all" && selectedProduct && (
                   <InlineProductSizes
                     product={selectedProduct}
+                    focusedSizeIds={selectedSizeIds}
+                    searchQuery={searchQuery}
                     wishlistItems={wishlistItems}
                     onAddToWishlist={addToWishlist}
                     onRemoveFromWishlist={removeFromWishlist}
@@ -1108,6 +1194,7 @@ export const PharmacyProductsFullPage = () => {
                     onClose={() => {
                       setSelectedSubcategory("all")
                       setSelectedProduct(null)
+                      setSelectedSizeIds([])
                     }}
                     onImageClick={handleImageClick}
                   />

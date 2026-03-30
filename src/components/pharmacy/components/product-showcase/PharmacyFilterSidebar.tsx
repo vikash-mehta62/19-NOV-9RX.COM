@@ -105,7 +105,7 @@ export const PharmacyFilterSidebar = ({
     }
   }, [selectedCategory])
 
-  const sourceProducts = allProducts.length > 0 ? allProducts : products
+  const sourceProducts = products.length > 0 ? products : allProducts
 
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === "all") return sourceProducts.length

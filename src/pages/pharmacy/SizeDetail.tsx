@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import { supabase } from "@/supabaseClient"
+import axios from "../../../axiosconfig"
 import { useSelector } from "react-redux"
 import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useCart } from "@/hooks/use-cart"
@@ -10,7 +11,6 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -42,6 +42,7 @@ import {
 import { ProductReviews } from "@/components/reviews/ProductReviews"
 import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
 import { PharmacyProductCard } from "@/components/pharmacy/components/product-showcase/PharmacyProductCard"
+import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
 import { canUserReview } from "@/services/reviewService"
 import { getProductEffectivePrice } from "@/services/productOfferService"
 import { formatPointsRedemptionRule, normalizePointRedemptionValue, normalizePointsPerDollar } from "@/lib/rewards"
@@ -64,7 +65,10 @@ export default function SizeDetail() {
   const [reviewKey, setReviewKey] = useState(0)
   const [showZoom, setShowZoom] = useState(false)
   const [isWishlisted, setIsWishlisted] = useState(false)
-  const [customization, setCustomization] = useState<{ enabled: boolean; text: string }>({ enabled: false, text: '' })
+  const [customizationItems, setCustomizationItems] = useState<CustomizationEnquiryItem[]>([])
+  const [customizationInstruction, setCustomizationInstruction] = useState("")
+  const [isCustomizationDialogOpen, setIsCustomizationDialogOpen] = useState(false)
+  const [isSendingCustomizationEnquiry, setIsSendingCustomizationEnquiry] = useState(false)
   const [isItemsExpanded, setIsItemsExpanded] = useState(false);
   const [similarProducts, setSimilarProducts] = useState<any[]>([])
   const [similarLoading, setSimilarLoading] = useState(false)
@@ -225,6 +229,28 @@ export default function SizeDetail() {
     return `https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/${image}`
   }
 
+  const product = data?.product
+  const size = data?.size
+
+  useEffect(() => {
+    if (!product || !size) return
+
+    const itemKey = `${product.id}:${size.id}`
+
+    setCustomizationItems((prev) => {
+      const existingItem = prev.find((item) => item.key === itemKey)
+      if (!existingItem || existingItem.requestedQuantity === quantity) {
+        return prev
+      }
+
+      return prev.map((item) =>
+        item.key === itemKey
+          ? { ...item, requestedQuantity: quantity }
+          : item
+      )
+    })
+  }, [product, size, quantity])
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -245,7 +271,7 @@ export default function SizeDetail() {
     )
   }
 
-  const { product, size, otherSizes } = data
+  const otherSizes = data.otherSizes
   const displayImage = size.image || product.image_url || product.images?.[0]
 
   // Pricing calculations
@@ -256,30 +282,120 @@ export default function SizeDetail() {
     : casePrice
   const unitsPerCase = size.quantity_per_case || 0
   const unitPrice = unitsPerCase > 0 ? effectiveCasePrice / unitsPerCase : 0
-  const customizationPrice = customization.enabled && product.customization?.allowed
-    ? (product.customization.price || 0) * quantity
-    : 0
   const originalTotalPrice = casePrice * quantity
   const discountedTotalPrice = effectiveCasePrice * quantity
-  const totalPrice = discountedTotalPrice + customizationPrice
+  const totalPrice = discountedTotalPrice
 
   const rewardPoints = Math.floor(totalPrice * rewardsConfig.pointsPerDollar)
 
   const isOutOfStock = size.stock <= 0
   const isInCart = cartItems.some(item => item.productId === productId && item.sizes?.some((s: any) => s.id === sizeId))
+  const isCustomizationSelected = customizationItems.some(
+    (item) => item.productId === product.id.toString() && item.sizeId === size.id
+  )
 
   const featuresList = (size.key_features || product.key_features || "")
     .split(/[\n,]/)
     .map((f: string) => f.trim())
     .filter((f: string) => f.length > 0)
 
+  const createCustomizationItem = (): CustomizationEnquiryItem => ({
+    key: `${product.id}:${size.id}`,
+    productId: product.id.toString(),
+    productName: product.name,
+    sizeId: size.id,
+    sizeLabel: `${size.size_value} ${product?.unitToggle ? size.size_unit : ""}`.trim(),
+    sku: size.sku || product.sku || "",
+    requestedQuantity: quantity,
+  })
+
+  const handleCustomizationToggle = (enabled: boolean) => {
+    const itemKey = `${product.id}:${size.id}`
+
+    if (enabled) {
+      setCustomizationItems((prev) => {
+        if (prev.some((item) => item.key === itemKey)) {
+          return prev
+        }
+        return [...prev, createCustomizationItem()]
+      })
+      setIsCustomizationDialogOpen(true)
+      return
+    }
+
+    setCustomizationItems((prev) => prev.filter((item) => item.key !== itemKey))
+  }
+
+  const handleSendCustomizationEnquiry = async () => {
+    if (customizationItems.length === 0) {
+      toast({
+        title: "No Size Selected",
+        description: "Select at least one size for customization enquiry.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsSendingCustomizationEnquiry(true)
+
+    try {
+      const name = userProfile?.display_name || userProfile?.name || "Unknown User"
+      const email = userProfile?.email || "NA"
+      const phone = userProfile?.mobile_phone || userProfile?.work_phone || "NA"
+
+      const selectedProducts = customizationItems.map((item) => {
+        const skuLabel = item.sku ? ` | SKU: ${item.sku}` : ""
+        return {
+          value: `${item.productName} - ${item.sizeLabel}${skuLabel} | Requested Qty: ${item.requestedQuantity}`
+        }
+      })
+
+      if (customizationInstruction.trim()) {
+        selectedProducts.push({ value: `Customization Instruction: ${customizationInstruction.trim()}` })
+      }
+
+      await axios.post("/customization", {
+        name,
+        email,
+        phone,
+        selectedProducts,
+      })
+
+      toast({
+        title: "Enquiry Sent",
+        description: "Customization enquiry sent to admin successfully.",
+      })
+
+      setCustomizationItems([])
+      setCustomizationInstruction("")
+      setIsCustomizationDialogOpen(false)
+    } catch (error) {
+      console.error("Failed to send customization enquiry:", error)
+      toast({
+        title: "Send Enquiry Failed",
+        description: "Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsSendingCustomizationEnquiry(false)
+    }
+  }
+
   const handleAddToCart = async () => {
     if (isOutOfStock) return
+    if (isCustomizationSelected) {
+      toast({
+        title: "Customization Selected",
+        description: "This size is selected for customization enquiry and cannot be added to cart.",
+        variant: "destructive",
+      })
+      return
+    }
     setIsAdding(true)
     try {
       await addToCart({
         productId: product.id,
-        name: `${product.name}${customization.enabled ? ' (Customized)' : ''}`,
+        name: product.name,
         sku: product.sku || size.sku || "",
         unitToggle: product.unitToggle,
         price: totalPrice,
@@ -298,15 +414,10 @@ export default function SizeDetail() {
           type: "case",
         }],
         quantity,
-        customizations: customization.enabled ? {
-          customization_enabled: 'true',
-          customization_text: customization.text,
-          customization_price: (product.customization?.price || 0).toString()
-        } : {},
-        notes: customization.enabled ? `Customization: ${customization.text}` : "",
+        customizations: {},
+        notes: "",
       })
       setQuantity(1)
-      setCustomization({ enabled: false, text: '' })
     } catch {
       toast({ title: "Error", variant: "destructive" })
     } finally {
@@ -316,6 +427,17 @@ export default function SizeDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <CustomizationEnquiryDialog
+        open={isCustomizationDialogOpen}
+        onOpenChange={setIsCustomizationDialogOpen}
+        items={customizationItems}
+        instruction={customizationInstruction}
+        onInstructionChange={setCustomizationInstruction}
+        onItemsChange={setCustomizationItems}
+        onSubmit={handleSendCustomizationEnquiry}
+        isSubmitting={isSendingCustomizationEnquiry}
+      />
+
       {/* Header */}
       <header className="bg-white border-b sticky top-0 z-50">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -570,16 +692,33 @@ export default function SizeDetail() {
             {!isOutOfStock && (
               <Card>
                 <CardContent className="p-4 space-y-4">
+                  {product.customization?.allowed && customizationItems.length > 0 && (
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                        onClick={() => setIsCustomizationDialogOpen(true)}
+                      >
+                        <Palette className="w-4 h-4 mr-1.5" />
+                        Customization Enquiry
+                        <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
+                          {customizationItems.length}
+                        </Badge>
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Quantity */}
                   <div className="flex items-center justify-between">
                     <span className="font-medium text-gray-700">Quantity</span>
-                    <div className="flex items-center border border-gray-200 rounded-lg bg-gray-50">
+                    <div className={`flex items-center border border-gray-200 rounded-lg bg-gray-50 ${isCustomizationSelected ? "opacity-60" : ""}`}>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-10 w-10 rounded-l-lg rounded-r-none hover:bg-gray-100"
                         onClick={() => setQuantity(q => Math.max(1, q - 1))}
-                        disabled={quantity <= 1}
+                        disabled={isCustomizationSelected || quantity <= 1}
                       >
                         <Minus className="w-4 h-4" />
                       </Button>
@@ -589,6 +728,7 @@ export default function SizeDetail() {
                         size="icon"
                         className="h-10 w-10 rounded-r-lg rounded-l-none hover:bg-gray-100"
                         onClick={() => setQuantity(q => q + 1)}
+                        disabled={isCustomizationSelected}
                       >
                         <Plus className="w-4 h-4" />
                       </Button>
@@ -601,8 +741,8 @@ export default function SizeDetail() {
                       <div className="flex items-center gap-2">
                         <Checkbox
                           id="customize-size"
-                          checked={customization.enabled}
-                          onCheckedChange={(checked) => setCustomization(prev => ({ ...prev, enabled: checked as boolean }))}
+                          checked={isCustomizationSelected}
+                          onCheckedChange={(checked) => handleCustomizationToggle(checked as boolean)}
                         />
                         <Label htmlFor="customize-size" className="text-sm font-medium text-purple-700 cursor-pointer flex items-center gap-1">
                           <Palette className="w-4 h-4" />
@@ -612,13 +752,20 @@ export default function SizeDetail() {
                           )}
                         </Label>
                       </div>
-                      {customization.enabled && (
-                        <Input
-                          placeholder="Enter customization details..."
-                          value={customization.text}
-                          onChange={(e) => setCustomization(prev => ({ ...prev, text: e.target.value }))}
-                          className="mt-2 text-sm border-purple-200"
-                        />
+                      {isCustomizationSelected && (
+                        <div className="mt-2 flex items-center justify-between gap-3">
+                          <p className="text-xs text-purple-700">
+                            This size is selected for customization enquiry. Use the dialog to add instructions and submit.
+                          </p>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            className="text-purple-700 hover:bg-purple-100"
+                            onClick={() => setIsCustomizationDialogOpen(true)}
+                          >
+                            Open Enquiry
+                          </Button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -628,7 +775,7 @@ export default function SizeDetail() {
                     {hasOfferDiscount && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Original total</span>
-                        <span className="text-gray-400 line-through">${(originalTotalPrice + customizationPrice).toFixed(2)}</span>
+                        <span className="text-gray-400 line-through">${originalTotalPrice.toFixed(2)}</span>
                       </div>
                     )}
                     <div className="flex items-center justify-between">
@@ -646,12 +793,14 @@ export default function SizeDetail() {
                   <Button
                     className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-base"
                     onClick={handleAddToCart}
-                    disabled={isAdding || isInCart}
+                    disabled={isAdding || isInCart || isCustomizationSelected}
                   >
                     {isAdding ? (
                       <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Adding...</>
                     ) : isInCart ? (
                       <><Check className="w-5 h-5 mr-2" />Added to Cart</>
+                    ) : isCustomizationSelected ? (
+                      <><Palette className="w-5 h-5 mr-2" />Selected For Enquiry</>
                     ) : (
                       <><ShoppingCart className="w-5 h-5 mr-2" />Add to Cart</>
                     )}
