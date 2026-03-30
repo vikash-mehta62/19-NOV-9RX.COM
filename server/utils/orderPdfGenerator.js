@@ -26,6 +26,28 @@ const toNumber = (value) => {
 
 const formatCurrency = (value) => `$${toNumber(value).toFixed(2)}`;
 
+const getDiscountRows = (discountAmount, discountDetails = []) => {
+  if (discountAmount <= 0) return [];
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [{ name: "Discount", amount: discountAmount }];
+  }
+
+  const rows = discountDetails.map((discount) => ({
+    name: discount?.name || "Discount",
+    amount: toNumber(discount?.amount || 0),
+  }));
+
+  const detailedTotal = rows.reduce((sum, discount) => sum + toNumber(discount.amount), 0);
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2));
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push({ name: "Discount", amount: Math.abs(remainder) });
+  }
+
+  return rows;
+};
+
 const getFrontendBaseUrl = () =>
   (process.env.FRONTEND_URL || DEFAULT_FRONTEND_URL).replace(/\/+$/, "");
 
@@ -298,6 +320,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       const shipping = toNumber(order?.shipping_cost || order?.shippin_cost || 0);
       const tax = toNumber(order?.tax_amount || 0);
       const discount = toNumber(order?.discount_amount || 0);
+      const discountDetails = order?.discount_details || [];
       const total = toNumber(order?.total_amount || order?.total || subtotal + shipping + tax - discount);
       const paymentStatus = String(order?.payment_status || "").toLowerCase();
       const paidAmountRaw = toNumber(order?.paid_amount || 0);
@@ -404,7 +427,8 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
         y += rowHeight;
       }
 
-      const summaryRows = 6 + (discount > 0 ? 1 : 0);
+      const discountRows = getDiscountRows(discount, discountDetails);
+      const summaryRows = 5 + discountRows.length + (discountRows.length > 0 ? 1 : 0);
       const paymentBlockHeight = paymentUrl && balanceDue > 0 ? 56 : 0;
       const requiredPostTableHeight = 12 + summaryRows * 16 + paymentBlockHeight + 20;
       if (y + requiredPostTableHeight > 730) {
@@ -432,9 +456,21 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       };
 
       writeSummaryRow("Subtotal", formatCurrency(subtotal));
-      if (discount > 0) writeSummaryRow("Discount", `-${formatCurrency(discount)}`);
       writeSummaryRow("Shipping", formatCurrency(shipping));
       writeSummaryRow("Tax", formatCurrency(tax));
+      if (discountRows.length > 0) {
+        doc
+          .moveTo(summaryX, y + 4)
+          .lineTo(545, y + 4)
+          .lineWidth(1)
+          .strokeColor("#d1d5db")
+          .stroke();
+        y += 12;
+
+        discountRows.forEach((discountRow) => {
+          writeSummaryRow(discountRow.name, `-${formatCurrency(discountRow.amount)}`, false, "#047857");
+        });
+      }
       writeSummaryRow("Total", formatCurrency(total), true);
       writeSummaryRow("Paid", formatCurrency(paid), false, "#047857");
       writeSummaryRow("Balance Due", formatCurrency(balanceDue), true, balanceDue > 0 ? "#b91c1c" : "#047857");

@@ -127,8 +127,13 @@ export const OverviewTab = ({
   const subtotal = calculateSubtotal();
   const shipping = parseFloat(order.shipping_cost || "0");
   const tax = parseFloat(order.tax_amount?.toString() || "0");
-  const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0");
   const discountDetails = (order as any).discount_details || [];
+  const discountDetailsTotal = discountDetails.reduce((sum: number, discount: any) => sum + Number(discount?.amount || 0), 0);
+  const discountAmount = Math.max(
+    parseFloat((order as any).discount_amount?.toString() || "0"),
+    discountDetailsTotal
+  );
+  const hasDiscountRows = discountAmount > 0 || discountDetails.length > 0;
   const hasFedExShipmentData =
     order.shipping?.method === "FedEx" ||
     Boolean(order.shipping?.labelUrl || order.shipping?.labelBase64 || order.shipping?.labelStoragePath || order.shipping?.serviceType);
@@ -420,7 +425,7 @@ export const OverviewTab = ({
             )}
             
             {/* Show discount if applied */}
-            {discountAmount > 0 && (
+            {hasDiscountRows && (
               <>
                 <Separator />
                 {discountDetails && discountDetails.length > 0 ? (

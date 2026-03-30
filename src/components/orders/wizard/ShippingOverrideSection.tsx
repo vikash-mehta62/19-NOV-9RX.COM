@@ -30,6 +30,7 @@ export const ShippingOverrideSection = ({
   // Check if auto charge should apply
   const shouldAutoCharge = autoChargeEnabled && subtotal < autoChargeThreshold && subtotal > 0;
   const recommendedShipping = shouldAutoCharge ? autoChargeAmount : currentShipping;
+  const userType = sessionStorage.getItem('userType')?.toLowerCase() || localStorage.getItem("userType")?.toLowerCase();
 
   useEffect(() => {
     // Reset override when subtotal changes
@@ -66,31 +67,34 @@ export const ShippingOverrideSection = ({
   return (
     <div className="space-y-4">
       {/* Auto Charge Info */}
-      {shouldAutoCharge && (
-        <Alert className="border-blue-200 bg-blue-50">
-          <Truck className="h-4 w-4 text-blue-600" />
-          <AlertDescription className="text-sm text-blue-800">
-            Automatic shipping charge of ${autoChargeAmount.toFixed(2)} applies to orders below ${autoChargeThreshold.toFixed(2)}
-          </AlertDescription>
-        </Alert>
+      {userType === "admin" && shouldAutoCharge && (
+        <>
+          <Alert className="border-blue-200 bg-blue-50">
+            <Truck className="h-4 w-4 text-blue-600" />
+            <AlertDescription className="text-sm text-blue-800">
+              Automatic shipping charge of ${autoChargeAmount.toFixed(2)} applies to orders below ${autoChargeThreshold.toFixed(2)}
+            </AlertDescription>
+          </Alert>
+
+
+          {/* Override Toggle */}
+          <div className="flex items-center justify-between rounded-lg border p-4">
+            <div className="space-y-0.5">
+              <Label className="text-base">Override Shipping Charge</Label>
+              <p className="text-sm text-muted-foreground">
+                Manually set a different shipping amount
+              </p>
+            </div>
+            <Switch
+              checked={isOverridden}
+              onCheckedChange={handleOverrideToggle}
+            />
+          </div>
+        </>
       )}
 
-      {/* Override Toggle */}
-      <div className="flex items-center justify-between rounded-lg border p-4">
-        <div className="space-y-0.5">
-          <Label className="text-base">Override Shipping Charge</Label>
-          <p className="text-sm text-muted-foreground">
-            Manually set a different shipping amount
-          </p>
-        </div>
-        <Switch
-          checked={isOverridden}
-          onCheckedChange={handleOverrideToggle}
-        />
-      </div>
-
       {/* Override Fields */}
-      {isOverridden && (
+      {userType === "admin" && isOverridden && (
         <div className="space-y-4 animate-slide-up">
           <div className="space-y-2">
             <Label htmlFor="custom-shipping">Custom Shipping Amount ($)</Label>
@@ -120,7 +124,7 @@ export const ShippingOverrideSection = ({
               rows={3}
               className="resize-none"
             />
-            {isOverridden && !overrideReason && (
+            {userType === "admin" && isOverridden && !overrideReason && (
               <Alert variant="destructive" className="py-2">
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription className="text-xs">
@@ -133,19 +137,21 @@ export const ShippingOverrideSection = ({
       )}
 
       {/* Current Shipping Display */}
-      <div className="rounded-lg bg-gray-50 p-4">
-        <div className="flex justify-between items-center">
-          <span className="text-sm font-medium text-gray-700">Current Shipping:</span>
-          <span className="text-lg font-bold text-gray-900">
-            ${(isOverridden ? customShipping : recommendedShipping).toFixed(2)}
-          </span>
+      {userType === "admin" && (
+        <div className="rounded-lg bg-gray-50 p-4">
+          <div className="flex justify-between items-center">
+            <span className="text-sm font-medium text-gray-700">Current Shipping:</span>
+            <span className="text-lg font-bold text-gray-900">
+              ${(isOverridden ? customShipping : recommendedShipping).toFixed(2)}
+            </span>
+          </div>
+          {isOverridden && (
+            <p className="text-xs text-amber-600 mt-2">
+              ⚠️ Shipping charge has been manually overridden
+            </p>
+          )}
         </div>
-        {isOverridden && (
-          <p className="text-xs text-amber-600 mt-2">
-            ⚠️ Shipping charge has been manually overridden
-          </p>
-        )}
-      </div>
+      )}
     </div>
   );
 };

@@ -83,6 +83,35 @@ interface InvoicePreviewProps {
   }
 }
 
+const buildDiscountSummaryRows = (
+  discountAmount: number,
+  discountDetails: Array<{ name?: string; amount?: number }>
+): string[][] => {
+  if (discountAmount <= 0) {
+    return []
+  }
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [["Discount", `-$${discountAmount.toFixed(2)}`]]
+  }
+
+  const rows = discountDetails.map((discount) => {
+    const amount = Number(discount?.amount || 0)
+    return [discount?.name || "Discount", `-$${amount.toFixed(2)}`]
+  })
+
+  const detailedTotal = discountDetails.reduce((sum, discount) => sum + Number(discount?.amount || 0), 0)
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2))
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push(["Discount", `-$${Math.abs(remainder).toFixed(2)}`])
+  }
+
+  return rows
+}
+
+const SUMMARY_BOTTOM_RESERVE = 58
+
 export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const { toast } = useToast()
   const invoiceRef = useRef<HTMLDivElement>(null)
@@ -309,7 +338,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const subtotalAmount = invoice?.subtotal || 0
   const taxAmount = Number(invoice?.tax || 0)
   const shippingCost = Number(invoice?.shippin_cost || 0)
-  const discountAmount = Number((invoice as any)?.discount_amount || 0)
+  const discountDetails = (invoice as any)?.discount_details || []
+  const discountDetailsTotal = discountDetails.reduce((sum: number, discount: any) => sum + Number(discount?.amount || 0), 0)
+  const discountAmount = Math.max(Number((invoice as any)?.discount_amount || 0), discountDetailsTotal)
+  const hasDiscountRows = discountAmount > 0 || discountDetails.length > 0
   
   // Calculate total - use stored total if available, otherwise calculate
    const calculatedTotal = subtotalAmount + taxAmount + shippingCost + processingFeeAmount - discountAmount
@@ -508,12 +540,6 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
 
-      // Check if summary section will fit on current page (need ~60mm for summary + footer)
-      if (finalY > pageHeight - 70) {
-        doc.addPage()
-        finalY = 20
-      }
-
       // ===== SUMMARY SECTION =====
       const shippingCost = Number(invoice?.shippin_cost || 0)
       const taxAmount = invoice?.tax || 0
@@ -530,23 +556,41 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             const pdfTotalAmount = storedTotal > 0 ? storedTotal : (subtotalAmount + shippingCost + taxAmount + resolvedProcessingFeeAmount - invoiceDiscountAmount)
 
       const invoiceSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+      let firstDiscountRowIndex: number | null = null
 
       if (resolvedProcessingFeeAmount > 0) {
         invoiceSummaryBody.push(["Credit Card Processing Fee", `$${resolvedProcessingFeeAmount.toFixed(2)}`])
       }
       if (invoiceDiscountAmount > 0) {
-        const discountName = invoiceDiscountDetails.length > 0 ? invoiceDiscountDetails[0].name || "Discount" : "Discount"
-        invoiceSummaryBody.push([discountName, `-$${invoiceDiscountAmount.toFixed(2)}`])
+        firstDiscountRowIndex = invoiceSummaryBody.length
+        invoiceSummaryBody.push(...buildDiscountSummaryRows(invoiceDiscountAmount, invoiceDiscountDetails))
       }
+
+      const balanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
 
       autoTable(doc as any, {
         body: invoiceSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
-        margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE }, tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220)
+            doc.setLineWidth(0.3)
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y)
+          }
+        },
       })
 
-      const summaryFinalY = (doc as any).lastAutoTable.finalY
+      let summaryFinalY = (doc as any).lastAutoTable.finalY
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        summaryFinalY = 20
+      }
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
@@ -568,7 +612,6 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         paidAmountY += 12
       }
       
-      const balanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
       if (balanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
@@ -778,10 +821,6 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
       })
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
-      if (finalY > pageHeight - 70) {
-        doc.addPage()
-        finalY = 20
-      }
 
       const shippingCost = Number(invoice?.shippin_cost || 0)
       const taxAmount = invoice?.tax || 0
@@ -798,23 +837,41 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
             const pdfTotalAmount = storedTotal > 0 ? storedTotal : (subtotalAmount + shippingCost + taxAmount + resolvedProcessingFeeAmount - printDiscountAmount)
 
       const printSummaryBody: any[] = [["Subtotal", `$${subtotalAmount.toFixed(2)}`], ["Shipping", `$${shippingCost.toFixed(2)}`], ["Tax", `$${taxAmount.toFixed(2)}`]]
+      let printFirstDiscountRowIndex: number | null = null
 
       if (resolvedProcessingFeeAmount > 0) {
         printSummaryBody.push(["Credit Card Processing Fee", `$${resolvedProcessingFeeAmount.toFixed(2)}`])
       }
       if (printDiscountAmount > 0) {
-        const discountName = printDiscountDetails.length > 0 ? printDiscountDetails[0].name || "Discount" : "Discount"
-        printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
+        printFirstDiscountRowIndex = printSummaryBody.length
+        printSummaryBody.push(...buildDiscountSummaryRows(printDiscountAmount, printDiscountDetails))
       }
+
+      const printBalanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
 
       autoTable(doc as any, {
         body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35 } },
-        margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE }, tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === printFirstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220)
+            doc.setLineWidth(0.3)
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y)
+          }
+        },
       })
 
-      const summaryFinalY = (doc as any).lastAutoTable.finalY
+      let summaryFinalY = (doc as any).lastAutoTable.finalY
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        summaryFinalY = 20
+      }
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
@@ -836,7 +893,6 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         printPaidAmountY += 12
       }
       
-      const printBalanceDue = Math.max(0, pdfTotalAmount - resolvedPaidAmount)
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
@@ -1108,10 +1164,10 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                 </div>
               )}
               {/* Show discount if applied */}
-              {Number((invoice as any)?.discount_amount || 0) > 0 && (
+              {hasDiscountRows && (
                 <>
                   <Separator />
-                  {((invoice as any)?.discount_details || []).map((discount: any, index: number) => (
+                  {discountDetails.map((discount: any, index: number) => (
                     <div key={index} className="flex justify-between text-sm">
                       <span className="text-green-600">{discount.name || "Discount"}</span>
                       <span className="font-medium text-green-600">
@@ -1119,19 +1175,19 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                       </span>
                     </div>
                   ))}
-                  {((invoice as any)?.discount_details || []).length === 0 && (
+                  {discountDetails.length === 0 && (
                     <div className="flex justify-between text-sm">
                       <span className="text-green-600">Discount</span>
-                      <span className="font-medium text-green-600">-${Number((invoice as any)?.discount_amount || 0).toFixed(2)}</span>
+                      <span className="font-medium text-green-600">-${discountAmount.toFixed(2)}</span>
                     </div>
                   )}
                 </>
               )}
               <Separator />
               <div className="flex justify-between"><span className="font-semibold text-sm sm:text-base text-gray-900">Total</span><span className="font-bold text-base sm:text-lg text-gray-900">${totalAmount.toFixed(2)}</span></div>
-              {Number((invoice as any)?.discount_amount || 0) > 0 && (
+              {hasDiscountRows && (
                 <div className="text-right text-sm text-green-600">
-                  You saved: ${Number((invoice as any)?.discount_amount || 0).toFixed(2)}
+                  You saved: ${discountAmount.toFixed(2)}
                 </div>
               )}
               {/* Paid Amount Display */}

@@ -63,6 +63,35 @@ const getAddressField = (
   return (addressObj as Record<string, string>)[field] || "";
 };
 
+const buildDiscountSummaryRows = (
+  discountAmount: number,
+  discountDetails: Array<{ name?: string; amount?: number }>
+): string[][] => {
+  if (discountAmount <= 0) {
+    return [];
+  }
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [["Discount", `-$${discountAmount.toFixed(2)}`]];
+  }
+
+  const rows = discountDetails.map((discount) => {
+    const amount = Number(discount?.amount || 0);
+    return [discount?.name || "Discount", `-$${amount.toFixed(2)}`];
+  });
+
+  const detailedTotal = discountDetails.reduce((sum, discount) => sum + Number(discount?.amount || 0), 0);
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2));
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push(["Discount", `-$${Math.abs(remainder).toFixed(2)}`]);
+  }
+
+  return rows;
+};
+
+const SUMMARY_BOTTOM_RESERVE = 58;
+
 const toDateInputValue = (value?: string | null) => {
   if (!value) return "";
   const parsed = new Date(value);
@@ -732,6 +761,7 @@ export const OrderDetailsSheet = ({
     const tax = Number(currentOrder?.tax_amount || 0);
     const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
     const processingFee = Number((currentOrder as any)?.processing_fee_amount || 0);
+    const discountDetails = (currentOrder as any)?.discount_details || [];
     const total = subtotal + handling + freight + shipping + tax + processingFee - discountAmount;
 
     doc.setFillColor(...brandColor);
@@ -928,14 +958,16 @@ export const OrderDetailsSheet = ({
       const summaryBody: any[] = poIs
         ? [["Subtotal", `$${subtotal.toFixed(2)}`], ["Freight", `$${freight.toFixed(2)}`], ["Handling", `$${handling.toFixed(2)}`]]
         : [["Subtotal", `$${subtotal.toFixed(2)}`], ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`], ["Tax", `$${(freight + tax).toFixed(2)}`]];
+      let firstDiscountRowIndex: number | null = null;
+      const balanceDue = Math.max(0, total - paidAmount);
 
-      if (!poIs && discountAmount > 0) {
-        summaryBody.push(["Discount", `-$${discountAmount.toFixed(2)}`]);
-      }
-
-      // Add processing fee for sales orders (not POs)
       if (!poIs && processingFee > 0) {
         summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
+      }
+
+      if (!poIs && discountAmount > 0) {
+        firstDiscountRowIndex = summaryBody.length;
+        summaryBody.push(...buildDiscountSummaryRows(discountAmount, discountDetails));
       }
 
       autoTable(doc as any, {
@@ -947,11 +979,26 @@ export const OrderDetailsSheet = ({
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85 },
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
         tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220);
+            doc.setLineWidth(0.3);
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y);
+          }
+        },
       });
 
-      const summaryFinalY = (doc as any).lastAutoTable.finalY;
+      let summaryFinalY = (doc as any).lastAutoTable.finalY;
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage();
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        summaryFinalY = 20;
+      }
       doc.setFillColor(...brandColor);
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
       doc.setFont("helvetica", "bold");
@@ -969,7 +1016,6 @@ export const OrderDetailsSheet = ({
         doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
-      const balanceDue = Math.max(0, total - paidAmount);
       if (balanceDue > 0 && !poIs) {
         doc.setFillColor(239, 68, 68);
         doc.roundedRect(pageWidth - margin - 85, paymentY, 80, 10, 1, 1, "F");
@@ -1330,7 +1376,7 @@ export const OrderDetailsSheet = ({
       });
 
 
-      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      let finalY = (doc as any).lastAutoTable.finalY + 8;
 
       // ===== SUMMARY SECTION =====
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
@@ -1348,26 +1394,26 @@ export const OrderDetailsSheet = ({
 
       // Get discount details for display
       const discountDetails = (currentOrder as any)?.discount_details || [];
-      const discountLabel = discountDetails.length > 0
-        ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
-        : "Discount";
 
       const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
-
-      // Add discount row if discount exists
-      if (discountAmount > 0) {
-        summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
-      }
-
+      let firstDiscountRowIndex: number | null = null;
+      const pdfBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
 
       // Add processing fee for sales orders (not POs)
       if (!poIs && processingFee > 0) {
         summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
       }
+
+      // Add discount rows after charges
+      if (discountAmount > 0) {
+        firstDiscountRowIndex = summaryBody.length;
+        summaryBody.push(...buildDiscountSummaryRows(discountAmount, discountDetails));
+      }
+
       autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
@@ -1377,12 +1423,27 @@ export const OrderDetailsSheet = ({
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85 },
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
         tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220);
+            doc.setLineWidth(0.3);
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y);
+          }
+        },
       });
 
       // Total row with highlight
-      const summaryFinalY = (doc as any).lastAutoTable.finalY;
+      let summaryFinalY = (doc as any).lastAutoTable.finalY;
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage();
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        summaryFinalY = 20;
+      }
       doc.setFillColor(...brandColor);
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
       doc.setFont("helvetica", "bold");
@@ -1404,7 +1465,6 @@ export const OrderDetailsSheet = ({
         pdfPaidAmountY += 12;
       }
 
-      const pdfBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
       if (pdfBalanceDue > 0) {
         doc.setFillColor(239, 68, 68); // Red
         doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F");
@@ -1809,7 +1869,7 @@ export const OrderDetailsSheet = ({
         }
       });
 
-      const finalY = (doc as any).lastAutoTable.finalY + 8;
+      let finalY = (doc as any).lastAutoTable.finalY + 8;
 
       // ===== SUMMARY SECTION =======
       const subtotal = currentOrder.items.reduce((sum, item: any) => {
@@ -1821,31 +1881,31 @@ export const OrderDetailsSheet = ({
       const shipping = Number(currentOrder?.shipping_cost || 0);
       const tax = Number(currentOrder?.tax_amount || 0);
       const discountAmount = Number((currentOrder as any)?.discount_amount || 0);
+      const processingFee = Number((currentOrder as any)?.processing_fee_amount || 0);
       // Correct formula: Total = Subtotal + Shipping + Tax + PO Charges (if PO) - Discount
-      const total = subtotal + handling + fred + shipping + tax - discountAmount;
+      const total = subtotal + handling + fred + shipping + tax + processingFee - discountAmount;
 
       // Get discount details for display
       const discountDetails = (currentOrder as any)?.discount_details || [];
-      const discountLabel = discountDetails.length > 0
-        ? discountDetails.map((d: any) => d.name || "Discount").join(", ")
-        : "Discount";
 
       const summaryBody: any[] = [
         ["Subtotal", `$${subtotal.toFixed(2)}`],
         ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`],
         ["Tax", `$${(fred + tax).toFixed(2)}`],
       ];
-
-      // Add discount row if discount exists
-      if (discountAmount > 0) {
-        summaryBody.push([discountLabel, `-$${discountAmount.toFixed(2)}`]);
-      }
-
+      let firstDiscountRowIndex: number | null = null;
+      const printBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
 
       // Add processing fee for sales orders (not POs)
       if (!poIs && processingFee > 0) {
         summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
       }
+
+      if (discountAmount > 0) {
+        firstDiscountRowIndex = summaryBody.length;
+        summaryBody.push(...buildDiscountSummaryRows(discountAmount, discountDetails));
+      }
+
       autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
@@ -1855,12 +1915,27 @@ export const OrderDetailsSheet = ({
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85 },
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
         tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220);
+            doc.setLineWidth(0.3);
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y);
+          }
+        },
       });
 
       // Total row with highlight
-      const summaryFinalY = (doc as any).lastAutoTable.finalY;
+      let summaryFinalY = (doc as any).lastAutoTable.finalY;
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage();
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        summaryFinalY = 20;
+      }
       doc.setFillColor(...brandColor);
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
       doc.setFont("helvetica", "bold");
@@ -1882,7 +1957,6 @@ export const OrderDetailsSheet = ({
         printPaidAmountY += 12;
       }
 
-      const printBalanceDue = Math.abs(total - paidAmount) < 0.01 ? 0 : Math.max(0, total - paidAmount);
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68); // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F");

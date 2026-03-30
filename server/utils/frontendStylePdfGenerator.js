@@ -19,6 +19,13 @@ const COLORS = {
 const PAGE_MARGIN = 12; // 12mm margin (matching frontend)
 const PAGE_WIDTH = 210; // A4 width in mm
 const PAGE_HEIGHT = 297; // A4 height in mm
+const TOP_BAND_HEIGHT = 3;
+const FOOTER_Y = PAGE_HEIGHT - 42;
+const FOOTER_SAFE_TOP_Y = FOOTER_Y - 6;
+const CONTINUATION_TOP_Y = 15;
+const SUMMARY_ROW_HEIGHT = 8;
+const SUMMARY_BOX_HEIGHT = 10;
+const SUMMARY_BOX_GAP = 12;
 
 // Helper functions
 const toNumber = (value) => {
@@ -27,6 +34,59 @@ const toNumber = (value) => {
 };
 
 const formatCurrency = (value) => `${toNumber(value).toFixed(2)}`;
+
+const drawTopBand = (doc, mm) => {
+  doc.rect(0, 0, mm(PAGE_WIDTH), mm(TOP_BAND_HEIGHT)).fill('#3B82F6');
+};
+
+const drawItemsTableHeader = (doc, mm, tableStartY, includePricingInPdf, colX) => {
+  const tableHeaderHeight = 9;
+
+  doc.roundedRect(mm(PAGE_MARGIN), mm(tableStartY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(tableHeaderHeight), mm(1))
+     .fillColor('#3B82F6')
+     .fill();
+
+  doc.fontSize(9)
+     .fillColor('#FFFFFF')
+     .font('Helvetica-Bold');
+
+  doc.text('SKU', mm(colX.num), mm(tableStartY + 3));
+  doc.text('Description', mm(colX.desc), mm(tableStartY + 3));
+  doc.text('Size', mm(colX.size), mm(tableStartY + 3));
+  doc.text('Qty', mm(colX.qty), mm(tableStartY + 3));
+  if (includePricingInPdf) {
+    doc.text('Unit Price', mm(colX.price), mm(tableStartY + 3));
+    doc.text('Total', mm(colX.total), mm(tableStartY + 3));
+  }
+};
+
+const addContinuationPage = (doc, mm) => {
+  doc.addPage();
+  drawTopBand(doc, mm);
+  return CONTINUATION_TOP_Y;
+};
+
+const getDiscountRows = (discountAmount, discountDetails = []) => {
+  if (discountAmount <= 0) return [];
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [{ name: "Credit Memo", amount: discountAmount }];
+  }
+
+  const rows = discountDetails.map((discount) => ({
+    name: discount?.name || "Discount",
+    amount: toNumber(discount?.amount || 0),
+  }));
+
+  const detailedTotal = rows.reduce((sum, discount) => sum + toNumber(discount.amount), 0);
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2));
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push({ name: "Discount", amount: Math.abs(remainder) });
+  }
+
+  return rows;
+};
 
 // Generate barcode using bwip-js
 const generateBarcode = async (text) => {
@@ -180,8 +240,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const mm = (value) => value * 2.83465;
       
       // Add blue header band (3mm height - matching frontend)
-      doc.rect(0, 0, mm(PAGE_WIDTH), mm(3))
-         .fill('#3B82F6');
+      drawTopBand(doc, mm);
       
       // Add company logo
       try {
@@ -337,16 +396,6 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       // Items table header
       const tableStartY = 108;
       const tableHeaderHeight = 9;
-      
-      // Table header (blue background)
-      doc.roundedRect(mm(PAGE_MARGIN), mm(tableStartY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(tableHeaderHeight), mm(1))
-         .fillColor('#3B82F6')
-         .fill();
-      
-      doc.fontSize(9)
-         .fillColor('#FFFFFF')
-         .font('Helvetica-Bold');
-      
       const colX = {
         num: PAGE_MARGIN + 2,
         desc: PAGE_MARGIN + 20,
@@ -355,20 +404,21 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         price: PAGE_MARGIN + 145,
         total: PAGE_MARGIN + 168,
       };
-      
-      doc.text('SKU', mm(colX.num), mm(tableStartY + 3));
-      doc.text('Description', mm(colX.desc), mm(tableStartY + 3));
-      doc.text('Size', mm(colX.size), mm(tableStartY + 3));
-      doc.text('Qty', mm(colX.qty), mm(tableStartY + 3));
-      if (includePricingInPdf) {
-        doc.text('Unit Price', mm(colX.price), mm(tableStartY + 3));
-        doc.text('Total', mm(colX.total), mm(tableStartY + 3));
-      }
+      drawItemsTableHeader(doc, mm, tableStartY, includePricingInPdf, colX);
       
       // Table rows
       let rowY = tableStartY + tableHeaderHeight;
       const rowHeight = 8;
       let itemIndex = 1;
+      const ensureTableRowSpace = () => {
+        if (rowY + rowHeight <= FOOTER_SAFE_TOP_Y) return;
+        rowY = addContinuationPage(doc, mm);
+        drawItemsTableHeader(doc, mm, rowY, includePricingInPdf, colX);
+        rowY += tableHeaderHeight;
+        doc.fontSize(8)
+           .fillColor('#1F2937')
+           .font('Helvetica');
+      };
       
       doc.fontSize(8)
          .fillColor('#1F2937')
@@ -384,6 +434,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             const itemQty = toNumber(size.quantity || 0);
             const itemPrice = toNumber(size.price || 0);
             const itemTotal = itemPrice * itemQty;
+            ensureTableRowSpace();
             
             // Alternate row background
             if (itemIndex % 2 === 0) {
@@ -411,6 +462,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           const itemQty = toNumber(item.quantity || 1);
           const itemPrice = toNumber(item.price || item.unit_price || 0);
           const itemTotal = itemPrice * itemQty;
+          ensureTableRowSpace();
 
           if (itemIndex % 2 === 0) {
             doc.rect(mm(PAGE_MARGIN), mm(rowY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(rowHeight))
@@ -442,93 +494,78 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
          .font('Helvetica');
       
       let totalY = totalsStartY;
+      const discountRows = getDiscountRows(discountAmount, discountDetails);
+      const summaryRows = [
+        { label: 'Subtotal', value: subtotal },
+        { label: 'Shipping', value: shipping },
+        { label: 'Tax', value: tax },
+      ];
+
+      if (isPurchaseOrder && freightCharges > 0) {
+        summaryRows.push({ label: 'Freight', value: freightCharges });
+      }
+
+      if (isPurchaseOrder && handlingCharges > 0) {
+        summaryRows.push({ label: 'Handling', value: handlingCharges });
+      }
+
+      if (processingFeeAmount > 0) {
+        summaryRows.push({ label: 'Credit Card Processing Fee', value: processingFeeAmount });
+      }
+
+      const moveSummaryToNextPage = () => {
+        totalY = addContinuationPage(doc, mm);
+        doc.fontSize(9)
+           .fillColor('#1F2937')
+           .font('Helvetica');
+      };
+
+      const ensureSummarySpace = (requiredHeight) => {
+        if (totalY + requiredHeight <= FOOTER_SAFE_TOP_Y) return;
+        moveSummaryToNextPage();
+      };
       
       console.log("🎨 Rendering totals at Y position:", totalsStartY);
       console.log("🎨 Totals X position:", totalsX, "Value X position:", valueX);
       
-      // Subtotal
-      doc.fillColor('#1F2937');
-      doc.text('Subtotal', mm(totalsX), mm(totalY));
-      doc.fillColor('#1F2937');
-      const subtotalText = `$${formatCurrency(subtotal)}`;
-      console.log("💰 Rendering Subtotal:", subtotalText, "at position:", mm(valueX), mm(totalY));
-      doc.text(subtotalText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-      totalY += 8;
-      
-      // Shipping
-      doc.fillColor('#1F2937');
-      doc.text('Shipping', mm(totalsX), mm(totalY));
-      doc.fillColor('#1F2937');
-      const shippingText = `$${formatCurrency(shipping)}`;
-      console.log("🚚 Rendering Shipping:", shippingText, "at position:", mm(valueX), mm(totalY));
-      doc.text(shippingText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-      totalY += 8;
-      
-      // Tax
-      doc.fillColor('#1F2937');
-      doc.text('Tax', mm(totalsX), mm(totalY));
-      doc.fillColor('#1F2937');
-      const taxText = `$${formatCurrency(tax)}`;
-      console.log("💵 Rendering Tax:", taxText, "at position:", mm(valueX), mm(totalY));
-      doc.text(taxText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-      totalY += 8;
-
-      if (isPurchaseOrder && freightCharges > 0) {
+      summaryRows.forEach((summaryRow) => {
+        ensureSummarySpace(SUMMARY_ROW_HEIGHT);
         doc.fillColor('#1F2937');
-        doc.text('Freight', mm(totalsX), mm(totalY));
-        doc.fillColor('#1F2937');
-        doc.text(`$${formatCurrency(freightCharges)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-        totalY += 8;
-      }
-
-      if (isPurchaseOrder && handlingCharges > 0) {
-        doc.fillColor('#1F2937');
-        doc.text('Handling', mm(totalsX), mm(totalY));
-        doc.fillColor('#1F2937');
-        doc.text(`$${formatCurrency(handlingCharges)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-        totalY += 8;
-      }
-
-      if (processingFeeAmount > 0) {
-        doc.fillColor('#1F2937');
-        doc.text('Credit Card Processing Fee', mm(totalsX), mm(totalY));
-        doc.fillColor('#1F2937');
-        const processingFeeText = `$${formatCurrency(processingFeeAmount)}`;
-        console.log("ðŸ’³ Rendering Processing Fee:", processingFeeText, "at position:", mm(valueX), mm(totalY));
-        doc.text(processingFeeText, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
-        totalY += 8;
-      }
+        doc.text(summaryRow.label, mm(totalsX), mm(totalY));
+        doc.text(`$${formatCurrency(summaryRow.value)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
+        totalY += SUMMARY_ROW_HEIGHT;
+      });
       
       // Discounts (if any)
-      if (discountAmount > 0) {
-        if (discountDetails.length > 0) {
-          discountDetails.forEach((discount) => {
-            const discountName = discount.name || "Credit Memo";
-            const discountValue = toNumber(discount.amount || 0);
-            
-            // Draw discount line in green
-            doc.fillColor('#10B981');
-            doc.text(discountName, mm(totalsX), mm(totalY));
-            doc.text(`-${formatCurrency(discountValue)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right' });
-            totalY += 8;
-          });
-        } else {
+      if (discountRows.length > 0) {
+        ensureSummarySpace(SUMMARY_ROW_HEIGHT);
+        doc.moveTo(mm(totalsX), mm(totalY - 3))
+           .lineTo(mm(valueX + 45), mm(totalY - 3))
+           .strokeColor('#DCDCDC')
+           .lineWidth(0.3)
+           .stroke();
+
+        discountRows.forEach((discount) => {
+          ensureSummarySpace(SUMMARY_ROW_HEIGHT);
           doc.fillColor('#10B981');
-          doc.text('Credit Memo', mm(totalsX), mm(totalY));
-          doc.text(`-${formatCurrency(discountAmount)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right' });
-          totalY += 8;
-        }
-        doc.fillColor('#1F2937'); // Reset color
+          doc.text(discount.name, mm(totalsX), mm(totalY));
+          doc.text(`-${formatCurrency(discount.amount)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right' });
+          totalY += SUMMARY_ROW_HEIGHT;
+        });
+        doc.fillColor('#1F2937');
       }
       
       totalY += 4;
       
       // Total box (blue background)
       const totalBoxWidth = 80;
-      const totalBoxHeight = 10;
+      const totalBoxHeight = SUMMARY_BOX_HEIGHT;
       const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - totalBoxWidth;
+      const finalBlockHeight = totalBoxHeight
+        + (actualPaid > 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0)
+        + (actualPaid > 0 && balanceDue === 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0);
+      ensureSummarySpace(finalBlockHeight);
       const totalBoxY = totalY - 5;
-      
       doc.roundedRect(mm(totalBoxX), mm(totalBoxY), mm(totalBoxWidth), mm(totalBoxHeight), mm(1))
          .fill('#3B82F6');
       
@@ -540,7 +577,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       // Add "PAID AMOUNT" and "FULLY PAID" badges if paid
       if (actualPaid > 0) {
-        totalY += 12;
+        totalY += SUMMARY_BOX_GAP;
         doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
            .fillColor('#10B981')
            .fill();
@@ -552,7 +589,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
            .text(`$${formatCurrency(actualPaid)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
         
         if (balanceDue === 0) {
-          totalY += 12;
+          totalY += SUMMARY_BOX_GAP;
           doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
              .fillColor('#10B981')
              .fill();
@@ -587,7 +624,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
 
         // Keep all footer text above PDFKit's bottom margin safe area.
         // Writing inside the bottom margin causes PDFKit to push text to a new page.
-        const footerY = PAGE_HEIGHT - 42;
+        const footerY = FOOTER_Y;
         const contactY = footerY + 7;
         const pageNumberY = PAGE_HEIGHT - 19;
         doc.fontSize(10)

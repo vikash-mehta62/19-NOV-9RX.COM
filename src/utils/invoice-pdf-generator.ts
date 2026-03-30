@@ -71,6 +71,35 @@ const generateBarcode = (text: string): string => {
   return canvas.toDataURL("image/png");
 };
 
+const buildDiscountSummaryRows = (
+  discountAmount: number,
+  discountDetails: Array<{ name?: string; amount?: number }>
+): string[][] => {
+  if (discountAmount <= 0) {
+    return [];
+  }
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [["Discount", `-${discountAmount.toFixed(2)}`]];
+  }
+
+  const rows = discountDetails.map((discount) => {
+    const amount = Number(discount?.amount || 0);
+    return [discount?.name || "Discount", `-${amount.toFixed(2)}`];
+  });
+
+  const detailedTotal = discountDetails.reduce((sum, discount) => sum + Number(discount?.amount || 0), 0);
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2));
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push(["Discount", `-${Math.abs(remainder).toFixed(2)}`]);
+  }
+
+  return rows;
+};
+
+const SUMMARY_BOTTOM_RESERVE = 58;
+
 /**
  * Generate invoice PDF blob using frontend styling (jsPDF)
  * This matches the exact format from InvoicePreview.tsx
@@ -327,12 +356,6 @@ export async function generateInvoicePdfBlob(
 
   let finalY = doc.lastAutoTable.finalY + 8;
 
-  // Check if summary section will fit on current page
-  if (finalY > pageHeight - 70) {
-    doc.addPage();
-    finalY = 20;
-  }
-
   // ===== SUMMARY SECTION =====
   const invoiceDiscountDetails = invoice?.discount_details || [];
   const invoiceSummaryBody: any[] = [
@@ -340,16 +363,18 @@ export async function generateInvoicePdfBlob(
     ["Shipping", `${shippingCost.toFixed(2)}`],
     ["Tax", `${taxAmount.toFixed(2)}`],
   ];
+  let firstDiscountRowIndex: number | null = null;
 
   if (processingFeeAmount > 0) {
     invoiceSummaryBody.push(["Credit Card Processing Fee", `${processingFeeAmount.toFixed(2)}`]);
   }
 
   if (discountAmount > 0) {
-    const discountName =
-      invoiceDiscountDetails.length > 0 ? invoiceDiscountDetails[0].name || "Discount" : "Discount";
-    invoiceSummaryBody.push([discountName, `-${discountAmount.toFixed(2)}`]);
+    firstDiscountRowIndex = invoiceSummaryBody.length;
+    invoiceSummaryBody.push(...buildDiscountSummaryRows(discountAmount, invoiceDiscountDetails));
   }
+
+  const balanceDue = Math.max(0, totalAmount - paidAmount);
 
   autoTable(doc, {
     body: invoiceSummaryBody,
@@ -360,11 +385,26 @@ export async function generateInvoicePdfBlob(
       0: { halign: "right", cellWidth: 45 },
       1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
     },
-    margin: { left: pageWidth - margin - 85 },
+    margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
     tableWidth: 80,
+    didDrawCell: (data: any) => {
+      if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+        doc.setDrawColor(220, 220, 220);
+        doc.setLineWidth(0.3);
+        doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y);
+      }
+    },
   });
 
-  const summaryFinalY = doc.lastAutoTable.finalY;
+  let summaryFinalY = doc.lastAutoTable.finalY;
+  if (summaryFinalY + 38 > pageHeight - 30) {
+    doc.addPage();
+    doc.setFillColor(...brandColor);
+    doc.rect(0, 0, pageWidth, 5, "F");
+    doc.setFillColor(...brandColor);
+    doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+    summaryFinalY = 20;
+  }
   doc.setFillColor(...brandColor);
   doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
   doc.setFont("helvetica", "bold");
@@ -386,7 +426,6 @@ export async function generateInvoicePdfBlob(
     paidAmountY += 12;
   }
 
-  const balanceDue = Math.max(0, totalAmount - paidAmount);
   if (balanceDue > 0) {
     doc.setFillColor(239, 68, 68); // Red
     doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F");

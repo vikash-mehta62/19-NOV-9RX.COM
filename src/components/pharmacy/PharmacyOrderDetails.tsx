@@ -48,6 +48,33 @@ const getAddressField = (
   return ""
 }
 
+const buildDiscountSummaryRows = (
+  discountAmount: number,
+  discountDetails: Array<{ name?: string; amount?: number }>,
+): string[][] => {
+  if (discountAmount <= 0) return []
+
+  if (!Array.isArray(discountDetails) || discountDetails.length === 0) {
+    return [["Discount", `-$${discountAmount.toFixed(2)}`]]
+  }
+
+  const rows = discountDetails.map((discount) => {
+    const amount = Number(discount?.amount || 0)
+    return [discount?.name || "Discount", `-$${amount.toFixed(2)}`]
+  })
+
+  const detailedTotal = discountDetails.reduce((sum, discount) => sum + Number(discount?.amount || 0), 0)
+  const remainder = Number((discountAmount - detailedTotal).toFixed(2))
+
+  if (Math.abs(remainder) >= 0.01) {
+    rows.push(["Discount", `-$${Math.abs(remainder).toFixed(2)}`])
+  }
+
+  return rows
+}
+
+const SUMMARY_BOTTOM_RESERVE = 58
+
 export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrderDetailsProps) => {
   const { toast } = useToast()
   const [companyName, setCompanyName] = useState("")
@@ -122,8 +149,13 @@ console.log(order,"PHARorder")
   }, 0)
   const shipping = parseFloat(order.shipping_cost || "0")
   const tax = parseFloat(order.tax_amount?.toString() || "0")
-  const discountAmount = parseFloat((order as any).discount_amount?.toString() || "0")
   const discountDetails = (order as any).discount_details || []
+  const discountDetailsTotal = discountDetails.reduce((sum: number, discount: any) => sum + Number(discount?.amount || 0), 0)
+  const discountAmount = Math.max(
+    parseFloat((order as any).discount_amount?.toString() || "0"),
+    discountDetailsTotal,
+  )
+  const hasDiscountRows = discountAmount > 0 || discountDetails.length > 0
   
   // Use total_amount (includes processing fee) for accurate balance calculation - same as admin flow
   const total = Number(order.total_amount || order.total || 0)
@@ -410,12 +442,6 @@ console.log(order,"PHARorder")
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
 
-      // Check if summary section will fit on current page
-      if (finalY > pageHeight - 70) {
-        doc.addPage()
-        finalY = 20
-      }
-
       // ===== SUMMARY SECTION =====
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
       const isPurchaseOrder = (order as any)?.poAccept === false
@@ -431,6 +457,7 @@ console.log(order,"PHARorder")
         ["Tax", `$${(fred + tax).toFixed(2)}`],
        
       ]
+      let firstDiscountRowIndex: number | null = null
       if (pdfProcessingFee > 0) {
   summaryBody.push([
     "Card Processing Fee",
@@ -439,9 +466,11 @@ console.log(order,"PHARorder")
 }
       // Add discount row if applicable
       if (pdfDiscountAmount > 0) {
-        const discountName = discountDetails.length > 0 ? discountDetails[0].name || "Discount" : "Discount"
-        summaryBody.push([discountName, `-$${pdfDiscountAmount.toFixed(2)}`])
+        firstDiscountRowIndex = summaryBody.length
+        summaryBody.push(...buildDiscountSummaryRows(pdfDiscountAmount, discountDetails))
       }
+
+      const pdfBalanceDue = Math.max(0, pdfTotal - paidAmount)
 
       autoTable(doc as any, {
         body: summaryBody,
@@ -452,12 +481,27 @@ console.log(order,"PHARorder")
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85 },
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
         tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220)
+            doc.setLineWidth(0.3)
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y)
+          }
+        },
       })
 
       // Total row with highlight
-      const summaryFinalY = (doc as any).lastAutoTable.finalY
+      let summaryFinalY = (doc as any).lastAutoTable.finalY
+      if (summaryFinalY + 38 > pageHeight - 30) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        summaryFinalY = 20
+      }
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
@@ -479,7 +523,6 @@ console.log(order,"PHARorder")
         pdfPaidAmountY += 12
       }
       
-      const pdfBalanceDue = Math.max(0, pdfTotal - paidAmount)
       if (pdfBalanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
@@ -711,32 +754,51 @@ console.log(order,"PHARorder")
       })
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
-      if (finalY > pageHeight - 70) {
-        doc.addPage()
-        finalY = 20
-      }
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
       const isPurchaseOrder = (order as any)?.poAccept === false
       const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
+      const printProcessingFee = !isPurchaseOrder ? Number(processingFeeAmount || 0) : 0
       const fred = isPurchaseOrder ? Number((order as any)?.po_fred_charges || 0) : 0
       const printDiscountAmount = discountAmount
-      const pdfTotal = subtotal + handling + fred + shipping + tax - printDiscountAmount
+      const pdfTotal = subtotal + handling + fred + shipping + tax + printProcessingFee - printDiscountAmount
 
       // Build summary body with discount if applicable
       const printSummaryBody: any[] = [["Subtotal", `$${subtotal.toFixed(2)}`], ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`], ["Tax", `$${(fred + tax).toFixed(2)}`]]
-      if (printDiscountAmount > 0) {
-        const discountName = discountDetails.length > 0 ? discountDetails[0].name || "Discount" : "Discount"
-        printSummaryBody.push([discountName, `-$${printDiscountAmount.toFixed(2)}`])
+      let printFirstDiscountRowIndex: number | null = null
+      if (printProcessingFee > 0) {
+        printSummaryBody.push(["Card Processing Fee", `$${printProcessingFee.toFixed(2)}`])
       }
+      if (printDiscountAmount > 0) {
+        printFirstDiscountRowIndex = printSummaryBody.length
+        printSummaryBody.push(...buildDiscountSummaryRows(printDiscountAmount, discountDetails))
+      }
+
+      const printBalanceDue = Math.max(0, pdfTotal - paidAmount)
 
       autoTable(doc as any, {
         body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
-        margin: { left: pageWidth - margin - 85 }, tableWidth: 80,
+        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE }, tableWidth: 80,
+        didDrawCell: (data: any) => {
+          if (data.section === "body" && data.column.index === 0 && data.row.index === printFirstDiscountRowIndex) {
+            doc.setDrawColor(220, 220, 220)
+            doc.setLineWidth(0.3)
+            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y)
+          }
+        },
       })
 
-      const summaryFinalY = (doc as any).lastAutoTable.finalY
+      let summaryFinalY = (doc as any).lastAutoTable.finalY
+      const finalPrintBlockHeight = paidAmount > 0 ? 34 : 22
+      if (summaryFinalY + finalPrintBlockHeight > pageHeight - 30) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        summaryFinalY = 20
+      }
       doc.setFillColor(...brandColor)
       doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
       doc.setFont("helvetica", "bold")
@@ -756,10 +818,8 @@ console.log(order,"PHARorder")
         doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
         doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
         printPaidAmountY += 12
-        printPaidAmountY += 12
       }
       
-      const printBalanceDue = Math.max(0, pdfTotal - paidAmount)
       if (printBalanceDue > 0) {
         doc.setFillColor(239, 68, 68) // Red
         doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
@@ -1091,7 +1151,7 @@ console.log(order,"PHARorder")
                 )}
                 
                 {/* Show discount if applied */}
-                {discountAmount > 0 && (
+                {hasDiscountRows && (
                   <>
                     <Separator />
                     {discountDetails.map((discount: any, index: number) => (
@@ -1116,7 +1176,7 @@ console.log(order,"PHARorder")
                   <span className="text-base sm:text-lg font-bold text-gray-900">{processingFeeAmount > 0 ? "Total Charged" : "Total"}</span>
                   <span className="text-xl sm:text-2xl font-bold text-blue-600">${displayTotal.toFixed(2)}</span>
                 </div>
-                {discountAmount > 0 && (
+                {hasDiscountRows && (
                   <div className="text-right text-sm text-green-600">
                     You saved: ${discountAmount.toFixed(2)}
                   </div>
