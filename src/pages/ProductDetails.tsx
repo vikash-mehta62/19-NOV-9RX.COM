@@ -563,6 +563,7 @@ const ProductDetails = () => {
                   sku: size.sku || "",
                   price: size.price || 0,
                   price_per_case: size.price_per_case || 0,
+                  sizeSquanence: size.sizeSquanence || 0,
                   stock: size.stock || 0,
                   quantity_per_case: size.quantity_per_case || 0,
                   shipping_cost: size.shipping_cost || 0,
@@ -582,6 +583,7 @@ const ProductDetails = () => {
                   const isAdmin = userProfile?.type === 'admin';
                   return isAdmin || size.is_active !== false;
                 })
+                .sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0))
             : [],
         }
 
@@ -1258,7 +1260,7 @@ return (
 
               {/* Grid of Variant Cards - B2B Medical Supply Design */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {product.sizes.map((size) => {
+                {[...product.sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)).map((size) => {
                   const quantity = selectedSizes.get(size.id) || 1
                   const price = getSizePrice(size) || 0
                   const originalPrice = size.price || 0 // Original price before offer
@@ -1278,7 +1280,7 @@ return (
                   const offerDiscountPercent = hasOfferDiscount ? productOffer.discountPercent : 0
                   
                   // Debug logging for first size only
-                  if (product.sizes.indexOf(size) === 0) {
+                  if ([...product.sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)).indexOf(size) === 0) {
                     console.log("=== SIZE CARD RENDER DEBUG ===");
                     console.log("Size:", size.size_value, size.size_unit);
                     console.log("productOffer:", productOffer);
