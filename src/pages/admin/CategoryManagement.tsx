@@ -51,6 +51,7 @@ interface SortableCategoryItemProps {
   onAddSize: (productId: string) => void;
   onDeleteSize: (size: ProductSizeSummary) => void;
   onToggleSizeStatus: (size: ProductSizeSummary) => void;
+  onAddSubcategory: () => void;
 }
 
 interface CategoryProductSummary {
@@ -165,6 +166,7 @@ const SortableCategoryItem = ({
   onAddSize,
   onDeleteSize,
   onToggleSizeStatus,
+  onAddSubcategory,
 }: SortableCategoryItemProps) => {
   const {
     attributes,
@@ -369,7 +371,7 @@ const SortableCategoryItem = ({
         {/* Category Info */}
         <div className="flex-1 min-w-0">
           <h3 className="text-2xl font-bold text-gray-900 mb-2">{category.category_name}</h3>
-          <div className="flex items-center gap-4 text-sm">
+          <div className="flex items-center gap-3 text-sm flex-wrap">
             <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
               <span className="text-lg font-bold">#{index + 1}</span>
             </span>
@@ -377,6 +379,17 @@ const SortableCategoryItem = ({
               <Package className="w-4 h-4" />
               <span className="font-bold">{products.length}</span> Subcategor{products.length === 1 ? 'y' : 'ies'}
             </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubcategory();
+              }}
+              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+              title="Add new subcategory to this category"
+            >
+              <Plus className="w-3 h-3" />
+              Add Subcategory
+            </button>
           </div>
         </div>
 
@@ -682,8 +695,17 @@ const SortableCategoryItem = ({
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-6 text-sm text-slate-500">
-              No products found in this category.
+            <div className="rounded-lg border border-dashed border-slate-300 bg-white px-4 py-12 text-center">
+              <Package className="w-16 h-16 text-slate-400 mx-auto mb-4" />
+              <p className="text-base font-medium text-slate-700 mb-2">No subcategories found in this category</p>
+              <p className="text-sm text-slate-500 mb-6">Get started by adding your first subcategory</p>
+              <Button
+                onClick={onAddSubcategory}
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add New Subcategory
+              </Button>
             </div>
           )}
         </div>
@@ -708,6 +730,7 @@ const CategoryManagement = () => {
   const [addingSizeProductId, setAddingSizeProductId] = useState<string | null>(null);
   const [activeSizeUnits, setActiveSizeUnits] = useState<string[]>(FALLBACK_SIZE_UNITS);
   const [activeDefaultUnit, setActiveDefaultUnit] = useState<string>(FALLBACK_DEFAULT_UNIT);
+  const [activeUnitToggle, setActiveUnitToggle] = useState<boolean>(true);
   const [sizeToDelete, setSizeToDelete] = useState<ProductSizeSummary | null>(null);
   const [subcategoryToDelete, setSubcategoryToDelete] = useState<CategoryProductSummary | null>(null);
   const [isAddProductDialogOpen, setIsAddProductDialogOpen] = useState(false);
@@ -719,6 +742,8 @@ const CategoryManagement = () => {
   const [placeholderInitialData, setPlaceholderInitialData] = useState<Partial<ProductFormValues> | undefined>(undefined);
   const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [categoryManagerInitialCategory, setCategoryManagerInitialCategory] = useState<string>('');
+  const [categoryManagerInitialTab, setCategoryManagerInitialTab] = useState<'category' | 'subcategory'>('category');
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -806,7 +831,11 @@ const CategoryManagement = () => {
         .flat()
         .find((product) => (product.sizes || []).some((size) => size.id === sizeId));
 
+      console.log(matchedProduct)
       resolveCategoryUnits(matchedProduct?.category);
+      
+      // Set unitToggle state
+      setActiveUnitToggle(matchedProduct?.unitToggle === true);
 
       const { data, error } = await supabase
         .from("product_sizes")
@@ -818,11 +847,26 @@ const CategoryManagement = () => {
         throw error;
       }
 
+      // Determine default unit based on unitToggle setting
+      const matchedCategory = categories.find((item) => item.category_name === matchedProduct?.category);
+      const resolvedUnits = matchedCategory?.size_units && matchedCategory.size_units.length > 0
+        ? matchedCategory.size_units
+        : FALLBACK_SIZE_UNITS;
+      
+      let defaultUnitValue: string;
+      if (matchedProduct?.unitToggle === true) {
+        // If unitToggle is ON, use actual unit (category default or existing unit)
+        defaultUnitValue = data.size_unit || matchedCategory?.default_unit || resolvedUnits[0] || FALLBACK_DEFAULT_UNIT;
+      } else {
+        // If unitToggle is OFF, use "unit" or "NA"
+        defaultUnitValue = "unit";
+      }
+
       setEditingSize({
         id: data.id,
         size_name: data.size_name || "",
         size_value: data.size_value || "",
-        size_unit: data.size_unit || "",
+        size_unit: defaultUnitValue,
         sku: data.sku || "",
         price: Number(data.price || 0),
         price_per_case: Number(data.price_per_case || 0),
@@ -855,10 +899,21 @@ const CategoryManagement = () => {
       .find((product) => product.id === productId);
     const resolvedUnits =
       categories.find((item) => item.category_name === matchedProduct?.category)?.size_units || FALLBACK_SIZE_UNITS;
-    const resolvedDefaultUnit =
-      categories.find((item) => item.category_name === matchedProduct?.category)?.default_unit ||
-      resolvedUnits[0] ||
-      FALLBACK_DEFAULT_UNIT;
+    
+    // Set unitToggle state
+    setActiveUnitToggle(matchedProduct?.unitToggle === true);
+    
+    // Determine default unit based on unitToggle setting
+    let resolvedDefaultUnit: string;
+    if (matchedProduct?.unitToggle === true) {
+      // If unitToggle is ON, use category's default unit
+      resolvedDefaultUnit = categories.find((item) => item.category_name === matchedProduct?.category)?.default_unit ||
+        resolvedUnits[0] ||
+        FALLBACK_DEFAULT_UNIT;
+    } else {
+      // If unitToggle is OFF, use the first available unit
+      resolvedDefaultUnit = resolvedUnits[0] || FALLBACK_DEFAULT_UNIT;
+    }
 
     setActiveSizeUnits(resolvedUnits.length > 0 ? resolvedUnits : FALLBACK_SIZE_UNITS);
     setActiveDefaultUnit(resolvedDefaultUnit);
@@ -887,10 +942,25 @@ const CategoryManagement = () => {
   };
 
   const handleSaveSizeEdit = async (size: EditableSize) => {
+    // Find the product to check unitToggle setting
+    const matchedProduct = Object.values(productsByCategory)
+      .flat()
+      .find((product) => (product.sizes || []).some((s) => s.id === size.id));
+    
+    // Determine final unit based on unitToggle
+    let finalSizeUnit: string;
+    if (matchedProduct?.unitToggle === true) {
+      // If unitToggle is ON, use the selected unit or default
+      finalSizeUnit = size.size_unit || activeDefaultUnit || "unit";
+    } else {
+      // If unitToggle is OFF, always use "unit"
+      finalSizeUnit = "unit";
+    }
+    
     const updates = {
       size_name: size.size_name || null,
       size_value: size.size_value,
-      size_unit: size.size_unit,
+      size_unit: finalSizeUnit,
       sku: size.sku || null,
       price: Number(size.price || 0),
       price_per_case: calculateSizeUnitPrice(size),
@@ -933,7 +1003,7 @@ const CategoryManagement = () => {
                   ...productSize,
                   size_name: size.size_name || "",
                   size_value: size.size_value,
-                  size_unit: size.size_unit,
+                  size_unit: finalSizeUnit,
                   sku: size.sku || "",
                   price: Number(size.price || 0),
                   stock: Number(size.stock || 0),
@@ -947,7 +1017,7 @@ const CategoryManagement = () => {
       return next;
     });
 
-    setEditingSize(size);
+    setEditingSize({ ...size, size_unit: finalSizeUnit });
     toast({
       title: "Success",
       description: "Size updated successfully",
@@ -965,11 +1035,26 @@ const CategoryManagement = () => {
       throw error;
     }
 
+    // Find the product to check unitToggle setting
+    const matchedProduct = Object.values(productsByCategory)
+      .flat()
+      .find((product) => product.id === addingSizeProductId);
+    
+    // Determine final unit based on unitToggle
+    let finalSizeUnit: string;
+    if (matchedProduct?.unitToggle === true) {
+      // If unitToggle is ON, use the selected unit or default
+      finalSizeUnit = size.size_unit || activeDefaultUnit || "unit";
+    } else {
+      // If unitToggle is OFF, always use "unit"
+      finalSizeUnit = "unit";
+    }
+
     const payload = {
       product_id: addingSizeProductId,
       size_name: size.size_name || null,
       size_value: size.size_value || "0",
-      size_unit: size.size_unit || "unit",
+      size_unit: finalSizeUnit,
       sku: size.sku || null,
       price: Number(size.price || 0),
       price_per_case: calculateSizeUnitPrice(size),
@@ -1314,6 +1399,12 @@ const CategoryManagement = () => {
     setIsEditSubcategoryDialogOpen(true);
   };
 
+  const handleOpenCategoryManager = (categoryName: string) => {
+    setCategoryManagerInitialCategory(categoryName);
+    setCategoryManagerInitialTab('subcategory');
+    setIsCategoryManagerOpen(true);
+  };
+
   const handleAddProduct = async (data: ProductFormValues) => {
     setIsSubmittingProduct(true);
     try {
@@ -1571,6 +1662,11 @@ const CategoryManagement = () => {
                         onAddSize={handleOpenAddSize}
                         onDeleteSize={setSizeToDelete}
                         onToggleSizeStatus={handleToggleSizeStatus}
+                        onAddSubcategory={() => {
+                          setCategoryManagerInitialCategory(category.category_name);
+                          setCategoryManagerInitialTab('subcategory');
+                          setIsCategoryManagerOpen(true);
+                        }}
                       />
                     ))}
                   </div>
@@ -1636,6 +1732,7 @@ const CategoryManagement = () => {
         onSave={handleSaveSizeEdit}
         sizeUnits={activeSizeUnits}
         defaultUnit={activeDefaultUnit}
+        showUnitField={activeUnitToggle}
       />
 
       <EditSizeDialog
@@ -1653,6 +1750,7 @@ const CategoryManagement = () => {
         saveLabel="Add Size"
         sizeUnits={activeSizeUnits}
         defaultUnit={activeDefaultUnit}
+        showUnitField={activeUnitToggle}
       />
 
       <ConfirmDeleteDialog
@@ -1689,8 +1787,17 @@ const CategoryManagement = () => {
 
       <CategorySubcategoryManager
         open={isCategoryManagerOpen}
-        onOpenChange={setIsCategoryManagerOpen}
+        onOpenChange={(open) => {
+          setIsCategoryManagerOpen(open);
+          if (!open) {
+            // Reset initial values when dialog closes
+            setCategoryManagerInitialCategory('');
+            setCategoryManagerInitialTab('category');
+          }
+        }}
         onSuccess={loadCategories}
+        initialTab={categoryManagerInitialTab}
+        initialCategory={categoryManagerInitialCategory}
       />
 
       <AddProductDialog

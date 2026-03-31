@@ -61,6 +61,7 @@ interface EditSizeDialogProps {
   saveLabel?: string
   sizeUnits?: string[]
   defaultUnit?: string
+  showUnitField?: boolean
 }
 
 export function EditSizeDialog({
@@ -72,6 +73,7 @@ export function EditSizeDialog({
   saveLabel = "Save Changes",
   sizeUnits = ["unit", "OZ", "mm", "mL", "cc", "inch", "gram", "dram", "ROLL"],
   defaultUnit = "unit",
+  showUnitField = true,
 }: EditSizeDialogProps) {
   const { toast } = useToast()
   const [draft, setDraft] = useState<EditableSize | null>(size)
@@ -81,16 +83,17 @@ export function EditSizeDialog({
   const [imageUrls, setImageUrls] = useState<Record<string, string>>({})
 
   useEffect(() => {
-    setDraft(size)
-  }, [size])
-
-  useEffect(() => {
-    setDraft((prev) => {
-      if (!prev) return prev
-      if (prev.size_unit) return prev
-      return { ...prev, size_unit: defaultUnit }
-    })
-  }, [defaultUnit, open])
+    if (size) {
+      // If size_unit is empty or null, set it to defaultUnit
+      const finalSize = {
+        ...size,
+        size_unit: size.size_unit || defaultUnit
+      };
+      setDraft(finalSize);
+    } else {
+      setDraft(size);
+    }
+  }, [size, defaultUnit]);
 
   useEffect(() => {
     if (!open) return
@@ -238,7 +241,7 @@ export function EditSizeDialog({
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <Badge variant="secondary" className="text-base px-3 py-1">
-                {draft.size_value} {draft.size_unit}
+                {draft.size_value} {showUnitField ? draft.size_unit : ''}
               </Badge>
               {draft.sku && <Badge variant="outline">{draft.sku}</Badge>}
               <span className="text-green-600 font-semibold">${Number(draft.price || 0).toFixed(2)}/CS</span>
@@ -255,24 +258,26 @@ export function EditSizeDialog({
                 <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Size Value</Label>
                 <Input value={draft.size_value} onChange={(e) => handleFieldChange("size_value", e.target.value)} className="mt-1" />
               </div>
-              <div>
-                <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Unit</Label>
-                <UiSelect
-                  value={draft.size_unit || defaultUnit}
-                  onValueChange={(value) => handleFieldChange("size_unit", value)}
-                >
-                  <SelectTrigger className="mt-1 w-full">
-                    <SelectValue placeholder="Select unit" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizeUnits.map((unit) => (
-                      <SelectItem key={unit} value={unit} className="uppercase">
-                        {unit}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </UiSelect>
-              </div>
+              {showUnitField && (
+                <div>
+                  <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">Unit</Label>
+                  <UiSelect
+                    value={draft.size_unit || defaultUnit}
+                    onValueChange={(value) => handleFieldChange("size_unit", value)}
+                  >
+                    <SelectTrigger className="mt-1 w-full">
+                      <SelectValue placeholder="Select unit" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sizeUnits.map((unit) => (
+                        <SelectItem key={unit} value={unit} className="uppercase">
+                          {unit}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </UiSelect>
+                </div>
+              )}
               <div>
                 <Label className="text-xs font-medium text-gray-600 uppercase tracking-wide">SKU</Label>
                 <Input value={draft.sku || ""} onChange={(e) => handleFieldChange("sku", e.target.value)} className="mt-1" />

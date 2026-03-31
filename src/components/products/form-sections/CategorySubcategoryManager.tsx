@@ -40,6 +40,8 @@ interface Props {
   open: boolean;
   onOpenChange: (val: boolean) => void;
   onSuccess?: () => void;
+  initialTab?: 'category' | 'subcategory';
+  initialCategory?: string;
 }
 
 interface Category {
@@ -64,8 +66,14 @@ const DEFAULT_UNITS = ["unit", "OZ", "mm", "mL", "cc", "inch", "gram", "dram", "
 const getErrorMessage = (error: unknown, fallback: string) =>
   error instanceof Error && error.message ? error.message : fallback;
 
-export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange, onSuccess }) => {
-  const [activeTab, setActiveTab] = useState<'category' | 'subcategory'>('category');
+export const CategorySubcategoryManager: React.FC<Props> = ({ 
+  open, 
+  onOpenChange, 
+  onSuccess,
+  initialTab = 'category',
+  initialCategory = '',
+}) => {
+  const [activeTab, setActiveTab] = useState<'category' | 'subcategory'>(initialTab);
   const [loading, setLoading] = useState(false);
 
   // Category states
@@ -88,7 +96,7 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
   // Subcategory states
   const [subcategories, setSubcategories] = useState<Subcategory[]>([]);
-  const [selectedCategoryForSub, setSelectedCategoryForSub] = useState('');
+  const [selectedCategoryForSub, setSelectedCategoryForSub] = useState(initialCategory);
   const [editingSubcategory, setEditingSubcategory] = useState<Subcategory | null>(null);
   const [subcategoryForm, setSubcategoryForm] = useState({
     category_name: '',
@@ -102,10 +110,33 @@ export const CategorySubcategoryManager: React.FC<Props> = ({ open, onOpenChange
 
   useEffect(() => {
     if (open) {
+      // Set initial tab and category when dialog opens
+      setActiveTab(initialTab);
+      setSelectedCategoryForSub(initialCategory);
+      
+      // Also update the form if category is pre-selected
+      if (initialCategory && initialTab === 'subcategory') {
+        setSubcategoryForm({
+          category_name: initialCategory,
+          subcategory_name: ''
+        });
+      }
+      
       fetchCategories();
       fetchSubcategories();
+    } else {
+      // Reset when dialog closes
+      setActiveTab('category');
+      setSelectedCategoryForSub('');
+      setEditingSubcategory(null);
+      setSubcategoryForm({
+        category_name: '',
+        subcategory_name: ''
+      });
+      setSubcategoryImage(null);
+      setSubcategoryImagePreview('');
     }
-  }, [open]);
+  }, [open, initialTab, initialCategory]);
 
   useEffect(() => {
     if (selectedCategoryForSub) {

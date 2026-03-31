@@ -355,7 +355,8 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
                         category_name: selectedSub.category_name,
                         subcategory_name: selectedSub.subcategory_name,
                       };
-                      customizationForm.setValue('similar_products', [newItem, ...current.slice(1)], {
+                      // Clear second selection when first changes
+                      customizationForm.setValue('similar_products', [newItem], {
                         shouldDirty: true,
                       });
                     }
