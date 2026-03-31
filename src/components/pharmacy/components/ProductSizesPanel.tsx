@@ -591,7 +591,7 @@ export const ProductSizesPanel = ({
                   ))}
                 </div>
               ) : displayProduct.sizes && displayProduct.sizes.length > 0 ? (
-                displayProduct.sizes.map((size) => {
+                [...displayProduct.sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)).map((size) => {
                   const sizeId = size.id
                   const selection = selectedSizes[sizeId] || { quantity: 1, type: 'case' }
                   const currentPrice = selection.type === 'case' ? size.price : size.price_per_case

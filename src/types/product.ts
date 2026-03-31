@@ -21,6 +21,7 @@ export interface ProductSize {
   lotNumber?: string;
   exipry?: string;
   originalPrice?: number; // For group pricing - shows original price if discounted
+  sizeSquanence?: number; // For ordering sizes
 }
 
 export interface Product {

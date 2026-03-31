@@ -292,14 +292,17 @@ export const InlineProductSizes = ({
   )
   const displayedSizes = useMemo(() => {
     const allSizes = displayProduct?.sizes || []
+    // Sort by sizeSquanence first
+    const sortedSizes = [...allSizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0))
+    
     if (normalizedFocusedSizeIds.length === 0) {
-      return allSizes
+      return sortedSizes
     }
 
     const focusedSizeIdSet = new Set(normalizedFocusedSizeIds)
-    const matchedSizes = allSizes.filter((size) => focusedSizeIdSet.has(String(size.id)))
+    const matchedSizes = sortedSizes.filter((size) => focusedSizeIdSet.has(String(size.id)))
 
-    return matchedSizes.length > 0 ? matchedSizes : allSizes
+    return matchedSizes.length > 0 ? matchedSizes : sortedSizes
   }, [displayProduct?.sizes, normalizedFocusedSizeIds])
   const isFocusedSearchResult = normalizedFocusedSizeIds.length > 0
 

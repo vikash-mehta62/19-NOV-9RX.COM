@@ -16,9 +16,12 @@ export const ProductSizes = ({ sizes, unitToggle }: ProductSizesProps) => {
   }
   console.log(sizes)
 
+  // Sort sizes by sizeSquanence before displaying
+  const sortedSizes = [...sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0));
+
   // Show first 2 sizes inline, rest in popup
-  const displaySizes = sizes.slice(0, 2)
-  const hasMore = sizes.length > 2
+  const displaySizes = sortedSizes.slice(0, 2)
+  const hasMore = sortedSizes.length > 2
 
   return (
     <div className="space-y-1">
@@ -36,7 +39,7 @@ export const ProductSizes = ({ sizes, unitToggle }: ProductSizesProps) => {
         <Dialog>
           <DialogTrigger asChild>
             <Button variant="ghost" size="sm" className="text-blue-600 hover:text-blue-800 p-0 h-auto">
-              +{sizes.length - 2} more sizes
+              +{sortedSizes.length - 2} more sizes
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
@@ -45,7 +48,7 @@ export const ProductSizes = ({ sizes, unitToggle }: ProductSizesProps) => {
             </DialogHeader>
             <ScrollArea className="max-h-[400px] pr-4">
               <div className="space-y-3">
-                {sizes.map((size) => (
+                {sortedSizes.map((size) => (
                   <div key={size.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex flex-col">
                       <span className="font-medium">

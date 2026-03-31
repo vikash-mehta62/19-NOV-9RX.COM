@@ -79,6 +79,7 @@ interface ProductSizeSummary {
   price?: number | null;
   image?: string | null;
   is_active?: boolean | null;
+  sizeSquanence?: number | null;
 }
 
 const calculateSizeUnitPrice = (size: {
@@ -108,7 +109,12 @@ const buildProductsByCategory = (
       if (!acc[categoryName]) {
         acc[categoryName] = [];
       }
-      acc[categoryName].push(product);
+      // Sort sizes by sizeSquanence
+      const sortedProduct = {
+        ...product,
+        sizes: (product.sizes || []).sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0))
+      };
+      acc[categoryName].push(sortedProduct);
       return acc;
     },
     {}
@@ -764,7 +770,7 @@ const CategoryManagement = () => {
         fetchOrderedSubcategories(),
         supabase
           .from("products")
-          .select("id, name, category, subcategory, unitToggle, is_active, base_price, image_url, sizes:product_sizes(id, size_name, size_value, size_unit, stock, sku, price, image, is_active)")
+          .select("id, name, category, subcategory, unitToggle, is_active, base_price, image_url, sizes:product_sizes(id, size_name, size_value, size_unit, stock, sku, price, image, is_active, sizeSquanence)")
           .order("name", { ascending: true }),
       ]);
 

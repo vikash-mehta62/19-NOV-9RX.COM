@@ -273,7 +273,7 @@ export const PharmacyProductCard = ({
           <div className="mt-2 p-2 bg-gray-50 rounded-lg border">
             <div className="text-xs font-medium text-gray-700 mb-2">Available Sizes:</div>
             <div className="space-y-1.5 max-h-32 overflow-y-auto">
-              {product.sizes.map((size, index) => {
+              {[...product.sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)).map((size, index) => {
                 const isMatching = isSizeMatching(size)
                 // Calculate discounted price if offer exists
                 const sizePrice = size.price || 0

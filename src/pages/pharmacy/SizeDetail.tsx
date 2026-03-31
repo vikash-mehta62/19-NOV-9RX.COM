@@ -196,7 +196,7 @@ export default function SizeDetail() {
       // Fetch products that belong to any of the selected similar subcategories
       const { data: products, error } = await supabase
         .from("products")
-        .select("id, name, category, description, image_url, images, customization, unitToggle, sizes:product_sizes!inner(id, size_value, size_unit, price, stock, quantity_per_case, is_active)")
+        .select("id, name, category, description, image_url, images, customization, unitToggle, sizes:product_sizes!inner(id, size_value, size_unit, price, stock, quantity_per_case, is_active, sizeSquanence)")
         .in("subcategory", candidates)
         .neq("id", productId)
         .eq("is_active", true) // Only fetch active products

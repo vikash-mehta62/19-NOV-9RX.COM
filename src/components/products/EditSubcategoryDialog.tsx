@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Upload, X, Package } from 'lucide-react';
+import { Loader2, Upload, X, Package, Save } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { useForm } from 'react-hook-form';
@@ -47,6 +47,7 @@ interface ProductData {
     size_unit: string;
     price: number;
     stock: number;
+    sizeSquanence?: number;
   }>;
 }
 
@@ -69,6 +70,9 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
     category_name: string;
     subcategory_name: string;
   }>>([]);
+  const [localSizes, setLocalSizes] = useState<ProductData['sizes']>([]);
+  const [hasOrderChanges, setHasOrderChanges] = useState(false);
+  const [savingOrder, setSavingOrder] = useState(false);
   const customizationForm = useForm<ProductFormValues>({
     defaultValues: {
       customization: {
@@ -113,7 +117,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
           unitToggle,
           customization,
           similar_products,
-          sizes:product_sizes(id, size_value, size_unit, price, stock)
+          sizes:product_sizes(id, size_value, size_unit, price, stock, sizeSquanence)
         `)
         .eq('id', productId)
         .single();
@@ -124,6 +128,12 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
       setSubcategoryName(data.subcategory || '');
       setDescription(data.description || '');
       setUnitToggle(data.unitToggle || false);
+      
+      // Set local sizes for drag-and-drop
+      const sortedSizes = (data.sizes || []).sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0));
+      setLocalSizes(sortedSizes);
+      setHasOrderChanges(false);
+      
       customizationForm.reset({
         customization: {
           allowed: data.customization?.allowed ?? false,
@@ -193,6 +203,44 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
       toast.error('Failed to upload image');
       return null;
     }
+  };
+
+  const handleSaveOrder = async () => {
+    if (!hasOrderChanges) return;
+    
+    setSavingOrder(true);
+    try {
+      // Update sizeSquanence for all sizes
+      const updates = localSizes.map((size, idx) => ({
+        id: size.id,
+        sizeSquanence: idx
+      }));
+      
+      for (const update of updates) {
+        const { error: updateError } = await supabase
+          .from('product_sizes')
+          .update({ sizeSquanence: update.sizeSquanence } as any)
+          .eq('id', update.id);
+        
+        if (updateError) throw updateError;
+      }
+      
+      setHasOrderChanges(false);
+      toast.success('Product order saved successfully!');
+    } catch (error) {
+      console.error('Error saving product order:', error);
+      toast.error('Failed to save product order');
+    } finally {
+      setSavingOrder(false);
+    }
+  };
+
+  const handleResetOrder = async () => {
+    if (!productData) return;
+    const sortedSizes = (productData.sizes || []).sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0));
+    setLocalSizes(sortedSizes);
+    setHasOrderChanges(false);
+    toast.info('Order reset to saved state');
   };
 
   const handleSave = async () => {
@@ -481,23 +529,88 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
 
             {/* Products List - Always visible, unit display changes based on toggle */}
             <div>
-              <Label className="text-base font-semibold">Products</Label>
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-base font-semibold">Products</Label>
+                {hasOrderChanges && (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleResetOrder}
+                      disabled={savingOrder}
+                      className="text-xs"
+                    >
+                      <X className="w-3 h-3 mr-1" />
+                      Reset
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={handleSaveOrder}
+                      disabled={savingOrder}
+                      className="bg-green-600 hover:bg-green-700 text-xs"
+                    >
+                      {savingOrder ? (
+                        <>
+                          <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3 h-3 mr-1" />
+                          Save Order
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
               <div className="mt-2 p-4 bg-gray-50 rounded-lg border">
                 <div className="flex items-center justify-between mb-3">
                   <span className="text-sm font-medium text-gray-700">
-                    {productData?.sizes?.length || 0} product{productData?.sizes?.length === 1 ? '' : 's'} available
+                    {localSizes.length || 0} product{localSizes.length === 1 ? '' : 's'} available
                   </span>
                   <Badge className="bg-blue-100 text-blue-700">
-                    Total Stock: {productData?.sizes?.reduce((sum, size) => sum + (size.stock || 0), 0) || 0}
+                    Total Stock: {localSizes.reduce((sum, size) => sum + (size.stock || 0), 0) || 0}
                   </Badge>
                 </div>
-                {productData?.sizes && productData.sizes.length > 0 ? (
+                {localSizes.length > 0 ? (
                   <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {productData.sizes.map((size) => (
-                      <div key={size.id} className="flex items-center justify-between text-sm p-2 bg-white rounded border">
-                        <span className="font-medium">
-                          {size.size_value} {unitToggle ? size.size_unit : ''}
-                        </span>
+                    {localSizes.map((size, index) => (
+                      <div 
+                        key={size.id} 
+                        className="flex items-center justify-between text-sm p-2 bg-white rounded border hover:border-blue-300 transition-colors cursor-move"
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.effectAllowed = 'move';
+                          e.dataTransfer.setData('text/plain', index.toString());
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = 'move';
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                          const toIndex = index;
+                          
+                          if (fromIndex === toIndex) return;
+                          
+                          const newSizes = [...localSizes];
+                          const [movedSize] = newSizes.splice(fromIndex, 1);
+                          newSizes.splice(toIndex, 0, movedSize);
+                          
+                          setLocalSizes(newSizes);
+                          setHasOrderChanges(true);
+                        }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-400 hover:text-gray-600">⋮⋮</span>
+                          <span className="font-medium">
+                            {size.size_value} {unitToggle ? size.size_unit : ''}
+                          </span>
+                        </div>
                         <div className="flex items-center gap-3">
                           <span className="text-gray-600">${size.price}</span>
                           <span className="text-gray-500">Stock: {size.stock}</span>
@@ -510,7 +623,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
                 )}
               </div>
               <p className="text-xs text-gray-500 mt-1">
-                To manage products, use the "Show" button in the main view
+                Drag and drop to reorder products. Click "Save Order" to apply changes.
               </p>
             </div>
 

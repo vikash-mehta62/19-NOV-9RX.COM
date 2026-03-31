@@ -8,11 +8,14 @@ interface ProductStockProps {
 }
 
 export const ProductStock = ({ sizes, currentStock, unitToggle }: ProductStockProps) => {
+  // Sort sizes by sizeSquanence before displaying
+  const sortedSizes = sizes ? [...sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)) : [];
+  
   return (
     <>
-      {sizes && sizes.length > 0 ? (
+      {sortedSizes.length > 0 ? (
         <div className="space-y-1">
-          {sizes.map((size) => (
+          {sortedSizes.map((size) => (
             <div key={size.id} className="text-sm">
               {size.size_value}{unitToggle ? size.size_unit : ""}: {size.stock}
             </div>
