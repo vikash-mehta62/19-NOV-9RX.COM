@@ -1182,7 +1182,7 @@ export const PharmacyProductsFullPage = () => {
                 )}
 
                 {/* Show only selected product with its sizes */}
-                {selectedCategory !== "all" && selectedProduct && (
+                {selectedProduct && (
                   <InlineProductSizes
                     product={selectedProduct}
                     focusedSizeIds={selectedSizeIds}

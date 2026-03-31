@@ -8,7 +8,7 @@ import {
   ChevronDown, ChevronRight, X, Search, Layers,
   Package, FolderOpen, Folder, Eye
 } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { fetchCategories, fetchSubcategoryConfigs } from "@/utils/categoryUtils"
@@ -29,6 +29,10 @@ interface SubcategoryConfig {
 
 interface ProductFilterItem {
   id?: string | number
+  name?: string
+  description?: string
+  sku?: string
+  base_price?: number
   category?: string
   subcategory?: string
   sizes?: Array<{
@@ -36,6 +40,7 @@ interface ProductFilterItem {
     size_name?: string
     size_value?: string
     size_unit?: string
+    stock?: number
   }>
   stock?: number
   hasOffer?: boolean
@@ -105,7 +110,56 @@ export const PharmacyFilterSidebar = ({
     }
   }, [selectedCategory])
 
-  const sourceProducts = products.length > 0 ? products : allProducts
+  const sourceProducts = useMemo(() => {
+    const baseProducts = allProducts.length > 0 ? allProducts : products
+    const query = searchQuery.trim().toLowerCase()
+
+    return baseProducts.filter((product) => {
+      if (priceRange !== "all") {
+        const [min, max] = priceRange.split("-").map((value) => (value === "+" ? Infinity : parseInt(value, 10)))
+        const price = product.base_price || 0
+        if (price < min || (max !== Infinity && price > max)) {
+          return false
+        }
+      }
+
+      if (showProducts === "in-stock") {
+        const hasProductStock = (product.stock || 0) > 0
+        const hasSizeStock = product.sizes?.some((size) => (size.stock || 0) > 0) || false
+        if (!hasProductStock && !hasSizeStock) {
+          return false
+        }
+      }
+
+      if (showProducts === "on-sale" && !product.hasOffer) {
+        return false
+      }
+
+      if (showProducts === "customizable" && !product.customization?.allowed) {
+        return false
+      }
+
+      if (!query) {
+        return true
+      }
+
+      const matchesProduct =
+        product.name?.toLowerCase().includes(query) ||
+        product.description?.toLowerCase().includes(query) ||
+        product.sku?.toLowerCase().includes(query)
+
+      if (matchesProduct) {
+        return true
+      }
+
+      return (
+        product.sizes?.some((size) => {
+          const sizeLabel = size.size_name?.trim() || `${size.size_value || ""} ${size.size_unit || ""}`.trim()
+          return sizeLabel.toLowerCase().includes(query)
+        }) || false
+      )
+    })
+  }, [allProducts, priceRange, products, searchQuery, showProducts])
 
   const getCategoryCount = (categoryName: string) => {
     if (categoryName === "all") return sourceProducts.length
