@@ -18,9 +18,9 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
     const { cartId } = req.body;
 
     if (!cartId) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Cart ID is required" 
+      return res.status(400).json({
+        success: false,
+        error: "Cart ID is required"
       });
     }
 
@@ -45,27 +45,27 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
       .single();
 
     if (cartError || !cart) {
-      return res.status(404).json({ 
-        success: false, 
-        error: "Cart not found" 
+      return res.status(404).json({
+        success: false,
+        error: "Cart not found"
       });
     }
 
     const userEmail = cart.profiles?.email;
     if (!userEmail) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "No email associated with this cart" 
+      return res.status(400).json({
+        success: false,
+        error: "No email associated with this cart"
       });
     }
 
     // Prepare email content
     const userName = cart.profiles.first_name || cart.profiles.company_name || "Customer";
-    
+
     // Calculate correct cart total from items
     let calculatedTotal = 0;
     let itemsHtml = '';
-    
+
     if (cart.items && Array.isArray(cart.items)) {
       cart.items.forEach(item => {
         if (item.sizes && Array.isArray(item.sizes)) {
@@ -97,7 +97,7 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
         }
       });
     }
-    
+
     const cartTotal = calculatedTotal;
     const itemCount = cart.items?.length || 0;
 
@@ -105,8 +105,11 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
     const emailBody = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #2563eb; margin: 0;">9RX</h1>
-          <p style="color: #6b7280; margin: 5px 0;">Trusted Pharmacy Supplies</p>
+          <img
+            src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png"
+            alt="9RX Logo"
+            style="max-width: 140px; width: 100%; height: auto; display: inline-block;"
+          />
         </div>
 
         <h2 style="color: #1f2937;">Hi ${userName},</h2>
@@ -139,13 +142,11 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
           Need help? Our team is here to assist you with your order.
         </p>
 
-        <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
-          <p style="color: #6b7280; font-size: 14px; margin: 5px 0;">
-            Best regards,<br>
-            <strong>The 9RX Team</strong>
-          </p>
-          <p style="color: #9ca3af; font-size: 12px; margin-top: 20px;">
-            📧 info@9rx.com | 📞 +1 (800) 940-9619
+        <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
+          <p style="margin: 5px 0; font-size: 14px; color: #6c757d;"><strong>9RX - Your Trusted B2B Pharmacy Partner</strong></p>
+          <p style="margin: 5px 0; font-size: 14px; color: #6c757d;">Need help? Contact us at <a href="mailto:info@9rx.com" style="color: #667eea; text-decoration: none;">info@9rx.com</a></p>
+          <p style="margin-top: 20px; font-size: 12px; color: #999;">
+            This is an automated email. Please do not reply to this email.
           </p>
         </div>
       </div>
@@ -155,16 +156,16 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
     const emailResult = await mailSender(userEmail, emailSubject, emailBody);
 
     if (!emailResult.success) {
-      return res.status(500).json({ 
-        success: false, 
-        error: emailResult.error || "Failed to send email" 
+      return res.status(500).json({
+        success: false,
+        error: emailResult.error || "Failed to send email"
       });
     }
 
     // Update cart with reminder timestamp and increment count
     const { error: updateError } = await supabase
       .from("carts")
-      .update({ 
+      .update({
         abandoned_email_sent_at: new Date().toISOString(),
         reminder_sent_count: (cart.reminder_sent_count || 0) + 1
       })
@@ -175,17 +176,17 @@ router.post("/send-reminder", requireAdmin, async (req, res) => {
       // Don't fail the request if email was sent successfully
     }
 
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: `Reminder email sent to ${userEmail}`,
-      messageId: emailResult.messageId 
+      messageId: emailResult.messageId
     });
 
   } catch (error) {
     console.error("Error sending cart reminder:", error);
-    res.status(500).json({ 
-      success: false, 
-      error: "Internal server error" 
+    res.status(500).json({
+      success: false,
+      error: "Internal server error"
     });
   }
 });

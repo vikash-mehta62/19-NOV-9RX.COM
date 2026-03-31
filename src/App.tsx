@@ -35,6 +35,7 @@ const Newsletter = lazy(() => import("./pages/Newsletter"));
 const Sitemap = lazy(() => import("./pages/Sitemap"));
 const JoinGroup = lazy(() => import("./pages/JoinGroup"));
 const AccessRequests = lazy(() => import("./pages/AccessRequests"));
+const NotFound = lazy(() => import("./pages/NotFound"));
 
 // Lazy loaded auth/utility pages
 const ActivationUser = lazy(() => import("./components/ActiovationUser"));
@@ -820,6 +821,7 @@ function App() {
               <HospitalSettings />
             </ProtectedRoute>
           } />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </>
