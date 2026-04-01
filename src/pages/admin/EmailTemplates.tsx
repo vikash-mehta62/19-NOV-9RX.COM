@@ -43,6 +43,8 @@ import {
   Wand2,
   Monitor,
   Smartphone,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { VisualEmailEditor } from "@/components/email/VisualEmailEditor";
 import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
@@ -97,6 +99,7 @@ export default function EmailTemplates() {
   const [formData, setFormData] = useState(initialFormState);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [templateToDelete, setTemplateToDelete] = useState<string | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -283,41 +286,62 @@ export default function EmailTemplates() {
 
             <DialogContent className="flex h-[98vh] w-[98vw] max-w-7xl flex-col overflow-hidden p-0 sm:h-[95vh] sm:w-[95vw]">
               <DialogHeader>
-                <div className="border-b bg-background px-3 py-3 sm:px-6 sm:py-4">
-                  <DialogTitle className="text-base sm:text-xl">
-                    {editingTemplate ? "Edit Template" : "Create New Template"}
-                  </DialogTitle>
-                  <p className="mt-1 text-xs text-muted-foreground sm:text-sm">
-                    Update settings, copy, and layout in one workspace that is easier to review on desktop and mobile.
-                  </p>
+                <div className="flex-shrink-0 border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-5">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg">
+                      <Mail className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <DialogTitle className="text-xl font-bold text-gray-900">
+                        {editingTemplate ? "Edit Template" : "Create New Template"}
+                      </DialogTitle>
+                      <p className="mt-0.5 text-sm text-gray-600">
+                        Design beautiful emails with our visual editor
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
-                <div className="grid min-h-0 flex-1 gap-0 overflow-hidden lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
-                  <div className="order-2 overflow-y-auto border-t bg-slate-50/70 p-3 sm:p-4 lg:order-1 lg:border-r lg:border-t-0 lg:p-6">
-                    <div className="space-y-6">
-                      <div className="rounded-xl border bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                        <div className="space-y-3 sm:space-y-4">
+                <div className="relative grid min-h-0 flex-1 gap-0 overflow-hidden transition-all duration-300" style={{
+                  gridTemplateColumns: sidebarCollapsed ? '0px 1fr' : 'clamp(240px, 30vw, 360px) 1fr'
+                }}>
+                  {/* Left Sidebar - Collapsible on all screens */}
+                  <div className={`flex flex-col overflow-hidden border-r bg-gradient-to-b from-slate-50 to-slate-100/50 transition-all duration-300 ${
+                    sidebarCollapsed 
+                      ? 'w-0 opacity-0 pointer-events-none' 
+                      : 'w-auto opacity-100'
+                  }`}>
+                    <div className="h-full overflow-y-auto p-4 sm:p-5 lg:p-6">
+                      <div className="space-y-4 sm:space-y-5 lg:space-y-6">
+                      <div className="group rounded-2xl border-2 border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-blue-300 hover:shadow-md sm:p-4">
+                        <div className="mb-2 flex items-center gap-2 sm:mb-3">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 sm:h-8 sm:w-8">
+                            <FileText className="h-3.5 w-3.5 text-white sm:h-4 sm:w-4" />
+                          </div>
+                          <h3 className="text-xs font-semibold text-gray-900 sm:text-sm lg:text-base">Basic Details</h3>
+                        </div>
+                        <div className="space-y-2.5 sm:space-y-3 lg:space-y-4">
                           <div>
-                            <Label htmlFor="name" className="text-xs sm:text-sm">Template Name *</Label>
+                            <Label htmlFor="name" className="text-sm font-semibold text-gray-700">Template Name *</Label>
                             <Input
                               id="name"
                               value={formData.name}
                               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                              placeholder="Welcome Email"
-                              className="h-9 text-sm sm:h-10"
+                              placeholder="e.g., Welcome Email"
+                              className="mt-2 h-11 rounded-lg border-gray-300 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                               required
                             />
                           </div>
 
                           <div>
-                            <Label htmlFor="template_type" className="text-xs sm:text-sm">Template Type</Label>
+                            <Label htmlFor="template_type" className="text-sm font-semibold text-gray-700">Template Type</Label>
                             <Select
                               value={formData.template_type}
                               onValueChange={(value) => setFormData({ ...formData, template_type: value })}
                             >
-                              <SelectTrigger className="h-9 text-sm sm:h-10">
+                              <SelectTrigger className="mt-2 h-11 rounded-lg border-gray-300 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
@@ -331,178 +355,236 @@ export default function EmailTemplates() {
                           </div>
 
                           <div>
-                            <Label htmlFor="subject" className="text-xs sm:text-sm">Email Subject *</Label>
+                            <Label htmlFor="subject" className="text-sm font-semibold text-gray-700">Email Subject *</Label>
                             <Input
                               id="subject"
                               value={formData.subject}
                               onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                              placeholder="Welcome to 9RX!"
-                              className="h-9 text-sm sm:h-10"
+                              placeholder="e.g., Welcome to 9RX!"
+                              className="mt-2 h-11 rounded-lg border-gray-300 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                               required
                             />
                           </div>
 
                           <div>
-                            <Label htmlFor="preview_text" className="text-xs sm:text-sm">Preview Text</Label>
+                            <Label htmlFor="preview_text" className="text-sm font-semibold text-gray-700">Preview Text</Label>
                             <Input
                               id="preview_text"
                               value={formData.preview_text}
                               onChange={(e) => setFormData({ ...formData, preview_text: e.target.value })}
                               placeholder="Short inbox preview copy"
-                              className="h-9 text-sm sm:h-10"
+                              className="mt-2 h-11 rounded-lg border-gray-300 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
                             />
                           </div>
 
-                          <div className="flex flex-col gap-3 rounded-xl border bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex-1">
-                              <Label htmlFor="is_active" className="text-xs sm:text-sm">Status</Label>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                Control whether the template is available for campaigns and automations.
-                              </p>
-                            </div>
-                            <div className="flex items-center justify-between gap-2 sm:justify-end">
-                              <Badge variant={formData.is_active ? "default" : "secondary"} className="text-xs">
-                                {formData.is_active ? "Active" : "Inactive"}
-                              </Badge>
-                              <Switch
-                                id="is_active"
-                                checked={formData.is_active}
-                                onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
-                              />
+                          <div className="rounded-xl border-2 border-dashed border-gray-300 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <div className="flex-1">
+                                <Label htmlFor="is_active" className="text-sm font-semibold text-gray-900">Status</Label>
+                                <p className="mt-1 text-xs text-gray-600 leading-relaxed">
+                                  Make template available for use
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2.5">
+                                <Badge 
+                                  variant={formData.is_active ? "default" : "secondary"} 
+                                  className={`text-xs font-semibold ${formData.is_active ? 'bg-green-500 hover:bg-green-600' : ''}`}
+                                >
+                                  {formData.is_active ? "Active" : "Inactive"}
+                                </Badge>
+                                <Switch
+                                  id="is_active"
+                                  checked={formData.is_active}
+                                  onCheckedChange={(checked) => setFormData({ ...formData, is_active: checked })}
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
 
-                      <div className="rounded-xl border bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                        <div className="space-y-3">
+                      <div className="group rounded-2xl border-2 border-gray-200 bg-white p-3 shadow-sm transition-all hover:border-purple-300 hover:shadow-md sm:p-4">
+                        <div className="mb-2 flex items-center gap-2 sm:mb-3">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 sm:h-8 sm:w-8">
+                            <Code className="h-3.5 w-3.5 text-white sm:h-4 sm:w-4" />
+                          </div>
+                          <h3 className="text-xs font-semibold text-gray-900 sm:text-sm lg:text-base">Variables</h3>
+                        </div>
+                        <div className="space-y-2 sm:space-y-3">
                           <div>
-                            <Label htmlFor="variables" className="text-xs sm:text-sm">Variables</Label>
+                            <Label htmlFor="variables" className="text-sm font-semibold text-gray-700">Dynamic Fields</Label>
                             <Input
                               id="variables"
                               value={formData.variables}
                               onChange={(e) => setFormData({ ...formData, variables: e.target.value })}
                               placeholder="first_name, order_number"
-                              className="h-9 text-sm sm:h-10"
+                              className="mt-2 h-11 rounded-lg border-gray-300 text-sm shadow-sm transition-all focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
                             />
-                            <p className="mt-2 text-xs text-muted-foreground">
-                              Use {"{{variable_name}}"} placeholders anywhere in the template.
+                            <p className="mt-2 text-xs text-gray-600 leading-relaxed">
+                              💡 Use {"{{variable_name}}"} placeholders in your template
                             </p>
                           </div>
                           {variableList.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                              {variableList.map((variable) => (
-                                <Badge key={variable} variant="secondary" className="rounded-full px-2 py-0.5 text-xs sm:px-3 sm:py-1">
-                                  {`{{${variable}}}`}
-                                </Badge>
-                              ))}
+                            <div className="rounded-lg bg-gradient-to-br from-purple-50 to-pink-50 p-3">
+                              <p className="mb-2 text-xs font-semibold text-gray-700">Available Variables:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {variableList.map((variable) => (
+                                  <Badge 
+                                    key={variable} 
+                                    variant="secondary" 
+                                    className="rounded-full bg-white px-3 py-1.5 text-xs font-mono font-semibold text-purple-700 shadow-sm"
+                                  >
+                                    {`{{${variable}}}`}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
                       </div>
 
-                      <div className="rounded-xl border bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                        <p className="text-xs font-medium sm:text-sm">Writing Tips</p>
-                        <ul className="mt-2 space-y-1.5 text-xs text-muted-foreground sm:mt-3 sm:space-y-2">
-                          <li>Keep the subject line concise so it survives smaller inbox widths.</li>
-                          <li>Lead with one primary call-to-action.</li>
-                          <li>Use preview text to support the subject instead of repeating it.</li>
+                      <div className="group rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-amber-50 to-orange-50 p-3 shadow-sm transition-all hover:border-amber-300 hover:shadow-md sm:p-4">
+                        <div className="mb-2 flex items-center gap-2">
+                          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 sm:h-8 sm:w-8">
+                            <Wand2 className="h-3.5 w-3.5 text-white sm:h-4 sm:w-4" />
+                          </div>
+                          <h3 className="text-xs font-semibold text-gray-900 sm:text-sm lg:text-base">Pro Tips</h3>
+                        </div>
+                        <ul className="space-y-1.5 text-xs text-gray-700 leading-relaxed sm:space-y-2">
+                          <li className="flex items-start gap-2">
+                            <span className="mt-0.5 text-amber-600">✓</span>
+                            <span>Keep subject lines under 50 characters for mobile</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="mt-0.5 text-amber-600">✓</span>
+                            <span>Use one clear call-to-action button</span>
+                          </li>
+                          <li className="flex items-start gap-2">
+                            <span className="mt-0.5 text-amber-600">✓</span>
+                            <span>Preview text should complement, not repeat subject</span>
+                          </li>
                         </ul>
                       </div>
                     </div>
                   </div>
+                </div>
 
-                  <div className="order-1 min-h-0 overflow-y-auto p-3 sm:p-4 lg:order-2 lg:p-6">
-                    <Tabs defaultValue="visual" className="flex h-full min-h-0 flex-col">
-                      <div className="flex flex-col gap-2 border-b pb-3 sm:gap-3 sm:pb-4 lg:flex-row lg:items-center lg:justify-between">
-                        <div className="space-y-1">
-                          <h3 className="text-sm font-semibold sm:text-base">Template Content</h3>
-                          <p className="text-xs text-muted-foreground sm:text-sm">
-                            Edit visually, inspect HTML directly, or maintain a plain-text fallback.
-                          </p>
-                        </div>
-                        <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-                          <TabsTrigger value="visual" className="text-xs sm:text-sm">
-                            <Wand2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> 
-                            <span className="hidden sm:inline">Visual</span>
-                            <span className="sm:hidden">Edit</span>
-                          </TabsTrigger>
-                          <TabsTrigger value="html" className="text-xs sm:text-sm">
-                            <Code className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> HTML
-                          </TabsTrigger>
-                          <TabsTrigger value="text" className="text-xs sm:text-sm">
-                            <FileText className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Text
-                          </TabsTrigger>
-                        </TabsList>
-                      </div>
+                  {/* Main Content Area */}
+                  <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white">
+                    {/* Collapse Toggle Button - Visible on all screens */}
+                    <button
+                      type="button"
+                      onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                      className="absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-lg border-2 border-gray-300 bg-white shadow-md transition-all hover:border-blue-500 hover:bg-blue-50 hover:shadow-lg sm:left-4 sm:top-4 sm:h-9 sm:w-9"
+                      title={sidebarCollapsed ? "Show Settings" : "Hide Settings"}
+                    >
+                      {sidebarCollapsed ? (
+                        <ChevronRight className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
+                      ) : (
+                        <ChevronLeft className="h-4 w-4 text-gray-700 sm:h-5 sm:w-5" />
+                      )}
+                    </button>
 
-                      <TabsContent value="visual" className="mt-3 min-h-0 flex-1 sm:mt-4">
-                        <div className="overflow-hidden rounded-xl border bg-background shadow-sm sm:rounded-2xl">
-                          <VisualEmailEditor
-                            key={editingTemplate?.id || "new"}
-                            initialHtml={formData.html_content}
-                            onChange={(html) => setFormData({ ...formData, html_content: html })}
-                            variables={variableList}
-                          />
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-3 pt-14 sm:p-4 sm:pt-16 lg:p-6">
+                      <Tabs defaultValue="visual" className="flex h-full min-h-0 flex-col">
+                        <div className="flex flex-col gap-4 border-b-2 border-gray-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="space-y-1.5">
+                            <h3 className="text-lg font-bold text-gray-900">Template Content</h3>
+                            <p className="text-sm text-gray-600 leading-relaxed">
+                              Design with visual editor, code in HTML, or add plain text fallback
+                            </p>
+                          </div>
+                          <TabsList className="grid w-full grid-cols-3 rounded-xl bg-gray-100 p-1 lg:w-auto">
+                            <TabsTrigger 
+                              value="visual" 
+                              className="rounded-lg text-sm font-semibold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                            >
+                              <Wand2 className="mr-2 h-4 w-4" /> 
+                              Visual
+                            </TabsTrigger>
+                            <TabsTrigger 
+                              value="html" 
+                              className="rounded-lg text-sm font-semibold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                            >
+                              <Code className="mr-2 h-4 w-4" /> HTML
+                            </TabsTrigger>
+                            <TabsTrigger 
+                              value="text" 
+                              className="rounded-lg text-sm font-semibold data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-500 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md"
+                            >
+                              <FileText className="mr-2 h-4 w-4" /> Text
+                            </TabsTrigger>
+                          </TabsList>
                         </div>
-                      </TabsContent>
 
-                      <TabsContent value="html" className="mt-3 min-h-0 flex-1 sm:mt-4">
-                        <div className="space-y-2 sm:space-y-3">
-                          <Label htmlFor="html_content" className="text-xs sm:text-sm">HTML Content *</Label>
-                          <Textarea
-                            id="html_content"
-                            value={formData.html_content}
-                            onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
-                            placeholder="<html><body>...</body></html>"
-                            rows={18}
-                            className="min-h-[300px] font-mono text-xs sm:min-h-[420px] sm:text-sm"
-                            required
-                          />
-                        </div>
-                      </TabsContent>
+                        <TabsContent value="visual" className="mt-5 min-h-0 flex-1">
+                          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
+                            <VisualEmailEditor
+                              key={editingTemplate?.id || "new"}
+                              initialHtml={formData.html_content}
+                              onChange={(html) => setFormData({ ...formData, html_content: html })}
+                              variables={variableList}
+                            />
+                          </div>
+                        </TabsContent>
 
-                      <TabsContent value="text" className="mt-3 min-h-0 flex-1 sm:mt-4">
-                        <div className="space-y-2 sm:space-y-3">
-                          <Label htmlFor="text_content" className="text-xs sm:text-sm">Plain Text Content</Label>
-                          <Textarea
-                            id="text_content"
-                            value={formData.text_content}
-                            onChange={(e) => setFormData({ ...formData, text_content: e.target.value })}
-                            placeholder="Plain text version for email clients that don't support HTML"
-                            rows={18}
-                            className="min-h-[300px] text-sm sm:min-h-[420px]"
-                          />
-                        </div>
-                      </TabsContent>
-                    </Tabs>
+                        <TabsContent value="html" className="mt-5 min-h-0 flex-1">
+                          <div className="space-y-3">
+                            <Label htmlFor="html_content" className="text-sm font-semibold text-gray-700">HTML Content *</Label>
+                            <Textarea
+                              id="html_content"
+                              value={formData.html_content}
+                              onChange={(e) => setFormData({ ...formData, html_content: e.target.value })}
+                              placeholder="<html><body>...</body></html>"
+                              rows={18}
+                              className="min-h-[420px] rounded-lg border border-gray-300 font-mono text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                              required
+                            />
+                          </div>
+                        </TabsContent>
+
+                        <TabsContent value="text" className="mt-5 min-h-0 flex-1">
+                          <div className="space-y-3">
+                            <Label htmlFor="text_content" className="text-sm font-semibold text-gray-700">Plain Text Content</Label>
+                            <Textarea
+                              id="text_content"
+                              value={formData.text_content}
+                              onChange={(e) => setFormData({ ...formData, text_content: e.target.value })}
+                              placeholder="Plain text version for email clients that don't support HTML"
+                              rows={18}
+                              className="min-h-[420px] rounded-lg border border-gray-300 text-sm shadow-sm transition-all focus:border-blue-500 focus:ring-1 focus:ring-blue-200"
+                            />
+                          </div>
+                        </TabsContent>
+                      </Tabs>
+                    </div>
                   </div>
                 </div>
 
-                <div className="border-t bg-background px-3 py-3 sm:px-6 sm:py-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+                <div className="flex-shrink-0 border-t-2 border-gray-200 bg-gradient-to-r from-gray-50 to-slate-50 px-6 py-5">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <Button
                       type="button"
                       variant="outline"
                       onClick={() => handlePreview(formData.html_content)}
-                      className="h-9 text-sm sm:h-10"
+                      className="h-11 rounded-xl border-2 border-gray-300 text-sm font-semibold shadow-sm transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700"
                     >
-                      <Eye className="mr-2 h-4 w-4" /> Preview
+                      <Eye className="mr-2 h-4 w-4" /> Preview Email
                     </Button>
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <Button 
                         type="button" 
                         variant="outline" 
                         onClick={() => setDialogOpen(false)}
-                        className="h-9 flex-1 text-sm sm:h-10 sm:flex-none"
+                        className="h-11 flex-1 rounded-xl border-2 border-gray-300 text-sm font-semibold shadow-sm transition-all hover:border-gray-400 hover:bg-gray-100 sm:flex-none sm:min-w-[120px]"
                       >
                         Cancel
                       </Button>
                       <Button 
                         type="submit"
-                        className="h-9 flex-1 text-sm sm:h-10 sm:flex-none"
+                        className="h-11 flex-1 rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 text-sm font-semibold shadow-lg transition-all hover:from-blue-600 hover:to-indigo-700 hover:shadow-xl sm:flex-none sm:min-w-[160px]"
                       >
-                        {editingTemplate ? "Update" : "Create"} Template
+                        {editingTemplate ? "💾 Update" : "✨ Create"} Template
                       </Button>
                     </div>
                   </div>

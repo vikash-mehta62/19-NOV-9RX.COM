@@ -17,7 +17,8 @@ import {
   Plus, Trash2, ChevronUp, ChevronDown, Copy, X,
   AlignLeft, AlignCenter, AlignRight, Palette, Layout, Undo2, Redo2,
   Mail, Smartphone, Monitor, MousePointerClick, Layers, Settings2, Wand2, LayoutTemplate, Sparkles, GripVertical,
-  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Columns, Download, Upload, Bold, Italic, Link, Save, FlaskConical, Zap, ShoppingCart, Search
+  ArrowUp, ArrowDown, ArrowLeft, ArrowRight, Columns, Download, Upload, Bold, Italic, Link, Save, FlaskConical, Zap, ShoppingCart, Search,
+  ChevronLeft, ChevronRight
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -272,6 +273,8 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [isDraggingNewBlock, setIsDraggingNewBlock] = useState(false);
   const [blockSearch, setBlockSearch] = useState("");
+  const [blockLibraryCollapsed, setBlockLibraryCollapsed] = useState(false);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
 
   const normalizedBlockSearch = blockSearch.trim().toLowerCase();
   const filteredBlockTypes = blockTypes.filter((block) => {
@@ -1993,8 +1996,16 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
         </div>
       ) : (
         <div className="flex min-h-[720px] flex-col xl:h-[600px] xl:min-h-0 xl:flex-row">
-          {/* Left Panel - Blocks (Scrollable) */}
-          <div className="max-h-[320px] w-full border-b bg-slate-50/80 flex flex-col xl:max-h-none xl:w-80 xl:border-b-0 xl:border-r">
+          {/* Left Panel - Blocks (Scrollable & Collapsible) */}
+          <div 
+            className="relative border-b bg-slate-50/80 flex flex-col transition-all duration-300 xl:border-b-0 xl:border-r" 
+            style={{
+              width: window.innerWidth >= 1280 ? (blockLibraryCollapsed ? '0px' : '320px') : '100%',
+              maxHeight: window.innerWidth >= 1280 ? 'none' : (blockLibraryCollapsed ? '0px' : '320px'),
+              opacity: blockLibraryCollapsed ? 0 : 1,
+              overflow: blockLibraryCollapsed ? 'hidden' : 'visible'
+            }}
+          >
             <div className="border-b bg-white/90 p-3 backdrop-blur-sm flex-shrink-0">
               <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
@@ -2182,7 +2193,35 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
           </div>
 
           {/* Center - Canvas (Scrollable) */}
-          <div className="order-2 flex min-h-[360px] flex-1 items-start justify-center overflow-y-auto bg-gray-100/50 p-4 sm:p-6 xl:order-none xl:p-8" style={{ backgroundColor: globalStyle.bgColor }}>
+          <div className="order-2 relative flex min-h-[360px] flex-1 items-start justify-center overflow-y-auto bg-gray-100/50 p-4 sm:p-6 xl:order-none xl:p-8" style={{ backgroundColor: globalStyle.bgColor }}>
+            {/* Block Library Toggle Button - Only on large screens */}
+            <button
+              type="button"
+              onClick={() => setBlockLibraryCollapsed(!blockLibraryCollapsed)}
+              className="absolute left-4 top-4 z-10 hidden h-9 w-9 items-center justify-center rounded-lg border-2 border-slate-300 bg-white shadow-md transition-all hover:border-blue-500 hover:bg-blue-50 hover:shadow-lg xl:flex"
+              title={blockLibraryCollapsed ? "Show Block Library" : "Hide Block Library"}
+            >
+              {blockLibraryCollapsed ? (
+                <ChevronRight className="h-5 w-5 text-slate-700" />
+              ) : (
+                <ChevronLeft className="h-5 w-5 text-slate-700" />
+              )}
+            </button>
+
+            {/* Inspector Toggle Button - Only on large screens */}
+            <button
+              type="button"
+              onClick={() => setInspectorCollapsed(!inspectorCollapsed)}
+              className="absolute right-4 top-4 z-10 hidden h-9 w-9 items-center justify-center rounded-lg border-2 border-slate-300 bg-white shadow-md transition-all hover:border-purple-500 hover:bg-purple-50 hover:shadow-lg xl:flex"
+              title={inspectorCollapsed ? "Show Inspector" : "Hide Inspector"}
+            >
+              {inspectorCollapsed ? (
+                <ChevronLeft className="h-5 w-5 text-slate-700" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-slate-700" />
+              )}
+            </button>
+
             <div className={`relative transition-all duration-300 ${deviceView === "mobile" ? "w-full max-w-[375px]" : "w-full max-w-[500px]"}`}>
               <div 
                 className={`bg-white shadow-xl transition-all h-fit min-h-[400px] ${deviceView === "mobile" ? "border-4 border-gray-800 rounded-[2rem]" : ""}`}
@@ -2267,9 +2306,12 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
                   )
                 ) : (
                   <div className="relative">
-                    <div className="editor-float-in sticky top-2 z-10 mx-3 mb-2 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-[11px] text-slate-500 shadow-sm backdrop-blur">
-                      Tip: hover a row to reorganize it, click a block to edit it, and use preview before saving multi-column emails.
-                    </div>
+                    {/* Tip Message - Fixed at top */}
+                    {rows.length > 0 && (
+                      <div className="editor-float-in mb-3 rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-4 py-2.5 text-xs text-blue-700 shadow-sm">
+                        <span className="font-semibold">💡 Quick Tip:</span> Hover a row to reorganize, click a block to edit, and preview before saving.
+                      </div>
+                    )}
                     {isDraggingNewBlock && dragOverIndex !== null && (
                       <div
                         className="pointer-events-none absolute left-3 right-3 z-20"
@@ -2364,8 +2406,17 @@ export function VisualEmailEditor({ initialHtml, onChange, variables = [], templ
             </div>
           </div>
 
-          {/* Right Panel - Editor (Scrollable) */}
-          <div className="order-3 min-h-[220px] w-full border-t bg-white flex flex-col xl:order-none xl:min-h-0 xl:w-64 xl:border-l xl:border-t-0">
+          {/* Right Panel - Editor (Scrollable & Collapsible) */}
+          <div 
+            className="order-3 relative border-t bg-white flex flex-col transition-all duration-300 xl:order-none xl:border-l xl:border-t-0" 
+            style={{
+              width: window.innerWidth >= 1280 ? (inspectorCollapsed ? '0px' : '256px') : '100%',
+              minHeight: window.innerWidth >= 1280 ? '0px' : (inspectorCollapsed ? '0px' : '220px'),
+              maxHeight: window.innerWidth >= 1280 ? 'none' : (inspectorCollapsed ? '0px' : '400px'),
+              opacity: inspectorCollapsed ? 0 : 1,
+              overflow: inspectorCollapsed ? 'hidden' : 'visible'
+            }}
+          >
             {selectedBlockData ? (
               <>
                 <div className="p-2.5 border-b bg-gradient-to-r from-white to-gray-50 flex items-center justify-between flex-shrink-0">
