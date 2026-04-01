@@ -489,7 +489,7 @@ export default function EmailTemplates() {
                       <Tabs defaultValue="visual" className="flex h-full min-h-0 flex-col">
                         <div className="flex flex-col gap-4 border-b-2 border-gray-200 pb-5 lg:flex-row lg:items-center lg:justify-between">
                           <div className="space-y-1.5">
-                            <h3 className="text-lg font-bold text-gray-900">Template Content</h3>
+                            <h3 className="text-lg font-bold text-gray-900 pl-8">Template Content</h3>
                             <p className="text-sm text-gray-600 leading-relaxed">
                               Design with visual editor, code in HTML, or add plain text fallback
                             </p>

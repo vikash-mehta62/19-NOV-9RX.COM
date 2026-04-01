@@ -48,6 +48,11 @@ const hasPositiveQuantityDelta = (oldItems: any[] = [], newItems: any[] = []) =>
   return false;
 };
 
+const getSizeLabel = (
+  size: { size_value?: string | number | null; size_unit?: string | null },
+  showUnit?: boolean | null
+) => [size?.size_value, showUnit ? size?.size_unit : ""].filter(Boolean).join(" ").trim();
+
 interface ItemsTabProps {
   items: OrderFormValues["items"];
   onEdit?: () => void;
@@ -1078,7 +1083,7 @@ if (
                           {size.size_name}
                           </span>
                         <span className="font-medium text-gray-900">
-                          {size.size_value} {size.size_unit}
+                          {getSizeLabel(size, (item as any).unitToggle)}
                         </span>
                         {(size as any).sku && (
                           <p className="text-xs text-gray-400">SKU: {(size as any).sku}</p>
@@ -1557,7 +1562,7 @@ const AddProductDialog = ({ open, onOpenChange, onAddProducts, cartItemsCount }:
                       className="grid grid-cols-6 gap-4 px-4 py-3 border-t items-center hover:bg-gray-50"
                     >
                       <div className="font-medium">
-                        {size.size_value} {size.size_unit}
+                        {getSizeLabel(size, (selectedProduct as any).unitToggle)}
                       </div>
                       <div className="text-sm text-gray-500">
                         {size.sku || '-'}

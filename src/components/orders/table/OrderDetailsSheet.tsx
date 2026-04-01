@@ -139,6 +139,11 @@ const calculateUnitPrice = (size: any) => {
   return Number((price / (rolls > 0 ? rolls * quantity : quantity)).toFixed(2));
 };
 
+const getOrderSizeLabel = (
+  size: { size_value?: string | number | null; size_unit?: string | null },
+  showUnit?: boolean | null
+) => [size?.size_value, showUnit ? size?.size_unit : ""].filter(Boolean).join(" ").trim();
+
 interface OrderDetailsSheetProps {
   order: OrderFormValues;
   isEditing: boolean;
@@ -915,7 +920,7 @@ export const OrderDetailsSheet = ({
     (currentOrder.items || []).forEach((item: any) => {
       (item.sizes || []).forEach((size: any, sizeIndex: number) => {
         const sizePack = [
-          [size.size_value, size.size_unit].filter(Boolean).join(" "),
+          getOrderSizeLabel(size, item?.unitToggle),
           size.quantity_per_case ? `${size.quantity_per_case}/case` : "",
         ].filter(Boolean).join(" • ");
 
@@ -924,7 +929,7 @@ export const OrderDetailsSheet = ({
             ? showPricing
               ? [size.sku || item.sku || '', size.size_name || item.name, sizePack || "Standard", String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
               : [size.sku || item.sku || '', size.size_name || item.name, sizePack || "Standard", String(size.quantity || 0)]
-            : [size.sku || item.sku || '', size.size_name || item.name, [size.size_value, size.size_unit].filter(Boolean).join(" "), String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
+            : [size.sku || item.sku || '', size.size_name || item.name, getOrderSizeLabel(size, item?.unitToggle), String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
         );
         itemIndex += 1;
 
@@ -1318,7 +1323,7 @@ export const OrderDetailsSheet = ({
 
       currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
-          const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
+          const sizeValueUnit = getOrderSizeLabel(size, item?.unitToggle);
           const quantity = size.quantity.toString();
           const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
           const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
@@ -1820,7 +1825,7 @@ export const OrderDetailsSheet = ({
 
       currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size, sizeIndex) => {
-          const sizeValueUnit = `${size.size_value} ${size.size_unit}`;
+          const sizeValueUnit = getOrderSizeLabel(size, item?.unitToggle);
           const quantity = size.quantity.toString();
           const pricePerUnit = `${Number(size.price).toFixed(2)}`;
           const totalPerSize = `${(size.quantity * size.price).toFixed(2)}`;

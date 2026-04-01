@@ -112,6 +112,11 @@ const buildDiscountSummaryRows = (
 
 const SUMMARY_BOTTOM_RESERVE = 58
 
+const getInvoiceSizeLabel = (
+  size: { size_value?: string | number | null; size_unit?: string | null },
+  showUnit?: boolean | null
+) => [size?.size_value, showUnit ? size?.size_unit : ""].filter(Boolean).join(" ").trim()
+
 export function InvoicePreview({ invoice }: InvoicePreviewProps) {
   const { toast } = useToast()
   const invoiceRef = useRef<HTMLDivElement>(null)
@@ -507,7 +512,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
               tableBody.push([
                 size.sku || item.sku || '',
                 size.size_name || item.name,
-                `${size.size_value} ${size.size_unit}`,
+                getInvoiceSizeLabel(size, (item as any).unitToggle),
                 size.quantity?.toString() || '0',
                 `$${Number(size.price).toFixed(2)}`,
                 `$${Number(size.price * size.quantity).toFixed(2)}`
@@ -794,7 +799,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         invoice.items.forEach((item: any) => {
           if (Array.isArray(item.sizes)) {
             item.sizes.forEach((size: any, sizeIndex: number) => {
-              tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${size.size_unit}`, size.quantity?.toString() || '0', `$${Number(size.price).toFixed(2)}`, `$${Number(size.price * size.quantity).toFixed(2)}`])
+              tableBody.push([size.sku || item.sku || '', size.size_name || item.name, getInvoiceSizeLabel(size, (item as any).unitToggle), size.quantity?.toString() || '0', `$${Number(size.price).toFixed(2)}`, `$${Number(size.price * size.quantity).toFixed(2)}`])
               if (false && sizeIndex === 0 && item.description && item.description.trim()) {
                 tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
               }
@@ -1100,7 +1105,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
                       <tr key={`item-${itemIndex}-${sizeIndex}`} className="hover:bg-gray-50">
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-600">{size.sku}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-gray-800">{size.size_name || item.name}</td>
-                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.size_value} {size.size_unit}</td>
+                        <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{getInvoiceSizeLabel(size, (item as any).unitToggle)}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">{size.quantity}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center text-gray-700">${Number(size.price).toFixed(2)}</td>
                         <td className="px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-sm text-center font-medium text-gray-900">${Number(size.quantity * size.price).toFixed(2)}</td>
