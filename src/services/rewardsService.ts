@@ -297,7 +297,7 @@ async function queueRewardEmail(userId: string, data: {
         <h3 style="margin: 0 0 10px 0; color: #0369a1; font-size: 16px;">🚀 Next Goal: ${data.nextTier.name} Status</h3>
         <p style="margin: 0; color: #475569;">You're only <strong>${data.pointsToNextTier.toLocaleString()} points</strong> away from ${data.nextTier.name}!</p>
         <div style="background: #e2e8f0; border-radius: 10px; height: 10px; margin-top: 15px; overflow: hidden;">
-          <div style="background: linear-gradient(90deg, #10b981, #059669); height: 100%; width: ${Math.min(100, ((data.newTotal - data.oldTier.min_points) / (data.nextTier.min_points - data.oldTier.min_points)) * 100)}%; border-radius: 10px;"></div>
+          <div style="background: linear-gradient(90deg, #60a5fa, #2563eb); height: 100%; width: ${Math.min(100, ((data.newTotal - data.oldTier.min_points) / (data.nextTier.min_points - data.oldTier.min_points)) * 100)}%; border-radius: 10px;"></div>
         </div>
         <p style="margin: 10px 0 0 0; color: #64748b; font-size: 13px;">
           ${data.nextTier.name} benefits: ${data.nextTier.benefits?.join(", ") || "Exclusive perks"}
@@ -331,7 +331,7 @@ async function queueRewardEmail(userId: string, data: {
     <body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc;">
       <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
         <!-- Header -->
-        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 16px 16px 0 0; padding: 30px; text-align: center;">
+        <div style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); border-radius: 16px 16px 0 0; padding: 30px; text-align: center;">
           <h1 style="margin: 0; color: white; font-size: 28px;">🎁 Rewards Update</h1>
         </div>
         
@@ -349,23 +349,23 @@ async function queueRewardEmail(userId: string, data: {
           ${tierUpgradeMessage}
 
           <!-- Points Earned Card -->
-          <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border-radius: 12px; padding: 25px; margin: 20px 0; text-align: center;">
-            <p style="margin: 0 0 5px 0; color: #065f46; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Points Earned</p>
-            <p style="margin: 0; color: #047857; font-size: 48px; font-weight: bold;">+${data.pointsEarned.toLocaleString()}</p>
-            <p style="margin: 10px 0 0 0; color: #059669; font-size: 14px;">
+          <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 25px; margin: 20px 0; text-align: center;">
+            <p style="margin: 0 0 5px 0; color: #1d4ed8; font-size: 14px; text-transform: uppercase; letter-spacing: 1px;">Points Earned</p>
+            <p style="margin: 0; color: #2563eb; font-size: 48px; font-weight: bold;">+${data.pointsEarned.toLocaleString()}</p>
+            <p style="margin: 10px 0 0 0; color: #3b82f6; font-size: 14px;">
               Base ${data.pointsPerDollar} pt/$ × ${data.multiplier}x tier multiplier
             </p>
           </div>
 
           <!-- Current Status -->
-          <div style="display: flex; justify-content: space-between; gap: 15px; margin: 20px 0;">
-            <div style="flex: 1; background: #f1f5f9; border-radius: 10px; padding: 15px; text-align: center;">
+          <div style="display: table; width: 100%; table-layout: fixed; border-spacing: 16px 0; margin: 20px -8px;">
+            <div style="display: table-cell; width: 50%; background: #f1f5f9; border-radius: 10px; padding: 15px; text-align: center;">
               <p style="margin: 0 0 5px 0; color: #64748b; font-size: 12px;">YOUR TIER</p>
               <p style="margin: 0; color: #1e293b; font-size: 18px; font-weight: bold;">⭐ ${data.newTier.name}</p>
             </div>
-            <div style="flex: 1; background: #f1f5f9; border-radius: 10px; padding: 15px; text-align: center;">
+            <div style="display: table-cell; width: 50%; background: #f1f5f9; border-radius: 10px; padding: 15px; text-align: center;">
               <p style="margin: 0 0 5px 0; color: #64748b; font-size: 12px;">TOTAL POINTS</p>
-              <p style="margin: 0; color: #10b981; font-size: 18px; font-weight: bold;">${data.newTotal.toLocaleString()}</p>
+              <p style="margin: 0; color: #2563eb; font-size: 18px; font-weight: bold;">${data.newTotal.toLocaleString()}</p>
             </div>
           </div>
 
@@ -374,7 +374,7 @@ async function queueRewardEmail(userId: string, data: {
           <!-- CTA Button -->
           <div style="text-align: center; margin-top: 30px;">
             <a href="${'https://9rx.com'}/pharmacy/rewards" 
-               style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; text-decoration: none; padding: 15px 40px; border-radius: 10px; font-weight: bold; font-size: 16px;">
+               style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; text-decoration: none; padding: 15px 40px; border-radius: 10px; font-weight: bold; font-size: 16px;">
               View My Rewards →
             </a>
           </div>

@@ -51,7 +51,7 @@ const profileUpdateTemplate = (name, email) => {
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                        <td style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
                             <div style="background-color: rgba(255,255,255,0.2); width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 20px; line-height: 70px;">
                                 <span style="font-size: 32px;">✅</span>
                             </div>
@@ -66,19 +66,19 @@ const profileUpdateTemplate = (name, email) => {
                             
                             <!-- Greeting -->
                             <div style="padding: 30px 30px 20px;">
-                                <p style="margin: 0; font-size: 16px; color: #374151;">Hello <strong style="color: #059669;">${name}</strong>,</p>
+                                <p style="margin: 0; font-size: 16px; color: #374151;">Hello <strong style="color: #2563eb;">${name}</strong>,</p>
                                 <p style="margin: 12px 0 0 0; font-size: 15px; color: #6b7280; line-height: 1.6;">
                                     We wanted to let you know that your profile information has been successfully updated on your 9RX account.
                                 </p>
                             </div>
 
                             <!-- Update Info Card -->
-                            <div style="margin: 0 30px 25px; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); border-radius: 12px; padding: 24px; border: 1px solid #d1fae5;">
+                            <div style="margin: 0 30px 25px; background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border-radius: 12px; padding: 24px; border: 1px solid #bfdbfe;">
                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                     <tr>
                                         <td style="vertical-align: top;">
                                             <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Account Email</p>
-                                            <p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #059669;">${email}</p>
+                                            <p style="margin: 0 0 16px 0; font-size: 16px; font-weight: 600; color: #2563eb;">${email}</p>
                                             
                                             <p style="margin: 0 0 4px 0; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Updated On</p>
                                             <p style="margin: 0; font-size: 14px; font-weight: 500; color: #374151;">${updateDate}</p>
@@ -86,8 +86,8 @@ const profileUpdateTemplate = (name, email) => {
                                     </tr>
                                     <tr>
                                         <td style="padding-top: 16px;">
-                                            <div style="background-color: #d1fae5; border-radius: 8px; padding: 12px 16px; text-align: center;">
-                                                <span style="font-size: 14px; color: #065f46; font-weight: 600;">✓ Changes Saved Successfully</span>
+                                            <div style="background-color: #dbeafe; border-radius: 8px; padding: 12px 16px; text-align: center;">
+                                                <span style="font-size: 14px; color: #1d4ed8; font-weight: 600;">✓ Changes Saved Successfully</span>
                                             </div>
                                         </td>
                                     </tr>
@@ -124,7 +124,7 @@ const profileUpdateTemplate = (name, email) => {
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
                                 <a href="https://9rx.com/update-profile" 
-                                   style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.3);">
+                                   style="display: inline-block; background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);">
                                     👤 View My Profile
                                 </a>
                             </div>
@@ -140,8 +140,8 @@ const profileUpdateTemplate = (name, email) => {
                                     <td style="text-align: center;">
                                         <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #374151;">Need Help?</p>
                                         <p style="margin: 0; font-size: 13px; color: #6b7280;">
-                                            Contact us at <a href="mailto:info@9rx.com" style="color: #059669; text-decoration: none; font-weight: 500;">info@9rx.com</a> 
-                                            or call <a href="tel:+18005551234" style="color: #059669; text-decoration: none; font-weight: 500;">(800) 555-1234</a>
+                                            Contact us at <a href="mailto:info@9rx.com" style="color: #2563eb; text-decoration: none; font-weight: 500;">info@9rx.com</a> 
+                                            or call <a href="tel:+18009409619" style="color: #2563eb; text-decoration: none; font-weight: 500;">(800) 555-1234</a>
                                         </p>
                                     </td>
                                 </tr>
@@ -155,11 +155,11 @@ const profileUpdateTemplate = (name, email) => {
                             <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #ffffff;">9RX</p>
                             <p style="margin: 0 0 16px 0; font-size: 13px; color: #9ca3af;">Your Trusted Pharmacy Partner</p>
                             <div style="margin-bottom: 16px;">
-                                <a href="https://9rx.com" style="display: inline-block; margin: 0 8px; color: #10b981; text-decoration: none; font-size: 13px;">Website</a>
+                                <a href="https://9rx.com" style="display: inline-block; margin: 0 8px; color: #3b82f6; text-decoration: none; font-size: 13px;">Website</a>
                                 <span style="color: #4b5563;">|</span>
-                                <a href="https://9rx.com/orders" style="display: inline-block; margin: 0 8px; color: #10b981; text-decoration: none; font-size: 13px;">My Orders</a>
+                                <a href="https://9rx.com/orders" style="display: inline-block; margin: 0 8px; color: #3b82f6; text-decoration: none; font-size: 13px;">My Orders</a>
                                 <span style="color: #4b5563;">|</span>
-                                <a href="https://9rx.com/contact" style="display: inline-block; margin: 0 8px; color: #10b981; text-decoration: none; font-size: 13px;">Contact</a>
+                                <a href="https://9rx.com/contact" style="display: inline-block; margin: 0 8px; color: #3b82f6; text-decoration: none; font-size: 13px;">Contact</a>
                             </div>
                             <p style="margin: 0; font-size: 12px; color: #6b7280;">
                                 © ${currentYear} 9RX. All rights reserved.

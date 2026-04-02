@@ -83,10 +83,10 @@ const orderConfirmationTemplate = (order) => {
     let textColor = '#92400e';
     let label = 'Pending';
     
-    if (statusLower === 'paid') {
-      bgColor = '#d1fae5';
-      textColor = '#065f46';
-      label = 'Paid';
+	    if (statusLower === 'paid') {
+	      bgColor = '#dbeafe';
+	      textColor = '#1d4ed8';
+	      label = 'Paid';
     } else if (statusLower === 'partial_paid') {
       bgColor = '#fef3c7';
       textColor = '#92400e';
@@ -115,7 +115,7 @@ const orderConfirmationTemplate = (order) => {
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background-color: #059669; padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+	                        <td style="background-color: #3b82f6; padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
                             <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                 <tr>
                                     <td align="center" style="padding-bottom: 20px;">
@@ -151,12 +151,12 @@ const orderConfirmationTemplate = (order) => {
                             </div>
 
                             <!-- Order Info Card -->
-                            <div style="margin: 0 30px 25px; background-color: #f0fdf4; border-radius: 12px; padding: 20px; border: 1px solid #d1fae5;">
+	                            <div style="margin: 0 30px 25px; background-color: #eff6ff; border-radius: 12px; padding: 20px; border: 1px solid #bfdbfe;">
                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                     <tr>
                                         <td style="vertical-align: top; padding-bottom: 12px;">
                                             <p style="margin: 0 0 4px 0; font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px;">Order Number</p>
-                                            <p style="margin: 0; font-size: 18px; font-weight: 700; color: #059669;">#${order_number}</p>
+	                                            <p style="margin: 0; font-size: 18px; font-weight: 700; color: #3b82f6;">#${order_number}</p>
                                         </td>
                                     </tr>
                                     <tr>
@@ -227,15 +227,15 @@ const orderConfirmationTemplate = (order) => {
                                     </tr>
                                     ${discount_details.map(discount => `
                                     <tr>
-                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600;">${discount.name || 'Discount'}</td>
-                                        <td style="padding: 6px 0; font-size: 14px; color: #059669; font-weight: 600; text-align: right;">-${formatCurrency(discount.amount || 0)}</td>
+	                                        <td style="padding: 6px 0; font-size: 14px; color: #3b82f6; font-weight: 600;">${discount.name || 'Discount'}</td>
+	                                        <td style="padding: 6px 0; font-size: 14px; color: #3b82f6; font-weight: 600; text-align: right;">-${formatCurrency(discount.amount || 0)}</td>
                                     </tr>
                                     `).join('')}
                                     ` : ''}
                                     ${discount_amount > 0 ? `
                                     <tr>
                                         <td colspan="2" style="padding: 4px 0;">
-                                            <div style="text-align: right; font-size: 13px; color: #059669; font-weight: 600;">
+	                                            <div style="text-align: right; font-size: 13px; color: #3b82f6; font-weight: 600;">
                                                 You saved: ${formatCurrency(discount_amount)}
                                             </div>
                                         </td>
@@ -247,7 +247,7 @@ const orderConfirmationTemplate = (order) => {
                                                 <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
                                                     <tr>
                                                         <td style="font-size: 16px; font-weight: 700; color: #1f2937;">Total</td>
-                                                        <td style="font-size: 20px; font-weight: 700; color: #059669; text-align: right;">${formatCurrency(total_amount)}</td>
+	                                                        <td style="font-size: 20px; font-weight: 700; color: #3b82f6; text-align: right;">${formatCurrency(total_amount)}</td>
                                                     </tr>
                                                 </table>
                                             </div>
@@ -268,8 +268,8 @@ const orderConfirmationTemplate = (order) => {
 
                             <!-- CTA Button -->
                             <div style="padding: 0 30px 35px; text-align: center;">
-                                <a href="https://9rx.com/pharmacy/orders" 
-                                   style="display: inline-block; background-color: #059669; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600;">
+	                                <a href="https://9rx.com/pharmacy/orders" 
+	                                   style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 16px 40px; border-radius: 12px; font-size: 16px; font-weight: 600;">
                                     📋 View My Orders
                                 </a>
                             </div>
@@ -285,7 +285,7 @@ const orderConfirmationTemplate = (order) => {
                                     <td style="text-align: center;">
                                         <p style="margin: 0 0 8px 0; font-size: 14px; font-weight: 600; color: #374151;">Need Help?</p>
                                         <p style="margin: 0; font-size: 13px; color: #6b7280;">
-                                            Contact us at <a href="mailto:info@9rx.com" style="color: #059669; text-decoration: none; font-weight: 500;">info@9rx.com</a>
+	                                            Contact us at <a href="mailto:info@9rx.com" style="color: #3b82f6; text-decoration: none; font-weight: 500;">info@9rx.com</a>
                                         </p>
                                     </td>
                                 </tr>

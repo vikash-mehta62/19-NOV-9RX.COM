@@ -362,7 +362,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         </Sidebar>
 
         <main className="flex-1 flex flex-col min-h-screen overflow-x-hidden">
-          <TopBar hideCartDrawer={hideCartDrawer} />
+          <TopBar hideCartDrawer={hideCartDrawer} hideNotifications={hideFinancialData} />
           <div className="flex-1 p-3 sm:p-4 md:p-5 lg:p-6 xl:p-8 overflow-y-auto">
             <div ref={contentRef} className="mx-auto max-w-7xl w-full">
               <AnnouncementDisplay userRole={role} />

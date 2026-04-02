@@ -1,12 +1,8 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import JsBarcode from "jsbarcode";
 import Logo from "../assests/home/9rx_logo.png";
 import {
   fetchAdminDocumentSettings,
-  formatDocumentAddressLine,
-  formatDocumentContactLine,
-  formatDocumentMetaLine,
 } from "@/lib/documentSettings";
 
 interface InvoiceData {
@@ -65,12 +61,6 @@ interface InvoiceData {
   company_name?: string;
 }
 
-const generateBarcode = (text: string): string => {
-  const canvas = document.createElement("canvas");
-  JsBarcode(canvas, text, { format: "CODE128", width: 2, height: 40, displayValue: false, margin: 0 });
-  return canvas.toDataURL("image/png");
-};
-
 const buildDiscountSummaryRows = (
   discountAmount: number,
   discountDetails: Array<{ name?: string; amount?: number }>
@@ -111,9 +101,6 @@ export async function generateInvoicePdfBlob(
   const documentSettings = await fetchAdminDocumentSettings();
   const invoiceCompany = documentSettings.invoice;
   const invoiceCompanyName = invoiceCompany.name || "9RX LLC";
-  const invoiceAddressLine = formatDocumentAddressLine(invoiceCompany);
-  const invoiceContactLine = formatDocumentContactLine(invoiceCompany);
-  const invoiceMetaLine = formatDocumentMetaLine(invoiceCompany);
   const supportEmail = invoiceCompany.email || "info@9rx.com";
 
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }) as any;
@@ -121,7 +108,7 @@ export async function generateInvoicePdfBlob(
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;
 
-  const brandColor: [number, number, number] = [59, 130, 246];
+  const brandColor: [number, number, number] = [40, 56, 136];
   const darkGray: [number, number, number] = [60, 60, 60];
   const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -149,12 +136,38 @@ export async function generateInvoicePdfBlob(
     timeZone: "UTC",
   });
 
+  const headerTopY = 8;
+  const headerContentY = headerTopY + 4;
+  const leftColumnX = margin;
+  const leftColumnWidth = 50;
+  const rightColumnX = pageWidth - margin;
+  const rightColumnWidth = 60;
+  const invoiceAddressLines = [
+    invoiceCompany.street,
+    invoiceCompany.suite,
+    [invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "),
+    invoiceCompany.country,
+  ].filter(Boolean) as string[];
+  let headerBottomY = 66;
+
   // ===== HEADER BAND =====
   doc.setFillColor(...brandColor);
   doc.rect(0, 0, pageWidth, 5, "F");
 
-  // ===== LOGO SECTION =====
+  // ===== LEFT ADDRESS =====
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  let addressY = headerContentY + 3;
+  invoiceAddressLines.forEach((line) => {
+    const wrappedLines = doc.splitTextToSize(line, leftColumnWidth);
+    doc.text(wrappedLines, leftColumnX, addressY);
+    addressY += wrappedLines.length * 4;
+  });
+
+  // ===== CENTER LOGO =====
   let logoLoaded = false;
+  let logoBottomY = headerContentY;
   try {
     const logo = new Image();
     logo.src = Logo;
@@ -167,46 +180,39 @@ export async function generateInvoicePdfBlob(
       setTimeout(() => resolve(), 3000);
     });
     if (logoLoaded && logo.width > 0) {
-      const logoHeight = 20;
+      const logoHeight = 18;
       const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight);
+      doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, headerContentY, logoWidth, logoHeight);
+      logoBottomY = headerContentY + logoHeight;
     }
   } catch {
     /* Continue without logo */
   }
-
-  // ===== COMPANY INFO (Left) =====
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(16);
-  doc.setTextColor(...darkGray);
-  doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  doc.setTextColor(100, 100, 100);
-  if (invoiceAddressLine) {
-    doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
-  }
-  if (invoiceContactLine) {
-    doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
-  }
-  if (invoiceMetaLine) {
-    doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
+  if (!logoLoaded) {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...darkGray);
+    doc.text(invoiceCompanyName, pageWidth / 2, headerContentY + 10, { align: "center" });
+    logoBottomY = headerContentY + 10;
   }
 
   // ===== DOCUMENT TITLE & NUMBER (Right) =====
   doc.setFont("helvetica", "bold");
   doc.setFontSize(24);
   doc.setTextColor(...brandColor);
-  doc.text("INVOICE", pageWidth - margin, 16, { align: "right" });
+  doc.text("INVOICE", rightColumnX, headerContentY + 4, { align: "right", maxWidth: rightColumnWidth });
   doc.setFontSize(10);
   doc.setTextColor(...darkGray);
-  doc.text(`# ${invoice.invoice_number}`, pageWidth - margin, 24, { align: "right" });
+  let detailsY = headerContentY + 12;
+  doc.text(`# ${invoice.invoice_number}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
   doc.setFontSize(9);
   doc.setTextColor(100, 100, 100);
-  doc.text(`Date: ${formattedDate}`, pageWidth - margin, 29, { align: "right" });
+  detailsY += 5;
+  doc.text(`Date: ${formattedDate}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
 
   // Payment status badge
-  const badgeY = 38;
+  const badgeY = detailsY + 5;
+  let rightBottomY = badgeY;
   if (isPaid) {
     doc.setFillColor(34, 197, 94);
     doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F");
@@ -214,6 +220,7 @@ export async function generateInvoicePdfBlob(
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" });
+    rightBottomY = badgeY + 8;
   } else {
     doc.setFillColor(239, 68, 68);
     doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F");
@@ -221,23 +228,18 @@ export async function generateInvoicePdfBlob(
     doc.setFontSize(8);
     doc.setFont("helvetica", "bold");
     doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
+    rightBottomY = badgeY + 8;
   }
 
-  // ===== BARCODE =====
-  try {
-    const barcodeDataUrl = generateBarcode(invoice.invoice_number);
-    doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 12, 50, 12);
-  } catch {
-    /* Skip barcode */
-  }
+  headerBottomY = Math.max(addressY, logoBottomY, rightBottomY) + 8;
 
   // ===== DIVIDER LINE =====
   doc.setDrawColor(220, 220, 220);
   doc.setLineWidth(0.5);
-  doc.line(margin, 66, pageWidth - margin, 66);
+  doc.line(margin, headerBottomY, pageWidth - margin, headerBottomY);
 
   // ===== BILL TO / SHIP TO SECTION =====
-  const infoStartY = 71;
+  const infoStartY = headerBottomY + 5;
   const boxWidth = (pageWidth - margin * 3) / 2;
   const drawInfoBox = (title: string, x: number, lines: string[]) => {
     doc.setFillColor(...lightGray);

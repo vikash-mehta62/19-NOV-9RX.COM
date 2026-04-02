@@ -23,6 +23,7 @@ interface CustomerTabProps {
   userRole?: "admin" | "pharmacy" | "group" | "hospital";
   orderStatus?: string;
   isVoid?: boolean;
+  hideFinancialData?: boolean;
 }
 
 // Helper function to safely get address fields from different structures
@@ -144,9 +145,11 @@ export const CustomerTab = ({
   userRole,
   orderStatus,
   isVoid,
+  hideFinancialData = false,
 }: CustomerTabProps) => {
   const { toast } = useToast();
-  const canEdit = userRole === "admin" && orderStatus !== "cancelled" && !isVoid;
+  const canEdit =
+    userRole === "admin" && !hideFinancialData && orderStatus !== "cancelled" && !isVoid;
   
   // Edit states
   const [isEditingBilling, setIsEditingBilling] = useState(false);

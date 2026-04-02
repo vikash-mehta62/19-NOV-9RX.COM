@@ -18,6 +18,7 @@ interface OrderActionsProps {
   onConfirmOrder?: (orderId: string) => void
   onDeleteOrder?: (orderId: string, reason?: string) => Promise<void>
   onOrderUpdate?: (updates: Record<string, any>) => void
+  allowDelete?: boolean
 }
 
 export const OrderActions = ({
@@ -27,6 +28,7 @@ export const OrderActions = ({
   onConfirmOrder,
   onDeleteOrder,
   onOrderUpdate,
+  allowDelete = true,
 }: OrderActionsProps) => {
   const [isLoading, setIsLoading] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -152,7 +154,7 @@ export const OrderActions = ({
     return (
       <div className="flex gap-2">
         <OrderConfirmAction order={order} onConfirmOrder={onConfirmOrder} />
-        {canDeleteOrder(order) && renderDeleteButton()}
+        {allowDelete && canDeleteOrder(order) && renderDeleteButton()}
       </div>
     )
   }
@@ -161,7 +163,7 @@ export const OrderActions = ({
     return (
       <div className="flex gap-2">
         <OrderProcessAction order={order} onProcessOrder={onProcessOrder} />
-        {canDeleteOrder(order) && renderDeleteButton()}
+        {allowDelete && canDeleteOrder(order) && renderDeleteButton()}
       </div>
     )
   }
@@ -169,7 +171,7 @@ export const OrderActions = ({
     return (
       <div className="flex gap-2">
 
-        {canDeleteOrder(order) && renderCalnceButton()}
+        {allowDelete && canDeleteOrder(order) && renderCalnceButton()}
       </div>
     )
   }
@@ -178,12 +180,12 @@ export const OrderActions = ({
     return (
       <div className="flex gap-2">
         <OrderShipAction order={order} onShipOrder={onShipOrder} onOrderUpdate={onOrderUpdate} />
-        {canDeleteOrder(order) && renderDeleteButton()}
+        {allowDelete && canDeleteOrder(order) && renderDeleteButton()}
       </div>
     )
   }
 
-  if (canDeleteOrder(order)) {
+  if (allowDelete && canDeleteOrder(order)) {
     return renderDeleteButton()
   }
 

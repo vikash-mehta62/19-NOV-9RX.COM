@@ -16,7 +16,6 @@ import { useParams, useNavigate } from "react-router-dom";
 import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
-import JsBarcode from "jsbarcode";
 import Logo from '../../assests/home/9rx_logo.png';
 
 interface OrderItem {
@@ -161,19 +160,6 @@ export default function OrderDetail() {
     }
   };
 
-  // Generate barcode
-  const generateBarcode = (text: string): string => {
-    const canvas = document.createElement("canvas");
-    JsBarcode(canvas, text, {
-      format: "CODE128",
-      width: 2,
-      height: 40,
-      displayValue: false,
-      margin: 0,
-    });
-    return canvas.toDataURL("image/png");
-  };
-
   // Download PDF
   const handleDownloadPDF = async () => {
     if (!order) return;
@@ -184,7 +170,7 @@ export default function OrderDetail() {
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 12;
-      const brandColor: [number, number, number] = [59, 130, 246];
+      const brandColor: [number, number, number] = [40, 56, 136];
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -261,12 +247,6 @@ export default function OrderDetail() {
         doc.setFont("helvetica", "bold");
         doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
       }
-
-      // Barcode
-      try {
-        const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12);
-      } catch { /* Skip barcode */ }
 
       // Divider
       doc.setDrawColor(220, 220, 220);

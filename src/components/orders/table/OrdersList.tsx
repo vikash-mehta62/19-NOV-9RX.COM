@@ -1150,6 +1150,7 @@ export function OrdersList({
                               setOrderStatus && setOrderStatus("processing");
                             }}
                             onDeleteOrder={onDeleteOrder}
+                            allowDelete={!hideFinancialData}
                           />
                         </DropdownMenuContent>
                       </DropdownMenu>

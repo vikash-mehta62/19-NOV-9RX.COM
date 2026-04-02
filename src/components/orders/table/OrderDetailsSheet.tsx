@@ -26,7 +26,6 @@ import axios from "../../../../axiosconfig";
 import { useCart } from "@/hooks/use-cart";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import JsBarcode from "jsbarcode";
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
@@ -694,18 +693,6 @@ export const OrderDetailsSheet = ({
   const warehouseAddressLine = formatDocumentAddressLine(warehouseCompany);
   const supportEmail = invoiceCompany.email || DEFAULT_ADMIN_DOCUMENT_SETTINGS.invoice.email;
 
-  const generateBarcode = (text: string): string => {
-    const canvas = document.createElement("canvas");
-    JsBarcode(canvas, text, {
-      format: "CODE128",
-      width: 2,
-      height: 40,
-      displayValue: false,
-      margin: 0,
-    });
-    return canvas.toDataURL("image/png");
-  };
-
   const loadPdfLogo = async () => {
     try {
       const logo = new Image();
@@ -721,6 +708,184 @@ export const OrderDetailsSheet = ({
     }
   };
 
+  const renderStandardPdfHeader = ({
+    doc,
+    pageWidth,
+    margin,
+    brandColor,
+    darkGray,
+    documentTitle,
+    documentNumber,
+    formattedDate,
+    extraRightLines = [],
+    badgeLabel,
+    badgeColor,
+    logo,
+  }: {
+    doc: any;
+    pageWidth: number;
+    margin: number;
+    brandColor: [number, number, number];
+    darkGray: [number, number, number];
+    documentTitle: string;
+    documentNumber: string;
+    formattedDate: string;
+    extraRightLines?: string[];
+    badgeLabel?: string;
+    badgeColor?: [number, number, number];
+    logo: HTMLImageElement | null;
+  }) => {
+    const headerContentY = 10;
+    const leftColumnWidth = 64;
+    const rightColumnX = pageWidth - margin;
+    const rightColumnWidth = 62;
+    const leftInfoLines = [
+      { text: invoiceCompanyName, bold: true, color: darkGray, fontSize: 11 },
+      { text: invoiceCompany.street, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.suite, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: [invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.country, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.phone ? `Phone: ${invoiceCompany.phone}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.email ? `Email: ${invoiceCompany.email}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.taxId ? `Tax ID: ${invoiceCompany.taxId}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: invoiceCompany.website || "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+    ].filter((line) => line.text);
+
+    doc.setFillColor(...brandColor);
+    doc.rect(0, 0, pageWidth, 5, "F");
+
+    let addressY = headerContentY + 3;
+    leftInfoLines.forEach((line, index) => {
+      doc.setFont("helvetica", line.bold ? "bold" : "normal");
+      doc.setFontSize(line.fontSize);
+      doc.setTextColor(...line.color);
+      const wrappedLines = doc.splitTextToSize(line.text, leftColumnWidth);
+      doc.text(wrappedLines, margin, addressY);
+      addressY += wrappedLines.length * (index === 0 ? 4.4 : 3.6);
+    });
+
+    let logoBottomY = headerContentY;
+    if (logo) {
+      const logoHeight = 26;
+      const logoWidth = (logo.width / logo.height) * logoHeight;
+      doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, headerContentY, logoWidth, logoHeight);
+      logoBottomY = headerContentY + logoHeight;
+    } else {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.setTextColor(...darkGray);
+      doc.text(invoiceCompanyName, pageWidth / 2, headerContentY + 10, { align: "center" });
+      logoBottomY = headerContentY + 10;
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...brandColor);
+    doc.text(documentTitle, rightColumnX, headerContentY + 4, { align: "right", maxWidth: rightColumnWidth });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...darkGray);
+    let detailsY = headerContentY + 10;
+    doc.text(`# ${documentNumber}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
+
+    doc.setFontSize(9);
+    doc.setTextColor(100, 100, 100);
+    detailsY += 5;
+    doc.text(`Date: ${formattedDate}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
+
+    extraRightLines.filter(Boolean).forEach((line) => {
+      detailsY += 6;
+      doc.text(line, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
+    });
+
+    let rightBottomY = detailsY;
+    if (badgeLabel && badgeColor) {
+      const badgeWidth = badgeLabel === "PAID" ? 25 : 30;
+      const badgeY = detailsY + 4;
+      doc.setFillColor(...badgeColor);
+      doc.roundedRect(rightColumnX - badgeWidth, badgeY, badgeWidth, 8, 2, 2, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "bold");
+      doc.text(badgeLabel, rightColumnX - badgeWidth / 2, badgeY + 5.5, { align: "center" });
+      rightBottomY = badgeY + 8;
+    }
+
+    const dividerY = Math.max(addressY, logoBottomY, rightBottomY) + 1;
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(margin, dividerY, pageWidth - margin, dividerY);
+
+    return dividerY;
+  };
+
+  const buildStructuredPdfTableOptions = ({
+    doc,
+    pageWidth,
+    pageHeight,
+    margin,
+    brandColor,
+    tableHead,
+    tableBody,
+    tableStartY,
+    columnStyles,
+    totalRow,
+  }: {
+    doc: any;
+    pageWidth: number;
+    pageHeight: number;
+    margin: number;
+    brandColor: [number, number, number];
+    tableHead: string[][];
+    tableBody: any[];
+    tableStartY: number;
+    columnStyles: Record<number, any>;
+    totalRow?: any[];
+  }) => {
+    const bodyWithTotal = totalRow ? [...tableBody, totalRow] : tableBody;
+
+    return {
+      head: tableHead,
+      body: bodyWithTotal,
+      startY: tableStartY,
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        lineColor: [226, 232, 240] as [number, number, number],
+        lineWidth: 0.2,
+        textColor: [75, 85, 99] as [number, number, number],
+        fillColor: [255, 255, 255] as [number, number, number],
+      },
+      headStyles: {
+        fillColor: brandColor,
+        textColor: 255,
+        fontStyle: "bold",
+        halign: "center",
+        valign: "middle",
+      },
+      bodyStyles: {
+        fillColor: [255, 255, 255] as [number, number, number],
+      },
+      columnStyles,
+      margin: { left: margin, right: margin, bottom: 30 },
+      tableWidth: "auto",
+      showHead: "everyPage" as const,
+      didParseCell: (data: any) => {
+        if (totalRow && data.section === "body" && data.row.index === bodyWithTotal.length - 1) {
+          data.cell.styles.fillColor = [248, 250, 252];
+          data.cell.styles.fontStyle = "bold";
+        }
+      },
+      didDrawPage: () => {
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+      },
+    };
+  };
+
   const buildOrderPdfBlob = async () => {
     const doc = new jsPDF({
       orientation: "portrait",
@@ -731,7 +896,7 @@ export const OrderDetailsSheet = ({
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 12;
-    const brandColor: [number, number, number] = [59, 130, 246];
+    const brandColor: [number, number, number] = [40, 56, 136];
     const darkGray: [number, number, number] = [60, 60, 60];
     const lightGray: [number, number, number] = [245, 245, 245];
     const showPricing = !poIs || poIncludePricingInPdf;
@@ -769,128 +934,108 @@ export const OrderDetailsSheet = ({
     const discountDetails = (currentOrder as any)?.discount_details || [];
     const total = subtotal + handling + freight + shipping + tax + processingFee - discountAmount;
 
-    doc.setFillColor(...brandColor);
-    doc.rect(0, 0, pageWidth, 5, "F");
-
-    if (logo) {
-      const logoHeight = 20;
-      const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight);
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(...darkGray);
-    doc.text(invoiceCompanyName, margin, logo ? 32 : 16);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(invoiceAddressLine, margin, logo ? 38 : 22);
-    doc.text(invoiceContactLine, margin, logo ? 43 : 27);
-    doc.text(invoiceMetaLine, margin, logo ? 48 : 32);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.setTextColor(...brandColor);
-    doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
-    doc.setFontSize(10);
-    doc.setTextColor(...darkGray);
-    doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`Date: ${formattedDate}`, pageWidth - margin, 30, { align: "right" });
-    if (poIs) {
-      doc.text(`Vendor Ref: ${vendorReference}`, pageWidth - margin, 35, { align: "right" });
-      doc.text(`Expected: ${formatDateOnly(shippingData.estimatedDelivery)}`, pageWidth - margin, 40, { align: "right" });
-    } else if (invoiceNumber && !isNewOrder) {
-      doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 35, { align: "right" });
-    }
-
-    const badgeY = poIs ? 45 : 34;
-    if (!poIs) {
-      const badgeLabel = currentOrder.payment_status === "paid" ? "PAID" : "UNPAID";
-      const badgeColor = currentOrder.payment_status === "paid" ? [34, 197, 94] as [number, number, number] : [239, 68, 68] as [number, number, number];
-      const badgeWidth = badgeLabel === "PAID" ? 25 : 30;
-      doc.setFillColor(...badgeColor);
-      doc.roundedRect(pageWidth - margin - badgeWidth, badgeY, badgeWidth, 8, 2, 2, "F");
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.setFont("helvetica", "bold");
-      doc.text(badgeLabel, pageWidth - margin - badgeWidth / 2, badgeY + 5.5, { align: "center" });
-    }
-
-    const barcodeY = badgeY + 10;
-    const barcodeHeight = 12;
-    try {
-      const barcodeDataUrl = generateBarcode(documentNumber);
-      doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
-    } catch {
-      // noop
-    }
-
-    const dividerY = Math.max(62, badgeY + 8, barcodeY + barcodeHeight) + 4;
-    doc.setDrawColor(220, 220, 220);
-    doc.setLineWidth(0.5);
-    doc.line(margin, dividerY, pageWidth - margin, dividerY);
+    const dividerY = renderStandardPdfHeader({
+      doc,
+      pageWidth,
+      margin,
+      brandColor,
+      darkGray,
+      documentTitle,
+      documentNumber,
+      formattedDate,
+      extraRightLines: poIs
+        ? [`Expected: ${formatDateOnly(shippingData.estimatedDelivery)}`]
+        : invoiceNumber && !isNewOrder
+          ? [`SO Ref: ${currentOrder.order_number}`]
+          : [],
+      badgeLabel: !poIs ? (currentOrder.payment_status === "paid" ? "PAID" : "UNPAID") : undefined,
+      badgeColor: !poIs
+        ? (currentOrder.payment_status === "paid"
+          ? [34, 197, 94] as [number, number, number]
+          : [239, 68, 68] as [number, number, number])
+        : undefined,
+      logo,
+    });
 
     const infoStartY = dividerY + 5;
     const boxWidth = (pageWidth - margin * 3) / 2;
-    const drawInfoBox = (title: string, x: number, lines: string[]) => {
+    const lineHeight = 4.6;
+    const measureInfoBox = (lines: string[]) => {
+      const visibleLines = lines.filter(Boolean).slice(0, 5);
+      const wrappedLines = visibleLines.flatMap((line) => doc.splitTextToSize(line, boxWidth - 10));
+      const boxHeight = Math.max(29, 12 + wrappedLines.length * lineHeight + 4);
+      return { visibleLines, boxHeight };
+    };
+    const drawInfoBox = (
+      title: string,
+      x: number,
+      measured: { visibleLines: string[]; boxHeight: number },
+      sharedHeight: number,
+    ) => {
       doc.setFillColor(...lightGray);
-      doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
+      doc.roundedRect(x, infoStartY, boxWidth, sharedHeight, 2, 2, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(...brandColor);
-      doc.text(title, x + 5, infoStartY + 7);
+      doc.text(title, x + 5, infoStartY + 6);
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(...darkGray);
-      let y = infoStartY + 14;
-      lines.filter(Boolean).slice(0, 5).forEach((line) => {
-        doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 });
-        y += 5;
+      let y = infoStartY + 11.5;
+      measured.visibleLines.forEach((line) => {
+        const lineParts = doc.splitTextToSize(line, boxWidth - 10);
+        doc.text(lineParts, x + 5, y);
+        y += lineParts.length * lineHeight;
       });
     };
 
+    let infoBottomY: number;
     if (poIs) {
       const vendorAddress = [
         currentOrder.customerInfo?.address?.street,
         [currentOrder.customerInfo?.address?.city, currentOrder.customerInfo?.address?.state, currentOrder.customerInfo?.address?.zip_code].filter(Boolean).join(", "),
       ].filter(Boolean).join(" ");
-      drawInfoBox("VENDOR", margin, [
-        companyName || currentOrder.customerInfo?.name,
-        currentOrder.customerInfo?.name,
-        currentOrder.customerInfo?.phone,
-        currentOrder.customerInfo?.email,
-        vendorAddress,
-      ]);
-      drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-        warehouseCompany.name,
-        warehouseCompany.street,
-        [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-        shippingData.method ? `Method: ${shippingData.method}` : "",
-        showPricing ? "Pricing included on vendor copy" : "Pricing hidden on vendor copy",
-      ]);
+      const vendorLayout = measureInfoBox([
+          companyName || currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          vendorAddress,
+        ]);
+      const shipToLayout = measureInfoBox([
+          warehouseCompany.name,
+          warehouseCompany.street,
+          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
+          shippingData.method ? `Method: ${shippingData.method}` : "",
+          // showPricing ? "Pricing included on vendor copy" : "Pricing hidden on vendor copy",
+        ]);
+      const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
+      drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);
+      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+      infoBottomY = infoStartY + sharedInfoBoxHeight;
     } else {
       const billingAddr = currentOrder.customerInfo?.address || {};
       const shippingAddr = (currentOrder.shippingAddress as any)?.address || {};
-      drawInfoBox("BILL TO", margin, [
-        companyName,
-        currentOrder.customerInfo?.name,
-        currentOrder.customerInfo?.phone,
-        currentOrder.customerInfo?.email,
-        [billingAddr.street, [billingAddr.city, billingAddr.state, billingAddr.zip_code].filter(Boolean).join(", ")].filter(Boolean).join(" "),
-      ]);
-      drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-        (currentOrder.shippingAddress as any)?.fullName || companyName,
-        (currentOrder.shippingAddress as any)?.phone || currentOrder.customerInfo?.phone,
-        shippingAddr.street || "",
-        [shippingAddr.city, shippingAddr.state, shippingAddr.zip_code].filter(Boolean).join(", "),
-      ]);
+      const billToLayout = measureInfoBox([
+          companyName,
+          currentOrder.customerInfo?.name,
+          currentOrder.customerInfo?.phone,
+          currentOrder.customerInfo?.email,
+          [billingAddr.street, [billingAddr.city, billingAddr.state, billingAddr.zip_code].filter(Boolean).join(", ")].filter(Boolean).join(" "),
+        ]);
+      const shipToLayout = measureInfoBox([
+          (currentOrder.shippingAddress as any)?.fullName || companyName,
+          (currentOrder.shippingAddress as any)?.phone || currentOrder.customerInfo?.phone,
+          shippingAddr.street || "",
+          [shippingAddr.city, shippingAddr.state, shippingAddr.zip_code].filter(Boolean).join(", "),
+        ]);
+      const sharedInfoBoxHeight = Math.max(billToLayout.boxHeight, shipToLayout.boxHeight);
+      drawInfoBox("BILL TO", margin, billToLayout, sharedInfoBoxHeight);
+      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+      infoBottomY = infoStartY + sharedInfoBoxHeight;
     }
 
-    let nextSectionY = infoStartY + 42;
+    let nextSectionY = infoBottomY + 7;
     if (poIs) {
       autoTable(doc as any, {
         body: [
@@ -915,6 +1060,7 @@ export const OrderDetailsSheet = ({
         : [["SKU", "Item", "Size / Pack", "Qty"]]
       : [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]];
     const tableBody: any[] = [];
+    let itemsGrandTotal = 0;
     let itemIndex = 1;
 
     (currentOrder.items || []).forEach((item: any) => {
@@ -931,32 +1077,30 @@ export const OrderDetailsSheet = ({
               : [size.sku || item.sku || '', size.size_name || item.name, sizePack || "Standard", String(size.quantity || 0)]
             : [size.sku || item.sku || '', size.size_name || item.name, getOrderSizeLabel(size, item?.unitToggle), String(size.quantity || 0), `$${Number(size.price || 0).toFixed(2)}`, `$${(Number(size.quantity || 0) * Number(size.price || 0)).toFixed(2)}`]
         );
+        itemsGrandTotal += Number(size.quantity || 0) * Number(size.price || 0);
         itemIndex += 1;
 
       });
     });
 
-    autoTable(doc as any, {
-      head: tableHead,
-      body: tableBody,
-      startY: nextSectionY,
-      styles: { fontSize: 9, cellPadding: 3 },
-      theme: "striped",
-      headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
-      alternateRowStyles: { fillColor: [250, 250, 250] },
+    autoTable(doc as any, buildStructuredPdfTableOptions({
+      doc,
+      pageWidth,
+      pageHeight,
+      margin,
+      brandColor,
+      tableHead,
+      tableBody,
+      tableStartY: nextSectionY,
       columnStyles: poIs
         ? showPricing
           ? { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 56 }, 2: { halign: "center", cellWidth: 45 }, 3: { halign: "center", cellWidth: 14 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 26 } }
           : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 75 }, 2: { halign: "center", cellWidth: 70 }, 3: { halign: "center", cellWidth: 20 } }
         : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
-      margin: { left: margin, right: margin, bottom: 30 },
-      showHead: "everyPage",
-      didDrawPage: () => {
-        doc.setFillColor(...brandColor);
-        doc.rect(0, 0, pageWidth, 5, "F");
-        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
-      },
-    });
+      totalRow: poIs
+        ? undefined
+        : ["", "", "", "", "TOTAL:", `$${itemsGrandTotal.toFixed(2)}`],
+    }));
 
     let footerAnchorY = (doc as any).lastAutoTable.finalY + 8;
     if (showPricing) {
@@ -1090,7 +1234,7 @@ export const OrderDetailsSheet = ({
       const margin = 12;
 
       // Brand color
-      const brandColor: [number, number, number] = [59, 130, 246]; // Blue color
+      const brandColor: [number, number, number] = [40, 56, 136];
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -1118,20 +1262,6 @@ export const OrderDetailsSheet = ({
         // Continue without logo
       }
 
-      // ===== COMPANY INFO (Left) =====
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(...darkGray);
-      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
-      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
-      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
-
-      // ===== DOCUMENT TITLE & NUMBER (Right) =====
       // Determine document type: PO, Sales Order (new), or Invoice (confirmed)
       const invoiceNumber = (currentOrder as any).invoice_number;
       const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
@@ -1150,91 +1280,61 @@ export const OrderDetailsSheet = ({
         documentNumber = currentOrder.order_number;
       }
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(24);
-      doc.setTextColor(...brandColor);
-      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
-
-      doc.setFontSize(10);
-      doc.setTextColor(...darkGray);
-      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
-
-      // Show SO reference on invoice
-      if (invoiceNumber && !isNewOrder && !poIs) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
-      }
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
-
-      // Payment status badge
-      const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
-      if (currentOrder.payment_status === "paid") {
-        doc.setFillColor(34, 197, 94); // Green
-        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" });
-      } else {
-        doc.setFillColor(239, 68, 68); // Red
-        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
-      }
-
-      // ===== BARCODE =====
-      const barcodeY = badgeY + 10;
-      const barcodeHeight = 12;
-      try {
-        const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
-      } catch {
-        // Skip barcode if generation fails
-      }
-
-      // ===== DIVIDER LINE =====
-      const dividerY = Math.max(58, badgeY + 8, barcodeY + barcodeHeight) + 4;
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
-      doc.line(margin, dividerY, pageWidth - margin, dividerY);
+      const dividerY = renderStandardPdfHeader({
+        doc,
+        pageWidth,
+        margin,
+        brandColor,
+        darkGray,
+        documentTitle,
+        documentNumber,
+        formattedDate,
+        extraRightLines: invoiceNumber && !isNewOrder && !poIs ? [`SO Ref: ${currentOrder.order_number}`] : [],
+        badgeLabel: currentOrder.payment_status === "paid" ? "PAID" : "UNPAID",
+        badgeColor: currentOrder.payment_status === "paid"
+          ? [34, 197, 94] as [number, number, number]
+          : [239, 68, 68] as [number, number, number],
+        logo: logoLoaded ? logo : null,
+      });
 
       // ===== BILL TO / SHIP TO SECTION =====
       const infoStartY = dividerY + 5;
       const boxWidth = (pageWidth - margin * 3) / 2;
 
       // Helper to draw info box
-      const drawInfoBox = (title: string, x: number, lines: string[]) => {
-        // Box background
+      const lineHeight = 4.6;
+      const measureInfoBox = (lines: string[]) => {
+        const visibleLines = lines.filter(Boolean).slice(0, 5);
+        const wrappedLines = visibleLines.flatMap((line) => doc.splitTextToSize(line, boxWidth - 10));
+        const boxHeight = Math.max(29, 12 + wrappedLines.length * lineHeight + 4);
+        return { visibleLines, boxHeight };
+      };
+      const drawInfoBox = (
+        title: string,
+        x: number,
+        measured: { visibleLines: string[]; boxHeight: number },
+        sharedHeight: number,
+      ) => {
         doc.setFillColor(...lightGray);
-        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
+        doc.roundedRect(x, infoStartY, boxWidth, sharedHeight, 2, 2, "F");
 
-        // Title
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
-        doc.text(title, x + 5, infoStartY + 7);
+        doc.text(title, x + 5, infoStartY + 6);
 
-        // Content
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(...darkGray);
-        let y = infoStartY + 14;
-        lines.filter(Boolean).forEach((line, idx) => {
-          if (idx < 5) { // Max 5 lines
-            doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 });
-            y += 5;
-          }
+        let y = infoStartY + 11.5;
+        measured.visibleLines.forEach((line) => {
+          const lineParts = doc.splitTextToSize(line, boxWidth - 10);
+          doc.text(lineParts, x + 5, y);
+          y += lineParts.length * lineHeight;
         });
       };
 
+      let infoBottomY: number;
       if (poIs) {
         // PURCHASE ORDER: Vendor + Ship To 9RX
         const vendorLines = [
@@ -1250,14 +1350,18 @@ export const OrderDetailsSheet = ({
           ].filter(Boolean).join(", ")
         ].filter(Boolean);
 
-        drawInfoBox("VENDOR", margin, vendorLines);
-        drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-          warehouseCompany.name,
-          warehouseCompany.street,
-          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-          warehouseCompany.phone,
-          warehouseCompany.email
-        ]);
+        const vendorLayout = measureInfoBox(vendorLines);
+        const shipToLayout = measureInfoBox([
+            warehouseCompany.name,
+            warehouseCompany.street,
+            [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
+            warehouseCompany.phone,
+            warehouseCompany.email
+          ]);
+        const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
+        drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+        infoBottomY = infoStartY + sharedInfoBoxHeight;
       } else {
         // INVOICE & SALES ORDER: Bill To + Ship To Customer
         console.log("🔍 PDF Debug - Order Data:", {
@@ -1309,15 +1413,20 @@ export const OrderDetailsSheet = ({
           shipToLines
         });
 
-        drawInfoBox("BILL TO", margin, billToLines);
-        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
+        const billToLayout = measureInfoBox(billToLines);
+        const shipToLayout = measureInfoBox(shipToLines);
+        const sharedInfoBoxHeight = Math.max(billToLayout.boxHeight, shipToLayout.boxHeight);
+        drawInfoBox("BILL TO", margin, billToLayout, sharedInfoBoxHeight);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+        infoBottomY = infoStartY + sharedInfoBoxHeight;
       }
 
       // ===== ITEMS TABLE =====
       // ===== ITEMS TABLE =====
-      const tableStartY = infoStartY + 42;
+      const tableStartY = infoBottomY + 7;
       const tableHead = [["#", "Description", "Size", "Qty", "Unit Price", "Total"]];
       const tableBody: any[] = [];
+      let itemsGrandTotal = 0;
 
       let itemIndex = 1;
 
@@ -1327,6 +1436,7 @@ export const OrderDetailsSheet = ({
           const quantity = size.quantity.toString();
           const pricePerUnit = `$${Number(size.price).toFixed(2)}`;
           const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`;
+          itemsGrandTotal += Number(size.quantity || 0) * Number(size.price || 0);
 
           // Main product row
           tableBody.push([
@@ -1344,24 +1454,15 @@ export const OrderDetailsSheet = ({
       });
 
       // Draw table
-      autoTable(doc as any, {
-        head: tableHead,
-        body: tableBody,
-        startY: tableStartY,
-        styles: {
-          fontSize: 9,
-          cellPadding: 3,
-        },
-        theme: "striped",
-        headStyles: {
-          fillColor: brandColor,
-          textColor: 255,
-          fontStyle: "bold",
-          halign: "center",
-        },
-        alternateRowStyles: {
-          fillColor: [250, 250, 250],
-        },
+      autoTable(doc as any, buildStructuredPdfTableOptions({
+        doc,
+        pageWidth,
+        pageHeight,
+        margin,
+        brandColor,
+        tableHead,
+        tableBody,
+        tableStartY,
         columnStyles: {
           0: { halign: "center", cellWidth: 10 },
           1: { cellWidth: "auto" },
@@ -1370,15 +1471,8 @@ export const OrderDetailsSheet = ({
           4: { halign: "right", cellWidth: 25 },
           5: { halign: "right", cellWidth: 25 },
         },
-        margin: { left: margin, right: margin, bottom: 30 },
-        tableWidth: "auto",
-        showHead: "everyPage",
-        didDrawPage: () => {
-          doc.setFillColor(...brandColor);
-          doc.rect(0, 0, pageWidth, 5, "F");
-          doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
-        },
-      });
+        totalRow: ["", "", "", "", "TOTAL:", `$${itemsGrandTotal.toFixed(2)}`],
+      }));
 
 
       let finalY = (doc as any).lastAutoTable.finalY + 8;
@@ -1539,7 +1633,7 @@ export const OrderDetailsSheet = ({
         doc.setPage(i);
 
         // Ensure footer band is on this page
-        doc.setFillColor(59, 130, 246);
+        doc.setFillColor(40, 56, 136);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
 
         // Draw white background for page number visibility
@@ -1620,7 +1714,7 @@ export const OrderDetailsSheet = ({
       const margin = 12;
 
       // Brand color
-      const brandColor: [number, number, number] = [59, 130, 246];
+      const brandColor: [number, number, number] = [40, 56, 136];
       const darkGray: [number, number, number] = [60, 60, 60];
       const lightGray: [number, number, number] = [245, 245, 245];
 
@@ -1648,20 +1742,6 @@ export const OrderDetailsSheet = ({
         // Continue without logo
       }
 
-      // ===== COMPANY INFO (Left) =====
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(...darkGray);
-      doc.text(invoiceCompanyName, margin, logoLoaded ? 32 : 16);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(invoiceAddressLine, margin, logoLoaded ? 38 : 22);
-      doc.text(invoiceContactLine, margin, logoLoaded ? 43 : 27);
-      doc.text(invoiceMetaLine, margin, logoLoaded ? 48 : 32);
-
-      // ===== DOCUMENT TITLE & NUMBER (Right) =====
       const invoiceNumber = (currentOrder as any).invoice_number;
       const isNewOrder = currentOrder.status === "new" || currentOrder.status === "pending";
 
@@ -1679,86 +1759,60 @@ export const OrderDetailsSheet = ({
         documentNumber = currentOrder.order_number;
       }
 
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(24);
-      doc.setTextColor(...brandColor);
-      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" });
-
-      doc.setFontSize(10);
-      doc.setTextColor(...darkGray);
-      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" });
-
-      if (invoiceNumber && !isNewOrder && !poIs) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-        doc.text(`SO Ref: ${currentOrder.order_number}`, pageWidth - margin, 29, { align: "right" });
-      }
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder && !poIs ? 34 : 30, { align: "right" });
-
-      // Payment status badge
-      const badgeY = invoiceNumber && !isNewOrder && !poIs ? 39 : 34;
-      if (currentOrder.payment_status === "paid") {
-        doc.setFillColor(34, 197, 94);
-        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" });
-      } else {
-        doc.setFillColor(239, 68, 68);
-        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F");
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(8);
-        doc.setFont("helvetica", "bold");
-        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" });
-      }
-
-      // ===== BARCODE =====
-      const barcodeY = badgeY + 11;
-      const barcodeHeight = 12;
-      try {
-        const barcodeDataUrl = generateBarcode(documentNumber);
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, barcodeHeight);
-      } catch {
-        // Skip barcode if generation fails
-      }
-
-      // ===== DIVIDER LINE =====
-      const dividerY = Math.max(58, badgeY + 8, barcodeY + barcodeHeight) + 4;
-      doc.setDrawColor(220, 220, 220);
-      doc.setLineWidth(0.5);
-      doc.line(margin, dividerY, pageWidth - margin, dividerY);
+      const dividerY = renderStandardPdfHeader({
+        doc,
+        pageWidth,
+        margin,
+        brandColor,
+        darkGray,
+        documentTitle,
+        documentNumber,
+        formattedDate,
+        extraRightLines: invoiceNumber && !isNewOrder && !poIs ? [`SO Ref: ${currentOrder.order_number}`] : [],
+        badgeLabel: currentOrder.payment_status === "paid" ? "PAID" : "UNPAID",
+        badgeColor: currentOrder.payment_status === "paid"
+          ? [34, 197, 94] as [number, number, number]
+          : [239, 68, 68] as [number, number, number],
+        logo: logoLoaded ? logo : null,
+      });
 
       // ===== BILL TO / SHIP TO SECTION =====
       const infoStartY = dividerY + 5;
       const boxWidth = (pageWidth - margin * 3) / 2;
 
-      const drawInfoBox = (title: string, x: number, lines: string[]) => {
+      const lineHeight = 4.6;
+      const measureInfoBox = (lines: string[]) => {
+        const visibleLines = lines.filter(Boolean).slice(0, 5);
+        const wrappedLines = visibleLines.flatMap((line) => doc.splitTextToSize(line, boxWidth - 10));
+        const boxHeight = Math.max(29, 12 + wrappedLines.length * lineHeight + 4);
+        return { visibleLines, boxHeight };
+      };
+      const drawInfoBox = (
+        title: string,
+        x: number,
+        measured: { visibleLines: string[]; boxHeight: number },
+        sharedHeight: number,
+      ) => {
         doc.setFillColor(...lightGray);
-        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F");
+        doc.roundedRect(x, infoStartY, boxWidth, sharedHeight, 2, 2, "F");
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10);
         doc.setTextColor(...brandColor);
-        doc.text(title, x + 5, infoStartY + 7);
+        doc.text(title, x + 5, infoStartY + 6);
 
         doc.setFont("helvetica", "normal");
         doc.setFontSize(9);
         doc.setTextColor(...darkGray);
-        let y = infoStartY + 14;
-        lines.filter(Boolean).forEach((line, idx) => {
-          if (idx < 5) {
-            doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 });
-            y += 5;
-          }
+        let y = infoStartY + 11.5;
+        measured.visibleLines.forEach((line) => {
+          const lineParts = doc.splitTextToSize(line, boxWidth - 10);
+          doc.text(lineParts, x + 5, y);
+          y += lineParts.length * lineHeight;
         });
       };
 
+      let infoBottomY: number;
       if (poIs) {
         const vendorLines = [
           companyName,
@@ -1773,14 +1827,18 @@ export const OrderDetailsSheet = ({
           ].filter(Boolean).join(", ")
         ].filter(Boolean);
 
-        drawInfoBox("VENDOR", margin, vendorLines);
-        drawInfoBox("SHIP TO", margin * 2 + boxWidth, [
-          warehouseCompany.name,
-          warehouseCompany.street,
-          [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
-          warehouseCompany.phone,
-          warehouseCompany.email
-        ]);
+        const vendorLayout = measureInfoBox(vendorLines);
+        const shipToLayout = measureInfoBox([
+            warehouseCompany.name,
+            warehouseCompany.street,
+            [warehouseCompany.city, warehouseCompany.state, warehouseCompany.zipCode].filter(Boolean).join(", "),
+            warehouseCompany.phone,
+            warehouseCompany.email
+          ]);
+        const sharedInfoBoxHeight = Math.max(vendorLayout.boxHeight, shipToLayout.boxHeight);
+        drawInfoBox("VENDOR", margin, vendorLayout, sharedInfoBoxHeight);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+        infoBottomY = infoStartY + sharedInfoBoxHeight;
       } else {
         // INVOICE & SALES ORDER: Bill To + Ship To Customer
         // Extract billing address from customerInfo.address
@@ -1814,14 +1872,19 @@ export const OrderDetailsSheet = ({
           [shippingCity, shippingState, shippingZip].filter(Boolean).join(", ")
         ].filter(Boolean);
 
-        drawInfoBox("BILL TO", margin, billToLines);
-        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines);
+        const billToLayout = measureInfoBox(billToLines);
+        const shipToLayout = measureInfoBox(shipToLines);
+        const sharedInfoBoxHeight = Math.max(billToLayout.boxHeight, shipToLayout.boxHeight);
+        drawInfoBox("BILL TO", margin, billToLayout, sharedInfoBoxHeight);
+        drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight);
+        infoBottomY = infoStartY + sharedInfoBoxHeight;
       }
 
       // ===== ITEMS TABLE =====
-      const tableStartY = infoStartY + 42;
+      const tableStartY = infoBottomY + 7;
       const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]];
       const tableBody: any[] = [];
+      let itemsGrandTotal = 0;
 
       currentOrder.items.forEach((item: any) => {
         item.sizes.forEach((size, sizeIndex) => {
@@ -1829,30 +1892,22 @@ export const OrderDetailsSheet = ({
           const quantity = size.quantity.toString();
           const pricePerUnit = `${Number(size.price).toFixed(2)}`;
           const totalPerSize = `${(size.quantity * size.price).toFixed(2)}`;
+          itemsGrandTotal += Number(size.quantity || 0) * Number(size.price || 0);
 
           tableBody.push([size.sku || item.sku || '', size.size_name || item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize]);
 
         });
       });
 
-      autoTable(doc as any, {
-        head: tableHead,
-        body: tableBody,
-        startY: tableStartY,
-        styles: {
-          fontSize: 9,
-          cellPadding: 3,
-        },
-        theme: "striped",
-        headStyles: {
-          fillColor: brandColor,
-          textColor: 255,
-          fontStyle: "bold",
-          halign: "center"
-        },
-        alternateRowStyles: {
-          fillColor: [250, 250, 250]
-        },
+      autoTable(doc as any, buildStructuredPdfTableOptions({
+        doc,
+        pageWidth,
+        pageHeight,
+        margin,
+        brandColor,
+        tableHead,
+        tableBody,
+        tableStartY,
         columnStyles: {
           0: { halign: "center", cellWidth: 22 },
           1: { cellWidth: "auto" },
@@ -1861,18 +1916,8 @@ export const OrderDetailsSheet = ({
           4: { halign: "right", cellWidth: 25 },
           5: { halign: "right", cellWidth: 25 },
         },
-        margin: { left: margin, right: margin, bottom: 30 },
-        tableWidth: "auto",
-        showHead: 'everyPage',
-        didDrawPage: (data: any) => {
-          // Add header band on every page
-          doc.setFillColor(...brandColor);
-          doc.rect(0, 0, pageWidth, 5, "F");
-          // Add footer band on every page (at very bottom - thin 2mm bar)
-          doc.setFillColor(...brandColor);
-          doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
-        }
-      });
+        totalRow: ["", "", "", "", "TOTAL:", `$${itemsGrandTotal.toFixed(2)}`],
+      }));
 
       let finalY = (doc as any).lastAutoTable.finalY + 8;
 
@@ -2024,7 +2069,7 @@ export const OrderDetailsSheet = ({
         doc.setPage(i);
 
         // Ensure footer band is on this page
-        doc.setFillColor(59, 130, 246);
+        doc.setFillColor(40, 56, 136);
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
 
         // Draw white background for page number visibility
@@ -3554,7 +3599,7 @@ export const OrderDetailsSheet = ({
                 ? "Edit order details and click Update Order to save your changes."
                 : poIs
                   ? "Approve, schedule, receive, pay, and close the purchase order from one workspace"
-                  : userRole === "admin"
+                  : userRole === "admin" && !hideFinancialData
                     ? "Review the order here. Click Edit Order to change details, then Update Order to save."
                     : "View and manage order information"}
             </SheetDescription>
@@ -4464,6 +4509,7 @@ export const OrderDetailsSheet = ({
                         userRole={userRole}
                         orderStatus={currentOrder.status}
                         isVoid={currentOrder.void}
+                        hideFinancialData={hideFinancialData}
                       />
                     </TabsContent>
 
@@ -4515,6 +4561,7 @@ export const OrderDetailsSheet = ({
                       onConfirmOrder={() => handleStatusUpdate("confirm")}
                       onDeleteOrder={onDeleteOrder}
                       onOrderUpdate={persistCurrentOrder}
+                      allowDelete={!hideFinancialData}
                     />
                   </div>
                 )}

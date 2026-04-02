@@ -1,12 +1,9 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import JsBarcode from "jsbarcode";
+import Logo from "../assests/home/9rx_logo.png";
 import {
   DocumentAddressSettings,
   fetchAdminDocumentSettings,
-  formatDocumentAddressLine,
-  formatDocumentContactLine,
-  formatDocumentMetaLine,
 } from "@/lib/documentSettings";
 
 // Extend the jsPDF type to include autoTable
@@ -19,29 +16,14 @@ interface jsPDFWithAutoTable extends jsPDF {
 
 // Professional blue color scheme matching your design
 const COLORS = {
-  primary: [59, 130, 246] as [number, number, number],    // Blue-500 (main header)
-  primaryDark: [37, 99, 235] as [number, number, number], // Blue-600 (darker accent)
+  primary: [40, 56, 136] as [number, number, number],     // 9RX logo blue
+  primaryDark: [32, 48, 120] as [number, number, number], // darker logo blue accent
   success: [34, 197, 94] as [number, number, number],     // Green-500 (PAID badge)
   dark: [31, 41, 55] as [number, number, number],         // Gray-800 (text)
   medium: [107, 114, 128] as [number, number, number],    // Gray-500 (secondary text)
   light: [243, 244, 246] as [number, number, number],     // Gray-100 (backgrounds)
   white: [255, 255, 255] as [number, number, number],
   black: [0, 0, 0] as [number, number, number],
-};
-
-/**
- * Generate barcode as base64 image
- */
-const generateBarcode = (text: string): string => {
-  const canvas = document.createElement("canvas");
-  JsBarcode(canvas, text, {
-    format: "CODE128",
-    width: 2,
-    height: 40,
-    displayValue: false,
-    margin: 0,
-  });
-  return canvas.toDataURL("image/png");
 };
 
 /**
@@ -95,6 +77,7 @@ export interface SalesOrderData {
  */
 export class SalesOrderPDFGenerator {
   private margin = 15;
+  private headerBottomY = 55;
 
   /**
    * Create professional Sales Order PDF document
@@ -110,8 +93,6 @@ export class SalesOrderPDFGenerator {
       }) as jsPDFWithAutoTable;
 
       const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-
       // Add teal header
       this.addHeader(doc, pageWidth);
 
@@ -120,9 +101,6 @@ export class SalesOrderPDFGenerator {
 
       // Add separator line after heading
       this.addHeaderSeparator(doc, pageWidth);
-
-      // Add barcode
-      this.addBarcode(doc, orderData.orderNumber, pageWidth);
 
       // Add Bill To and Ship To sections
       this.addAddressSections(doc, orderData, pageWidth);
@@ -161,69 +139,77 @@ export class SalesOrderPDFGenerator {
     pageWidth: number,
     companySettings: DocumentAddressSettings
   ): Promise<void> {
-    // Company logo (left side)
+    const headerTopY = 8;
+    const contentTopY = headerTopY + 6;
+    const leftColumnX = this.margin;
+    const leftColumnWidth = 52;
+    const rightColumnX = pageWidth - this.margin;
+    const rightColumnWidth = 56;
+
+    const addressLines = [
+      companySettings.street,
+      companySettings.suite,
+      [companySettings.city, companySettings.state, companySettings.zipCode].filter(Boolean).join(", "),
+      companySettings.country,
+    ].filter(Boolean) as string[];
+
+    let logoBottomY = contentTopY;
+
+    // Company logo (center column)
     try {
       const logo = new Image();
-      logo.src = "/final.png";
+      logo.src = Logo;
       await new Promise((resolve, reject) => {
         logo.onload = resolve;
         logo.onerror = reject;
         setTimeout(reject, 2000);
       });
       
-      const logoHeight = 15;
+      const logoHeight = 18;
       const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", this.margin, 5, logoWidth, logoHeight);
+      const logoX = pageWidth / 2 - logoWidth / 2;
+      doc.addImage(logo, "PNG", logoX, contentTopY, logoWidth, logoHeight);
+      logoBottomY = contentTopY + logoHeight;
     } catch (logoError) {
-      // Fallback: Add company name as text
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
+      doc.setFontSize(18);
       doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-      doc.text(companySettings.name || "9RX", this.margin, 15);
+      doc.text(companySettings.name || "9RX", pageWidth / 2, contentTopY + 10, { align: "center" });
+      logoBottomY = contentTopY + 10;
     }
 
-    // Company details (left side, below logo)
-    const companyName = companySettings.name || "9RX LLC";
-    const companyAddressLine = formatDocumentAddressLine(companySettings);
-    const companyContactLine = formatDocumentContactLine(companySettings);
-    const companyMetaLine = formatDocumentMetaLine(companySettings);
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.setTextColor(COLORS.black[0], COLORS.black[1], COLORS.black[2]);
-    doc.text(companyName, this.margin, 32);
-
+    // Address only (left column)
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(COLORS.medium[0], COLORS.medium[1], COLORS.medium[2]);
-    if (companyAddressLine) {
-      doc.text(companyAddressLine, this.margin, 38);
-    }
-    if (companyContactLine) {
-      doc.text(companyContactLine, this.margin, 43);
-    }
-    if (companyMetaLine) {
-      doc.text(companyMetaLine, this.margin, 48);
-    }
+    let addressY = contentTopY + 3;
+    addressLines.forEach((line) => {
+      const wrappedLines = doc.splitTextToSize(line, leftColumnWidth);
+      doc.text(wrappedLines, leftColumnX, addressY);
+      addressY += wrappedLines.length * 4;
+    });
 
-    // Sales Order title (right side)
+    // Sales Order details (right column)
     doc.setFont("helvetica", "bold");
     doc.setFontSize(24);
     doc.setTextColor(COLORS.primary[0], COLORS.primary[1], COLORS.primary[2]);
-    doc.text("SALES ORDER", pageWidth - this.margin, 15, { align: "right" });
+    doc.text("SALES ORDER", rightColumnX, contentTopY + 3, { align: "right", maxWidth: rightColumnWidth });
 
-    // Order number and date (right side)
     doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
     doc.setTextColor(COLORS.dark[0], COLORS.dark[1], COLORS.dark[2]);
-    doc.text(`# ${orderData.orderNumber}`, pageWidth - this.margin, 25, { align: "right" });
-    doc.text(`Date: ${orderData.date}`, pageWidth - this.margin, 32, { align: "right" });
+    let detailsY = contentTopY + 12;
+    doc.text(`# ${orderData.orderNumber}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
+    detailsY += 7;
+    doc.text(`Date: ${orderData.date}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth });
+    detailsY += 3;
 
     // Status badge (right side)
     const badgeWidth = 25;
     const badgeHeight = 8;
-    const badgeX = pageWidth - this.margin - badgeWidth;
-    const badgeY = 35;
+    const badgeX = rightColumnX - badgeWidth;
+    const badgeY = detailsY + 3;
+    let rightBottomY = detailsY;
 
     if (orderData.status === "paid") {
       doc.setFillColor(COLORS.success[0], COLORS.success[1], COLORS.success[2]);
@@ -233,41 +219,27 @@ export class SalesOrderPDFGenerator {
       doc.setFontSize(8);
       doc.setTextColor(COLORS.white[0], COLORS.white[1], COLORS.white[2]);
       doc.text("PAID", badgeX + badgeWidth / 2, badgeY + 5.5, { align: "center" });
+      rightBottomY = badgeY + badgeHeight;
     }
+
+    const addressBottomY = addressY;
+    this.headerBottomY = Math.max(addressBottomY, logoBottomY, rightBottomY) + 8;
   }
 
   /**
    * Add separator line after header section
    */
   private addHeaderSeparator(doc: jsPDFWithAutoTable, pageWidth: number): void {
-    const separatorY = 55;
     doc.setDrawColor(COLORS.light[0], COLORS.light[1], COLORS.light[2]);
     doc.setLineWidth(0.5);
-    doc.line(this.margin, separatorY, pageWidth - this.margin, separatorY);
-  }
-
-  /**
-   * Add barcode
-   */
-  private addBarcode(doc: jsPDFWithAutoTable, orderNumber: string, pageWidth: number): void {
-    try {
-      const barcodeDataUrl = generateBarcode(orderNumber);
-      const barcodeWidth = 50;
-      const barcodeHeight = 12;
-      const barcodeX = pageWidth - this.margin - barcodeWidth;
-      const barcodeY = 50;
-      
-      doc.addImage(barcodeDataUrl, "PNG", barcodeX, barcodeY, barcodeWidth, barcodeHeight);
-    } catch (error) {
-      console.warn("Failed to generate barcode:", error);
-    }
+    doc.line(this.margin, this.headerBottomY, pageWidth - this.margin, this.headerBottomY);
   }
 
   /**
    * Add Bill To and Ship To sections
    */
   private addAddressSections(doc: jsPDFWithAutoTable, orderData: SalesOrderData, pageWidth: number): void {
-    const sectionY = 70;
+    const sectionY = this.headerBottomY + 15;
     const boxWidth = (pageWidth - this.margin * 3) / 2;
     const boxHeight = 25;
 
@@ -331,7 +303,7 @@ export class SalesOrderPDFGenerator {
    * Add items table
    */
   private addItemsTable(doc: jsPDFWithAutoTable, orderData: SalesOrderData, pageWidth: number): void {
-    const tableStartY = 105;
+    const tableStartY = this.headerBottomY + 50;
 
     // Table headers
     const tableHead = [

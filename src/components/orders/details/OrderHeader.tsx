@@ -384,7 +384,7 @@ export const OrderHeader = ({
               </Button>
             )}
 
-            {userRole === "admin" && onDelete && !order.void && !(order as any).deleted_at && (
+            {userRole === "admin" && !hideFinancialData && onDelete && !order.void && !(order as any).deleted_at && (
               <Button 
                 variant="destructive" 
                 size="sm" 

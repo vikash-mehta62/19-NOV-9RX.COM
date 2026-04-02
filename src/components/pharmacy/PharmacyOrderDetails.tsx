@@ -20,8 +20,10 @@ import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline
 import PaymentForm from "@/components/PaymentModal"
 import jsPDF from "jspdf"
 import autoTable from "jspdf-autotable"
-import JsBarcode from "jsbarcode"
 import Logo from "../../assests/home/9rx_logo.png"
+import {
+  fetchAdminDocumentSettings,
+} from "@/lib/documentSettings"
 
 interface PharmacyOrderDetailsProps {
   order: OrderFormValues
@@ -181,19 +183,6 @@ console.log(order,"PHARorder")
     timeZone: "UTC",
   })
 
-  // Generate barcode
-  const generateBarcode = (text: string): string => {
-    const canvas = document.createElement("canvas")
-    JsBarcode(canvas, text, {
-      format: "CODE128",
-      width: 2,
-      height: 40,
-      displayValue: false,
-      margin: 0,
-    })
-    return canvas.toDataURL("image/png")
-  }
-
   // Get shipping address
   const shippingStreet = getAddressField(order.shippingAddress, "shipping", "street1") || 
                          order.shippingAddress?.address?.street || ""
@@ -227,15 +216,222 @@ console.log(order,"PHARorder")
   }
 
   const statusInfo = getStatusInfo(order.status)
-  const StatusIcon = statusInfo.icon
+	  const StatusIcon = statusInfo.icon
 
-  // Download PDF with barcode (same as admin)
-  const handleDownloadPDF = async () => {
-    setIsGeneratingPDF(true)
+	  const getPdfHeaderInfo = async () => {
+	    const documentSettings = await fetchAdminDocumentSettings()
+	    return documentSettings.invoice
+	  }
+
+  const loadPdfLogo = async () => {
     try {
-      const doc = new jsPDF({
-        orientation: "portrait",
-        unit: "mm",
+      const logo = new Image()
+      logo.src = Logo
+      await new Promise<void>((resolve) => {
+        logo.onload = () => resolve()
+        logo.onerror = () => resolve()
+        setTimeout(() => resolve(), 3000)
+      })
+      return logo.width > 0 ? logo : null
+    } catch {
+      return null
+    }
+  }
+
+  const renderStandardPdfHeader = ({
+    doc,
+    pageWidth,
+    margin,
+    brandColor,
+    darkGray,
+    documentTitle,
+    documentNumber,
+    formattedDate,
+    extraRightLines = [],
+    badgeLabel,
+    badgeColor,
+    logo,
+    headerInfo,
+  }: {
+    doc: any
+    pageWidth: number
+    margin: number
+    brandColor: [number, number, number]
+    darkGray: [number, number, number]
+    documentTitle: string
+    documentNumber: string
+    formattedDate: string
+    extraRightLines?: string[]
+    badgeLabel?: string
+    badgeColor?: [number, number, number]
+    logo: HTMLImageElement | null
+    headerInfo: any
+  }) => {
+    const headerContentY = 10
+    const leftColumnWidth = 64
+    const rightColumnX = pageWidth - margin
+    const rightColumnWidth = 62
+    const leftInfoLines = [
+      { text: headerInfo.name || "9RX LLC", bold: true, color: darkGray, fontSize: 11 },
+      { text: headerInfo.street, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.suite, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: [headerInfo.city, headerInfo.state, headerInfo.zipCode].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.country, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.phone ? `Phone: ${headerInfo.phone}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.email ? `Email: ${headerInfo.email}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.taxId ? `Tax ID: ${headerInfo.taxId}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: headerInfo.website || "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+    ].filter((line) => line.text)
+
+    doc.setFillColor(...brandColor)
+    doc.rect(0, 0, pageWidth, 5, "F")
+
+    let addressY = headerContentY + 3
+    leftInfoLines.forEach((line, index) => {
+      doc.setFont("helvetica", line.bold ? "bold" : "normal")
+      doc.setFontSize(line.fontSize)
+      doc.setTextColor(...line.color)
+      const wrappedLines = doc.splitTextToSize(line.text, leftColumnWidth)
+      doc.text(wrappedLines, margin, addressY)
+      addressY += wrappedLines.length * (index === 0 ? 4.4 : 3.6)
+    })
+
+    let logoBottomY = headerContentY
+    if (logo) {
+      const logoHeight = 26
+      const logoWidth = (logo.width / logo.height) * logoHeight
+      doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, headerContentY, logoWidth, logoHeight)
+      logoBottomY = headerContentY + logoHeight
+    } else {
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(18)
+      doc.setTextColor(...darkGray)
+      doc.text(headerInfo.name || "9RX LLC", pageWidth / 2, headerContentY + 10, { align: "center" })
+      logoBottomY = headerContentY + 10
+    }
+
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(18)
+    doc.setTextColor(...brandColor)
+    doc.text(documentTitle, rightColumnX, headerContentY + 4, { align: "right", maxWidth: rightColumnWidth })
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(10)
+    doc.setTextColor(...darkGray)
+    let detailsY = headerContentY + 10
+    doc.text(`# ${documentNumber}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth })
+
+    doc.setFontSize(9)
+    doc.setTextColor(100, 100, 100)
+    detailsY += 5
+    doc.text(`Date: ${formattedDate}`, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth })
+
+    extraRightLines.filter(Boolean).forEach((line) => {
+      detailsY += 6
+      doc.text(line, rightColumnX, detailsY, { align: "right", maxWidth: rightColumnWidth })
+    })
+
+    let rightBottomY = detailsY
+    if (badgeLabel && badgeColor) {
+      const badgeWidth = badgeLabel === "PAID" ? 25 : 30
+      const badgeY = detailsY + 4
+      doc.setFillColor(...badgeColor)
+      doc.roundedRect(rightColumnX - badgeWidth, badgeY, badgeWidth, 8, 2, 2, "F")
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(8)
+      doc.setFont("helvetica", "bold")
+      doc.text(badgeLabel, rightColumnX - badgeWidth / 2, badgeY + 5.5, { align: "center" })
+      rightBottomY = badgeY + 8
+    }
+
+    const dividerY = Math.max(addressY, logoBottomY, rightBottomY) + 1
+    doc.setDrawColor(220, 220, 220)
+    doc.setLineWidth(0.5)
+    doc.line(margin, dividerY, pageWidth - margin, dividerY)
+
+    return dividerY
+  }
+
+  const buildStructuredPdfTableOptions = ({
+    doc,
+    pageWidth,
+    pageHeight,
+    margin,
+    brandColor,
+    tableHead,
+    tableBody,
+    tableStartY,
+    totalValue,
+  }: {
+    doc: any
+    pageWidth: number
+    pageHeight: number
+    margin: number
+    brandColor: [number, number, number]
+    tableHead: string[][]
+    tableBody: any[]
+    tableStartY: number
+    totalValue: string
+  }) => {
+    const bodyWithTotal = [...tableBody, ["", "", "", "", "TOTAL:", totalValue]]
+
+    return {
+      head: tableHead,
+      body: bodyWithTotal,
+      startY: tableStartY,
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+        lineColor: [226, 232, 240] as [number, number, number],
+        lineWidth: 0.2,
+        textColor: [75, 85, 99] as [number, number, number],
+        fillColor: [255, 255, 255] as [number, number, number],
+      },
+      headStyles: {
+        fillColor: brandColor,
+        textColor: 255,
+        fontStyle: "bold",
+        halign: "center",
+        valign: "middle",
+      },
+      bodyStyles: {
+        fillColor: [255, 255, 255] as [number, number, number],
+      },
+      columnStyles: {
+        0: { halign: "center", cellWidth: 22 },
+        1: { cellWidth: "auto" },
+        2: { halign: "center", cellWidth: 25 },
+        3: { halign: "center", cellWidth: 15 },
+        4: { halign: "right", cellWidth: 25 },
+        5: { halign: "right", cellWidth: 25 },
+      },
+      margin: { left: margin, right: margin, bottom: 45 },
+      tableWidth: "auto",
+      showHead: "everyPage" as const,
+      didParseCell: (data: any) => {
+        if (data.section === "body" && data.row.index === bodyWithTotal.length - 1) {
+          data.cell.styles.fillColor = [248, 250, 252]
+          data.cell.styles.fontStyle = data.column.index >= 4 ? "bold" : "normal"
+        }
+      },
+      didDrawPage: () => {
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+      },
+    }
+  }
+	
+	  // Download PDF with barcode (same as admin)
+	  const handleDownloadPDF = async () => {
+	    setIsGeneratingPDF(true)
+	    try {
+	      const headerInfo = await getPdfHeaderInfo()
+	      const doc = new jsPDF({
+	        orientation: "portrait",
+	        unit: "mm",
         format: "a4",
       })
 
@@ -244,44 +440,9 @@ console.log(order,"PHARorder")
       const margin = 12
 
       // Brand color
-      const brandColor: [number, number, number] = [59, 130, 246]
+      const brandColor: [number, number, number] = [40, 56, 136]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
-
-      // ===== HEADER BAND =====
-      doc.setFillColor(...brandColor)
-      doc.rect(0, 0, pageWidth, 5, "F")
-
-      // ===== LOGO SECTION =====
-      let logoLoaded = false
-      try {
-        const logo = new Image()
-        logo.src = Logo
-        await new Promise<void>((resolve) => {
-          logo.onload = () => { logoLoaded = true; resolve() }
-          logo.onerror = () => resolve()
-          setTimeout(() => resolve(), 3000)
-        })
-        if (logoLoaded && logo.width > 0) {
-          const logoHeight = 20
-          const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
-        }
-      } catch {
-        // Continue without logo
-      }
-
-      // ===== COMPANY INFO (Left) =====
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(16)
-      doc.setTextColor(...darkGray)
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16)
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
 
       // ===== DOCUMENT TITLE & NUMBER (Right) =====
       const invoiceNumber = (order as any).invoice_number
@@ -295,74 +456,53 @@ console.log(order,"PHARorder")
         documentTitle = "SALES ORDER"
         documentNumber = order.order_number || ""
       }
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(24)
-      doc.setTextColor(...brandColor)
-      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" })
-      doc.setFontSize(10)
-      doc.setTextColor(...darkGray)
-      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" })
-      if (invoiceNumber && !isNewOrder) {
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(8)
-        doc.setTextColor(120, 120, 120)
-        doc.text(`SO Ref: ${order.order_number}`, pageWidth - margin, 29, { align: "right" })
-      }
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder ? 34 : 30, { align: "right" })
-
-      // Payment status badge
-      const badgeY = invoiceNumber && !isNewOrder ? 39 : 34
-      if (order.payment_status === "paid") {
-        doc.setFillColor(34, 197, 94)
-        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F")
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "bold")
-        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" })
-      } else {
-        doc.setFillColor(239, 68, 68)
-        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F")
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "bold")
-        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" })
-      }
-
-      // ===== BARCODE =====
-      try {
-        const barcodeDataUrl = generateBarcode(documentNumber)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12)
-      } catch {
-        // Skip barcode if generation fails
-      }
-
-      // ===== DIVIDER LINE =====
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.5)
-      doc.line(margin, 58, pageWidth - margin, 58)
+      const logo = await loadPdfLogo()
+      const dividerY = renderStandardPdfHeader({
+        doc,
+        pageWidth,
+        margin,
+        brandColor,
+        darkGray,
+        documentTitle,
+        documentNumber,
+        formattedDate,
+        extraRightLines: invoiceNumber && !isNewOrder ? [`SO Ref: ${order.order_number}`] : [],
+        badgeLabel: order.payment_status === "paid" ? "PAID" : "UNPAID",
+        badgeColor: order.payment_status === "paid" ? [34, 197, 94] : [239, 68, 68],
+        logo,
+        headerInfo,
+      })
 
       // ===== BILL TO / SHIP TO SECTION =====
-      const infoStartY = 63
+      const infoStartY = dividerY + 5
       const boxWidth = (pageWidth - margin * 3) / 2
-      const drawInfoBox = (title: string, x: number, lines: string[]) => {
+      const lineHeight = 4.6
+      const measureInfoBox = (lines: string[]) => {
+        const visibleLines = lines.filter(Boolean).slice(0, 5)
+        const wrappedLines = visibleLines.flatMap((line) => doc.splitTextToSize(line, boxWidth - 10))
+        const boxHeight = Math.max(29, 12 + wrappedLines.length * lineHeight + 4)
+        return { visibleLines, boxHeight }
+      }
+      const drawInfoBox = (
+        title: string,
+        x: number,
+        measured: { visibleLines: string[]; boxHeight: number },
+        sharedHeight: number,
+      ) => {
         doc.setFillColor(...lightGray)
-        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F")
+        doc.roundedRect(x, infoStartY, boxWidth, sharedHeight, 2, 2, "F")
         doc.setFont("helvetica", "bold")
         doc.setFontSize(10)
         doc.setTextColor(...brandColor)
-        doc.text(title, x + 5, infoStartY + 7)
+        doc.text(title, x + 5, infoStartY + 6)
         doc.setFont("helvetica", "normal")
         doc.setFontSize(9)
         doc.setTextColor(...darkGray)
-        let y = infoStartY + 14
-        lines.filter(Boolean).forEach((line, idx) => {
-          if (idx < 5) {
-            doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 })
-            y += 5
-          }
+        let y = infoStartY + 11.5
+        measured.visibleLines.forEach((line) => {
+          const lineParts = doc.splitTextToSize(line, boxWidth - 10)
+          doc.text(lineParts, x + 5, y)
+          y += lineParts.length * lineHeight
         })
       }
 
@@ -391,19 +531,25 @@ console.log(order,"PHARorder")
         ].filter(Boolean).join(", ")
       ].filter(Boolean) as string[]
 
-      drawInfoBox("BILL TO", margin, billToLines)
-      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines)
+      const billToLayout = measureInfoBox(billToLines)
+      const shipToLayout = measureInfoBox(shipToLines)
+      const sharedInfoBoxHeight = Math.max(billToLayout.boxHeight, shipToLayout.boxHeight)
+      drawInfoBox("BILL TO", margin, billToLayout, sharedInfoBoxHeight)
+      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight)
+      const infoBottomY = infoStartY + sharedInfoBoxHeight
 
       // ===== ITEMS TABLE =====
-      const tableStartY = infoStartY + 42
+      const tableStartY = infoBottomY + 7
       const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
+      let itemsGrandTotal = 0
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
           const sizeValueUnit = `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`
           const quantity = size.quantity.toString()
           const pricePerUnit = `$${Number(size.price).toFixed(2)}`
           const totalPerSize = `$${(size.quantity * size.price).toFixed(2)}`
+          itemsGrandTotal += Number(size.quantity || 0) * Number(size.price || 0)
           tableBody.push([size.sku || item.sku || '', size.size_name || item.name, sizeValueUnit, quantity, pricePerUnit, totalPerSize])
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push([
@@ -415,30 +561,17 @@ console.log(order,"PHARorder")
         })
       })
 
-      autoTable(doc as any, {
-        head: tableHead,
-        body: tableBody,
-        startY: tableStartY,
-        styles: { fontSize: 9, cellPadding: 3 },
-        theme: "striped",
-        headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
-        columnStyles: {
-          0: { halign: "center", cellWidth: 22 },
-          1: { cellWidth: "auto" },
-          2: { halign: "center", cellWidth: 25 },
-          3: { halign: "center", cellWidth: 15 },
-          4: { halign: "right", cellWidth: 25 },
-          5: { halign: "right", cellWidth: 25 },
-        },
-        margin: { left: margin, right: margin, bottom: 45 },
-        tableWidth: "auto",
-        showHead: 'everyPage',
-        didDrawPage: (data: any) => {
-          doc.setFillColor(...brandColor)
-          doc.rect(0, 0, pageWidth, 5, "F")
-        }
-      })
+      autoTable(doc as any, buildStructuredPdfTableOptions({
+        doc,
+        pageWidth,
+        pageHeight,
+        margin,
+        brandColor,
+        tableHead,
+        tableBody,
+        tableStartY,
+        totalValue: `$${itemsGrandTotal.toFixed(2)}`,
+      }))
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
 
@@ -572,7 +705,7 @@ console.log(order,"PHARorder")
         doc.setPage(i)
         
         // Blue footer band at bottom
-        doc.setFillColor(59, 130, 246)
+        doc.setFillColor(40, 56, 136)
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
         
         // White background for page number
@@ -597,46 +730,17 @@ console.log(order,"PHARorder")
   }
 
   // Handle Print - Opens PDF in new window and triggers print dialog
-  const handlePrint = async () => {
-    setIsGeneratingPDF(true)
-    try {
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
+	  const handlePrint = async () => {
+	    setIsGeneratingPDF(true)
+	    try {
+	      const headerInfo = await getPdfHeaderInfo()
+	      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+	      const pageWidth = doc.internal.pageSize.getWidth()
+	      const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
-      const brandColor: [number, number, number] = [59, 130, 246]
+      const brandColor: [number, number, number] = [40, 56, 136]
       const darkGray: [number, number, number] = [60, 60, 60]
       const lightGray: [number, number, number] = [245, 245, 245]
-
-      doc.setFillColor(...brandColor)
-      doc.rect(0, 0, pageWidth, 5, "F")
-
-      let logoLoaded = false
-      try {
-        const logo = new Image()
-        logo.src = Logo
-        await new Promise<void>((resolve) => {
-          logo.onload = () => { logoLoaded = true; resolve() }
-          logo.onerror = () => resolve()
-          setTimeout(() => resolve(), 3000)
-        })
-        if (logoLoaded && logo.width > 0) {
-          const logoHeight = 20
-          const logoWidth = (logo.width / logo.height) * logoHeight
-          doc.addImage(logo, "PNG", margin, 6, logoWidth, logoHeight)
-        }
-      } catch { /* Continue without logo */ }
-
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(16)
-      doc.setTextColor(...darkGray)
-      doc.text("9RX LLC", margin, logoLoaded ? 32 : 16)
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text("936 Broad River Ln, Charlotte, NC 28211", margin, logoLoaded ? 38 : 22)
-      doc.text("Phone: +1 (800) 940-9619  |  Email: info@9rx.com", margin, logoLoaded ? 43 : 27)
-      doc.text("Tax ID: 99-0540972  |  www.9rx.com", margin, logoLoaded ? 48 : 32)
 
       const invoiceNumber = (order as any).invoice_number
       const isNewOrder = order.status === "new" || order.status === "pending"
@@ -649,65 +753,52 @@ console.log(order,"PHARorder")
         documentTitle = "SALES ORDER"
         documentNumber = order.order_number || ""
       }
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(24)
-      doc.setTextColor(...brandColor)
-      doc.text(documentTitle, pageWidth - margin, 16, { align: "right" })
-      doc.setFontSize(10)
-      doc.setTextColor(...darkGray)
-      doc.text(`# ${documentNumber}`, pageWidth - margin, 24, { align: "right" })
-      if (invoiceNumber && !isNewOrder) {
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(8)
-        doc.setTextColor(120, 120, 120)
-        doc.text(`SO Ref: ${order.order_number}`, pageWidth - margin, 29, { align: "right" })
-      }
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(9)
-      doc.setTextColor(100, 100, 100)
-      doc.text(`Date: ${formattedDate}`, pageWidth - margin, invoiceNumber && !isNewOrder ? 34 : 30, { align: "right" })
+      const logo = await loadPdfLogo()
+      const dividerY = renderStandardPdfHeader({
+        doc,
+        pageWidth,
+        margin,
+        brandColor,
+        darkGray,
+        documentTitle,
+        documentNumber,
+        formattedDate,
+        extraRightLines: invoiceNumber && !isNewOrder ? [`SO Ref: ${order.order_number}`] : [],
+        badgeLabel: order.payment_status === "paid" ? "PAID" : "UNPAID",
+        badgeColor: order.payment_status === "paid" ? [34, 197, 94] : [239, 68, 68],
+        logo,
+        headerInfo,
+      })
 
-      const badgeY = invoiceNumber && !isNewOrder ? 39 : 34
-      if (order.payment_status === "paid") {
-        doc.setFillColor(34, 197, 94)
-        doc.roundedRect(pageWidth - margin - 25, badgeY, 25, 8, 2, 2, "F")
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "bold")
-        doc.text("PAID", pageWidth - margin - 12.5, badgeY + 5.5, { align: "center" })
-      } else {
-        doc.setFillColor(239, 68, 68)
-        doc.roundedRect(pageWidth - margin - 30, badgeY, 30, 8, 2, 2, "F")
-        doc.setTextColor(255, 255, 255)
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "bold")
-        doc.text("UNPAID", pageWidth - margin - 15, badgeY + 5.5, { align: "center" })
-      }
-
-      try {
-        const barcodeDataUrl = generateBarcode(documentNumber)
-        doc.addImage(barcodeDataUrl, "PNG", pageWidth - margin - 50, badgeY + 10, 50, 12)
-      } catch { /* Skip barcode */ }
-
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.5)
-      doc.line(margin, 58, pageWidth - margin, 58)
-
-      const infoStartY = 63
+      const infoStartY = dividerY + 5
       const boxWidth = (pageWidth - margin * 3) / 2
-      const drawInfoBox = (title: string, x: number, lines: string[]) => {
+      const lineHeight = 4.6
+      const measureInfoBox = (lines: string[]) => {
+        const visibleLines = lines.filter(Boolean).slice(0, 5)
+        const wrappedLines = visibleLines.flatMap((line) => doc.splitTextToSize(line, boxWidth - 10))
+        const boxHeight = Math.max(29, 12 + wrappedLines.length * lineHeight + 4)
+        return { visibleLines, boxHeight }
+      }
+      const drawInfoBox = (
+        title: string,
+        x: number,
+        measured: { visibleLines: string[]; boxHeight: number },
+        sharedHeight: number,
+      ) => {
         doc.setFillColor(...lightGray)
-        doc.roundedRect(x, infoStartY, boxWidth, 35, 2, 2, "F")
+        doc.roundedRect(x, infoStartY, boxWidth, sharedHeight, 2, 2, "F")
         doc.setFont("helvetica", "bold")
         doc.setFontSize(10)
         doc.setTextColor(...brandColor)
-        doc.text(title, x + 5, infoStartY + 7)
+        doc.text(title, x + 5, infoStartY + 6)
         doc.setFont("helvetica", "normal")
         doc.setFontSize(9)
         doc.setTextColor(...darkGray)
-        let y = infoStartY + 14
-        lines.filter(Boolean).forEach((line, idx) => {
-          if (idx < 5) { doc.text(line, x + 5, y, { maxWidth: boxWidth - 10 }); y += 5 }
+        let y = infoStartY + 11.5
+        measured.visibleLines.forEach((line) => {
+          const lineParts = doc.splitTextToSize(line, boxWidth - 10)
+          doc.text(lineParts, x + 5, y)
+          y += lineParts.length * lineHeight
         })
       }
 
@@ -724,34 +815,39 @@ console.log(order,"PHARorder")
          getAddressField(order.shippingAddress, "shipping", "state"), getAddressField(order.shippingAddress, "shipping", "zipCode")].filter(Boolean).join(", ")
       ].filter(Boolean) as string[]
 
-      drawInfoBox("BILL TO", margin, billToLines)
-      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLines)
+      const billToLayout = measureInfoBox(billToLines)
+      const shipToLayout = measureInfoBox(shipToLines)
+      const sharedInfoBoxHeight = Math.max(billToLayout.boxHeight, shipToLayout.boxHeight)
+      drawInfoBox("BILL TO", margin, billToLayout, sharedInfoBoxHeight)
+      drawInfoBox("SHIP TO", margin * 2 + boxWidth, shipToLayout, sharedInfoBoxHeight)
+      const infoBottomY = infoStartY + sharedInfoBoxHeight
 
-      const tableStartY = infoStartY + 42
+      const tableStartY = infoBottomY + 7
       const tableHead = [["SKU", "Description", "Size", "Qty", "Unit Price", "Total"]]
       const tableBody: any[] = []
+      let itemsGrandTotal = 0
       order.items.forEach((item: any) => {
         item.sizes.forEach((size: any, sizeIndex: number) => {
-          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${(size.quantity * size.price).toFixed(2)}`])
+          const lineTotal = Number(size.quantity || 0) * Number(size.price || 0)
+          tableBody.push([size.sku || item.sku || '', size.size_name || item.name, `${size.size_value} ${item.unitToggle ? size.size_unit : ""}`, size.quantity.toString(), `$${Number(size.price).toFixed(2)}`, `$${lineTotal.toFixed(2)}`])
+          itemsGrandTotal += lineTotal
           if (sizeIndex === 0 && item.description && item.description.trim()) {
             tableBody.push(["", { content: `↳ ${item.description.trim()}`, styles: { fontStyle: "italic", textColor: [120, 120, 120], fontSize: 8 } }, "", "", "", ""])
           }
         })
       })
 
-      autoTable(doc as any, {
-        head: tableHead, body: tableBody, startY: tableStartY,
-        styles: { fontSize: 9, cellPadding: 3 }, theme: "striped",
-        headStyles: { fillColor: brandColor, textColor: 255, fontStyle: "bold", halign: "center" },
-        alternateRowStyles: { fillColor: [250, 250, 250] },
-        columnStyles: { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
-        margin: { left: margin, right: margin, bottom: 45 }, tableWidth: "auto",
-        showHead: 'everyPage',
-        didDrawPage: (data: any) => {
-          doc.setFillColor(...brandColor)
-          doc.rect(0, 0, pageWidth, 5, "F")
-        }
-      })
+      autoTable(doc as any, buildStructuredPdfTableOptions({
+        doc,
+        pageWidth,
+        pageHeight,
+        margin,
+        brandColor,
+        tableHead,
+        tableBody,
+        tableStartY,
+        totalValue: `$${itemsGrandTotal.toFixed(2)}`,
+      }))
 
       let finalY = (doc as any).lastAutoTable.finalY + 8
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
@@ -864,7 +960,7 @@ console.log(order,"PHARorder")
         doc.setPage(i)
         
         // Blue footer band at bottom
-        doc.setFillColor(59, 130, 246)
+        doc.setFillColor(40, 56, 136)
         doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
         
         // White background for page number

@@ -4,9 +4,7 @@ import JsBarcode from "jsbarcode";
 import Logo from "../assests/home/9rx_logo.png"
 import {
   fetchAdminDocumentSettings,
-  formatDocumentAddressLine,
   formatDocumentContactLine,
-  formatDocumentMetaLine,
 } from "@/lib/documentSettings";
 
 // Generate barcode as base64 image
@@ -25,11 +23,9 @@ const generateBarcode = (text: string): string => {
 export const generateWorkOrderPDF = async (workOrderData: any, packingData: any) => {
   try {
     const documentSettings = await fetchAdminDocumentSettings();
-    const shippingCompany = documentSettings.shipping;
-    const shippingCompanyName = shippingCompany.name || "9RX";
-    const shippingAddressLine = formatDocumentAddressLine(shippingCompany);
-    const shippingContactLine = formatDocumentContactLine(shippingCompany);
-    const shippingMetaLine = formatDocumentMetaLine(shippingCompany);
+    const invoiceCompany = documentSettings.invoice;
+    const shippingCompanyName = invoiceCompany.name || "9RX";
+    const shippingContactLine = formatDocumentContactLine(invoiceCompany);
 
     const doc = new jsPDF({
       orientation: "portrait",
@@ -50,8 +46,8 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
 
     // Professional blue color scheme
     const COLORS = {
-      primary: [37, 99, 235] as [number, number, number],
-      success: [59, 130, 246] as [number, number, number],
+      primary: [40, 56, 136] as [number, number, number],
+      success: [40, 56, 136] as [number, number, number],
       dark: [31, 41, 55] as [number, number, number],
       medium: [107, 114, 128] as [number, number, number],
       light: [243, 244, 246] as [number, number, number],
@@ -116,14 +112,8 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.medium);
-    if (shippingAddressLine) {
-      doc.text(shippingAddressLine, margin, yPos + 6);
-    }
     if (shippingContactLine) {
-      doc.text(shippingContactLine, margin, yPos + 11);
-    }
-    if (shippingMetaLine) {
-      doc.text(shippingMetaLine, margin, yPos + 16);
+      doc.text(shippingContactLine, margin, yPos + 6);
     }
 
     // Right side - Order Info

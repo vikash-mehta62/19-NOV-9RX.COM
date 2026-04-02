@@ -32,9 +32,10 @@ interface Notification {
 
 interface TopBarProps {
   hideCartDrawer?: boolean;
+  hideNotifications?: boolean;
 }
 
-export const TopBar = ({ hideCartDrawer = false }: TopBarProps) => {
+export const TopBar = ({ hideCartDrawer = false, hideNotifications = false }: TopBarProps) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const navigate = useNavigate();
   const userType = sessionStorage.getItem('userType');
@@ -304,7 +305,7 @@ export const TopBar = ({ hideCartDrawer = false }: TopBarProps) => {
         {/* {sessionStorage.getItem('userType') !== 'pharmacy' && !hideCartDrawer && <CartDrawer />} */}
         
         {/* Notification Bell - Admin Only */}
-        {userType === 'admin' && <DropdownMenu>
+        {userType === 'admin' && !hideNotifications && <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon" className="relative h-8 w-8 sm:h-9 sm:w-9 md:h-10 md:w-10">
               <Bell className="h-4 w-4 sm:h-5 sm:w-5" />

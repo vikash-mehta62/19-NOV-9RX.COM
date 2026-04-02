@@ -1,6 +1,7 @@
 const PDFDocument = require("pdfkit");
 const https = require("https");
 const bwipjs = require('bwip-js');
+const { createClient } = require("@supabase/supabase-js");
 
 // Professional blue and green color scheme matching frontend EXACTLY
 const COLORS = {
@@ -26,6 +27,20 @@ const CONTINUATION_TOP_Y = 15;
 const SUMMARY_ROW_HEIGHT = 8;
 const SUMMARY_BOX_HEIGHT = 10;
 const SUMMARY_BOX_GAP = 12;
+const DEFAULT_DOCUMENT_HEADER = {
+  name: "9RX LLC",
+  email: "info@9rx.com",
+  phone: "+1 (800) 940-9619",
+  taxId: "99-0540972",
+  website: "www.9rx.com",
+  street: "936 Broad River Ln",
+  suite: "",
+  city: "Charlotte",
+  state: "NC",
+  zipCode: "28211",
+  country: "USA",
+};
+let cachedDocumentHeader = null;
 
 // Helper functions
 const toNumber = (value) => {
@@ -34,6 +49,73 @@ const toNumber = (value) => {
 };
 
 const formatCurrency = (value) => `${toNumber(value).toFixed(2)}`;
+
+const formatAddressLine = (address) =>
+  [address.street, address.suite, [address.city, address.state, address.zipCode].filter(Boolean).join(", "), address.country]
+    .filter(Boolean)
+    .join(", ");
+
+const formatContactLine = (address) =>
+  [
+    address.phone ? `Phone: ${address.phone}` : "",
+    address.email ? `Email: ${address.email}` : "",
+  ]
+    .filter(Boolean)
+    .join("  |  ");
+
+const formatMetaLine = (address) =>
+  [
+    address.taxId ? `Tax ID: ${address.taxId}` : "",
+    address.website || "",
+  ]
+    .filter(Boolean)
+    .join("  |  ");
+
+const getDocumentHeaderInfo = async () => {
+  if (cachedDocumentHeader) return cachedDocumentHeader;
+
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    cachedDocumentHeader = DEFAULT_DOCUMENT_HEADER;
+    return cachedDocumentHeader;
+  }
+
+  try {
+    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
+    const { data, error } = await supabase
+      .from("settings")
+      .select("*")
+      .eq("is_global", true)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    cachedDocumentHeader = {
+      name: String(data?.invoice_company_name || data?.business_name || DEFAULT_DOCUMENT_HEADER.name),
+      email: String(data?.invoice_email || data?.email || DEFAULT_DOCUMENT_HEADER.email),
+      phone: String(data?.invoice_phone || data?.phone || DEFAULT_DOCUMENT_HEADER.phone),
+      taxId: String(data?.invoice_tax_id || data?.tax_id_display || DEFAULT_DOCUMENT_HEADER.taxId),
+      website: String(data?.invoice_website || DEFAULT_DOCUMENT_HEADER.website),
+      street: String(data?.invoice_street || data?.address || DEFAULT_DOCUMENT_HEADER.street),
+      suite: String(data?.invoice_suite || data?.suite || ""),
+      city: String(data?.invoice_city || data?.city || DEFAULT_DOCUMENT_HEADER.city),
+      state: String(data?.invoice_state || data?.state || DEFAULT_DOCUMENT_HEADER.state),
+      zipCode: String(data?.invoice_zip_code || data?.zip_code || DEFAULT_DOCUMENT_HEADER.zipCode),
+      country: String(data?.invoice_country || DEFAULT_DOCUMENT_HEADER.country),
+    };
+
+    return cachedDocumentHeader;
+  } catch (error) {
+    console.error("Failed to fetch document header settings:", error.message);
+    cachedDocumentHeader = DEFAULT_DOCUMENT_HEADER;
+    return cachedDocumentHeader;
+  }
+};
 
 const drawTopBand = (doc, mm) => {
   doc.rect(0, 0, mm(PAGE_WIDTH), mm(TOP_BAND_HEIGHT)).fill('#3B82F6');
@@ -132,6 +214,10 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const isInvoice = documentType === 'INVOICE';
       const isPurchaseOrder = documentType === 'PURCHASE ORDER';
       const includePricingInPdf = !isPurchaseOrder || options.includePricingInPdf !== false;
+      const headerInfo = await getDocumentHeaderInfo();
+      const headerAddressLine = formatAddressLine(headerInfo);
+      const headerContactLine = formatContactLine(headerInfo);
+      const headerMetaLine = formatMetaLine(headerInfo);
       
       const orderNumber = order?.order_number || order?.orderNumber || "N/A";
       const invoiceNumber = order?.invoice_number || `INV-${Date.now()}`;
@@ -258,14 +344,20 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fontSize(14)
          .fillColor('#1F2937')
          .font('Helvetica-Bold')
-         .text('9RX LLC', mm(PAGE_MARGIN), mm(30));
+         .text(headerInfo.name || DEFAULT_DOCUMENT_HEADER.name, mm(PAGE_MARGIN), mm(30));
       
       doc.fontSize(8)
          .fillColor('#6B7280')
-         .font('Helvetica')
-         .text('936 Broad River Ln, Charlotte, NC 28211', mm(PAGE_MARGIN), mm(36))
-         .text('Phone: +1 (800) 940-9619  |  Email: info@9rx.com', mm(PAGE_MARGIN), mm(40))
-         .text('Tax ID: 99-0540972  |  www.9rx.com', mm(PAGE_MARGIN), mm(44));
+         .font('Helvetica');
+      if (headerAddressLine) {
+        doc.text(headerAddressLine, mm(PAGE_MARGIN), mm(36));
+      }
+      if (headerContactLine) {
+        doc.text(headerContactLine, mm(PAGE_MARGIN), mm(40));
+      }
+      if (headerMetaLine) {
+        doc.text(headerMetaLine, mm(PAGE_MARGIN), mm(44));
+      }
       
       // Document title (right side)
       const titleText = isInvoice ? 'INVOICE' : (isPurchaseOrder ? 'PURCHASE ORDER' : 'SALES ORDER');

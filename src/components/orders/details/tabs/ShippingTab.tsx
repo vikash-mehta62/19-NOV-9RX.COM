@@ -84,7 +84,8 @@ export const ShippingTab = ({
   const { toast } = useToast();
   const orderDate = order.date || (order as any).created_at;
   
-  const canEdit = userRole === "admin" && order.status !== "cancelled" && !order.void;
+  const canEdit =
+    userRole === "admin" && !hideFinancialData && order.status !== "cancelled" && !order.void;
   
   // Edit states
   const [isEditingAddress, setIsEditingAddress] = useState(false);
