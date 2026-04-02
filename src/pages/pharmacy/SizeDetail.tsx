@@ -95,65 +95,111 @@ export default function SizeDetail() {
     let isMounted = true
     setLoading(true)
 
-    supabase
-      .from("products")
-      .select("id, name, category, description, image_url, images, key_features, customization, similar_products, unitToggle, product_sizes!inner(id, size_name, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
-      .eq("id", productId)
-      .eq("is_active", true) // Only fetch active products
-      .eq("product_sizes.is_active", true) // Only fetch active sizes
-      .single()
-      .then(({ data: productData, error }) => {
-        if (!isMounted) return
-        if (error || !productData) {
-          setLoading(false)
-          return
-        }
+    const fetchProductAndGroupPricing = async () => {
+      // Fetch product data
+      const { data: productData, error } = await supabase
+        .from("products")
+        .select("id, name, category, description, image_url, images, key_features, customization, similar_products, unitToggle, product_sizes!inner(id, size_name, size_value, size_unit, price, price_per_case, stock, sku, quantity_per_case, image, case, unit, shipping_cost, is_active)")
+        .eq("id", productId)
+        .eq("is_active", true) // Only fetch active products
+        .eq("product_sizes.is_active", true) // Only fetch active sizes
+        .single()
 
-        const selectedSize = productData.product_sizes?.find((s: any) => s.id === sizeId)
-        const otherSizes = productData.product_sizes?.filter((s: any) => s.id !== sizeId) || []
-
-        setData({
-          product: productData,
-          size: selectedSize,
-          otherSizes
-        })
-
-        // Fetch similar products if configured
-        if (productData?.similar_products && Array.isArray(productData.similar_products) && productData.similar_products.length > 0) {
-          fetchSimilarProducts(productData.similar_products.map((s: any) => s.subcategory_name))
-        } else {
-          setSimilarProducts([])
-        }
-
-        // Check if user can review this product
-        if (userProfile?.id && productId) {
-          canUserReview(userProfile.id, productId).then(result => {
-            setCanReview(result.canReview)
-          })
-        }
-
-        // Load product offers
-        if (productId) {
-          getProductEffectivePrice(productId).then(offerData => {
-            if (offerData && offerData.hasOffer) {
-              console.log("SizeDetail - Product has offer:", offerData);
-              setProductOffer({
-                effectivePrice: offerData.effectivePrice,
-                discountPercent: offerData.discountPercent,
-                offerBadge: offerData.offerBadge,
-                hasOffer: offerData.hasOffer
-              });
-            }
-          }).catch(err => {
-            console.error("Error loading product offer:", err);
-          });
-        }
-
+      if (!isMounted) return
+      if (error || !productData) {
         setLoading(false)
+        return
+      }
+
+      // Fetch group pricing data
+      let groupData: any[] = []
+      if (userProfile?.id) {
+        const { data: groupPricingData } = await supabase
+          .from("group_pricing")
+          .select("*")
+          .eq("status", "active")
+        
+        if (groupPricingData) {
+          groupData = groupPricingData
+        }
+      }
+
+      // Apply group pricing to sizes
+      const applyGroupPricing = (size: any) => {
+        let newPrice = size.price
+        let originalPrice = 0
+
+        if (userProfile?.id && groupData.length > 0) {
+          const applicableGroup = groupData.find(
+            (group: any) =>
+              group.group_ids.includes(userProfile.id) &&
+              group.product_arrayjson.some((product: any) => product.product_id === size.id)
+          )
+          
+          if (applicableGroup) {
+            const groupProduct = applicableGroup.product_arrayjson.find(
+              (product: any) => product.product_id === size.id
+            )
+            if (groupProduct) {
+              const parsed = parseFloat(groupProduct.new_price)
+              if (parsed > 0) {
+                originalPrice = size.price
+                newPrice = parsed
+              }
+            }
+          }
+        }
+
+        return { ...size, price: newPrice, originalPrice }
+      }
+
+      const selectedSize = productData.product_sizes?.find((s: any) => s.id === sizeId)
+      const otherSizes = productData.product_sizes?.filter((s: any) => s.id !== sizeId) || []
+
+      setData({
+        product: productData,
+        size: selectedSize ? applyGroupPricing(selectedSize) : selectedSize,
+        otherSizes: otherSizes.map(applyGroupPricing)
       })
 
+        // Fetch similar products if configured
+      if (productData?.similar_products && Array.isArray(productData.similar_products) && productData.similar_products.length > 0) {
+        fetchSimilarProducts(productData.similar_products.map((s: any) => s.subcategory_name))
+      } else {
+        setSimilarProducts([])
+      }
+
+      // Check if user can review this product
+      if (userProfile?.id && productId) {
+        canUserReview(userProfile.id, productId).then(result => {
+          setCanReview(result.canReview)
+        })
+      }
+
+      // Load product offers
+      if (productId) {
+        getProductEffectivePrice(productId).then(offerData => {
+          if (offerData && offerData.hasOffer) {
+            console.log("SizeDetail - Product has offer:", offerData);
+            setProductOffer({
+              effectivePrice: offerData.effectivePrice,
+              discountPercent: offerData.discountPercent,
+              offerBadge: offerData.offerBadge,
+              hasOffer: offerData.hasOffer
+            });
+          }
+        }).catch(err => {
+          console.error("Error loading product offer:", err);
+        });
+      }
+
+      setLoading(false)
+    }
+
+    fetchProductAndGroupPricing()
+
     return () => { isMounted = false }
-  }, [productId, sizeId])
+  }, [productId, sizeId, userProfile?.id])
 
   useEffect(() => {
     const fetchRewardsConfig = async () => {
@@ -276,13 +322,20 @@ export default function SizeDetail() {
 
   // Pricing calculations
   const casePrice = size.price || 0
+  const originalCasePrice = size.originalPrice || 0
+  const hasGroupDiscount = originalCasePrice > 0 && originalCasePrice > casePrice
+  const groupDiscountPercent = hasGroupDiscount ? Math.round((1 - casePrice / originalCasePrice) * 100) : 0
   const hasOfferDiscount = Boolean(productOffer?.hasOffer && productOffer.discountPercent > 0)
-  const effectiveCasePrice = hasOfferDiscount
-    ? casePrice * (1 - productOffer.discountPercent / 100)
-    : casePrice
+  
+  // Determine which discount to show (group pricing takes precedence over offers)
+  const effectiveCasePrice = casePrice // Group pricing already applied to size.price
+  const displayOriginalPrice = hasGroupDiscount ? originalCasePrice : (hasOfferDiscount ? casePrice : 0)
+  const displayDiscountPercent = hasGroupDiscount ? groupDiscountPercent : (hasOfferDiscount ? productOffer.discountPercent : 0)
+  const hasDiscount = hasGroupDiscount || hasOfferDiscount
+  
   const unitsPerCase = size.quantity_per_case || 0
   const unitPrice = unitsPerCase > 0 ? effectiveCasePrice / unitsPerCase : 0
-  const originalTotalPrice = casePrice * quantity
+  const originalTotalPrice = (displayOriginalPrice || casePrice) * quantity
   const discountedTotalPrice = effectiveCasePrice * quantity
   const totalPrice = discountedTotalPrice
 
@@ -542,6 +595,7 @@ export default function SizeDetail() {
                           const sUnitsPerCase = s.quantity_per_case || 0
                           const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
                           const sRewardPoints = Math.floor((Number(s.price) || 0) * rewardsConfig.pointsPerDollar)
+                          const sHasGroupDiscount = s.originalPrice > 0 && s.originalPrice > s.price
                           return (
                             <button
                               key={s.id}
@@ -559,9 +613,17 @@ export default function SizeDetail() {
                                   <Gift className="w-3 h-3" />
                                   Earn {sRewardPoints} points
                                 </p>
+                                {sHasGroupDiscount && (
+                                  <Badge className="mt-1 bg-green-100 text-green-700 text-xs">
+                                    Group Price
+                                  </Badge>
+                                )}
                               </div>
                               <div className="text-right">
-                                <p className="font-bold text-gray-900">${s.price?.toFixed(2)}</p>
+                                {sHasGroupDiscount && (
+                                  <p className="text-xs text-gray-400 line-through">${s.originalPrice?.toFixed(2)}</p>
+                                )}
+                                <p className={`font-bold ${sHasGroupDiscount ? 'text-green-600' : 'text-gray-900'}`}>${s.price?.toFixed(2)}</p>
                                 <p className="text-xs text-gray-500">/ case</p>
                               </div>
                             </button>
@@ -632,8 +694,17 @@ export default function SizeDetail() {
             {/* Price Card */}
             <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-50">
               <CardContent className="p-4">
-                {/* Show offer badge if available */}
-                {productOffer?.hasOffer && productOffer.offerBadge && (
+                {/* Show group pricing badge if applicable */}
+                {hasGroupDiscount && (
+                  <div className="mb-2">
+                    <Badge className="bg-green-600 text-white text-sm font-bold">
+                      🎯 Group Pricing - {groupDiscountPercent}% OFF
+                    </Badge>
+                  </div>
+                )}
+                
+                {/* Show offer badge if available and no group discount */}
+                {!hasGroupDiscount && productOffer?.hasOffer && productOffer.offerBadge && (
                   <div className="mb-2">
                     <Badge className="bg-red-500 text-white text-sm font-bold">
                       🎁 {productOffer.offerBadge}
@@ -643,20 +714,21 @@ export default function SizeDetail() {
                 
                 <div className="flex items-baseline gap-2">
                   {/* Show original price crossed out if there's a discount */}
-                  {hasOfferDiscount && (
-                    <span className="text-xl text-gray-400 line-through">${casePrice.toFixed(2)}</span>
+                  {hasDiscount && displayOriginalPrice > 0 && (
+                    <span className="text-xl text-gray-400 line-through">${displayOriginalPrice.toFixed(2)}</span>
                   )}
                   {/* Show discounted or regular price */}
-                  <span className={`text-3xl font-bold ${hasOfferDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                  <span className={`text-3xl font-bold ${hasDiscount ? 'text-green-600' : 'text-gray-900'}`}>
                     ${effectiveCasePrice.toFixed(2)}
                   </span>
                   <span className="text-gray-500">/ case</span>
                 </div>
                 
                 {/* Show savings text */}
-                {hasOfferDiscount && (
-                  <p className="text-sm text-red-600 font-semibold mt-1">
-                    Save {productOffer?.discountPercent}% - ${(casePrice - effectiveCasePrice).toFixed(2)} off
+                {hasDiscount && displayOriginalPrice > 0 && (
+                  <p className="text-sm text-green-600 font-semibold mt-1">
+                    Save {displayDiscountPercent}% - ${(displayOriginalPrice - effectiveCasePrice).toFixed(2)} off
+                    {hasGroupDiscount && <span className="ml-1">(Group Pricing)</span>}
                   </p>
                 )}
 
@@ -772,7 +844,7 @@ export default function SizeDetail() {
 
                   {/* Total */}
                   <div className="py-3 border-t space-y-1">
-                    {hasOfferDiscount && (
+                    {hasDiscount && displayOriginalPrice > 0 && (
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-gray-500">Original total</span>
                         <span className="text-gray-400 line-through">${originalTotalPrice.toFixed(2)}</span>
@@ -782,6 +854,16 @@ export default function SizeDetail() {
                       <span className="font-medium text-gray-700">Total</span>
                       <span className="text-2xl font-bold text-blue-600">${totalPrice.toFixed(2)}</span>
                     </div>
+                    {hasDiscount && displayOriginalPrice > 0 && (
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-green-600 font-medium">
+                          {hasGroupDiscount ? 'Group Discount' : 'Offer Discount'}
+                        </span>
+                        <span className="text-green-600 font-semibold">
+                          -${(originalTotalPrice - totalPrice).toFixed(2)}
+                        </span>
+                      </div>
+                    )}
                     {/* Quantity-Aware Reward Points */}
                     <div className="flex items-center justify-end gap-1 text-blue-600">
                       <Gift className="w-3.5 h-3.5" />
