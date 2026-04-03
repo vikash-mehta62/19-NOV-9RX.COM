@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, memo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef, memo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useWizardState } from "./useWizardState";
 import { WizardNavigation } from "./WizardNavigation";
@@ -49,6 +49,26 @@ interface AppliedDiscount {
   applicableTo?: string;
 }
 
+const findScrollContainer = (element: HTMLElement | null): HTMLElement | Window => {
+  if (!element) return window;
+
+  let current: HTMLElement | null = element.parentElement;
+
+  while (current) {
+    const style = window.getComputedStyle(current);
+    const overflowY = style.overflowY;
+    const canScroll = (overflowY === "auto" || overflowY === "scroll") && current.scrollHeight > current.clientHeight;
+
+    if (canScroll) {
+      return current;
+    }
+
+    current = current.parentElement;
+  }
+
+  return window;
+};
+
 const OrderCreationWizardComponent = ({
   initialData,
   isEditMode = false,
@@ -84,6 +104,7 @@ const OrderCreationWizardComponent = ({
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
   const [addCustomerModalOpen, setAddCustomerModalOpen] = useState(false);
   const [customerRefreshKey, setCustomerRefreshKey] = useState(0);
+  const wizardSectionRef = useRef<HTMLElement | null>(null);
   
   // Discount state
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
@@ -134,6 +155,50 @@ const OrderCreationWizardComponent = ({
   
   const { cartItems, clearCart, addToCart } = useCart();
   const { toast } = useToast();
+
+  const smartScrollToWizard = useCallback((force = false) => {
+    const section = wizardSectionRef.current;
+    if (!section) return;
+
+    const scrollContainer = findScrollContainer(section);
+
+    if (scrollContainer === window) {
+      const rect = section.getBoundingClientRect();
+      const isAboveViewport = rect.top < 80;
+      const isBelowViewport = rect.top > window.innerHeight - 140;
+
+      if (!force && !isAboveViewport && !isBelowViewport) {
+        return;
+      }
+
+      const targetTop = Math.max(window.scrollY + rect.top - 88, 0);
+      window.scrollTo({ top: targetTop, behavior: "smooth" });
+      return;
+    }
+
+    const container = scrollContainer as HTMLElement;
+    const sectionRect = section.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const topInsideContainer = sectionRect.top - containerRect.top;
+    const isAboveViewport = topInsideContainer < 16;
+    const isBelowViewport = topInsideContainer > container.clientHeight - 140;
+
+    if (!force && !isAboveViewport && !isBelowViewport) {
+      return;
+    }
+
+    const absoluteTop = container.scrollTop + topInsideContainer;
+    const targetTop = Math.max(absoluteTop - 24, 0);
+    container.scrollTo({ top: targetTop, behavior: "smooth" });
+  }, []);
+
+  const scrollAfterStepChange = useCallback(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        smartScrollToWizard(false);
+      });
+    });
+  }, [smartScrollToWizard]);
 
   // Load initial data in edit mode or pharmacy mode - only run once
   useEffect(() => {
@@ -599,8 +664,10 @@ const OrderCreationWizardComponent = ({
         variant: "destructive",
       });
 
-      // Scroll to top to show error messages
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      // Keep users oriented in wizard area when errors appear.
+      requestAnimationFrame(() => {
+        smartScrollToWizard(true);
+      });
     }
 
     return result.isValid;
@@ -722,10 +789,10 @@ const OrderCreationWizardComponent = ({
       setTimeout(() => {
         wizardState.markStepComplete(1);
         wizardState.goToStep(2);
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        scrollAfterStepChange();
       }, 300);
     }
-  }, [isPharmacyMode, userType, wizardState]);
+  }, [isPharmacyMode, userType, wizardState, scrollAfterStepChange]);
 
   // Handle add new customer - memoized
   const handleAddNewCustomer = useCallback(() => {
@@ -889,11 +956,9 @@ const OrderCreationWizardComponent = ({
       // Pharmacy mode has 3 steps, Admin mode has 5 steps
       // Just move to next step normally
       wizardState.goToNextStep();
-      
-      // Scroll to top of page for next step
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollAfterStepChange();
     }
-  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete, isPharmacyMode]);
+  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete, isPharmacyMode, scrollAfterStepChange]);
 
   const handleBack = useCallback(() => {
     // Clear validation errors when going back
@@ -901,10 +966,8 @@ const OrderCreationWizardComponent = ({
     
     // Just go to previous step - both modes work the same now
     wizardState.goToPreviousStep();
-    
-    // Scroll to top of page
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [wizardState, isPharmacyMode]);
+    scrollAfterStepChange();
+  }, [wizardState, isPharmacyMode, scrollAfterStepChange]);
 
   const handleCancel = useCallback(() => {
     const hasData = 
@@ -1000,9 +1063,7 @@ const OrderCreationWizardComponent = ({
       // Clear validation errors when navigating
       setValidationErrors([]);
       wizardState.goToStep(stepNumber);
-      
-      // Scroll to top of page
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      scrollAfterStepChange();
     } else {
       toast({
         title: "Cannot Navigate",
@@ -1010,7 +1071,7 @@ const OrderCreationWizardComponent = ({
         variant: "destructive",
       });
     }
-  }, [wizardState, toast]);
+  }, [wizardState, toast, scrollAfterStepChange]);
 
   const handleEditItems = useCallback(() => {
     // Navigate to products step (admin) or products page (pharmacy)
@@ -1313,6 +1374,7 @@ const OrderCreationWizardComponent = ({
             )}
 
             <section 
+              ref={wizardSectionRef}
               className="bg-white rounded-lg shadow-sm border border-gray-200 p-3 sm:p-4 md:p-6 min-h-[400px] sm:min-h-[500px]"
               aria-label={`Step ${wizardState.currentStep} of ${totalSteps}: ${steps[wizardState.currentStep - 1]?.label}`}
               role="region"

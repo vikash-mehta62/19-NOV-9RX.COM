@@ -303,7 +303,7 @@ const OrderSummaryCardComponent = ({
               </div>
             )}
 
-            {onEditItems && (
+            {/* {onEditItems && (
               <Button
                 variant="link"
                 className="w-full mt-2 sm:mt-3 text-blue-600 hover:text-blue-700 p-0 h-auto text-xs sm:text-sm transition-all duration-200 hover:scale-105 min-h-[44px]"
@@ -312,7 +312,7 @@ const OrderSummaryCardComponent = ({
               >
                 Edit items
               </Button>
-            )}
+            )} */}
           </div>
 
           <Separator />

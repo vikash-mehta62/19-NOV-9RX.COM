@@ -219,7 +219,7 @@ export function FunnelAnalysis() {
             <ul className="text-sm space-y-2 text-gray-700">
               <li className="flex items-start gap-2">
                 <span className="text-green-600 mt-0.5">•</span>
-                <span><strong>100% real data</strong> from your database (no estimates)</span>
+                <span><strong>Real funnel data</strong> from your database (orders only, no estimates)</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-green-600 mt-0.5">•</span>

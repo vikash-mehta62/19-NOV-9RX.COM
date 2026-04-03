@@ -740,11 +740,18 @@ export default function PharmacyCreateOrder() {
     navigate("/pharmacy/orders");
   };
 
-  const handlePaymentModalClose = () => {
-    setIsPaymentModalOpen(false);
-    setPendingOrderData(null);
-    // Navigate to orders page after payment
-    navigate("/pharmacy/orders");
+  const handlePaymentModalClose = (open: boolean) => {
+    setIsPaymentModalOpen(open);
+
+    // "Back to Cart" and close actions should return to the current create-order flow.
+    if (!open) {
+      setPendingOrderData(null);
+    }
+    
+    // Old flow (kept for quick rollback):
+      // setIsPaymentModalOpen(false);
+      // setPendingOrderData(null);
+      // navigate("/pharmacy/orders");
   };
 
   if (isLoading) {

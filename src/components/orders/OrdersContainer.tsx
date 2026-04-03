@@ -571,7 +571,7 @@ export const OrdersContainer = ({
 
               <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 xl:flex-row xl:items-center xl:justify-between">
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-1">
+                  <div className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-2xl bg-slate-100 p-1">
                     {[
                       { value: "all", label: "All" },
                       { value: "pending", label: "Pending" },
@@ -600,7 +600,8 @@ export const OrdersContainer = ({
 
                 {!hideFinancialData && (
                   <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 xl:flex-nowrap">
-                    <Button
+                    {/* "Browse Products" Button Commented Because It's Based on Old Product Flow. & does not need to be displayed now*/}
+                    {/* <Button
                       variant="outline"
                       size="sm"
                       className="gap-2 border-blue-200 text-blue-700 hover:bg-blue-50"
@@ -608,7 +609,7 @@ export const OrdersContainer = ({
                     >
                       <Package className="h-4 w-4" />
                       Browse Products
-                    </Button>
+                    </Button> */}
                     <CreatePurchaseOrderDialog />
                     <VendorDialogForm mode="add" onSubmit={handleVendorSubmit} />
                   </div>
@@ -732,7 +733,8 @@ export const OrdersContainer = ({
                 </>
               )}
 
-              <Button
+              {/* "Products" Button Commented Because It's Based on Old Product Flow. & does not need to be displayed now*/}
+              {/* <Button
                 variant="outline"
                 size="sm"
                 className="gap-2 border-blue-200 text-blue-600 hover:bg-blue-50"
@@ -740,7 +742,7 @@ export const OrdersContainer = ({
               >
                 <Package className="h-4 w-4" />
                 Products
-              </Button>
+              </Button> */}
 
               {poIs && (
                 <>

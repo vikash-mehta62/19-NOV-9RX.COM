@@ -617,7 +617,7 @@ export async function calculateKPIs(): Promise<KPIData> {
     
     // Get new customers from last 12 months
     const newCustomers = customers.filter(c => new Date(c.created_at) >= oneYearAgo).length;
-    const customerAcquisitionCost = newCustomers > 0 ? totalExpenses / newCustomers : 50; // Fallback to 50 if no data
+    const customerAcquisitionCost = newCustomers > 0 ? totalExpenses / newCustomers : 0;
     
     // ===== AVERAGE ORDER VALUE =====
     const averageOrderValue = completedOrders.length > 0 ? totalRevenue / completedOrders.length : 0;

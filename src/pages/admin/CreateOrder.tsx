@@ -13,6 +13,7 @@ import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
+import { useCart } from "@/hooks/use-cart";
 
 // Invoice creation function for paid orders
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -103,6 +104,7 @@ export default function CreateOrder() {
   const location = useLocation();
   const { orderId } = useParams();
   const { toast } = useToast();
+  const { clearCart } = useCart();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
@@ -720,21 +722,8 @@ const profileID =
         performedByEmail: userProfile?.email,
       });
 
-      // If credit payment, update customer's credit_used
-      if (paymentMethod === "credit") {
-        const { data: customerProfile } = await supabase
-          .from("profiles")
-          .select("credit_used")
-          .eq("id", orderData.customerId)
-          .single();
-
-        const newCreditUsed = (customerProfile?.credit_used || 0) + orderData.total;
-
-        await supabase
-          .from("profiles")
-          .update({ credit_used: newCreditUsed })
-          .eq("id", orderData.customerId);
-      }
+      // Credit usage is applied only on admin approval via approve_credit_order_atomic.
+      // Do not increment credit_used during order creation.
 
       console.log("Order created successfully:", insertedOrder);
 
@@ -817,6 +806,15 @@ const profileID =
         ? `Order ${finalOrderNumber} has been created (fully discounted - no payment required)`
         : `Order ${finalOrderNumber} has been created and is ready for processing`;
 
+      console.log("🧹 Clearing cart...");
+      try {
+        await clearCart();
+        console.log("✅ Cart cleared successfully");
+      } catch (cartError) {
+        console.error("❌ Error clearing cart:", cartError);
+        // Continue with success flow even if cart clear fails
+      }
+
       toast({
         title: "Order Created Successfully",
         description: successMessage,
@@ -841,11 +839,20 @@ const profileID =
     navigate("/admin/orders");
   };
 
-  const handlePaymentModalClose = () => {
-    setIsPaymentModalOpen(false);
-    setPendingOrderData(null);
-    // Navigate to orders page after payment (CreateOrderPayment handles order creation)
-    navigate("/admin/orders");
+  const handlePaymentModalClose = (open: boolean) => {
+    setIsPaymentModalOpen(open);
+
+    // "Back to Cart" and close actions should return to the current create-order flow,
+    // not redirect to sales orders.
+    if (!open) {
+      setPendingOrderData(null);
+    }
+    
+          // Old flow (kept for quick rollback): closing checkout redirected to sales orders.
+            // setIsPaymentModalOpen(false);
+            // setPendingOrderData(null);
+            // Navigate to orders page after payment (CreateOrderPayment handles order creation)
+            // navigate("/admin/orders");
   };
 
   if (isLoading) {

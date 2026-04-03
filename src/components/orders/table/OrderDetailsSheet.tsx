@@ -3836,7 +3836,7 @@ export const OrderDetailsSheet = ({
                                     <div key={rowKey} className="grid gap-3 rounded-lg border bg-white p-3 md:grid-cols-[minmax(0,1.4fr)_90px_90px_110px]">
                                       <div>
                                         <p className="font-bold text-gray-900">{size.size_name}</p>
-                                        <p className="font-medium text-slate-900">{size.size_value} {size.size_unit}</p>
+                                        <p className="font-medium text-slate-900">{getOrderSizeLabel(size, item?.unitToggle)}</p>
                                         <p className="text-xs text-slate-500">
                                           {size.quantity_per_case ? `${size.quantity_per_case}/case` : "No case pack"}
                                           {size.sku ? ` • ${size.sku}` : ""}

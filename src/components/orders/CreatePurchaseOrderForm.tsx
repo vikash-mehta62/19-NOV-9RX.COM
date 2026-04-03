@@ -15,7 +15,7 @@ import { useSelector, useDispatch } from "react-redux";
 import { selectUserProfile } from "../../store/selectors/userSelectors";
 import { useCart } from "@/hooks/use-cart";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save, ClipboardList, Truck, Receipt, Sparkles, ScanLine, Trash2 } from "lucide-react";
+import { Building2, Package, User, Plus, ShoppingCart, X, Edit2, Save, ClipboardList, Truck, Receipt, Sparkles, ScanLine, Trash2, AlertTriangle } from "lucide-react";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,7 @@ import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { fetchOrderedCategories, fetchOrderedSubcategories } from "@/services/productTreeService";
 
 const ADD_NEW_SUBCATEGORY_VALUE = "__add_new_subcategory__";
+const MANUAL_NO_UNIT_VALUE = "__no_unit__";
 
 interface CreatePurchaseOrderFormProps {
   vendorId: string;
@@ -93,6 +94,28 @@ const purchaseOrderFormSchema = orderFormSchema.extend({
       shipping: z.any().optional(),
     })
     .optional(),
+  // PO manual items can intentionally be unitless; allow empty size_unit here.
+  items: z.array(
+    z.object({
+      productId: z.string().min(1),
+      name: z.string().min(1),
+      quantity: z.number().min(1),
+      price: z.number().min(0),
+      sizes: z
+        .array(
+          z
+            .object({
+              id: z.string().min(1),
+              size_value: z.string().min(1),
+              size_unit: z.string(),
+              quantity: z.number().min(0),
+              price: z.number().min(0),
+            })
+            .passthrough()
+        )
+        .optional(),
+    }).passthrough()
+  ),
 });
 
 export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormProps) {
@@ -150,7 +173,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
     quantityPerCase: "100",
     sku: "",
     size: "",
-    unit: "unit",
+    unit: MANUAL_NO_UNIT_VALUE,
     price: "",
     shippingCost: "0",
     sequence: "0",
@@ -734,7 +757,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
           id: sizeId,
           size_name: manualProduct.name.trim(),
           size_value: manualProduct.size.trim() || "Standard",
-          size_unit: manualProduct.unit.trim() || "unit",
+          size_unit:
+            manualProduct.unit === MANUAL_NO_UNIT_VALUE
+              ? ""
+              : manualProduct.unit.trim() || "unit",
           price,
           quantity,
           sku: manualProduct.sku.trim() || "",
@@ -764,7 +790,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
       quantityPerCase: "100",
       sku: "",
       size: "",
-      unit: "unit",
+      unit: MANUAL_NO_UNIT_VALUE,
       price: "",
       shippingCost: "0",
       sequence: "0",
@@ -2131,6 +2157,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                 <SelectValue placeholder="Select unit" />
                               </SelectTrigger>
                               <SelectContent>
+                                <SelectItem value={MANUAL_NO_UNIT_VALUE}>No Unit Selected</SelectItem>
                                 {["unit", "case", "box", "pack", "roll", "pallet"].map((unit) => (
                                   <SelectItem key={unit} value={unit}>
                                     {unit}
@@ -2138,6 +2165,10 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                                 ))}
                               </SelectContent>
                             </Select>
+                            <p className="mt-1 flex items-start gap-1 text-xs text-amber-700">
+                              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-500" />
+                              <span>Leave as No Unit Selected when this item does not require a measurement unit.</span>
+                            </p>
                           </div>
 
                           <div className="lg:col-span-1">
@@ -2239,7 +2270,7 @@ export function CreatePurchaseOrderForm({ vendorId }: CreatePurchaseOrderFormPro
                             </div>
                           </div>
 
-                          <div className="lg:col-span-1">
+                          <div className="lg:col-start-1 lg:col-span-1">
                             <Label htmlFor="manual-ndc">NDC Code</Label>
                             <Input
                               id="manual-ndc"

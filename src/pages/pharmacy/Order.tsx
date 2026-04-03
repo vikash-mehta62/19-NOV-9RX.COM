@@ -12,6 +12,7 @@ import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
 import { useDispatch } from "react-redux";
 import { setUserProfile } from "@/store/actions/userAction";
 import { REWARD_REDEMPTION_STATUS } from "@/lib/rewards";
+import { useCart } from "@/hooks/use-cart";
 
 // Invoice creation function for paid orders (when total is 0)
 const createInvoiceForOrder = async (order: any, totalAmount: number, taxAmount: number) => {
@@ -75,6 +76,7 @@ export default function PharmacyOrder() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const dispatch = useDispatch();
+  const { clearCart } = useCart();
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [prefilledData, setPrefilledData] = useState<any>(null);
@@ -582,6 +584,15 @@ export default function PharmacyOrder() {
         ? `Order ${newOrderId} has been created (fully discounted - no payment required)`
         : `Order ${newOrderId} has been created and is ready for processing`;
 
+      console.log("🧹 Clearing cart...");
+      try {
+        await clearCart();
+        console.log("✅ Cart cleared successfully");
+      } catch (cartError) {
+        console.error("❌ Error clearing cart:", cartError);
+        // Continue with success flow even if cart clear fails
+      }
+
       toast({
         title: "Order Created Successfully",
         description: successMessage,
@@ -603,10 +614,18 @@ export default function PharmacyOrder() {
     navigate("/pharmacy/orders");
   };
 
-  const handlePaymentModalClose = () => {
-    setIsPaymentModalOpen(false);
-    setPendingOrderData(null);
-    navigate("/pharmacy/orders");
+  const handlePaymentModalClose = (open: boolean) => {
+    setIsPaymentModalOpen(open);
+
+    // "Back to Cart" and close actions should keep users in the current order flow.
+    if (!open) {
+      setPendingOrderData(null);
+    }
+    
+    // Old flow (kept for quick rollback):
+      // setIsPaymentModalOpen(false);
+      // setPendingOrderData(null);
+      // navigate("/pharmacy/orders");
   };
 
   if (isLoading) {

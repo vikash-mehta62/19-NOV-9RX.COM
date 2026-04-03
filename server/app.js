@@ -1668,40 +1668,23 @@ app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
     console.log(`    * Base amount portion: $${balanceOfBaseAmount.toFixed(2)}`);
     console.log(`    * Old fee portion: $${balanceOfOldFee.toFixed(2)}`);
 
-    // Get processing fee settings - fetch from admin/superadmin profile
+    // Get processing fee settings from global settings row
     console.log(`[pay-now] Fetching processing fee settings...`);
-    
-    // First, try to get settings from the first admin/superadmin profile
-    const { data: adminProfile, error: adminProfileError } = await supabaseAdmin
-      .from("profiles")
-      .select("id")
-      .in("role", ["admin", "superadmin"])
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
 
-    if (adminProfileError) {
-      console.error(`[pay-now] ❌ Error fetching admin profile:`, adminProfileError);
-    } else if (adminProfile) {
-      console.log(`[pay-now] Found admin profile: ${adminProfile.id}`);
-    } else {
-      console.log(`[pay-now] ⚠️  No admin profile found`);
-    }
-
-    // Fetch settings for admin profile
+    // NOTE: Settings are organization-wide and stored in a single global row.
     const { data: uiSettings, error: uiSettingsError } = await supabaseAdmin
       .from("settings")
-      .select("card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer, profile_id")
-      .eq("profile_id", adminProfile?.id)
+      .select("card_processing_fee_enabled, card_processing_fee_percentage, card_processing_fee_pass_to_customer, is_global")
+      .eq("is_global", true)
       .maybeSingle();
 
     console.log(`[pay-now] Processing fee settings query result:`);
     if (uiSettingsError) {
       console.error(`  - ❌ Error fetching settings:`, uiSettingsError);
     } else if (!uiSettings) {
-      console.log(`  - ⚠️  No settings found for admin profile ${adminProfile?.id}`);
+      console.log(`  - ⚠️  No global settings row found (is_global=true)`);
     } else {
-      console.log(`  - ✅ Settings found for profile: ${uiSettings.profile_id}`);
+      console.log(`  - ✅ Global settings found: is_global=${uiSettings.is_global}`);
       console.log(`  - Raw settings:`, JSON.stringify(uiSettings, null, 2));
     }
 
