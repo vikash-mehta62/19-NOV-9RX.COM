@@ -149,8 +149,7 @@ export class SalesOrderPDFGenerator {
     const addressLines = [
       companySettings.street,
       companySettings.suite,
-      [companySettings.city, companySettings.state, companySettings.zipCode].filter(Boolean).join(", "),
-      companySettings.country,
+      [[companySettings.city, companySettings.state, companySettings.zipCode].filter(Boolean).join(", "), companySettings.country].filter(Boolean).join(", "),
     ].filter(Boolean) as string[];
 
     let logoBottomY = contentTopY;

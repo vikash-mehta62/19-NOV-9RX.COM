@@ -26,6 +26,8 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const invoiceCompany = documentSettings.invoice;
     const shippingCompanyName = invoiceCompany.name || "9RX";
     const shippingContactLine = formatDocumentContactLine(invoiceCompany);
+    const shippingPhoneLine = invoiceCompany?.phone ? `Phone: ${invoiceCompany.phone}` : "";
+    const shippingEmailLine = invoiceCompany?.email ? `Email: ${invoiceCompany.email}` : "";
 
     const doc = new jsPDF({
       orientation: "portrait",
@@ -35,7 +37,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
 
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 10;
+    const margin = 12;
     const contentWidth = pageWidth - margin * 2;
 
     const packingDetails = packingData?.packingDetails || {};
@@ -48,9 +50,9 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const COLORS = {
       primary: [40, 56, 136] as [number, number, number],
       success: [40, 56, 136] as [number, number, number],
-      dark: [31, 41, 55] as [number, number, number],
-      medium: [107, 114, 128] as [number, number, number],
-      light: [243, 244, 246] as [number, number, number],
+      dark: [60, 60, 60] as [number, number, number],
+      medium: [100, 100, 100] as [number, number, number],
+      light: [245, 245, 245] as [number, number, number],
       white: [255, 255, 255] as [number, number, number],
       black: [0, 0, 0] as [number, number, number],
     };
@@ -59,14 +61,19 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // SECTION 1: THIN BLUE LINE AT TOP
     // ==========================================
     doc.setFillColor(...COLORS.primary);
-    doc.rect(0, 0, pageWidth, 4, 'F');
+    doc.rect(0, 0, pageWidth, 5, 'F');
 
     // ==========================================
-    // SECTION 2: LOGO (Left) + SALES ORDER TITLE (Right)
+    // SECTION 2: HEADER
     // ==========================================
-    let yPos = 12;
+    let yPos = 10;
+    const headerLeftWidth = 64;
+    const headerRightWidth = 62;
+    const headerRightX = pageWidth - margin - headerRightWidth;
+    const headerTopY = yPos;
+    let logoBottomY = headerTopY;
 
-    // Logo on left
+    // Logo in center
     try {
       const logo = new Image();
       logo.src = Logo
@@ -75,65 +82,71 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
         logo.onerror = reject;
         setTimeout(reject, 2000);
       });
-      const logoHeight = 14;
+      const logoHeight = 26;
       const logoWidth = (logo.width / logo.height) * logoHeight;
-      doc.addImage(logo, "PNG", margin, yPos, logoWidth, logoHeight);
+      doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, headerTopY, logoWidth, logoHeight);
+      logoBottomY = headerTopY + logoHeight;
     } catch {
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(16);
-      doc.setTextColor(...COLORS.primary);
-      doc.text(shippingCompanyName, margin, yPos + 10);
+      doc.setFontSize(18);
+      doc.setTextColor(...COLORS.dark);
+      doc.text(shippingCompanyName, pageWidth / 2, headerTopY + 10, { align: "center" });
+      logoBottomY = headerTopY + 10;
     }
 
-    // SALES ORDER title on right
+    let addressY = headerTopY + 7;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.setTextColor(...COLORS.primary);
-    doc.text("PACKING SLIP", pageWidth - margin, yPos + 6, { align: "right" });
-
-    // Order number below title
-    const orderNumber = workOrderData?.order_number || "9RX001193";
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setTextColor(...COLORS.dark);
-    doc.text(`# ${orderNumber}`, pageWidth - margin, yPos + 14, { align: "right" });
-
-    // ==========================================
-    // SECTION 3: COMPANY INFO (Left) + ORDER INFO (Right)
-    // ==========================================
-    yPos = 34;
-
-    // Left side - Company Info
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.setTextColor(...COLORS.black);
-    doc.text(shippingCompanyName, margin, yPos);
+    doc.text(shippingCompanyName, margin, addressY, { maxWidth: headerLeftWidth });
+    addressY += 6;
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...COLORS.medium);
-    if (shippingContactLine) {
-      doc.text(shippingContactLine, margin, yPos + 6);
-    }
+    const contactLines = [shippingPhoneLine, shippingEmailLine].filter(Boolean);
+    const linesToRender =
+      contactLines.length > 0
+        ? contactLines
+        : shippingContactLine
+          ? shippingContactLine.split("|").map((part: string) => part.trim()).filter(Boolean)
+          : [];
 
-    // Right side - Order Info
-    const formattedDate = new Date().toLocaleDateString("en-US", {
+    linesToRender.forEach((line) => {
+      const wrappedLine = doc.splitTextToSize(line, headerLeftWidth);
+      doc.text(wrappedLine, margin, addressY);
+      addressY += wrappedLine.length * 4.2;
+    });
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(18);
+    doc.setTextColor(...COLORS.primary);
+    doc.text("PACKING SLIP", pageWidth - margin, headerTopY + 6, { align: "right", maxWidth: headerRightWidth });
+
+    const orderNumber = workOrderData?.order_number || "9RX001193";
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...COLORS.dark);
+    doc.text(`# ${orderNumber}`, pageWidth - margin, headerTopY + 14, { align: "right", maxWidth: headerRightWidth });
+
+    // ==========================================
+    // SECTION 3: RIGHT HEADER INFO
+    // ==========================================
+    const formattedDate = new Date(workOrderData?.created_at || packingData?.created_at || Date.now()).toLocaleDateString("en-US", {
       month: "2-digit",
       day: "2-digit",
       year: "numeric"
     });
 
-    // Date
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor(...COLORS.dark);
-    doc.text(`Date: ${formattedDate}`, pageWidth - margin, yPos, { align: "right" });
+    doc.setFontSize(9);
+    doc.setTextColor(...COLORS.medium);
+    doc.text(`Date: ${formattedDate}`, pageWidth - margin, headerTopY + 22, { align: "right", maxWidth: headerRightWidth });
 
-    // PACKED Badge
     const badgeW = 26;
     const badgeH = 8;
     const badgeX = pageWidth - margin - badgeW;
-    const badgeY = yPos + 4;
+    const badgeY = headerTopY + 26;
     doc.setFillColor(...COLORS.success);
     doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, 'F');
     doc.setFont("helvetica", "bold");
@@ -141,18 +154,23 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setTextColor(...COLORS.white);
     doc.text("PACKED", badgeX + badgeW / 2, badgeY + 5.5, { align: "center" });
 
-    // Barcode
+    const barcodeY = badgeY + 13;
     try {
       const barcodeUrl = generateBarcode(orderNumber);
-      doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, yPos + 15, 50, 12);
+      doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, 12);
     } catch (e) {
       console.warn("Barcode generation failed:", e);
     }
 
+    const dividerY = Math.max(addressY, logoBottomY, barcodeY + 12) + 2;
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.5);
+    doc.line(margin, dividerY, pageWidth - margin, dividerY);
+
     // ==========================================
     // SECTION 3: BILL TO & SHIP TO (Equal Boxes)
     // ==========================================
-    yPos = 68;
+    yPos = dividerY + 5;
     const boxGap = 10;
     const boxW = (contentWidth - boxGap) / 2;
     const boxH = 32;

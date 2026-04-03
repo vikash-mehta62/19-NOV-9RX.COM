@@ -145,8 +145,7 @@ export async function generateInvoicePdfBlob(
   const invoiceAddressLines = [
     invoiceCompany.street,
     invoiceCompany.suite,
-    [invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "),
-    invoiceCompany.country,
+    [[invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "), invoiceCompany.country].filter(Boolean).join(", "),
   ].filter(Boolean) as string[];
   let headerBottomY = 66;
 

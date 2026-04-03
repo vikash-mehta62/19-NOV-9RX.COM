@@ -743,8 +743,7 @@ export const OrderDetailsSheet = ({
       { text: invoiceCompanyName, bold: true, color: darkGray, fontSize: 11 },
       { text: invoiceCompany.street, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: invoiceCompany.suite, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
-      { text: [invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
-      { text: invoiceCompany.country, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: [[invoiceCompany.city, invoiceCompany.state, invoiceCompany.zipCode].filter(Boolean).join(", "), invoiceCompany.country].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: invoiceCompany.phone ? `Phone: ${invoiceCompany.phone}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: invoiceCompany.email ? `Email: ${invoiceCompany.email}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: invoiceCompany.taxId ? `Tax ID: ${invoiceCompany.taxId}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
@@ -1191,12 +1190,21 @@ export const OrderDetailsSheet = ({
     }
 
     const totalPages = (doc as any).internal.getNumberOfPages();
+    const showSalesOrderCaution = documentTitle === "SALES ORDER";
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFillColor(...brandColor);
       doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
       doc.setFillColor(255, 255, 255);
       doc.rect(pageWidth / 2 - 20, pageHeight - 9, 40, 6, "F");
+
+      if (showSalesOrderCaution) {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(...brandColor);
+        doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center" });
+      }
+
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(60, 60, 60);
@@ -1628,6 +1636,7 @@ export const OrderDetailsSheet = ({
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
+      const showSalesOrderCaution = documentTitle === "SALES ORDER";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -1639,6 +1648,13 @@ export const OrderDetailsSheet = ({
         // Draw white background for page number visibility
         doc.setFillColor(255, 255, 255);
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
+
+        if (showSalesOrderCaution) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(5.8);
+          doc.setTextColor(...brandColor);
+          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+        }
 
         // Draw page number text
         doc.setFont("helvetica", "normal");
@@ -2064,6 +2080,7 @@ export const OrderDetailsSheet = ({
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
+      const showSalesOrderCaution = documentTitle === "SALES ORDER";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -2075,6 +2092,13 @@ export const OrderDetailsSheet = ({
         // Draw white background for page number visibility
         doc.setFillColor(255, 255, 255);
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
+
+        if (showSalesOrderCaution) {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(5.8);
+          doc.setTextColor(...brandColor);
+          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+        }
 
         // Draw page number text
         doc.setFont("helvetica", "normal");

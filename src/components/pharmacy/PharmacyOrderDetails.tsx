@@ -275,8 +275,7 @@ console.log(order,"PHARorder")
       { text: headerInfo.name || "9RX LLC", bold: true, color: darkGray, fontSize: 11 },
       { text: headerInfo.street, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: headerInfo.suite, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
-      { text: [headerInfo.city, headerInfo.state, headerInfo.zipCode].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
-      { text: headerInfo.country, color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
+      { text: [[headerInfo.city, headerInfo.state, headerInfo.zipCode].filter(Boolean).join(", "), headerInfo.country].filter(Boolean).join(", "), color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: headerInfo.phone ? `Phone: ${headerInfo.phone}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: headerInfo.email ? `Email: ${headerInfo.email}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
       { text: headerInfo.taxId ? `Tax ID: ${headerInfo.taxId}` : "", color: [100, 100, 100] as [number, number, number], fontSize: 8.5 },
@@ -674,7 +673,7 @@ console.log(order,"PHARorder")
       }
 
       // ===== FOOTER =====
-      const footerY = pageHeight - 30
+      const footerY = pageHeight - 24
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.3)
       doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
@@ -688,18 +687,19 @@ console.log(order,"PHARorder")
       if (order.payment_status === "paid") {
         const transactionId = (order as any).payment_transication || ""
         if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 4, { align: "center" })
         } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
         }
       } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
       }
 
       // Add page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
+      const showSalesOrderCaution = documentTitle === "SALES ORDER"
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
@@ -711,12 +711,19 @@ console.log(order,"PHARorder")
         // White background for page number
         doc.setFillColor(255, 255, 255)
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
+
+        if (showSalesOrderCaution) {
+          doc.setFont("helvetica", "bold")
+          doc.setFontSize(9)
+          doc.setTextColor(...brandColor)
+          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+        }
         
         // Page number text
         doc.setFont("helvetica", "normal")
         doc.setFontSize(9)
         doc.setTextColor(60, 60, 60)
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" })
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 4.5, { align: "center" })
       }
 
       doc.save(`${order.order_number}.pdf`)
@@ -933,7 +940,7 @@ console.log(order,"PHARorder")
         doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" })
       }
 
-      const footerY = pageHeight - 30
+      const footerY = pageHeight - 24
       doc.setDrawColor(220, 220, 220)
       doc.setLineWidth(0.3)
       doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
@@ -948,13 +955,14 @@ console.log(order,"PHARorder")
         const transactionId = (order as any).payment_transication || ""
         doc.text(transactionId ? `Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com` : "Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
       } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
       }
 
       // Add page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
+      const showSalesOrderCaution = documentTitle === "SALES ORDER"
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
@@ -966,12 +974,19 @@ console.log(order,"PHARorder")
         // White background for page number
         doc.setFillColor(255, 255, 255)
         doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
+
+        if (showSalesOrderCaution) {
+          doc.setFont("helvetica", "bold")
+          doc.setFontSize(9)
+          doc.setTextColor(...brandColor)
+          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+        }
         
         // Page number text
         doc.setFont("helvetica", "normal")
         doc.setFontSize(9)
         doc.setTextColor(60, 60, 60)
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" })
+        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 4.5, { align: "center" })
       }
 
       // Open PDF in iframe for printing

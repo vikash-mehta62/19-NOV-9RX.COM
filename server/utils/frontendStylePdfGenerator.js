@@ -3,30 +3,28 @@ const https = require("https");
 const bwipjs = require('bwip-js');
 const { createClient } = require("@supabase/supabase-js");
 
-// Professional blue and green color scheme matching frontend EXACTLY
-const COLORS = {
-  primary: [59, 130, 246],      // Blue-500 (#3B82F6)
-  primaryDark: [37, 99, 235],   // Blue-600 (#2563EB)
-  success: [16, 185, 129],      // Green-500 (#10B981)
-  successDark: [5, 150, 105],   // Green-600 (#059669)
-  dark: [31, 41, 55],           // Gray-800
-  medium: [107, 114, 128],      // Gray-500
-  light: [243, 244, 246],       // Gray-100
-  lightBlue: [239, 246, 255],   // Blue-50
-  white: [255, 255, 255],
-  black: [0, 0, 0],
-};
+const BRAND_BLUE = '#283888';
+const SUCCESS_GREEN = '#22C55E';
+const ALERT_RED = '#EF4444';
+const TEXT_DARK = '#3C3C3C';
+const TEXT_MUTED = '#646464';
+const BOX_LIGHT = '#F5F5F5';
+const GRID_LINE = '#E2E8F0';
+const DIVIDER_LINE = '#DCDCDC';
+const BODY_TEXT_SOFT = '#4B5563';
 
 const PAGE_MARGIN = 12; // 12mm margin (matching frontend)
 const PAGE_WIDTH = 210; // A4 width in mm
 const PAGE_HEIGHT = 297; // A4 height in mm
-const TOP_BAND_HEIGHT = 3;
-const FOOTER_Y = PAGE_HEIGHT - 42;
-const FOOTER_SAFE_TOP_Y = FOOTER_Y - 6;
+const TOP_BAND_HEIGHT = 5;
+const FOOTER_Y = PAGE_HEIGHT - 30;
+const FOOTER_SAFE_TOP_Y = PAGE_HEIGHT - 58;
 const CONTINUATION_TOP_Y = 15;
 const SUMMARY_ROW_HEIGHT = 8;
 const SUMMARY_BOX_HEIGHT = 10;
 const SUMMARY_BOX_GAP = 12;
+const ADDRESS_LINE_GAP = 1.1;
+const ADDRESS_MIN_LINE_HEIGHT = 4.2;
 const DEFAULT_DOCUMENT_HEADER = {
   name: "9RX LLC",
   email: "info@9rx.com",
@@ -118,17 +116,25 @@ const getDocumentHeaderInfo = async () => {
 };
 
 const drawTopBand = (doc, mm) => {
-  doc.rect(0, 0, mm(PAGE_WIDTH), mm(TOP_BAND_HEIGHT)).fill('#3B82F6');
+  doc.rect(0, 0, mm(PAGE_WIDTH), mm(TOP_BAND_HEIGHT)).fill(BRAND_BLUE);
+};
+
+const drawBottomBand = (doc, mm) => {
+  doc.rect(0, mm(PAGE_HEIGHT - 2), mm(PAGE_WIDTH), mm(2)).fill(BRAND_BLUE);
 };
 
 const drawItemsTableHeader = (doc, mm, tableStartY, includePricingInPdf, colX) => {
   const tableHeaderHeight = 9;
+  const tableX = PAGE_MARGIN;
+  const tableWidth = PAGE_WIDTH - PAGE_MARGIN * 2;
+  const headerTopY = tableStartY;
+  const headerBottomY = tableStartY + tableHeaderHeight;
 
-  doc.roundedRect(mm(PAGE_MARGIN), mm(tableStartY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(tableHeaderHeight), mm(1))
-     .fillColor('#3B82F6')
+    doc.rect(mm(tableX), mm(tableStartY), mm(tableWidth), mm(tableHeaderHeight))
+      .fillColor(BRAND_BLUE)
      .fill();
 
-  doc.fontSize(9)
+  doc.fontSize(8.5)
      .fillColor('#FFFFFF')
      .font('Helvetica-Bold');
 
@@ -140,6 +146,24 @@ const drawItemsTableHeader = (doc, mm, tableStartY, includePricingInPdf, colX) =
     doc.text('Unit Price', mm(colX.price), mm(tableStartY + 3));
     doc.text('Total', mm(colX.total), mm(tableStartY + 3));
   }
+
+  // Frontend jsPDF autoTable shows subtle header cell borders; emulate with light vertical separators.
+  const dividerXs = [
+    colX.desc - 2,
+    colX.size - 2,
+    colX.qty - 2,
+    ...(includePricingInPdf ? [colX.price - 2, colX.total - 2] : []),
+  ];
+  dividerXs.forEach((x) => {
+    doc.moveTo(mm(x), mm(headerTopY + 0.8))
+       .lineTo(mm(x), mm(headerBottomY - 0.8))
+       .strokeColor('#FFFFFF')
+       .lineWidth(0.2)
+       .strokeOpacity(0.55)
+       .stroke();
+  });
+
+  doc.strokeOpacity(1);
 };
 
 const addContinuationPage = (doc, mm) => {
@@ -215,13 +239,12 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const isPurchaseOrder = documentType === 'PURCHASE ORDER';
       const includePricingInPdf = !isPurchaseOrder || options.includePricingInPdf !== false;
       const headerInfo = await getDocumentHeaderInfo();
-      const headerAddressLine = formatAddressLine(headerInfo);
-      const headerContactLine = formatContactLine(headerInfo);
-      const headerMetaLine = formatMetaLine(headerInfo);
+      const supportEmail = headerInfo.email || DEFAULT_DOCUMENT_HEADER.email;
       
       const orderNumber = order?.order_number || order?.orderNumber || "N/A";
       const invoiceNumber = order?.invoice_number || `INV-${Date.now()}`;
       const documentNumber = isInvoice ? invoiceNumber : orderNumber;
+      const documentTitle = isInvoice ? 'INVOICE' : (isPurchaseOrder ? 'PURCHASE ORDER' : 'SALES ORDER');
       
       console.log("🎨 Generating PDF with frontend logic:", {
         documentType,
@@ -303,7 +326,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       // Create PDF document
       const doc = new PDFDocument({
         size: 'A4',
-        margin: PAGE_MARGIN * 2.83465, // Convert mm to points
+        margin: 0,
         bufferPages: true,
       });
       
@@ -325,168 +348,213 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       // Convert mm to points for PDFKit (1mm = 2.83465 points)
       const mm = (value) => value * 2.83465;
       
-      // Add blue header band (3mm height - matching frontend)
       drawTopBand(doc, mm);
-      
-      // Add company logo
+
+      const currentDate = new Date(order?.created_at || Date.now()).toLocaleDateString('en-US', {
+        month: '2-digit',
+        day: '2-digit',
+        year: 'numeric',
+      });
+
+      const headerContentY = 10;
+      const leftColumnWidth = 64;
+      const rightColumnWidth = 62;
+      const rightColumnX = PAGE_WIDTH - PAGE_MARGIN;
+      const leftInfoLines = [
+        { text: headerInfo.name || DEFAULT_DOCUMENT_HEADER.name, bold: true, fontSize: 11, color: TEXT_DARK },
+        { text: headerInfo.street || '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+        { text: headerInfo.suite || '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+        {
+          text: [
+            [headerInfo.city, headerInfo.state, headerInfo.zipCode].filter(Boolean).join(', '),
+            headerInfo.country,
+          ].filter(Boolean).join(', '),
+          bold: false,
+          fontSize: 8.5,
+          color: TEXT_MUTED,
+        },
+        { text: headerInfo.phone ? `Phone: ${headerInfo.phone}` : '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+        { text: headerInfo.email ? `Email: ${headerInfo.email}` : '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+        { text: headerInfo.taxId ? `Tax ID: ${headerInfo.taxId}` : '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+        { text: headerInfo.website || '', bold: false, fontSize: 8.5, color: TEXT_MUTED },
+      ].filter((line) => line.text);
+
+      let addressY = headerContentY + 3;
+      leftInfoLines.forEach((line, index) => {
+        doc.fontSize(line.fontSize)
+           .font(line.bold ? 'Helvetica-Bold' : 'Helvetica')
+           .fillColor(line.color)
+           .text(line.text, mm(PAGE_MARGIN), mm(addressY), {
+             width: mm(leftColumnWidth),
+             lineGap: 0,
+           });
+        const measuredHeight = doc.heightOfString(line.text, { width: mm(leftColumnWidth), lineGap: 0 }) / 2.83465;
+        addressY += measuredHeight + (index === 0 ? 0.8 : 0.6);
+      });
+
+      let logoBottomY = headerContentY;
       try {
         const logoBuffer = await fetchLogo();
         if (logoBuffer) {
-          const logoHeight = 18;
-          const logoWidth = logoHeight * 1.5; // Approximate aspect ratio
-          doc.image(logoBuffer, mm(PAGE_MARGIN), mm(8), { width: mm(logoWidth), height: mm(logoHeight) });
+          const logoHeight = 26;
+          const logoWidth = logoHeight * 1.5;
+          doc.image(logoBuffer, mm(PAGE_WIDTH / 2 - logoWidth / 2), mm(headerContentY), {
+            width: mm(logoWidth),
+            height: mm(logoHeight),
+          });
+          logoBottomY = headerContentY + logoHeight;
+        } else {
+          doc.fontSize(18)
+             .font('Helvetica-Bold')
+             .fillColor(TEXT_DARK)
+             .text(headerInfo.name || DEFAULT_DOCUMENT_HEADER.name, mm(PAGE_WIDTH / 2 - 30), mm(headerContentY + 10), {
+               width: mm(60),
+               align: 'center',
+               lineBreak: false,
+             });
+          logoBottomY = headerContentY + 10;
         }
       } catch (err) {
         console.log('Logo fetch failed');
       }
-      
-      // Company details (left side)
-      doc.fontSize(14)
-         .fillColor('#1F2937')
+
+      doc.fontSize(18)
          .font('Helvetica-Bold')
-         .text(headerInfo.name || DEFAULT_DOCUMENT_HEADER.name, mm(PAGE_MARGIN), mm(30));
-      
-      doc.fontSize(8)
-         .fillColor('#6B7280')
-         .font('Helvetica');
-      if (headerAddressLine) {
-        doc.text(headerAddressLine, mm(PAGE_MARGIN), mm(36));
-      }
-      if (headerContactLine) {
-        doc.text(headerContactLine, mm(PAGE_MARGIN), mm(40));
-      }
-      if (headerMetaLine) {
-        doc.text(headerMetaLine, mm(PAGE_MARGIN), mm(44));
-      }
-      
-      // Document title (right side)
-      const titleText = isInvoice ? 'INVOICE' : (isPurchaseOrder ? 'PURCHASE ORDER' : 'SALES ORDER');
-      let titleFontSize = 26;
-      while (titleFontSize > 18) {
-        doc.fontSize(titleFontSize).font('Helvetica-Bold');
-        if (doc.widthOfString(titleText) <= mm(65)) break;
-        titleFontSize -= 1;
-      }
-      doc.fontSize(titleFontSize)
-         .fillColor('#3B82F6')
-         .font('Helvetica-Bold')
-         .text(titleText, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(14), { width: mm(65), align: 'right', lineBreak: false });
-      
-      // Order/Invoice number and date
-      const currentDate = new Date().toLocaleDateString('en-US', { 
-        month: '2-digit',
-        day: '2-digit',
-        year: 'numeric'
-      });
-      
-      doc.fontSize(9)
-         .fillColor('#1F2937')
+         .fillColor(BRAND_BLUE)
+         .text(documentTitle, mm(rightColumnX - rightColumnWidth), mm(headerContentY + 4), {
+           width: mm(rightColumnWidth),
+           align: 'right',
+           lineBreak: false,
+         });
+
+      let detailsY = headerContentY + 11;
+      doc.fontSize(10)
          .font('Helvetica')
-         .text(`# ${documentNumber}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(24), { width: mm(65), align: 'right', lineBreak: false })
-         .text(`Date: ${currentDate}`, mm(PAGE_WIDTH - PAGE_MARGIN - 65), mm(29), { width: mm(65), align: 'right', lineBreak: false });
-      
+         .fillColor(TEXT_DARK)
+         .text(`# ${documentNumber}`, mm(rightColumnX - rightColumnWidth), mm(detailsY), {
+           width: mm(rightColumnWidth),
+           align: 'right',
+           lineBreak: false,
+         });
+
+      detailsY += 6;
+      doc.fontSize(9)
+         .font('Helvetica')
+         .fillColor(TEXT_MUTED)
+         .text(`Date: ${currentDate}`, mm(rightColumnX - rightColumnWidth), mm(detailsY), {
+           width: mm(rightColumnWidth),
+           align: 'right',
+           lineBreak: false,
+         });
+
+      if (isInvoice) {
+        detailsY += 7;
+        doc.text(`SO Ref: ${orderNumber}`, mm(rightColumnX - rightColumnWidth), mm(detailsY), {
+          width: mm(rightColumnWidth),
+          align: 'right',
+          lineBreak: false,
+        });
+      }
+
+      let rightBottomY = detailsY;
       if (!isPurchaseOrder) {
-        // Payment status badge
-        const badgeLabel = isPaid ? 'PAID' : (isPartialPaid ? 'PARTIAL PAID' : 'UNPAID');
-        const badgeColor = isPaid ? '#10B981' : (isPartialPaid ? '#F59E0B' : '#EF4444');
-        const badgeWidth = isPartialPaid ? 40 : 30;
-        const badgeX = mm(PAGE_WIDTH - PAGE_MARGIN - badgeWidth);
-        const badgeY = mm(36);
-        doc.roundedRect(badgeX, badgeY, mm(badgeWidth), mm(9), mm(2))
+        const badgeLabel = isPaid ? 'PAID' : 'UNPAID';
+        const badgeColor = isPaid ? SUCCESS_GREEN : ALERT_RED;
+        const badgeWidth = badgeLabel === 'PAID' ? 25 : 30;
+        const badgeY = rightBottomY + 6;
+        const badgeX = rightColumnX - badgeWidth;
+        doc.roundedRect(mm(badgeX), mm(badgeY), mm(badgeWidth), mm(8), mm(2))
            .fill(badgeColor);
 
-        doc.fontSize(isPartialPaid ? 8 : 9)
+        doc.fontSize(8)
            .fillColor('#FFFFFF')
            .font('Helvetica-Bold')
-           .text(badgeLabel, badgeX, badgeY + mm(3), { width: mm(badgeWidth), align: 'center', lineBreak: false });
+           .text(badgeLabel, mm(badgeX), mm(badgeY + 2.8), {
+             width: mm(badgeWidth),
+             align: 'center',
+             lineBreak: false,
+           });
+        rightBottomY = badgeY + 8;
       }
-      
-      // Add barcode
-      try {
-        const barcodeBuffer = await generateBarcode(orderNumber);
-        if (barcodeBuffer) {
-          doc.image(barcodeBuffer, mm(PAGE_WIDTH - PAGE_MARGIN - 45), mm(50), { width: mm(45), height: mm(10) });
-        }
-      } catch (err) {
-        console.log('Barcode generation failed');
-      }
-      
-      // Separator line
-      doc.moveTo(mm(PAGE_MARGIN), mm(62))
-         .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(62))
-         .strokeColor('#F3F4F6')
+
+      const dividerY = Math.max(addressY, logoBottomY, rightBottomY) + 1;
+      doc.moveTo(mm(PAGE_MARGIN), mm(dividerY))
+         .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(dividerY))
+         .strokeColor(DIVIDER_LINE)
          .lineWidth(0.5)
          .stroke();
-      
-      // Bill To and Ship To sections
-      const sectionY = 68;
+
+      const sectionY = dividerY + 5;
       const boxWidth = (PAGE_WIDTH - PAGE_MARGIN * 3) / 2;
-      const boxHeight = 32;
-      
-      // Bill To box
-      doc.roundedRect(mm(PAGE_MARGIN), mm(sectionY), mm(boxWidth), mm(boxHeight), mm(2))
-         .fill('#EFF6FF');
-      
-      doc.fontSize(9)
-         .fillColor('#3B82F6')
-         .font('Helvetica-Bold')
-         .text(isPurchaseOrder ? 'VENDOR' : 'BILL TO', mm(PAGE_MARGIN + 4), mm(sectionY + 5));
-      
-      doc.fontSize(8)
-         .fillColor('#1F2937')
-         .font('Helvetica');
-      
-      let billY = sectionY + 11;
-      const customerName = order?.customerInfo?.name || order?.customer_name || "Customer";
-      const customerPhone = order?.customerInfo?.phone || order?.customer_phone || "";
-      const customerEmail = order?.customerInfo?.email || order?.customer_email || "";
-      
-      doc.text(customerName, mm(PAGE_MARGIN + 4), mm(billY));
-      billY += 4.5;
-      if (customerPhone) {
-        doc.text(customerPhone, mm(PAGE_MARGIN + 4), mm(billY));
-        billY += 4.5;
-      }
-      if (customerEmail) {
-        doc.text(customerEmail, mm(PAGE_MARGIN + 4), mm(billY), { width: mm(boxWidth - 8) });
-      }
-      
-      // Ship To box
-      const shipToX = PAGE_MARGIN + boxWidth + PAGE_MARGIN;
-      doc.roundedRect(mm(shipToX), mm(sectionY), mm(boxWidth), mm(boxHeight), mm(2))
-         .fill('#EFF6FF');
-      
-      doc.fontSize(9)
-         .fillColor('#3B82F6')
-         .font('Helvetica-Bold')
-         .text(isPurchaseOrder ? 'DELIVER TO' : 'SHIP TO', mm(shipToX + 4), mm(sectionY + 5));
-      
-      doc.fontSize(8)
-         .fillColor('#1F2937')
-         .font('Helvetica');
-      
-      let shipY = sectionY + 11;
+      const customerName = order?.customerInfo?.name || order?.customer_name || 'Customer';
+      const customerPhone = order?.customerInfo?.phone || order?.customer_phone || '';
+      const customerEmail = order?.customerInfo?.email || order?.customer_email || '';
+      const customerAddress = order?.customerInfo?.address || {};
       const shipName = order?.shippingInfo?.fullName || order?.shippingAddress?.fullName || customerName;
       const shipPhone = order?.shippingInfo?.phone || order?.shippingAddress?.phone || customerPhone;
       const shipAddress = order?.shippingInfo?.address || order?.shippingAddress?.address || {};
-      
-      doc.text(shipName, mm(shipToX + 4), mm(shipY));
-      shipY += 4.5;
-      if (shipPhone) {
-        doc.text(shipPhone, mm(shipToX + 4), mm(shipY));
-        shipY += 4.5;
-      }
-      if (shipAddress.street) {
-        doc.text(shipAddress.street, mm(shipToX + 4), mm(shipY), { width: mm(boxWidth - 8) });
-        shipY += 4.5;
-      }
-      const cityStateZip = `${shipAddress.city || ""}, ${shipAddress.state || ""} ${shipAddress.zip_code || ""}`.trim();
-      if (cityStateZip !== ",") {
-        doc.text(cityStateZip, mm(shipToX + 4), mm(shipY));
-      }
-      
+
+      const billToLines = [
+        order?.company_name || order?.companyName || '',
+        customerName,
+        customerPhone,
+        customerEmail,
+        [customerAddress.street, customerAddress.city, customerAddress.state, customerAddress.zip_code]
+          .filter(Boolean)
+          .join(', '),
+      ].filter(Boolean);
+
+      const shipToLines = [
+        shipName,
+        shipPhone,
+        shipAddress.street || '',
+        [shipAddress.city, shipAddress.state, shipAddress.zip_code].filter(Boolean).join(', '),
+      ].filter(Boolean);
+
+      const measureInfoBox = (lines) => {
+        const visibleLines = lines.slice(0, 5);
+        const wrappedHeight = visibleLines.reduce((sum, line) => {
+          const lineHeight = doc.heightOfString(line, { width: mm(boxWidth - 10), lineGap: 0 }) / 2.83465;
+          return sum + Math.max(ADDRESS_MIN_LINE_HEIGHT, lineHeight);
+        }, 0);
+        const spacingHeight = Math.max(0, visibleLines.length - 1) * ADDRESS_LINE_GAP;
+        return {
+          visibleLines,
+          boxHeight: Math.max(29, 12 + wrappedHeight + spacingHeight + 4),
+        };
+      };
+
+      const drawInfoBox = (title, x, measured, sharedHeight) => {
+        doc.roundedRect(mm(x), mm(sectionY), mm(boxWidth), mm(sharedHeight), mm(2))
+           .fill(BOX_LIGHT);
+
+        doc.fontSize(9)
+           .fillColor(BRAND_BLUE)
+           .font('Helvetica-Bold')
+           .text(title, mm(x + 5), mm(sectionY + 6), { lineBreak: false });
+
+        let lineY = sectionY + 11.5;
+        doc.fontSize(8.2)
+          .fillColor(BODY_TEXT_SOFT)
+           .font('Helvetica');
+        measured.visibleLines.forEach((line) => {
+          doc.text(line, mm(x + 5), mm(lineY), {
+            width: mm(boxWidth - 10),
+          });
+          const h = doc.heightOfString(line, { width: mm(boxWidth - 10), lineGap: 0 }) / 2.83465;
+          lineY += Math.max(ADDRESS_MIN_LINE_HEIGHT, h) + ADDRESS_LINE_GAP;
+        });
+      };
+
+      const billToMeasured = measureInfoBox(billToLines);
+      const shipToMeasured = measureInfoBox(shipToLines);
+      const sharedInfoBoxHeight = Math.max(billToMeasured.boxHeight, shipToMeasured.boxHeight);
+      drawInfoBox(isPurchaseOrder ? 'VENDOR' : 'BILL TO', PAGE_MARGIN, billToMeasured, sharedInfoBoxHeight);
+      const shipToX = PAGE_MARGIN * 2 + boxWidth;
+      drawInfoBox(isPurchaseOrder ? 'SHIP TO' : 'SHIP TO', shipToX, shipToMeasured, sharedInfoBoxHeight);
+
       // Items table header
-      const tableStartY = 108;
+      const tableStartY = sectionY + sharedInfoBoxHeight + 7;
       const tableHeaderHeight = 9;
       const colX = {
         num: PAGE_MARGIN + 2,
@@ -496,24 +564,33 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         price: PAGE_MARGIN + 145,
         total: PAGE_MARGIN + 168,
       };
+      const unitPriceColWidth = (colX.total - colX.price) - 2;
+      const totalColWidth = (PAGE_WIDTH - PAGE_MARGIN - colX.total) - 2;
+      const bodyDividerXs = [
+        colX.desc - 2,
+        colX.size - 2,
+        colX.qty - 2,
+        ...(includePricingInPdf ? [colX.price - 2, colX.total - 2] : []),
+      ];
       drawItemsTableHeader(doc, mm, tableStartY, includePricingInPdf, colX);
       
       // Table rows
       let rowY = tableStartY + tableHeaderHeight;
       const rowHeight = 8;
       let itemIndex = 1;
+      let itemsGrandTotal = 0;
       const ensureTableRowSpace = () => {
         if (rowY + rowHeight <= FOOTER_SAFE_TOP_Y) return;
         rowY = addContinuationPage(doc, mm);
         drawItemsTableHeader(doc, mm, rowY, includePricingInPdf, colX);
         rowY += tableHeaderHeight;
         doc.fontSize(8)
-           .fillColor('#1F2937')
+          .fillColor(TEXT_DARK)
            .font('Helvetica');
       };
       
       doc.fontSize(8)
-         .fillColor('#1F2937')
+        .fillColor(TEXT_DARK)
          .font('Helvetica');
       
       // Process items - handle both flat items and items with sizes array
@@ -526,15 +603,29 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             const itemQty = toNumber(size.quantity || 0);
             const itemPrice = toNumber(size.price || 0);
             const itemTotal = itemPrice * itemQty;
+            itemsGrandTotal += itemTotal;
             ensureTableRowSpace();
             
-            // Alternate row background
             if (itemIndex % 2 === 0) {
               doc.rect(mm(PAGE_MARGIN), mm(rowY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(rowHeight))
-                 .fill('#EFF6FF');
+                 .fill('#F8FAFC');
             }
-            
-            doc.fillColor('#1F2937');
+
+            doc.moveTo(mm(PAGE_MARGIN), mm(rowY + rowHeight))
+               .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(rowY + rowHeight))
+               .lineWidth(0.2)
+               .strokeColor(GRID_LINE)
+               .stroke();
+
+            bodyDividerXs.forEach((x) => {
+              doc.moveTo(mm(x), mm(rowY))
+                .lineTo(mm(x), mm(rowY + rowHeight))
+                .lineWidth(0.2)
+                .strokeColor(GRID_LINE)
+                .stroke();
+            });
+
+            doc.fillColor(TEXT_DARK);
             doc.text(size.sku || item.size_sku || item.sizeSku || item.sku || '', mm(colX.num), mm(rowY + 2.5), { width: mm(16) });
             doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(62) });
             doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
@@ -554,14 +645,29 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           const itemQty = toNumber(item.quantity || 1);
           const itemPrice = toNumber(item.price || item.unit_price || 0);
           const itemTotal = itemPrice * itemQty;
+          itemsGrandTotal += itemTotal;
           ensureTableRowSpace();
 
           if (itemIndex % 2 === 0) {
             doc.rect(mm(PAGE_MARGIN), mm(rowY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(rowHeight))
-               .fill('#EFF6FF');
+               .fill('#F8FAFC');
           }
 
-          doc.fillColor('#1F2937');
+          doc.moveTo(mm(PAGE_MARGIN), mm(rowY + rowHeight))
+             .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(rowY + rowHeight))
+             .lineWidth(0.2)
+             .strokeColor(GRID_LINE)
+             .stroke();
+
+           bodyDividerXs.forEach((x) => {
+            doc.moveTo(mm(x), mm(rowY))
+              .lineTo(mm(x), mm(rowY + rowHeight))
+              .lineWidth(0.2)
+              .strokeColor(GRID_LINE)
+              .stroke();
+           });
+
+           doc.fillColor(TEXT_DARK);
           doc.text(item.size_sku || item.sizeSku || item.sku || '', mm(colX.num), mm(rowY + 2.5), { width: mm(16) });
           doc.text(itemName, mm(colX.desc), mm(rowY + 2.5), { width: mm(62) });
           doc.text(itemSize, mm(colX.size), mm(rowY + 2.5), { width: mm(35) });
@@ -575,12 +681,42 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
           itemIndex++;
         }
       });
+
+      if (includePricingInPdf) {
+        ensureTableRowSpace();
+
+        doc.rect(mm(PAGE_MARGIN), mm(rowY), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(rowHeight))
+          .fill('#F8FAFC');
+
+        doc.moveTo(mm(PAGE_MARGIN), mm(rowY + rowHeight))
+          .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(rowY + rowHeight))
+          .lineWidth(0.2)
+          .strokeColor(GRID_LINE)
+          .stroke();
+
+        bodyDividerXs.forEach((x) => {
+         doc.moveTo(mm(x), mm(rowY))
+           .lineTo(mm(x), mm(rowY + rowHeight))
+           .lineWidth(0.2)
+           .strokeColor(GRID_LINE)
+           .stroke();
+        });
+
+        doc.fontSize(8)
+          .fillColor(BODY_TEXT_SOFT)
+          .font('Helvetica-Bold')
+            .text('TOTAL:', mm(colX.price + 1), mm(rowY + 2.5), { width: mm(unitPriceColWidth), align: 'left' })
+            .text(`$${formatCurrency(itemsGrandTotal)}`, mm(colX.total + 1), mm(rowY + 2.5), { width: mm(totalColWidth), align: 'left' });
+
+        doc.font('Helvetica').fillColor(TEXT_DARK);
+        rowY += rowHeight;
+      }
       
       if (includePricingInPdf) {
       // Totals section
-      const totalsStartY = rowY + 15;
-      const totalsX = PAGE_WIDTH - PAGE_MARGIN - 75;
-      const valueX = PAGE_WIDTH - PAGE_MARGIN - 50;
+      const totalsStartY = rowY + 8;
+      const totalsX = PAGE_WIDTH - PAGE_MARGIN - 85;
+      const valueX = PAGE_WIDTH - PAGE_MARGIN - 40;
       
       doc.fontSize(9)
          .font('Helvetica');
@@ -608,7 +744,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const moveSummaryToNextPage = () => {
         totalY = addContinuationPage(doc, mm);
         doc.fontSize(9)
-           .fillColor('#1F2937')
+           .fillColor(TEXT_DARK)
            .font('Helvetica');
       };
 
@@ -622,9 +758,9 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       summaryRows.forEach((summaryRow) => {
         ensureSummarySpace(SUMMARY_ROW_HEIGHT);
-        doc.fillColor('#1F2937');
+        doc.fillColor(TEXT_DARK);
         doc.text(summaryRow.label, mm(totalsX), mm(totalY));
-        doc.text(`$${formatCurrency(summaryRow.value)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right', continued: false });
+        doc.text(`$${formatCurrency(summaryRow.value)}`, mm(valueX), mm(totalY), { width: mm(35), align: 'right', continued: false });
         totalY += SUMMARY_ROW_HEIGHT;
       });
       
@@ -633,18 +769,18 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         ensureSummarySpace(SUMMARY_ROW_HEIGHT);
         doc.moveTo(mm(totalsX), mm(totalY - 3))
            .lineTo(mm(valueX + 45), mm(totalY - 3))
-           .strokeColor('#DCDCDC')
+           .strokeColor(DIVIDER_LINE)
            .lineWidth(0.3)
            .stroke();
 
         discountRows.forEach((discount) => {
           ensureSummarySpace(SUMMARY_ROW_HEIGHT);
-          doc.fillColor('#10B981');
+          doc.fillColor(TEXT_DARK);
           doc.text(discount.name, mm(totalsX), mm(totalY));
-          doc.text(`-${formatCurrency(discount.amount)}`, mm(valueX), mm(totalY), { width: mm(45), align: 'right' });
+          doc.text(`-$${formatCurrency(discount.amount)}`, mm(valueX), mm(totalY), { width: mm(35), align: 'right' });
           totalY += SUMMARY_ROW_HEIGHT;
         });
-        doc.fillColor('#1F2937');
+        doc.fillColor(TEXT_DARK);
       }
       
       totalY += 4;
@@ -652,38 +788,55 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       // Total box (blue background)
       const totalBoxWidth = 80;
       const totalBoxHeight = SUMMARY_BOX_HEIGHT;
-      const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - totalBoxWidth;
+      const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - 85;
       const finalBlockHeight = totalBoxHeight
         + (actualPaid > 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0)
         + (actualPaid > 0 && balanceDue === 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0);
       ensureSummarySpace(finalBlockHeight);
-      const totalBoxY = totalY - 5;
+      const totalBoxY = totalY + 2;
       doc.roundedRect(mm(totalBoxX), mm(totalBoxY), mm(totalBoxWidth), mm(totalBoxHeight), mm(1))
-         .fill('#3B82F6');
+        .fill(BRAND_BLUE);
       
       doc.fontSize(10)
          .fillColor('#FFFFFF')
          .font('Helvetica-Bold')
-         .text('TOTAL', mm(totalBoxX + 10), mm(totalBoxY + 3.5))
-         .text(`$${formatCurrency(total)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalBoxY + 3.5), { width: mm(25), align: 'right' });
+        .text('TOTAL', mm(totalBoxX + 10), mm(totalBoxY + 3.5));
+      doc.fillColor('#FFFFFF')
+        .font('Helvetica-Bold')
+        .text(`$${formatCurrency(total)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalBoxY + 3.5), { width: mm(25), align: 'right' });
       
       // Add "PAID AMOUNT" and "FULLY PAID" badges if paid
       if (actualPaid > 0) {
-        totalY += SUMMARY_BOX_GAP;
+          totalY = totalBoxY + SUMMARY_BOX_GAP;
         doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
-           .fillColor('#10B981')
+            .fillColor(SUCCESS_GREEN)
            .fill();
         
         doc.fontSize(10)
            .fillColor('#FFFFFF')
            .font('Helvetica-Bold')
-           .text('PAID AMOUNT', mm(totalBoxX + 10), mm(totalY + 3.5))
-           .text(`$${formatCurrency(actualPaid)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
+            .text(isInvoice ? 'PAID AMOUNT' : 'PAID', mm(totalBoxX + 5), mm(totalY + 3.5));
+          doc.fillColor('#FFFFFF')
+            .font('Helvetica-Bold')
+            .text(`$${formatCurrency(actualPaid)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
         
-        if (balanceDue === 0) {
+          if (balanceDue > 0 && !isPurchaseOrder) {
+           totalY += SUMMARY_BOX_GAP;
+           doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
+             .fillColor(ALERT_RED)
+             .fill();
+
+           doc.fontSize(10)
+             .fillColor('#FFFFFF')
+             .font('Helvetica-Bold')
+             .text('BALANCE DUE', mm(totalBoxX + 5), mm(totalY + 3.5));
+           doc.fillColor('#FFFFFF')
+              .font('Helvetica-Bold')
+              .text(`$${formatCurrency(balanceDue)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
+          } else if (balanceDue === 0) {
           totalY += SUMMARY_BOX_GAP;
           doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
-             .fillColor('#10B981')
+             .fillColor(SUCCESS_GREEN)
              .fill();
           
           doc.fontSize(11)
@@ -695,15 +848,15 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       } else if (isPurchaseOrder) {
         doc.roundedRect(mm(PAGE_MARGIN), mm(rowY + 10), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(12), mm(2))
-           .fill('#EFF6FF');
+           .fill(BOX_LIGHT);
 
         doc.fontSize(9)
-           .fillColor('#2563EB')
+           .fillColor(BRAND_BLUE)
            .font('Helvetica-Bold')
            .text('Vendor copy: pricing hidden', mm(PAGE_MARGIN + 4), mm(rowY + 14));
 
         doc.fontSize(8)
-           .fillColor('#1F2937')
+           .fillColor(TEXT_DARK)
            .font('Helvetica')
            .text('This purchase order includes quantities and delivery details only.', mm(PAGE_MARGIN + 4), mm(rowY + 18), {
              width: mm(PAGE_WIDTH - PAGE_MARGIN * 2 - 8),
@@ -714,39 +867,71 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
 
-        // Keep all footer text above PDFKit's bottom margin safe area.
-        // Writing inside the bottom margin causes PDFKit to push text to a new page.
-        const footerY = FOOTER_Y;
-        const contactY = footerY + 7;
-        const pageNumberY = PAGE_HEIGHT - 19;
-        doc.fontSize(10)
-           .fillColor('#3B82F6')
-           .font('Helvetica')
-           .text('Thank you for your business!', mm(PAGE_MARGIN), mm(footerY), {
-             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
-             align: 'center',
-             lineBreak: false
-           });
-        
-        doc.fontSize(8)
-           .fillColor('#6B7280')
-           .text('Questions? Contact us at info@9rx.com', mm(PAGE_MARGIN), mm(contactY), {
-             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
-             align: 'center',
-             lineBreak: false
-           });
+        drawTopBand(doc, mm);
+        drawBottomBand(doc, mm);
 
-        doc.fontSize(8)
-           .fillColor('#6B7280')
-           .text(`Page ${i - pageRange.start + 1} of ${pageRange.count}`, mm(PAGE_MARGIN), mm(pageNumberY), {
+        const footerY = FOOTER_Y;
+        const contactY = footerY + 6;
+        const showSalesOrderCaution = documentTitle === 'SALES ORDER';
+        const cautionLine = 'Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC';
+          doc.moveTo(mm(PAGE_MARGIN), mm(footerY - 5))
+            .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(footerY - 5))
+            .strokeColor(DIVIDER_LINE)
+            .lineWidth(0.3)
+            .stroke();
+
+        doc.fontSize(10)
+           .fillColor(BRAND_BLUE)
+           .font('Helvetica-Bold')
+           .text(isPurchaseOrder ? 'Purchase order prepared for vendor fulfillment' : 'Thank you for your business!', mm(PAGE_MARGIN), mm(footerY), {
              width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
              align: 'center',
              lineBreak: false
            });
         
-        // Add footer band (2mm green bar at bottom)
-        doc.rect(0, mm(PAGE_HEIGHT - 2), mm(PAGE_WIDTH), mm(2))
-           .fill('#3B82F6');
+        doc.fontSize(8)
+           .fillColor(TEXT_MUTED)
+           .font('Helvetica')
+           .text(
+             isPurchaseOrder
+               ? (includePricingInPdf
+                 ? 'Includes cost detail for internal/vendor approval.'
+                 : 'Quantity-only vendor copy. Pricing intentionally hidden.')
+               : ((isPaid || isPartialPaid)
+                 ? `Payment received  |  Questions? Contact us at ${supportEmail}`
+                 : `Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`),
+             mm(PAGE_MARGIN),
+             mm(contactY),
+             {
+               width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+               align: 'center',
+               lineBreak: false,
+             }
+           );
+
+        if (showSalesOrderCaution) {
+          doc.fontSize(6.2)
+             .fillColor(TEXT_MUTED)
+             .font('Helvetica')
+             .text(cautionLine, mm(PAGE_MARGIN), mm(PAGE_HEIGHT - 11), {
+               width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+               align: 'center',
+               lineBreak: false,
+             });
+        }
+
+        doc.rect(mm(PAGE_WIDTH / 2 - 20), mm(PAGE_HEIGHT - 9), mm(40), mm(6))
+           .fill('#FFFFFF');
+
+        doc.fontSize(9)
+           .fillColor(TEXT_DARK)
+           .font('Helvetica')
+           .text(`Page ${i - pageRange.start + 1} of ${pageRange.count}`, mm(PAGE_MARGIN), mm(PAGE_HEIGHT - 5), {
+             width: mm(PAGE_WIDTH - PAGE_MARGIN * 2),
+             align: 'center',
+             lineBreak: false,
+             baseline: 'middle'
+           });
       }
       
       doc.end();
