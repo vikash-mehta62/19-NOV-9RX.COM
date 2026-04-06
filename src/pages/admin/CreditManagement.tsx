@@ -34,6 +34,8 @@ const CreditManagement = () => {
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
   const [calculatingPenalties, setCalculatingPenalties] = useState(false);
+  const [selectedPenaltyLog, setSelectedPenaltyLog] = useState<any>(null);
+  const [showPenaltyDetailsDialog, setShowPenaltyDetailsDialog] = useState(false);
 
   const [reviewData, setReviewData] = useState({
     status: "",
@@ -677,7 +679,14 @@ const CreditManagement = () => {
                         </TableRow>
                       ) : (
                         penaltyLogs.map((log) => (
-                          <TableRow key={log.id}>
+                          <TableRow 
+                            key={log.id}
+                            className="cursor-pointer hover:bg-gray-50"
+                            onClick={() => {
+                              setSelectedPenaltyLog(log);
+                              setShowPenaltyDetailsDialog(true);
+                            }}
+                          >
                             <TableCell className="font-medium text-sm px-2 lg:px-4">
                               {new Date(log.run_date).toLocaleDateString()}
                             </TableCell>
@@ -997,6 +1006,99 @@ const CreditManagement = () => {
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
               <Button variant="outline" onClick={() => setShowDetailsDialog(false)} className="w-full sm:w-auto">
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Penalty Details Dialog */}
+        <Dialog open={showPenaltyDetailsDialog} onOpenChange={setShowPenaltyDetailsDialog}>
+          <DialogContent className="w-[95vw] max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-lg sm:text-xl">Penalty Calculation Details</DialogTitle>
+            </DialogHeader>
+            {selectedPenaltyLog && (
+              <div className="space-y-4">
+                {/* Summary */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-blue-50 rounded-lg">
+                  <div>
+                    <p className="text-sm text-blue-600">Date</p>
+                    <p className="font-medium">{new Date(selectedPenaltyLog.run_date).toLocaleDateString()}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600">Month</p>
+                    <p className="font-medium">{new Date(2026, selectedPenaltyLog.run_month - 1).toLocaleString('default', { month: 'long' })}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600">Users Processed</p>
+                    <p className="font-medium">{selectedPenaltyLog.users_processed}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-blue-600">Total Amount</p>
+                    <p className="font-medium text-red-600">${selectedPenaltyLog.total_penalty_amount?.toFixed(2)}</p>
+                  </div>
+                </div>
+
+                {/* User-wise Details */}
+                {selectedPenaltyLog.details && Array.isArray(selectedPenaltyLog.details) && selectedPenaltyLog.details.length > 0 ? (
+                  <div>
+                    <h3 className="font-semibold text-gray-900 mb-3">User-wise Penalty Breakdown</h3>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>User</TableHead>
+                            <TableHead>Company</TableHead>
+                            <TableHead>Credit Used</TableHead>
+                            <TableHead>Previous Penalty</TableHead>
+                            <TableHead>New Penalty</TableHead>
+                            <TableHead>Total Penalty</TableHead>
+                            <TableHead>Usage Month</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedPenaltyLog.details.map((detail: any, index: number) => (
+                            <TableRow key={index} className="hover:bg-gray-50">
+                              <TableCell className="text-sm">
+                                <div>
+                                  <p className="font-medium truncate max-w-[150px]">{detail.email}</p>
+                                  <p className="text-xs text-gray-500">{detail.user_id?.substring(0, 8)}...</p>
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {detail.company_name || 'N/A'}
+                              </TableCell>
+                              <TableCell className="text-sm font-medium">
+                                ${detail.credit_used?.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-sm text-amber-600">
+                                ${detail.previous_penalty?.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-sm font-bold text-red-600">
+                                +${detail.new_penalty?.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-sm font-bold text-red-700">
+                                ${detail.total_penalty?.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-sm">
+                                {detail.usage_month ? new Date(2026, detail.usage_month - 1).toLocaleString('default', { month: 'short' }) : 'N/A'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    No user details available for this penalty calculation
+                  </div>
+                )}
+              </div>
+            )}
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setShowPenaltyDetailsDialog(false)} className="w-full sm:w-auto">
                 Close
               </Button>
             </DialogFooter>
