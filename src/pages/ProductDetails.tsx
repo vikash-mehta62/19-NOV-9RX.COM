@@ -53,6 +53,7 @@ const calculateSizeUnitPrice = (size: {
 const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string) => {
   return sizes.map((size) => {
     let newPrice = size.price;
+    let hasGroupPricing = false; // Flag to track if group pricing is applied
 
     // Find applicable group
     const applicableGroup = groupData.find(
@@ -67,7 +68,11 @@ const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string
       );
 
       if (groupProduct?.new_price) {
-        newPrice = parseFloat(groupProduct.new_price);
+        const parsed = parseFloat(groupProduct.new_price);
+        if (parsed > 0 && parsed !== size.price) {
+          newPrice = parsed;
+          hasGroupPricing = true; // Mark that group pricing was applied
+        }
       }
     }
 
@@ -75,6 +80,7 @@ const applyGroupPricingToSizes = (sizes: any[], groupData: any[], userId: string
       ...size,
       price: newPrice,
       originalPrice: size.price !== newPrice ? size.price : 0,
+      hasGroupPricing: hasGroupPricing, // Add flag to size object
     };
   });
 };
@@ -654,25 +660,35 @@ const ProductDetails = () => {
         console.log("Product ID:", mappedProduct.id);
         console.log("Product Name:", mappedProduct.name);
 
-        // Fetch product offers
+        // Fetch product offers - BUT skip if product has group pricing
         try {
-          const offerData = await getProductEffectivePrice(mappedProduct.id);
-          console.log("=== PRODUCT OFFER DEBUG ===");
-          console.log("Product ID:", mappedProduct.id);
-          console.log("Product Name:", mappedProduct.name);
-          console.log("Offer Data:", offerData);
-          
-          if (offerData && offerData.hasOffer) {
-            console.log("Product has active offer:", offerData);
-            setProductOffer({
-              effectivePrice: offerData.effectivePrice,
-              discountPercent: offerData.discountPercent,
-              offerBadge: offerData.offerBadge,
-              hasOffer: offerData.hasOffer
-            });
-            console.log("productOffer state set successfully");
+          // Check if ANY size has group pricing applied using the flag
+          const hasGroupPricing = mappedProduct.sizes?.some((size: any) => 
+            size.hasGroupPricing === true
+          );
+
+          if (hasGroupPricing) {
+            console.log("⚠️ Skipping offers - product has group pricing applied (flag detected)");
+            setProductOffer(null);
           } else {
-            console.log("No active offer for this product");
+            const offerData = await getProductEffectivePrice(mappedProduct.id);
+            console.log("=== PRODUCT OFFER DEBUG ===");
+            console.log("Product ID:", mappedProduct.id);
+            console.log("Product Name:", mappedProduct.name);
+            console.log("Offer Data:", offerData);
+            
+            if (offerData && offerData.hasOffer) {
+              console.log("Product has active offer:", offerData);
+              setProductOffer({
+                effectivePrice: offerData.effectivePrice,
+                discountPercent: offerData.discountPercent,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer
+              });
+              console.log("productOffer state set successfully");
+            } else {
+              console.log("No active offer for this product");
+            }
           }
         } catch (offerError) {
           console.error("Error fetching product offers:", offerError);

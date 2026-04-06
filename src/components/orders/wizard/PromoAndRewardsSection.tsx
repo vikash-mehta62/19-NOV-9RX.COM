@@ -115,7 +115,7 @@ interface PromoAndRewardsSectionProps {
   hasFreeShipping?: boolean; // User already has free shipping from profile
   disableRewards?: boolean;
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
-  cartItems?: { productId: string; categoryId?: string; price: number; quantity: number; name?: string }[];
+  cartItems?: any[]; // Full cart items with sizes array
 }
 
 export function PromoAndRewardsSection({
@@ -505,12 +505,13 @@ export function PromoAndRewardsSection({
           products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
         );
 
-        // Convert cart items to CartItem format with categories
+        // Convert cart items to CartItem format with categories AND sizes
         const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
           productId: item.productId,
           categoryId: productMap.get(item.productId)?.category || item.categoryId,
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          sizes: item.sizes || [] // Include sizes for group pricing check
         }));
 
         // Use new validation service
@@ -524,7 +525,7 @@ export function PromoAndRewardsSection({
         );
 
         if (!result.valid) {
-          setPromoError(result.error || "Invalid promo code");
+          setPromoError(result.error || result.message || "Invalid promo code");
           return;
         }
 
@@ -545,19 +546,61 @@ export function PromoAndRewardsSection({
           products?.map(p => [p.id, p.name]) || []
         );
 
-        // Prepare display data
+        // ⚠️ CHECK FOR GROUP PRICING FIRST - Collect size IDs that have group pricing
+        let groupPricingSizeIds: string[] = [];
+        if (customerId) {
+          const sizeIds: string[] = [];
+          
+          // Collect all size IDs from cart items
+          cartItemsForValidation.forEach(item => {
+            if (item.sizes && Array.isArray(item.sizes)) {
+              item.sizes.forEach((size: any) => {
+                if (size.id) {
+                  sizeIds.push(size.id);
+                }
+              });
+            }
+          });
+
+          if (sizeIds.length > 0) {
+            // Fetch active group pricing rules for this user
+            const { data: groupPricingData, error: groupError } = await supabase
+              .from("group_pricing")
+              .select("product_arrayjson, group_ids")
+              .eq("status", "active");
+
+            if (!groupError && groupPricingData && groupPricingData.length > 0) {
+              // Identify which size IDs have group pricing
+              groupPricingData.forEach((group: any) => {
+                if (group.group_ids && group.group_ids.includes(customerId)) {
+                  if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
+                    group.product_arrayjson.forEach((product: any) => {
+                      if (sizeIds.includes(product.product_id)) {
+                        groupPricingSizeIds.push(product.product_id);
+                      }
+                    });
+                  }
+                }
+              });
+            }
+          }
+        }
+
+        // Prepare display data WITH group pricing info
         const displayData = preparePromoDisplayData(
           result,
           offer,
           cartItemsForValidation,
-          productNames
+          productNames,
+          groupPricingSizeIds
         );
 
-        // Calculate item-level discounts
+        // Calculate item-level discounts (excluding group pricing items)
         const itemDiscounts = calculateItemDiscounts(
           cartItemsForValidation,
           offer,
-          result.calculatedDiscount || 0
+          result.calculatedDiscount || 0,
+          groupPricingSizeIds
         );
 
         console.log('=== PROMO APPLY DEBUG ===');
@@ -619,7 +662,62 @@ export function PromoAndRewardsSection({
   };
 
   // Handle rewards toggle
-  const handleRewardsToggle = (checked: boolean) => {
+  const handleRewardsToggle = async (checked: boolean) => {
+    if (checked) {
+      // ⚠️ CHECK FOR GROUP PRICING - Prevent double discounts
+      // Extract all size IDs from cart items
+      if (customerId) {
+        const sizeIds: string[] = [];
+        
+        // Collect all size IDs from cart items
+        cartItems.forEach(item => {
+          if (item.sizes && Array.isArray(item.sizes)) {
+            item.sizes.forEach((size: any) => {
+              if (size.id) {
+                sizeIds.push(size.id);
+              }
+            });
+          }
+        });
+
+        if (sizeIds.length > 0) {
+          // Fetch active group pricing rules for this user
+          const { data: groupPricingData, error: groupError } = await supabase
+            .from("group_pricing")
+            .select("product_arrayjson, group_ids")
+            .eq("status", "active");
+
+          if (!groupError && groupPricingData && groupPricingData.length > 0) {
+            // Check if any cart item size has group pricing applied
+            const hasGroupPricing = groupPricingData.some((group: any) => {
+              // Check if user is in this group
+              if (!group.group_ids || !group.group_ids.includes(customerId)) {
+                return false;
+              }
+              
+              // Check if any cart size is in this group's pricing
+              if (!group.product_arrayjson || !Array.isArray(group.product_arrayjson)) {
+                return false;
+              }
+              
+              return group.product_arrayjson.some((product: any) => 
+                sizeIds.includes(product.product_id)
+              );
+            });
+
+            if (hasGroupPricing) {
+              toast({
+                title: "Cannot Use Reward Points",
+                description: "Reward points cannot be used on products with group pricing. You're already getting a special discount!",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        }
+      }
+    }
+
     setUseRewards(checked);
     if (checked && userRewards) {
       // Default to using all available points (up to order total)
@@ -635,6 +733,59 @@ export function PromoAndRewardsSection({
   // Apply offer directly
   const handleApplyOffer = async (offer: any) => {
       try {
+        // ⚠️ CHECK FOR GROUP PRICING - Prevent double discounts
+        // Extract all size IDs from cart items
+        if (customerId) {
+          const sizeIds: string[] = [];
+          
+          // Collect all size IDs from cart items
+          cartItems.forEach(item => {
+            if (item.sizes && Array.isArray(item.sizes)) {
+              item.sizes.forEach((size: any) => {
+                if (size.id) {
+                  sizeIds.push(size.id);
+                }
+              });
+            }
+          });
+
+          if (sizeIds.length > 0) {
+            // Fetch active group pricing rules for this user
+            const { data: groupPricingData, error: groupError } = await supabase
+              .from("group_pricing")
+              .select("product_arrayjson, group_ids")
+              .eq("status", "active");
+
+            if (!groupError && groupPricingData && groupPricingData.length > 0) {
+              // Check if any cart item size has group pricing applied
+              const hasGroupPricing = groupPricingData.some((group: any) => {
+                // Check if user is in this group
+                if (!group.group_ids || !group.group_ids.includes(customerId)) {
+                  return false;
+                }
+                
+                // Check if any cart size is in this group's pricing
+                if (!group.product_arrayjson || !Array.isArray(group.product_arrayjson)) {
+                  return false;
+                }
+                
+                return group.product_arrayjson.some((product: any) => 
+                  sizeIds.includes(product.product_id)
+                );
+              });
+
+              if (hasGroupPricing) {
+                toast({
+                  title: "Cannot Apply Offer",
+                  description: "Offers cannot be applied to products with group pricing. You're already getting a special discount!",
+                  variant: "destructive",
+                });
+                return;
+              }
+            }
+          }
+        }
+
         // Check first order restriction
         if (offer.applicable_to === "first_order" && customerId) {
           const { count } = await (supabase as any)
@@ -666,21 +817,62 @@ export function PromoAndRewardsSection({
           products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
         );
 
-        // Convert cart items to CartItem format with categories
+        // Convert cart items to CartItem format with categories AND sizes
         const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
           productId: item.productId,
           categoryId: productMap.get(item.productId)?.category || item.categoryId,
           price: item.price,
-          quantity: item.quantity
+          quantity: item.quantity,
+          sizes: item.sizes || [] // Include sizes for group pricing check
         }));
 
-        // Calculate applicable amount based on offer type
+        // ⚠️ CHECK FOR GROUP PRICING FIRST - Collect size IDs that have group pricing
+        let groupPricingSizeIds: string[] = [];
+        if (customerId) {
+          const sizeIds: string[] = [];
+          
+          // Collect all size IDs from cart items
+          cartItemsForValidation.forEach(item => {
+            if (item.sizes && Array.isArray(item.sizes)) {
+              item.sizes.forEach((size: any) => {
+                if (size.id) {
+                  sizeIds.push(size.id);
+                }
+              });
+            }
+          });
+
+          if (sizeIds.length > 0) {
+            // Fetch active group pricing rules for this user
+            const { data: groupPricingData, error: groupError } = await supabase
+              .from("group_pricing")
+              .select("product_arrayjson, group_ids")
+              .eq("status", "active");
+
+            if (!groupError && groupPricingData && groupPricingData.length > 0) {
+              // Identify which size IDs have group pricing
+              groupPricingData.forEach((group: any) => {
+                if (group.group_ids && group.group_ids.includes(customerId)) {
+                  if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
+                    group.product_arrayjson.forEach((product: any) => {
+                      if (sizeIds.includes(product.product_id)) {
+                        groupPricingSizeIds.push(product.product_id);
+                      }
+                    });
+                  }
+                }
+              });
+            }
+          }
+        }
+
+        // Calculate applicable amount based on offer type (excluding group pricing)
         let applicableAmount = subtotal;
 
         if (offer.applicable_to === "product" && offer.applicable_ids) {
-          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product');
+          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product', groupPricingSizeIds);
         } else if (offer.applicable_to === "category" && offer.applicable_ids) {
-          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category');
+          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category', groupPricingSizeIds);
         }
 
         // Calculate discount
@@ -699,7 +891,7 @@ export function PromoAndRewardsSection({
           products?.map(p => [p.id, p.name]) || []
         );
 
-        // Prepare display data
+        // Prepare display data WITH group pricing info
         const displayData = preparePromoDisplayData(
           {
             valid: true,
@@ -712,14 +904,16 @@ export function PromoAndRewardsSection({
           },
           offer,
           cartItemsForValidation,
-          productNames
+          productNames,
+          groupPricingSizeIds
         );
 
-        // Calculate item-level discounts
+        // Calculate item-level discounts (excluding group pricing items)
         const itemDiscounts = calculateItemDiscounts(
           cartItemsForValidation,
           offer,
-          discountAmount
+          discountAmount,
+          groupPricingSizeIds
         );
 
         // Set applied promo with item discounts
@@ -765,23 +959,76 @@ export function PromoAndRewardsSection({
     }
 
   // Apply redeemed reward
-  const handleApplyRedeemedReward = (reward: RedeemedReward) => {
-    setAppliedRedeemedReward(reward);
-    
-    let discountDescription = "";
-    if (reward.reward_type === "discount_percent") {
-      discountDescription = `${reward.reward_value}% off your order`;
-    } else if (reward.reward_type === "store_credit") {
-      discountDescription = `$${reward.reward_value} store credit`;
-    } else if (reward.reward_type === "free_shipping") {
-      discountDescription = "Free shipping on this order";
-    }
+  const handleApplyRedeemedReward = async (reward: RedeemedReward) => {
+      // ⚠️ CHECK FOR GROUP PRICING - Prevent double discounts
+      // Extract all size IDs from cart items
+      if (customerId) {
+        const sizeIds: string[] = [];
 
-    toast({
-      title: "Reward Applied! 🎁",
-      description: `${reward.reward_name} - ${discountDescription}`,
-    });
-  };
+        // Collect all size IDs from cart items
+        cartItems.forEach(item => {
+          if (item.sizes && Array.isArray(item.sizes)) {
+            item.sizes.forEach((size: any) => {
+              if (size.id) {
+                sizeIds.push(size.id);
+              }
+            });
+          }
+        });
+
+        if (sizeIds.length > 0) {
+          // Fetch active group pricing rules for this user
+          const { data: groupPricingData, error: groupError } = await supabase
+            .from("group_pricing")
+            .select("product_arrayjson, group_ids")
+            .eq("status", "active");
+
+          if (!groupError && groupPricingData && groupPricingData.length > 0) {
+            // Check if any cart item size has group pricing applied
+            const hasGroupPricing = groupPricingData.some((group: any) => {
+              // Check if user is in this group
+              if (!group.group_ids || !group.group_ids.includes(customerId)) {
+                return false;
+              }
+
+              // Check if any cart size is in this group's pricing
+              if (!group.product_arrayjson || !Array.isArray(group.product_arrayjson)) {
+                return false;
+              }
+
+              return group.product_arrayjson.some((product: any) => 
+                sizeIds.includes(product.product_id)
+              );
+            });
+
+            if (hasGroupPricing) {
+              toast({
+                title: "Cannot Apply Reward",
+                description: "Rewards cannot be applied to products with group pricing. You're already getting a special discount!",
+                variant: "destructive",
+              });
+              return;
+            }
+          }
+        }
+      }
+
+      setAppliedRedeemedReward(reward);
+
+      let discountDescription = "";
+      if (reward.reward_type === "discount_percent") {
+        discountDescription = `${reward.reward_value}% off your order`;
+      } else if (reward.reward_type === "store_credit") {
+        discountDescription = `${reward.reward_value} store credit`;
+      } else if (reward.reward_type === "free_shipping") {
+        discountDescription = "Free shipping on this order";
+      }
+
+      toast({
+        title: "Reward Applied! 🎁",
+        description: `${reward.reward_name} - ${discountDescription}`,
+      });
+    };
 
   // Remove applied redeemed reward
   const handleRemoveRedeemedReward = () => {
@@ -1351,3 +1598,4 @@ export function PromoAndRewardsSection({
     </div>
   );
 }
+

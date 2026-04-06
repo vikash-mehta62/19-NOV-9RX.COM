@@ -6,6 +6,7 @@ export interface CartItem {
   categoryId?: string;
   price: number;
   quantity: number;
+  sizes?: any[]; // Include sizes array for group pricing check
 }
 
 interface PromoValidationResult {
@@ -42,17 +43,31 @@ interface Offer {
 export function calculateApplicableAmount(
   cartItems: CartItem[],
   applicableIds: string[],
-  applicationType: 'product' | 'category'
+  applicationType: 'product' | 'category',
+  groupPricingSizeIds?: string[]
 ): number {
   return cartItems
     .filter(item => {
+      // Check if item matches the applicable criteria
       if (applicationType === 'product') {
         return applicableIds.includes(item.productId);
       } else {
         return item.categoryId && applicableIds.includes(item.categoryId);
       }
     })
-    .reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    .reduce((sum, item) => {
+      // Calculate sum based on sizes if available
+      if (item.sizes && Array.isArray(item.sizes)) {
+        return sum + item.sizes.reduce((sizeSum: number, size: any) => {
+          // Only include size if it doesn't have group pricing
+          if (groupPricingSizeIds && groupPricingSizeIds.includes(size.id)) {
+            return sizeSum; // Skip this size
+          }
+          return sizeSum + ((size.price || item.price) * (size.quantity || 1));
+        }, 0);
+      }
+      return sum + (item.price * item.quantity);
+    }, 0);
 }
 
 // Validate promo code (new signature with cart items)
@@ -66,6 +81,62 @@ export async function validatePromoCode(
   try {
     if (!code || code.trim() === "") {
       return { valid: false, message: "Please enter a promo code" };
+    }
+
+    // ⚠️ CHECK FOR GROUP PRICING - Show warning if some items have group pricing
+    // Promo codes will only apply to non-group-pricing items
+    let hasGroupPricingItems = false;
+    let hasNonGroupPricingItems = false;
+    let groupPricingSizeIds: string[] = [];
+    
+    if (userId) {
+      const sizeIds: string[] = [];
+      
+      // Collect all size IDs from cart items
+      cartItems.forEach(item => {
+        if (item.sizes && Array.isArray(item.sizes)) {
+          item.sizes.forEach((size: any) => {
+            if (size.id) {
+              sizeIds.push(size.id);
+            }
+          });
+        }
+      });
+
+      if (sizeIds.length > 0) {
+        // Fetch active group pricing rules for this user
+        const { data: groupPricingData, error: groupError} = await supabase
+          .from("group_pricing")
+          .select("product_arrayjson, group_ids")
+          .eq("status", "active");
+
+        if (!groupError && groupPricingData && groupPricingData.length > 0) {
+          // Check which sizes have group pricing
+          groupPricingData.forEach((group: any) => {
+            if (group.group_ids && group.group_ids.includes(userId)) {
+              if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
+                group.product_arrayjson.forEach((product: any) => {
+                  if (sizeIds.includes(product.product_id)) {
+                    groupPricingSizeIds.push(product.product_id);
+                  }
+                });
+              }
+            }
+          });
+          
+          // Check if we have both types of items
+          hasGroupPricingItems = groupPricingSizeIds.length > 0;
+          hasNonGroupPricingItems = sizeIds.length > groupPricingSizeIds.length;
+          
+          // If ALL items have group pricing, reject promo code
+          if (hasGroupPricingItems && !hasNonGroupPricingItems) {
+            return { 
+              valid: false, 
+              message: "Promo codes cannot be applied. All items in your cart have group pricing and you're already getting a special discount!" 
+            };
+          }
+        }
+      }
     }
 
     // Find the offer
@@ -148,24 +219,49 @@ export async function validatePromoCode(
       }
     }
 
-    // Calculate applicable amount based on offer type
+    // Calculate applicable amount based on offer type (excluding group pricing items)
     let applicableAmount = orderAmount; // Default to full order
 
+    console.log('=== VALIDATE PROMO DEBUG ===');
+    console.log('offer.applicable_to:', offer.applicable_to);
+    console.log('groupPricingSizeIds:', groupPricingSizeIds);
+    console.log('cartItems:', cartItems);
+    console.log('orderAmount:', orderAmount);
+
     if (offer.applicable_to === "product" && offer.applicable_ids) {
-      // Calculate only for matching products
-      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'product');
+      // Calculate only for matching products (excluding group pricing)
+      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'product', groupPricingSizeIds);
+      console.log('Product-specific applicableAmount:', applicableAmount);
       
       if (applicableAmount === 0) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
       }
     } else if (offer.applicable_to === "category" && offer.applicable_ids) {
-      // Calculate only for matching categories
-      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'category');
+      // Calculate only for matching categories (excluding group pricing)
+      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'category', groupPricingSizeIds);
+      console.log('Category-specific applicableAmount:', applicableAmount);
       
       if (applicableAmount === 0) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
       }
+    } else if (offer.applicable_to === "all" && groupPricingSizeIds.length > 0) {
+      // For "all" type offers, also exclude group pricing items
+      // Calculate total excluding group pricing sizes
+      applicableAmount = cartItems.reduce((sum, item) => {
+        if (item.sizes && Array.isArray(item.sizes)) {
+          return sum + item.sizes.reduce((sizeSum: number, size: any) => {
+            if (groupPricingSizeIds.includes(size.id)) {
+              return sizeSum; // Skip group pricing sizes
+            }
+            return sizeSum + ((size.price || item.price) * (size.quantity || 1));
+          }, 0);
+        }
+        return sum + (item.price * item.quantity);
+      }, 0);
+      console.log('All-type applicableAmount (after excluding group pricing):', applicableAmount);
     }
+
+    console.log('Final applicableAmount:', applicableAmount);
 
     // Calculate discount based on applicable amount
     let calculatedDiscount = 0;
@@ -183,8 +279,8 @@ export async function validatePromoCode(
     }
 
     const savingsMessage = offer.offer_type === "free_shipping" 
-      ? `${offer.title} applied! Free shipping on this order`
-      : `${offer.title} applied! You save $${calculatedDiscount.toFixed(2)}`;
+      ? `${offer.title} applied! Free shipping on this order${hasGroupPricingItems ? ' (excluding group pricing items)' : ''}`
+      : `${offer.title} applied! You save $${calculatedDiscount.toFixed(2)}${hasGroupPricingItems ? ' (on eligible items)' : ''}`;
 
     return {
       valid: true,
@@ -392,7 +488,8 @@ export function preparePromoDisplayData(
   validationResult: PromoValidationResult,
   offer: Offer,
   cartItems: CartItem[],
-  productNames?: Map<string, string>
+  productNames?: Map<string, string>,
+  groupPricingSizeIds?: string[] // Add parameter for group pricing size IDs
 ): {
   applicableItems: Array<{
     id: string;
@@ -400,28 +497,74 @@ export function preparePromoDisplayData(
     price: number;
     quantity: number;
     hasDiscount: boolean;
+    notEligibleReason?: string;
   }>;
   applicableTo: string;
 } {
-  const applicableItems = cartItems.map(item => {
-    let hasDiscount = false;
+  const applicableItems: Array<{
+    id: string;
+    name: string;
+    price: number;
+    quantity: number;
+    hasDiscount: boolean;
+    notEligibleReason?: string;
+  }> = [];
 
-    // Check if this item gets the discount
-    if (offer.applicable_to === "all") {
-      hasDiscount = true;
-    } else if (offer.applicable_to === "product" && offer.applicable_ids) {
-      hasDiscount = offer.applicable_ids.includes(item.productId);
-    } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
-      hasDiscount = offer.applicable_ids.includes(item.categoryId);
+  cartItems.forEach(item => {
+    // If item has sizes, create separate entries for each size
+    if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
+      item.sizes.forEach((size: any) => {
+        let hasDiscount = false;
+
+        // Check if this item gets the discount
+        if (offer.applicable_to === "all") {
+          hasDiscount = true;
+        } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+          hasDiscount = offer.applicable_ids.includes(item.productId);
+        } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
+          hasDiscount = offer.applicable_ids.includes(item.categoryId);
+        }
+
+        // ⚠️ Override: Check if this size has group pricing
+        const sizeId = size.id || `${item.productId}-${size.size_value}`;
+        if (groupPricingSizeIds && groupPricingSizeIds.includes(sizeId)) {
+          hasDiscount = false;
+        }
+
+        const productName = productNames?.get(item.productId) || `Product ${item.productId.slice(0, 8)}`;
+        const sizeName = size.size_name || `${size.size_value} ${size.size_unit || ''}`.trim();
+
+        applicableItems.push({
+          id: sizeId,
+          name: `${productName} - ${sizeName}`,
+          price: size.price || item.price,
+          quantity: size.quantity || 1,
+          hasDiscount,
+          notEligibleReason: (groupPricingSizeIds && groupPricingSizeIds.includes(sizeId)) 
+            ? "Group pricing already applied" 
+            : undefined
+        });
+      });
+    } else {
+      // No sizes, use product-level data
+      let hasDiscount = false;
+
+      if (offer.applicable_to === "all") {
+        hasDiscount = true;
+      } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+        hasDiscount = offer.applicable_ids.includes(item.productId);
+      } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
+        hasDiscount = offer.applicable_ids.includes(item.categoryId);
+      }
+
+      applicableItems.push({
+        id: item.productId,
+        name: productNames?.get(item.productId) || `Product ${item.productId.slice(0, 8)}`,
+        price: item.price,
+        quantity: item.quantity,
+        hasDiscount,
+      });
     }
-
-    return {
-      id: item.productId,
-      name: productNames?.get(item.productId) || `Product ${item.productId.slice(0, 8)}`,
-      price: item.price,
-      quantity: item.quantity,
-      hasDiscount,
-    };
   });
 
   return {
@@ -434,47 +577,84 @@ export function preparePromoDisplayData(
 export function calculateItemDiscounts(
   cartItems: CartItem[],
   offer: Offer,
-  totalDiscount: number
+  totalDiscount: number,
+  groupPricingSizeIds?: string[]
 ): Map<string, number> {
   const itemDiscounts = new Map<string, number>();
 
-  if (offer.applicable_to === "all") {
-    // Distribute discount proportionally across all items
-    const totalAmount = cartItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+  // Helper function to get item total excluding group pricing sizes
+  const getItemTotal = (item: CartItem): number => {
+    if (item.sizes && Array.isArray(item.sizes)) {
+      return item.sizes.reduce((sum: number, size: any) => {
+        // Skip sizes with group pricing
+        if (groupPricingSizeIds && groupPricingSizeIds.includes(size.id)) {
+          return sum;
+        }
+        return sum + ((size.price || item.price) * (size.quantity || 1));
+      }, 0);
+    }
+    return item.price * item.quantity;
+  };
+
+  // Helper function to check if item has ANY eligible (non-group-pricing) sizes
+  const hasEligibleSizes = (item: CartItem): boolean => {
+    if (!item.sizes || !Array.isArray(item.sizes)) return true; // No sizes = eligible
+    if (!groupPricingSizeIds || groupPricingSizeIds.length === 0) return true; // No group pricing = all eligible
     
-    cartItems.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      const itemDiscount = (itemTotal / totalAmount) * totalDiscount;
-      itemDiscounts.set(item.productId, itemDiscount);
-    });
+    // Check if at least one size is NOT in group pricing
+    return item.sizes.some((size: any) => !groupPricingSizeIds.includes(size.id));
+  };
+
+  if (offer.applicable_to === "all") {
+    // Distribute discount proportionally across all items (only eligible sizes)
+    const eligibleItems = cartItems.filter(item => hasEligibleSizes(item));
+    const totalAmount = eligibleItems.reduce((sum, item) => sum + getItemTotal(item), 0);
+    
+    if (totalAmount > 0) {
+      eligibleItems.forEach(item => {
+        const itemTotal = getItemTotal(item);
+        if (itemTotal > 0) {
+          const itemDiscount = (itemTotal / totalAmount) * totalDiscount;
+          itemDiscounts.set(item.productId, itemDiscount);
+        }
+      });
+    }
   } else if (offer.applicable_to === "product" && offer.applicable_ids) {
-    // Calculate discount only for matching products
+    // Calculate discount only for matching products (only eligible sizes)
     const applicableItems = cartItems.filter(item => 
-      offer.applicable_ids!.includes(item.productId)
+      offer.applicable_ids!.includes(item.productId) && hasEligibleSizes(item)
     );
     const applicableAmount = applicableItems.reduce((sum, item) => 
-      sum + (item.price * item.quantity), 0
+      sum + getItemTotal(item), 0
     );
 
-    applicableItems.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
-      itemDiscounts.set(item.productId, itemDiscount);
-    });
+    if (applicableAmount > 0) {
+      applicableItems.forEach(item => {
+        const itemTotal = getItemTotal(item);
+        if (itemTotal > 0) {
+          const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
+          itemDiscounts.set(item.productId, itemDiscount);
+        }
+      });
+    }
   } else if (offer.applicable_to === "category" && offer.applicable_ids) {
-    // Calculate discount only for matching categories
+    // Calculate discount only for matching categories (only eligible sizes)
     const applicableItems = cartItems.filter(item => 
-      item.categoryId && offer.applicable_ids!.includes(item.categoryId)
+      item.categoryId && offer.applicable_ids!.includes(item.categoryId) && hasEligibleSizes(item)
     );
     const applicableAmount = applicableItems.reduce((sum, item) => 
-      sum + (item.price * item.quantity), 0
+      sum + getItemTotal(item), 0
     );
 
-    applicableItems.forEach(item => {
-      const itemTotal = item.price * item.quantity;
-      const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
-      itemDiscounts.set(item.productId, itemDiscount);
-    });
+    if (applicableAmount > 0) {
+      applicableItems.forEach(item => {
+        const itemTotal = getItemTotal(item);
+        if (itemTotal > 0) {
+          const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
+          itemDiscounts.set(item.productId, itemDiscount);
+        }
+      });
+    }
   }
 
   return itemDiscounts;

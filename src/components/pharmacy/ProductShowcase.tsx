@@ -186,6 +186,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
     .map((size) => {
       let newPrice = size.price;
+      let hasGroupPricing = false; // Flag to track if group pricing is applied
 
       const applicableGroup = groupData.find(
         (group) =>
@@ -200,7 +201,10 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
         if (groupProduct) {
           const parsed = parseFloat(groupProduct.new_price);
-          newPrice = (parsed > 0) ? parsed : size.price;
+          if (parsed > 0 && parsed !== size.price) {
+            newPrice = parsed;
+            hasGroupPricing = true; // Mark that group pricing was applied
+          }
         }
       }
 
@@ -213,6 +217,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
         sizeSquanence: size.sizeSquanence,
         price: newPrice,
         originalPrice: size.price === newPrice ? 0 : size.price,
+        hasGroupPricing: hasGroupPricing, // Add flag to size object
         sku: size.sku || "",
         unitToggle:item?.unitToggle  ,
         key_features: size.key_features || "",
@@ -243,13 +248,25 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
 
         console.log("Mapped Products with Discounts:", mappedProducts);
         
-        // Fetch offers for all products
+        // Fetch offers for all products - BUT exclude products with group pricing
         try {
           const productIds = mappedProducts.map(p => p.id);
           const offersMap = await getProductsWithOffers(productIds, userProfile?.id);
           
-          // Merge offer data with products
+          // Merge offer data with products - SKIP offers for products with group pricing
           const productsWithOffers = mappedProducts.map(product => {
+            // Check if ANY size in this product has group pricing applied using the flag
+            const hasGroupPricing = product.sizes?.some(size => size.hasGroupPricing === true);
+            
+            // If group pricing exists, don't apply offers (no double discount)
+            if (hasGroupPricing) {
+              console.log(`⚠️ Skipping offers for "${product.name}" - has group pricing (flag detected)`);
+              return {
+                ...product,
+                hasGroupPricing: true // Add flag to product level too
+              };
+            }
+            
             const offerData = offersMap.get(product.id);
             if (offerData && offerData.hasOffer) {
               return {
@@ -257,10 +274,14 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
                 effectivePrice: offerData.effectivePrice,
                 offerBadge: offerData.offerBadge,
                 hasOffer: offerData.hasOffer,
-                discountPercent: offerData.discountPercent
+                discountPercent: offerData.discountPercent,
+                hasGroupPricing: false
               };
             }
-            return product;
+            return {
+              ...product,
+              hasGroupPricing: false
+            };
           });
           
           console.log("Products with Offers:", productsWithOffers);

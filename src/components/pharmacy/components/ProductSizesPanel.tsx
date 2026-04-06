@@ -599,8 +599,12 @@ export const ProductSizesPanel = ({
                   const stockStatus = size.stock <= 0 ? "Out of Stock" : size.stock < 10 ? "Low Stock" : "In Stock"
                   const isOutOfStock = size.stock <= 0
                   const sizeInCart = isInCart(sizeId)
-                  const hasDiscount = size.originalPrice > 0 && size.originalPrice > size.price
-                  const discountPercent = hasDiscount ? Math.round((1 - size.price / size.originalPrice) * 100) : 0
+                  
+                  // ⚠️ Group pricing is a silent discount - don't show discount UI
+                  // User gets special price but no discount badges/strikethrough
+                  const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
+                  const hasDiscount = false // Don't show any discount UI for group pricing
+                  const discountPercent = 0 // Don't show discount percent for group pricing
 
                   return (
                     <Card key={sizeId} className={`${sizeInCart ? 'border-blue-400 bg-blue-50' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''}`}>

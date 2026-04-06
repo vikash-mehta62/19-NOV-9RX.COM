@@ -15,6 +15,7 @@ interface PromoCodeDisplayProps {
     price: number;
     quantity: number;
     hasDiscount: boolean;
+    notEligibleReason?: string; // Add reason for not being eligible
   }>;
   discountType: "percentage" | "flat" | "free_shipping";
   discountValue: number;
@@ -118,7 +119,7 @@ export function PromoCodeDisplay({
                         {item.hasDiscount ? (
                           <Tag className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
                         ) : (
-                          <div className="h-4 w-4 flex-shrink-0" />
+                          <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
                         )}
                         
                         {/* Content */}
@@ -147,10 +148,22 @@ export function PromoCodeDisplay({
                                   </Badge>
                                 </>
                               ) : (
-                                <span className="font-medium text-sm whitespace-nowrap">${itemTotal.toFixed(2)}</span>
+                                <>
+                                  <span className="font-medium text-sm whitespace-nowrap">${itemTotal.toFixed(2)}</span>
+                                  <Badge variant="secondary" className="text-[10px] px-2 py-0.5 bg-amber-100 text-amber-800 whitespace-nowrap">
+                                    Not Eligible
+                                  </Badge>
+                                </>
                               )}
                             </div>
                           </div>
+                          
+                          {/* Not Eligible Reason */}
+                          {!item.hasDiscount && item.notEligibleReason && (
+                            <div className="text-[10px] text-amber-700 bg-amber-50 px-2 py-1 rounded">
+                              {item.notEligibleReason}
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
