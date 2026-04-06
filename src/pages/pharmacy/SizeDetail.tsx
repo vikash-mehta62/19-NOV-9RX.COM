@@ -765,7 +765,7 @@ export default function SizeDetail() {
               <Card>
                 <CardContent className="p-4 space-y-4">
                   {product.customization?.allowed && customizationItems.length > 0 && (
-                    <div className="flex justify-end">
+                    <div className="flex justify-end gap-2">
                       <Button
                         type="button"
                         variant="outline"
@@ -777,6 +777,19 @@ export default function SizeDetail() {
                         <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
                           {customizationItems.length}
                         </Badge>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-purple-700 hover:bg-purple-100 h-10 w-10 p-0"
+                        onClick={() => {
+                          setCustomizationItems([])
+                          setCustomizationInstruction('')
+                        }}
+                        title="Clear customization selections"
+                      >
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
                   )}
@@ -808,38 +821,19 @@ export default function SizeDetail() {
                   </div>
 
                   {/* Customization Option */}
-                  {product.customization?.allowed && (
-                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="customize-size"
-                          checked={isCustomizationSelected}
-                          onCheckedChange={(checked) => handleCustomizationToggle(checked as boolean)}
-                        />
-                        <Label htmlFor="customize-size" className="text-sm font-medium text-purple-700 cursor-pointer flex items-center gap-1">
-                          <Palette className="w-4 h-4" />
-                          Add Customization
-                          {product.customization.price > 0 && (
-                            <span className="text-purple-500 ml-1">(+${product.customization.price.toFixed(2)}/unit)</span>
-                          )}
-                        </Label>
-                      </div>
-                      {isCustomizationSelected && (
-                        <div className="mt-2 flex items-center justify-between gap-3">
-                          <p className="text-xs text-purple-700">
-                            This size is selected for customization enquiry. Use the dialog to add instructions and submit.
-                          </p>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            className="text-purple-700 hover:bg-purple-100"
-                            onClick={() => setIsCustomizationDialogOpen(true)}
-                          >
-                            Open Enquiry
-                          </Button>
-                        </div>
+                  {product.customization?.allowed && !isCustomizationSelected && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-sm h-10"
+                      onClick={() => handleCustomizationToggle(true)}
+                    >
+                      <Palette className="w-4 h-4 mr-1.5" />
+                      Add Customization
+                      {product.customization.price > 0 && (
+                        <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
                       )}
-                    </div>
+                    </Button>
                   )}
 
                   {/* Total */}

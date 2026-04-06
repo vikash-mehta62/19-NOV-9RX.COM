@@ -70,17 +70,17 @@ const Credit = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="credit-memos" className="space-y-6">
-          <TabsList className="bg-white border">
-            <TabsTrigger value="credit-memos" className="gap-2">
-              <Receipt className="w-4 h-4" />
+          <TabsList className="w-full h-auto grid grid-cols-3 bg-white border px-1 py-1">
+            <TabsTrigger value="credit-memos" className="min-w-0 h-auto gap-1 px-1 py-1.5 text-[11px] leading-tight whitespace-normal text-center sm:gap-2 sm:px-4 sm:text-sm sm:whitespace-nowrap data-[state=active]:bg-blue-600 data-[state=active]:text-white hover:data-[state=active]:text-white">
+              <Receipt className="hidden sm:block w-4 h-4" />
               Credit Memos
             </TabsTrigger>
-            <TabsTrigger value="overview" className="gap-2">
-              <CreditCard className="w-4 h-4" />
+            <TabsTrigger value="overview" className="min-w-0 h-auto gap-1 px-1 py-1.5 text-[11px] leading-tight whitespace-normal text-center sm:gap-2 sm:px-4 sm:text-sm sm:whitespace-nowrap data-[state=active]:bg-blue-600 data-[state=active]:text-white hover:data-[state=active]:text-white">
+              <CreditCard className="hidden sm:block w-4 h-4" />
               Credit Line
             </TabsTrigger>
-            <TabsTrigger value="invoices" className="gap-2">
-              <FileText className="w-4 h-4" />
+            <TabsTrigger value="invoices" className="min-w-0 h-auto gap-1 px-1 py-1.5 text-[11px] leading-tight whitespace-normal text-center sm:gap-2 sm:px-4 sm:text-sm sm:whitespace-nowrap data-[state=active]:bg-blue-600 data-[state=active]:text-white hover:data-[state=active]:text-white">
+              <FileText className="hidden sm:block w-4 h-4" />
               Invoices & Payments
             </TabsTrigger>
           </TabsList>

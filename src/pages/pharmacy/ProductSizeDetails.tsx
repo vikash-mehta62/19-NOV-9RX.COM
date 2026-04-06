@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { 
   ArrowLeft, Package, Info, Loader2, ShoppingCart, 
-  Plus, Minus, Check, Star, Palette, Gift, HelpCircle
+  Plus, Minus, Check, Star, Palette, Gift, HelpCircle, X
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useCart } from "@/hooks/use-cart"
@@ -366,28 +366,38 @@ const ProductSizeDetails = () => {
 
                   {/* Customization Option */}
                   {product.customization?.allowed && (
-                    <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          id="customize-product"
-                          checked={customization.enabled}
-                          onCheckedChange={(checked) => setCustomization(prev => ({ ...prev, enabled: checked as boolean }))}
-                        />
-                        <Label htmlFor="customize-product" className="text-sm font-medium text-purple-700 cursor-pointer flex items-center gap-1">
-                          <Palette className="w-4 h-4" />
-                          Add Customization
-                          {product.customization.price > 0 && (
-                            <span className="text-purple-500 ml-1">(+${product.customization.price.toFixed(2)}/unit)</span>
-                          )}
-                        </Label>
-                      </div>
+                    <div className="space-y-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-sm h-10"
+                        onClick={() => setCustomization(prev => ({ ...prev, enabled: !prev.enabled }))}
+                      >
+                        <Palette className="w-4 h-4 mr-1.5" />
+                        {customization.enabled ? 'Remove Customization' : 'Add Customization'}
+                        {product.customization.price > 0 && !customization.enabled && (
+                          <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
+                        )}
+                      </Button>
                       {customization.enabled && (
-                        <Input
-                          placeholder="Enter customization details..."
-                          value={customization.text}
-                          onChange={(e) => setCustomization(prev => ({ ...prev, text: e.target.value }))}
-                          className="mt-2 text-sm border-purple-200"
-                        />
+                        <div className="flex items-center gap-2">
+                          <Input
+                            placeholder="Enter customization details..."
+                            value={customization.text}
+                            onChange={(e) => setCustomization(prev => ({ ...prev, text: e.target.value }))}
+                            className="text-sm border-purple-200 flex-1"
+                          />
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-purple-700 hover:bg-purple-100 h-10 w-10 p-0"
+                            onClick={() => setCustomization({ enabled: false, text: '' })}
+                            title="Clear customization"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
                       )}
                     </div>
                   )}
