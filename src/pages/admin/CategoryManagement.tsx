@@ -350,52 +350,54 @@ const SortableCategoryItem = ({
         isDragging ? 'border-blue-400 shadow-2xl scale-105' : 'border-gray-200 hover:border-blue-300'
       }`}
     >
-      <div className="flex items-center gap-4 p-6">
-        {/* Drag Handle */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="cursor-grab active:cursor-grabbing p-3 hover:bg-blue-50 rounded-xl transition-colors group"
-          title="Drag to reorder"
-        >
-          <GripVertical className="w-6 h-6 text-gray-400 group-hover:text-blue-600 transition-colors" />
-        </button>
+      <div className="flex flex-col gap-4 p-4 md:p-6 xl:flex-row xl:items-center">
+        <div className="flex min-w-0 flex-1 items-start gap-3 md:gap-4">
+          {/* Drag Handle */}
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing p-2 md:p-3 hover:bg-blue-50 rounded-xl transition-colors group"
+            title="Drag to reorder"
+          >
+            <GripVertical className="w-5 h-5 md:w-6 md:h-6 text-gray-400 group-hover:text-blue-600 transition-colors" />
+          </button>
 
-        {/* Category Image */}
-        <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3 shadow-md">
-          {imageUrl ? (
-            <img
-              src={imageUrl}
-              alt={category.category_name}
-              className="h-full w-full object-contain hover:scale-110 transition-transform duration-300"
-            />
-          ) : (
-            <ImageIcon className="w-8 h-8 text-gray-400" />
-          )}
-        </div>
+          {/* Category Image */}
+          <div className="flex h-20 w-20 md:h-24 md:w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3 shadow-md">
+            {imageUrl ? (
+              <img
+                src={imageUrl}
+                alt={category.category_name}
+                className="h-full w-full object-contain hover:scale-110 transition-transform duration-300"
+              />
+            ) : (
+              <ImageIcon className="w-8 h-8 text-gray-400" />
+            )}
+          </div>
 
-        {/* Category Info */}
-        <div className="flex-1 min-w-0">
-          <h3 className="text-2xl font-bold text-gray-900 mb-2">{category.category_name}</h3>
-          <div className="flex items-center gap-3 text-sm flex-wrap">
-            <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-              <span className="text-lg font-bold">#{index + 1}</span>
-            </span>
-            <span className="flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-              <Package className="w-4 h-4" />
-              <span className="font-bold">{products.length}</span> Subcategor{products.length === 1 ? 'y' : 'ies'}
-            </span>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddSubcategory();
-              }}
-              className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
-              title="Add new subcategory to this category"
-            >
-              <Plus className="w-3 h-3" />
-              Add Subcategory
-            </button>
+          {/* Category Info */}
+          <div className="flex-1 min-w-0">
+            <h3 className="mb-2 text-xl md:text-2xl font-bold leading-tight break-words text-gray-900">{category.category_name}</h3>
+            <div className="flex items-center gap-3 text-sm flex-wrap">
+              <span className="flex items-center gap-1.5 bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
+                <span className="text-lg font-bold">#{index + 1}</span>
+              </span>
+              <span className="flex items-center gap-1.5 bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
+                <Package className="w-4 h-4" />
+                <span className="font-bold">{products.length}</span> Subcategor{products.length === 1 ? 'y' : 'ies'}
+              </span>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAddSubcategory();
+                }}
+                className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 hover:underline font-medium transition-colors"
+                title="Add new subcategory to this category"
+              >
+                <Plus className="w-3 h-3" />
+                Add Subcategory
+              </button>
+            </div>
           </div>
         </div>
 
@@ -405,7 +407,7 @@ const SortableCategoryItem = ({
           variant="outline"
           size="lg"
           onClick={() => onToggleExpanded(category.id)}
-          className="shrink-0 h-12 px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
+          className="h-12 w-full xl:w-auto xl:shrink-0 px-4 md:px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
         >
           <ChevronDown
             className={`w-5 h-5 mr-2 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
@@ -416,9 +418,9 @@ const SortableCategoryItem = ({
 
       {isExpanded && (
         <div className="border-t-2 bg-gradient-to-br from-slate-50 to-blue-50 px-4 py-4 md:px-6 md:py-6">
-          <div className="mb-4 md:mb-6 flex items-center justify-between">
+          <div className="mb-4 md:mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h4 className="text-lg md:text-xl font-bold text-gray-900">Subcategories in {category.category_name}</h4>
+              <h4 className="text-base md:text-xl font-bold leading-tight break-words text-gray-900">Subcategories in {category.category_name}</h4>
               <p className="text-xs md:text-sm text-gray-600 mt-1">
                 {products.length} subcategor{products.length === 1 ? 'y' : 'ies'} • Click "Show Sizes" to see products
               </p>
@@ -432,9 +434,9 @@ const SortableCategoryItem = ({
                   key={product.id}
                   className="rounded-2xl border-2 border-slate-200 bg-white shadow-md hover:shadow-xl transition-all"
                 >
-                  <div className="flex items-center justify-between gap-4 px-6 py-5">
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-3 shadow-sm">
+                  <div className="flex flex-col items-stretch gap-4 px-4 py-4 md:px-6 md:py-5 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex min-w-0 items-start gap-3 md:gap-4">
+                      <div className="flex h-16 w-16 md:h-24 md:w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-3 shadow-sm">
                         {productImageUrls[product.id] ? (
                           <img
                             src={productImageUrls[product.id]}
@@ -451,7 +453,7 @@ const SortableCategoryItem = ({
                           {/* Show Subcategory as main name if available, otherwise product name */}
                           {product.subcategory ? (
                             <>
-                              <p className="truncate text-xl font-bold text-slate-900">{product.subcategory}</p>
+                              <p className="text-lg md:text-xl font-bold leading-tight break-words text-slate-900">{product.subcategory}</p>
                               <span
                                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                   product.is_active === false || product.isPlaceholder
@@ -464,7 +466,7 @@ const SortableCategoryItem = ({
                             </>
                           ) : (
                             <>
-                              <p className="truncate text-lg font-semibold text-slate-900">{product.name}</p>
+                              <p className="text-base md:text-lg font-semibold leading-tight break-words text-slate-900">{product.name}</p>
                               <span
                                 className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                                   product.is_active === false || product.isPlaceholder
@@ -492,9 +494,9 @@ const SortableCategoryItem = ({
                     </div>
 
                     {/* Price and Actions */}
-                    <div className="shrink-0 text-right">
+                    <div className="w-full text-left xl:w-auto xl:text-right xl:shrink-0">
                       <div className="mb-4">
-                        <p className="text-3xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
+                        <p className="text-2xl md:text-3xl font-bold bg-gradient-to-r from-green-600 to-green-700 bg-clip-text text-transparent">
                           ${getDisplayPrice(product).toFixed(2)}
                         </p>
                         <p className="text-xs text-slate-500 mt-1">{product.isPlaceholder ? "Placeholder" : "Starting from"}</p>
@@ -584,15 +586,15 @@ const SortableCategoryItem = ({
                         </Button>
                       </div>
                       {(product.sizes || []).length > 0 && !product.isPlaceholder ? (
-                        <div className="grid gap-3 md:grid-cols-2">
+                        <div className="grid gap-3 xl:grid-cols-2">
                           {(product.sizes || []).map((size, index) => (
                             <div
                               key={`${product.id}-${getSizeLabel(size)}-${index}`}
                               className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
                             >
                               <div className="flex h-full flex-col gap-4">
-                                <div className="flex items-start gap-4">
-                                  <div className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3 shadow-sm">
+                                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-4">
+                                  <div className="flex h-16 w-16 sm:h-24 sm:w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2 sm:p-3 shadow-sm">
                                     {size.id && sizeImageUrls[size.id] ? (
                                       <img
                                         src={sizeImageUrls[size.id]}
@@ -605,9 +607,9 @@ const SortableCategoryItem = ({
                                   </div>
 
                                   <div className="min-w-0 flex-1">
-                                    <div className="flex items-start justify-between gap-3">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                                       <div className="min-w-0">
-                                        <p className="truncate text-sm text-slate-600">
+                                        <p className="text-sm leading-snug break-words text-slate-600">
                                           {size.size_name?.trim() || "No Product name added"}
                                         </p>
                                         <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -628,8 +630,8 @@ const SortableCategoryItem = ({
                                           {size.sku?.trim() ? `SKU: ${size.sku}` : "No SKU added"}
                                         </p>
                                       </div>
-                                      <div className="shrink-0 text-right">
-                                        <p className="text-lg font-semibold text-slate-900">
+                                      <div className="shrink-0 text-left sm:text-right">
+                                        <p className="text-base sm:text-lg font-semibold text-slate-900">
                                           ${Number(size.price || 0).toFixed(2)}
                                         </p>
                                         <p className="text-xs text-slate-500">Size price</p>
@@ -642,7 +644,7 @@ const SortableCategoryItem = ({
                                   </div>
                                 </div>
                                 {size.id && (
-                                  <div className="mt-auto flex justify-end gap-2 border-t border-slate-100 pt-4">
+                                  <div className="mt-auto flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
                                     <Button
                                       type="button"
                                       variant="outline"
@@ -1528,24 +1530,24 @@ const CategoryManagement = () => {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-3 sm:p-4 md:p-6">
         <div className="max-w-7xl mx-auto space-y-6">
           {/* Enhanced Header */}
-          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-lg border border-white/20 p-5 md:p-8">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+              <div className="min-w-0">
+                <h1 className="text-3xl md:text-4xl font-bold leading-tight bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent break-words">
                   Category Management
                 </h1>
-                <p className="text-gray-600 mt-2 text-lg">
+                <p className="text-gray-600 mt-2 text-base md:text-lg max-w-2xl">
                   Manage product categories, subcategories, and their display order
                 </p>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3 xl:justify-end">
                 <Button
                   variant="outline"
                   onClick={() => setIsCategoryManagerOpen(true)}
-                  className="h-11 px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
+                  className="h-11 w-full sm:w-auto px-4 md:px-6 rounded-xl border-2 hover:border-blue-400 hover:bg-blue-50 transition-all"
                 >
                   <Plus className="w-5 h-5 mr-2" />
                   Add Category / Subcategory
@@ -1555,7 +1557,7 @@ const CategoryManagement = () => {
                     variant="outline"
                     onClick={handleReset}
                     disabled={saving}
-                    className="h-11 px-6 rounded-xl border-2 hover:border-orange-400 hover:bg-orange-50 transition-all"
+                    className="h-11 w-full sm:w-auto px-4 md:px-6 rounded-xl border-2 hover:border-orange-400 hover:bg-orange-50 transition-all"
                   >
                     <RotateCcw className="w-5 h-5 mr-2" />
                     Reset Changes
@@ -1564,7 +1566,7 @@ const CategoryManagement = () => {
                 <Button
                   onClick={handleSave}
                   disabled={!hasChanges || saving}
-                  className="h-11 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg disabled:opacity-50"
+                  className="h-11 w-full sm:w-auto px-4 md:px-6 rounded-xl bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg disabled:opacity-50"
                 >
                   <Save className="w-5 h-5 mr-2" />
                   {saving ? "Saving..." : "Save Order"}
@@ -1576,7 +1578,7 @@ const CategoryManagement = () => {
           {/* Info Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100">
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center">
                     <Package className="w-6 h-6 text-white" />
@@ -1590,7 +1592,7 @@ const CategoryManagement = () => {
             </Card>
 
             <Card className="border-0 shadow-lg bg-gradient-to-br from-green-50 to-green-100">
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center">
                     <Package className="w-6 h-6 text-white" />
@@ -1606,7 +1608,7 @@ const CategoryManagement = () => {
             </Card>
 
             <Card className="border-0 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100">
-              <CardContent className="p-6">
+              <CardContent className="p-4 md:p-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center">
                     <Package className="w-6 h-6 text-white" />
@@ -1626,23 +1628,23 @@ const CategoryManagement = () => {
 
           {/* Main Categories Card */}
           <Card className="border-0 shadow-xl bg-white/90 backdrop-blur-sm">
-            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100 p-6">
-              <div className="flex items-center justify-between">
+            <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-gray-100 p-4 md:p-6">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <CardTitle className="text-2xl font-bold text-gray-900">Product Categories</CardTitle>
-                  <CardDescription className="text-base mt-2">
+                  <CardTitle className="text-xl md:text-2xl font-bold text-gray-900">Product Categories</CardTitle>
+                  <CardDescription className="text-sm md:text-base mt-2 break-words">
                     Drag categories using the <GripVertical className="w-4 h-4 inline mx-1" /> icon to reorder. Click "View Products" to see and manage products in each category.
                   </CardDescription>
                 </div>
                 {hasChanges && (
-                  <div className="bg-orange-100 border border-orange-300 rounded-lg px-4 py-2">
+                  <div className="w-full md:w-auto bg-orange-100 border border-orange-300 rounded-lg px-4 py-2">
                     <p className="text-sm font-medium text-orange-800">Unsaved Changes</p>
                     <p className="text-xs text-orange-600">Click "Save Order" to apply</p>
                   </div>
                 )}
               </div>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-3 md:p-6">
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}

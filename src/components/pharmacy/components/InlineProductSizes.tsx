@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/supabaseClient'
 import { selectUserProfile } from '@/store/selectors/userSelectors'
 import { useSelector } from 'react-redux'
-import { Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, ExternalLink, ArrowLeft } from 'lucide-react'
+import { Heart, ShoppingCart, Package, Plus, Minus, Check, Loader2, Palette, ExternalLink, ArrowLeft, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -633,18 +633,33 @@ export const InlineProductSizes = ({
             Available Sizes
           </h3>
           {displayProduct.customization?.allowed && customizationItems.length > 0 && (
-            <Button
-              type="button"
-              variant="outline"
-              className="border-purple-200 text-purple-700 hover:bg-purple-50"
-              onClick={() => setIsCustomizationDialogOpen(true)}
-            >
-              <Palette className="w-4 h-4 mr-1.5" />
-              Customization Enquiry
-              <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
-                {customizationItems.length}
-              </Badge>
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+                onClick={() => setIsCustomizationDialogOpen(true)}
+              >
+                <Palette className="w-4 h-4 mr-1.5" />
+                Customization Enquiry
+                <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
+                  {customizationItems.length}
+                </Badge>
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-purple-700 hover:bg-purple-100 h-8 w-8 p-0"
+                onClick={() => {
+                  setCustomizationItems([])
+                  setCustomizationInstruction('')
+                }}
+                title="Clear customization selections"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
           )}
         </div>
 
@@ -895,23 +910,18 @@ export const InlineProductSizes = ({
 
                     {/* Customization Option - Full width below on mobile */}
                     {!isOutOfStock && displayProduct.customization?.allowed && (
-                      <div className="mt-2 sm:mt-3 p-2 sm:p-2.5 bg-purple-50 rounded-md sm:rounded-lg border border-purple-100">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                            <Checkbox
-                              id={`customize-${sizeId}`}
-                              checked={isCustomizationSelectedForSize}
-                              onCheckedChange={(checked) => handleCustomizationToggle(size, checked as boolean)}
-                              className="w-3.5 h-3.5 sm:w-4 sm:h-4"
-                            />
-                          <Label htmlFor={`customize-${sizeId}`} className="text-[10px] sm:text-xs font-medium text-purple-700 cursor-pointer flex items-center gap-0.5 sm:gap-1">
-                            <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-                            Add Customaization
-                            {displayProduct.customization.basePrice > 0 && (
-                              <span className="text-purple-500">(+${displayProduct.customization.basePrice.toFixed(2)}/unit)</span>
-                            )}
-                          </Label>
-                        </div>
-                      </div>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full mt-2 sm:mt-3 border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-[10px] sm:text-xs h-8 sm:h-9"
+                        onClick={() => handleCustomizationToggle(size, true)}
+                      >
+                        <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
+                        Add Customization
+                        {displayProduct.customization.basePrice > 0 && (
+                          <span className="ml-1 text-purple-500">(+${displayProduct.customization.basePrice.toFixed(2)}/unit)</span>
+                        )}
+                      </Button>
                     )}
                   </CardContent>
                 </Card>

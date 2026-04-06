@@ -1258,7 +1258,7 @@ return (
               </div>
 
               {product.customization?.allowed && customizationItems.length > 0 && (
-                <div className="flex justify-end mb-4">
+                <div className="flex justify-end mb-4 gap-2">
                   <Button
                     type="button"
                     variant="outline"
@@ -1270,6 +1270,19 @@ return (
                     <Badge className="ml-2 bg-purple-100 text-purple-700 border border-purple-200">
                       {customizationItems.length}
                     </Badge>
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-purple-700 hover:bg-purple-100 h-10 w-10 p-0"
+                    onClick={() => {
+                      setCustomizationItems([])
+                      setCustomizationInstruction('')
+                    }}
+                    title="Clear customization selections"
+                  >
+                    <X className="w-4 h-4" />
                   </Button>
                 </div>
               )}
@@ -1615,23 +1628,18 @@ return (
                         )}
 
                         {!isOutOfStock && isLoggedIn && product.customization?.allowed && (
-                          <div className="mt-2 p-2 bg-purple-50 rounded-md border border-purple-100">
-                            <div className="flex items-center gap-2">
-                              <Checkbox
-                                id={`customize-details-${size.id}`}
-                                checked={isCustomizationSelectedForSize}
-                                onCheckedChange={(checked) => handleCustomizationToggle(size.id, checked as boolean)}
-                                className="w-4 h-4"
-                              />
-                              <Label htmlFor={`customize-details-${size.id}`} className="text-xs font-medium text-purple-700 cursor-pointer flex items-center gap-1">
-                                <Palette className="w-3.5 h-3.5" />
-                                Add Customaization
-                                {product.customization.price > 0 && (
-                                  <span className="text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
-                                )}
-                              </Label>
-                            </div>
-                          </div>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="w-full mt-2 border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-xs h-9"
+                            onClick={() => handleCustomizationToggle(size.id, true)}
+                          >
+                            <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />
+                            Add Customization
+                            {product.customization.price > 0 && (
+                              <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
+                            )}
+                          </Button>
                         )}
                       </div>
                     </Card>
