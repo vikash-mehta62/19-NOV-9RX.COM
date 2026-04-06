@@ -127,7 +127,7 @@ export const WelcomeDashboard = () => {
 
   const quickActions = [
     { icon: Package, label: "My Orders", path: "/pharmacy/orders", color: "bg-blue-500" },
-    { icon: Clock, label: "Reorder", path: "/pharmacy/reorder", color: "bg-green-500" },
+    { icon: Clock, label: "Reorder", path: "/pharmacy/buy-again", color: "bg-green-500" },
     { icon: CreditCard, label: "Invoices", path: "/pharmacy/invoices", color: "bg-purple-500" },
     { icon: Gift, label: "Rewards", path: "/pharmacy/rewards", color: "bg-pink-500" },
   ];

@@ -472,11 +472,11 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           handleCancel();
         }
       }}
-    >
+    >View all your past orders and track deliveries
       <DialogTrigger asChild>
         <Button className="bg-green-500">Pay Credit</Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[500px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Pay Credit</DialogTitle>
         </DialogHeader>

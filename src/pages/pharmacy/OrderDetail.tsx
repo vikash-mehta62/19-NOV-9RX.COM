@@ -15,7 +15,7 @@ import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { OrderActivityTimeline } from "@/components/orders/OrderActivityTimeline";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 import Logo from '../../assests/home/9rx_logo.png';
 
 interface OrderItem {
@@ -273,7 +273,7 @@ export default function OrderDetail() {
         });
       });
 
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         head: tableHead,
         body: tableBody,
         startY: tableStartY,
@@ -303,7 +303,7 @@ export default function OrderDetail() {
         summaryBody.push(["Discount", `-$${discountAmount.toFixed(2)}`]);
       }
 
-      (doc as any).autoTable({
+      autoTable(doc as any, {
         body: summaryBody,
         startY: finalY,
         theme: "plain",
