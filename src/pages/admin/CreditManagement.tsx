@@ -27,6 +27,7 @@ const CreditManagement = () => {
   const [sentTerms, setSentTerms] = useState<any[]>([]);
   const [creditLines, setCreditLines] = useState<any[]>([]);
   const [overdueInvoices, setOverdueInvoices] = useState<any[]>([]);
+  const [penaltyLogs, setPenaltyLogs] = useState<any[]>([]);
   const [selectedApplication, setSelectedApplication] = useState<any>(null);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
@@ -102,6 +103,16 @@ const CreditManagement = () => {
 
       if (overdueError) console.error("Overdue Error:", overdueError);
       setOverdueInvoices(overdue || []);
+
+      // Fetch penalty calculation logs
+      const { data: logs, error: logsError } = await supabase
+        .from("simple_penalty_logs")
+        .select("*")
+        .order("run_date", { ascending: false })
+        .limit(12);
+
+      if (logsError) console.error("Penalty Logs Error:", logsError);
+      setPenaltyLogs(logs || []);
 
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -234,13 +245,14 @@ const CreditManagement = () => {
   const calculatePenalties = async () => {
     setCalculatingPenalties(true);
     try {
-      const { error } = await supabase.rpc("calculate_credit_penalties");
+      const { data, error } = await supabase.rpc("trigger_simple_penalties_now");
       
       if (error) throw error;
 
+      const result = data as any;
       toast({
         title: "Penalties Calculated",
-        description: "Late payment penalties have been applied to overdue invoices",
+        description: `Processed ${result.users_processed} users, applied ${result.penalties_applied} penalties totaling $${result.total_penalty_amount?.toFixed(2)}`,
       });
 
       fetchData();
@@ -376,7 +388,7 @@ const CreditManagement = () => {
 
         {/* Tabs */}
         <Tabs defaultValue="applications">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-5 h-auto">
             <TabsTrigger value="applications" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
               <span className="hidden sm:inline">Applications</span>
               <span className="sm:hidden">Apps</span>
@@ -396,6 +408,10 @@ const CreditManagement = () => {
               <span className="hidden sm:inline">Overdue</span>
               <span className="sm:hidden">Due</span>
               <span className="ml-1">({overdueInvoices.length})</span>
+            </TabsTrigger>
+            <TabsTrigger value="penalty-logs" className="text-xs sm:text-sm px-2 py-2 sm:px-4">
+              <span className="hidden sm:inline">Penalty Logs</span>
+              <span className="sm:hidden">Logs</span>
             </TabsTrigger>
           </TabsList>
 
@@ -623,6 +639,107 @@ const CreditManagement = () => {
                     </TableBody>
                   </Table>
                 </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* Penalty Logs Tab */}
+          <TabsContent value="penalty-logs">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="w-5 h-5" />
+                  Monthly Penalty Logs
+                </CardTitle>
+                <p className="text-sm text-gray-500">
+                  Simple month-based system: Credit used in one month → Penalty applied on 1st of next month
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="px-2 lg:px-4">Date</TableHead>
+                        <TableHead className="px-2 lg:px-4">Month</TableHead>
+                        <TableHead className="px-2 lg:px-4">Users Processed</TableHead>
+                        <TableHead className="px-2 lg:px-4">Penalties Applied</TableHead>
+                        <TableHead className="px-2 lg:px-4">Total Amount</TableHead>
+                        <TableHead className="px-2 lg:px-4">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {penaltyLogs.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8 text-gray-500">
+                            No penalty calculations recorded yet
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        penaltyLogs.map((log) => (
+                          <TableRow key={log.id}>
+                            <TableCell className="font-medium text-sm px-2 lg:px-4">
+                              {new Date(log.run_date).toLocaleDateString()}
+                            </TableCell>
+                            <TableCell className="text-sm px-2 lg:px-4">
+                              {new Date(2026, log.run_month - 1).toLocaleString('default', { month: 'long' })}
+                            </TableCell>
+                            <TableCell className="text-sm px-2 lg:px-4">
+                              {log.users_processed}
+                            </TableCell>
+                            <TableCell className="text-sm px-2 lg:px-4">
+                              {log.penalties_applied}
+                            </TableCell>
+                            <TableCell className="font-bold text-sm px-2 lg:px-4">
+                              ${log.total_penalty_amount?.toFixed(2)}
+                            </TableCell>
+                            <TableCell className="px-2 lg:px-4">
+                              {log.status === 'success' ? (
+                                <Badge className="bg-green-100 text-green-700 text-xs">
+                                  <CheckCircle className="w-3 h-3 mr-1" />
+                                  Success
+                                </Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-700 text-xs">
+                                  <XCircle className="w-3 h-3 mr-1" />
+                                  Failed
+                                </Badge>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {penaltyLogs.length > 0 && (
+                  <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <h4 className="font-semibold text-blue-900 mb-2">Latest Calculation Summary</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+                      <div>
+                        <p className="text-blue-600">Date</p>
+                        <p className="font-medium">{new Date(penaltyLogs[0].run_date).toLocaleDateString()}</p>
+                      </div>
+                      <div>
+                        <p className="text-blue-600">Month</p>
+                        <p className="font-medium">{new Date(2026, penaltyLogs[0].run_month - 1).toLocaleString('default', { month: 'long' })}</p>
+                      </div>
+                      <div>
+                        <p className="text-blue-600">Users</p>
+                        <p className="font-medium">{penaltyLogs[0].users_processed}</p>
+                      </div>
+                      <div>
+                        <p className="text-blue-600">Penalties</p>
+                        <p className="font-medium">{penaltyLogs[0].penalties_applied}</p>
+                      </div>
+                      <div>
+                        <p className="text-blue-600">Total</p>
+                        <p className="font-medium">${penaltyLogs[0].total_penalty_amount?.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

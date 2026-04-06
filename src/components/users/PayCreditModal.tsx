@@ -35,16 +35,24 @@ interface CreditInvoiceOption {
   id: string;
   invoice_number: string;
   balance_due: number;
+  original_amount?: number;
+  penalty_amount?: number;
+  days_overdue?: number;
   due_date: string | null;
   invoice_date: string | null;
+  status?: string;
 }
 
 interface CreditInvoiceRow {
   id: string;
   invoice_number: string;
   balance_due: number | string | null;
+  original_amount?: number | string | null;
+  penalty_amount?: number | string | null;
+  days_overdue?: number | null;
   due_date: string | null;
   invoice_date: string | null;
+  status?: string;
 }
 
 interface AllocationRpcResult {
@@ -105,6 +113,9 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   useEffect(() => {
     if (paymentType === "full") {
       setAmount(Number(outstandingCredit.toFixed(2)));
+    } else if (paymentType === "partial") {
+      // Reset to 0 for partial payment - user will enter amount
+      setAmount(0);
     }
   }, [outstandingCredit, paymentType]);
 
@@ -113,16 +124,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
       return;
     }
 
-    if (!selectedInvoiceId && openInvoices.length > 0) {
-      setSelectedInvoiceId(openInvoices[0].id);
-      setAmount(Number(openInvoices[0].balance_due.toFixed(2)));
-      return;
-    }
-
-    if (selectedInvoice && amount > selectedInvoice.balance_due) {
-      setAmount(Number(selectedInvoice.balance_due.toFixed(2)));
-    }
-  }, [paymentType, selectedInvoiceId, selectedInvoice, openInvoices, amount]);
+    // No auto-selection needed - user will just enter amount
+  }, [paymentType]);
 
   const fetchProfile = useCallback(async () => {
     if (!userId) return;
@@ -146,42 +149,98 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   }, [userId]);
 
   const fetchOutstandingInvoices = useCallback(async () => {
-    if (!userId) return;
-
-    const { data, error } = await supabase
-      .from("credit_invoices")
-      .select("id, invoice_number, balance_due, due_date, invoice_date, status")
-      .eq("user_id", userId)
-      .in("status", ["pending", "partial", "overdue"])
-      .gt("balance_due", 0)
-      .order("due_date", { ascending: true })
-      .order("invoice_date", { ascending: true });
-
-    if (error) {
-      throw error;
+    if (!userId) {
+      console.log("No userId provided");
+      return;
     }
 
-    const invoices: CreditInvoiceOption[] = ((data || []) as CreditInvoiceRow[]).map((invoice) => ({
-      id: invoice.id,
-      invoice_number: invoice.invoice_number,
-      balance_due: Number(invoice.balance_due || 0),
-      due_date: invoice.due_date,
-      invoice_date: invoice.invoice_date,
-    }));
+    try {
+      console.log("=== Fetching Outstanding Invoices ===");
+      console.log("User ID:", userId);
+      console.log("Credit Used (prop):", creditUsed);
 
-    const totalOutstanding = Number(
-      invoices.reduce((sum, invoice) => sum + Number(invoice.balance_due || 0), 0).toFixed(2)
-    );
+      // Fetch profile to get credit_penalty
+      const { data: profileData, error: profileError } = await supabase
+        .from("profiles")
+        .select("credit_penalty, credit_used, email")
+        .eq("id", userId)
+        .single();
 
-    setOpenInvoices(invoices);
-    setOutstandingCredit(totalOutstanding);
-
-    if (paymentType === "partial") {
-      if (!invoices.some((inv) => inv.id === selectedInvoiceId)) {
-        setSelectedInvoiceId(invoices[0]?.id || "");
+      if (profileError) {
+        console.error("❌ Error fetching profile penalty:", profileError);
       }
+
+      const profilePenalty = Number(profileData?.credit_penalty || 0);
+      console.log("✅ Profile data:", {
+        email: profileData?.email,
+        credit_used: profileData?.credit_used,
+        credit_penalty: profileData?.credit_penalty,
+        profilePenalty: profilePenalty
+      });
+
+      const { data, error } = await supabase
+        .from("credit_invoices")
+        .select("id, invoice_number, balance_due, original_amount, penalty_amount, due_date, invoice_date, status, days_overdue")
+        .eq("user_id", userId)
+        .in("status", ["pending", "partial", "overdue"])
+        .gt("balance_due", 0)
+        .order("due_date", { ascending: true })
+        .order("invoice_date", { ascending: true });
+
+      if (error) {
+        console.error("❌ Error fetching invoices:", error);
+        throw error;
+      }
+
+      const invoices: CreditInvoiceOption[] = ((data || []) as CreditInvoiceRow[]).map((invoice) => ({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        balance_due: Number(invoice.balance_due || 0),
+        original_amount: Number(invoice.original_amount || 0),
+        penalty_amount: Number(invoice.penalty_amount || 0),
+        days_overdue: invoice.days_overdue || 0,
+        due_date: invoice.due_date,
+        invoice_date: invoice.invoice_date,
+        status: invoice.status,
+      }));
+
+      console.log("✅ Invoices fetched:", invoices.length);
+
+      // Add profile penalty as a separate "invoice" entry if it exists
+      // Add it at the BEGINNING so it's visible first
+      if (profilePenalty > 0) {
+        const penaltyEntry = {
+          id: 'profile-penalty',
+          invoice_number: 'Late Payment Penalties',
+          balance_due: profilePenalty,
+          original_amount: 0,
+          penalty_amount: profilePenalty,
+          days_overdue: 0,
+          due_date: null,
+          invoice_date: null,
+          status: 'overdue' as const,
+        };
+        invoices.unshift(penaltyEntry);  // Add at beginning
+        console.log("✅ Added penalty entry to invoices (at beginning):", penaltyEntry);
+      } else {
+        console.log("⚠️ No penalty to add (profilePenalty = 0)");
+      }
+
+      console.log("✅ Total invoices (including penalty):", invoices.length);
+      console.log("📋 Invoice list:", invoices.map(inv => `${inv.invoice_number}: $${inv.balance_due.toFixed(2)}`).join(", "));
+
+      // Use creditUsed prop which includes profile penalty, not just invoice totals
+      // This ensures the modal shows the correct total including penalties from profiles table
+      const totalOutstanding = Number(creditUsed.toFixed(2));
+
+      setOpenInvoices(invoices);
+      setOutstandingCredit(totalOutstanding);
+
+      // No auto-selection needed - user will enter amount directly
+    } catch (error) {
+      console.error("❌ Error in fetchOutstandingInvoices:", error);
     }
-  }, [paymentType, selectedInvoiceId, userId]);
+  }, [userId, creditUsed]);
 
   useEffect(() => {
     if (!userId) return;
@@ -229,175 +288,174 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   };
 
   const handlePayment = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!userId) {
-      toast({
-        title: "Payment Failed",
-        description: "User is required to process credit payment.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    setIsPaying(true);
-
-    try {
-      const errors: Record<string, string | null> = {};
-      let hasErrors = false;
-
-      const amountToPay = Number((paymentType === "full" ? outstandingCredit : amount).toFixed(2));
-
-      if (paymentType === "partial") {
-        if (!selectedInvoice) {
-          errors.selectedInvoice = "Please select an invoice for partial payment";
-        } else if (amountToPay <= 0 || amountToPay > selectedInvoice.balance_due) {
-          errors.amount = `Amount must be between $0.01 and $${selectedInvoice.balance_due.toFixed(2)}`;
-        }
-      } else if (amountToPay <= 0) {
-        errors.amount = "No outstanding credit to pay.";
-      }
-
-      if (paymentMethod === "card") {
-        if (!cardNumber.trim()) {
-          errors.cardNumber = "Card number is required";
-        } else if (!validateCardNumber(cardNumber)) {
-          errors.cardNumber = "Invalid card number";
-        }
-
-        const rawExpiry = expiry.replace(/\//g, "");
-        if (!rawExpiry.trim()) {
-          errors.expiry = "Expiry date is required";
-        } else if (!validateExpiry(rawExpiry)) {
-          errors.expiry = "Invalid or expired date (MM/YY)";
-        }
-
-        if (!cvv.trim()) {
-          errors.cvv = "CVV is required";
-        } else if (!/^\d{3,4}$/.test(cvv)) {
-          errors.cvv = "CVV must be 3 or 4 digits";
-        }
-
-        errors.cardHolderName = validateRequired(cardHolderName) ? "Cardholder name is required" : null;
-        errors.address = validateRequired(address) ? "Address is required" : null;
-        errors.city = validateRequired(city) ? "City is required" : null;
-        errors.state = validateRequired(state) ? "State is required" : null;
-        errors.zip = validateRequired(zip) ? "ZIP code is required" : null;
-        errors.country = validateRequired(country) ? "Country is required" : null;
-      } else if (paymentMethod === "manual") {
-        errors.notes = validateRequired(notes) ? "Notes are required" : null;
-      }
-
-      for (const key in errors) {
-        if (errors[key]) hasErrors = true;
-      }
-
-      if (hasErrors) {
-        const cleanErrors: Record<string, string> = {};
-        for (const key in errors) {
-          if (errors[key]) cleanErrors[key] = errors[key]!;
-        }
-        setFieldErrors(cleanErrors);
-
+      e.preventDefault();
+      if (!userId) {
         toast({
-          title: "Validation Error",
-          description: Object.values(cleanErrors)[0] || "Please fill all required fields correctly.",
+          title: "Payment Failed",
+          description: "User is required to process credit payment.",
           variant: "destructive",
         });
-        setIsPaying(false);
         return;
       }
 
-      let transactionId: string | null = null;
+      setIsPaying(true);
 
-      if (paymentMethod === "card") {
-        const rawExpiry = expiry.replace(/\//g, "");
-        const nameParts = (cardHolderName || "Customer").split(" ");
-        const firstName = nameParts[0] || "Customer";
-        const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer";
+      try {
+        const errors: Record<string, string | null> = {};
+        let hasErrors = false;
 
-        const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
-          "process-payment",
-          {
-            body: {
-              payment: {
-                type: "card",
-                cardNumber: cardNumber.replace(/\s/g, ""),
-                expirationDate: rawExpiry,
-                cvv,
-                cardholderName: cardHolderName,
-              },
-              amount: amountToPay,
-              invoiceNumber: `CREDIT-${Date.now()}`,
-              billing: {
-                firstName,
-                lastName,
-                address,
-                city,
-                state,
-                zip,
-                country,
-              },
-            },
+        const amountToPay = Number((paymentType === "full" ? outstandingCredit : amount).toFixed(2));
+
+        if (paymentType === "partial") {
+          if (amountToPay <= 0 || amountToPay > outstandingCredit) {
+            errors.amount = `Amount must be between $0.01 and $${outstandingCredit.toFixed(2)}`;
           }
-        );
+        } else if (amountToPay <= 0) {
+          errors.amount = "No outstanding credit to pay.";
+        }
 
-        if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
-        if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
+        if (paymentMethod === "card") {
+          if (!cardNumber.trim()) {
+            errors.cardNumber = "Card number is required";
+          } else if (!validateCardNumber(cardNumber)) {
+            errors.cardNumber = "Invalid card number";
+          }
 
-        transactionId = paymentResponse.transactionId;
+          const rawExpiry = expiry.replace(/\//g, "");
+          if (!rawExpiry.trim()) {
+            errors.expiry = "Expiry date is required";
+          } else if (!validateExpiry(rawExpiry)) {
+            errors.expiry = "Invalid or expired date (MM/YY)";
+          }
+
+          if (!cvv.trim()) {
+            errors.cvv = "CVV is required";
+          } else if (!/^\d{3,4}$/.test(cvv)) {
+            errors.cvv = "CVV must be 3 or 4 digits";
+          }
+
+          errors.cardHolderName = validateRequired(cardHolderName) ? "Cardholder name is required" : null;
+          errors.address = validateRequired(address) ? "Address is required" : null;
+          errors.city = validateRequired(city) ? "City is required" : null;
+          errors.state = validateRequired(state) ? "State is required" : null;
+          errors.zip = validateRequired(zip) ? "ZIP code is required" : null;
+          errors.country = validateRequired(country) ? "Country is required" : null;
+        } else if (paymentMethod === "manual") {
+          errors.notes = validateRequired(notes) ? "Notes are required" : null;
+        }
+
+        for (const key in errors) {
+          if (errors[key]) hasErrors = true;
+        }
+
+        if (hasErrors) {
+          const cleanErrors: Record<string, string> = {};
+          for (const key in errors) {
+            if (errors[key]) cleanErrors[key] = errors[key]!;
+          }
+          setFieldErrors(cleanErrors);
+
+          toast({
+            title: "Validation Error",
+            description: Object.values(cleanErrors)[0] || "Please fill all required fields correctly.",
+            variant: "destructive",
+          });
+          setIsPaying(false);
+          return;
+        }
+
+        let transactionId: string | null = null;
+
+        if (paymentMethod === "card") {
+          const rawExpiry = expiry.replace(/\//g, "");
+          const nameParts = (cardHolderName || "Customer").split(" ");
+          const firstName = nameParts[0] || "Customer";
+          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer";
+
+          const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
+            "process-payment",
+            {
+              body: {
+                payment: {
+                  type: "card",
+                  cardNumber: cardNumber.replace(/\s/g, ""),
+                  expirationDate: rawExpiry,
+                  cvv,
+                  cardholderName: cardHolderName,
+                },
+                amount: amountToPay,
+                invoiceNumber: `CREDIT-${Date.now()}`,
+                billing: {
+                  firstName,
+                  lastName,
+                  address,
+                  city,
+                  state,
+                  zip,
+                  country,
+                },
+              },
+            }
+          );
+
+          if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
+          if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
+
+          transactionId = paymentResponse.transactionId;
+        }
+
+        const rpcClient = supabase as unknown as {
+          rpc: (
+            fn: string,
+            params: Record<string, unknown>
+          ) => Promise<{ data: AllocationRpcResult | null; error: { message?: string } | null }>;
+        };
+
+        // For partial payment, pass null to allow automatic allocation (penalty first, then invoices)
+        const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
+          p_user_id: userId,
+          p_amount: amountToPay,
+          p_payment_method: paymentMethod === "card" ? "card" : "manual",
+          p_transaction_id: transactionId || `MANUAL-${Date.now()}`,
+          p_payment_mode: paymentType,
+          p_target_invoice_id: null, // NULL = automatic allocation (penalty first)
+          p_notes: paymentMethod === "manual" ? notes : null,
+        });
+
+        if (paymentError) throw paymentError;
+        if (!paymentResult?.success) {
+          throw new Error(paymentResult?.message || paymentResult?.error || "Payment processing failed");
+        }
+
+        const appliedAmount = Number(paymentResult.applied_amount || amountToPay);
+        const allocationCount = Number(paymentResult.allocation_count || 0);
+        const remainingOutstanding = Number(paymentResult.remaining_outstanding || 0);
+
+        toast({
+          title: "Payment Successful",
+          description:
+            allocationCount > 1
+              ? `$${appliedAmount.toFixed(2)} allocated to ${allocationCount} invoices. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`
+              : `$${appliedAmount.toFixed(2)} payment applied successfully. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`,
+        });
+
+        await fetchOutstandingInvoices();
+        onPaymentSuccess();
+        setIsOpen(false);
+        handleCancel();
+      } catch (err: unknown) {
+        console.error("Payment Error:", err);
+        toast({
+          title: "Payment Failed",
+          description: getErrorMessage(err),
+          variant: "destructive",
+        });
+      } finally {
+        setIsPaying(false);
       }
+    };
 
-      const rpcClient = supabase as unknown as {
-        rpc: (
-          fn: string,
-          params: Record<string, unknown>
-        ) => Promise<{ data: AllocationRpcResult | null; error: { message?: string } | null }>;
-      };
-
-      const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
-        p_user_id: userId,
-        p_amount: amountToPay,
-        p_payment_method: paymentMethod === "card" ? "card" : "manual",
-        p_transaction_id: transactionId || `MANUAL-${Date.now()}`,
-        p_payment_mode: paymentType,
-        p_target_invoice_id: paymentType === "partial" ? selectedInvoice?.id || null : null,
-        p_notes: paymentMethod === "manual" ? notes : null,
-      });
-
-      if (paymentError) throw paymentError;
-      if (!paymentResult?.success) {
-        throw new Error(paymentResult?.message || paymentResult?.error || "Payment processing failed");
-      }
-
-      const appliedAmount = Number(paymentResult.applied_amount || amountToPay);
-      const allocationCount = Number(paymentResult.allocation_count || 0);
-      const remainingOutstanding = Number(paymentResult.remaining_outstanding || 0);
-
-      toast({
-        title: "Payment Successful",
-        description:
-          allocationCount > 1
-            ? `$${appliedAmount.toFixed(2)} allocated to ${allocationCount} invoices. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`
-            : `$${appliedAmount.toFixed(2)} payment applied successfully. Remaining outstanding: $${remainingOutstanding.toFixed(2)}`,
-      });
-
-      await fetchOutstandingInvoices();
-      onPaymentSuccess();
-      setIsOpen(false);
-      handleCancel();
-    } catch (err: unknown) {
-      console.error("Payment Error:", err);
-      toast({
-        title: "Payment Failed",
-        description: getErrorMessage(err),
-        variant: "destructive",
-      });
-    } finally {
-      setIsPaying(false);
-    }
-  };
-
-  const amountMax = paymentType === "partial" ? selectedInvoice?.balance_due || 0 : outstandingCredit;
+  const amountMax = outstandingCredit;
 
   return (
     <Dialog
@@ -423,7 +481,39 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           <DialogTitle>Pay Credit</DialogTitle>
         </DialogHeader>
         <form className="space-y-4 mt-2" onSubmit={handlePayment}>
-          <p>Outstanding Credit: ${outstandingCredit.toFixed(2)}</p>
+          <div className="p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-900 mb-2">Outstanding Credit: <span className="font-bold text-lg">${outstandingCredit.toFixed(2)}</span></p>
+            {openInvoices.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs text-blue-700 font-semibold">Open Invoices:</p>
+                {openInvoices.map((invoice) => {
+                  const isPenaltyEntry = invoice.id === 'profile-penalty';
+                  return (
+                    <div key={invoice.id} className={`text-xs p-2 rounded border ${isPenaltyEntry ? 'bg-red-50 border-red-200' : 'bg-white border-blue-200'}`}>
+                      <div className="flex justify-between">
+                        <span className={`font-medium ${isPenaltyEntry ? 'text-red-900' : ''}`}>{invoice.invoice_number}</span>
+                        <span className={`font-bold ${isPenaltyEntry ? 'text-red-700' : ''}`}>${invoice.balance_due.toFixed(2)}</span>
+                      </div>
+                      {!isPenaltyEntry && invoice.penalty_amount && invoice.penalty_amount > 0 && (
+                        <div className="flex justify-between text-red-600 mt-1">
+                          <span>Penalty:</span>
+                          <span>+${invoice.penalty_amount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {isPenaltyEntry && (
+                        <div className="text-red-600 mt-1 text-xs">
+                          <span>⚠️ Accumulated late payment fees</span>
+                        </div>
+                      )}
+                      {!isPenaltyEntry && invoice.days_overdue && invoice.days_overdue > 0 && (
+                        <span className="text-red-600">({invoice.days_overdue} days overdue)</span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           <Select value={paymentType} onValueChange={(val) => setPaymentType(val as "full" | "partial")}> 
             <SelectTrigger>
@@ -435,42 +525,30 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             </SelectContent>
           </Select>
 
-          {paymentType === "partial" && (
-            <div className="space-y-2">
-              <Select value={selectedInvoiceId} onValueChange={setSelectedInvoiceId}>
-                <SelectTrigger className={fieldErrors.selectedInvoice ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select invoice to pay" />
-                </SelectTrigger>
-                <SelectContent>
-                  {openInvoices.map((invoice) => (
-                    <SelectItem key={invoice.id} value={invoice.id}>
-                      {invoice.invoice_number} - ${invoice.balance_due.toFixed(2)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {fieldErrors.selectedInvoice && <p className="text-xs text-red-500">{fieldErrors.selectedInvoice}</p>}
-              {selectedInvoice && (
-                <p className="text-xs text-gray-500">
-                  Invoice balance due: ${selectedInvoice.balance_due.toFixed(2)}
-                </p>
-              )}
-            </div>
-          )}
-
           <div>
             <Input
               type="number"
               step="0.01"
               value={amount}
-              onChange={(e) => setAmount(Number(e.target.value))}
+              onChange={(e) => {
+                const inputValue = Number(e.target.value);
+                // Prevent entering amount greater than outstanding credit
+                if (inputValue <= outstandingCredit) {
+                  setAmount(inputValue);
+                } else {
+                  setAmount(outstandingCredit);
+                }
+              }}
               min={0.01}
               max={amountMax}
               placeholder={paymentType === "full" ? "Auto-calculated" : "Enter amount to pay"}
-              disabled={paymentType === "full" || (paymentType === "partial" && !selectedInvoice)}
+              disabled={paymentType === "full"}
               className={fieldErrors.amount ? "border-red-500" : ""}
             />
             {fieldErrors.amount && <p className="text-xs text-red-500 mt-1">{fieldErrors.amount}</p>}
+            {paymentType === "partial" && (
+              <p className="text-xs text-gray-500 mt-1">Maximum: ${outstandingCredit.toFixed(2)}</p>
+            )}
           </div>
 
           <div className="flex gap-4">
@@ -552,7 +630,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             </DialogClose>
             <Button
               type="submit"
-              disabled={isPaying || outstandingCredit <= 0 || (paymentType === "partial" && !selectedInvoice)}
+              disabled={isPaying || outstandingCredit <= 0}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
               {isPaying ? "Processing..." : "Pay"}

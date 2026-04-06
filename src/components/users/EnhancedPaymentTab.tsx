@@ -44,6 +44,7 @@ interface CreditSettings {
   credit_limit: number;
   available_credit: number;
   credit_used: number;
+  credit_penalty: number;
   payment_terms: string;
   credit_days: number;
   late_payment_fee_percentage: number;
@@ -51,6 +52,8 @@ interface CreditSettings {
   auto_statement: boolean;
   statement_frequency: string;
   last_statement_date: string | null;
+  credit_usage_month: number | null;
+  last_penalty_month: number | null;
 }
 
 interface EnhancedPaymentTabProps {
@@ -113,13 +116,16 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           credit_limit,
           available_credit,
           credit_used,
+          credit_penalty,
           payment_terms,
           credit_days,
           late_payment_fee_percentage,
           credit_status,
           auto_statement,
           statement_frequency,
-          last_statement_date
+          last_statement_date,
+          credit_usage_month,
+          last_penalty_month
         `
         )
         .eq("id", userId)
@@ -480,7 +486,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
     };
 
     const buildFallbackHistory = async (): Promise<Transaction[]> => {
-      const [invoiceRes, paymentRes] = await Promise.all([
+      const [invoiceRes, paymentRes, penaltyRes] = await Promise.all([
         supabase
           .from("credit_invoices")
           .select("id, invoice_number, invoice_date, original_amount, total_amount, status, created_at")
@@ -489,6 +495,10 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           .from("credit_payments")
           .select("id, amount, payment_method, transaction_id, created_at")
           .eq("user_id", userId),
+        supabase
+          .from("simple_penalty_logs")
+          .select("id, run_date, run_month, details, created_at")
+          .order("run_date", { ascending: false }),
       ]);
 
       if (invoiceRes.error) {
@@ -497,9 +507,13 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       if (paymentRes.error) {
         console.error("Credit history fallback payment error:", paymentRes.error);
       }
+      if (penaltyRes.error) {
+        console.error("Credit history penalty error:", penaltyRes.error);
+      }
 
       const invoices = (invoiceRes.data || []) as FallbackInvoice[];
       const payments = (paymentRes.data || []) as FallbackPayment[];
+      const penaltyLogs = penaltyRes.data || [];
 
       const invoiceTransactions: Transaction[] = invoices.map((invoice) => ({
         id: `invoice-${invoice.id}`,
@@ -524,7 +538,32 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         transectionId: payment.transaction_id || undefined,
       }));
 
-      const combined = [...invoiceTransactions, ...paymentTransactions];
+      // Extract penalty entries for this specific user from penalty logs
+      const penaltyTransactions: Transaction[] = [];
+      for (const log of penaltyLogs) {
+        if (log.details && Array.isArray(log.details)) {
+          const userPenalty = log.details.find((detail: any) => detail.user_id === userId);
+          if (userPenalty && userPenalty.new_penalty > 0) {
+            const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = monthNames[log.run_month] || log.run_month;
+            
+            penaltyTransactions.push({
+              id: `penalty-${log.id}-${userId}`,
+              transaction_date: log.run_date,
+              created_at: log.created_at,
+              transaction_type: "debit",
+              debit_amount: Number(userPenalty.new_penalty),
+              credit_amount: 0,
+              balance: 0,
+              description: `Late payment penalty - ${monthName} (${userPenalty.penalty_rate || 3}% fee)`,
+              admin_pay_notes: `Applied on outstanding balance of $${Number(userPenalty.credit_used || 0).toFixed(2)}`,
+            });
+          }
+        }
+      }
+
+      const combined = [...invoiceTransactions, ...paymentTransactions, ...penaltyTransactions];
       if (combined.length === 0) return [];
 
       // Compute a best-effort running balance so history remains readable even if
@@ -566,9 +605,44 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           return;
         }
 
+        // Always fetch penalty logs to include in history
+        const { data: penaltyData } = await supabase
+          .from("simple_penalty_logs")
+          .select("id, run_date, run_month, details, created_at")
+          .order("run_date", { ascending: false });
+
+        const penaltyTransactions: Transaction[] = [];
+        if (penaltyData) {
+          for (const log of penaltyData) {
+            if (log.details && Array.isArray(log.details)) {
+              const userPenalty = log.details.find((detail: any) => detail.user_id === userId);
+              if (userPenalty && userPenalty.new_penalty > 0) {
+                const monthNames = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                                   'July', 'August', 'September', 'October', 'November', 'December'];
+                const monthName = monthNames[log.run_month] || log.run_month;
+                
+                penaltyTransactions.push({
+                  id: `penalty-${log.id}-${userId}`,
+                  transaction_date: log.run_date,
+                  created_at: log.created_at,
+                  transaction_type: "debit",
+                  debit_amount: Number(userPenalty.new_penalty),
+                  credit_amount: 0,
+                  balance: 0,
+                  description: `Late payment penalty - ${monthName} (${userPenalty.penalty_rate || 3}% fee)`,
+                  admin_pay_notes: `Applied on outstanding balance of $${Number(userPenalty.credit_used || 0).toFixed(2)}`,
+                });
+              }
+            }
+          }
+        }
+
         if (data && data.length > 0) {
+          // Combine account transactions with penalty transactions
+          const allTransactions = [...data, ...penaltyTransactions];
+          
           // Ensure descending order (newest first)
-          const sortedData = data.sort((a, b) => {
+          const sortedData = allTransactions.sort((a, b) => {
             const dateA = new Date(a.transaction_date).getTime();
             const dateB = new Date(b.transaction_date).getTime();
             return dateB - dateA;
@@ -577,7 +651,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           return;
         }
 
-        // If transactional ledger rows are empty, still show invoice/payment history.
+        // If transactional ledger rows are empty, still show invoice/payment history with penalties
         const fallback = await buildFallbackHistory();
         setTransactions(fallback);
       } catch (err) {
@@ -754,7 +828,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             <div className={cn("gap-4 mb-4", 
               isMobile ? "space-y-4" : 
               isTablet ? "grid grid-cols-2 gap-3" : 
-              "grid grid-cols-3 gap-6 mb-6"
+              "grid grid-cols-4 gap-6 mb-6"
             )}>
               <div className={cn(isCompact && "text-center p-3 bg-gray-50 rounded-lg")}>
                 <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
@@ -781,16 +855,55 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                 <p className={cn("font-bold text-orange-600", isCompact ? "text-lg" : "text-2xl")}>
                   {formatCurrency(creditSettings.credit_used)}
                 </p>
-                {/* Pay Button - Full width on mobile */}
-                <div className={cn("mt-2", isCompact && "w-full")}>
+              </div>
+              <div className={cn(isCompact && "text-center p-3 bg-red-50 rounded-lg")}>
+                <p className={cn("text-muted-foreground mb-1", isCompact ? "text-xs" : "text-sm")}>
+                  Late Penalties
+                </p>
+                <p className={cn("font-bold text-red-600", isCompact ? "text-lg" : "text-2xl")}>
+                  {formatCurrency(creditSettings.credit_penalty || 0)}
+                </p>
+                {creditSettings.credit_penalty > 0 && (
+                  <p className={cn("text-red-500 mt-1", isCompact ? "text-xs" : "text-xs")}>
+                    ⚠️ Overdue
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Total Outstanding (if penalties exist) */}
+            {creditSettings.credit_penalty > 0 && (
+              <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-sm text-red-700 font-semibold">Total Outstanding</p>
+                    <p className="text-xs text-red-600">Credit Used + Penalties</p>
+                  </div>
+                  <p className="text-2xl font-bold text-red-700">
+                    {formatCurrency(creditSettings.credit_used + (creditSettings.credit_penalty || 0))}
+                  </p>
+                </div>
+                {/* Pay Button for total outstanding */}
+                <div className="mt-3">
                   <PayCreditModal
-                    creditUsed={creditSettings.credit_used}
+                    creditUsed={creditSettings.credit_used + (creditSettings.credit_penalty || 0)}
                     onPaymentSuccess={loadCreditSettings} 
                     userId={userId}
                   />
                 </div>
               </div>
-            </div>
+            )}
+
+            {/* Pay Button - Only show if no penalties (otherwise shown above) */}
+            {(!creditSettings.credit_penalty || creditSettings.credit_penalty === 0) && creditSettings.credit_used > 0 && (
+              <div className={cn("mb-4", isCompact && "w-full")}>
+                <PayCreditModal
+                  creditUsed={creditSettings.credit_used}
+                  onPaymentSuccess={loadCreditSettings} 
+                  userId={userId}
+                />
+              </div>
+            )}
 
             {/* Credit Utilization Bar */}
             <div className={cn("mb-4", !isCompact && "mb-6")}>
@@ -849,6 +962,34 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                 <p className={cn("font-semibold", isCompact ? "text-sm" : "text-base")}>USD</p>
               </div>
             </div>
+
+            {/* Payment Warning - Simple Month-Based */}
+            {creditSettings.credit_usage_month && creditSettings.credit_used > 0 && (
+              <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="font-semibold text-yellow-900 mb-1">Payment Notice</p>
+                    <p className="text-sm text-yellow-800">
+                      You have an outstanding balance of <span className="font-bold">${creditSettings.credit_used.toFixed(2)}</span>
+                      {creditSettings.credit_penalty > 0 && (
+                        <span> plus <span className="font-bold text-red-600">${creditSettings.credit_penalty.toFixed(2)}</span> in late fees</span>
+                      )}
+                    </p>
+                    {creditSettings.credit_penalty > 0 && (
+                      <p className="text-sm text-red-600 mt-2 font-semibold">
+                        ⚠️ Late payment fees are applied monthly. Pay now to avoid additional charges on the 1st of next month.
+                      </p>
+                    )}
+                    {creditSettings.last_penalty_month && (
+                      <p className="text-xs text-gray-600 mt-2">
+                        Last penalty applied: {new Date(2026, creditSettings.last_penalty_month - 1).toLocaleString('default', { month: 'long' })}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -926,48 +1067,61 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             </div>
           ) : (
             <div className={cn("space-y-2", isCompact && "space-y-1")}>
-              {transactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className={cn("flex justify-between items-center border rounded-md hover:bg-gray-50", 
-                    isCompact ? "p-2 flex-col items-start gap-2" : "p-2"
-                  )}
-                >
-                  <div className={cn("flex flex-col", isCompact && "w-full")}>
-                    <span className={cn("font-medium", isCompact ? "text-sm" : "text-sm")}>{tx.description}</span>
-                    <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
-                      {new Date(tx.transaction_date).toLocaleString()}
-                    </span>
-                    {/* Display transactionId or admin notes */}
-                    {tx.transectionId ? (
-                      <span className={cn("text-blue-600", isCompact ? "text-xs" : "text-xs")}>
-                        Transaction ID: {tx.transectionId}
-                      </span>
-                    ) : tx.admin_pay_notes ? (
-                      <span className={cn("text-purple-600", isCompact ? "text-xs" : "text-xs")}>
-                        Notes: {tx.admin_pay_notes}
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className={cn("flex flex-col text-right", isCompact && "w-full flex-row justify-between items-center")}>
-                    <div className={cn(isCompact && "flex flex-col")}>
-                      {tx.debit_amount > 0 && (
-                        <span className={cn("text-red-600", isCompact ? "text-sm" : "text-sm")}>
-                          -${tx.debit_amount.toFixed(2)}
+              {transactions.map((tx) => {
+                const isPenalty = tx.description.includes('Late payment penalty');
+                return (
+                  <div
+                    key={tx.id}
+                    className={cn(
+                      "flex justify-between items-center border rounded-md hover:bg-gray-50",
+                      isCompact ? "p-2 flex-col items-start gap-2" : "p-2",
+                      isPenalty && "bg-red-50 border-red-200"
+                    )}
+                  >
+                    <div className={cn("flex flex-col", isCompact && "w-full")}>
+                      <div className="flex items-center gap-2">
+                        {isPenalty && (
+                          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        )}
+                        <span className={cn("font-medium", isCompact ? "text-sm" : "text-sm", isPenalty && "text-red-900")}>
+                          {tx.description}
                         </span>
-                      )}
-                      {tx.credit_amount > 0 && (
-                        <span className={cn("text-green-600", isCompact ? "text-sm" : "text-sm")}>
-                          +${tx.credit_amount.toFixed(2)}
+                      </div>
+                      <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
+                        {new Date(tx.transaction_date).toLocaleString()}
+                      </span>
+                      {/* Display transactionId or admin notes */}
+                      {tx.transectionId ? (
+                        <span className={cn("text-blue-600", isCompact ? "text-xs" : "text-xs")}>
+                          Transaction ID: {tx.transectionId}
                         </span>
-                      )}
+                      ) : tx.admin_pay_notes ? (
+                        <span className={cn(isPenalty ? "text-red-600" : "text-purple-600", isCompact ? "text-xs" : "text-xs")}>
+                          {isPenalty ? '⚠️ ' : ''}
+                          {tx.admin_pay_notes}
+                        </span>
+                      ) : null}
                     </div>
-                    <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
-                      Balance: ${tx.balance?.toFixed(2) || '0.00'}
-                    </span>
+                    <div className={cn("flex flex-col text-right", isCompact && "w-full flex-row justify-between items-center")}>
+                      <div className={cn(isCompact && "flex flex-col")}>
+                        {tx.debit_amount > 0 && (
+                          <span className={cn(isPenalty ? "text-red-700 font-bold" : "text-red-600", isCompact ? "text-sm" : "text-sm")}>
+                            -{isPenalty && '⚠️ '}${tx.debit_amount.toFixed(2)}
+                          </span>
+                        )}
+                        {tx.credit_amount > 0 && (
+                          <span className={cn("text-green-600", isCompact ? "text-sm" : "text-sm")}>
+                            +${tx.credit_amount.toFixed(2)}
+                          </span>
+                        )}
+                      </div>
+                      <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
+                        Balance: ${tx.balance?.toFixed(2) || '0.00'}
+                      </span>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
