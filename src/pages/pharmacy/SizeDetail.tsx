@@ -176,21 +176,35 @@ export default function SizeDetail() {
         })
       }
 
-      // Load product offers
-      if (productId) {
-        getProductEffectivePrice(productId).then(offerData => {
-          if (offerData && offerData.hasOffer) {
-            console.log("SizeDetail - Product has offer:", offerData);
-            setProductOffer({
-              effectivePrice: offerData.effectivePrice,
-              discountPercent: offerData.discountPercent,
-              offerBadge: offerData.offerBadge,
-              hasOffer: offerData.hasOffer
-            });
-          }
-        }).catch(err => {
-          console.error("Error loading product offer:", err);
-        });
+      // Load product offers - BUT skip if size has group pricing
+      if (productId && selectedSize) {
+        const sizeWithGroupPricing = applyGroupPricing(selectedSize);
+        const hasGroupPricing = sizeWithGroupPricing.originalPrice > 0;
+        
+        console.log("=== SIZE DETAIL GROUP PRICING CHECK ===");
+        console.log("Size ID:", sizeId);
+        console.log("Original Price:", sizeWithGroupPricing.originalPrice);
+        console.log("Current Price:", sizeWithGroupPricing.price);
+        console.log("Has Group Pricing:", hasGroupPricing);
+        
+        if (hasGroupPricing) {
+          console.log("⚠️ Skipping offers - size has group pricing applied");
+          setProductOffer(null);
+        } else {
+          getProductEffectivePrice(productId).then(offerData => {
+            if (offerData && offerData.hasOffer) {
+              console.log("SizeDetail - Product has offer:", offerData);
+              setProductOffer({
+                effectivePrice: offerData.effectivePrice,
+                discountPercent: offerData.discountPercent,
+                offerBadge: offerData.offerBadge,
+                hasOffer: offerData.hasOffer
+              });
+            }
+          }).catch(err => {
+            console.error("Error loading product offer:", err);
+          });
+        }
       }
 
       setLoading(false)
@@ -327,10 +341,28 @@ export default function SizeDetail() {
   const groupDiscountPercent = hasGroupDiscount ? Math.round((1 - casePrice / originalCasePrice) * 100) : 0
   const hasOfferDiscount = Boolean(productOffer?.hasOffer && productOffer.discountPercent > 0)
   
-  // Determine which discount to show (group pricing takes precedence over offers)
-  const effectiveCasePrice = casePrice // Group pricing already applied to size.price
-  const displayOriginalPrice = hasGroupDiscount ? originalCasePrice : (hasOfferDiscount ? casePrice : 0)
-  const displayDiscountPercent = hasGroupDiscount ? groupDiscountPercent : (hasOfferDiscount ? productOffer.discountPercent : 0)
+  // Calculate prices based on discount type
+  let effectiveCasePrice = casePrice
+  let displayOriginalPrice = 0
+  let displayDiscountPercent = 0
+  
+  if (hasGroupDiscount) {
+    // Group pricing: already applied to size.price
+    effectiveCasePrice = casePrice
+    displayOriginalPrice = 0 // Don't show strikethrough for group pricing
+    displayDiscountPercent = 0 // Don't show discount percent for group pricing
+  } else if (hasOfferDiscount) {
+    // Offer discount: calculate from current price
+    displayOriginalPrice = casePrice
+    displayDiscountPercent = productOffer.discountPercent
+    effectiveCasePrice = casePrice * (1 - productOffer.discountPercent / 100)
+  } else {
+    // No discount
+    effectiveCasePrice = casePrice
+    displayOriginalPrice = 0
+    displayDiscountPercent = 0
+  }
+  
   const hasDiscount = hasGroupDiscount || hasOfferDiscount
   
   const unitsPerCase = size.quantity_per_case || 0
@@ -596,6 +628,13 @@ export default function SizeDetail() {
                           const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
                           const sRewardPoints = Math.floor((Number(s.price) || 0) * rewardsConfig.pointsPerDollar)
                           const sHasGroupDiscount = s.originalPrice > 0 && s.originalPrice > s.price
+                          
+                          // Calculate offer discount for this size (if no group pricing)
+                          const sHasOfferDiscount = !sHasGroupDiscount && hasOfferDiscount
+                          const sOriginalPrice = sHasOfferDiscount ? s.price : 0
+                          const sEffectivePrice = sHasOfferDiscount ? s.price * (1 - productOffer.discountPercent / 100) : s.price
+                          const sDiscountPercent = sHasOfferDiscount ? productOffer.discountPercent : 0
+                          
                           return (
                             <button
                               key={s.id}
@@ -613,17 +652,19 @@ export default function SizeDetail() {
                                   <Gift className="w-3 h-3" />
                                   Earn {sRewardPoints} points
                                 </p>
-                                {sHasGroupDiscount && (
-                                  <Badge className="mt-1 bg-green-100 text-green-700 text-xs">
-                                    Group Price
+                                {/* Show offer badge if applicable */}
+                                {sHasOfferDiscount && productOffer?.offerBadge && (
+                                  <Badge className="mt-1 bg-red-500 text-white text-xs">
+                                    🎁 {sDiscountPercent}% OFF
                                   </Badge>
                                 )}
                               </div>
                               <div className="text-right">
-                                {sHasGroupDiscount && (
-                                  <p className="text-xs text-gray-400 line-through">${s.originalPrice?.toFixed(2)}</p>
+                                {/* Show strikethrough for offers only */}
+                                {sHasOfferDiscount && sOriginalPrice > 0 && (
+                                  <p className="text-xs text-gray-400 line-through">${sOriginalPrice.toFixed(2)}</p>
                                 )}
-                                <p className={`font-bold ${sHasGroupDiscount ? 'text-green-600' : 'text-gray-900'}`}>${s.price?.toFixed(2)}</p>
+                                <p className={`font-bold ${sHasOfferDiscount ? 'text-green-600' : 'text-gray-900'}`}>${sEffectivePrice.toFixed(2)}</p>
                                 <p className="text-xs text-gray-500">/ case</p>
                               </div>
                             </button>
@@ -694,15 +735,6 @@ export default function SizeDetail() {
             {/* Price Card */}
             <Card className="border-blue-200 bg-gradient-to-r from-blue-50 to-blue-50">
               <CardContent className="p-4">
-                {/* Show group pricing badge if applicable */}
-                {hasGroupDiscount && (
-                  <div className="mb-2">
-                    <Badge className="bg-green-600 text-white text-sm font-bold">
-                      🎯 Group Pricing - {groupDiscountPercent}% OFF
-                    </Badge>
-                  </div>
-                )}
-                
                 {/* Show offer badge if available and no group discount */}
                 {!hasGroupDiscount && productOffer?.hasOffer && productOffer.offerBadge && (
                   <div className="mb-2">
@@ -713,22 +745,21 @@ export default function SizeDetail() {
                 )}
                 
                 <div className="flex items-baseline gap-2">
-                  {/* Show original price crossed out if there's a discount */}
-                  {hasDiscount && displayOriginalPrice > 0 && (
+                  {/* Show original price crossed out ONLY for offers (NOT for group pricing) */}
+                  {!hasGroupDiscount && hasOfferDiscount && displayOriginalPrice > 0 && (
                     <span className="text-xl text-gray-400 line-through">${displayOriginalPrice.toFixed(2)}</span>
                   )}
                   {/* Show discounted or regular price */}
-                  <span className={`text-3xl font-bold ${hasDiscount ? 'text-green-600' : 'text-gray-900'}`}>
+                  <span className={`text-3xl font-bold ${!hasGroupDiscount && hasOfferDiscount ? 'text-green-600' : 'text-gray-900'}`}>
                     ${effectiveCasePrice.toFixed(2)}
                   </span>
                   <span className="text-gray-500">/ case</span>
                 </div>
                 
-                {/* Show savings text */}
-                {hasDiscount && displayOriginalPrice > 0 && (
+                {/* Show savings text ONLY for offers (NOT for group pricing) */}
+                {!hasGroupDiscount && hasOfferDiscount && displayOriginalPrice > 0 && (
                   <p className="text-sm text-green-600 font-semibold mt-1">
                     Save {displayDiscountPercent}% - ${(displayOriginalPrice - effectiveCasePrice).toFixed(2)} off
-                    {hasGroupDiscount && <span className="ml-1">(Group Pricing)</span>}
                   </p>
                 )}
 

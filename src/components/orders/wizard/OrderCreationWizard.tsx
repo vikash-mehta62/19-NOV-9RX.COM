@@ -1417,6 +1417,11 @@ const OrderCreationWizardComponent = ({
               hasFreeShipping={customerHasFreeShipping}
               disableRewards={userType === "group"}
               onDiscountChange={handleDiscountChange}
+              paymentMethod={paymentMethod}
+              cardProcessingFeePercentage={2.9}
+              currentStep={wizardState.currentStep}
+              totalSteps={totalSteps}
+              isPharmacyMode={isPharmacyMode || userType === "group"}
             />
             
             {/* Shipping Override Section - Show on review step for admin/pharmacy */}

@@ -667,6 +667,11 @@ const ProductDetails = () => {
             size.hasGroupPricing === true
           );
 
+          console.log("=== GROUP PRICING CHECK ===");
+          console.log("Product sizes:", mappedProduct.sizes);
+          console.log("Sizes with hasGroupPricing flag:", mappedProduct.sizes?.filter((s: any) => s.hasGroupPricing));
+          console.log("hasGroupPricing result:", hasGroupPricing);
+
           if (hasGroupPricing) {
             console.log("⚠️ Skipping offers - product has group pricing applied (flag detected)");
             setProductOffer(null);
