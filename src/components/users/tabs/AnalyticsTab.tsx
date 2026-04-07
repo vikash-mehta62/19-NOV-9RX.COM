@@ -36,6 +36,20 @@ interface OrderPattern {
   revenue: number;
 }
 
+interface AnalyticsOrderRow {
+  id: string;
+  total_amount: string | number | null;
+  created_at: string;
+  items?: any[] | null;
+}
+
+interface AnalyticsOrderItemRow {
+  order_id: string;
+  product_id: string | null;
+  quantity: number | string | null;
+  unit_price: number | string | null;
+}
+
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"];
 
 export function AnalyticsTab({ userId }: AnalyticsTabProps) {
@@ -55,161 +69,195 @@ export function AnalyticsTab({ userId }: AnalyticsTabProps) {
     }
   }, [userId]);
 
- const loadAnalytics = async () => {
-  setLoading(true);
-  try {
-    // Get all orders for this user
-    const { data: orders, error: ordersError } = await supabase
-      .from("orders")
-      .select(`
-        id,
-        total_amount,
-        created_at,
-        order_items(
-          product_id,
-          quantity,
-          unit_price,
-          products(name)
-        )
-      `)
-      .eq("profile_id", userId);
+  const loadAnalytics = async () => {
+    setLoading(true);
 
-    if (ordersError) throw ordersError;
+    try {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select("id, total_amount, created_at, items")
+        .eq("profile_id", userId)
+        .order("created_at", { ascending: false });
 
-    if (!orders || orders.length === 0) {
-      setLoading(false);
-      return;
-    }
+      const orders = (ordersData || []) as AnalyticsOrderRow[];
 
-    // Process product purchases
-    const productMap = new Map<string, ProductPurchase>();
+      if (ordersError) throw ordersError;
 
-    orders.forEach((order) => {
-      if (order.order_items) {
-        order.order_items.forEach((item: any) => {
-          const productName = item.products?.name || "Unknown Product";
-          const existing = productMap.get(productName);
+      if (!orders || orders.length === 0) {
+        setTopProducts([]);
+        setOrderPatterns([]);
+        setStats({
+          totalProducts: 0,
+          avgOrderValue: 0,
+          mostFrequentProduct: "N/A",
+          orderFrequency: "N/A",
+        });
+        return;
+      }
 
-          if (existing) {
-            existing.quantity += item.quantity;
-            existing.total_spent += item.unit_price * item.quantity;
-            existing.order_count += 1;
-          } else {
-            productMap.set(productName, {
-              product_name: productName,
-              quantity: item.quantity,
-              total_spent: item.unit_price * item.quantity,
-              order_count: 1,
+      const orderIds = orders.map((order) => order.id).filter(Boolean);
+
+      const { data: orderItemsData, error: orderItemsError } = await supabase
+        .from("order_items")
+        .select("order_id, product_id, quantity, unit_price")
+        .in("order_id", orderIds);
+
+      const orderItems = (orderItemsData || []) as AnalyticsOrderItemRow[];
+
+      if (orderItemsError) throw orderItemsError;
+
+      const fallbackItems: AnalyticsOrderItemRow[] = [];
+
+      if (!orderItems || orderItems.length === 0) {
+        orders.forEach((order: any) => {
+          const legacyItems = Array.isArray(order.items) ? order.items : [];
+
+          legacyItems.forEach((itemWrapper: any) => {
+            const productId = itemWrapper.productId || itemWrapper.product_id || null;
+            const soldSizes = Array.isArray(itemWrapper.sizes) ? itemWrapper.sizes : [];
+
+            soldSizes.forEach((soldSize: any) => {
+              fallbackItems.push({
+                order_id: order.id,
+                product_id: productId,
+                quantity: Number(soldSize.quantity) || 0,
+                unit_price: Number(soldSize.price) || 0,
+              });
             });
-          }
+          });
         });
       }
-    });
 
-    const products = Array.from(productMap.values())
-      .sort((a, b) => b.total_spent - a.total_spent)
-      .slice(0, 10);
+      const allOrderItems = [...(orderItems || []), ...fallbackItems];
+      const productIds = [...new Set(allOrderItems.map((item) => item.product_id).filter(Boolean))] as string[];
 
-    setTopProducts(products);
+      let products: Array<{ id: string; name: string }> = [];
+      if (productIds.length > 0) {
+        const { data: productRows, error: productsError } = await supabase
+          .from("products")
+          .select("id, name")
+          .in("id", productIds);
 
-    // Process order patterns (last 12 months)
-    const monthlyData = new Map<string, { orders: number; revenue: number }>();
-    const now = new Date();
-
-    // Initialize last 12 months
-    for (let i = 11; i >= 0; i--) {
-      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const key = date.toLocaleDateString("en-US", {
-        month: "short",
-        year: "2-digit",
-      });
-      monthlyData.set(key, { orders: 0, revenue: 0 });
-    }
-
-    orders.forEach((order) => {
-      const orderDate = new Date(order.created_at);
-      const key = orderDate.toLocaleDateString("en-US", {
-        month: "short",
-        year: "2-digit",
-      });
-
-      if (monthlyData.has(key)) {
-        const data = monthlyData.get(key)!;
-        data.orders += 1;
-        data.revenue += parseFloat(order.total_amount || "0");
+        if (productsError) throw productsError;
+        products = (productRows || []) as Array<{ id: string; name: string }>;
       }
-    });
 
-    const patterns = Array.from(monthlyData.entries()).map(
-      ([month, data]) => ({
-        month,
-        orders: data.orders,
-        revenue: data.revenue,
-      })
-    );
-
-    setOrderPatterns(patterns);
-
-    // Calculate stats
-    const totalRevenue = orders.reduce(
-      (sum, o) => sum + parseFloat(o.total_amount || "0"),
-      0
-    );
-    const avgOrderValue =
-      orders.length > 0 ? totalRevenue / orders.length : 0;
-    const mostFrequent = products[0]?.product_name || "N/A";
-
-    // -----------------------------------------------------
-    // ✅ Correct Order Frequency Calculation
-    // -----------------------------------------------------
-    let frequency = "N/A";
-
-    if (orders.length > 1) {
-      // Step 1: Sort orders oldest → newest
-      const sortedOrders = [...orders].sort(
-        (a, b) =>
-          new Date(a.created_at).getTime() -
-          new Date(b.created_at).getTime()
+      const productNameMap = new Map(
+        (products || []).map((product) => [product.id, product.name])
       );
 
-      // Step 2: Calculate total gap
-      let totalGap = 0;
-      for (let i = 1; i < sortedOrders.length; i++) {
-        const prev = new Date(sortedOrders[i - 1].created_at).getTime();
-        const curr = new Date(sortedOrders[i].created_at).getTime();
-        const diffDays = (curr - prev) / (1000 * 60 * 60 * 24);
-        totalGap += diffDays;
+      const productMap = new Map<string, ProductPurchase>();
+
+      allOrderItems.forEach((item) => {
+        const productName =
+          (item.product_id && productNameMap.get(item.product_id)) ||
+          "Unknown Product";
+        const quantity = Number(item.quantity) || 0;
+        const unitPrice = Number(item.unit_price) || 0;
+        const existing = productMap.get(productName);
+
+        if (existing) {
+          existing.quantity += quantity;
+          existing.total_spent += unitPrice * quantity;
+          existing.order_count += 1;
+        } else {
+          productMap.set(productName, {
+            product_name: productName,
+            quantity,
+            total_spent: unitPrice * quantity,
+            order_count: 1,
+          });
+        }
+      });
+
+      const productsSummary = Array.from(productMap.values())
+        .sort((a, b) => b.total_spent - a.total_spent)
+        .slice(0, 10);
+
+      setTopProducts(productsSummary);
+
+      const monthlyData = new Map<string, { orders: number; revenue: number }>();
+      const now = new Date();
+
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = date.toLocaleDateString("en-US", {
+          month: "short",
+          year: "2-digit",
+        });
+        monthlyData.set(key, { orders: 0, revenue: 0 });
       }
 
-      const avgGap = totalGap / (sortedOrders.length - 1);
+      orders.forEach((order) => {
+        const orderDate = new Date(order.created_at);
+        const key = orderDate.toLocaleDateString("en-US", {
+          month: "short",
+          year: "2-digit",
+        });
 
-      // Step 3: Map to readable frequency
-      frequency =
-        avgGap < 7
-          ? "Weekly"
-          : avgGap < 14
-          ? "Bi-weekly"
-          : avgGap < 30
-          ? "Monthly"
-          : avgGap < 60
-          ? "Bi-monthly"
-          : "Quarterly";
+        if (monthlyData.has(key)) {
+          const data = monthlyData.get(key)!;
+          data.orders += 1;
+          data.revenue += Number(order.total_amount) || 0;
+        }
+      });
+
+      setOrderPatterns(
+        Array.from(monthlyData.entries()).map(([month, data]) => ({
+          month,
+          orders: data.orders,
+          revenue: data.revenue,
+        }))
+      );
+
+      const totalRevenue = orders.reduce(
+        (sum, order) => sum + (Number(order.total_amount) || 0),
+        0
+      );
+      const avgOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
+      const mostFrequent = productsSummary[0]?.product_name || "N/A";
+
+      let frequency = "N/A";
+
+      if (orders.length > 1) {
+        const sortedOrders = [...orders].sort(
+          (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        );
+
+        let totalGap = 0;
+        for (let i = 1; i < sortedOrders.length; i++) {
+          const prev = new Date(sortedOrders[i - 1].created_at).getTime();
+          const curr = new Date(sortedOrders[i].created_at).getTime();
+          totalGap += (curr - prev) / (1000 * 60 * 60 * 24);
+        }
+
+        const avgGap = totalGap / (sortedOrders.length - 1);
+        frequency =
+          avgGap < 7
+            ? "Weekly"
+            : avgGap < 14
+            ? "Bi-weekly"
+            : avgGap < 30
+            ? "Monthly"
+            : avgGap < 60
+            ? "Bi-monthly"
+            : "Quarterly";
+      }
+
+      setStats({
+        totalProducts: productMap.size,
+        avgOrderValue,
+        mostFrequentProduct: mostFrequent,
+        orderFrequency: frequency,
+      });
+    } catch (error) {
+      console.error("Error loading analytics:", error);
+      setTopProducts([]);
+      setOrderPatterns([]);
+    } finally {
+      setLoading(false);
     }
-
-    // -----------------------------------------------------
-
-    setStats({
-      totalProducts: productMap.size,
-      avgOrderValue,
-      mostFrequentProduct: mostFrequent,
-      orderFrequency: frequency,
-    });
-  } catch (error) {
-    console.error("Error loading analytics:", error);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   const formatCurrency = (amount: number) => {

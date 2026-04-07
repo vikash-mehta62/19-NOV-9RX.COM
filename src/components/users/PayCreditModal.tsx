@@ -472,7 +472,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           handleCancel();
         }
       }}
-    >View all your past orders and track deliveries
+    >
       <DialogTrigger asChild>
         <Button className="bg-green-500">Pay Credit</Button>
       </DialogTrigger>

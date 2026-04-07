@@ -722,10 +722,10 @@ export const InlineProductSizes = ({
               const sizeInCart = isInCart(sizeId)
 
               return (
-                <Card key={sizeId} className={`${isFocusedSize ? 'border-blue-500 ring-2 ring-blue-200' : sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden`}>
-                  <CardContent className="p-3 sm:p-4 min-w-0">
+                <Card key={sizeId} className={`${isFocusedSize ? 'border-blue-500 ring-2 ring-blue-200' : sizeInCart ? 'border-blue-400 ring-1 ring-blue-100' : 'border-gray-200'} ${isOutOfStock ? 'opacity-60' : ''} bg-white rounded-lg sm:rounded-xl transition-all hover:shadow-md overflow-hidden h-full`}>
+                  <CardContent className="p-3 sm:p-4 min-w-0 h-full flex flex-col">
                     {/* Vertical Layout for all screens */}
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 flex-1">
                       {/* Product Image - Full width, square aspect ratio */}
                       <div 
                         className="relative w-full aspect-square bg-gray-50 rounded-lg overflow-hidden cursor-pointer group"
@@ -788,7 +788,7 @@ export const InlineProductSizes = ({
                       <div className="flex-1 min-w-0 flex flex-col">
                         {/* Product Name + Size */}
                         <div 
-                          className="mb-1.5 sm:mb-1 cursor-pointer hover:text-blue-600"
+                          className="mb-0.5 sm:mb-0.5 min-h-[1.75rem] sm:min-h-[2.1rem] cursor-pointer hover:text-blue-600"
                           onClick={() => navigate(`/${userType}/product/${displayProduct.id}/${sizeId}`)}
                           title={`${displayProduct.name} – ${size.size_value} ${displayProduct?.unitToggle ? size.size_unit : ""}`}
                         >
