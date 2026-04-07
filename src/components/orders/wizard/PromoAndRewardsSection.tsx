@@ -677,190 +677,218 @@ export function PromoAndRewardsSection({
 
   // Apply offer directly
   const handleApplyOffer = async (offer: any) => {
-      try {
-        // ⚠️ CHECK FOR GROUP PRICING - Prevent double discounts
-        // Extract all size IDs from cart items
-        if (customerId) {
-          const sizeIds: string[] = [];
-          
-          // Collect all size IDs from cart items
-          cartItems.forEach(item => {
-            if (item.sizes && Array.isArray(item.sizes)) {
-              item.sizes.forEach((size: any) => {
-                if (size.id) {
-                  sizeIds.push(size.id);
-                }
+        try {
+          // Check first order restriction
+          if (offer.applicable_to === "first_order" && customerId) {
+            const { count } = await (supabase as any)
+              .from("orders")
+              .select("*", { count: "exact", head: true })
+              .eq("profile_id", customerId)
+              .neq("status", "cancelled");
+
+            if ((count || 0) > 0) {
+              toast({
+                title: "Cannot Apply Offer",
+                description: "This offer is only valid for first orders",
+                variant: "destructive",
               });
+              return;
             }
-          });
+          }
 
-          if (sizeIds.length > 0) {
-            // Fetch active group pricing rules for this user
-            const { data: groupPricingData, error: groupError } = await supabase
-              .from("group_pricing")
-              .select("product_arrayjson, group_ids")
-              .eq("status", "active");
+          // Get product IDs from cart
+          const productIds = cartItems.map(item => item.productId);
 
-            if (!groupError && groupPricingData && groupPricingData.length > 0) {
-              // Check if any cart item size has group pricing applied
-              const hasGroupPricing = groupPricingData.some((group: any) => {
-                // Check if user is in this group
-                if (!group.group_ids || !group.group_ids.includes(customerId)) {
-                  return false;
-                }
-                
-                // Check if any cart size is in this group's pricing
-                if (!group.product_arrayjson || !Array.isArray(group.product_arrayjson)) {
-                  return false;
-                }
-                
-                return group.product_arrayjson.some((product: any) => 
-                  sizeIds.includes(product.product_id)
-                );
-              });
+          // Fetch product details (name and category) for validation and display
+          const { data: products } = await supabase
+            .from("products")
+            .select("id, name, category")
+            .in("id", productIds);
 
-              if (hasGroupPricing) {
-                toast({
-                  title: "Cannot Apply Offer",
-                  description: "Offers cannot be applied to products with group pricing. You're already getting a special discount!",
-                  variant: "destructive",
+          const productMap = new Map(
+            products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
+          );
+
+          // Convert cart items to CartItem format with categories AND sizes
+          const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
+            productId: item.productId,
+            categoryId: productMap.get(item.productId)?.category || item.categoryId,
+            price: item.price,
+            quantity: item.quantity,
+            sizes: item.sizes || []
+          }));
+
+          // ⚠️ CHECK FOR GROUP PRICING - Collect size IDs that have group pricing
+          let groupPricingSizeIds: string[] = [];
+          if (customerId) {
+            const sizeIds: string[] = [];
+
+            // Collect all size IDs from cart items
+            cartItemsForValidation.forEach(item => {
+              if (item.sizes && Array.isArray(item.sizes)) {
+                item.sizes.forEach((size: any) => {
+                  if (size.id) {
+                    sizeIds.push(size.id);
+                  }
                 });
-                return;
+              }
+            });
+
+            if (sizeIds.length > 0) {
+              // Fetch active group pricing rules for this user
+              const { data: groupPricingData, error: groupError } = await supabase
+                .from("group_pricing")
+                .select("product_arrayjson, group_ids")
+                .eq("status", "active");
+
+              if (!groupError && groupPricingData && groupPricingData.length > 0) {
+                // Identify which size IDs have group pricing
+                groupPricingData.forEach((group: any) => {
+                  if (group.group_ids && group.group_ids.includes(customerId)) {
+                    if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
+                      group.product_arrayjson.forEach((product: any) => {
+                        if (sizeIds.includes(product.product_id)) {
+                          groupPricingSizeIds.push(product.product_id);
+                        }
+                      });
+                    }
+                  }
+                });
               }
             }
           }
-        }
 
-        // Check first order restriction
-        if (offer.applicable_to === "first_order" && customerId) {
-          const { count } = await (supabase as any)
-            .from("orders")
-            .select("*", { count: "exact", head: true })
-            .eq("profile_id", customerId)
-            .neq("status", "cancelled");
+          // Check if ALL items have group pricing
+          const allItemsHaveGroupPricing = cartItemsForValidation.every(item => {
+            if (!item.sizes || item.sizes.length === 0) return false;
+            return item.sizes.every((size: any) => groupPricingSizeIds.includes(size.id));
+          });
 
-          if ((count || 0) > 0) {
+          if (allItemsHaveGroupPricing) {
             toast({
               title: "Cannot Apply Offer",
-              description: "This offer is only valid for first orders",
+              description: "All items in your cart have group pricing. Offers cannot be combined with group pricing discounts.",
               variant: "destructive",
             });
             return;
           }
-        }
 
-        // Get product IDs from cart
-        const productIds = cartItems.map(item => item.productId);
+          // Calculate applicable amount based on offer type (excluding group pricing items)
+          let applicableAmount = subtotal;
 
-        // Fetch product details (name and category) for validation and display
-        const { data: products } = await supabase
-          .from("products")
-          .select("id, name, category")
-          .in("id", productIds);
+          if (offer.applicable_to === "product" && offer.applicable_ids) {
+            applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product', groupPricingSizeIds);
+          } else if (offer.applicable_to === "category" && offer.applicable_ids) {
+            applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category', groupPricingSizeIds);
+          } else {
+            // For "all" offers, calculate total excluding group pricing items
+            applicableAmount = cartItemsForValidation.reduce((sum, item) => {
+              if (!item.sizes || item.sizes.length === 0) return sum + (item.price * item.quantity);
 
-        const productMap = new Map(
-          products?.map(p => [p.id, { name: p.name, category: p.category }]) || []
-        );
+              // Sum only sizes that don't have group pricing
+              const itemTotal = item.sizes.reduce((sizeSum: number, size: any) => {
+                if (groupPricingSizeIds.includes(size.id)) return sizeSum;
+                return sizeSum + ((size.quantity || 0) * (size.price || 0));
+              }, 0);
 
-        // Convert cart items to CartItem format with categories AND sizes
-        const cartItemsForValidation: CartItem[] = cartItems.map(item => ({
-          productId: item.productId,
-          categoryId: productMap.get(item.productId)?.category || item.categoryId,
-          price: item.price,
-          quantity: item.quantity,
-          sizes: item.sizes || []
-        }));
-
-        // Calculate applicable amount based on offer type
-        let applicableAmount = subtotal;
-
-        if (offer.applicable_to === "product" && offer.applicable_ids) {
-          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product');
-        } else if (offer.applicable_to === "category" && offer.applicable_ids) {
-          applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category');
-        }
-
-        // Calculate discount
-        let discountAmount = 0;
-        if (offer.offer_type === "percentage") {
-          discountAmount = (applicableAmount * (offer.discount_value || 0)) / 100;
-          if (offer.max_discount_amount) {
-            discountAmount = Math.min(discountAmount, offer.max_discount_amount);
+              return sum + itemTotal;
+            }, 0);
           }
-        } else if (offer.offer_type === "flat") {
-          discountAmount = Math.min(offer.discount_value || 0, applicableAmount);
-        }
 
-        // Prepare product names map for display
-        const productNames = new Map(
-          products?.map(p => [p.id, p.name]) || []
-        );
+          // If no items are eligible (all have group pricing), show message
+          if (applicableAmount <= 0) {
+            toast({
+              title: "Cannot Apply Offer",
+              description: "No eligible items in cart. Offers cannot be applied to products with group pricing.",
+              variant: "destructive",
+            });
+            return;
+          }
 
-        // Prepare display data (no group pricing check for offers)
-        const displayData = preparePromoDisplayData(
-          {
-            valid: true,
+          // Calculate discount
+          let discountAmount = 0;
+          if (offer.offer_type === "percentage") {
+            discountAmount = (applicableAmount * (offer.discount_value || 0)) / 100;
+            if (offer.max_discount_amount) {
+              discountAmount = Math.min(discountAmount, offer.max_discount_amount);
+            }
+          } else if (offer.offer_type === "flat") {
+            discountAmount = Math.min(offer.discount_value || 0, applicableAmount);
+          }
+
+          // Prepare product names map for display
+          const productNames = new Map(
+            products?.map(p => [p.id, p.name]) || []
+          );
+
+          // Prepare display data WITH group pricing info
+          const displayData = preparePromoDisplayData(
+            {
+              valid: true,
+              offerId: offer.id,
+              discountType: offer.offer_type,
+              discountValue: offer.discount_value,
+              message: groupPricingSizeIds.length > 0 ? '(on eligible items)' : '',
+              calculatedDiscount: discountAmount,
+              applicableAmount: applicableAmount
+            },
+            offer,
+            cartItemsForValidation,
+            productNames,
+            groupPricingSizeIds
+          );
+
+          // Calculate item-level discounts (excluding group pricing items)
+          const itemDiscounts = calculateItemDiscounts(
+            cartItemsForValidation,
+            offer,
+            discountAmount,
+            groupPricingSizeIds
+          );
+
+          // Set applied promo with item discounts
+          setAppliedPromo({
+            type: "offer",
+            name: offer.title,
+            amount: discountAmount,
             offerId: offer.id,
+            promoCode: offer.promo_code || undefined,
+            itemDiscounts: itemDiscounts,
             discountType: offer.offer_type,
             discountValue: offer.discount_value,
-            message: '',
-            calculatedDiscount: discountAmount,
-            applicableAmount: applicableAmount
-          },
-          offer,
-          cartItemsForValidation,
-          productNames
-        );
+            applicableTo: offer.applicable_to,
+          });
 
-        // Calculate item-level discounts
-        const itemDiscounts = calculateItemDiscounts(
-          cartItemsForValidation,
-          offer,
-          discountAmount
-        );
+          // Set display data
+          setPromoDisplayData({
+            promoCode: offer.promo_code || offer.title,
+            discountAmount: discountAmount,
+            applicableAmount: applicableAmount,
+            totalAmount: subtotal,
+            applicableTo: offer.applicable_to as any,
+            applicableItems: displayData.applicableItems,
+            discountType: offer.offer_type as any,
+            discountValue: offer.discount_value,
+            offer: offer
+          });
 
-        // Set applied promo with item discounts
-        setAppliedPromo({
-          type: "offer",
-          name: offer.title,
-          amount: discountAmount,
-          offerId: offer.id,
-          promoCode: offer.promo_code || undefined,
-          itemDiscounts: itemDiscounts,
-          discountType: offer.offer_type,
-          discountValue: offer.discount_value,
-          applicableTo: offer.applicable_to,
-        });
+          toast({
+            title: "Offer Applied! 🎉",
+            description: groupPricingSizeIds.length > 0 
+              ? `${offer.title} - You save $${discountAmount.toFixed(2)} (on eligible items)`
+              : `${offer.title} - You save $${discountAmount.toFixed(2)}`,
+          });
 
-        // Set display data
-        setPromoDisplayData({
-          promoCode: offer.promo_code || offer.title,
-          discountAmount: discountAmount,
-          applicableAmount: applicableAmount,
-          totalAmount: subtotal,
-          applicableTo: offer.applicable_to as any,
-          applicableItems: displayData.applicableItems,
-          discountType: offer.offer_type as any,
-          discountValue: offer.discount_value,
-          offer: offer
-        });
-
-        toast({
-          title: "Offer Applied! 🎉",
-          description: `${offer.title} - You save $${discountAmount.toFixed(2)}`,
-        });
-
-        setShowOffers(false);
-      } catch (error) {
-        console.error("Error applying offer:", error);
-        toast({
-          title: "Error",
-          description: "Failed to apply offer",
-          variant: "destructive",
-        });
+          setShowOffers(false);
+        } catch (error) {
+          console.error("Error applying offer:", error);
+          toast({
+            title: "Error",
+            description: "Failed to apply offer",
+            variant: "destructive",
+          });
+        }
       }
-    }
-
   // Apply redeemed reward
   const handleApplyRedeemedReward = async (reward: RedeemedReward) => {
       setAppliedRedeemedReward(reward);
