@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { EditUserModal } from "@/components/users/EditUserModal";
+import { PharmacyLocationsSection } from "@/components/settings/PharmacyLocationsSection";
 
 export default function PharmacySettings() {
   const form = useForm<SettingsFormValues>({ defaultValues });
@@ -127,6 +128,7 @@ export default function PharmacySettings() {
             <ArrowRight className="w-5 h-5" />
             <Link to={`/pharmacy/settings/update-profile?email=${email}`}>Go to Update Profile</Link>
           </div>
+              <PharmacyLocationsSection userId={userData?.id} />
               <NotificationSection form={form} />
               <SecuritySection form={form} />
               {/* <AppearanceSection /> */}

@@ -37,6 +37,23 @@ export interface ShippingAddress {
   zip_code: string;
 }
 
+const normalizeAddressField = (value?: string) => (value || "").trim().toLowerCase();
+
+const matchesProfileAddress = (
+  current: { street?: string; city?: string; state?: string; zip_code?: string },
+  profile?: { street1?: string; street?: string; city?: string; state?: string; zip_code?: string }
+) => {
+  if (!profile) return false;
+
+  return (
+    normalizeAddressField(current.street) ===
+      normalizeAddressField(profile.street1 || profile.street) &&
+    normalizeAddressField(current.city) === normalizeAddressField(profile.city) &&
+    normalizeAddressField(current.state) === normalizeAddressField(profile.state) &&
+    normalizeAddressField(current.zip_code) === normalizeAddressField(profile.zip_code)
+  );
+};
+
 export interface Customer {
   id: string;
   name: string;
@@ -262,6 +279,26 @@ export const CustomerAndAddressStep = ({
       setIsEditingShipping(false);
     }
   }, [sameAsBilling, billingForm]);
+
+  useEffect(() => {
+    if (
+      !selectedBillingLocation &&
+      hasProfileBilling &&
+      matchesProfileAddress(billingForm, profileBillingAddress)
+    ) {
+      setSelectedBillingLocation("profile-billing");
+    }
+  }, [selectedBillingLocation, hasProfileBilling, billingForm, profileBillingAddress]);
+
+  useEffect(() => {
+    if (
+      !selectedShippingLocation &&
+      hasProfileShipping &&
+      matchesProfileAddress(shippingForm, profileShippingAddress)
+    ) {
+      setSelectedShippingLocation("profile-shipping");
+    }
+  }, [selectedShippingLocation, hasProfileShipping, shippingForm, profileShippingAddress]);
 
   // Google Address API - Handle billing address change
   const handleBillingStreetChange = (value: string) => {

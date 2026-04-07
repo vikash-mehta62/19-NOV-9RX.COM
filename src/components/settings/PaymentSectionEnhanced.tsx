@@ -780,13 +780,20 @@ export function PaymentSection({ form }: PaymentSectionProps) {
             <CreditCard className="h-5 w-5" />
             Payment Terms & Fees
           </CardTitle>
-          <CardDescription>
+
+          {/* TODO: Main Heading of this section */}
+          {/* <CardDescription>
             Configure late payment fees, processing fees, and payment terms
+          </CardDescription> */}
+
+          <CardDescription>
+            Configure Credit Card processing fees
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Late Payment Settings */}
-          <div className="space-y-4">
+
+          {/* TODO: Late Payment Settings */}
+          {/* <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-base">Late Payment Interest & Fees</h4>
             </div>
@@ -920,8 +927,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
               </div>
             )}
           </div>
-
-          <Separator />
+          <Separator /> */}
 
           {/* Card Processing Fees */}
           <div className="space-y-4">
@@ -1007,8 +1013,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
 
           <Separator />
 
-          {/* ACH Processing Fees */}
-          <div className="space-y-4">
+          {/* TODO: ACH Processing Fees (Note: ACH payments are now tax-free; no charges are applied to ACH transactions.) */}
+          {/* <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-base">ACH Processing Fees</h4>
             </div>
@@ -1088,11 +1094,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
               </div>
             )}
           </div>
+          <Separator /> */}
 
-          <Separator />
-
-          {/* Early Payment Discount */}
-          <div className="space-y-4">
+          {/* TODO: Early Payment Discount (Not implemented yet.)*/}
+          {/* <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="font-medium text-base">Early Payment Discount</h4>
             </div>
@@ -1176,11 +1181,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
               </div>
             )}
           </div>
+          <Separator /> */}
 
-          <Separator />
-
-          {/* Other Payment Settings */}
-          <div className="space-y-4">
+          {/* TODO: Other Payment Settings (Stored in settings DB; not currently used at runtime (minimum_payment_amount, payment_terms_text))*/}
+          {/* <div className="space-y-4">
             <FormField
               control={form.control}
               name="minimum_payment_amount"
@@ -1222,7 +1226,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 </FormItem>
               )}
             />
-          </div>
+          </div> */}
 
           {/* Summary */}
           <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">

@@ -514,7 +514,7 @@ export default function Settings() {
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
               <div className="space-y-2">
-                <TabsList className="grid grid-cols-3 md:grid-cols-6 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-7 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>
@@ -527,6 +527,10 @@ export default function Settings() {
                     <Settings2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Orders</span>
                   </TabsTrigger>
+                  <TabsTrigger value="invoices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
+                    <FileText className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">Invoices</span>
+                  </TabsTrigger>
                   <TabsTrigger value="shipping" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Truck className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Shipping</span>
@@ -534,10 +538,6 @@ export default function Settings() {
                   <TabsTrigger value="payments" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <CreditCard className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Payments</span>
-                  </TabsTrigger>
-                  <TabsTrigger value="invoices" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
-                    <FileText className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">Invoices</span>
                   </TabsTrigger>
                   <TabsTrigger value="security" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Shield className="h-4 w-4 flex-shrink-0" />
@@ -576,8 +576,12 @@ export default function Settings() {
               {/* Business Tab */}
               <TabsContent value="business" className="space-y-6">
                 <BusinessProfileSection form={form} />
-                <LocationContactSection form={form} />
-                <CurrencySettingsSection form={form} />
+
+                {/* TODO: Location and Contact Info*/}
+                {/* <LocationContactSection form={form} /> */}
+
+                {/* TODO: Currency Settings */}
+                {/* <CurrencySettingsSection form={form} /> */}
               </TabsContent>
 
               <TabsContent value="documents" className="space-y-6">
@@ -587,7 +591,9 @@ export default function Settings() {
               {/* Orders Tab */}
               <TabsContent value="orders" className="space-y-6">
                 <OrderSettingsSection form={form} />
-                <TaxSettingsSection form={form} />
+
+                {/* TODO: Tax Settings */}
+                {/* <TaxSettingsSection form={form} /> */}
               </TabsContent>
 
               {/* Shipping Tab */}

@@ -855,10 +855,12 @@ export const PharmacyProductsFullPage = () => {
                     <Package className="w-4 h-4 mr-2 text-blue-600" />
                     My Orders
                   </DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => navigate("/pharmacy/order-history")}>
+                  
+                  {/* TODO: Order History  (Not Required now.) */}
+                  {/* <DropdownMenuItem onClick={() => navigate("/pharmacy/order-history")}>
                     <History className="w-4 h-4 mr-2 text-purple-600" />
                     Order History
-                  </DropdownMenuItem>
+                  </DropdownMenuItem> */}
 
                   <DropdownMenuSeparator />
 

@@ -134,6 +134,8 @@ export default function PharmacyOrder() {
               phone: profile.mobile_phone || profile.work_phone || "",
               type: profile.type || "Pharmacy",
               company_name: profile.company_name || "",
+              billing_address: profile.billing_address || undefined,
+              shipping_address: profile.shipping_address || undefined,
               tax_percentage: profile.taxPercantage || 0,
               freeShipping: profile.freeShipping || false,
             },

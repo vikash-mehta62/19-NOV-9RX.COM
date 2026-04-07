@@ -1163,6 +1163,30 @@ const OrderCreationWizardComponent = ({
 
   // Render current step content
   const renderStepContent = () => {
+    const profileBillingAddressFallback =
+      selectedCustomer?.billing_address ||
+      (billingAddress
+        ? {
+            street: billingAddress.street,
+            city: billingAddress.city,
+            state: billingAddress.state,
+            zip_code: billingAddress.zip_code,
+            attention: billingAddress.attention,
+          }
+        : undefined);
+
+    const profileShippingAddressFallback =
+      selectedCustomer?.shipping_address ||
+      (shippingAddress
+        ? {
+            street: shippingAddress.street,
+            city: shippingAddress.city,
+            state: shippingAddress.state,
+            zip_code: shippingAddress.zip_code,
+            phone: shippingAddress.phone,
+          }
+        : undefined);
+
     // Pharmacy mode or Group mode has different step mapping (3 steps instead of 5)
     if (isPharmacyMode || userType === "group") {
       switch (wizardState.currentStep) {
@@ -1180,8 +1204,8 @@ const OrderCreationWizardComponent = ({
                 JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}")?.name : undefined
               }
               savedLocations={customerLocations}
-              profileBillingAddress={selectedCustomer?.billing_address}
-              profileShippingAddress={selectedCustomer?.shipping_address}
+              profileBillingAddress={profileBillingAddressFallback}
+              profileShippingAddress={profileShippingAddressFallback}
             />
           );
         case 2:
@@ -1265,8 +1289,8 @@ const OrderCreationWizardComponent = ({
             customerEmail={selectedCustomer?.email}
             customerPhone={selectedCustomer?.phone}
             savedLocations={customerLocations}
-            profileBillingAddress={selectedCustomer?.billing_address}
-            profileShippingAddress={selectedCustomer?.shipping_address}
+            profileBillingAddress={profileBillingAddressFallback}
+            profileShippingAddress={profileShippingAddressFallback}
             companyName={selectedCustomer?.company_name}
           />
         );

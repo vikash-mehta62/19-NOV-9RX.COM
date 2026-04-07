@@ -72,7 +72,8 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
           />
         </div>
 
-        <FormField
+        {/* TODO: Minimum Order Amount */}
+        {/* <FormField
           control={form.control}
           name="minimum_order_amount"
           render={({ field }) => (
@@ -93,9 +94,10 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
               </FormDescription>
             </FormItem>
           )}
-        />
+        /> */}
 
-        <FormField
+        {/* TODO: Require Phone Number (Not Required Now)*/}
+        {/* <FormField
           control={form.control}
           name="require_phone_number"
           render={({ field }) => (
@@ -111,9 +113,10 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
               </FormControl>
             </FormItem>
           )}
-        />
+        /> */}
 
-        <FormField
+        {/* TODO: Auto-Confirm Orders (Not Required Now) */}
+        {/* <FormField
           control={form.control}
           name="auto_confirm_orders"
           render={({ field }) => (
@@ -129,9 +132,10 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
               </FormControl>
             </FormItem>
           )}
-        />
+        /> */}
 
-        <FormField
+        {/* TODO: Allow Guest Checkout (Not Required Now) */}
+        {/* <FormField
           control={form.control}
           name="allow_guest_checkout"
           render={({ field }) => (
@@ -147,7 +151,7 @@ export function OrderSettingsSection({ form }: OrderSettingsSectionProps) {
               </FormControl>
             </FormItem>
           )}
-        />
+        /> */}
       </CardContent>
     </Card>
   );

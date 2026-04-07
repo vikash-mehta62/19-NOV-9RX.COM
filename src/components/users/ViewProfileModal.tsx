@@ -3794,7 +3794,7 @@ export function ViewProfileModal({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="main">Main Office</SelectItem>
+                      <SelectItem value="headquarters">Main Office</SelectItem>
                       <SelectItem value="branch">Branch</SelectItem>
                       <SelectItem value="warehouse">Warehouse</SelectItem>
                       <SelectItem value="retail">Retail Store</SelectItem>
