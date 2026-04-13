@@ -5,6 +5,8 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
+import { Seo } from "@/components/seo/Seo";
+import { buildAbsoluteUrl, generateBreadcrumbStructuredData } from "@/utils/seoUtils";
 
 interface Blog {
   id: string;
@@ -21,6 +23,31 @@ interface Blog {
   created_at: string;
 }
 
+const normalizeBlogRouteValue = (value: string) =>
+  decodeURIComponent(value)
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+
+const matchesCanonicalOrLegacyBlogPath = (incomingValue: string, blog: Blog) => {
+  const normalizedIncoming = normalizeBlogRouteValue(incomingValue);
+  const normalizedStoredSlug = normalizeBlogRouteValue(blog.slug);
+  const normalizedTitleSlug = normalizeBlogRouteValue(blog.title);
+
+  if (
+    normalizedIncoming === normalizedStoredSlug ||
+    normalizedIncoming === normalizedTitleSlug
+  ) {
+    return true;
+  }
+
+  return (
+    normalizedIncoming === normalizedTitleSlug &&
+    new RegExp(`^${normalizedTitleSlug}(?:-|)?\\d+$`).test(normalizedStoredSlug)
+  );
+};
+
 const BlogDetail = () => {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -30,36 +57,60 @@ const BlogDetail = () => {
 
   useEffect(() => {
     if (slug) {
-      fetchBlog();
+      setLoading(true);
+      setNotFound(false);
+      void fetchBlog(slug);
     }
   }, [slug]);
 
-  const fetchBlog = async () => {
+  const fetchBlog = async (routeSlug: string) => {
     try {
-      const { data, error } = await supabase
+      const directResult = await supabase
         .from("blogs")
         .select("*")
-        .eq("slug", slug)
+        .eq("slug", routeSlug)
         .eq("is_published", true)
         .single();
 
-      if (error) {
-        if (error.code === "PGRST116") {
-          setNotFound(true);
+      let resolvedBlog = directResult.data;
+
+      if (directResult.error?.code === "PGRST116") {
+        const fallbackResult = await supabase
+          .from("blogs")
+          .select("*")
+          .eq("is_published", true);
+
+        if (fallbackResult.error) {
+          throw fallbackResult.error;
         }
-        throw error;
+
+        resolvedBlog = (fallbackResult.data || []).find((candidate) => (
+          candidate?.slug &&
+          candidate?.title &&
+          matchesCanonicalOrLegacyBlogPath(routeSlug, candidate as Blog)
+        )) || null;
+      } else if (directResult.error) {
+        throw directResult.error;
       }
 
-      setBlog(data);
-      document.title = `${data.title} - 9RX Blog`;
+      if (!resolvedBlog) {
+        setNotFound(true);
+        return;
+      }
 
-      // Increment view count
+      setBlog(resolvedBlog);
+
+      if (routeSlug !== resolvedBlog.slug) {
+        navigate(`/blog/${resolvedBlog.slug}`, { replace: true });
+      }
+
       await supabase
         .from("blogs")
-        .update({ view_count: (data.view_count || 0) + 1 })
-        .eq("id", data.id);
+        .update({ view_count: (resolvedBlog.view_count || 0) + 1 })
+        .eq("id", resolvedBlog.id);
     } catch (error) {
       console.error("Error fetching blog:", error);
+      setNotFound(true);
     } finally {
       setLoading(false);
     }
@@ -118,10 +169,22 @@ const BlogDetail = () => {
 
   return (
     <>
+      <Seo
+        title={`${blog.title} - 9RX Blog`}
+        description={blog.excerpt || `Read ${blog.title} on the 9RX blog.`}
+        canonicalPath={`/blog/${blog.slug}`}
+        robots="index, follow"
+        keywords={[blog.title, blog.category || "pharmacy blog", "9RX blog"]}
+        type="article"
+        jsonLd={generateBreadcrumbStructuredData([
+          { name: "Home", url: buildAbsoluteUrl("/") },
+          { name: "Blog", url: buildAbsoluteUrl("/blog") },
+          { name: blog.title, url: buildAbsoluteUrl(`/blog/${blog.slug}`) },
+        ])}
+      />
       <div className="min-h-screen bg-white">
         <Navbar forceScrolledStyle={true} />
 
-        {/* Back Button */}
         <div className="container mx-auto px-4 pt-24 pb-4">
           <Link
             to="/blog"
@@ -132,7 +195,6 @@ const BlogDetail = () => {
           </Link>
         </div>
 
-        {/* Blog Header */}
         <article className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="mb-6">
             {blog.category && (
@@ -168,7 +230,6 @@ const BlogDetail = () => {
             </div>
           </div>
 
-          {/* Blog Content */}
           <div className="prose prose-lg max-w-none">
             <div
               className="text-slate-700 leading-relaxed whitespace-pre-wrap"
@@ -176,7 +237,6 @@ const BlogDetail = () => {
             />
           </div>
 
-          {/* Tags */}
           {blog.tags && blog.tags.length > 0 && (
             <div className="mt-12 pt-8 border-t border-slate-200">
               <div className="flex items-center gap-3 flex-wrap">
@@ -193,7 +253,6 @@ const BlogDetail = () => {
             </div>
           )}
 
-          {/* Back to Blog CTA */}
           <div className="mt-12 pt-8 border-t border-slate-200 text-center">
             <Link
               to="/blog"

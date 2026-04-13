@@ -8,6 +8,7 @@ import MaintenanceBanner from "./components/MaintenanceBanner";
 import MaintenanceModal from "./components/MaintenanceModal";
 import { Loader2 } from "lucide-react";
 import { AdminPermission, hasEveryAdminPermission, isInternalAdminType } from "@/lib/adminAccess";
+import { AppRouteSeo } from "@/components/seo/AppRouteSeo";
 
 // Loading component for lazy loaded routes
 const PageLoader = () => (
@@ -359,11 +360,13 @@ function App() {
       {/* <MaintenanceBanner /> */}
       {/* <MaintenanceModal /> */}
       <CartSync />
+      <AppRouteSeo />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/products/:slug" element={<ProductDetails />} />
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/reset-password" element={<ResetPasswordNew />} />
@@ -374,6 +377,7 @@ function App() {
           <Route path="/reset-password-page" element={<ResetPasswordPage />} />
           <Route path="/pay-now" element={<PayNowOrder />} />
           <Route path="/products" element={<Products />} />
+          <Route path="/categories/:categorySlug" element={<Products />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route path="/terms-of-service" element={<TermsOfService />} />
           <Route path="/shipping-info" element={<ShippingInfo />} />
