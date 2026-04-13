@@ -6,7 +6,7 @@ import {
   Grid3X3, LayoutList, Sparkles, Phone,
   Package
 } from "lucide-react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/supabaseClient";
@@ -31,6 +31,14 @@ import { SearchMatchIndicator } from "@/components/search/SearchMatchIndicator";
 import { getSearchMatches } from "@/utils/searchHighlight";
 import { SizeMatchBanner } from "@/components/search/SizeMatchBanner";
 import { fetchCategories } from "@/utils/categoryUtils";
+import { Seo } from "@/components/seo/Seo";
+import {
+  buildAbsoluteUrl,
+  generateBreadcrumbStructuredData,
+  generateCategoryUrl,
+  generateProductUrl,
+  generateSlug,
+} from "@/utils/seoUtils";
 
 import image1 from "../assests/home/image1.jpg";
 import image2 from "../assests/home/image2.jpg";
@@ -404,6 +412,7 @@ const PublicSizeCard = ({ item, onClick }: { item: FlattenedSizeItem; onClick: (
 const Products = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { categorySlug } = useParams<{ categorySlug?: string }>();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -423,8 +432,24 @@ const Products = () => {
     loadCategories();
   }, []);
 
+  const matchedCategory = useMemo(() => {
+    if (!categorySlug) {
+      return null;
+    }
+
+    const categoryPool = dbCategories.length > 0
+      ? dbCategories
+      : Array.from(new Set(products.map((product) => product.category).filter(Boolean)));
+
+    return categoryPool.find((category) => generateSlug(category) === categorySlug) || null;
+  }, [categorySlug, dbCategories, products]);
+
   // Set category from navigation state (when coming back from product details)
   useEffect(() => {
+    if (categorySlug) {
+      return;
+    }
+
     const state = location.state as { selectedCategory?: string } | null;
     if (state?.selectedCategory) {
       setSelectedCategory(state.selectedCategory);
@@ -432,6 +457,21 @@ const Products = () => {
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
+
+  useEffect(() => {
+    if (!categorySlug) {
+      return;
+    }
+
+    if (matchedCategory) {
+      setSelectedCategory(matchedCategory);
+      return;
+    }
+
+    if (dbCategories.length > 0) {
+      setSelectedCategory("all");
+    }
+  }, [categorySlug, matchedCategory, dbCategories]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -507,15 +547,56 @@ const Products = () => {
     return filtered;
   }, [products, searchQuery, selectedCategory, sortBy]);
 
-  const clearFilters = () => { setSearchQuery(""); setSelectedCategory("all"); setSortBy("featured"); };
+  const clearFilters = () => {
+    setSearchQuery("");
+    setSelectedCategory("all");
+    setSortBy("featured");
+    if (categorySlug) {
+      navigate("/products", { replace: true });
+    }
+  };
   const hasActiveFilters = searchQuery || selectedCategory !== "all";
 
   const handleCategoryClick = (category: string) => {
     setSelectedCategory(category);
-  }
+    if (category === "all") {
+      navigate("/products");
+      return;
+    }
+    navigate(generateCategoryUrl(category));
+  };
+
+  const categoryPageActive = !!categorySlug && !!matchedCategory;
+  const isInvalidCategorySlug = !!categorySlug && dbCategories.length > 0 && !matchedCategory;
+  const pageTitle = categoryPageActive
+    ? `${matchedCategory} Pharmacy Supplies | 9RX`
+    : "Pharmacy Supplies Catalog | 9RX";
+  const pageDescription = categoryPageActive
+    ? `Browse ${matchedCategory} pharmacy supplies from 9RX, including wholesale-ready packaging and pharmacy essentials.`
+    : "Browse the 9RX pharmacy supplies catalog featuring packaging, labels, vials, and pharmacy essentials.";
+  const canonicalPath = categoryPageActive && matchedCategory
+    ? generateCategoryUrl(matchedCategory)
+    : "/products";
+  const breadcrumbJsonLd = generateBreadcrumbStructuredData([
+    { name: "Home", url: buildAbsoluteUrl("/") },
+    { name: "Products", url: buildAbsoluteUrl("/products") },
+    ...(categoryPageActive && matchedCategory
+      ? [{ name: matchedCategory, url: buildAbsoluteUrl(canonicalPath) }]
+      : []),
+  ]);
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Seo
+        title={pageTitle}
+        description={pageDescription}
+        canonicalPath={canonicalPath}
+        robots={isInvalidCategorySlug ? "noindex, follow" : "index, follow"}
+        keywords={categoryPageActive && matchedCategory
+          ? [matchedCategory, "pharmacy supplies", "wholesale pharmacy supplies", "9RX"]
+          : ["pharmacy supplies", "wholesale pharmacy supplies", "rx vials", "prescription labels", "9RX"]}
+        jsonLd={breadcrumbJsonLd}
+      />
       <div className="bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white py-2 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-sm">
           <Sparkles className="w-4 h-4" />
@@ -833,7 +914,7 @@ const Products = () => {
                   key={product.id}
                   product={product}
                   viewMode={viewMode}
-                  onClick={() => navigate(`/product/${product.id}`)}
+                  onClick={() => navigate(generateProductUrl(product.id, product.name))}
                   searchQuery={searchQuery}
                 />
               ))}
@@ -865,7 +946,7 @@ const Products = () => {
                 <PublicSizeCard
                   key={`${item.productId}-${item.sizeId}-${index}`}
                   item={item}
-                  onClick={() => navigate(`/product/${item.productId}`)}
+                  onClick={() => navigate(generateProductUrl(item.productId, item.productName))}
                 />
               ))}
             </div>

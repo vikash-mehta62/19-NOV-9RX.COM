@@ -11,6 +11,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as SonnerToaster } from "sonner";
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider } from '@/features/theme';
+import { HelmetProvider } from 'react-helmet-async';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,18 +43,20 @@ if (!rootElement) {
 const root = createRoot(rootElement)
 
 root.render(
-  <QueryClientProvider client={queryClient}>
-    <BrowserRouter>
-      <ScrollToTop />
-      <Provider store={store}>
-        <ThemeProvider>
-          <ToastProvider>
-            <App />
-            <Toaster />
-            <SonnerToaster position="top-right" richColors closeButton />
-          </ToastProvider>
-        </ThemeProvider>
-      </Provider>
-    </BrowserRouter>
-  </QueryClientProvider>
+  <HelmetProvider>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <ScrollToTop />
+        <Provider store={store}>
+          <ThemeProvider>
+            <ToastProvider>
+              <App />
+              <Toaster />
+              <SonnerToaster position="top-right" richColors closeButton />
+            </ToastProvider>
+          </ThemeProvider>
+        </Provider>
+      </BrowserRouter>
+    </QueryClientProvider>
+  </HelmetProvider>
 )

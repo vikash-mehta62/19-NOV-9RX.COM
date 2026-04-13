@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useMemo, useState, useEffect } from "react"
 import { useParams, useNavigate, useLocation } from "react-router-dom"
 import { supabase } from "@/integrations/supabase/client"
 import type { Product } from "@/types/product"
@@ -34,6 +34,19 @@ import { getProductEffectivePrice } from "@/services/productOfferService"
 import axios from "../../axiosconfig"
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
 import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog"
+import { Seo } from "@/components/seo/Seo"
+import {
+  buildAbsoluteUrl,
+  extractUuid,
+  generateBreadcrumbStructuredData,
+  generateCategoryUrl,
+  generateProductMeta,
+  generateProductSlug,
+  generateProductStructuredData,
+  generateProductUrl,
+  isProductIdToken,
+  parseProductParam,
+} from "@/utils/seoUtils"
 
 const calculateSizeUnitPrice = (size: {
   price?: number | string
@@ -191,8 +204,10 @@ const ThumbnailImage = ({
 }
 
 const ProductDetails = () => {
-  const { id, productId } = useParams()
-  const actualId = productId || id // Support both /product/:id and /pharmacy/product/:productId
+  const { id, productId, slug } = useParams()
+  const location = useLocation()
+  const rawProductParam = productId || slug || id
+  const actualId = parseProductParam(rawProductParam)
   const navigate = useNavigate()
   const { toast } = useToast()
   const { addToCart, cartItems } = useCart()
@@ -220,6 +235,9 @@ const ProductDetails = () => {
   } | null>(null)
   const isAdmin = userProfile?.type === "admin" || userProfile?.role === "admin"
   const userType = sessionStorage.getItem('userType')?.toLowerCase();
+  const isDashboardRoute = /^(\/admin|\/pharmacy|\/group|\/hospital)\//.test(location.pathname)
+  const isLegacyPublicProductRoute = location.pathname.startsWith("/product/")
+  const isCanonicalPublicProductRoute = location.pathname.startsWith("/products/")
 
   const updateProductSizeInState = (sizeId: string, updates: Partial<EditableSize>) => {
     setProduct((prev) => {
@@ -521,18 +539,45 @@ const ProductDetails = () => {
       try {
         console.log("Fetching product with ID or SKU:", actualId)
 
-        // Try to fetch by ID first, then by SKU
+        // Try to fetch by canonical product id first, then by SKU for legacy compatibility
         let productData, error;
         
-        // Check if id is a UUID (contains hyphens)
-        if (actualId.includes('-')) {
+        if (actualId && extractUuid(actualId)) {
           const result = await supabase
             .from("products")
             .select("*, product_sizes(*)")
-            .eq("id", actualId)
+            .eq("id", extractUuid(actualId) || actualId)
             .single()
           productData = result.data
           error = result.error
+        } else if (actualId && isProductIdToken(actualId)) {
+          const tokenIndexResult = await supabase
+            .from("products")
+            .select("id, name, is_active")
+
+          const matches = (tokenIndexResult.data || []).filter((candidate) => (
+            candidate?.id?.toLowerCase().startsWith(actualId.toLowerCase())
+          ))
+          const expectedSlug = rawProductParam || ""
+          const matchedProduct = matches.find((candidate) => (
+            candidate?.id &&
+            candidate?.name &&
+            generateProductSlug(candidate.name, candidate.id) === expectedSlug
+          )) || matches[0]
+
+          if (matchedProduct?.id) {
+            const result = await supabase
+              .from("products")
+              .select("*, product_sizes(*)")
+              .eq("id", matchedProduct.id)
+              .single()
+
+            productData = result.data
+            error = result.error
+          } else {
+            productData = null
+            error = tokenIndexResult.error || { message: "Product not found" }
+          }
         } else {
           // Try by SKU
           const result = await supabase
@@ -626,6 +671,15 @@ const ProductDetails = () => {
         }
 
         console.log("Mapped product:", mappedProduct)
+
+        if (!isDashboardRoute) {
+          const canonicalPath = generateProductUrl(mappedProduct.id, mappedProduct.name)
+          const isOnCanonicalPath = location.pathname === canonicalPath
+
+          if (!isOnCanonicalPath || isLegacyPublicProductRoute) {
+            navigate(canonicalPath, { replace: true })
+          }
+        }
         
         // Check if product has any active sizes for non-admin users
         // const isAdmin = userProfile?.type === 'admin';
@@ -745,7 +799,7 @@ const ProductDetails = () => {
     }
 
     fetchProduct()
-  }, [actualId, navigate, toast, isLoggedIn, userProfile])
+  }, [actualId, navigate, toast, isLoggedIn, userProfile, isDashboardRoute, isLegacyPublicProductRoute, location.pathname])
 
   const handleSizeClick = async (size: any) => {
     if (isCustomizationSelected(size.id)) {
@@ -868,9 +922,42 @@ const ProductDetails = () => {
   }
 
   // Hide public navbar on dashboard routes (admin/pharmacy/group/hospital)
-  const location = useLocation()
-  const isDashboardRoute = /^(\/admin|\/pharmacy|\/group|\/hospital)\//.test(location.pathname)
   const topOffsetClass = isDashboardRoute ? "pt-0" : "pt-16"
+  const publicCanonicalPath = !isDashboardRoute && product
+    ? generateProductUrl(product.id, product.name)
+    : location.pathname
+  const publicCanonicalUrl = buildAbsoluteUrl(publicCanonicalPath)
+  const productMeta = useMemo(() => (product ? generateProductMeta(product) : null), [product])
+  const breadcrumbJsonLd = useMemo(() => {
+    if (!product || isDashboardRoute) {
+      return null
+    }
+
+    return generateBreadcrumbStructuredData([
+      { name: "Home", url: buildAbsoluteUrl("/") },
+      { name: "Products", url: buildAbsoluteUrl("/products") },
+      ...(product.category
+        ? [{ name: product.category, url: buildAbsoluteUrl(generateCategoryUrl(product.category)) }]
+        : []),
+      { name: product.name, url: publicCanonicalUrl },
+    ])
+  }, [product, isDashboardRoute, publicCanonicalUrl])
+  const productJsonLd = useMemo(() => {
+    if (!product || isDashboardRoute) {
+      return null
+    }
+
+    const activeSizeCount = product.sizes?.filter((size) => Number(size.stock || 0) > 0).length || 0
+    return generateProductStructuredData({
+      name: product.name,
+      description: product.description,
+      image_url: imageUrls[product.image_url] || product.image_url,
+      sku: product.sku,
+      category: product.category,
+      inStock: activeSizeCount > 0,
+      canonicalUrl: publicCanonicalUrl,
+    })
+  }, [product, isDashboardRoute, imageUrls, publicCanonicalUrl])
 
   // Simple navbar for light backgrounds
   const LightNavbar = () => (
@@ -1051,6 +1138,18 @@ const ProductDetails = () => {
 return (
   <>
     {!isDashboardRoute && <LightNavbar />}
+    {!isDashboardRoute && productMeta && (
+      <Seo
+        title={productMeta.title}
+        description={productMeta.description}
+        canonicalUrl={publicCanonicalUrl}
+        robots="index, follow"
+        keywords={productMeta.keywords}
+        image={imageUrls[product.image_url] || product.image_url}
+        type="product"
+        jsonLd={[breadcrumbJsonLd, productJsonLd].filter(Boolean)}
+      />
+    )}
     <CustomizationEnquiryDialog
       open={isCustomizationDialogOpen}
       onOpenChange={setIsCustomizationDialogOpen}
@@ -1098,7 +1197,7 @@ return (
               } else if (userType === 'pharmacy') {
                 navigate("/pharmacy/products", { state: { selectedCategory: category } });
               } else {
-                navigate("/products", { state: { selectedCategory: category } });
+                navigate(category ? generateCategoryUrl(category) : "/products");
               }
             }}
             className="mb-2 hover:bg-gray-100/80 transition-all duration-300 rounded-xl group text-sm h-9 px-3 backdrop-blur-sm"
