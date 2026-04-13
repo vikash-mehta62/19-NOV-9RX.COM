@@ -28,6 +28,7 @@ interface ProductData {
   category: string;
   subcategory: string;
   description: string;
+  key_features: string;
   image_url: string;
   images: string[];
   unitToggle: boolean;
@@ -62,6 +63,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
   const [productData, setProductData] = useState<ProductData | null>(null);
   const [subcategoryName, setSubcategoryName] = useState('');
   const [description, setDescription] = useState('');
+  const [keyFeatures, setKeyFeatures] = useState('');
   const [unitToggle, setUnitToggle] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>('');
@@ -112,6 +114,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
           category,
           subcategory,
           description,
+          key_features,
           image_url,
           images,
           unitToggle,
@@ -127,6 +130,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
       setProductData(data as ProductData);
       setSubcategoryName(data.subcategory || '');
       setDescription(data.description || '');
+      setKeyFeatures(data.key_features || '');
       setUnitToggle(data.unitToggle || false);
       
       // Set local sizes for drag-and-drop
@@ -267,6 +271,7 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
           name: subcategoryName, // Product name same as subcategory
           subcategory: subcategoryName,
           description: description,
+          key_features: keyFeatures,
           unitToggle: unitToggle,
           customization: customizationForm.getValues('customization'),
           similar_products: customizationForm.getValues('similar_products') || [],
@@ -384,6 +389,22 @@ export const EditSubcategoryDialog: React.FC<EditSubcategoryDialogProps> = ({
                 Customization Options
               </Label>
               <CustomizationSection form={customizationForm} />
+            </div>
+
+            {/* Key Features */}
+            <div>
+              <Label htmlFor="keyFeatures" className="text-base font-semibold">
+                Key Features
+              </Label>
+              <Textarea
+                id="keyFeatures"
+                value={keyFeatures}
+                onChange={(e) => setKeyFeatures(e.target.value)}
+                placeholder="• Feature 1&#10;• Feature 2&#10;• Feature 3"
+                rows={4}
+                className="mt-2"
+              />
+              <p className="text-xs text-gray-500 mt-1">List the main features of this product</p>
             </div>
 
             <div>
