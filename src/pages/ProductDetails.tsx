@@ -294,6 +294,38 @@ const ProductDetails = () => {
 
       if (error) throw error
 
+      // 🔹 Sync actual_price in group_pricing after size price update
+      const { data: groupPricingData, error: fetchError } = await supabase
+        .from("group_pricing")
+        .select("*")
+
+      if (!fetchError && groupPricingData) {
+        for (const group of groupPricingData) {
+          if (!Array.isArray(group.product_arrayjson)) continue
+
+          let hasChanges = false
+          const updatedProducts = group.product_arrayjson.map((product: any) => {
+            // Check if this product_id (size_id) matches the updated size
+            if (product.product_id === targetSize.id && product.actual_price !== updates.price) {
+              hasChanges = true
+              return {
+                ...product,
+                actual_price: updates.price, // ✅ Update actual_price with new price
+              }
+            }
+            return product
+          })
+
+          // Only update if there are actual changes
+          if (hasChanges) {
+            await supabase
+              .from("group_pricing")
+              .update({ product_arrayjson: updatedProducts })
+              .eq("id", group.id)
+          }
+        }
+      }
+
       updateProductSizeInState(targetSize.id, updates)
       setIsEditSizeDialogOpen(false)
       setEditingSize(null)
