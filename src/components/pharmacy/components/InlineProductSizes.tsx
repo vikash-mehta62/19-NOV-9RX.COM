@@ -913,11 +913,11 @@ export const InlineProductSizes = ({
                       <Button
                         type="button"
                         variant="outline"
-                        className="w-full mt-2 sm:mt-3 border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-[10px] sm:text-xs h-8 sm:h-9"
+                        className="w-full mt-2 sm:mt-3 h-10 sm:h-11 px-3 sm:px-4 border-purple-200 text-purple-700 hover:bg-purple-50 bg-purple-50 text-[11px] sm:text-xs font-medium leading-none gap-1.5"
                         onClick={() => handleCustomizationToggle(size, true)}
                       >
-                        <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 sm:mr-1.5" />
-                        Add Customization
+                        <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5 shrink-0" />
+                        Inquire for customization
                         {displayProduct.customization.basePrice > 0 && (
                           <span className="ml-1 text-purple-500">(+${displayProduct.customization.basePrice.toFixed(2)}/unit)</span>
                         )}

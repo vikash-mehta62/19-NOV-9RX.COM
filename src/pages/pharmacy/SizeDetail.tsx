@@ -860,7 +860,7 @@ export default function SizeDetail() {
                       onClick={() => handleCustomizationToggle(true)}
                     >
                       <Palette className="w-4 h-4 mr-1.5" />
-                      Add Customization
+                      Inquire for customization
                       {product.customization.price > 0 && (
                         <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
                       )}

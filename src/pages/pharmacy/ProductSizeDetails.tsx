@@ -374,7 +374,7 @@ const ProductSizeDetails = () => {
                         onClick={() => setCustomization(prev => ({ ...prev, enabled: !prev.enabled }))}
                       >
                         <Palette className="w-4 h-4 mr-1.5" />
-                        {customization.enabled ? 'Remove Customization' : 'Add Customization'}
+                        {customization.enabled ? 'Remove Customization' : 'Inquire for customization'}
                         {product.customization.price > 0 && !customization.enabled && (
                           <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
                         )}

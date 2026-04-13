@@ -1771,7 +1771,7 @@ return (
                             onClick={() => handleCustomizationToggle(size.id, true)}
                           >
                             <Palette className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1" />
-                            Add Customization
+                            Inquire for customization
                             {product.customization.price > 0 && (
                               <span className="ml-1 text-purple-500">(+${product.customization.price.toFixed(2)}/unit)</span>
                             )}
