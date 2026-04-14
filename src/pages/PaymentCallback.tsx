@@ -170,7 +170,7 @@ export default function PaymentCallback() {
         .from("orders")
         .select("*")
         .eq("id", orderId)
-        .single();
+        .maybeSingle();
 
       if (orderError || !order) {
         throw new Error("Order not found");
@@ -328,7 +328,7 @@ export default function PaymentCallback() {
       .from("orders")
       .insert(orderPayload as any)
       .select()
-      .single();
+      .maybeSingle();
 
     if (orderInsertError || !insertedOrder) {
       throw new Error(orderInsertError?.message || "Failed to create order");
@@ -578,16 +578,24 @@ export default function PaymentCallback() {
       const cardProcessingFee = 0;
       const targetAmount = baseAmount;
 
-      const iPosResult = await processPaymentIPOSPay(
-        targetAmount,
-        targetOrderId,
-        pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
-        pendingPayment?.customerEmail || orderData?.customerInfo?.email,
-        pendingPayment?.customerPhone || orderData?.customerInfo?.phone,
-        `Order #${pendingPayment?.orderNumber || orderData?.order_number || targetOrderId}`,
-        pendingPayment?.merchantName || orderData?.business_name || "Your Store",
-        pendingPayment?.logoUrl || orderData?.logo_url
-      );
+      const iPosResult = await processPaymentIPOSPay({
+        amount: targetAmount,
+        orderId: targetOrderId,
+        paymentMethod: pendingPayment?.paymentMethod === "ach" ? "ach" : "card",
+        customerName: pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
+        customerEmail: pendingPayment?.customerEmail || orderData?.customerInfo?.email || "",
+        customerMobile: pendingPayment?.customerPhone || orderData?.customerInfo?.phone || "",
+        description: `Order #${pendingPayment?.orderNumber || orderData?.order_number || targetOrderId}`,
+        merchantName: pendingPayment?.merchantName || orderData?.business_name || "RX Pharmacy",
+        logoUrl: pendingPayment?.logoUrl || orderData?.logo_url,
+        returnUrl: `${window.location.origin}/payment/callback`,
+        failureUrl: `${window.location.origin}/payment/callback`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+        calculateFee: pendingPayment?.paymentMethod !== "ach",
+        calculateTax: false,
+        tipsInputPrompt: false,
+        themeColor: "#2563EB",
+      });
 
       if (iPosResult.success && iPosResult.paymentUrl) {
         localStorage.setItem(

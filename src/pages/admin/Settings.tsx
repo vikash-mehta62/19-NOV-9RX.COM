@@ -52,6 +52,13 @@ interface PaymentSettings {
   testMode: boolean;
 }
 
+interface IPosPaySettings {
+  enabled: boolean;
+  tpn: string;
+  authToken: string;
+  testMode: boolean;
+}
+
 interface FortisPaySettings {
   enabled: boolean;
   developerId: string;
@@ -68,6 +75,10 @@ const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
     authorize_net_api_login_id,
     authorize_net_transaction_key,
     authorize_net_test_mode,
+    ipospay_enabled,
+    ipospay_tpn,
+    ipospay_auth_token,
+    ipospay_test_mode,
     fortispay_enabled,
     fortispay_developer_id,
     fortispay_user_id,
@@ -188,8 +199,19 @@ export default function Settings() {
         .eq("profile_id", userProfile.id)
         .maybeSingle();
 
+      const { data: iposPayData, error: iposPayError } = await supabase
+        .from("payment_settings")
+        .select("settings")
+        .eq("provider", "ipospay")
+        .eq("profile_id", userProfile.id)
+        .maybeSingle();
+
       if (fortisPayError) {
         console.error("Error fetching FortisPay settings:", fortisPayError);
+      }
+
+      if (iposPayError) {
+        console.error("Error fetching iPOSPay settings:", iposPayError);
       }
 
       const paymentSettings = paymentData?.settings
@@ -213,12 +235,25 @@ export default function Settings() {
             testMode: false,
           };
 
+      const iposPaySettings = iposPayData?.settings
+        ? (iposPayData.settings as unknown as IPosPaySettings)
+        : {
+            enabled: false,
+            tpn: "",
+            authToken: "",
+            testMode: true,
+          };
+
       const combinedSettings = {
         ...(settingsData || defaultValues),
         authorize_net_enabled: paymentSettings.enabled,
         authorize_net_api_login_id: paymentSettings.apiLoginId,
         authorize_net_transaction_key: paymentSettings.transactionKey,
         authorize_net_test_mode: paymentSettings.testMode,
+        ipospay_enabled: iposPaySettings.enabled,
+        ipospay_tpn: iposPaySettings.tpn,
+        ipospay_auth_token: iposPaySettings.authToken,
+        ipospay_test_mode: iposPaySettings.testMode,
         fortispay_enabled: fortisPaySettings.enabled,
         fortispay_developer_id: fortisPaySettings.developerId,
         fortispay_user_id: fortisPaySettings.userId,
@@ -258,6 +293,13 @@ export default function Settings() {
         apiLoginId: normalizedData.authorize_net_api_login_id,
         transactionKey: normalizedData.authorize_net_transaction_key,
         testMode: normalizedData.authorize_net_test_mode,
+      };
+
+      const iposPaySettings = {
+        enabled: normalizedData.ipospay_enabled,
+        tpn: normalizedData.ipospay_tpn,
+        authToken: normalizedData.ipospay_auth_token,
+        testMode: normalizedData.ipospay_test_mode,
       };
 
       const fortisPaySettings = {
@@ -306,6 +348,26 @@ export default function Settings() {
       if (paymentError) {
         console.error("Payment settings save error:", paymentError);
         toast.error(`Failed to save payment settings: ${paymentError.message}`);
+        return;
+      }
+
+      const { error: iposPayError } = await supabase
+        .from("payment_settings")
+        .upsert(
+          {
+            profile_id: userProfile.id,
+            provider: "ipospay",
+            settings: iposPaySettings,
+            updated_at: new Date().toISOString(),
+          },
+          {
+            onConflict: "profile_id,provider",
+          }
+        );
+
+      if (iposPayError) {
+        console.error("iPOSPay settings save error:", iposPayError);
+        toast.error(`Failed to save iPOSPay settings: ${iposPayError.message}`);
         return;
       }
 

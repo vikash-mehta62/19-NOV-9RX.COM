@@ -17,14 +17,14 @@ export default function PaymentCancelled() {
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-muted-foreground">
-            You cancelled the payment. Your order is still pending.
+            The secure payment was cancelled before completion. No payment was applied to your order.
           </p>
           <div className="space-y-2">
-            <Button onClick={() => navigate("/admin/orders")} className="w-full">
-              Back to Orders
+            <Button onClick={() => navigate(-1)} className="w-full">
+              Choose Payment Method Again
             </Button>
-            <Button onClick={() => navigate(-1)} variant="outline" className="w-full">
-              Try Again
+            <Button onClick={() => navigate("/admin/orders")} variant="outline" className="w-full">
+              Back to Orders
             </Button>
           </div>
         </CardContent>

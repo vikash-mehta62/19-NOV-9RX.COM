@@ -312,11 +312,11 @@ function PayNowOrder() {
           {cardFeeApplies && balanceDue > 0 && (
             <>
               <div className="flex justify-between text-amber-600 text-xs pt-2 border-t">
-                <span>+ Card Processing Fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+                <span>Estimated Card Fee ({feeSettings.cardProcessingFeePercentage}%)</span>
                 <span>${potentialCardFee.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-amber-700">
-                <span>Total if Paying by Card</span>
+                <span>Estimated Card Total</span>
                 <span>${totalWithCardFee.toFixed(2)}</span>
               </div>
             </>
@@ -330,7 +330,7 @@ function PayNowOrder() {
               <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
               <span>
                 Credit card payments include a {feeSettings.cardProcessingFeePercentage}% processing fee. 
-                Choose ACH/Bank payment to avoid this fee and save ${potentialCardFee.toFixed(2)}.
+                iPOSPay calculates the final fee on the secure payment page. Choose ACH/Bank payment to avoid this fee and save about ${potentialCardFee.toFixed(2)}.
               </span>
             </p>
           </div>

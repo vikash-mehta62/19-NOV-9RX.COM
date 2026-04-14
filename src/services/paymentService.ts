@@ -4,6 +4,11 @@ import {
   FortisSecCode,
   validateACHData 
 } from "./fortisPayService";
+import type {
+  IPosHostedPaymentRequest,
+  IPosHostedPaymentResponse,
+  IPosQueryStatusResponse,
+} from "./iPosPayService";
 
 export interface CardPaymentData {
   cardNumber: string;
@@ -44,7 +49,7 @@ export interface PaymentResult {
   errorCode?: string;
   errorMessage?: string;
   status?: "pending" | "approved" | "declined" | "error" | "refunded" | "voided";
-  processor?: "authorize_net" | "fortispay";
+  processor?: "authorize_net" | "fortispay" | "ipospay";
   gatewayStatusId?: number;
   gatewayTransactionStatus?: string;
   rawResponse?: unknown;
@@ -737,27 +742,12 @@ export function canChargeDirectly(savedMethod: SavedPaymentMethod): boolean {
  * Customer will be redirected to iPOS Pays secure payment page
  */
 export async function processPaymentIPOSPay(
-  amount: number,
-  orderId: string,
-  customerName?: string,
-  customerEmail?: string,
-  customerMobile?: string,
-  description?: string,
-  merchantName?: string,
-  logoUrl?: string
-): Promise<{ 
-  success: boolean; 
-  paymentUrl?: string; 
-  error?: string; 
-  transactionReferenceId?: string;
-  errorCode?: string;
-}> {
+  request: IPosHostedPaymentRequest
+): Promise<IPosHostedPaymentResponse> {
   try {
-    // Get Supabase URL from client
     const supabaseUrl = supabase.supabaseUrl;
     const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
 
-    // Direct fetch call with anon key (function is public with verify_jwt = false)
     const response = await fetch(functionUrl, {
       method: "POST",
       headers: {
@@ -767,21 +757,7 @@ export async function processPaymentIPOSPay(
       },
       body: JSON.stringify({
         action: "generatePaymentUrl",
-        amount,
-        orderId,
-        customerName,
-        customerEmail,
-        customerMobile,
-        description: description || `Order #${orderId}`,
-        merchantName,
-        logoUrl,
-        returnUrl: `${window.location.origin}/payment/callback`,
-        failureUrl: `${window.location.origin}/payment/callback`,
-        cancelUrl: `${window.location.origin}/payment/cancel`,
-        calculateFee: true,
-        calculateTax: true,
-        tipsInputPrompt: false,
-        themeColor: "#4F46E5",
+        ...request,
       }),
     });
 
@@ -825,18 +801,11 @@ export async function processPaymentIPOSPay(
  */
 export async function queryIPOSPayStatus(
   transactionReferenceId: string
-): Promise<{ 
-  success: boolean; 
-  data?: any; 
-  error?: string;
-  errorCode?: string;
-}> {
+): Promise<IPosQueryStatusResponse> {
   try {
-    // Get Supabase URL from client
     const supabaseUrl = supabase.supabaseUrl;
     const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
 
-    // Direct fetch call with anon key (function is public with verify_jwt = false)
     const response = await fetch(functionUrl, {
       method: "POST",
       headers: {
@@ -888,7 +857,7 @@ export async function isIPOSPayEnabled(): Promise<boolean> {
       .select("settings")
       .eq("provider", "ipospay")
       .eq("profile_id", user.id)
-      .single();
+      .maybeSingle();
 
     if (error || !data) return false;
 

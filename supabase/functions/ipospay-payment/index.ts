@@ -5,258 +5,292 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// ============================================
-// 🔧 HARDCODED CREDENTIALS - UPDATE THESE
-// ============================================
-const IPOSPAY_CONFIG = {
-  enabled: true,
-  testMode: true, // true = Sandbox, false = Production
-  
-  // 📝 SANDBOX CREDENTIALS (for testing)
-  sandbox: {
-    tpn: "133526975132",           // Get from devsupport@dejavoo.io
-    authToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0cG4iOiIxMzM1MjY5NzUxMzIiLCJlbWFpbCI6InNwcGF0ZWxAOXJ4LmNvbSIsIm1lcmNoYW50SWQiOiI0M2M1NWUwOC1iMmEzLTRlMjctYjU2Mi01YWNlMWQ2MjNiMmIiLCJ2ZXJzaW9uIjoidjIiLCJpYXQiOjE3NzU4NDU0OTB9.7Ojn-EBCYQFatBq_84kCmOg53nzqjkH4DYc8YdM0ox0", // Get from iPOS Pays dashboard
-  },
-  
-  // 🚀 PRODUCTION CREDENTIALS (for live)
-  production: {
-    tpn: "YOUR_PRODUCTION_TPN_HERE",
-    authToken: "YOUR_PRODUCTION_AUTH_TOKEN_HERE",
-  },
-};
+type PaymentMethod = "card" | "ach";
+
+interface GeneratePaymentUrlRequest {
+  action: "generatePaymentUrl";
+  amount: number;
+  orderId: string;
+  paymentMethod?: PaymentMethod;
+  customerName?: string;
+  customerEmail?: string;
+  customerMobile?: string;
+  description?: string;
+  calculateFee?: boolean;
+  calculateTax?: boolean;
+  tipsInputPrompt?: boolean;
+  merchantName?: string;
+  logoUrl?: string;
+  themeColor?: string;
+  returnUrl: string;
+  failureUrl?: string;
+  cancelUrl?: string;
+}
+
+interface QueryPaymentStatusRequest {
+  action: "queryPaymentStatus";
+  transactionReferenceId: string;
+}
+
+type IPosPayRequest = GeneratePaymentUrlRequest | QueryPaymentStatusRequest;
+
+interface IPosPayCredentials {
+  enabled: boolean;
+  testMode: boolean;
+  tpn: string;
+  authToken: string;
+}
+
+function jsonResponse(status: number, body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function readBoolEnv(name: string, fallback: boolean) {
+  const value = Deno.env.get(name);
+  if (value == null) return fallback;
+  return value === "true";
+}
+
+function getIPosPayCredentials(): IPosPayCredentials {
+  const enabled = readBoolEnv("IPOSPAY_ENABLED", false);
+  const testMode = readBoolEnv("IPOSPAY_TEST_MODE", true);
+
+  const tpn = testMode
+    ? Deno.env.get("IPOSPAY_SANDBOX_TPN") || ""
+    : Deno.env.get("IPOSPAY_PRODUCTION_TPN") || "";
+
+  const authToken = testMode
+    ? Deno.env.get("IPOSPAY_SANDBOX_AUTH_TOKEN") || ""
+    : Deno.env.get("IPOSPAY_PRODUCTION_AUTH_TOKEN") || "";
+
+  return {
+    enabled,
+    testMode,
+    tpn,
+    authToken,
+  };
+}
+
+function getIPosPayBaseUrls(testMode: boolean) {
+  return {
+    paymentBaseUrl: testMode
+      ? "https://payment.ipospays.tech/api/v1"
+      : "https://payment.ipospays.com/api/v1",
+    queryBaseUrl: testMode
+      ? "https://api.ipospays.tech/v1"
+      : "https://api.ipospays.com/v1",
+  };
+}
+
+function generateTransactionReferenceId() {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).slice(2, 10).toUpperCase();
+  return `TXN${timestamp}${random}`;
+}
+
+function formatAmountForIPosPay(amount: number) {
+  return Math.round(amount * 100).toString();
+}
+
+function validateGeneratePaymentUrlRequest(body: Partial<GeneratePaymentUrlRequest>) {
+  if (!body.orderId?.trim()) {
+    return "Order ID is required";
+  }
+
+  if (!body.returnUrl?.trim()) {
+    return "Return URL is required";
+  }
+
+  if (typeof body.amount !== "number" || !Number.isFinite(body.amount) || body.amount <= 0) {
+    return "Amount must be greater than 0";
+  }
+
+  return null;
+}
+
+async function handleGeneratePaymentUrl(body: GeneratePaymentUrlRequest, credentials: IPosPayCredentials) {
+  const validationError = validateGeneratePaymentUrlRequest(body);
+  if (validationError) {
+    return jsonResponse(200, {
+      success: false,
+      error: validationError,
+      errorCode: "INVALID_REQUEST",
+    });
+  }
+
+  const { paymentBaseUrl } = getIPosPayBaseUrls(credentials.testMode);
+  const transactionReferenceId = generateTransactionReferenceId();
+
+  const payload = {
+    merchantAuthentication: {
+      merchantId: credentials.tpn,
+      transactionReferenceId,
+    },
+    transactionRequest: {
+      transactionType: 1,
+      amount: formatAmountForIPosPay(body.amount),
+      calculateFee: body.calculateFee ?? true,
+      calculateTax: body.calculateTax ?? false,
+      tipsInputPrompt: body.tipsInputPrompt ?? false,
+    },
+    notificationOption: {
+      notifyBySMS: false,
+      mobileNumber: "",
+      notifyByPOST: false,
+      authHeader: "",
+      postAPI: "",
+      notifyByRedirect: true,
+      returnUrl: body.returnUrl,
+      failureUrl: body.failureUrl || body.returnUrl,
+      cancelUrl: body.cancelUrl || body.returnUrl,
+    },
+    preferences: {
+      integrationType: 1,
+      avsVerification: true,
+      eReceipt: Boolean(body.customerEmail || body.customerMobile),
+      eReceiptInputPrompt: !body.customerEmail && !body.customerMobile,
+      customerName: body.customerName || "",
+      customerEmail: body.customerEmail || "",
+      customerMobile: body.customerMobile || "",
+      requestCardToken: true,
+      shortenURL: false,
+      sendPaymentLink: false,
+      integrationVersion: "v2",
+      enableACH: true,
+    },
+    personalization: {
+      merchantName: body.merchantName || "9RX Pharmacy",
+      logoUrl: body.logoUrl || "",
+      themeColor: body.themeColor || "#2563EB",
+      description: body.description || `Order #${body.orderId}`,
+      payNowButtonText: body.paymentMethod === "ach" ? "Pay with Bank" : "Pay Now",
+      buttonColor: body.themeColor || "#2563EB",
+      cancelButtonText: "Cancel",
+      disclaimer: "",
+    },
+  };
+
+  const response = await fetch(`${paymentBaseUrl}/external-payment-transaction`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      token: credentials.authToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return jsonResponse(200, {
+      success: false,
+      error: data?.errors?.[0]?.message || data?.message || "Failed to connect to iPOSPay",
+      errors: data?.errors,
+      errorCode: "PAYMENT_URL_HTTP_ERROR",
+    });
+  }
+
+  if (data?.information) {
+    return jsonResponse(200, {
+      success: true,
+      paymentUrl: data.information,
+      transactionReferenceId,
+      message: data.message || "Payment URL generated successfully",
+    });
+  }
+
+  return jsonResponse(200, {
+    success: false,
+    error: data?.errors?.[0]?.message || data?.message || "Failed to generate payment URL",
+    errors: data?.errors,
+    errorCode: "PAYMENT_URL_GENERATION_FAILED",
+  });
+}
+
+async function handleQueryPaymentStatus(body: QueryPaymentStatusRequest, credentials: IPosPayCredentials) {
+  if (!body.transactionReferenceId?.trim()) {
+    return jsonResponse(200, {
+      success: false,
+      error: "Transaction reference ID is required",
+      errorCode: "INVALID_REQUEST",
+    });
+  }
+
+  const { queryBaseUrl } = getIPosPayBaseUrls(credentials.testMode);
+  const url = `${queryBaseUrl}/queryPaymentStatus?tpn=${encodeURIComponent(
+    credentials.tpn,
+  )}&transactionReferenceId=${encodeURIComponent(body.transactionReferenceId)}`;
+
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: credentials.authToken,
+    },
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return jsonResponse(200, {
+      success: false,
+      error: data?.message || data?.error || "Failed to query payment status",
+      errorCode: "QUERY_HTTP_ERROR",
+    });
+  }
+
+  return jsonResponse(200, {
+    success: true,
+    data: data?.iposHPResponse || data,
+  });
+}
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // NOTE: We ignore authentication for hardcoded credentials testing
-    // In production, you should validate the Authorization header
-    
-    // Parse request body
-    const body = await req.json();
-    const { action, ...params } = body;
-
-    console.log("iPOS Pay request:", { action });
-
-    // Check if iPOS Pays is enabled
-    if (!IPOSPAY_CONFIG.enabled) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "iPOS Pays is disabled in edge function config",
-          errorCode: "GATEWAY_DISABLED",
-        }),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200 
-        }
-      );
-    }
-
-    // Get credentials based on test mode
-    const credentials = IPOSPAY_CONFIG.testMode 
-      ? IPOSPAY_CONFIG.sandbox 
-      : IPOSPAY_CONFIG.production;
-
-    // Validate credentials
-    if (!credentials.tpn || !credentials.authToken) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: "iPOS Pays credentials not configured in edge function. Please update IPOSPAY_CONFIG.",
-          errorCode: "INVALID_CREDENTIALS",
-        }),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200 
-        }
-      );
-    }
-
-    // Determine API URLs based on test mode
-    const baseUrl = IPOSPAY_CONFIG.testMode
-      ? "https://payment.ipospays.tech/api/v1"
-      : "https://payment.ipospays.com/api/v1";
-
-    const queryBaseUrl = IPOSPAY_CONFIG.testMode
-      ? "https://api.ipospays.tech/v1"
-      : "https://api.ipospays.com/v1";
-
-    console.log("Using iPOS Pays environment:", IPOSPAY_CONFIG.testMode ? "SANDBOX" : "PRODUCTION");
-    console.log("TPN:", credentials.tpn);
-
-    // Handle different actions
-    if (action === "generatePaymentUrl") {
-      // Generate unique transaction reference ID (alphanumeric, max 50 chars)
-      const timestamp = Date.now();
-      const randomStr = Math.random().toString(36).substring(2, 12).toUpperCase();
-      const transactionReferenceId = `TXN${timestamp}${randomStr}`;
-      
-      // Convert amount to cents (multiply by 100)
-      const amountInCents = Math.round(params.amount * 100).toString();
-      
-      console.log("Generating payment URL:", {
-        transactionReferenceId,
-        amount: params.amount,
-        amountInCents,
-        orderId: params.orderId,
-      });
-
-      // Build iPOS Pays API payload
-      const payload = {
-        merchantAuthentication: {
-          merchantId: credentials.tpn,
-          transactionReferenceId,
-        },
-        transactionRequest: {
-          transactionType: 1, // 1 = SALE
-          amount: amountInCents,
-          calculateFee: params.calculateFee ?? true,
-          tipsInputPrompt: params.tipsInputPrompt ?? false,
-          calculateTax: params.calculateTax ?? true,
-        },
-        notificationOption: {
-          notifyBySMS: false,
-          mobileNumber: "",
-          notifyByPOST: false,
-          authHeader: "",
-          postAPI: "",
-          notifyByRedirect: true,
-          returnUrl: params.returnUrl,
-          failureUrl: params.failureUrl || params.returnUrl,
-          cancelUrl: params.cancelUrl || params.returnUrl,
-        },
-        preferences: {
-          integrationType: 1, // 1 = E-Commerce
-          avsVerification: true,
-          eReceipt: !!params.customerEmail || !!params.customerMobile,
-          eReceiptInputPrompt: !params.customerEmail && !params.customerMobile,
-          customerName: params.customerName || "",
-          customerEmail: params.customerEmail || "",
-          customerMobile: params.customerMobile || "",
-          requestCardToken: true, // Enable for saved cards
-          shortenURL: false,
-          sendPaymentLink: false,
-          integrationVersion: "v2",
-          // ✅ Enable ACH payment option
-          enableACH: true, // Show ACH/Bank option on payment page
-        },
-        personalization: {
-          merchantName: params.merchantName || "9RX Pharmacy",
-          logoUrl: params.logoUrl || "",
-          themeColor: params.themeColor || "#4F46E5",
-          description: params.description || `Order #${params.orderId || ""}`,
-          payNowButtonText: "Pay Now",
-          buttonColor: params.themeColor || "#4F46E5",
-          cancelButtonText: "Cancel",
-          disclaimer: "",
-        },
-      };
-
-      console.log("Calling iPOS Pays API:", `${baseUrl}/external-payment-transaction`);
-
-      // Call iPOS Pays API
-      const response = await fetch(`${baseUrl}/external-payment-transaction`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "token": credentials.authToken,
-        },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await response.json();
-      console.log("iPOS Pays response:", data);
-
-      // Check if URL was generated successfully
-      if (data.message === "Url generated Successful" || data.message === "URL generated successfully") {
-        return new Response(
-          JSON.stringify({
-            success: true,
-            paymentUrl: data.information,
-            transactionReferenceId,
-            message: "Payment URL generated successfully",
-          }),
-          { 
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 200 
-          }
-        );
-      } else {
-        // Handle errors
-        const errorMessage = data.errors?.[0]?.message || "Failed to generate payment URL";
-        console.error("iPOS Pays error:", data.errors);
-        
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: errorMessage,
-            errors: data.errors,
-            errorCode: "PAYMENT_URL_GENERATION_FAILED",
-          }),
-          { 
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-            status: 200 
-          }
-        );
-      }
-    } 
-    else if (action === "queryPaymentStatus") {
-      // Query payment status
-      console.log("Querying payment status:", params.transactionReferenceId);
-
-      const response = await fetch(
-        `${queryBaseUrl}/queryPaymentStatus?tpn=${credentials.tpn}&transactionReferenceId=${params.transactionReferenceId}`,
-        {
-          method: "GET",
-          headers: {
-            "Authorization": credentials.authToken,
-          },
-        }
-      );
-
-      const data = await response.json();
-      console.log("Query response:", data);
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: data.iposHPResponse,
-        }),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200 
-        }
-      );
-    }
-    else {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: "Invalid action. Use 'generatePaymentUrl' or 'queryPaymentStatus'",
-          errorCode: "INVALID_ACTION",
-        }),
-        { 
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 400 
-        }
-      );
-    }
-  } catch (error: any) {
-    console.error("iPOS Pay error:", error);
-    return new Response(
-      JSON.stringify({
+    const credentials = getIPosPayCredentials();
+    if (!credentials.enabled) {
+      return jsonResponse(200, {
         success: false,
-        error: error.message || "Internal server error",
-        errorCode: "INTERNAL_ERROR",
-      }),
-      { 
-        headers: { ...corsHeaders, "Content-Type": "application/json" }, 
-        status: 500 
-      }
-    );
+        error: "iPOSPay is disabled",
+        errorCode: "GATEWAY_DISABLED",
+      });
+    }
+
+    if (!credentials.tpn || !credentials.authToken) {
+      return jsonResponse(200, {
+        success: false,
+        error: "iPOSPay credentials are not configured",
+        errorCode: "INVALID_CREDENTIALS",
+      });
+    }
+
+    const body = (await req.json()) as IPosPayRequest;
+
+    if (body.action === "generatePaymentUrl") {
+      return await handleGeneratePaymentUrl(body, credentials);
+    }
+
+    if (body.action === "queryPaymentStatus") {
+      return await handleQueryPaymentStatus(body, credentials);
+    }
+
+    return jsonResponse(400, {
+      success: false,
+      error: "Invalid action. Use 'generatePaymentUrl' or 'queryPaymentStatus'",
+      errorCode: "INVALID_ACTION",
+    });
+  } catch (error) {
+    console.error("iPOSPay function error:", error);
+    return jsonResponse(500, {
+      success: false,
+      error: error instanceof Error ? error.message : "Internal server error",
+      errorCode: "INTERNAL_ERROR",
+    });
   }
 });

@@ -7,8 +7,7 @@ import * as z from "zod";
 import { useCart } from "@/hooks/use-cart";
 import { ShippingFields } from "./checkout/ShippingFields";
 import { PaymentFields } from "./checkout/PaymentFields";
-import { processACHPayment, processCardPayment } from "@/services/paymentService";
-import { getACHProcessor } from "@/config/paymentConfig";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 import { useNavigate } from "react-router-dom";
 
 const checkoutFormSchema = z.object({
@@ -70,114 +69,12 @@ export function CheckoutForm({ onClose, total }: CheckoutFormProps) {
       // Prevent default form submission behavior
       // event?.preventDefault();
 
-      // Show processing toast
       toast({
         title: "Processing Order",
-        description: "Please wait while we process your order...",
+        description: "Redirecting to secure checkout...",
       });
 
-      // Validate payment method specific fields
-      if (data.payment.method === "card") {
-        if (
-          !data.payment.cardNumber ||
-          !data.payment.expiryDate ||
-          !data.payment.cvv
-        ) {
-          toast({
-            title: "Validation Error",
-            description: "Please fill in all card details",
-            variant: "destructive",
-          });
-          return;
-        }
-      } else if (data.payment.method === "ach") {
-        if (
-          !data.payment.achAccountType ||
-          !data.payment.achAccountName ||
-          !data.payment.achRoutingNumber ||
-          !data.payment.achAccountNumber
-        ) {
-          toast({
-            title: "Validation Error",
-            description: "Please fill in all ACH details",
-            variant: "destructive",
-          });
-          return;
-        }
-
-        const achProcessor = await getACHProcessor();
-        const testMode = localStorage.getItem("authorize_net_test_mode") === "true";
-        console.log("Test mode enabled:", testMode);
-
-        const response =
-          achProcessor === "fortispay"
-            ? await (async () => {
-                const { processACHPaymentFortisPay } = await import("@/services/paymentService");
-                return processACHPaymentFortisPay(
-                  {
-                    accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
-                    routingNumber: data.payment.achRoutingNumber,
-                    accountNumber: data.payment.achAccountNumber,
-                    nameOnAccount: data.payment.achAccountName,
-                  },
-                  {
-                    firstName: data.shippingAddress.fullName.split(" ").slice(0, -1).join(" ") || data.shippingAddress.fullName,
-                    lastName: data.shippingAddress.fullName.split(" ").slice(-1).join(" ") || data.shippingAddress.fullName,
-                    address: data.shippingAddress.address,
-                    city: data.shippingAddress.city,
-                    state: data.shippingAddress.state,
-                    zip: data.shippingAddress.zip_code,
-                    country: "USA",
-                  },
-                  total,
-                  undefined,
-                  `Checkout Payment - ${data.shippingAddress.email}`
-                );
-              })()
-            : await processACHPayment({
-                accountType: data.payment.achAccountType as "checking" | "savings" | "businessChecking",
-                routingNumber: data.payment.achRoutingNumber,
-                accountNumber: data.payment.achAccountNumber,
-                nameOnAccount: data.payment.achAccountName,
-                amount: total,
-                customerEmail: data.shippingAddress.email,
-                testMode: testMode,
-              });
-
-        if (!response.success) {
-          toast({
-            title: "Payment Error",
-            description: response.error || "Failed to process ACH payment",
-            variant: "destructive",
-          });
-          return;
-        }
-      } else if (data.payment.method === "card") {
-        // Process card payment via Supabase Edge Function
-        const testMode =
-          localStorage.getItem("authorize_net_test_mode") === "true";
-        
-        const response = await processCardPayment({
-          cardNumber: data.payment.cardNumber!,
-          expirationDate: data.payment.expiryDate!.replace("/", ""), // Convert MM/YY to MMYY
-          cvv: data.payment.cvv!,
-          cardholderName: data.shippingAddress.fullName,
-          amount: total,
-          testMode: testMode,
-        });
-
-        if (!response.success) {
-          toast({
-            title: "Payment Error",
-            description: response.error || "Failed to process card payment",
-            variant: "destructive",
-          });
-          return;
-        }
-      }
-
-      // Create order object
-      const order = {
+      const draftOrder = {
         ...data,
         items: cartItems,
         total: total,
@@ -185,25 +82,41 @@ export function CheckoutForm({ onClose, total }: CheckoutFormProps) {
         status: "pending",
       };
 
-      // Log order data for debugging
-      console.log("Processing order:", order);
-
-      // Store order in localStorage for persistence
-      const existingOrders = JSON.parse(localStorage.getItem("orders") || "[]");
-      existingOrders.push(order);
-      localStorage.setItem("orders", JSON.stringify(existingOrders));
-
-      // Show success message
-      toast({
-        title: "Order placed successfully!",
-        description: "We'll send you a confirmation email shortly.",
+      const response = await processPaymentIPOSPay({
+        amount: total,
+        orderId: "pharmacy-checkout",
+        paymentMethod: data.payment.method === "ach" ? "ach" : "card",
+        customerName: data.shippingAddress.fullName,
+        customerEmail: data.shippingAddress.email,
+        customerMobile: data.shippingAddress.phone,
+        description: `Pharmacy checkout for ${data.shippingAddress.email}`,
+        merchantName: "9RX Pharmacy",
+        returnUrl: `${window.location.origin}/payment/callback`,
+        failureUrl: `${window.location.origin}/payment/callback`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+        calculateFee: data.payment.method === "card",
+        calculateTax: false,
+        tipsInputPrompt: false,
+        themeColor: "#2563EB",
       });
 
-      // Close the checkout form
-      onClose();
+      if (!response.success || !response.paymentUrl || !response.transactionReferenceId) {
+        throw new Error(response.error || "Failed to start secure checkout");
+      }
 
-      // Navigate to orders page
-      navigate("/pharmacy/orders");
+      localStorage.setItem("pending_payment", JSON.stringify({
+        flowType: "pharmacy_checkout",
+        transactionReferenceId: response.transactionReferenceId,
+        amount: total,
+        baseAmount: total,
+        estimatedChargedAmount: total,
+        estimatedProcessingFee: 0,
+        paymentMethod: data.payment.method,
+        orderDraft: draftOrder,
+      }));
+
+      onClose();
+      window.location.href = response.paymentUrl;
     } catch (error) {
       console.error("Checkout error:", error);
       toast({

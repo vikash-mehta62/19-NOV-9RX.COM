@@ -81,6 +81,12 @@ export interface SettingsFormValues {
   credit_card_processor: string;
   ach_processor: string;
   
+  // iPOSPay Settings
+  ipospay_enabled: boolean;
+  ipospay_tpn: string;
+  ipospay_auth_token: string;
+  ipospay_test_mode: boolean;
+  
   // FortisPay Settings
   fortispay_enabled: boolean;
   fortispay_developer_id: string;
@@ -270,8 +276,14 @@ export const defaultValues: SettingsFormValues = {
   authorize_net_api_login_id: "",
   authorize_net_transaction_key: "",
   authorize_net_test_mode: false,
-  credit_card_processor: "authorize_net",
-  ach_processor: "authorize_net",
+  credit_card_processor: "ipospay",
+  ach_processor: "ipospay",
+  
+  // iPOSPay
+  ipospay_enabled: false,
+  ipospay_tpn: "",
+  ipospay_auth_token: "",
+  ipospay_test_mode: true,
   
   // FortisPay
   fortispay_enabled: false,

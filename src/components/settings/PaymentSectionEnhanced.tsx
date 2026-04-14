@@ -202,6 +202,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                    <SelectItem value="ipospay">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4" />
+                        iPOSPay
+                      </div>
+                    </SelectItem>
                     <SelectItem value="authorize_net">
                       <div className="flex items-center gap-2">
                         <CreditCard className="h-4 w-4" />
@@ -211,7 +217,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   </SelectContent>
                 </Select>
                 <FormDescription>
-                  Payment processor for credit card transactions (currently only Authorize.Net supported)
+                  Payment processor for credit card transactions. iPOSPay should be used for the hosted card checkout flow.
                 </FormDescription>
               </FormItem>
             )}
@@ -233,6 +239,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
+                    <SelectItem value="ipospay">
+                      <div className="flex items-center gap-2">
+                        <Landmark className="h-4 w-4" />
+                        iPOSPay
+                      </div>
+                    </SelectItem>
                     <SelectItem value="authorize_net">
                       <div className="flex items-center gap-2">
                         <Landmark className="h-4 w-4" />
@@ -260,8 +272,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
             <AlertTitle>Current Configuration</AlertTitle>
             <AlertDescription>
               <div className="space-y-1 mt-2">
-                <p><strong>Credit Cards:</strong> {creditCardProcessor === 'authorize_net' ? 'Authorize.Net' : 'Not configured'}</p>
-                <p><strong>ACH Payments:</strong> {achProcessor === 'authorize_net' ? 'Authorize.Net' : achProcessor === 'fortispay' ? 'FortisPay' : 'Not configured'}</p>
+                <p><strong>Credit Cards:</strong> {creditCardProcessor === 'ipospay' ? 'iPOSPay' : creditCardProcessor === 'authorize_net' ? 'Authorize.Net' : 'Not configured'}</p>
+                <p><strong>ACH Payments:</strong> {achProcessor === 'ipospay' ? 'iPOSPay' : achProcessor === 'authorize_net' ? 'Authorize.Net' : achProcessor === 'fortispay' ? 'FortisPay' : 'Not configured'}</p>
               </div>
             </AlertDescription>
           </Alert>

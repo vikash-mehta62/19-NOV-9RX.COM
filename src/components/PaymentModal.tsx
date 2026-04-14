@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import axios from "../../axiosconfig"
-import { processPayment, PaymentResponse, logPaymentTransaction, saveCardToProfile, processPaymentIPOSPay, isIPOSPayEnabled } from "@/services/paymentService"
+import { processPayment, PaymentResponse, logPaymentTransaction, saveCardToProfile, processPaymentIPOSPay } from "@/services/paymentService"
 import {
   CreditCard,
   Landmark,
@@ -683,10 +683,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     const newErrors: Record<string, string | null> = {}
     let hasErrors = false
 
-    if (paymentType === "credit_card") {
-      newErrors.cardNumber = validateCardNumber(formData.cardNumber, cardType)
-      newErrors.cvv = validateCVV(formData.cvv, cardType.cvvLength)
-      newErrors.expirationDate = validateExpirationDate(formData.expirationDate)
+    if (paymentType === "credit_card" || paymentType === "ach") {
       newErrors.cardholderName = validateCardholderName(formData.cardholderName)
       newErrors.address = validateAddress(formData.address)
       newErrors.city = validateCity(formData.city)
@@ -742,21 +739,31 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     // ============================================
     // Check if iPOS Pays is enabled (hardcoded in edge function)
     // If enabled, redirect to iPOS Pays hosted payment page
-    if (paymentType === "credit_card") {
+    if (paymentType === "credit_card" || paymentType === "ach") {
       try {
         console.log("🔍 Checking if iPOS Pays is enabled...");
         
         // Try to generate payment URL (edge function will check if enabled)
-        const iPosResult = await processPaymentIPOSPay(
-          processorChargeAmount,
+        const iPosResult = await processPaymentIPOSPay({
+          amount: basePaymentAmount,
           orderId,
-          formData.cardholderName || customer?.name,
-          customer?.email,
-          customer?.phone,
-          `Order #${orders?.order_number}`,
-          orders?.business_name || "Your Store",
-          orders?.logo_url
-        );
+          paymentMethod: paymentType === "ach" ? "ach" : "card",
+          customerName:
+            (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount) ||
+            customer?.name,
+          customerEmail: customer?.email,
+          customerMobile: customer?.phone,
+          description: `Order #${orders?.order_number}`,
+          merchantName: orders?.business_name || "Your Store",
+          logoUrl: orders?.logo_url,
+          returnUrl: `${window.location.origin}/payment/callback`,
+          failureUrl: `${window.location.origin}/payment/callback`,
+          cancelUrl: `${window.location.origin}/payment/cancel`,
+          calculateFee: paymentType === "credit_card",
+          calculateTax: false,
+          tipsInputPrompt: false,
+          themeColor: "#2563EB",
+        });
         
         if (iPosResult.success && iPosResult.paymentUrl) {
           console.log("✅ iPOS Pays enabled - redirecting to payment page");
@@ -766,11 +773,15 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             transactionReferenceId: iPosResult.transactionReferenceId,
             orderId,
             orderNumber: orders?.order_number,
-            amount: processorChargeAmount,
+            amount: basePaymentAmount,
             baseAmount: basePaymentAmount,
-            processingFee: cardProcessingFeeAmount,
-            customerName: formData.cardholderName,
+            estimatedChargedAmount: processorChargeAmount,
+            estimatedProcessingFee: cardProcessingFeeAmount,
+            customerName:
+              (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount) ||
+              customer?.name,
             customerEmail: customer?.email,
+            paymentMethod: paymentType === "credit_card" ? "card" : "ach",
             timestamp: new Date().toISOString(),
           }));
           
@@ -785,12 +796,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
             window.location.href = iPosResult.paymentUrl!;
           }, 1000);
           
-          return; // Stop here - don't process with Authorize.Net
-        } else if (iPosResult.errorCode === "GATEWAY_DISABLED" || iPosResult.errorCode === "MISSING_CREDENTIALS") {
-          // iPOS Pays not configured - continue with Authorize.Net
-          console.log("ℹ️ iPOS Pays not configured - using Authorize.Net");
+          return;
         } else {
-          // iPOS Pays error - show error and stop
           console.error("❌ iPOS Pays error:", iPosResult.error);
           toast({
             title: "Payment Error",
@@ -802,8 +809,13 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
         }
       } catch (error: any) {
         console.error("❌ iPOS Pays check failed:", error);
-        // Continue with Authorize.Net on error
-        console.log("ℹ️ Falling back to Authorize.Net");
+        toast({
+          title: "Payment Error",
+          description: error?.message || "Unable to start secure checkout.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
     }
     // ============================================
@@ -1514,11 +1526,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         )}
                       >
                         <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
-                        <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
-                        <span className="text-xs text-gray-500 text-center">
-                          {feeSettings.cardProcessingFeeEnabled && feeSettings.cardProcessingFeePassToCustomer
-                            ? `${feeSettings.cardProcessingFeePercentage}% card fee applies`
-                            : "No extra card fee on this order"}
+                          <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
+                          <span className="text-xs text-gray-500 text-center">
+                            {feeSettings.cardProcessingFeeEnabled && feeSettings.cardProcessingFeePassToCustomer
+                              ? `${feeSettings.cardProcessingFeePercentage}% estimated card fee`
+                              : "Final total confirmed at secure checkout"}
                         </span>
                         {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
@@ -1531,8 +1543,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         )}
                       >
                         <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
-                        <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
-                        <span className="text-xs text-emerald-600 text-center">No processing fee</span>
+                          <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
+                          <span className="text-xs text-emerald-600 text-center">No card processing fee</span>
                         {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
                     </>
@@ -1568,91 +1580,22 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <Card className="shadow-lg border-0">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-blue-600" /> Card Details</>}
-                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-blue-600" /> Bank Account Details</>}
+                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-blue-600" /> Secure Card Checkout</>}
+                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-blue-600" /> Secure ACH Checkout</>}
                     {paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-blue-600" /> Manual Payment</>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
                   {paymentType === "credit_card" && (
                     <>
-                      {/* Card Number */}
-                      <div className="space-y-2">
-                        <Label htmlFor="cardNumber" className={cn(errors.cardNumber && "text-red-500")}>
-                          Card Number {cardType.type !== "unknown" && <span className="text-blue-600 font-normal">({cardType.name})</span>}
-                        </Label>
-                        <div className="relative">
-                          <div className="absolute left-3 top-1/2 -translate-y-1/2 z-10">{getCardIcon(cardType)}</div>
-                          <Input
-                            id="cardNumber"
-                            name="cardNumber"
-                            placeholder={cardType.type === "amex" ? "3782 822463 10005" : "1234 5678 9012 3456"}
-                            value={formatCardNumberByType(formData.cardNumber, cardType)}
-                            onChange={handleChange}
-                            className={cn("pl-16 h-12 text-lg font-mono tracking-wider", errors.cardNumber && "border-red-500")}
-                          />
-                          {formData.cardNumber.length > 0 && (
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                              {formData.cardNumber.length}/{cardType.maxLength}
-                            </div>
-                          )}
-                        </div>
-                        {errors.cardNumber && <p className="text-sm text-red-500 flex items-center gap-1"><AlertCircle className="w-3 h-3" />{errors.cardNumber}</p>}
+                      <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                        <p className="flex items-start gap-2">
+                          <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          Card number, expiration date, and CVV are collected on the secure iPOSPay page. This screen should only collect payer and billing details before redirect.
+                        </p>
                       </div>
-
-                      {/* Expiry & CVV */}
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label className={cn(errors.expirationDate && "text-red-500")}>Expiration Date</Label>
-                          <div className="flex gap-2">
-                            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                              <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
-                                <SelectValue placeholder="Month" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[10000]">
-                                {months.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                            <Select value={selectedYear} onValueChange={setSelectedYear}>
-                              <SelectTrigger className={cn("h-12", errors.expirationDate && "border-red-500")}>
-                                <SelectValue placeholder="Year" />
-                              </SelectTrigger>
-                              <SelectContent className="z-[10000]">
-                                {getYears().map((y) => <SelectItem key={y} value={y.toString()}>{y}</SelectItem>)}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {errors.expirationDate && <p className="text-sm text-red-500">{errors.expirationDate}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cvv" className={cn(errors.cvv && "text-red-500")}>
-                            {cardType.type === "amex" ? "CID" : "CVV"} ({cardType.cvvLength} digits)
-                          </Label>
-                          <div className="relative">
-                            <Input
-                              id="cvv"
-                              name="cvv"
-                              type="text"
-                              inputMode="numeric"
-                              placeholder={cardType.cvvLength === 4 ? "1234" : "123"}
-                              value={formData.cvv}
-                              onChange={handleChange}
-                              maxLength={cardType.cvvLength}
-                              className={cn("h-12 text-lg font-mono tracking-widest text-center", errors.cvv && "border-red-500")}
-                            />
-                            {formData.cvv.length > 0 && (
-                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                                {formData.cvv.length}/{cardType.cvvLength}
-                              </div>
-                            )}
-                          </div>
-                          {errors.cvv && <p className="text-sm text-red-500">{errors.cvv}</p>}
-                        </div>
-                      </div>
-
-                      {/* Cardholder Name */}
                       <div className="space-y-2">
-                        <Label htmlFor="cardholderName" className={cn(errors.cardholderName && "text-red-500")}>Cardholder Name</Label>
+                        <Label htmlFor="cardholderName" className={cn(errors.cardholderName && "text-red-500")}>Name on Card</Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                           <Input
@@ -1666,120 +1609,19 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         </div>
                         {errors.cardholderName && <p className="text-sm text-red-500">{errors.cardholderName}</p>}
                       </div>
-
-                      {canOfferSaveCard && (
-                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4">
-                          <div className="flex items-start gap-3">
-                            <Checkbox
-                              id="saveCard"
-                              checked={saveCard}
-                              onCheckedChange={(checked) => setSaveCard(checked === true)}
-                              className="mt-0.5 border-blue-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
-                            />
-                            <div className="space-y-1">
-                              <Label htmlFor="saveCard" className="cursor-pointer text-sm font-semibold text-slate-900">
-                                Save this card securely for faster future checkout
-                              </Label>
-                              <p className="text-sm text-slate-600">
-                                Optional. Your card is stored as a secure payment token so it can be reused later without entering all card details again.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </>
                   )}
 
                   {paymentType === "ach" && (
                     <>
-                      {/* Account Type */}
-                      <div className="space-y-2">
-                        <Label>Account Type</Label>
-                        <Select 
-                          value={formData.accountType} 
-                          onValueChange={(v) => setFormData({ ...formData, accountType: v })}
-                        >
-                          <SelectTrigger className="h-12">
-                            <SelectValue placeholder="Select account type">
-                              {formData.accountType === "checking" && "Checking Account"}
-                              {formData.accountType === "savings" && "Savings Account"}
-                              {formData.accountType === "businessChecking" && "Business Checking"}
-                              {!formData.accountType && "Select account type"}
-                            </SelectValue>
-                          </SelectTrigger>
-                          <SelectContent className="z-[10000]">
-                            <SelectItem value="checking">
-                              <div className="flex items-center gap-2">
-                                <Landmark className="w-4 h-4 text-blue-600" />
-                                Checking Account
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="savings">
-                              <div className="flex items-center gap-2">
-                                <DollarSign className="w-4 h-4 text-green-600" />
-                                Savings Account
-                              </div>
-                            </SelectItem>
-                            <SelectItem value="businessChecking">
-                              <div className="flex items-center gap-2">
-                                <Building className="w-4 h-4 text-purple-600" />
-                                Business Checking
-                              </div>
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+                        <p className="flex items-start gap-2">
+                          <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          Bank account details are collected on the secure iPOSPay page. This screen only confirms the account holder name and billing address before redirect.
+                        </p>
                       </div>
-
-                      {/* Routing & Account Numbers */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="routingNumber" className={cn(errors.routingNumber && "text-red-500")}>
-                            Routing Number (9 digits)
-                          </Label>
-                          <div className="relative">
-                            <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <Input 
-                              id="routingNumber" 
-                              name="routingNumber" 
-                              placeholder="123456789" 
-                              value={formData.routingNumber} 
-                              onChange={handleChange} 
-                              maxLength={9} 
-                              inputMode="numeric"
-                              className={cn("pl-11 h-12 font-mono tracking-wider", errors.routingNumber && "border-red-500")} 
-                            />
-                            {formData.routingNumber.length > 0 && (
-                              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-                                {formData.routingNumber.length}/9
-                              </div>
-                            )}
-                          </div>
-                          {errors.routingNumber && <p className="text-sm text-red-500">{errors.routingNumber}</p>}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="accountNumber" className={cn(errors.accountNumber && "text-red-500")}>
-                            Account Number
-                          </Label>
-                          <div className="relative">
-                            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <Input 
-                              id="accountNumber" 
-                              name="accountNumber" 
-                              placeholder="Enter account number" 
-                              value={formData.accountNumber} 
-                              onChange={handleChange} 
-                              maxLength={17}
-                              inputMode="numeric"
-                              className={cn("pl-11 h-12 font-mono tracking-wider", errors.accountNumber && "border-red-500")} 
-                            />
-                          </div>
-                          {errors.accountNumber && <p className="text-sm text-red-500">{errors.accountNumber}</p>}
-                        </div>
-                      </div>
-
-                      {/* Name on Account */}
                       <div className="space-y-2">
-                        <Label htmlFor="nameOnAccount" className={cn(errors.nameOnAccount && "text-red-500")}>Name on Account</Label>
+                        <Label htmlFor="nameOnAccount" className={cn(errors.nameOnAccount && "text-red-500")}>Name on Bank Account</Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                           <Input 
@@ -1792,14 +1634,6 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                           />
                         </div>
                         {errors.nameOnAccount && <p className="text-sm text-red-500">{errors.nameOnAccount}</p>}
-                      </div>
-
-                      {/* ACH Info Note */}
-                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
-                        <p className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                          ACH payments typically take 3-5 business days to process. Your routing and account numbers can be found at the bottom of your checks.
-                        </p>
                       </div>
                     </>
                   )}
@@ -1901,9 +1735,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
-                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing...</>
+                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Redirecting...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(processorChargeAmount)}</>
+                    <><Lock className="w-5 h-5 mr-2" />{paymentType === "credit_card" ? "Continue to Secure Card Checkout" : paymentType === "ach" ? "Continue to Secure ACH Checkout" : `Pay $${formatAmount(processorChargeAmount)}`}</>
                   )}
                 </Button>
               </div>
@@ -1958,7 +1792,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         <span>${formatAmount(basePaymentAmount)}</span>
                       </div>
                       <div className="flex items-center justify-between text-gray-600">
-                        <span>Processing fee</span>
+                        <span>{paymentType === "credit_card" ? "Estimated card fee" : "Processing fee"}</span>
                         <span>
                           {paymentType === "credit_card"
                             ? `$${formatAmount(cardProcessingFeeAmount)}`
@@ -1966,7 +1800,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         </span>
                       </div>
                       <div className="flex items-center justify-between border-t pt-2 font-semibold text-gray-900">
-                        <span>Total charged today</span>
+                        <span>{paymentType === "credit_card" ? "Estimated total charged" : "Total charged today"}</span>
                         <span>${formatAmount(processorChargeAmount)}</span>
                       </div>
                     </div>
@@ -2001,10 +1835,10 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                             </div>
                             <div className="space-y-1">
                               <p className="text-sm font-semibold text-amber-900">
-                                Card payments include an extra processing fee
+                                Card processing fee is calculated at secure checkout
                               </p>
                               <p className="text-sm leading-6 text-amber-800">
-                                You will pay the balance amount plus the configured {feeSettings.cardProcessingFeePercentage}% card fee. Only the balance amount is applied to this payment.
+                                The balance amount is fixed here. iPOSPay calculates the final card fee on the secure payment page before you confirm payment.
                               </p>
                             </div>
                           </div>
@@ -2014,16 +1848,16 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                               <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
                             </div>
                             <div className="mt-2 flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Card processing fee</span>
+                              <span className="text-slate-600">Estimated card fee</span>
                               <span className="font-semibold text-amber-700">${formatAmount(cardProcessingFeeAmount)}</span>
                             </div>
                             <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
-                              <span className="font-semibold text-slate-900">Total charged today</span>
+                              <span className="font-semibold text-slate-900">Estimated total charged</span>
                               <span className="text-lg font-bold text-amber-700">${formatAmount(processorChargeAmount)}</span>
                             </div>
                           </div>
                           <p className="text-sm font-semibold text-amber-800">
-                            Use ACH at checkout to avoid card fees and save ${formatAmount(cardProcessingFeeAmount)} on this payment.
+                            Use ACH at checkout to avoid card fees and save about ${formatAmount(cardProcessingFeeAmount)} on this payment.
                           </p>
                         </div>
                       ) : paymentType === "credit_card" ? (
@@ -2037,7 +1871,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                                 Credit card checkout is active
                               </p>
                               <p className="text-sm leading-6 text-blue-800">
-                                This order currently has no extra card processing fee. The amount charged to the card matches the order amount shown above.
+                                This order currently has no extra estimated card fee. The final amount is still confirmed on the secure payment page.
                               </p>
                             </div>
                           </div>
@@ -2047,11 +1881,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                               <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
                             </div>
                             <div className="mt-2 flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Card processing fee</span>
+                              <span className="text-slate-600">Estimated card fee</span>
                               <span className="font-semibold text-blue-700">$0.00</span>
                             </div>
                             <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
-                              <span className="font-semibold text-slate-900">Total charged today</span>
+                              <span className="font-semibold text-slate-900">Estimated total charged</span>
                               <span className="text-lg font-bold text-blue-700">${formatAmount(processorChargeAmount)}</span>
                             </div>
                           </div>
@@ -2063,7 +1897,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                               <ShieldCheck className="h-5 w-5 text-emerald-700" />
                             </div>
                             <div className="space-y-1">
-                              <p className="text-sm font-semibold text-emerald-900">ACH payments are fee-free</p>
+                              <p className="text-sm font-semibold text-emerald-900">ACH avoids card fees</p>
                               <p className="text-sm text-emerald-800">
                                 The amount you enter is the exact amount charged and applied to this balance.
                               </p>
@@ -2089,9 +1923,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {loading ? (
-                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Processing Payment...</>
+                    <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Redirecting...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />Pay ${formatAmount(processorChargeAmount)}</>
+                    <><Lock className="w-5 h-5 mr-2" />{paymentType === "credit_card" ? "Continue to Secure Card Checkout" : paymentType === "ach" ? "Continue to Secure ACH Checkout" : `Pay $${formatAmount(processorChargeAmount)}`}</>
                   )}
                 </Button>
               </div>
@@ -2156,7 +1990,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm card payment</AlertDialogTitle>
             <AlertDialogDescription>
-              Credit card processing adds an extra fee based on your configured settings.
+              The final card fee is calculated on the secure iPOSPay page before the customer confirms payment.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="rounded-xl border bg-slate-50 p-4 text-sm space-y-2">
@@ -2165,11 +1999,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+              <span>Estimated card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
               <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between border-t pt-2 font-semibold">
-              <span>Total charged to card</span>
+              <span>Estimated total charged</span>
               <span>${processorChargeAmount.toFixed(2)}</span>
             </div>
           </div>
@@ -2182,7 +2016,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                 await submitPayment(true)
               }}
             >
-              Continue and charge ${processorChargeAmount.toFixed(2)}
+              Continue to secure checkout
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

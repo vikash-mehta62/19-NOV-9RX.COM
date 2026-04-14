@@ -6,13 +6,14 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-export type PaymentProcessor = "authorize_net" | "fortispay";
+export type PaymentProcessor = "authorize_net" | "fortispay" | "ipospay";
 
 export interface PaymentConfig {
   achProcessor: PaymentProcessor;
   creditCardProcessor: PaymentProcessor;
   fortisPayEnabled: boolean;
   authorizeNetEnabled: boolean;
+  iposPayEnabled: boolean;
 }
 
 export interface PaymentExperienceSettings {
@@ -72,14 +73,23 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
       .eq("provider", "fortispay")
       .maybeSingle();
 
+    const { data: iposPayData } = await supabase
+      .from("payment_settings")
+      .select("settings")
+      .eq("profile_id", user.id)
+      .eq("provider", "ipospay")
+      .maybeSingle();
+
     const authorizeNetEnabled = authorizeNetData?.settings?.enabled || false;
     const fortisPayEnabled = fortisPayData?.settings?.enabled || false;
+    const iposPayEnabled = iposPayData?.settings?.enabled || false;
 
     const config: PaymentConfig = {
-      achProcessor: (settings.ach_processor as PaymentProcessor) || "authorize_net",
-      creditCardProcessor: (settings.credit_card_processor as PaymentProcessor) || "authorize_net",
+      achProcessor: (settings.ach_processor as PaymentProcessor) || "ipospay",
+      creditCardProcessor: (settings.credit_card_processor as PaymentProcessor) || "ipospay",
       fortisPayEnabled,
       authorizeNetEnabled,
+      iposPayEnabled,
     };
 
     cachedConfig = config;
@@ -94,19 +104,21 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
  * Get payment configuration from environment variables (fallback)
  */
 function getEnvPaymentConfig(): PaymentConfig {
-  const achProcessor = (import.meta.env.VITE_ACH_PAYMENT_PROCESSOR || "authorize_net") as PaymentProcessor;
+  const achProcessor = (import.meta.env.VITE_ACH_PAYMENT_PROCESSOR || "ipospay") as PaymentProcessor;
 
   // Frontend must not depend on payment provider secrets.
   // Use an explicit non-secret feature flag for Fortis availability.
   const fortisPayEnabled = import.meta.env.VITE_FORTISPAY_ENABLED === "true";
+  const iposPayEnabled = import.meta.env.VITE_IPOSPAY_ENABLED === "true";
 
-  const authorizeNetEnabled = true; // Assuming it's configured via Supabase
+  const authorizeNetEnabled = false;
 
   return {
     achProcessor,
-    creditCardProcessor: "authorize_net",
+    creditCardProcessor: "ipospay",
     fortisPayEnabled,
     authorizeNetEnabled,
+    iposPayEnabled,
   };
 }
 
@@ -132,6 +144,14 @@ export async function isFortisPayAvailable(): Promise<boolean> {
 export async function isAuthorizeNetAvailable(): Promise<boolean> {
   const config = await getPaymentConfig();
   return config.authorizeNetEnabled;
+}
+
+/**
+ * Check if iPOSPay is available and configured
+ */
+export async function isIPosPayAvailable(): Promise<boolean> {
+  const config = await getPaymentConfig();
+  return config.iposPayEnabled;
 }
 
 /**

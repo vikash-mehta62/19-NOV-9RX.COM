@@ -43,6 +43,7 @@ import {
   canChargeDirectly,
   processACHPayment,
   processACHPaymentFortisPay,
+  processPaymentIPOSPay,
 } from "@/services/paymentService";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -596,6 +597,114 @@ const CreateOrderPaymentForm = ({
     }
   };
 
+  const validateHostedPaymentDraft = () => {
+    const newErrors: Record<string, string> = {};
+    const payerName =
+      paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount;
+
+    if (!payerName?.trim()) {
+      if (paymentType === "credit_card") {
+        newErrors.cardholderName = "Name on card is required";
+      } else {
+        newErrors.nameOnAccount = "Name on account is required";
+      }
+    }
+
+    if (!formData.address) newErrors.address = "Address is required";
+    if (!formData.city) newErrors.city = "City is required";
+    if (!formData.state) newErrors.state = "State is required";
+    if (!formData.zip) newErrors.zip = "ZIP code is required";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleHostedSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (isSubmitting.current) {
+      return;
+    }
+
+    if (!validateHostedPaymentDraft()) {
+      toast({
+        title: "Validation Error",
+        description: "Please complete the payer name and billing address before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (cardFeeApplies && !feeConfirmBypassRef.current) {
+      setShowCardFeeConfirm(true);
+      return;
+    }
+
+    feeConfirmBypassRef.current = false;
+    isSubmitting.current = true;
+    setLoading(true);
+
+    try {
+      const cleanedCartItems = cleanCartItems(cartItems);
+      const customerName =
+        (paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount) ||
+        formDataa?.customerInfo?.name ||
+        "Customer";
+
+      const iPosResult = await processPaymentIPOSPay({
+        amount: basePaymentAmount,
+        orderId: "draft-order",
+        paymentMethod: paymentType === "ach" ? "ach" : "card",
+        customerName,
+        customerEmail: formDataa?.customerInfo?.email || "",
+        customerMobile: formDataa?.customerInfo?.phone || "",
+        description: `Create order payment for ${formDataa?.customerInfo?.name || "customer"}`,
+        merchantName: formDataa?.customerInfo?.business_name || "Your Store",
+        returnUrl: `${window.location.origin}/payment/callback`,
+        failureUrl: `${window.location.origin}/payment/callback`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+        calculateFee: paymentType === "credit_card",
+        calculateTax: false,
+        tipsInputPrompt: false,
+        themeColor: "#2563EB",
+      });
+
+      if (!iPosResult.success || !iPosResult.paymentUrl || !iPosResult.transactionReferenceId) {
+        throw new Error(iPosResult.error || "Failed to initialize secure checkout");
+      }
+
+      localStorage.setItem("pending_payment", JSON.stringify({
+        flowType: "create_order",
+        transactionReferenceId: iPosResult.transactionReferenceId,
+        amount: basePaymentAmount,
+        baseAmount: basePaymentAmount,
+        estimatedChargedAmount: processorChargeAmount,
+        estimatedProcessingFee: cardProcessingFeeAmount,
+        paymentMethod: paymentType === "credit_card" ? "card" : "ach",
+        formDataa,
+        pId,
+        isCus: isCus || false,
+        orderSubtotal,
+        orderTax,
+        orderShipping: effectiveShippingCost,
+        discountAmount,
+        discountDetails,
+        cartItems: cleanedCartItems,
+      }));
+
+      window.location.href = iPosResult.paymentUrl;
+    } catch (error) {
+      setLoading(false);
+      isSubmitting.current = false;
+      feeConfirmBypassRef.current = false;
+      toast({
+        title: "Payment Failed",
+        description: error instanceof Error ? error.message : "Unable to start secure checkout.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const processOrder = async (
     response: any,
     cleanedCartItems: any[],
@@ -1130,233 +1239,24 @@ const CreateOrderPaymentForm = ({
             </Card>
 
             {/* Payment Details Form */}
-            <form id="payment-form" ref={paymentFormRef} onSubmit={handleSubmit}>
+            <form id="payment-form" ref={paymentFormRef} onSubmit={handleHostedSubmit}>
               <Card className="shadow-lg border-0">
                 <CardHeader>
                   <CardTitle className="text-lg">
-                    {paymentType === "credit_card" ? "Card Details" : "Bank Account Details"}
+                    {paymentType === "credit_card" ? "Secure Card Checkout" : "Secure Bank Checkout"}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  <div className={`rounded-xl border p-4 text-sm ${paymentType === "credit_card" ? "border-blue-200 bg-blue-50 text-blue-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+                    {paymentType === "credit_card"
+                      ? "Enter the payer name and billing address here. Card details will be collected on the secure iPOSPay page."
+                      : "Enter the payer name and billing address here. Bank account details will be collected on the secure iPOSPay page."}
+                  </div>
                   {paymentType === "credit_card" ? (
                     <>
-                      {/* Saved Cards Section - Quick Fill */}
-                      {savedCards.length > 0 && (
-                        <div className="space-y-3">
-                          <Label className="text-sm font-medium flex items-center gap-2">
-                            <Wallet className="w-4 h-4 text-blue-600" />
-                            Use Saved Card
-                          </Label>
-                          <p className="text-xs text-gray-500">
-                            {savedCards.some(c => canChargeDirectly(c)) 
-                              ? "Select a saved card to pay instantly without entering card details."
-                              : "Select a saved card to auto-fill billing address. Enter card number and CVV for security."}
-                          </p>
-                          <div className="grid gap-2">
-                            {savedCards.filter(c => c.method_type === 'card').map((card) => {
-                              const canCharge = canChargeDirectly(card);
-                              const isSelected = selectedSavedCard?.id === card.id;
-                              
-                              return (
-                                <button
-                                  key={card.id}
-                                  type="button"
-                                  onClick={() => {
-                                    if (canCharge) {
-                                      // Token-based card - select for direct charge
-                                      setSelectedSavedCard(isSelected ? null : card);
-                                      if (!isSelected) {
-                                        // Clear manual card fields when selecting saved card
-                                        setFormData(prev => ({
-                                          ...prev,
-                                          cardNumber: "",
-                                          cvv: "",
-                                          cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
-                                          expirationDate: "",
-                                          address: card.billing_address || prev.address,
-                                          city: card.billing_city || prev.city,
-                                          state: card.billing_state || prev.state,
-                                          zip: card.billing_zip || prev.zip,
-                                        }));
-                                        toast({
-                                          title: "Card Selected",
-                                          description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Click Pay to complete.`,
-                                        });
-                                      }
-                                    } else {
-                                      // Legacy card - just fill billing info
-                                      setSelectedSavedCard(null);
-                                      const expiryMonth = card.card_expiry_month?.toString().padStart(2, '0') || '';
-                                      const expiryYear = card.card_expiry_year?.toString().slice(-2) || '';
-                                      const expirationDate = expiryMonth && expiryYear ? `${expiryMonth}${expiryYear}` : '';
-                                      
-                                      setFormData(prev => ({
-                                        ...prev,
-                                        cardholderName: `${card.billing_first_name || ''} ${card.billing_last_name || ''}`.trim() || prev.cardholderName,
-                                        expirationDate: expirationDate || prev.expirationDate,
-                                        address: card.billing_address || prev.address,
-                                        city: card.billing_city || prev.city,
-                                        state: card.billing_state || prev.state,
-                                        zip: card.billing_zip || prev.zip,
-                                      }));
-                                      toast({
-                                        title: "Billing Info Filled",
-                                        description: `Using ${card.card_type?.toUpperCase()} •••• ${card.card_last_four}. Please enter card number and CVV.`,
-                                      });
-                                    }
-                                  }}
-                                  className={`w-full p-3 rounded-lg border-2 transition-all flex items-center gap-3 ${
-                                    isSelected 
-                                      ? "border-blue-500 bg-blue-50 shadow-md" 
-                                      : "border-gray-200 hover:border-blue-300 hover:bg-blue-50"
-                                  }`}
-                                >
-                                  <div className={`p-2 rounded-lg ${isSelected ? "bg-blue-100" : "bg-gray-100"}`}>
-                                    <CreditCard className={`w-5 h-5 ${isSelected ? "text-blue-600" : "text-gray-500"}`} />
-                                  </div>
-                                  <div className="flex-1 text-left">
-                                    <p className="font-medium text-gray-900">
-                                      {card.card_type?.toUpperCase()} •••• {card.card_last_four}
-                                    </p>
-                                    <p className="text-xs text-gray-500">
-                                      Expires {card.card_expiry_month?.toString().padStart(2, '0')}/{card.card_expiry_year}
-                                    </p>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    {canCharge && (
-                                      <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
-                                        1-Click Pay
-                                      </Badge>
-                                    )}
-                                    {card.is_default && (
-                                      <Badge variant="secondary" className="text-xs">Default</Badge>
-                                    )}
-                                    {isSelected && (
-                                      <CheckCircle2 className="w-5 h-5 text-blue-600" />
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                          </div>
-                          
-                          {/* Show divider only if no card selected for direct charge */}
-                          {!selectedSavedCard && (
-                            <div className="relative">
-                              <div className="absolute inset-0 flex items-center">
-                                <span className="w-full border-t" />
-                              </div>
-                              <div className="relative flex justify-center text-xs uppercase">
-                                <span className="bg-white px-2 text-gray-500">Or enter new card</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Card Number - Hide when saved card selected */}
-                      {!selectedSavedCard && (
-                        <div className="space-y-2">
-                          <Label htmlFor="cardNumber" className="text-sm font-medium">
-                            Card Number
-                          </Label>
-                          <div className="relative">
-                            <CreditCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                            <Input
-                              id="cardNumber"
-                              name="cardNumber"
-                              placeholder="1234 5678 9012 3456"
-                              value={formData.cardNumber}
-                              onChange={handleCardNumberChange}
-                              maxLength={19}
-                              className={`pl-11 h-12 text-lg ${errors.cardNumber ? "border-red-500" : ""}`}
-                            />
-                          </div>
-                          {errors.cardNumber && (
-                            <p className="text-sm text-red-500 flex items-center gap-1">
-                              <AlertCircle className="w-4 h-4" />
-                              {errors.cardNumber}
-                            </p>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Selected Saved Card Display */}
-                      {selectedSavedCard && (
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="p-2 bg-blue-100 rounded-lg">
-                                <CreditCard className="w-6 h-6 text-blue-600" />
-                              </div>
-                              <div>
-                                <p className="font-semibold text-gray-900">
-                                  {selectedSavedCard.card_type?.toUpperCase()} •••• {selectedSavedCard.card_last_four}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  Ready to charge ${formData.amount.toFixed(2)}
-                                </p>
-                              </div>
-                            </div>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setSelectedSavedCard(null)}
-                              className="text-gray-500 hover:text-gray-700"
-                            >
-                              <X className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Expiry & CVV - Hide when saved card selected */}
-                      {!selectedSavedCard && (
-                        <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="expirationDate" className="text-sm font-medium">
-                            Expiry Date
-                          </Label>
-                          <Input
-                            id="expirationDate"
-                            name="expirationDate"
-                            placeholder="MMYY"
-                            value={formData.expirationDate}
-                            onChange={handleChange}
-                            maxLength={4}
-                            className={`h-12 text-lg ${errors.expirationDate ? "border-red-500" : ""}`}
-                          />
-                          {errors.expirationDate && (
-                            <p className="text-sm text-red-500">{errors.expirationDate}</p>
-                          )}
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="cvv" className="text-sm font-medium">
-                            CVV
-                          </Label>
-                          <Input
-                            id="cvv"
-                            name="cvv"
-                            placeholder="123"
-                            value={formData.cvv}
-                            onChange={handleChange}
-                            maxLength={4}
-                            type="password"
-                            className={`h-12 text-lg ${errors.cvv ? "border-red-500" : ""}`}
-                          />
-                          {errors.cvv && (
-                            <p className="text-sm text-red-500">{errors.cvv}</p>
-                          )}
-                        </div>
-                      </div>
-                      )}
-
-                      {/* Cardholder Name - Hide when saved card selected */}
-                      {!selectedSavedCard && (
                       <div className="space-y-2">
                         <Label htmlFor="cardholderName" className="text-sm font-medium">
-                          Cardholder Name
+                          Name on Card
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1373,96 +1273,12 @@ const CreateOrderPaymentForm = ({
                           <p className="text-sm text-red-500">{errors.cardholderName}</p>
                         )}
                       </div>
-                      )}
-
-                      {/* Save Card Checkbox - Hide when saved card selected */}
-                      {!selectedSavedCard && (
-                        <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4">
-                          <div className="flex items-start gap-3">
-                            <Checkbox
-                              id="saveCard"
-                              checked={saveCard}
-                              onCheckedChange={(checked) => setSaveCard(checked === true)}
-                              className="mt-0.5 border-blue-300 data-[state=checked]:border-blue-600 data-[state=checked]:bg-blue-600"
-                            />
-                            <div className="space-y-1">
-                              <Label htmlFor="saveCard" className="cursor-pointer text-sm font-semibold text-slate-900">
-                                Save this card securely for faster future checkout
-                              </Label>
-                              <p className="text-sm text-slate-600">
-                                Optional. Your card is stored as a secure payment token so you can reuse it next time without entering all details again.
-                              </p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                     </>
                   ) : (
                     <>
-                      {/* Account Type */}
-                      <div className="space-y-2">
-                        <Label className="text-sm font-medium">Account Type</Label>
-                        <Select
-                          value={formData.accountType}
-                          onValueChange={(value) => setFormData({ ...formData, accountType: value })}
-                        >
-                          <SelectTrigger className="h-12">
-                            <SelectValue placeholder="Select account type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="checking">Checking Account</SelectItem>
-                            <SelectItem value="savings">Savings Account</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      {/* Routing Number */}
-                      <div className="space-y-2">
-                        <Label htmlFor="routingNumber" className="text-sm font-medium">
-                          Routing Number
-                        </Label>
-                        <div className="relative">
-                          <Landmark className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input
-                            id="routingNumber"
-                            name="routingNumber"
-                            placeholder="123456789"
-                            value={formData.routingNumber}
-                            onChange={handleChange}
-                            maxLength={9}
-                            className={`pl-11 h-12 ${errors.routingNumber ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {errors.routingNumber && (
-                          <p className="text-sm text-red-500">{errors.routingNumber}</p>
-                        )}
-                      </div>
-
-                      {/* Account Number */}
-                      <div className="space-y-2">
-                        <Label htmlFor="accountNumber" className="text-sm font-medium">
-                          Account Number
-                        </Label>
-                        <div className="relative">
-                          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input
-                            id="accountNumber"
-                            name="accountNumber"
-                            placeholder="Enter account number"
-                            value={formData.accountNumber}
-                            onChange={handleChange}
-                            className={`pl-11 h-12 ${errors.accountNumber ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {errors.accountNumber && (
-                          <p className="text-sm text-red-500">{errors.accountNumber}</p>
-                        )}
-                      </div>
-
-                      {/* Name on Account */}
                       <div className="space-y-2">
                         <Label htmlFor="nameOnAccount" className="text-sm font-medium">
-                          Name on Account
+                          Name on Bank Account
                         </Label>
                         <div className="relative">
                           <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -1601,12 +1417,14 @@ const CreateOrderPaymentForm = ({
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing Payment...
+                      Redirecting...
                     </>
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay ${processorChargeAmount.toFixed(2)}
+                      {paymentType === "credit_card"
+                        ? "Continue to Secure Card Checkout"
+                        : "Continue to Secure ACH Checkout"}
                     </>
                   )}
                 </Button>
@@ -1706,14 +1524,14 @@ const CreateOrderPaymentForm = ({
                       <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Card fee</span>
+                      <span className="text-gray-600">Estimated card fee</span>
                       <span className="font-medium">
                         {paymentType === "credit_card" ? `$${cardProcessingFeeAmount.toFixed(2)}` : "$0.00"}
                       </span>
                     </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
-                      <span>Total charged</span>
+                      <span>Estimated total charged</span>
                       <span className="text-blue-600">${processorChargeAmount.toFixed(2)}</span>
                     </div>
                     {discountAmount > 0 && (
@@ -1751,10 +1569,10 @@ const CreateOrderPaymentForm = ({
                         </div>
                         <div className="space-y-1">
                           <p className="text-sm font-semibold text-amber-900">
-                            Card payments include an extra processing fee
+                            Card processing fee is calculated at secure checkout
                           </p>
                           <p className="text-sm leading-6 text-amber-800">
-                            You will pay the order amount plus the configured {feeSettings.cardProcessingFeePercentage}% card fee. Only the order amount is applied to this purchase.
+                            Shipping, tax, and discounts are already included in the order total. iPOSPay will calculate the final card fee on the secure payment page.
                           </p>
                         </div>
                       </div>
@@ -1768,13 +1586,13 @@ const CreateOrderPaymentForm = ({
                           <span className="font-semibold text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
                         </div>
                         <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
-                          <span className="font-semibold text-slate-900">Total charged today</span>
+                          <span className="font-semibold text-slate-900">Estimated total charged</span>
                           <span className="text-lg font-bold text-amber-700">${processorChargeAmount.toFixed(2)}</span>
                         </div>
                       </div>
                         <div>
                           <span className="text-sm text-amber-600 font-bold">
-                            Use ACH at checkout to avoid card fees and save ${cardProcessingFeeAmount.toFixed(2)} on this order.
+                            Use ACH at checkout to avoid card fees and save an estimated ${cardProcessingFeeAmount.toFixed(2)} on this order.
                           </span>
                         </div>
                     </div>
@@ -1789,7 +1607,7 @@ const CreateOrderPaymentForm = ({
                             Credit card checkout is active
                           </p>
                           <p className="text-sm leading-6 text-blue-800">
-                            This order currently has no extra card processing fee. The amount charged to the card matches the order amount shown above.
+                            This order currently has no extra estimated card processing fee. The final amount will still be confirmed on the secure payment page.
                           </p>
                         </div>
                       </div>
@@ -1803,7 +1621,7 @@ const CreateOrderPaymentForm = ({
                           <span className="font-semibold text-blue-700">$0.00</span>
                         </div>
                         <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
-                          <span className="font-semibold text-slate-900">Total charged today</span>
+                          <span className="font-semibold text-slate-900">Estimated total charged</span>
                           <span className="text-lg font-bold text-blue-700">${processorChargeAmount.toFixed(2)}</span>
                         </div>
                       </div>
@@ -1815,9 +1633,9 @@ const CreateOrderPaymentForm = ({
                           <ShieldCheck className="h-5 w-5 text-emerald-700" />
                         </div>
                         <div className="space-y-1">
-                          <p className="text-sm font-semibold text-emerald-900">ACH payments are fee-free</p>
+                          <p className="text-sm font-semibold text-emerald-900">ACH payments avoid card fees</p>
                           <p className="text-sm text-emerald-800">
-                            The amount charged matches your order total. No extra processing fee is added for ACH.
+                            The amount charged typically matches your order total. Final payment details are confirmed on the secure bank payment page.
                           </p>
                         </div>
                       </div>
@@ -1842,18 +1660,20 @@ const CreateOrderPaymentForm = ({
                   type="submit"
                   form="payment-form"
                   disabled={loading}
-                  onClick={handleSubmit}
+                  onClick={handleHostedSubmit}
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg"
                 >
                   {loading ? (
                     <>
                       <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                      Processing...
+                      Redirecting...
                     </>
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay ${processorChargeAmount.toFixed(2)}
+                      {paymentType === "credit_card"
+                        ? `Continue to Secure Card Checkout`
+                        : `Continue to Secure ACH Checkout`}
                     </>
                   )}
                 </Button>
@@ -1895,7 +1715,7 @@ const CreateOrderPaymentForm = ({
           <AlertDialogHeader>
             <AlertDialogTitle>Confirm card charge</AlertDialogTitle>
             <AlertDialogDescription>
-              This checkout includes your configured card processing fee.
+              The final card processing fee will be calculated on the secure iPOSPay page.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="rounded-xl border bg-slate-50 p-4 space-y-2 text-sm">
@@ -1904,11 +1724,11 @@ const CreateOrderPaymentForm = ({
               <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span>Card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
+              <span>Estimated card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
               <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
             </div>
             <div className="flex items-center justify-between border-t pt-2 font-semibold">
-              <span>Total charged</span>
+              <span>Estimated total charged</span>
               <span>${processorChargeAmount.toFixed(2)}</span>
             </div>
           </div>
@@ -1922,7 +1742,7 @@ const CreateOrderPaymentForm = ({
                 paymentFormRef.current?.requestSubmit();
               }}
             >
-              Continue and charge ${processorChargeAmount.toFixed(2)}
+              Continue to secure checkout
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
