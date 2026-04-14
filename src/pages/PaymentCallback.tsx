@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import axios from "../../axiosconfig";
 import { supabase } from "@/integrations/supabase/client";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 import {
   formatCardType,
   isPaymentSuccessful,
@@ -23,7 +25,15 @@ export default function PaymentCallback() {
   const [paymentData, setPaymentData] = useState<IPosPaymentCallbackData | null>(null);
   const [paymentResult, setPaymentResult] = useState<IPosNormalizedPaymentResult | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState<string | null>(null);
+  const [retryOrderId, setRetryOrderId] = useState<string | null>(null);
+  const ordersPath =
+    sessionStorage.getItem("userType") === "admin"
+      ? "/admin/orders"
+      : sessionStorage.getItem("userType") === "group"
+        ? "/group/orders"
+        : "/pharmacy/orders";
 
   useEffect(() => {
     void handlePaymentCallback();
@@ -39,6 +49,7 @@ export default function PaymentCallback() {
       }
 
       const pendingPayment = JSON.parse(pendingPaymentStr);
+      setRetryOrderId(pendingPayment?.orderId || null);
 
       const responseCode = searchParams.get("responseCode");
       const responseMessage = searchParams.get("responseMessage");
@@ -108,11 +119,11 @@ export default function PaymentCallback() {
         setProcessing(true);
         await processSuccessfulPayment(pendingPayment, parsedData, normalizedResult);
         setProcessing(false);
+        localStorage.removeItem("pending_payment");
       } else {
         await logFailedPayment(pendingPayment, parsedData, normalizedResult);
       }
 
-      localStorage.removeItem("pending_payment");
       setLoading(false);
     } catch (error) {
       console.error("Payment callback error:", error);
@@ -428,10 +439,28 @@ export default function PaymentCallback() {
       const order = orderId
         ? await supabase
             .from("orders")
-            .select("profile_id")
+            .select("profile_id, payment_status")
             .eq("id", orderId)
             .maybeSingle()
         : { data: null };
+
+      const currentOrderPaymentStatus = String(order.data?.payment_status || "").toLowerCase();
+      if (
+        orderId &&
+        !["paid", "partial_paid"].includes(currentOrderPaymentStatus)
+      ) {
+        const { error: pendingStatusError } = await supabase
+          .from("orders")
+          .update({
+            payment_status: "pending",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", orderId);
+
+        if (pendingStatusError) {
+          console.error("Failed to keep order payment status pending:", pendingStatusError);
+        }
+      }
 
       await supabase.from("payment_transactions").insert({
         profile_id: order.data?.profile_id,
@@ -512,6 +541,86 @@ export default function PaymentCallback() {
     console.log("Send confirmation email", { orderId: order.id, result });
   };
 
+  const handleRetryPayment = async () => {
+    try {
+      setRetrying(true);
+      const pendingPaymentStr = localStorage.getItem("pending_payment");
+      const pendingPayment = pendingPaymentStr ? JSON.parse(pendingPaymentStr) : null;
+      const targetOrderId = pendingPayment?.orderId || retryOrderId;
+
+      if (!targetOrderId) {
+        toast.error("Order not found for retry");
+        return;
+      }
+
+      // Recalculate amount from latest order data (same as pay-now modal flow)
+      const { data: orderResponse } = await axios.get(`/api/pay-now-order/${targetOrderId}`);
+      const orderData = orderResponse?.order;
+      if (!orderData) {
+        toast.error("Failed to load order for retry");
+        return;
+      }
+
+      const orderTotalAmount = Number(orderData.total_amount || 0);
+      const orderProcessingFee = Number(orderData.processing_fee_amount || 0);
+      const paidAmount = Number(orderData.paid_amount || 0);
+      // Retry should charge only the actual order base amount (no extra retry card fee).
+      const fallbackBaseAmount = Math.max(0, (orderTotalAmount - orderProcessingFee) - paidAmount);
+      const baseAmount = Number(
+        Math.max(0, Number(pendingPayment?.baseAmount || 0) || fallbackBaseAmount).toFixed(2)
+      );
+
+      if (baseAmount <= 0) {
+        toast.error("Order already paid");
+        return;
+      }
+
+      const cardProcessingFee = 0;
+      const targetAmount = baseAmount;
+
+      const iPosResult = await processPaymentIPOSPay(
+        targetAmount,
+        targetOrderId,
+        pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
+        pendingPayment?.customerEmail || orderData?.customerInfo?.email,
+        pendingPayment?.customerPhone || orderData?.customerInfo?.phone,
+        `Order #${pendingPayment?.orderNumber || orderData?.order_number || targetOrderId}`,
+        pendingPayment?.merchantName || orderData?.business_name || "Your Store",
+        pendingPayment?.logoUrl || orderData?.logo_url
+      );
+
+      if (iPosResult.success && iPosResult.paymentUrl) {
+        localStorage.setItem(
+          "pending_payment",
+          JSON.stringify({
+            ...(pendingPayment || {}),
+            orderId: targetOrderId,
+            orderNumber: pendingPayment?.orderNumber || orderData?.order_number,
+            amount: targetAmount,
+            baseAmount,
+            processingFee: cardProcessingFee,
+            customerName: pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
+            customerEmail: pendingPayment?.customerEmail || orderData?.customerInfo?.email,
+            customerPhone: pendingPayment?.customerPhone || orderData?.customerInfo?.phone,
+            merchantName: pendingPayment?.merchantName || orderData?.business_name || "Your Store",
+            logoUrl: pendingPayment?.logoUrl || orderData?.logo_url,
+            transactionReferenceId: iPosResult.transactionReferenceId || pendingPayment?.transactionReferenceId,
+            timestamp: new Date().toISOString(),
+          })
+        );
+        window.location.href = iPosResult.paymentUrl;
+        return;
+      }
+
+      toast.error(iPosResult.error || "Retry payment failed");
+    } catch (error: any) {
+      console.error("Direct iPOS retry failed:", error);
+      toast.error(error?.message || "Retry payment failed");
+    } finally {
+      setRetrying(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -568,12 +677,6 @@ export default function PaymentCallback() {
   }
 
   const success = paymentResult.status === "success";
-  const ordersPath =
-    sessionStorage.getItem("userType") === "admin"
-      ? "/admin/orders"
-      : sessionStorage.getItem("userType") === "group"
-        ? "/group/orders"
-        : "/pharmacy/orders";
   const displayMethod =
     paymentResult.paymentMethod === "ach"
       ? `ACH - ${paymentResult.accountType || "Bank"} •••• ${paymentResult.accountLast4 || ""}`.trim()
@@ -678,14 +781,12 @@ export default function PaymentCallback() {
 
             {!success && (
               <Button
-                onClick={() => {
-                  localStorage.removeItem("pending_payment");
-                  navigate(-2);
-                }}
+                onClick={handleRetryPayment}
                 variant="default"
                 className="w-full bg-blue-600 hover:bg-blue-700"
+                disabled={retrying}
               >
-                Try Again
+                {retrying ? "Retrying..." : "Try Again"}
               </Button>
             )}
           </div>
