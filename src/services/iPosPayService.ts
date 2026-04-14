@@ -1,18 +1,25 @@
 /**
- * iPOS Pays Payment Gateway Service
- * Hosted Payment Page (HPP) Integration
+ * iPOSPay Hosted Payment Page helpers.
+ * The app owns subtotal/shipping/tax logic and sends the base payable amount.
+ * iPOSPay may add a card processing fee on top of that amount.
  */
+
+import { supabase } from "@/supabaseClient";
+import { SUPABASE_PUBLISHABLE_KEY } from "@/integrations/supabase/client";
+
+export type IPosPaymentMethod = "card" | "ach";
 
 export interface IPosPaySettings {
   enabled: boolean;
-  tpn: string; // Terminal Provider Number (Merchant ID)
+  tpn: string;
   authToken: string;
-  testMode: boolean; // true = sandbox, false = production
+  testMode: boolean;
 }
 
-export interface IPosPaymentRequest {
-  amount: number; // Amount in dollars (will be multiplied by 100)
+export interface IPosHostedPaymentRequest {
+  amount: number;
   orderId: string;
+  paymentMethod?: IPosPaymentMethod;
   customerName?: string;
   customerEmail?: string;
   customerMobile?: string;
@@ -20,40 +27,40 @@ export interface IPosPaymentRequest {
   calculateFee?: boolean;
   calculateTax?: boolean;
   tipsInputPrompt?: boolean;
-  // Personalization
   merchantName?: string;
   logoUrl?: string;
   themeColor?: string;
-  // Callback URLs
   returnUrl: string;
   failureUrl?: string;
   cancelUrl?: string;
 }
 
-export interface IPosPaymentResponse {
+export interface IPosHostedPaymentResponse {
   success: boolean;
-  paymentUrl?: string; // URL to redirect customer to
+  paymentUrl?: string;
   transactionReferenceId?: string;
   message?: string;
   error?: string;
+  errorCode?: string;
   errors?: Array<{ field: string; message: string }>;
 }
 
 export interface IPosPaymentCallbackData {
-  responseCode: number; // 200 = success, 400 = failure, 401 = cancelled, 402 = rejected
+  rawResponseCode: number;
+  responseCode: number;
   responseMessage: string;
   transactionReferenceId: string;
   transactionId: string;
-  transactionType: number; // 1 = SALE, 2 = CARD VALIDATION
+  transactionType: number;
   transactionNumber?: string;
   batchNumber?: string;
   cardType?: string;
   cardLast4Digit?: string;
   amount: number;
-  tips?: number;
-  customFee?: number;
-  localTax?: number;
-  stateTax?: number;
+  tips: number;
+  customFee: number;
+  localTax: number;
+  stateTax: number;
   totalAmount: number;
   responseApprovalCode?: string;
   rrn?: string;
@@ -62,69 +69,119 @@ export interface IPosPaymentCallbackData {
   errResponseMessage?: string;
   avsRspMsg?: string;
   consumerId?: string;
+  accountType?: string;
+  accountLast4?: string;
+  routingNumber?: string;
+  achToken?: string;
+  paymentMethod: IPosPaymentMethod;
+}
+
+export interface IPosNormalizedPaymentResult {
+  status: "success" | "failed" | "cancelled" | "rejected";
+  paymentMethod: IPosPaymentMethod;
+  baseAmount: number;
+  processingFee: number;
+  chargedAmount: number;
+  transactionReferenceId: string;
+  transactionId: string;
+  responseMessage: string;
+  responseApprovalCode?: string;
+  cardType?: string;
+  cardLast4Digit?: string;
+  accountType?: string;
+  accountLast4?: string;
+  errResponseCode?: string;
+  errResponseMessage?: string;
 }
 
 export interface IPosQueryStatusResponse {
   success: boolean;
   data?: IPosPaymentCallbackData;
   error?: string;
+  errorCode?: string;
 }
 
-/**
- * Generate a unique transaction reference ID
- */
+function hasProcessorDecline(callbackData: Pick<IPosPaymentCallbackData, "errResponseCode" | "errResponseMessage">) {
+  const errCode = String(callbackData.errResponseCode || "").trim().toUpperCase();
+  const errMessage = String(callbackData.errResponseMessage || "").trim().toLowerCase();
+
+  if (!errCode && !errMessage) return false;
+
+  const nonDeclineCodes = new Set(["0", "00", "000"]);
+  if (errCode && !nonDeclineCodes.has(errCode)) {
+    return true;
+  }
+
+  return /(declin|mismatch|invalid|fail|error|reject|void)/.test(errMessage);
+}
+
+function derivePaymentStatus(
+  callbackData: IPosPaymentCallbackData,
+): IPosNormalizedPaymentResult["status"] {
+  const responseMessage = String(callbackData.responseMessage || "").trim().toLowerCase();
+
+  if (callbackData.responseCode === 401 || responseMessage.includes("cancelled")) {
+    return "cancelled";
+  }
+
+  if (callbackData.responseCode === 402 || responseMessage.includes("rejected")) {
+    return "rejected";
+  }
+
+  if (callbackData.responseCode === 200) {
+    if (
+      responseMessage.includes("declined") ||
+      responseMessage.includes("failed") ||
+      responseMessage.includes("error") ||
+      hasProcessorDecline(callbackData)
+    ) {
+      return "failed";
+    }
+
+    return "success";
+  }
+
+  return "failed";
+}
+
 export function generateTransactionReferenceId(): string {
-  const timestamp = Date.now().toString(36);
-  const random = Math.random().toString(36).substring(2, 10);
-  return `${timestamp}${random}`.toUpperCase();
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 10).toUpperCase();
+  return `${timestamp}${random}`;
 }
 
-/**
- * Convert dollar amount to iPOS Pays format (multiply by 100)
- */
 export function formatAmountForIPOS(amount: number): string {
   return Math.round(amount * 100).toString();
 }
 
-/**
- * Convert iPOS Pays amount format to dollars (divide by 100)
- */
-export function parseAmountFromIPOS(amount: number | string): number {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return numAmount / 100;
+export function parseAmountFromIPOS(amount: number | string | null | undefined): number {
+  if (amount == null || amount === "") return 0;
+  const parsed = typeof amount === "string" ? parseFloat(amount) : amount;
+  if (!Number.isFinite(parsed)) return 0;
+  return parsed / 100;
 }
 
-/**
- * Get iPOS Pays API URLs based on environment
- */
 export function getIPosPayUrls(testMode: boolean) {
-  if (testMode) {
-    return {
-      paymentUrl: 'https://payment.ipospays.tech/api/v1/external-payment-transaction',
-      queryUrl: 'https://api.ipospays.tech/v1/queryPaymentStatus',
-    };
-  }
-  return {
-    paymentUrl: 'https://payment.ipospays.com/api/v1/external-payment-transaction',
-    queryUrl: 'https://api.ipospays.com/v1/queryPaymentStatus',
-  };
+  return testMode
+    ? {
+        paymentUrl: "https://payment.ipospays.tech/api/v1/external-payment-transaction",
+        queryUrl: "https://api.ipospays.tech/v1/queryPaymentStatus",
+      }
+    : {
+        paymentUrl: "https://payment.ipospays.com/api/v1/external-payment-transaction",
+        queryUrl: "https://api.ipospays.com/v1/queryPaymentStatus",
+      };
 }
 
-/**
- * Validate iPOS Pays settings
- */
-export function validateIPosPaySettings(settings: IPosPaySettings): {
-  valid: boolean;
-  errors: string[];
-} {
+export function validateIPosPaySettings(settings: IPosPaySettings) {
   const errors: string[] = [];
 
-  if (!settings.tpn || settings.tpn.trim().length === 0) {
-    errors.push('TPN (Terminal Provider Number) is required');
+  if (!settings.tpn?.trim()) {
+    errors.push("TPN (Terminal Provider Number) is required");
   }
 
-  if (!settings.authToken || settings.authToken.trim().length === 0) {
-    errors.push('Auth Token is required');
+  if (!settings.authToken?.trim()) {
+    errors.push("Auth Token is required");
   }
 
   return {
@@ -133,150 +190,227 @@ export function validateIPosPaySettings(settings: IPosPaySettings): {
   };
 }
 
-/**
- * Build payment request payload for iPOS Pays API
- */
-export function buildPaymentRequestPayload(
-  settings: IPosPaySettings,
-  request: IPosPaymentRequest
-): any {
-  const transactionReferenceId = generateTransactionReferenceId();
-  const amount = formatAmountForIPOS(request.amount);
-
+export function buildPaymentRequestPayload(settings: IPosPaySettings, request: IPosHostedPaymentRequest) {
   return {
     merchantAuthentication: {
       merchantId: settings.tpn,
-      transactionReferenceId,
+      transactionReferenceId: generateTransactionReferenceId(),
     },
     transactionRequest: {
-      transactionType: 1, // 1 = SALE
-      amount,
+      transactionType: 1,
+      amount: formatAmountForIPOS(request.amount),
       calculateFee: request.calculateFee ?? true,
       tipsInputPrompt: request.tipsInputPrompt ?? false,
-      calculateTax: request.calculateTax ?? true,
+      calculateTax: request.calculateTax ?? false,
     },
     notificationOption: {
       notifyBySMS: false,
-      mobileNumber: '',
+      mobileNumber: "",
       notifyByPOST: false,
-      authHeader: '',
-      postAPI: '',
+      authHeader: "",
+      postAPI: "",
       notifyByRedirect: true,
       returnUrl: request.returnUrl,
       failureUrl: request.failureUrl || request.returnUrl,
       cancelUrl: request.cancelUrl || request.returnUrl,
     },
     preferences: {
-      integrationType: 1, // 1 = E-Commerce
+      integrationType: 1,
       avsVerification: true,
       eReceipt: !!request.customerEmail || !!request.customerMobile,
       eReceiptInputPrompt: !request.customerEmail && !request.customerMobile,
-      customerName: request.customerName || '',
-      customerEmail: request.customerEmail || '',
-      customerMobile: request.customerMobile || '',
-      requestCardToken: true, // Enable for saved cards
+      customerName: request.customerName || "",
+      customerEmail: request.customerEmail || "",
+      customerMobile: request.customerMobile || "",
+      requestCardToken: true,
       shortenURL: false,
       sendPaymentLink: false,
-      integrationVersion: 'v2',
+      integrationVersion: "v2",
+      enableACH: true,
     },
     personalization: {
-      merchantName: request.merchantName || '',
-      logoUrl: request.logoUrl || '',
-      themeColor: request.themeColor || '#4F46E5',
-      description: request.description || '',
-      payNowButtonText: 'Pay Now',
-      buttonColor: request.themeColor || '#4F46E5',
-      cancelButtonText: 'Cancel',
-      disclaimer: '',
+      merchantName: request.merchantName || "",
+      logoUrl: request.logoUrl || "",
+      themeColor: request.themeColor || "#2563EB",
+      description: request.description || "",
+      payNowButtonText: request.paymentMethod === "ach" ? "Pay with Bank" : "Pay Now",
+      buttonColor: request.themeColor || "#2563EB",
+      cancelButtonText: "Cancel",
+      disclaimer: "",
     },
   };
 }
 
-/**
- * Parse iPOS Pays callback response
- */
+function normalizeIPosResponseCode(response: any): number {
+  const rawCode = Number(response?.responseCode ?? 0);
+  if (rawCode === 0) {
+    const isAch =
+      response?.paymentMethod === "ACH" ||
+      response?.cardType === "CHECK" ||
+      response?.achData ||
+      response?.accountLast4 ||
+      Number(response?.transactionType) === 10;
+    if (isAch) return 200;
+  }
+  return rawCode;
+}
+
+function inferPaymentMethod(response: any): IPosPaymentMethod {
+  const paymentMethod = String(response?.paymentMethod || "").toUpperCase();
+  if (
+    paymentMethod === "ACH" ||
+    response?.cardType === "CHECK" ||
+    response?.achData ||
+    response?.accountLast4 ||
+    Number(response?.transactionType) === 10
+  ) {
+    return "ach";
+  }
+
+  return "card";
+}
+
 export function parseCallbackResponse(data: any): IPosPaymentCallbackData {
-  const response = data.iposHPResponse || data;
-  
+  const response = data?.iposHPResponse || data || {};
+  const paymentMethod = inferPaymentMethod(response);
+  const achData = response?.achData || {};
+
   return {
-    responseCode: response.responseCode,
-    responseMessage: response.responseMessage,
-    transactionReferenceId: response.transactionReferenceId,
-    transactionId: response.transactionId,
-    transactionType: response.transactionType,
+    rawResponseCode: Number(response.responseCode ?? 0),
+    responseCode: normalizeIPosResponseCode(response),
+    responseMessage: response.responseMessage || "",
+    transactionReferenceId: response.transactionReferenceId || "",
+    transactionId: response.transactionId || "",
+    transactionType: Number(response.transactionType ?? 0),
     transactionNumber: response.transactionNumber,
     batchNumber: response.batchNumber,
     cardType: response.cardType,
     cardLast4Digit: response.cardLast4Digit,
-    amount: parseAmountFromIPOS(response.amount || 0),
-    tips: response.tips ? parseAmountFromIPOS(response.tips) : 0,
-    customFee: response.customFee ? parseAmountFromIPOS(response.customFee) : 0,
-    localTax: response.localTax ? parseAmountFromIPOS(response.localTax) : 0,
-    stateTax: response.stateTax ? parseAmountFromIPOS(response.stateTax) : 0,
-    totalAmount: parseAmountFromIPOS(response.totalAmount || 0),
+    amount: parseAmountFromIPOS(response.amount),
+    tips: parseAmountFromIPOS(response.tips),
+    customFee: parseAmountFromIPOS(response.customFee),
+    localTax: parseAmountFromIPOS(response.localTax),
+    stateTax: parseAmountFromIPOS(response.stateTax),
+    totalAmount: parseAmountFromIPOS(response.totalAmount),
     responseApprovalCode: response.responseApprovalCode,
     rrn: response.rrn,
-    cardToken: response.cardToken,
+    cardToken: response.cardToken || response.responseCardToken,
     errResponseCode: response.errResponseCode,
     errResponseMessage: response.errResponseMessage,
-    avsRspMsg: response.avsRspMsg,
+    avsRspMsg: response.avsRspMsg || response.avsRespMeg,
     consumerId: response.consumerId,
+    accountType: response.accountType || achData.accountType,
+    accountLast4: response.accountLast4 || achData.accountNumber?.slice?.(-4),
+    routingNumber: response.routingNumber,
+    achToken: response.achToken || achData.achToken,
+    paymentMethod,
   };
 }
 
-/**
- * Check if payment was successful
- */
 export function isPaymentSuccessful(callbackData: IPosPaymentCallbackData): boolean {
-  return callbackData.responseCode === 200;
+  return derivePaymentStatus(callbackData) === "success";
 }
 
-/**
- * Check if payment was cancelled by customer
- */
 export function isPaymentCancelled(callbackData: IPosPaymentCallbackData): boolean {
-  return callbackData.responseCode === 401;
+  return derivePaymentStatus(callbackData) === "cancelled";
 }
 
-/**
- * Check if payment was rejected by customer
- */
 export function isPaymentRejected(callbackData: IPosPaymentCallbackData): boolean {
-  return callbackData.responseCode === 402;
+  return derivePaymentStatus(callbackData) === "rejected";
 }
 
-/**
- * Get payment status text
- */
 export function getPaymentStatusText(callbackData: IPosPaymentCallbackData): string {
   switch (callbackData.responseCode) {
     case 200:
-      return 'Payment Successful';
+      return "Payment Successful";
     case 400:
-      return 'Payment Failed';
+      return "Payment Failed";
     case 401:
-      return 'Payment Cancelled';
+      return "Payment Cancelled";
     case 402:
-      return 'Payment Rejected';
+      return "Payment Rejected";
     default:
-      return 'Unknown Status';
+      return "Unknown Status";
   }
 }
 
-/**
- * Format card type for display
- */
 export function formatCardType(cardType?: string): string {
-  if (!cardType) return 'Card';
-  
+  if (!cardType) return "Card";
+
   const types: Record<string, string> = {
-    VISA: 'Visa',
-    MASTERCARD: 'Mastercard',
-    AMEX: 'American Express',
-    DISCOVER: 'Discover',
-    DINNERS: 'Diners Club',
-    JCB: 'JCB',
+    VISA: "Visa",
+    MASTERCARD: "Mastercard",
+    AMEX: "American Express",
+    DISCOVER: "Discover",
+    DINNERS: "Diners Club",
+    JCB: "JCB",
+    CHECK: "Bank Account",
   };
-  
+
   return types[cardType.toUpperCase()] || cardType;
+}
+
+export function normalizePaymentResult(callbackData: IPosPaymentCallbackData): IPosNormalizedPaymentResult {
+  const status = derivePaymentStatus(callbackData);
+
+  return {
+    status,
+    paymentMethod: callbackData.paymentMethod,
+    baseAmount: callbackData.amount,
+    processingFee: callbackData.customFee,
+    chargedAmount: callbackData.totalAmount || callbackData.amount,
+    transactionReferenceId: callbackData.transactionReferenceId,
+    transactionId: callbackData.transactionId,
+    responseMessage: callbackData.responseMessage,
+    responseApprovalCode: callbackData.responseApprovalCode,
+    cardType: callbackData.cardType,
+    cardLast4Digit: callbackData.cardLast4Digit,
+    accountType: callbackData.accountType,
+    accountLast4: callbackData.accountLast4,
+    errResponseCode: callbackData.errResponseCode,
+    errResponseMessage: callbackData.errResponseMessage,
+  };
+}
+
+export async function queryIPOSPayStatus(
+  transactionReferenceId: string,
+): Promise<IPosQueryStatusResponse> {
+  try {
+    const supabaseUrl = supabase.supabaseUrl;
+    const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        action: "queryPaymentStatus",
+        transactionReferenceId,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error || `HTTP ${response.status}: Failed to query payment status`,
+        errorCode: "HTTP_ERROR",
+      };
+    }
+
+    return {
+      success: true,
+      data: data?.data ? parseCallbackResponse(data.data) : undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to query payment status",
+      errorCode: "EXCEPTION",
+    };
+  }
 }
