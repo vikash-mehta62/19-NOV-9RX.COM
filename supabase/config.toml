@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.reconcile-authorize-transactions-v2]
 verify_jwt = false
+
+[functions.ipospay-payment]
+verify_jwt = false

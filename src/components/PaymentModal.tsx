@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { createPortal } from "react-dom"
 import axios from "../../axiosconfig"
-import { processPayment, PaymentResponse, logPaymentTransaction, saveCardToProfile } from "@/services/paymentService"
+import { processPayment, PaymentResponse, logPaymentTransaction, saveCardToProfile, processPaymentIPOSPay, isIPOSPayEnabled } from "@/services/paymentService"
 import {
   CreditCard,
   Landmark,
@@ -736,6 +736,79 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
 
     setLoading(true)
+
+    // ============================================
+    // 🚀 iPOS PAYS INTEGRATION CHECK
+    // ============================================
+    // Check if iPOS Pays is enabled (hardcoded in edge function)
+    // If enabled, redirect to iPOS Pays hosted payment page
+    if (paymentType === "credit_card") {
+      try {
+        console.log("🔍 Checking if iPOS Pays is enabled...");
+        
+        // Try to generate payment URL (edge function will check if enabled)
+        const iPosResult = await processPaymentIPOSPay(
+          processorChargeAmount,
+          orderId,
+          formData.cardholderName || customer?.name,
+          customer?.email,
+          customer?.phone,
+          `Order #${orders?.order_number}`,
+          orders?.business_name || "Your Store",
+          orders?.logo_url
+        );
+        
+        if (iPosResult.success && iPosResult.paymentUrl) {
+          console.log("✅ iPOS Pays enabled - redirecting to payment page");
+          
+          // Save pending payment info for callback
+          localStorage.setItem('pending_payment', JSON.stringify({
+            transactionReferenceId: iPosResult.transactionReferenceId,
+            orderId,
+            orderNumber: orders?.order_number,
+            amount: processorChargeAmount,
+            baseAmount: basePaymentAmount,
+            processingFee: cardProcessingFeeAmount,
+            customerName: formData.cardholderName,
+            customerEmail: customer?.email,
+            timestamp: new Date().toISOString(),
+          }));
+          
+          // Show loading message
+          toast({
+            title: "Redirecting to Payment Page",
+            description: "You will be redirected to secure payment page...",
+          });
+          
+          // Redirect to iPOS Pays
+          setTimeout(() => {
+            window.location.href = iPosResult.paymentUrl!;
+          }, 1000);
+          
+          return; // Stop here - don't process with Authorize.Net
+        } else if (iPosResult.errorCode === "GATEWAY_DISABLED" || iPosResult.errorCode === "MISSING_CREDENTIALS") {
+          // iPOS Pays not configured - continue with Authorize.Net
+          console.log("ℹ️ iPOS Pays not configured - using Authorize.Net");
+        } else {
+          // iPOS Pays error - show error and stop
+          console.error("❌ iPOS Pays error:", iPosResult.error);
+          toast({
+            title: "Payment Error",
+            description: iPosResult.error || "Failed to initiate payment",
+            variant: "destructive",
+          });
+          setLoading(false);
+          return;
+        }
+      } catch (error: any) {
+        console.error("❌ iPOS Pays check failed:", error);
+        // Continue with Authorize.Net on error
+        console.log("ℹ️ Falling back to Authorize.Net");
+      }
+    }
+    // ============================================
+    // END iPOS PAYS CHECK
+    // ============================================
 
     // Check which ACH processor to use from database settings
     const achProcessor = await getACHProcessor();

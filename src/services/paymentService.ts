@@ -1,4 +1,5 @@
 import { supabase } from "@/supabaseClient";
+import { SUPABASE_PUBLISHABLE_KEY } from "@/integrations/supabase/client";
 import { 
   FortisSecCode,
   validateACHData 
@@ -724,6 +725,179 @@ export async function deleteSavedCard(
 // Check if a saved card can be charged directly (has valid profile IDs)
 export function canChargeDirectly(savedMethod: SavedPaymentMethod): boolean {
   return !!(savedMethod.customer_profile_id && savedMethod.payment_profile_id);
+}
+
+// ============================================
+// iPOS PAYS PAYMENT FUNCTIONS
+// Hosted Payment Page (HPP) Integration
+// ============================================
+
+/**
+ * Process payment via iPOS Pays (redirect-based)
+ * Customer will be redirected to iPOS Pays secure payment page
+ */
+export async function processPaymentIPOSPay(
+  amount: number,
+  orderId: string,
+  customerName?: string,
+  customerEmail?: string,
+  customerMobile?: string,
+  description?: string,
+  merchantName?: string,
+  logoUrl?: string
+): Promise<{ 
+  success: boolean; 
+  paymentUrl?: string; 
+  error?: string; 
+  transactionReferenceId?: string;
+  errorCode?: string;
+}> {
+  try {
+    // Get Supabase URL from client
+    const supabaseUrl = supabase.supabaseUrl;
+    const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
+
+    // Direct fetch call with anon key (function is public with verify_jwt = false)
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        action: "generatePaymentUrl",
+        amount,
+        orderId,
+        customerName,
+        customerEmail,
+        customerMobile,
+        description: description || `Order #${orderId}`,
+        merchantName,
+        logoUrl,
+        returnUrl: `${window.location.origin}/payment/callback`,
+        failureUrl: `${window.location.origin}/payment/callback`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+        calculateFee: true,
+        calculateTax: true,
+        tipsInputPrompt: false,
+        themeColor: "#4F46E5",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("iPOS Pay HTTP error:", response.status, data);
+      return {
+        success: false,
+        error: data?.error || `HTTP ${response.status}: Failed to connect to payment service`,
+        errorCode: "HTTP_ERROR",
+      };
+    }
+
+    if (data?.success) {
+      return {
+        success: true,
+        paymentUrl: data.paymentUrl,
+        transactionReferenceId: data.transactionReferenceId,
+      };
+    }
+
+    return {
+      success: false,
+      error: data?.error || "Failed to generate payment URL",
+      errorCode: data?.errorCode || "UNKNOWN_ERROR",
+    };
+  } catch (error: any) {
+    console.error("iPOS Pay error:", error);
+    return {
+      success: false,
+      error: error.message || "Payment processing error",
+      errorCode: "EXCEPTION",
+    };
+  }
+}
+
+/**
+ * Query iPOS Pays payment status
+ * Use this to check payment status using transaction reference ID
+ */
+export async function queryIPOSPayStatus(
+  transactionReferenceId: string
+): Promise<{ 
+  success: boolean; 
+  data?: any; 
+  error?: string;
+  errorCode?: string;
+}> {
+  try {
+    // Get Supabase URL from client
+    const supabaseUrl = supabase.supabaseUrl;
+    const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
+
+    // Direct fetch call with anon key (function is public with verify_jwt = false)
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        "apikey": SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        action: "queryPaymentStatus",
+        transactionReferenceId,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error("iPOS Pay query HTTP error:", response.status, data);
+      return {
+        success: false,
+        error: data?.error || `HTTP ${response.status}: Failed to query payment status`,
+        errorCode: "HTTP_ERROR",
+      };
+    }
+
+    return {
+      success: true,
+      data: data?.data,
+    };
+  } catch (error: any) {
+    console.error("iPOS Pay query exception:", error);
+    return {
+      success: false,
+      error: error.message || "Failed to query payment status",
+      errorCode: "EXCEPTION",
+    };
+  }
+}
+
+/**
+ * Check if iPOS Pays is enabled for current user
+ */
+export async function isIPOSPayEnabled(): Promise<boolean> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return false;
+
+    const { data, error } = await supabase
+      .from("payment_settings")
+      .select("settings")
+      .eq("provider", "ipospay")
+      .eq("profile_id", user.id)
+      .single();
+
+    if (error || !data) return false;
+
+    const settings = data.settings as any;
+    return settings?.enabled === true;
+  } catch (error) {
+    console.error("Error checking iPOS Pay status:", error);
+    return false;
+  }
 }
 
 

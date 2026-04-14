@@ -488,7 +488,23 @@ export const updateProductService = async (
       }
     }
 
-    // 🔹 STEP 1: Fetch Group Pricing
+    // 🔹 STEP 1: Fetch updated product sizes from database to get latest prices
+    const { data: updatedSizes, error: sizesError } = await supabase
+      .from("product_sizes")
+      .select("id, price")
+      .eq("product_id", productId);
+
+    if (sizesError) {
+      console.error("Error fetching updated sizes:", sizesError);
+      throw sizesError;
+    }
+
+    // Create a map of size_id -> price for quick lookup
+    const sizeIdToPriceMap = new Map(
+      updatedSizes?.map((size) => [size.id, size.price]) || []
+    );
+
+    // 🔹 STEP 2: Fetch Group Pricing
     const { data: groupPricingData, error: fetchError } = await supabase
       .from("group_pricing")
       .select("*");
@@ -498,37 +514,38 @@ export const updateProductService = async (
       throw fetchError;
     }
 
-    // 🔹 STEP 2: Update product_arrayjson ke andar actual price
-    const updatedGroupPricingData = groupPricingData.map((group) => {
-      if (!Array.isArray(group.product_arrayjson)) return group; // Ensure it's an array
+    // 🔹 STEP 3: Update product_arrayjson ke andar actual_price
+    for (const group of groupPricingData || []) {
+      if (!Array.isArray(group.product_arrayjson)) continue;
 
-      // Update each product's actual_price where product_id matches
-      const updatedProducts = group.product_arrayjson.map((product) => {
-        const matchingSize = data.sizes.find(
-          (size) => size.id === product.product_id
-        );
-        if (matchingSize) {
-          product.actual_price = matchingSize.price; // ✅ New price assign
+      let hasChanges = false;
+      const updatedProducts = group.product_arrayjson.map((product: any) => {
+        // Check if this product_id (which is actually size_id) has an updated price
+        const newPrice = sizeIdToPriceMap.get(product.product_id);
+        
+        if (newPrice !== undefined && product.actual_price !== newPrice) {
+          hasChanges = true;
+          return {
+            ...product,
+            actual_price: newPrice, // ✅ Update actual_price with latest price from database
+          };
         }
         return product;
       });
 
-      return {
-        id: group.id,
-        updatedJson: updatedProducts, // No need for JSON.stringify()
-      };
-    });
+      // Only update if there are actual changes
+      if (hasChanges) {
+        const { error: updateError } = await supabase
+          .from("group_pricing")
+          .update({ product_arrayjson: updatedProducts })
+          .eq("id", group.id);
 
-    // 🔹 STEP 3: Save updated JSON back to database
-    for (const group of updatedGroupPricingData) {
-      const { error: updateError } = await supabase
-        .from("group_pricing")
-        .update({ product_arrayjson: group.updatedJson })
-        .eq("id", group.id);
-
-      if (updateError) {
-        console.error("Error updating group pricing:", updateError);
-        throw updateError;
+        if (updateError) {
+          console.error("Error updating group pricing:", updateError);
+          throw updateError;
+        }
+        
+        console.log(`✅ Updated group_pricing for group: ${group.name || group.id}`);
       }
     }
 

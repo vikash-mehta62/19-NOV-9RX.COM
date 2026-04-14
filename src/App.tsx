@@ -49,6 +49,7 @@ const UserSelfDetails = lazy(() => import("./components/UserSelfDetails"));
 const PayNowOrder = lazy(() => import("./components/PayNowOrder"));
 const CartItemsPricing = lazy(() => import("./components/CartItemsPricing"));
 const ResetPasswordPage = lazy(() => import("./components/ResetPassowrdPage"));
+const PaymentCallback = lazy(() => import("./pages/PaymentCallback"));
 
 // Lazy loaded Admin pages
 const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
@@ -390,6 +391,8 @@ function App() {
           <Route path="/sitemap" element={<Sitemap />} />
           <Route path="/cart-price" element={<CartItemsPricing />} />
           <Route path="/join-group" element={<JoinGroup />} />
+          <Route path="/payment/callback" element={<PaymentCallback />} />
+          <Route path="/payment/cancel" element={<PaymentCallback />} />
 
           {/* Admin Routes */}
           <Route path="/admin/dashboard" element={
