@@ -110,11 +110,11 @@ const OrderSummaryCardComponent = ({
     : currentStep === totalSteps;
 
   // Calculate credit card processing fee - only show on payment step
-  const cardFeeApplies = isPaymentStep && paymentMethod === "card" && cardProcessingFeePercentage > 0;
-  const cardProcessingFeeAmount = cardFeeApplies 
-    ? Number((finalTotal * cardProcessingFeePercentage / 100).toFixed(2))
-    : 0;
-  const totalWithCardFee = finalTotal + cardProcessingFeeAmount;
+  // const cardFeeApplies = isPaymentStep && paymentMethod === "card" && cardProcessingFeePercentage > 0;
+  // const cardProcessingFeeAmount = cardFeeApplies 
+  //   ? Number((finalTotal * cardProcessingFeePercentage / 100).toFixed(2))
+  //   : 0;
+  // const totalWithCardFee = finalTotal + cardProcessingFeeAmount;
 
   // Empty Cart State Component
   const EmptyCartState = () => (
@@ -423,37 +423,7 @@ const OrderSummaryCardComponent = ({
                 </Badge>
               </div>
             )}
-
-            {/* Credit Card Processing Fee */}
-            {cardFeeApplies && (
-              <>
-                <Separator className="my-2 sm:my-3" role="presentation" />
-                <div className="flex justify-between text-xs sm:text-sm">
-                  <span className="text-amber-700">Card Processing Fee ({cardProcessingFeePercentage}%):</span>
-                  <span className="font-medium text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
-                </div>
-                
-                <Separator className="my-2 sm:my-3" role="presentation" />
-                
-                <div className="flex justify-between items-center pt-1 sm:pt-2">
-                  <span className="text-sm sm:text-base font-semibold text-gray-900">Total Charged</span>
-                  <span className="text-xl sm:text-2xl font-bold text-amber-600">
-                    ${totalWithCardFee.toFixed(2)}
-                  </span>
-                </div>
-                
-                {/* Warning about avoiding fee */}
-                <div className="mt-3 p-2 sm:p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                  <p className="text-xs text-amber-800 flex items-start gap-2">
-                    <AlertCircle className="w-3 h-3 sm:w-4 sm:h-4 mt-0.5 flex-shrink-0" />
-                    <span>
-                      Credit card payments include a {cardProcessingFeePercentage}% processing fee. 
-                      Choose ACH/Bank payment or Credit Account to avoid this fee and save ${cardProcessingFeeAmount.toFixed(2)}.
-                    </span>
-                  </p>
-                </div>
-              </>
-            )}
+            
           </div>
 
           {/* Notes */}

@@ -104,15 +104,6 @@ export const PaymentConfirmationStep = ({
 
   // Calculate card processing fee
   const orderTotal = Math.max(0, total - totalDiscount);
-  const cardFeeApplies =
-    selectedPaymentMethod === "card" &&
-    feeSettings.cardProcessingFeeEnabled &&
-    feeSettings.cardProcessingFeePassToCustomer &&
-    feeSettings.cardProcessingFeePercentage > 0;
-  const cardProcessingFeeAmount = cardFeeApplies
-    ? Number(((orderTotal * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
-    : 0;
-  const totalWithCardFee = orderTotal + cardProcessingFeeAmount;
 
   // Payment method options - filter based on user role
   const allPaymentMethods: PaymentMethodCard[] = [
@@ -485,38 +476,14 @@ export const PaymentConfirmationStep = ({
               <span className="text-gray-900">Order Total:</span>
               <span className="text-gray-900">${orderTotal.toFixed(2)}</span>
             </div>
-            
-            {/* Show card processing fee if applicable */}
-            {cardFeeApplies && (
-              <>
-                <div className="flex justify-between text-sm">
-                  <span className="text-amber-700">Card Processing Fee ({feeSettings.cardProcessingFeePercentage}%):</span>
-                  <span className="font-medium text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
-                </div>
-                <Separator className="bg-blue-300" />
-              </>
-            )}
-            
-            <div className="flex justify-between text-xl font-bold">
-              <span className="text-gray-900">Total {cardFeeApplies ? "Charged" : ""}:</span>
-              <span className="text-blue-700">${totalWithCardFee.toFixed(2)}</span>
-            </div>
+          
+            {/* <div className="flex justify-between text-xl font-bold">
+              <span className="text-gray-900">Total Charged:</span>
+              <span className="text-blue-700">${orderTotal.toFixed(2)}</span>
+            </div> */}
             {totalDiscount > 0 && (
               <div className="text-right text-sm text-blue-600">
                 You save: ${totalDiscount.toFixed(2)}
-              </div>
-            )}
-            
-            {/* Card fee warning */}
-            {cardFeeApplies && (
-              <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs text-amber-800 flex items-start gap-2">
-                  <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-                  <span>
-                    Credit card payments include a {feeSettings.cardProcessingFeePercentage}% processing fee. 
-                    Choose ACH/Bank payment or Credit Account to avoid this fee and save ${cardProcessingFeeAmount.toFixed(2)}.
-                  </span>
-                </p>
               </div>
             )}
           </div>

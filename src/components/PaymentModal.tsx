@@ -51,7 +51,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { getACHProcessor, getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig"
+import { getACHProcessor } from "@/config/paymentConfig"
 
 // Validation functions
 function validateCardNumber(cardNumber: string, cardType?: { maxLength: number; name: string }) {
@@ -447,12 +447,6 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   // Payment result popup state
   const [showResultPopup, setShowResultPopup] = useState(false)
   const [paymentResult, setPaymentResult] = useState<PaymentResultData | null>(null)
-  const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
-    cardProcessingFeeEnabled: false,
-    cardProcessingFeePercentage: 0,
-    cardProcessingFeePassToCustomer: false,
-    invoiceDefaultNotes: "",
-  })
   const [showCardFeeConfirm, setShowCardFeeConfirm] = useState(false)
   const [saveCard, setSaveCard] = useState(false)
   
@@ -562,31 +556,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
   }, [customer, amountP])
 
-  useEffect(() => {
-    const loadPaymentSettings = async () => {
-      const settings = await getPaymentExperienceSettings()
-      setFeeSettings(settings)
-    }
-
-    void loadPaymentSettings()
-  }, [])
-
   const basePaymentAmount = Number(formData.amount || 0)
-  const cardFeeApplies =
-    paymentType === "credit_card" &&
-    feeSettings.cardProcessingFeeEnabled &&
-    feeSettings.cardProcessingFeePassToCustomer &&
-    feeSettings.cardProcessingFeePercentage > 0
-  const cardProcessingFeeAmount = cardFeeApplies
-    ? Number(((basePaymentAmount * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
-    : 0
-  const processorChargeAmount = Number(
-    (paymentType === "credit_card" ? basePaymentAmount + cardProcessingFeeAmount : basePaymentAmount).toFixed(2)
-  )
-  
-  // Get existing processing fee from order (for accumulated fee display)
-  const existingProcessingFee = Number(orders?.processing_fee_amount || 0)
-  const totalAccumulatedProcessingFee = existingProcessingFee + cardProcessingFeeAmount
+  const cardProcessingFeeAmount = 0
+  const processorChargeAmount = Number(basePaymentAmount.toFixed(2))
   
   const savableProfileId = orders?.profile_id || orders?.customer || customer?.id || null
   const canOfferSaveCard =
@@ -1528,9 +1500,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         <CreditCard className={cn("w-7 h-7", paymentType === "credit_card" ? "text-blue-600" : "text-gray-400")} />
                           <span className={cn("font-medium text-sm", paymentType === "credit_card" ? "text-blue-700" : "text-gray-600")}>Credit Card</span>
                           <span className="text-xs text-gray-500 text-center">
-                            {feeSettings.cardProcessingFeeEnabled && feeSettings.cardProcessingFeePassToCustomer
-                              ? `${feeSettings.cardProcessingFeePercentage}% estimated card fee`
-                              : "Final total confirmed at secure checkout"}
+                            Final total confirmed at secure checkout
                         </span>
                         {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
@@ -1786,24 +1756,6 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                       </span>
                       <span className="text-2xl font-bold text-blue-700">${formatAmount(basePaymentAmount)}</span>
                     </div>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center justify-between text-gray-600">
-                        <span>Base payment</span>
-                        <span>${formatAmount(basePaymentAmount)}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-gray-600">
-                        <span>{paymentType === "credit_card" ? "Estimated card fee" : "Processing fee"}</span>
-                        <span>
-                          {paymentType === "credit_card"
-                            ? `$${formatAmount(cardProcessingFeeAmount)}`
-                            : "$0.00"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between border-t pt-2 font-semibold text-gray-900">
-                        <span>{paymentType === "credit_card" ? "Estimated total charged" : "Total charged today"}</span>
-                        <span>${formatAmount(processorChargeAmount)}</span>
-                      </div>
-                    </div>
                   </div>
 
                   {/* Payment Method Badge */}
@@ -1816,81 +1768,15 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     </Badge>
                   </div>
 
-                  <Card className={cn(
-                    "border",
-                    paymentType === "credit_card"
-                      ? cardProcessingFeeAmount > 0
-                        ? "border-amber-200 bg-amber-50"
-                        : "border-blue-200 bg-blue-50"
-                      : paymentType === "ach"
+                  {paymentType !== "credit_card" && (
+                    <Card className={cn(
+                      "border",
+                      paymentType === "ach"
                         ? "border-emerald-200 bg-emerald-50"
                         : "border-slate-200 bg-slate-50"
-                  )}>
-                    <CardContent className="p-5">
-                      {paymentType === "credit_card" && cardProcessingFeeAmount > 0 ? (
-                        <div className="space-y-4">
-                          <div className="flex items-start gap-3">
-                            <div className="rounded-full bg-amber-100 p-2">
-                              <AlertCircle className="h-5 w-5 text-amber-700" />
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-amber-900">
-                                Card processing fee is calculated at secure checkout
-                              </p>
-                              <p className="text-sm leading-6 text-amber-800">
-                                The balance amount is fixed here. iPOSPay calculates the final card fee on the secure payment page before you confirm payment.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Applied to balance</span>
-                              <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Estimated card fee</span>
-                              <span className="font-semibold text-amber-700">${formatAmount(cardProcessingFeeAmount)}</span>
-                            </div>
-                            <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
-                              <span className="font-semibold text-slate-900">Estimated total charged</span>
-                              <span className="text-lg font-bold text-amber-700">${formatAmount(processorChargeAmount)}</span>
-                            </div>
-                          </div>
-                          <p className="text-sm font-semibold text-amber-800">
-                            Use ACH at checkout to avoid card fees and save about ${formatAmount(cardProcessingFeeAmount)} on this payment.
-                          </p>
-                        </div>
-                      ) : paymentType === "credit_card" ? (
-                        <div className="space-y-4">
-                          <div className="flex items-start gap-3">
-                            <div className="rounded-full bg-blue-100 p-2">
-                              <ShieldCheck className="h-5 w-5 text-blue-700" />
-                            </div>
-                            <div className="space-y-1">
-                              <p className="text-sm font-semibold text-blue-900">
-                                Credit card checkout is active
-                              </p>
-                              <p className="text-sm leading-6 text-blue-800">
-                                This order currently has no extra estimated card fee. The final amount is still confirmed on the secure payment page.
-                              </p>
-                            </div>
-                          </div>
-                          <div className="rounded-xl border border-blue-200 bg-white/80 p-4">
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Applied to balance</span>
-                              <span className="font-semibold text-slate-900">${formatAmount(basePaymentAmount)}</span>
-                            </div>
-                            <div className="mt-2 flex items-center justify-between text-sm">
-                              <span className="text-slate-600">Estimated card fee</span>
-                              <span className="font-semibold text-blue-700">$0.00</span>
-                            </div>
-                            <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
-                              <span className="font-semibold text-slate-900">Estimated total charged</span>
-                              <span className="text-lg font-bold text-blue-700">${formatAmount(processorChargeAmount)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      ) : paymentType === "ach" ? (
+                    )}>
+                      <CardContent className="p-5">
+                        {paymentType === "ach" ? (
                         <div className="space-y-3">
                           <div className="flex items-start gap-3">
                             <div className="rounded-full bg-emerald-100 p-2">
@@ -1909,8 +1795,9 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                           Manual payments apply only the amount entered to the order or invoice balance.
                         </p>
                       )}
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  )}
                 </CardContent>
               </Card>
 
@@ -1998,12 +1885,8 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <span>Payment applied to invoice</span>
               <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
             </div>
-            <div className="flex items-center justify-between">
-              <span>Estimated card fee ({feeSettings.cardProcessingFeePercentage}%)</span>
-              <span className="font-medium">${cardProcessingFeeAmount.toFixed(2)}</span>
-            </div>
             <div className="flex items-center justify-between border-t pt-2 font-semibold">
-              <span>Estimated total charged</span>
+              <span>Total to pay</span>
               <span>${processorChargeAmount.toFixed(2)}</span>
             </div>
           </div>

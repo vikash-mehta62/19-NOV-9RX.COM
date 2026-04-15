@@ -235,33 +235,63 @@ export const PaymentAdjustmentService = {
    */
   async createAdjustment(adjustment: PaymentAdjustment): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      // Generate adjustment number
-      const { data: numberData } = await supabase.rpc('generate_adjustment_number');
-      const adjustmentNumber = numberData || `ADJ${Date.now()}`;
+      let data: any = null;
+      let adjustmentNumber = "";
+      let lastError: any = null;
 
-      const { data, error } = await supabase
-        .from('payment_adjustments')
-        .insert({
-          adjustment_number: adjustmentNumber,
-          order_id: adjustment.orderId,
-          customer_id: adjustment.customerId,
-          adjustment_type: adjustment.adjustmentType,
-          original_amount: adjustment.originalAmount,
-          new_amount: adjustment.newAmount,
-          difference_amount: adjustment.differenceAmount,
-          payment_method: adjustment.paymentMethod,
-          payment_status: adjustment.paymentStatus || 'pending',
-          payment_transaction_id: adjustment.paymentTransactionId,
-          credit_memo_id: adjustment.creditMemoId,
-          refund_id: adjustment.refundId,
-          reason: adjustment.reason,
-          processed_by: adjustment.processedBy,
-          processed_at: adjustment.paymentStatus === 'completed' ? new Date().toISOString() : null,
-        })
-        .select()
-        .single();
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        const { data: numberData, error: numberError } = await supabase.rpc('generate_adjustment_number');
 
-      if (error) throw error;
+        if (numberError || !numberData) {
+          throw numberError || new Error('Failed to generate adjustment number');
+        }
+
+        adjustmentNumber = numberData;
+
+        const { data: insertData, error } = await supabase
+          .from('payment_adjustments')
+          .insert({
+            adjustment_number: adjustmentNumber,
+            order_id: adjustment.orderId,
+            customer_id: adjustment.customerId,
+            adjustment_type: adjustment.adjustmentType,
+            original_amount: adjustment.originalAmount,
+            new_amount: adjustment.newAmount,
+            difference_amount: adjustment.differenceAmount,
+            payment_method: adjustment.paymentMethod,
+            payment_status: adjustment.paymentStatus || 'pending',
+            payment_transaction_id: adjustment.paymentTransactionId,
+            credit_memo_id: adjustment.creditMemoId,
+            refund_id: adjustment.refundId,
+            reason: adjustment.reason,
+            processed_by: adjustment.processedBy,
+            processed_at: adjustment.paymentStatus === 'completed' ? new Date().toISOString() : null,
+          })
+          .select()
+          .single();
+
+        if (!error) {
+          data = insertData;
+          lastError = null;
+          break;
+        }
+
+        lastError = error;
+
+        const isDuplicateAdjustmentNumber =
+          error.code === '23505' &&
+          String(error.message || '').includes('payment_adjustments_adjustment_number_key');
+
+        if (!isDuplicateAdjustmentNumber) {
+          throw error;
+        }
+
+        await supabase.rpc('sync_payment_adjustment_number_sequence');
+      }
+
+      if (lastError || !data) {
+        throw lastError || new Error('Failed to create payment adjustment');
+      }
 
       // Log activity based on adjustment type
       const activityDescription = this.getActivityDescription(adjustment, adjustmentNumber);

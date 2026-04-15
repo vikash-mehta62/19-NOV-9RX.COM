@@ -78,6 +78,18 @@
 
   type AdjustmentAction = 'none' | 'collect_payment' | 'send_payment_link' | 'use_credit' | 'issue_credit_memo' | 'process_refund';
 
+  const calculateItemsSubtotal = (items: any): number | undefined => {
+    if (!Array.isArray(items)) return undefined;
+
+    const subtotal = items.reduce((sum, item) => {
+      const quantity = Number(item?.quantity ?? item?.qty ?? 1);
+      const price = Number(item?.price ?? item?.unit_price ?? 0);
+      return sum + price * quantity;
+    }, 0);
+
+    return Number.isFinite(subtotal) ? Number(subtotal.toFixed(2)) : undefined;
+  };
+
   export function PaymentAdjustmentModal({
     open,
     onOpenChange,
@@ -272,11 +284,13 @@ const refundCreditAmount = Math.max(
         // Get updated order items and sync to invoice
         const { data: updatedOrder } = await supabase
           .from("orders")
-          .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal, total_amount, processing_fee_amount")
+          .select("items, tax_amount, shipping_cost, discount_amount, discount_details, total_amount, processing_fee_amount")
           .eq("id", orderId)
           .single();
 
         if (updatedOrder) {
+          const invoiceSubtotal = calculateItemsSubtotal(updatedOrder.items) ?? orderData?.subtotal;
+
           await supabase
             .from('invoices')
             .update({
@@ -284,10 +298,10 @@ const refundCreditAmount = Math.max(
               items: updatedOrder.items,
               tax_amount: updatedOrder.tax_amount,
               shippin_cost: updatedOrder.shipping_cost,
-              subtotal: updatedOrder.subtotal,
+              subtotal: invoiceSubtotal,
               discount_amount: updatedOrder.discount_amount,
               discount_details: updatedOrder.discount_details,
-              amount: updatedOrder.subtotal,
+              amount: invoiceSubtotal,
               total_amount: updatedOrder.total_amount,
               processing_fee_amount: updatedOrder.processing_fee_amount,
               updated_at: new Date().toISOString(),
@@ -515,9 +529,11 @@ const refundCreditAmount = Math.max(
             // First, get updated order items
             const { data: updatedOrder } = await supabase
               .from("orders")
-              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details")
               .eq("id", orderId)
               .single();
+
+            const invoiceSubtotal = calculateItemsSubtotal(updatedOrder?.items) ?? orderData?.subtotal;
 
             await supabase
               .from("invoices")
@@ -530,10 +546,10 @@ const refundCreditAmount = Math.max(
                 items: updatedOrder?.items || orderData?.items,
                 tax_amount: updatedOrder?.tax_amount,
                 shippin_cost: updatedOrder?.shipping_cost,
-                subtotal: updatedOrder?.subtotal,
+                subtotal: invoiceSubtotal,
                 discount_amount: updatedOrder?.discount_amount,
                 discount_details: updatedOrder?.discount_details,
-                amount: updatedOrder?.subtotal, // Base amount before tax/shipping
+                amount: invoiceSubtotal, // Base amount before tax/shipping
                 updated_at: new Date().toISOString(),
               })
               .eq("order_id", orderId);
@@ -622,9 +638,11 @@ const refundCreditAmount = Math.max(
             // Get the updated order data from database to get the correct processing_fee_amount
             const { data: updatedOrderAfterCredit } = await supabase
               .from("orders")
-              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal, total_amount, processing_fee_amount, paid_amount, payment_status")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, total_amount, processing_fee_amount, paid_amount, payment_status")
               .eq("id", orderId)
               .single();
+
+            const invoiceSubtotal = calculateItemsSubtotal(updatedOrderAfterCredit?.items) ?? orderData?.subtotal;
 
             // Use the values from the order that was just updated by the RPC
             await supabase
@@ -638,10 +656,10 @@ const refundCreditAmount = Math.max(
                 items: updatedOrderAfterCredit?.items || orderData?.items,
                 tax_amount: updatedOrderAfterCredit?.tax_amount,
                 shippin_cost: updatedOrderAfterCredit?.shipping_cost,
-                subtotal: updatedOrderAfterCredit?.subtotal,
+                subtotal: invoiceSubtotal,
                 discount_amount: updatedOrderAfterCredit?.discount_amount,
                 discount_details: updatedOrderAfterCredit?.discount_details,
-                amount: updatedOrderAfterCredit?.subtotal,
+                amount: invoiceSubtotal,
                 updated_at: new Date().toISOString(),
               })
               .eq('order_id', orderId);
@@ -767,9 +785,11 @@ const refundCreditAmount = Math.max(
             // Get updated order items for invoice
             const { data: updatedOrderForDecrease } = await supabase
               .from("orders")
-              .select("items, tax_amount, shipping_cost, discount_amount, discount_details, subtotal")
+              .select("items, tax_amount, shipping_cost, discount_amount, discount_details")
               .eq("id", orderId)
               .single();
+
+            const invoiceSubtotal = calculateItemsSubtotal(updatedOrderForDecrease?.items) ?? orderData?.subtotal;
 
             await supabase
               .from('invoices')
@@ -782,10 +802,10 @@ const refundCreditAmount = Math.max(
                 items: updatedOrderForDecrease?.items || orderData?.items,
                 tax_amount: updatedOrderForDecrease?.tax_amount,
                 shippin_cost: updatedOrderForDecrease?.shipping_cost,
-                subtotal: updatedOrderForDecrease?.subtotal,
+                subtotal: invoiceSubtotal,
                 discount_amount: updatedOrderForDecrease?.discount_amount,
                 discount_details: updatedOrderForDecrease?.discount_details,
-                amount: updatedOrderForDecrease?.subtotal,
+                amount: invoiceSubtotal,
                 updated_at: new Date().toISOString(),
               })
               .eq('order_id', orderId);

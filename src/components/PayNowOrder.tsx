@@ -13,7 +13,6 @@ import {
   CheckCircle,
   AlertCircle,
 } from "lucide-react";
-import { getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
 
 function PayNowOrder() {
   const [searchParams] = useSearchParams();
@@ -23,12 +22,6 @@ function PayNowOrder() {
   const [modalIsOpen, setModalIsOpen] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
-    cardProcessingFeeEnabled: false,
-    cardProcessingFeePercentage: 0,
-    cardProcessingFeePassToCustomer: false,
-    invoiceDefaultNotes: "",
-  });
 
   const money = (n: number) => Math.round(n * 100) / 100;
 
@@ -57,15 +50,6 @@ function PayNowOrder() {
   useEffect(() => {
     fetchOrder();
   }, [orderID, refreshTrigger]);
-
-  useEffect(() => {
-    const loadPaymentSettings = async () => {
-      const settings = await getPaymentExperienceSettings();
-      setFeeSettings(settings);
-    };
-
-    void loadPaymentSettings();
-  }, []);
 
   if (fetchError)
     return <p className="text-center text-red-500 p-8">{fetchError}</p>;
@@ -129,18 +113,6 @@ function PayNowOrder() {
   const canPay = !isPaid;
 
   const amountToPay = balanceDue > 0 ? balanceDue : 0;
-
-  // Calculate potential credit card fee for display
-  const cardFeeApplies =
-    feeSettings.cardProcessingFeeEnabled &&
-    feeSettings.cardProcessingFeePassToCustomer &&
-    feeSettings.cardProcessingFeePercentage > 0;
-  
-  const potentialCardFee = cardFeeApplies
-    ? money((amountToPay * feeSettings.cardProcessingFeePercentage) / 100)
-    : 0;
-  
-  const totalWithCardFee = money(amountToPay + potentialCardFee);
 
   console.log("Order Payment Calculation:", {
     itemsSubtotal,
@@ -309,32 +281,7 @@ function PayNowOrder() {
             <span>${balanceDue.toFixed(2)}</span>
           </div>
 
-          {cardFeeApplies && balanceDue > 0 && (
-            <>
-              <div className="flex justify-between text-amber-600 text-xs pt-2 border-t">
-                <span>Estimated Card Fee ({feeSettings.cardProcessingFeePercentage}%)</span>
-                <span>${potentialCardFee.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-amber-700">
-                <span>Estimated Card Total</span>
-                <span>${totalWithCardFee.toFixed(2)}</span>
-              </div>
-            </>
-          )}
-
         </div>
-
-        {cardFeeApplies && balanceDue > 0 && (
-          <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-            <p className="text-xs text-amber-800 flex items-start gap-2">
-              <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
-              <span>
-                Credit card payments include a {feeSettings.cardProcessingFeePercentage}% processing fee. 
-                iPOSPay calculates the final fee on the secure payment page. Choose ACH/Bank payment to avoid this fee and save about ${potentialCardFee.toFixed(2)}.
-              </span>
-            </p>
-          </div>
-        )}
       </div>
 
       {/* CUSTOMER INFO */}

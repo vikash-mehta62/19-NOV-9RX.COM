@@ -289,17 +289,9 @@ const CreateOrderPaymentForm = ({
   };
 
   const basePaymentAmount = Number(formData.amount || 0);
-  const cardFeeApplies =
-    paymentType === "credit_card" &&
-    feeSettings.cardProcessingFeeEnabled &&
-    feeSettings.cardProcessingFeePassToCustomer &&
-    feeSettings.cardProcessingFeePercentage > 0;
-  const cardProcessingFeeAmount = cardFeeApplies
-    ? Number(((basePaymentAmount * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2))
-    : 0;
-  const processorChargeAmount = Number(
-    (paymentType === "credit_card" ? basePaymentAmount + cardProcessingFeeAmount : basePaymentAmount).toFixed(2)
-  );
+  const cardFeeApplies = false;
+  const cardProcessingFeeAmount = 0;
+  const processorChargeAmount = Number(basePaymentAmount.toFixed(2));
 
   const formatCardNumber = (value: string) => {
     const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
@@ -1422,9 +1414,10 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      {paymentType === "credit_card"
+                      Continue to Secure Checkout
+                      {/* {paymentType === "credit_card"
                         ? "Continue to Secure Card Checkout"
-                        : "Continue to Secure ACH Checkout"}
+                        : "Continue to Secure ACH Checkout"} */}
                     </>
                   )}
                 </Button>
@@ -1523,16 +1516,10 @@ const CreateOrderPaymentForm = ({
                       <span className="text-gray-600">Order total</span>
                       <span className="font-medium">${basePaymentAmount.toFixed(2)}</span>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Estimated card fee</span>
-                      <span className="font-medium">
-                        {paymentType === "credit_card" ? `$${cardProcessingFeeAmount.toFixed(2)}` : "$0.00"}
-                      </span>
-                    </div>
                     <Separator />
                     <div className="flex justify-between text-lg font-bold">
-                      <span>Estimated total charged</span>
-                      <span className="text-blue-600">${processorChargeAmount.toFixed(2)}</span>
+                      <span>Total to pay</span>
+                      <span className="text-blue-600">${basePaymentAmount.toFixed(2)}</span>
                     </div>
                     {discountAmount > 0 && (
                       <div className="text-right text-sm text-blue-600">
@@ -1559,100 +1546,37 @@ const CreateOrderPaymentForm = ({
                 </CardContent>
               </Card>
 
-              <Card className={`border ${paymentType === "credit_card" ? (cardProcessingFeeAmount > 0 ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50") : paymentType === "ach" ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
-                <CardContent className="p-5">
-                  {paymentType === "credit_card" && cardProcessingFeeAmount > 0 ? (
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-amber-100 p-2">
-                          <AlertCircle className="h-5 w-5 text-amber-700" />
+              {paymentType !== "credit_card" && (
+                <Card className={`border ${paymentType === "ach" ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
+                  <CardContent className="p-5">
+                    {paymentType === "ach" ? (
+                      <div className="space-y-3">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-full bg-emerald-100 p-2">
+                            <ShieldCheck className="h-5 w-5 text-emerald-700" />
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-semibold text-emerald-900">ACH payments avoid card fees</p>
+                            <p className="text-sm text-emerald-800">
+                              The amount charged typically matches your order total. Final payment details are confirmed on the secure bank payment page.
+                            </p>
+                          </div>
                         </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-amber-900">
-                            Card processing fee is calculated at secure checkout
-                          </p>
-                          <p className="text-sm leading-6 text-amber-800">
-                            Shipping, tax, and discounts are already included in the order total. iPOSPay will calculate the final card fee on the secure payment page.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-amber-200 bg-white/80 p-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600">Applied to order</span>
-                          <span className="font-semibold text-slate-900">${basePaymentAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between text-sm">
-                          <span className="text-slate-600">Card processing fee</span>
-                          <span className="font-semibold text-amber-700">${cardProcessingFeeAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between border-t border-amber-100 pt-3 text-sm">
-                          <span className="font-semibold text-slate-900">Estimated total charged</span>
-                          <span className="text-lg font-bold text-amber-700">${processorChargeAmount.toFixed(2)}</span>
+                        <div className="rounded-xl border border-emerald-200 bg-white/80 p-4">
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-slate-600">Charged today</span>
+                            <span className="text-lg font-bold text-emerald-700">${processorChargeAmount.toFixed(2)}</span>
+                          </div>
                         </div>
                       </div>
-                        <div>
-                          <span className="text-sm text-amber-600 font-bold">
-                            Use ACH at checkout to avoid card fees and save an estimated ${cardProcessingFeeAmount.toFixed(2)} on this order.
-                          </span>
-                        </div>
-                    </div>
-                  ) : paymentType === "credit_card" ? (
-                    <div className="space-y-4">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-blue-100 p-2">
-                          <ShieldCheck className="h-5 w-5 text-blue-700" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-blue-900">
-                            Credit card checkout is active
-                          </p>
-                          <p className="text-sm leading-6 text-blue-800">
-                            This order currently has no extra estimated card processing fee. The final amount will still be confirmed on the secure payment page.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-blue-200 bg-white/80 p-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600">Applied to order</span>
-                          <span className="font-semibold text-slate-900">${basePaymentAmount.toFixed(2)}</span>
-                        </div>
-                        <div className="mt-2 flex items-center justify-between text-sm">
-                          <span className="text-slate-600">Card processing fee</span>
-                          <span className="font-semibold text-blue-700">$0.00</span>
-                        </div>
-                        <div className="mt-3 flex items-center justify-between border-t border-blue-100 pt-3 text-sm">
-                          <span className="font-semibold text-slate-900">Estimated total charged</span>
-                          <span className="text-lg font-bold text-blue-700">${processorChargeAmount.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : paymentType === "ach" ? (
-                    <div className="space-y-3">
-                      <div className="flex items-start gap-3">
-                        <div className="rounded-full bg-emerald-100 p-2">
-                          <ShieldCheck className="h-5 w-5 text-emerald-700" />
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-sm font-semibold text-emerald-900">ACH payments avoid card fees</p>
-                          <p className="text-sm text-emerald-800">
-                            The amount charged typically matches your order total. Final payment details are confirmed on the secure bank payment page.
-                          </p>
-                        </div>
-                      </div>
-                      <div className="rounded-xl border border-emerald-200 bg-white/80 p-4">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-slate-600">Charged today</span>
-                          <span className="text-lg font-bold text-emerald-700">${processorChargeAmount.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-slate-600">
-                      The amount shown above is the amount charged and applied to this order.
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                    ) : (
+                      <p className="text-sm text-slate-600">
+                        The amount shown above is the amount charged and applied to this order.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
 
               {/* Submit Button - Desktop */}
               <div className="hidden lg:block">
@@ -1671,9 +1595,10 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      {paymentType === "credit_card"
+                      Continue to Secure Checkout
+                      {/* {paymentType === "credit_card"
                         ? `Continue to Secure Card Checkout`
-                        : `Continue to Secure ACH Checkout`}
+                        : `Continue to Secure ACH Checkout`} */}
                     </>
                   )}
                 </Button>

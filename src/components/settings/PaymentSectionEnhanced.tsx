@@ -177,6 +177,248 @@ export function PaymentSection({ form }: PaymentSectionProps) {
 
   return (
     <div className="space-y-6">
+
+      {/* iPOS Pays Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CreditCard className="h-5 w-5" />
+            iPOS Pays Payment Gateway
+          </CardTitle>
+          <CardDescription>
+            Configure iPOS Pays for all payment types (Cards + ACH) via Hosted Payment Page
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Enable Toggle */}
+          <FormField
+            control={form.control}
+            name="ipospay_enabled"
+            render={({ field }) => (
+              <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                <div className="space-y-0.5">
+                  <FormLabel className="text-base">Enable iPOS Pays</FormLabel>
+                  <FormDescription>
+                    Accept all payments through iPOS Pays Hosted Payment Page
+                  </FormDescription>
+                </div>
+                <FormControl>
+                  <Switch checked={field.value} onCheckedChange={field.onChange} />
+                </FormControl>
+              </FormItem>
+            )}
+          />
+
+          {form.watch("ipospay_enabled") && (
+            <>
+              {/* Test Mode Toggle */}
+              <FormField
+            control={form.control}
+            name="ipospay_test_mode"
+            render={({ field }) => (
+                  <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-amber-50">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base flex items-center gap-2">
+                        Sandbox/Test Mode
+                        {field.value && (
+                          <Badge variant="outline" className="bg-amber-100 text-amber-700">
+                            Testing
+                          </Badge>
+                        )}
+                      </FormLabel>
+                      <FormDescription>
+                        Use sandbox environment for testing (no real charges)
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          const currentTpn = form.getValues("ipospay_tpn");
+                          const currentAuthToken = form.getValues("ipospay_auth_token");
+
+                          if (field.value) {
+                            form.setValue("ipospay_sandbox_tpn", currentTpn);
+                            form.setValue("ipospay_sandbox_auth_token", currentAuthToken);
+                            form.setValue("ipospay_tpn", form.getValues("ipospay_production_tpn"));
+                            form.setValue("ipospay_auth_token", form.getValues("ipospay_production_auth_token"));
+                          } else {
+                            form.setValue("ipospay_production_tpn", currentTpn);
+                            form.setValue("ipospay_production_auth_token", currentAuthToken);
+                            form.setValue("ipospay_tpn", form.getValues("ipospay_sandbox_tpn"));
+                            form.setValue("ipospay_auth_token", form.getValues("ipospay_sandbox_auth_token"));
+                          }
+
+                          field.onChange(checked);
+                        }}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              {/* Info Alert */}
+              <Alert>
+                <Info className="h-4 w-4" />
+                <AlertTitle>Important</AlertTitle>
+                <AlertDescription>
+                  {form.watch("ipospay_test_mode")
+                    ? "You are in TEST MODE. Use sandbox credentials. No real charges will be made."
+                    : "You are in PRODUCTION MODE. Real charges will be made. Make sure to use production credentials."
+                  }
+                </AlertDescription>
+              </Alert>
+
+              {/* API Credentials */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-medium flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-green-600" />
+                    iPOS Pays Credentials
+                  </h4>
+                  <a
+                    href="https://docs.ipospays.com"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                  >
+                    Documentation
+                    <ExternalLink className="h-3 w-3" />
+                  </a>
+                </div>
+
+                <Alert className="bg-blue-50 border-blue-200">
+                  <Info className="h-4 w-4 text-blue-600" />
+                  <AlertTitle className="text-blue-900">Get Credentials</AlertTitle>
+                  <AlertDescription className="text-blue-800">
+                    Contact <strong>devsupport@dejavoo.io</strong> to get your TPN and Auth Token.
+                    <br />
+                    Mention if you need sandbox (testing) or production credentials.
+                  </AlertDescription>
+                </Alert>
+
+                <FormField
+                  control={form.control}
+                  name="ipospay_tpn"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>
+                        {iposPayTestMode ? "Sandbox TPN" : "Production TPN"} (Terminal Provider Number)
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          placeholder="Enter your TPN"
+                          autoComplete="off"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Stored in global settings as {iposPayTestMode ? "IPOSPAY_SANDBOX_TPN" : "IPOSPAY_PRODUCTION_TPN"}.
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="ipospay_auth_token"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{iposPayTestMode ? "Sandbox Auth Token" : "Production Auth Token"}</FormLabel>
+                      <FormControl>
+                        <div className="relative">
+                          <Input
+                            {...field}
+                            type="password"
+                            placeholder="Enter your Auth Token"
+                            autoComplete="off"
+                          />
+                        </div>
+                      </FormControl>
+                      <FormDescription>
+                        Generate from Settings → Generate Ecom/TOP Merchant Keys
+                      </FormDescription>
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              {/* Payment Methods Accepted */}
+              <div className="p-4 border rounded-lg space-y-4">
+                <h4 className="font-medium">Accepted Payment Methods via iPOS Pays</h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <CreditCard className="h-8 w-8 text-blue-600" />
+                    <div>
+                      <p className="font-medium">Credit/Debit Cards</p>
+                      <p className="text-xs text-muted-foreground">
+                        Visa, Mastercard, Amex, Discover, JCB, Diners
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                    <Landmark className="h-8 w-8 text-green-600" />
+                    <div>
+                      <p className="font-medium">ACH/eCheck</p>
+                      <p className="text-xs text-muted-foreground">
+                        Bank transfers (checking/savings)
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50">
+                    <span className="font-bold">VISA</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
+                    <span className="font-bold">Mastercard</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-blue-800 border-blue-400 bg-blue-50">
+                    <span className="font-bold">AMEX</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50">
+                    <span className="font-bold">Discover</span>
+                  </Badge>
+                  <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50">
+                    <span className="font-bold">JCB</span>
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Security Info */}
+              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-green-800">PCI DSS Compliant & Secure</p>
+                    <p className="text-sm text-green-700">
+                      iPOS Pays uses a Hosted Payment Page - customers enter payment details on their secure page.
+                      Card data never touches your servers, reducing PCI compliance requirements.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* How it Works */}
+              <Alert className="bg-slate-50">
+                <Info className="h-4 w-4" />
+                <AlertTitle>How iPOS Pays Works</AlertTitle>
+                <AlertDescription className="space-y-2">
+                  <p>1. Customer clicks "Pay Now" on your site</p>
+                  <p>2. They're redirected to iPOS Pays secure payment page</p>
+                  <p>3. Customer enters payment details on iPOS Pays page</p>
+                  <p>4. After payment, they're redirected back to your site</p>
+                  <p>5. Payment status is displayed automatically</p>
+                </AlertDescription>
+              </Alert>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      
       {/* Payment Processor Selection */}
       <Card>
         <CardHeader>
@@ -540,246 +782,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
         </CardContent>
       </Card>
 
-      {/* iPOS Pays Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            iPOS Pays Payment Gateway
-          </CardTitle>
-          <CardDescription>
-            Configure iPOS Pays for all payment types (Cards + ACH) via Hosted Payment Page
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Enable Toggle */}
-          <FormField
-            control={form.control}
-            name="ipospay_enabled"
-            render={({ field }) => (
-              <FormItem className="flex items-center justify-between rounded-lg border p-4">
-                <div className="space-y-0.5">
-                  <FormLabel className="text-base">Enable iPOS Pays</FormLabel>
-                  <FormDescription>
-                    Accept all payments through iPOS Pays Hosted Payment Page
-                  </FormDescription>
-                </div>
-                <FormControl>
-                  <Switch checked={field.value} onCheckedChange={field.onChange} />
-                </FormControl>
-              </FormItem>
-            )}
-          />
-
-          {form.watch("ipospay_enabled") && (
-            <>
-              {/* Test Mode Toggle */}
-              <FormField
-            control={form.control}
-            name="ipospay_test_mode"
-            render={({ field }) => (
-                  <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-amber-50">
-                    <div className="space-y-0.5">
-                      <FormLabel className="text-base flex items-center gap-2">
-                        Sandbox/Test Mode
-                        {field.value && (
-                          <Badge variant="outline" className="bg-amber-100 text-amber-700">
-                            Testing
-                          </Badge>
-                        )}
-                      </FormLabel>
-                      <FormDescription>
-                        Use sandbox environment for testing (no real charges)
-                      </FormDescription>
-                    </div>
-                    <FormControl>
-                      <Switch
-                        checked={field.value}
-                        onCheckedChange={(checked) => {
-                          const currentTpn = form.getValues("ipospay_tpn");
-                          const currentAuthToken = form.getValues("ipospay_auth_token");
-
-                          if (field.value) {
-                            form.setValue("ipospay_sandbox_tpn", currentTpn);
-                            form.setValue("ipospay_sandbox_auth_token", currentAuthToken);
-                            form.setValue("ipospay_tpn", form.getValues("ipospay_production_tpn"));
-                            form.setValue("ipospay_auth_token", form.getValues("ipospay_production_auth_token"));
-                          } else {
-                            form.setValue("ipospay_production_tpn", currentTpn);
-                            form.setValue("ipospay_production_auth_token", currentAuthToken);
-                            form.setValue("ipospay_tpn", form.getValues("ipospay_sandbox_tpn"));
-                            form.setValue("ipospay_auth_token", form.getValues("ipospay_sandbox_auth_token"));
-                          }
-
-                          field.onChange(checked);
-                        }}
-                      />
-                    </FormControl>
-                  </FormItem>
-                )}
-              />
-
-              {/* Info Alert */}
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertTitle>Important</AlertTitle>
-                <AlertDescription>
-                  {form.watch("ipospay_test_mode")
-                    ? "You are in TEST MODE. Use sandbox credentials. No real charges will be made."
-                    : "You are in PRODUCTION MODE. Real charges will be made. Make sure to use production credentials."
-                  }
-                </AlertDescription>
-              </Alert>
-
-              {/* API Credentials */}
-              <div className="space-y-4 p-4 border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-medium flex items-center gap-2">
-                    <Shield className="h-4 w-4 text-green-600" />
-                    iPOS Pays Credentials
-                  </h4>
-                  <a
-                    href="https://docs.ipospays.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-blue-600 hover:underline flex items-center gap-1"
-                  >
-                    Documentation
-                    <ExternalLink className="h-3 w-3" />
-                  </a>
-                </div>
-
-                <Alert className="bg-blue-50 border-blue-200">
-                  <Info className="h-4 w-4 text-blue-600" />
-                  <AlertTitle className="text-blue-900">Get Credentials</AlertTitle>
-                  <AlertDescription className="text-blue-800">
-                    Contact <strong>devsupport@dejavoo.io</strong> to get your TPN and Auth Token.
-                    <br />
-                    Mention if you need sandbox (testing) or production credentials.
-                  </AlertDescription>
-                </Alert>
-
-                <FormField
-                  control={form.control}
-                  name="ipospay_tpn"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {iposPayTestMode ? "Sandbox TPN" : "Production TPN"} (Terminal Provider Number)
-                      </FormLabel>
-                      <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="Enter your TPN"
-                          autoComplete="off"
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        Stored in global settings as {iposPayTestMode ? "IPOSPAY_SANDBOX_TPN" : "IPOSPAY_PRODUCTION_TPN"}.
-                      </FormDescription>
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="ipospay_auth_token"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>{iposPayTestMode ? "Sandbox Auth Token" : "Production Auth Token"}</FormLabel>
-                      <FormControl>
-                        <div className="relative">
-                          <Input
-                            {...field}
-                            type="password"
-                            placeholder="Enter your Auth Token"
-                            autoComplete="off"
-                          />
-                        </div>
-                      </FormControl>
-                      <FormDescription>
-                        Generate from Settings → Generate Ecom/TOP Merchant Keys
-                      </FormDescription>
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Payment Methods Accepted */}
-              <div className="p-4 border rounded-lg space-y-4">
-                <h4 className="font-medium">Accepted Payment Methods via iPOS Pays</h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <CreditCard className="h-8 w-8 text-blue-600" />
-                    <div>
-                      <p className="font-medium">Credit/Debit Cards</p>
-                      <p className="text-xs text-muted-foreground">
-                        Visa, Mastercard, Amex, Discover, JCB, Diners
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                    <Landmark className="h-8 w-8 text-green-600" />
-                    <div>
-                      <p className="font-medium">ACH/eCheck</p>
-                      <p className="text-xs text-muted-foreground">
-                        Bank transfers (checking/savings)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 pt-2">
-                  <Badge variant="outline" className="text-blue-700 border-blue-300 bg-blue-50">
-                    <span className="font-bold">VISA</span>
-                  </Badge>
-                  <Badge variant="outline" className="text-red-700 border-red-300 bg-red-50">
-                    <span className="font-bold">Mastercard</span>
-                  </Badge>
-                  <Badge variant="outline" className="text-blue-800 border-blue-400 bg-blue-50">
-                    <span className="font-bold">AMEX</span>
-                  </Badge>
-                  <Badge variant="outline" className="text-orange-700 border-orange-300 bg-orange-50">
-                    <span className="font-bold">Discover</span>
-                  </Badge>
-                  <Badge variant="outline" className="text-purple-700 border-purple-300 bg-purple-50">
-                    <span className="font-bold">JCB</span>
-                  </Badge>
-                </div>
-              </div>
-
-              {/* Security Info */}
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-green-600 mt-0.5" />
-                  <div>
-                    <p className="font-medium text-green-800">PCI DSS Compliant & Secure</p>
-                    <p className="text-sm text-green-700">
-                      iPOS Pays uses a Hosted Payment Page - customers enter payment details on their secure page.
-                      Card data never touches your servers, reducing PCI compliance requirements.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* How it Works */}
-              <Alert className="bg-slate-50">
-                <Info className="h-4 w-4" />
-                <AlertTitle>How iPOS Pays Works</AlertTitle>
-                <AlertDescription className="space-y-2">
-                  <p>1. Customer clicks "Pay Now" on your site</p>
-                  <p>2. They're redirected to iPOS Pays secure payment page</p>
-                  <p>3. Customer enters payment details on iPOS Pays page</p>
-                  <p>4. After payment, they're redirected back to your site</p>
-                  <p>5. Payment status is displayed automatically</p>
-                </AlertDescription>
-              </Alert>
-            </>
-          )}
-        </CardContent>
-      </Card>
+      
 
       {/* FortisPay Configuration */}
       {achProcessor === 'fortispay' && (
