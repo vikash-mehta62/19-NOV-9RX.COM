@@ -235,6 +235,20 @@ export default function PaymentCallback() {
         }
       }
 
+      if (
+        newPaymentStatus === "paid" &&
+        ["unpaid", "pending", "partial_paid"].includes(String(order.payment_status || "").toLowerCase()) &&
+        String(order.payment_method || "").toLowerCase() !== "credit"
+      ) {
+        try {
+          const rewardUserId = order.profile_id || order.location_id || order.customer;
+          const rewardOrderTotal = Number(newTotalAmount || 0);
+          await maybeAwardOrderPoints(rewardUserId, orderId, rewardOrderTotal, order.order_number || orderId);
+        } catch (rewardError) {
+          console.error("Reward points award failed:", rewardError);
+        }
+      }
+
       if (newPaymentStatus === "paid") {
         try {
           await createInvoiceForOrder(orderId, order, newTotalAmount, totalProcessingFee, result.paymentMethod);
@@ -360,7 +374,7 @@ export default function PaymentCallback() {
       subtotal,
       paid_amount: chargedAmount,
       discount_amount: discountAmount,
-      discount_details: pendingPayment.discountDetails || [],
+      discount_details: pendingPayment.discountDetails || data?.appliedDiscounts || [],
     } as any);
 
     if (invoiceError) {
@@ -393,6 +407,12 @@ export default function PaymentCallback() {
     }
 
     await deductInventory(insertedOrder.id);
+
+    if (String(result.paymentMethod || "").toLowerCase() !== "credit") {
+      const rewardUserId = insertedOrder.profile_id || insertedOrder.location_id || pendingPayment.pId || null;
+      await maybeAwardOrderPoints(rewardUserId, insertedOrder.id, orderTotal, insertedOrder.order_number || orderNumber);
+    }
+
     localStorage.removeItem("cartItems");
 
     return {
@@ -496,6 +516,26 @@ export default function PaymentCallback() {
     }
   };
 
+  const maybeAwardOrderPoints = async (
+    userId: string | null,
+    orderId: string,
+    orderTotal: number,
+    orderNumber: string,
+  ) => {
+    if (!userId || !(Number(orderTotal) > 0)) return;
+
+    try {
+      const { awardOrderPoints } = await import("@/services/rewardsService");
+      const rewardResult = await awardOrderPoints(userId, orderId, Number(orderTotal), orderNumber);
+
+      if (rewardResult?.success && Number(rewardResult.pointsEarned || 0) > 0) {
+        console.log(`Reward points awarded for order ${orderNumber}: +${rewardResult.pointsEarned}`);
+      }
+    } catch (error) {
+      console.error("Error awarding reward points from payment callback:", error);
+    }
+  };
+
   const createInvoiceForOrder = async (
     orderId: string,
     order: any,
@@ -546,29 +586,54 @@ export default function PaymentCallback() {
       setRetrying(true);
       const pendingPaymentStr = localStorage.getItem("pending_payment");
       const pendingPayment = pendingPaymentStr ? JSON.parse(pendingPaymentStr) : null;
+      const flowType = pendingPayment?.flowType;
       const targetOrderId = pendingPayment?.orderId || retryOrderId;
 
-      if (!targetOrderId) {
+      let orderData: any = null;
+      let baseAmount = Number(Math.max(0, Number(pendingPayment?.baseAmount || 0)).toFixed(2));
+
+      if (targetOrderId) {
+        // Recalculate amount from latest order data (same as pay-now modal flow)
+        const { data: orderResponse } = await axios.get(`/api/pay-now-order/${targetOrderId}`);
+        orderData = orderResponse?.order;
+        if (!orderData) {
+          toast.error("Failed to load order for retry");
+          return;
+        }
+
+        const orderTotalAmount = Number(orderData.total_amount || 0);
+        const orderProcessingFee = Number(orderData.processing_fee_amount || 0);
+        const paidAmount = Number(orderData.paid_amount || 0);
+        // Retry should charge only the actual order base amount (no extra retry card fee).
+        const fallbackBaseAmount = Math.max(0, (orderTotalAmount - orderProcessingFee) - paidAmount);
+        baseAmount = Number(
+          Math.max(0, Number(pendingPayment?.baseAmount || 0) || fallbackBaseAmount).toFixed(2)
+        );
+      } else if (flowType === "create_order" || flowType === "pharmacy_checkout") {
+        // Create-order and pharmacy checkout do not have a persisted order yet.
+        // Retry with the draft payment payload captured before redirect.
+        const draftSubtotal = Number(pendingPayment?.orderSubtotal || 0);
+        const draftTax = Number(pendingPayment?.orderTax || 0);
+        const draftShipping = Number(pendingPayment?.orderShipping || 0);
+        const draftDiscount = Number(pendingPayment?.discountAmount || 0);
+        const draftCalculatedBase = Math.max(0, draftSubtotal + draftTax + draftShipping - draftDiscount);
+
+        baseAmount = Number(
+          Math.max(
+            0,
+            Number(
+              pendingPayment?.baseAmount ||
+              pendingPayment?.amount ||
+              draftCalculatedBase ||
+              pendingPayment?.estimatedChargedAmount ||
+              0
+            )
+          ).toFixed(2)
+        );
+      } else {
         toast.error("Order not found for retry");
         return;
       }
-
-      // Recalculate amount from latest order data (same as pay-now modal flow)
-      const { data: orderResponse } = await axios.get(`/api/pay-now-order/${targetOrderId}`);
-      const orderData = orderResponse?.order;
-      if (!orderData) {
-        toast.error("Failed to load order for retry");
-        return;
-      }
-
-      const orderTotalAmount = Number(orderData.total_amount || 0);
-      const orderProcessingFee = Number(orderData.processing_fee_amount || 0);
-      const paidAmount = Number(orderData.paid_amount || 0);
-      // Retry should charge only the actual order base amount (no extra retry card fee).
-      const fallbackBaseAmount = Math.max(0, (orderTotalAmount - orderProcessingFee) - paidAmount);
-      const baseAmount = Number(
-        Math.max(0, Number(pendingPayment?.baseAmount || 0) || fallbackBaseAmount).toFixed(2)
-      );
 
       if (baseAmount <= 0) {
         toast.error("Order already paid");
@@ -577,15 +642,29 @@ export default function PaymentCallback() {
 
       const cardProcessingFee = 0;
       const targetAmount = baseAmount;
+      const retryOrderRef = targetOrderId || pendingPayment?.orderId || "draft-order";
+      const fallbackCustomerInfo = pendingPayment?.formDataa?.customerInfo || {};
 
       const iPosResult = await processPaymentIPOSPay({
         amount: targetAmount,
-        orderId: targetOrderId,
+        orderId: retryOrderRef,
         paymentMethod: pendingPayment?.paymentMethod === "ach" ? "ach" : "card",
-        customerName: pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
-        customerEmail: pendingPayment?.customerEmail || orderData?.customerInfo?.email || "",
-        customerMobile: pendingPayment?.customerPhone || orderData?.customerInfo?.phone || "",
-        description: `Order #${pendingPayment?.orderNumber || orderData?.order_number || targetOrderId}`,
+        customerName:
+          pendingPayment?.customerName ||
+          orderData?.customerInfo?.name ||
+          fallbackCustomerInfo?.name ||
+          "Customer",
+        customerEmail:
+          pendingPayment?.customerEmail ||
+          orderData?.customerInfo?.email ||
+          fallbackCustomerInfo?.email ||
+          "",
+        customerMobile:
+          pendingPayment?.customerPhone ||
+          orderData?.customerInfo?.phone ||
+          fallbackCustomerInfo?.phone ||
+          "",
+        description: `Order #${pendingPayment?.orderNumber || orderData?.order_number || retryOrderRef}`,
         merchantName: pendingPayment?.merchantName || orderData?.business_name || "RX Pharmacy",
         logoUrl: pendingPayment?.logoUrl || orderData?.logo_url,
         returnUrl: `${window.location.origin}/payment/callback`,
@@ -602,14 +681,24 @@ export default function PaymentCallback() {
           "pending_payment",
           JSON.stringify({
             ...(pendingPayment || {}),
-            orderId: targetOrderId,
+            orderId: targetOrderId || null,
             orderNumber: pendingPayment?.orderNumber || orderData?.order_number,
             amount: targetAmount,
             baseAmount,
             processingFee: cardProcessingFee,
-            customerName: pendingPayment?.customerName || orderData?.customerInfo?.name || "Customer",
-            customerEmail: pendingPayment?.customerEmail || orderData?.customerInfo?.email,
-            customerPhone: pendingPayment?.customerPhone || orderData?.customerInfo?.phone,
+            customerName:
+              pendingPayment?.customerName ||
+              orderData?.customerInfo?.name ||
+              fallbackCustomerInfo?.name ||
+              "Customer",
+            customerEmail:
+              pendingPayment?.customerEmail ||
+              orderData?.customerInfo?.email ||
+              fallbackCustomerInfo?.email,
+            customerPhone:
+              pendingPayment?.customerPhone ||
+              orderData?.customerInfo?.phone ||
+              fallbackCustomerInfo?.phone,
             merchantName: pendingPayment?.merchantName || orderData?.business_name || "Your Store",
             logoUrl: pendingPayment?.logoUrl || orderData?.logo_url,
             transactionReferenceId: iPosResult.transactionReferenceId || pendingPayment?.transactionReferenceId,

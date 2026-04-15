@@ -50,7 +50,7 @@
     AlertDialogHeader,
     AlertDialogTitle,
   } from "@/components/ui/alert-dialog";
-  import { getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
+  import { getPaymentConfig, getPaymentExperienceSettings, type PaymentExperienceSettings } from "@/config/paymentConfig";
 
   interface PaymentAdjustmentModalProps {
     open: boolean;
@@ -125,6 +125,7 @@
     const [sendingEmail, setSendingEmail] = useState(false);
     const [currentPaidAmount, setCurrentPaidAmount] = useState<number>(0);
     const [showCardFeeConfirm, setShowCardFeeConfirm] = useState(false);
+    const [isIposPayCardFlow, setIsIposPayCardFlow] = useState(true);
     const [feeSettings, setFeeSettings] = useState<PaymentExperienceSettings>({
       cardProcessingFeeEnabled: false,
       cardProcessingFeePercentage: 0,
@@ -200,6 +201,26 @@ const refundCreditAmount = Math.max(
 
       void loadFeeSettings();
     }, []);
+
+    useEffect(() => {
+      const loadPaymentConfig = async () => {
+        try {
+          const config = await getPaymentConfig();
+          setIsIposPayCardFlow(config.creditCardProcessor === "ipospay");
+        } catch (error) {
+          console.error("Failed to load payment config for adjustment modal:", error);
+          setIsIposPayCardFlow(true);
+        }
+      };
+
+      void loadPaymentConfig();
+    }, []);
+
+    useEffect(() => {
+      if (isIncrease && isIposPayCardFlow && selectedAction === "collect_payment") {
+        setSelectedAction("send_payment_link");
+      }
+    }, [isIncrease, isIposPayCardFlow, selectedAction]);
 
     const loadOrderData = async () => {
       try {
@@ -555,7 +576,7 @@ const refundCreditAmount = Math.max(
                 originalAmount,
                 newAmount,
                 differenceAmount: balanceDueAmount,
-                paymentMethod: 'payment_link',
+                paymentMethod: isIposPayCardFlow ? 'ipospay_payment_link' : 'payment_link',
                 paymentStatus: 'pending',
                 reason: reason || `Order ${orderNumber || orderId} modified - payment link sent`,
               });
@@ -917,26 +938,28 @@ const refundCreditAmount = Math.max(
                     </Label>
                   </div>
 
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
-                    <RadioGroupItem value="collect_payment" id="collect_payment" />
-                    <Label htmlFor="collect_payment" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <CreditCard className="h-4 w-4 text-blue-500" />
-                      <div>
-                        <p className="font-medium">Charge Saved Card</p>
-                        <p className="text-xs text-gray-500">
-                          Charge customer's saved card for ${balanceDueAmount.toFixed(2)}
-                          {cardProcessingFeeAmount > 0 ? ` + $${cardProcessingFeeAmount.toFixed(2)} card fee` : ''}
-                        </p>
-                      </div>
-                    </Label>
-                  </div>
+                  {!isIposPayCardFlow && (
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
+                      <RadioGroupItem value="collect_payment" id="collect_payment" />
+                      <Label htmlFor="collect_payment" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <CreditCard className="h-4 w-4 text-blue-500" />
+                        <div>
+                          <p className="font-medium">Charge Saved Card</p>
+                          <p className="text-xs text-gray-500">
+                            Charge customer's saved card for ${balanceDueAmount.toFixed(2)}
+                            {cardProcessingFeeAmount > 0 ? ` + $${cardProcessingFeeAmount.toFixed(2)} card fee` : ''}
+                          </p>
+                        </div>
+                      </Label>
+                    </div>
+                  )}
 
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                     <RadioGroupItem value="send_payment_link" id="send_payment_link" />
                     <Label htmlFor="send_payment_link" className="flex items-center gap-2 cursor-pointer flex-1">
                       <Mail className="h-4 w-4 text-orange-500" />
                       <div>
-                        <p className="font-medium">Send Payment Link</p>
+                        <p className="font-medium">{isIposPayCardFlow ? "Send iPOSPay Payment Link" : "Send Payment Link"}</p>
                         <p className="text-xs text-gray-500">
                           Email payment link to {customerEmail || 'customer'} for ${balanceDueAmount.toFixed(2)}
                         </p>
@@ -1073,7 +1096,7 @@ const refundCreditAmount = Math.max(
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  No saved cards found for this customer. Please use credit line or contact customer for payment.
+                  No saved cards found for this customer. Please use credit line or send payment link.
                 </AlertDescription>
               </Alert>
             )}

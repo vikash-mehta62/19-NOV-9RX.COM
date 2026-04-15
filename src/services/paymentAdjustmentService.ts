@@ -297,7 +297,7 @@ export const PaymentAdjustmentService = {
     const amount = Math.abs(adjustment.differenceAmount).toFixed(2);
     switch (adjustment.adjustmentType) {
       case 'additional_payment':
-        if (adjustment.paymentMethod === 'payment_link') {
+        if (adjustment.paymentMethod === 'payment_link' || adjustment.paymentMethod === 'ipospay_payment_link') {
           return `Payment link sent for additional payment of $${amount} (${adjustmentNumber})`;
         }
         return `Additional payment of $${amount} collected via ${adjustment.paymentMethod} (${adjustmentNumber})`;
