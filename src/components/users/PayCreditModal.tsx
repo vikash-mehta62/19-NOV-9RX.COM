@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
-import { formatCardNumber, validateCardNumber, validateExpiry } from "@/services/paymentService";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 
 const validateRequired = (value: string) => (value.trim() === "" ? "Required" : null);
 const getErrorMessage = (err: unknown) => {
@@ -77,18 +77,11 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   const [paymentType, setPaymentType] = useState<"full" | "partial">("full");
   const [amount, setAmount] = useState(Number(creditUsed.toFixed(2)));
   const [isPaying, setIsPaying] = useState(false);
-  const [paymentMethod, setPaymentMethod] = useState<"card" | "manual">("card");
+  const [paymentMethod, setPaymentMethod] = useState<"ipospay" | "manual">("ipospay");
 
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
   const [cardHolderName, setCardHolderName] = useState("");
-
-  const [address, setAddress] = useState("");
-  const [city, setCity] = useState("");
-  const [state, setState] = useState("");
-  const [zip, setZip] = useState("");
-  const [country, setCountry] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [customerPhone, setCustomerPhone] = useState("");
 
   const [notes, setNotes] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -106,7 +99,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
 
   useEffect(() => {
     if (paymentMethod === "manual" && !allowManual) {
-      setPaymentMethod("card");
+      setPaymentMethod("ipospay");
     }
   }, [allowManual, paymentMethod]);
 
@@ -139,13 +132,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     if (error || !profile) return;
 
     setCardHolderName(profile.display_name || "");
-
-    const addr = profile.billing_address || profile.shipping_address || {};
-    setAddress(addr.street1 || "");
-    setCity(addr.city || "");
-    setState(addr.state || "");
-    setZip(addr.zip_code || "");
-    setCountry(addr.countryRegion || "");
+    setCustomerEmail(profile.email || "");
+    setCustomerPhone(profile.phone || "");
   }, [userId]);
 
   const fetchOutstandingInvoices = useCallback(async () => {
@@ -250,41 +238,10 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   const handleCancel = () => {
     setPaymentType("full");
     setAmount(Number(outstandingCredit.toFixed(2)));
-    setPaymentMethod("card");
+    setPaymentMethod("ipospay");
     setSelectedInvoiceId("");
-    setCardNumber("");
-    setExpiry("");
-    setCvv("");
     setNotes("");
     setFieldErrors({});
-  };
-
-  const handleCardNumberChange = (val: string) => {
-    const formatted = formatCardNumber(val);
-    setCardNumber(formatted);
-    if (fieldErrors.cardNumber) {
-      setFieldErrors((prev) => ({ ...prev, cardNumber: "" }));
-    }
-  };
-
-  const handleExpiryChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, "").slice(0, 4);
-    if (numericVal.length > 2) {
-      setExpiry(`${numericVal.slice(0, 2)}/${numericVal.slice(2)}`);
-    } else {
-      setExpiry(numericVal);
-    }
-    if (fieldErrors.expiry) {
-      setFieldErrors((prev) => ({ ...prev, expiry: "" }));
-    }
-  };
-
-  const handleCvvChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, "").slice(0, 4);
-    setCvv(numericVal);
-    if (fieldErrors.cvv) {
-      setFieldErrors((prev) => ({ ...prev, cvv: "" }));
-    }
   };
 
   const handlePayment = async (e: FormEvent) => {
@@ -314,33 +271,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           errors.amount = "No outstanding credit to pay.";
         }
 
-        if (paymentMethod === "card") {
-          if (!cardNumber.trim()) {
-            errors.cardNumber = "Card number is required";
-          } else if (!validateCardNumber(cardNumber)) {
-            errors.cardNumber = "Invalid card number";
-          }
-
-          const rawExpiry = expiry.replace(/\//g, "");
-          if (!rawExpiry.trim()) {
-            errors.expiry = "Expiry date is required";
-          } else if (!validateExpiry(rawExpiry)) {
-            errors.expiry = "Invalid or expired date (MM/YY)";
-          }
-
-          if (!cvv.trim()) {
-            errors.cvv = "CVV is required";
-          } else if (!/^\d{3,4}$/.test(cvv)) {
-            errors.cvv = "CVV must be 3 or 4 digits";
-          }
-
-          errors.cardHolderName = validateRequired(cardHolderName) ? "Cardholder name is required" : null;
-          errors.address = validateRequired(address) ? "Address is required" : null;
-          errors.city = validateRequired(city) ? "City is required" : null;
-          errors.state = validateRequired(state) ? "State is required" : null;
-          errors.zip = validateRequired(zip) ? "ZIP code is required" : null;
-          errors.country = validateRequired(country) ? "Country is required" : null;
-        } else if (paymentMethod === "manual") {
+        if (paymentMethod === "manual") {
           errors.notes = validateRequired(notes) ? "Notes are required" : null;
         }
 
@@ -364,44 +295,44 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           return;
         }
 
-        let transactionId: string | null = null;
+        if (paymentMethod === "ipospay") {
+          const response = await processPaymentIPOSPay({
+            amount: amountToPay,
+            orderId: `credit-line-${userId}`,
+            paymentMethod: "card",
+            customerName: cardHolderName || "Customer",
+            customerEmail,
+            customerMobile: customerPhone,
+            description: "Credit line payment",
+            merchantName: "RX Pharmacy",
+            returnUrl: `${window.location.origin}/payment/callback`,
+            failureUrl: `${window.location.origin}/payment/callback`,
+            cancelUrl: `${window.location.origin}/payment/cancel`,
+            calculateFee: false,
+            calculateTax: false,
+            tipsInputPrompt: false,
+            themeColor: "#2563EB",
+          });
 
-        if (paymentMethod === "card") {
-          const rawExpiry = expiry.replace(/\//g, "");
-          const nameParts = (cardHolderName || "Customer").split(" ");
-          const firstName = nameParts[0] || "Customer";
-          const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "Customer";
+          if (!response.success || !response.paymentUrl || !response.transactionReferenceId) {
+            throw new Error(response.error || "Failed to start secure payment");
+          }
 
-          const { data: paymentResponse, error: paymentError } = await supabase.functions.invoke(
-            "process-payment",
-            {
-              body: {
-                payment: {
-                  type: "card",
-                  cardNumber: cardNumber.replace(/\s/g, ""),
-                  expirationDate: rawExpiry,
-                  cvv,
-                  cardholderName: cardHolderName,
-                },
-                amount: amountToPay,
-                invoiceNumber: `CREDIT-${Date.now()}`,
-                billing: {
-                  firstName,
-                  lastName,
-                  address,
-                  city,
-                  state,
-                  zip,
-                  country,
-                },
-              },
-            }
-          );
+          localStorage.setItem("pending_payment", JSON.stringify({
+            flowType: "credit_line_payment",
+            transactionReferenceId: response.transactionReferenceId,
+            userId,
+            amount: amountToPay,
+            baseAmount: amountToPay,
+            paymentMode: paymentType,
+            customerName: cardHolderName || "Customer",
+            customerEmail,
+            notes: null,
+            calculateFee: false,
+          }));
 
-          if (paymentError) throw new Error(paymentError.message || "Payment processing failed");
-          if (!paymentResponse?.success) throw new Error(paymentResponse?.error || "Card payment failed");
-
-          transactionId = paymentResponse.transactionId;
+          window.location.href = response.paymentUrl;
+          return;
         }
 
         const rpcClient = supabase as unknown as {
@@ -415,8 +346,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
         const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
           p_user_id: userId,
           p_amount: amountToPay,
-          p_payment_method: paymentMethod === "card" ? "card" : "manual",
-          p_transaction_id: transactionId || `MANUAL-${Date.now()}`,
+          p_payment_method: "manual",
+          p_transaction_id: `MANUAL-${Date.now()}`,
           p_payment_mode: paymentType,
           p_target_invoice_id: null, // NULL = automatic allocation (penalty first)
           p_notes: paymentMethod === "manual" ? notes : null,
@@ -552,8 +483,8 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           </div>
 
           <div className="flex gap-4">
-            <Button type="button" variant={paymentMethod === "card" ? "default" : "outline"} onClick={() => setPaymentMethod("card")} className="flex-1">
-              Card Payment
+            <Button type="button" variant={paymentMethod === "ipospay" ? "default" : "outline"} onClick={() => setPaymentMethod("ipospay")} className="flex-1">
+              Pay with Secure Payment
             </Button>
             {allowManual && (
               <Button type="button" variant={paymentMethod === "manual" ? "default" : "outline"} onClick={() => setPaymentMethod("manual")} className="flex-1">
@@ -561,59 +492,6 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
               </Button>
             )}
           </div>
-
-          {paymentMethod === "card" && (
-            <div className="space-y-2">
-              <div>
-                <Input placeholder="Cardholder Name" value={cardHolderName} onChange={(e) => setCardHolderName(e.target.value)} className={fieldErrors.cardHolderName ? "border-red-500" : ""} />
-                {fieldErrors.cardHolderName && <p className="text-xs text-red-500 mt-1">{fieldErrors.cardHolderName}</p>}
-              </div>
-              <div>
-                <Input placeholder="Card Number" value={cardNumber} onChange={(e) => handleCardNumberChange(e.target.value)} maxLength={19} className={fieldErrors.cardNumber ? "border-red-500" : ""} />
-                {fieldErrors.cardNumber && <p className="text-xs text-red-500 mt-1">{fieldErrors.cardNumber}</p>}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input
-                    placeholder="MM/YY"
-                    value={expiry}
-                    onChange={(e) => handleExpiryChange(e.target.value)}
-                    maxLength={5}
-                    className={fieldErrors.expiry ? "border-red-500" : ""}
-                  />
-                  {fieldErrors.expiry && <p className="text-xs text-red-500 mt-1">{fieldErrors.expiry}</p>}
-                </div>
-                <div className="flex-1">
-                  <Input placeholder="CVV" value={cvv} onChange={(e) => handleCvvChange(e.target.value)} maxLength={4} className={fieldErrors.cvv ? "border-red-500" : ""} />
-                  {fieldErrors.cvv && <p className="text-xs text-red-500 mt-1">{fieldErrors.cvv}</p>}
-                </div>
-              </div>
-              <div>
-                <Input placeholder="Address" value={address} onChange={(e) => setAddress(e.target.value)} className={fieldErrors.address ? "border-red-500" : ""} />
-                {fieldErrors.address && <p className="text-xs text-red-500 mt-1">{fieldErrors.address}</p>}
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input placeholder="City" value={city} onChange={(e) => setCity(e.target.value)} className={fieldErrors.city ? "border-red-500" : ""} />
-                  {fieldErrors.city && <p className="text-xs text-red-500 mt-1">{fieldErrors.city}</p>}
-                </div>
-                <div className="flex-1">
-                  <Input placeholder="State" value={state} onChange={(e) => setState(e.target.value)} className={fieldErrors.state ? "border-red-500" : ""} />
-                  {fieldErrors.state && <p className="text-xs text-red-500 mt-1">{fieldErrors.state}</p>}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <Input placeholder="Zip" value={zip} onChange={(e) => setZip(e.target.value)} className={fieldErrors.zip ? "border-red-500" : ""} />
-                  {fieldErrors.zip && <p className="text-xs text-red-500 mt-1">{fieldErrors.zip}</p>}
-                </div>
-                <div className="flex-1">
-                  <Input placeholder="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={fieldErrors.country ? "border-red-500" : ""} />
-                  {fieldErrors.country && <p className="text-xs text-red-500 mt-1">{fieldErrors.country}</p>}
-                </div>
-              </div>
-            </div>
-          )}
 
           {paymentMethod === "manual" && (
             <div>
@@ -633,7 +511,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
               disabled={isPaying || outstandingCredit <= 0}
               className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isPaying ? "Processing..." : "Pay"}
+              {isPaying ? "Processing..." : paymentMethod === "ipospay" ? "Pay with Secure Payment" : "Record Manual Payment"}
             </Button>
           </div>
         </form>

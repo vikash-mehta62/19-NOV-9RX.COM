@@ -28,6 +28,7 @@ export default function PaymentCallback() {
   const [retrying, setRetrying] = useState(false);
   const [completedOrderNumber, setCompletedOrderNumber] = useState<string | null>(null);
   const [retryOrderId, setRetryOrderId] = useState<string | null>(null);
+  const [paymentFlowType, setPaymentFlowType] = useState<string | null>(null);
   const ordersPath =
     sessionStorage.getItem("userType") === "admin"
       ? "/admin/orders"
@@ -49,6 +50,7 @@ export default function PaymentCallback() {
       }
 
       const pendingPayment = JSON.parse(pendingPaymentStr);
+      setPaymentFlowType(pendingPayment?.flowType || null);
       setRetryOrderId(pendingPayment?.orderId || null);
 
       const responseCode = searchParams.get("responseCode");
@@ -150,6 +152,12 @@ export default function PaymentCallback() {
         const createdLocalOrder = finalizePharmacyCheckout(pendingPayment, result);
         setCompletedOrderNumber(createdLocalOrder.orderNumber);
         toast.success("Payment successful! Order placed.");
+        return;
+      }
+
+      if (pendingPayment.flowType === "credit_line_payment") {
+        await finalizeCreditLinePayment(pendingPayment, result);
+        toast.success("Credit payment applied successfully.");
         return;
       }
 
@@ -406,6 +414,14 @@ export default function PaymentCallback() {
       throw new Error(paymentLogError.message || "Failed to log payment transaction");
     }
 
+    const appliedDiscounts = pendingPayment.discountDetails || data?.appliedDiscounts || [];
+    await applyPendingOrderDiscounts({
+      orderId: insertedOrder.id,
+      orderNumber: insertedOrder.order_number || orderNumber,
+      customerId: insertedOrder.profile_id || profileId,
+      discounts: appliedDiscounts,
+    });
+
     await deductInventory(insertedOrder.id);
 
     if (String(result.paymentMethod || "").toLowerCase() !== "credit") {
@@ -447,6 +463,47 @@ export default function PaymentCallback() {
     return {
       orderNumber,
     };
+  };
+
+  const finalizeCreditLinePayment = async (
+    pendingPayment: any,
+    result: IPosNormalizedPaymentResult,
+  ) => {
+    const userId = pendingPayment.userId;
+    const amountToApply = Number((Number(result.baseAmount || pendingPayment.baseAmount || pendingPayment.amount || 0)).toFixed(2));
+
+    if (!userId) {
+      throw new Error("Credit payment customer not found");
+    }
+
+    if (amountToApply <= 0) {
+      throw new Error("Invalid credit payment amount");
+    }
+
+    const rpcClient = supabase as unknown as {
+      rpc: (
+        fn: string,
+        params: Record<string, unknown>
+      ) => Promise<{ data: { success?: boolean; message?: string; error?: string } | null; error: { message?: string } | null }>;
+    };
+
+    const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
+      p_user_id: userId,
+      p_amount: amountToApply,
+      p_payment_method: "card",
+      p_transaction_id: result.transactionId || result.transactionReferenceId,
+      p_payment_mode: pendingPayment.paymentMode || "full",
+      p_target_invoice_id: null,
+      p_notes: pendingPayment.notes || "iPOSPay credit line payment",
+    });
+
+    if (paymentError) {
+      throw new Error(paymentError.message || "Failed to apply credit payment");
+    }
+
+    if (!paymentResult?.success) {
+      throw new Error(paymentResult?.message || paymentResult?.error || "Credit payment allocation failed");
+    }
   };
 
   const logFailedPayment = async (
@@ -536,6 +593,102 @@ export default function PaymentCallback() {
     }
   };
 
+  const applyPendingOrderDiscounts = async ({
+    orderId,
+    orderNumber,
+    customerId,
+    discounts,
+  }: {
+    orderId: string;
+    orderNumber: string;
+    customerId: string | null;
+    discounts: any[];
+  }) => {
+    if (!Array.isArray(discounts) || discounts.length === 0) return;
+
+    for (const discount of discounts) {
+      try {
+        if (discount?.type === "rewards" && discount?.pointsUsed && customerId) {
+          const pointsToDeduct = Number(discount.pointsUsed || 0);
+          if (pointsToDeduct > 0) {
+            const { data: existingRedeemTx } = await supabase
+              .from("reward_transactions")
+              .select("id")
+              .eq("reference_id", orderId)
+              .eq("reference_type", "order")
+              .eq("transaction_type", "redeem")
+              .maybeSingle();
+
+            if (!existingRedeemTx) {
+              const { data: profileData } = await supabase
+                .from("profiles")
+                .select("reward_points")
+                .eq("id", customerId)
+                .maybeSingle();
+
+              const currentPoints = Number(profileData?.reward_points || 0);
+              const newPoints = Math.max(0, currentPoints - pointsToDeduct);
+
+              await supabase
+                .from("profiles")
+                .update({ reward_points: newPoints })
+                .eq("id", customerId);
+
+              await supabase
+                .from("reward_transactions")
+                .insert({
+                  user_id: customerId,
+                  points: -pointsToDeduct,
+                  transaction_type: "redeem",
+                  description: `Redeemed ${pointsToDeduct} points for order ${orderNumber}`,
+                  reference_type: "order",
+                  reference_id: orderId,
+                });
+            }
+          }
+        }
+
+        if ((discount?.type === "promo" || discount?.type === "offer") && discount?.offerId) {
+          const { data: offerData } = await supabase
+            .from("offers")
+            .select("used_count")
+            .eq("id", discount.offerId)
+            .maybeSingle();
+
+          if (offerData) {
+            await supabase
+              .from("offers")
+              .update({ used_count: (offerData.used_count || 0) + 1 })
+              .eq("id", discount.offerId);
+          }
+        }
+
+        if (discount?.type === "redeemed_reward" && discount?.redemptionId) {
+          await (supabase as any)
+            .from("reward_redemptions")
+            .update({
+              status: "used",
+              used_at: new Date().toISOString(),
+              used_in_order_id: orderId,
+            })
+            .eq("id", discount.redemptionId)
+            .eq("status", "pending");
+        }
+
+        if (discount?.type === "credit_memo" && discount?.creditMemoId && Number(discount?.amount || 0) > 0 && customerId) {
+          await (supabase as any).rpc("apply_credit_memo", {
+            p_credit_memo_id: discount.creditMemoId,
+            p_order_id: orderId,
+            p_amount: Number(discount.amount),
+            p_applied_by: customerId,
+          });
+        }
+      } catch (discountError) {
+        console.error("Failed to process order discount after callback:", discountError, discount);
+      }
+    }
+  };
+
   const createInvoiceForOrder = async (
     orderId: string,
     order: any,
@@ -609,6 +762,13 @@ export default function PaymentCallback() {
         baseAmount = Number(
           Math.max(0, Number(pendingPayment?.baseAmount || 0) || fallbackBaseAmount).toFixed(2)
         );
+      } else if (flowType === "credit_line_payment") {
+        baseAmount = Number(
+          Math.max(
+            0,
+            Number(pendingPayment?.baseAmount || pendingPayment?.amount || 0)
+          ).toFixed(2)
+        );
       } else if (flowType === "create_order" || flowType === "pharmacy_checkout") {
         // Create-order and pharmacy checkout do not have a persisted order yet.
         // Retry with the draft payment payload captured before redirect.
@@ -664,13 +824,16 @@ export default function PaymentCallback() {
           orderData?.customerInfo?.phone ||
           fallbackCustomerInfo?.phone ||
           "",
-        description: `Order #${pendingPayment?.orderNumber || orderData?.order_number || retryOrderRef}`,
+        description:
+          flowType === "credit_line_payment"
+            ? "Credit line payment"
+            : `Order #${pendingPayment?.orderNumber || orderData?.order_number || retryOrderRef}`,
         merchantName: pendingPayment?.merchantName || orderData?.business_name || "RX Pharmacy",
         logoUrl: pendingPayment?.logoUrl || orderData?.logo_url,
         returnUrl: `${window.location.origin}/payment/callback`,
         failureUrl: `${window.location.origin}/payment/callback`,
         cancelUrl: `${window.location.origin}/payment/cancel`,
-        calculateFee: pendingPayment?.paymentMethod !== "ach",
+        calculateFee: flowType === "credit_line_payment" ? false : pendingPayment?.paymentMethod !== "ach",
         calculateTax: false,
         tipsInputPrompt: false,
         themeColor: "#2563EB",
@@ -681,7 +844,7 @@ export default function PaymentCallback() {
           "pending_payment",
           JSON.stringify({
             ...(pendingPayment || {}),
-            orderId: targetOrderId || null,
+            orderId: flowType === "credit_line_payment" ? null : targetOrderId || null,
             orderNumber: pendingPayment?.orderNumber || orderData?.order_number,
             amount: targetAmount,
             baseAmount,
@@ -774,6 +937,7 @@ export default function PaymentCallback() {
   }
 
   const success = paymentResult.status === "success";
+  const isCreditLinePayment = paymentFlowType === "credit_line_payment";
   const displayMethod =
     paymentResult.paymentMethod === "ach"
       ? `ACH - ${paymentResult.accountType || "Bank"} •••• ${paymentResult.accountLast4 || ""}`.trim()
@@ -828,7 +992,9 @@ export default function PaymentCallback() {
             )}
 
             <div className="flex justify-between py-2 border-b">
-              <span className="text-sm text-muted-foreground">Applied to Order</span>
+              <span className="text-sm text-muted-foreground">
+                {isCreditLinePayment ? "Applied to Credit" : "Applied to Order"}
+              </span>
               <span className="font-medium">${paymentResult.baseAmount.toFixed(2)}</span>
             </div>
 

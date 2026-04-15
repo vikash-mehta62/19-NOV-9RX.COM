@@ -2,43 +2,43 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>http://localhost:4001/</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/products</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/blog</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/about-us</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/contact</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/newsletter</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/privacy-policy</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/terms-of-service</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/shipping-info</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/return-policy</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/products/1-piece-single-dose-570adfd0</loc>
@@ -49,12 +49,12 @@
     <lastmod>2026-03-27T14:24:43.59244+00:00</lastmod>
   </url>
   <url>
-    <loc>http://localhost:4001/products/liquid-bottles-3486fc59</loc>
-    <lastmod>2026-03-26T17:53:49.343+00:00</lastmod>
-  </url>
-  <url>
     <loc>http://localhost:4001/products/multi-dose-afa43bed</loc>
     <lastmod>2026-03-27T15:09:40.279344+00:00</lastmod>
+  </url>
+  <url>
+    <loc>http://localhost:4001/products/liquid-bottles-3486fc59</loc>
+    <lastmod>2026-03-26T17:53:49.343+00:00</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/products/corrugated-boxes-f63e5f5e</loc>
@@ -73,10 +73,6 @@
     <lastmod>2026-03-26T17:54:42.109+00:00</lastmod>
   </url>
   <url>
-    <loc>http://localhost:4001/products/flat-bottom-stock-rx-b88431c1</loc>
-    <lastmod>2026-02-19T14:24:57.168315+00:00</lastmod>
-  </url>
-  <url>
     <loc>http://localhost:4001/products/push-down-turn-6b75312f</loc>
     <lastmod>2026-03-26T08:34:42.885+00:00</lastmod>
   </url>
@@ -86,6 +82,10 @@
   </url>
   <url>
     <loc>http://localhost:4001/products/thermal-paper-receipt-rolls-a72871bb</loc>
+    <lastmod>2026-02-19T14:24:57.168315+00:00</lastmod>
+  </url>
+  <url>
+    <loc>http://localhost:4001/products/flat-bottom-stock-rx-b88431c1</loc>
     <lastmod>2026-02-19T14:24:57.168315+00:00</lastmod>
   </url>
   <url>
@@ -106,34 +106,34 @@
   </url>
   <url>
     <loc>http://localhost:4001/categories/compliance-packaging</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/other-supply</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/rx-labels</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/oral-syringes-accessories</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/rx-paper-bags</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/printed-materials</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/testing-cateogy</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
   <url>
     <loc>http://localhost:4001/categories/containers-closures</loc>
-    <lastmod>2026-04-14T16:37:27.923Z</lastmod>
+    <lastmod>2026-04-15T09:29:46.140Z</lastmod>
   </url>
 </urlset>
