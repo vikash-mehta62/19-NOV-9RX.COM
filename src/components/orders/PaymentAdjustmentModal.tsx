@@ -938,7 +938,8 @@ const refundCreditAmount = Math.max(
                     </Label>
                   </div>
 
-                  {!isIposPayCardFlow && (
+                  {/* Charge Saved Card  */}
+                  {/* {!isIposPayCardFlow && (
                     <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                       <RadioGroupItem value="collect_payment" id="collect_payment" />
                       <Label htmlFor="collect_payment" className="flex items-center gap-2 cursor-pointer flex-1">
@@ -952,7 +953,7 @@ const refundCreditAmount = Math.max(
                         </div>
                       </Label>
                     </div>
-                  )}
+                  )} */}
 
                   <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                     <RadioGroupItem value="send_payment_link" id="send_payment_link" />

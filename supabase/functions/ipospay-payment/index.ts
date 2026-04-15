@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,7 +55,7 @@ function readBoolEnv(name: string, fallback: boolean) {
   return value === "true";
 }
 
-function getIPosPayCredentials(): IPosPayCredentials {
+function getEnvIPosPayCredentials(): IPosPayCredentials {
   const enabled = readBoolEnv("IPOSPAY_ENABLED", false);
   const testMode = readBoolEnv("IPOSPAY_TEST_MODE", true);
 
@@ -72,6 +73,57 @@ function getIPosPayCredentials(): IPosPayCredentials {
     tpn,
     authToken,
   };
+}
+
+async function getSettingsIPosPayCredentials(): Promise<IPosPayCredentials | null> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    return null;
+  }
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const { data, error } = await supabase
+    .from("settings")
+    .select(`
+      ipospay_enabled,
+      ipospay_test_mode,
+      ipospay_sandbox_tpn,
+      ipospay_sandbox_auth_token,
+      ipospay_production_tpn,
+      ipospay_production_auth_token
+    `)
+    .eq("is_global", true)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Failed to read iPOSPay settings from settings table:", error);
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const testMode = data.ipospay_test_mode ?? true;
+
+  return {
+    enabled: data.ipospay_enabled === true,
+    testMode,
+    tpn: testMode ? data.ipospay_sandbox_tpn || "" : data.ipospay_production_tpn || "",
+    authToken: testMode ? data.ipospay_sandbox_auth_token || "" : data.ipospay_production_auth_token || "",
+  };
+}
+
+async function getIPosPayCredentials(): Promise<IPosPayCredentials> {
+  const settingsCredentials = await getSettingsIPosPayCredentials();
+
+  if (settingsCredentials) {
+    return settingsCredentials;
+  }
+
+  return getEnvIPosPayCredentials();
 }
 
 function getIPosPayBaseUrls(testMode: boolean) {
@@ -253,7 +305,7 @@ serve(async (req) => {
   }
 
   try {
-    const credentials = getIPosPayCredentials();
+    const credentials = await getIPosPayCredentials();
     if (!credentials.enabled) {
       return jsonResponse(200, {
         success: false,

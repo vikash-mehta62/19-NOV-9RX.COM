@@ -539,8 +539,29 @@ export default function PaymentCallback() {
         }
       }
 
-      await supabase.from("payment_transactions").insert({
-        profile_id: order.data?.profile_id,
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const requestedProfileId =
+        order.data?.profile_id ||
+        pendingPayment.profileId ||
+        pendingPayment.userId ||
+        pendingPayment.pId ||
+        user?.id ||
+        null;
+
+      if (!requestedProfileId) {
+        console.warn("Skipping failed payment log because no profile is available", {
+          orderId,
+          transactionId: callbackData.transactionId,
+        });
+        toast.error(`Payment failed: ${callbackData.responseMessage}`);
+        return;
+      }
+
+      const failedTransactionPayload = {
+        profile_id: requestedProfileId,
         order_id: orderId,
         transaction_id: callbackData.transactionId,
         transaction_type: "auth_capture",
@@ -555,7 +576,31 @@ export default function PaymentCallback() {
           ...callbackData,
           normalizedResult: result,
         },
-      });
+      };
+
+      const { error: failedLogError } = await supabase
+        .from("payment_transactions")
+        .insert(failedTransactionPayload);
+
+      if (failedLogError && failedLogError.code === "42501" && user?.id && user.id !== requestedProfileId) {
+        const { error: retryLogError } = await supabase
+          .from("payment_transactions")
+          .insert({
+            ...failedTransactionPayload,
+            profile_id: user.id,
+            raw_response: {
+              ...failedTransactionPayload.raw_response,
+              requestedProfileId,
+              rlsFallbackProfileId: user.id,
+            },
+          });
+
+        if (retryLogError) {
+          console.error("Failed to log declined payment after RLS fallback:", retryLogError);
+        }
+      } else if (failedLogError) {
+        console.error("Failed to log declined payment:", failedLogError);
+      }
 
       toast.error(`Payment failed: ${callbackData.responseMessage}`);
     } catch (error) {
@@ -938,6 +983,9 @@ export default function PaymentCallback() {
 
   const success = paymentResult.status === "success";
   const isCreditLinePayment = paymentFlowType === "credit_line_payment";
+  const primaryNavigatePath = isCreditLinePayment ? "/pharmacy/credit" : ordersPath;
+  const displayAppliedAmount = success ? paymentResult.baseAmount : 0;
+  const displayChargedAmount = success ? paymentResult.chargedAmount : 0;
   const displayMethod =
     paymentResult.paymentMethod === "ach"
       ? `ACH - ${paymentResult.accountType || "Bank"} •••• ${paymentResult.accountLast4 || ""}`.trim()
@@ -995,10 +1043,10 @@ export default function PaymentCallback() {
               <span className="text-sm text-muted-foreground">
                 {isCreditLinePayment ? "Applied to Credit" : "Applied to Order"}
               </span>
-              <span className="font-medium">${paymentResult.baseAmount.toFixed(2)}</span>
+              <span className="font-medium">${displayAppliedAmount.toFixed(2)}</span>
             </div>
 
-            {paymentResult.processingFee > 0 && (
+            {success && paymentResult.processingFee > 0 && (
               <div className="flex justify-between py-2 border-b">
                 <span className="text-sm text-muted-foreground">Card Processing Fee</span>
                 <span className="font-medium text-amber-700">${paymentResult.processingFee.toFixed(2)}</span>
@@ -1007,7 +1055,7 @@ export default function PaymentCallback() {
 
             <div className="flex justify-between py-2 border-b">
               <span className="text-sm text-muted-foreground">Total Charged</span>
-              <span className="font-bold text-lg">${paymentResult.chargedAmount.toFixed(2)}</span>
+              <span className="font-bold text-lg">${displayChargedAmount.toFixed(2)}</span>
             </div>
 
             <div className="flex justify-between py-2 border-b">
@@ -1035,11 +1083,17 @@ export default function PaymentCallback() {
 
           <div className="space-y-2">
             <Button
-              onClick={() => navigate(ordersPath)}
+              onClick={() => navigate(primaryNavigatePath)}
               className="w-full"
               variant={success ? "default" : "outline"}
             >
-              {success ? "View Orders" : "Back to Orders"}
+              {isCreditLinePayment
+                ? success
+                  ? "View Credit Account"
+                  : "Back to Credit Account"
+                : success
+                  ? "View Orders"
+                  : "Back to Orders"}
             </Button>
 
             {!success && (

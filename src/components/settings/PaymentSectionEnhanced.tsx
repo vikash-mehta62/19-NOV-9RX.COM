@@ -66,6 +66,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
   
   const creditCardProcessor = form.watch("credit_card_processor");
   const achProcessor = form.watch("ach_processor");
+  const iposPayTestMode = form.watch("ipospay_test_mode");
   
   const fortisPayEnabled = form.watch("fortispay_enabled");
   const fortisPayTestMode = form.watch("fortispay_test_mode");
@@ -315,9 +316,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
             <>
               {/* Test Mode Toggle */}
               <FormField
-                control={form.control}
-                name="authorize_net_test_mode"
-                render={({ field }) => (
+            control={form.control}
+            name="authorize_net_test_mode"
+            render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-amber-50">
                     <div className="space-y-0.5">
                       <FormLabel className="text-base flex items-center gap-2">
@@ -574,9 +575,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
             <>
               {/* Test Mode Toggle */}
               <FormField
-                control={form.control}
-                name="ipospay_test_mode"
-                render={({ field }) => (
+            control={form.control}
+            name="ipospay_test_mode"
+            render={({ field }) => (
                   <FormItem className="flex items-center justify-between rounded-lg border p-4 bg-amber-50">
                     <div className="space-y-0.5">
                       <FormLabel className="text-base flex items-center gap-2">
@@ -592,7 +593,27 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </FormDescription>
                     </div>
                     <FormControl>
-                      <Switch checked={field.value} onCheckedChange={field.onChange} />
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={(checked) => {
+                          const currentTpn = form.getValues("ipospay_tpn");
+                          const currentAuthToken = form.getValues("ipospay_auth_token");
+
+                          if (field.value) {
+                            form.setValue("ipospay_sandbox_tpn", currentTpn);
+                            form.setValue("ipospay_sandbox_auth_token", currentAuthToken);
+                            form.setValue("ipospay_tpn", form.getValues("ipospay_production_tpn"));
+                            form.setValue("ipospay_auth_token", form.getValues("ipospay_production_auth_token"));
+                          } else {
+                            form.setValue("ipospay_production_tpn", currentTpn);
+                            form.setValue("ipospay_production_auth_token", currentAuthToken);
+                            form.setValue("ipospay_tpn", form.getValues("ipospay_sandbox_tpn"));
+                            form.setValue("ipospay_auth_token", form.getValues("ipospay_sandbox_auth_token"));
+                          }
+
+                          field.onChange(checked);
+                        }}
+                      />
                     </FormControl>
                   </FormItem>
                 )}
@@ -643,7 +664,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   name="ipospay_tpn"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>TPN (Terminal Provider Number)</FormLabel>
+                      <FormLabel>
+                        {iposPayTestMode ? "Sandbox TPN" : "Production TPN"} (Terminal Provider Number)
+                      </FormLabel>
                       <FormControl>
                         <Input
                           {...field}
@@ -652,7 +675,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                         />
                       </FormControl>
                       <FormDescription>
-                        Your merchant TPN from iPOS Pays (10-digit number)
+                        Stored in global settings as {iposPayTestMode ? "IPOSPAY_SANDBOX_TPN" : "IPOSPAY_PRODUCTION_TPN"}.
                       </FormDescription>
                     </FormItem>
                   )}
@@ -663,7 +686,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   name="ipospay_auth_token"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Auth Token</FormLabel>
+                      <FormLabel>{iposPayTestMode ? "Sandbox Auth Token" : "Production Auth Token"}</FormLabel>
                       <FormControl>
                         <div className="relative">
                           <Input

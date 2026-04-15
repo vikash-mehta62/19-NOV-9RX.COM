@@ -52,13 +52,6 @@ interface PaymentSettings {
   testMode: boolean;
 }
 
-interface IPosPaySettings {
-  enabled: boolean;
-  tpn: string;
-  authToken: string;
-  testMode: boolean;
-}
-
 interface FortisPaySettings {
   enabled: boolean;
   developerId: string;
@@ -75,10 +68,8 @@ const buildGeneralSettingsPayload = (values: SettingsFormValues) => {
     authorize_net_api_login_id,
     authorize_net_transaction_key,
     authorize_net_test_mode,
-    ipospay_enabled,
     ipospay_tpn,
     ipospay_auth_token,
-    ipospay_test_mode,
     fortispay_enabled,
     fortispay_developer_id,
     fortispay_user_id,
@@ -199,19 +190,8 @@ export default function Settings() {
         .eq("profile_id", userProfile.id)
         .maybeSingle();
 
-      const { data: iposPayData, error: iposPayError } = await supabase
-        .from("payment_settings")
-        .select("settings")
-        .eq("provider", "ipospay")
-        .eq("profile_id", userProfile.id)
-        .maybeSingle();
-
       if (fortisPayError) {
         console.error("Error fetching FortisPay settings:", fortisPayError);
-      }
-
-      if (iposPayError) {
-        console.error("Error fetching iPOSPay settings:", iposPayError);
       }
 
       const paymentSettings = paymentData?.settings
@@ -235,14 +215,14 @@ export default function Settings() {
             testMode: false,
           };
 
-      const iposPaySettings = iposPayData?.settings
-        ? (iposPayData.settings as unknown as IPosPaySettings)
-        : {
-            enabled: false,
-            tpn: "",
-            authToken: "",
-            testMode: true,
-          };
+      const settingsWithIpos = settingsData as Partial<SettingsFormValues> | null;
+      const iposPayTestMode = settingsWithIpos?.ipospay_test_mode ?? true;
+      const iposPayTpn = iposPayTestMode
+        ? settingsWithIpos?.ipospay_sandbox_tpn || ""
+        : settingsWithIpos?.ipospay_production_tpn || "";
+      const iposPayAuthToken = iposPayTestMode
+        ? settingsWithIpos?.ipospay_sandbox_auth_token || ""
+        : settingsWithIpos?.ipospay_production_auth_token || "";
 
       const combinedSettings = {
         ...(settingsData || defaultValues),
@@ -250,10 +230,14 @@ export default function Settings() {
         authorize_net_api_login_id: paymentSettings.apiLoginId,
         authorize_net_transaction_key: paymentSettings.transactionKey,
         authorize_net_test_mode: paymentSettings.testMode,
-        ipospay_enabled: iposPaySettings.enabled,
-        ipospay_tpn: iposPaySettings.tpn,
-        ipospay_auth_token: iposPaySettings.authToken,
-        ipospay_test_mode: iposPaySettings.testMode,
+        ipospay_enabled: settingsWithIpos?.ipospay_enabled ?? false,
+        ipospay_tpn: iposPayTpn,
+        ipospay_auth_token: iposPayAuthToken,
+        ipospay_test_mode: iposPayTestMode,
+        ipospay_sandbox_tpn: settingsWithIpos?.ipospay_sandbox_tpn || "",
+        ipospay_sandbox_auth_token: settingsWithIpos?.ipospay_sandbox_auth_token || "",
+        ipospay_production_tpn: settingsWithIpos?.ipospay_production_tpn || "",
+        ipospay_production_auth_token: settingsWithIpos?.ipospay_production_auth_token || "",
         fortispay_enabled: fortisPaySettings.enabled,
         fortispay_developer_id: fortisPaySettings.developerId,
         fortispay_user_id: fortisPaySettings.userId,
@@ -295,12 +279,18 @@ export default function Settings() {
         testMode: normalizedData.authorize_net_test_mode,
       };
 
-      const iposPaySettings = {
-        enabled: normalizedData.ipospay_enabled,
-        tpn: normalizedData.ipospay_tpn,
-        authToken: normalizedData.ipospay_auth_token,
-        testMode: normalizedData.ipospay_test_mode,
-      };
+      const iposPaySandboxTpn = normalizedData.ipospay_test_mode
+        ? normalizedData.ipospay_tpn
+        : normalizedData.ipospay_sandbox_tpn;
+      const iposPaySandboxAuthToken = normalizedData.ipospay_test_mode
+        ? normalizedData.ipospay_auth_token
+        : normalizedData.ipospay_sandbox_auth_token;
+      const iposPayProductionTpn = normalizedData.ipospay_test_mode
+        ? normalizedData.ipospay_production_tpn
+        : normalizedData.ipospay_tpn;
+      const iposPayProductionAuthToken = normalizedData.ipospay_test_mode
+        ? normalizedData.ipospay_production_auth_token
+        : normalizedData.ipospay_auth_token;
 
       const fortisPaySettings = {
         enabled: normalizedData.fortispay_enabled,
@@ -312,7 +302,13 @@ export default function Settings() {
         testMode: normalizedData.fortispay_test_mode,
       };
 
-      const generalSettingsPayload = buildGeneralSettingsPayload(normalizedData);
+      const generalSettingsPayload = buildGeneralSettingsPayload({
+        ...normalizedData,
+        ipospay_sandbox_tpn: iposPaySandboxTpn,
+        ipospay_sandbox_auth_token: iposPaySandboxAuthToken,
+        ipospay_production_tpn: iposPayProductionTpn,
+        ipospay_production_auth_token: iposPayProductionAuthToken,
+      });
 
       // Update global settings (organization-wide)
       // All admins update the same settings record using is_global flag
@@ -348,26 +344,6 @@ export default function Settings() {
       if (paymentError) {
         console.error("Payment settings save error:", paymentError);
         toast.error(`Failed to save payment settings: ${paymentError.message}`);
-        return;
-      }
-
-      const { error: iposPayError } = await supabase
-        .from("payment_settings")
-        .upsert(
-          {
-            profile_id: userProfile.id,
-            provider: "ipospay",
-            settings: iposPaySettings,
-            updated_at: new Date().toISOString(),
-          },
-          {
-            onConflict: "profile_id,provider",
-          }
-        );
-
-      if (iposPayError) {
-        console.error("iPOSPay settings save error:", iposPayError);
-        toast.error(`Failed to save iPOSPay settings: ${iposPayError.message}`);
         return;
       }
 

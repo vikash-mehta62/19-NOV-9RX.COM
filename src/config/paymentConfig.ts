@@ -49,7 +49,7 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
     // Fetch global settings (organization-wide payment processor configuration)
     const { data: settings, error } = await supabase
       .from("settings")
-      .select("credit_card_processor, ach_processor")
+      .select("credit_card_processor, ach_processor, ipospay_enabled")
       .eq("is_global", true)
       .maybeSingle();
 
@@ -73,16 +73,9 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
       .eq("provider", "fortispay")
       .maybeSingle();
 
-    const { data: iposPayData } = await supabase
-      .from("payment_settings")
-      .select("settings")
-      .eq("profile_id", user.id)
-      .eq("provider", "ipospay")
-      .maybeSingle();
-
     const authorizeNetEnabled = authorizeNetData?.settings?.enabled || false;
     const fortisPayEnabled = fortisPayData?.settings?.enabled || false;
-    const iposPayEnabled = iposPayData?.settings?.enabled || false;
+    const iposPayEnabled = settings.ipospay_enabled === true;
 
     const config: PaymentConfig = {
       achProcessor: (settings.ach_processor as PaymentProcessor) || "ipospay",

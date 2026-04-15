@@ -270,8 +270,16 @@ function inferPaymentMethod(response: any): IPosPaymentMethod {
   return "card";
 }
 
+function unwrapIPosResponse(data: any): any {
+  if (!data) return {};
+  if (data.iposHPResponse) return data.iposHPResponse;
+  if (data.data?.iposHPResponse) return data.data.iposHPResponse;
+  if (data.data && typeof data.data === "object") return data.data;
+  return data;
+}
+
 export function parseCallbackResponse(data: any): IPosPaymentCallbackData {
-  const response = data?.iposHPResponse || data || {};
+  const response = unwrapIPosResponse(data);
   const paymentMethod = inferPaymentMethod(response);
   const achData = response?.achData || {};
 

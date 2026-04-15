@@ -849,20 +849,15 @@ export async function queryIPOSPayStatus(
  */
 export async function isIPOSPayEnabled(): Promise<boolean> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return false;
-
     const { data, error } = await supabase
-      .from("payment_settings")
-      .select("settings")
-      .eq("provider", "ipospay")
-      .eq("profile_id", user.id)
+      .from("settings")
+      .select("ipospay_enabled")
+      .eq("is_global", true)
       .maybeSingle();
 
     if (error || !data) return false;
 
-    const settings = data.settings as any;
-    return settings?.enabled === true;
+    return data.ipospay_enabled === true;
   } catch (error) {
     console.error("Error checking iPOS Pay status:", error);
     return false;

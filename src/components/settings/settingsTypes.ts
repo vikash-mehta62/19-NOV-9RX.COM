@@ -86,6 +86,10 @@ export interface SettingsFormValues {
   ipospay_tpn: string;
   ipospay_auth_token: string;
   ipospay_test_mode: boolean;
+  ipospay_sandbox_tpn: string;
+  ipospay_sandbox_auth_token: string;
+  ipospay_production_tpn: string;
+  ipospay_production_auth_token: string;
   
   // FortisPay Settings
   fortispay_enabled: boolean;
@@ -284,6 +288,10 @@ export const defaultValues: SettingsFormValues = {
   ipospay_tpn: "",
   ipospay_auth_token: "",
   ipospay_test_mode: true,
+  ipospay_sandbox_tpn: "",
+  ipospay_sandbox_auth_token: "",
+  ipospay_production_tpn: "",
+  ipospay_production_auth_token: "",
   
   // FortisPay
   fortispay_enabled: false,
