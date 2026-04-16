@@ -257,11 +257,16 @@ function normalizeIPosResponseCode(response: any): number {
 
 function inferPaymentMethod(response: any): IPosPaymentMethod {
   const paymentMethod = String(response?.paymentMethod || "").toUpperCase();
+  const providerName = String(response?.providerName || "").toUpperCase();
+  const hasAccountNumber = Boolean(String(response?.accountNumber || "").trim());
   if (
     paymentMethod === "ACH" ||
     response?.cardType === "CHECK" ||
     response?.achData ||
+    hasAccountNumber ||
     response?.accountLast4 ||
+    response?.achToken ||
+    providerName.includes("ACH") ||
     Number(response?.transactionType) === 10
   ) {
     return "ach";
@@ -282,6 +287,7 @@ export function parseCallbackResponse(data: any): IPosPaymentCallbackData {
   const response = unwrapIPosResponse(data);
   const paymentMethod = inferPaymentMethod(response);
   const achData = response?.achData || {};
+  const accountLast4FromMaskedNumber = String(response?.accountNumber || "").replace(/\D/g, "").slice(-4);
 
   return {
     rawResponseCode: Number(response.responseCode ?? 0),
@@ -308,7 +314,7 @@ export function parseCallbackResponse(data: any): IPosPaymentCallbackData {
     avsRspMsg: response.avsRspMsg || response.avsRespMeg,
     consumerId: response.consumerId,
     accountType: response.accountType || achData.accountType,
-    accountLast4: response.accountLast4 || achData.accountNumber?.slice?.(-4),
+    accountLast4: response.accountLast4 || accountLast4FromMaskedNumber || achData.accountNumber?.slice?.(-4),
     routingNumber: response.routingNumber,
     achToken: response.achToken || achData.achToken,
     paymentMethod,

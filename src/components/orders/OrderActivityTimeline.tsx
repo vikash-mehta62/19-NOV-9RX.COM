@@ -193,7 +193,17 @@ export function OrderActivityTimeline({ orderId }: OrderActivityTimelineProps) {
                           )}
                           {activity.metadata.payment_amount && (
                             <div className="text-xs text-muted-foreground">
-                              Amount: ${activity.metadata.payment_amount.toFixed(2)}
+                              Amount: ${Number(activity.metadata.payment_amount || 0).toFixed(2)}
+                            </div>
+                          )}
+                          {(activity.metadata.payment_mode || activity.metadata.payment_method) && (
+                            <div className="text-xs text-muted-foreground">
+                              Mode: {activity.metadata.payment_mode || activity.metadata.payment_method}
+                            </div>
+                          )}
+                          {(activity.metadata.payment_id || activity.metadata.transaction_id) && (
+                            <div className="text-xs text-muted-foreground">
+                              Txn: {activity.metadata.payment_id || activity.metadata.transaction_id}
                             </div>
                           )}
                         </div>

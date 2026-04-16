@@ -10,6 +10,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import {
   Select,
@@ -78,6 +79,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
   const [amount, setAmount] = useState(Number(creditUsed.toFixed(2)));
   const [isPaying, setIsPaying] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"ipospay" | "manual">("ipospay");
+  const [securePaymentType, setSecurePaymentType] = useState<"card" | "ach">("card");
 
   const [cardHolderName, setCardHolderName] = useState("");
   const [customerEmail, setCustomerEmail] = useState("");
@@ -239,6 +241,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
     setPaymentType("full");
     setAmount(Number(outstandingCredit.toFixed(2)));
     setPaymentMethod("ipospay");
+    setSecurePaymentType("card");
     setSelectedInvoiceId("");
     setNotes("");
     setFieldErrors({});
@@ -299,7 +302,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
           const response = await processPaymentIPOSPay({
             amount: amountToPay,
             orderId: `credit-line-${userId}`,
-            paymentMethod: "card",
+            paymentMethod: securePaymentType,
             customerName: cardHolderName || "Customer",
             customerEmail,
             customerMobile: customerPhone,
@@ -324,6 +327,7 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
             userId,
             amount: amountToPay,
             baseAmount: amountToPay,
+            paymentMethod: securePaymentType,
             paymentMode: paymentType,
             customerName: cardHolderName || "Customer",
             customerEmail,
@@ -492,6 +496,24 @@ export function PayCreditModal({ creditUsed, onPaymentSuccess, userId, allowManu
               </Button>
             )}
           </div>
+
+          {paymentMethod === "ipospay" && (
+            <div>
+              <Label className="text-sm mb-2 block">Secure Payment Type</Label>
+              <Select
+                value={securePaymentType}
+                onValueChange={(val) => setSecurePaymentType(val as "card" | "ach")}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select payment type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="card">Card</SelectItem>
+                  <SelectItem value="ach">ACH (Bank)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {paymentMethod === "manual" && (
             <div>

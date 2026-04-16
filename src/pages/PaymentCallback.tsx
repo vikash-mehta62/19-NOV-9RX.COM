@@ -4,6 +4,7 @@ import axios from "../../axiosconfig";
 import { supabase } from "@/integrations/supabase/client";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { processPaymentIPOSPay } from "@/services/paymentService";
+import { OrderActivityService } from "@/services/orderActivityService";
 import {
   formatCardType,
   isPaymentSuccessful,
@@ -40,6 +41,30 @@ export default function PaymentCallback() {
     void handlePaymentCallback();
   }, [searchParams]);
 
+  const resolveGatewayPaymentMethod = (
+    source: Partial<IPosPaymentCallbackData> & { cardType?: string; paymentMethod?: string },
+    fallback: "card" | "ach" = "card",
+  ): "card" | "ach" => {
+    const methodText = String(source.paymentMethod || "").toUpperCase();
+    const cardTypeText = String(source.cardType || "").toUpperCase();
+
+    if (
+      methodText.includes("ACH") ||
+      methodText.includes("BANK") ||
+      methodText.includes("CHECK") ||
+      cardTypeText === "CHECK" ||
+      Boolean(source.accountType) ||
+      Boolean(source.accountLast4) ||
+      Boolean(source.routingNumber) ||
+      Boolean(source.achToken)
+    ) {
+      return "ach";
+    }
+
+    if (methodText.includes("CARD")) return "card";
+    return fallback;
+  };
+
   const handlePaymentCallback = async () => {
     try {
       const pendingPaymentStr = localStorage.getItem("pending_payment");
@@ -58,7 +83,10 @@ export default function PaymentCallback() {
       const transactionId = searchParams.get("transactionId");
       const transactionReferenceId = searchParams.get("transactionReferenceId") || pendingPayment.transactionReferenceId;
       const amount = searchParams.get("amount");
+      const amt = searchParams.get("amt");
       const totalAmount = searchParams.get("totalAmount");
+      const totalAmt = searchParams.get("totalAmt");
+      const transactionTypeParam = searchParams.get("transactionType");
       const cardType = searchParams.get("cardType") || searchParams.get("CardType") || searchParams.get("label");
       const cardLast4Digit = searchParams.get("cardLast4Digit") || searchParams.get("maskedPan")?.slice(-4);
       const cardToken = searchParams.get("cardToken");
@@ -70,18 +98,29 @@ export default function PaymentCallback() {
       const errResponseMessage = searchParams.get("errResponseMessage");
       const paymentMethod = searchParams.get("paymentMethod");
       const achAccountType = searchParams.get("accountType");
-      const achAccountLast4 = searchParams.get("accountLast4");
+      const achAccountMaskedNumber = searchParams.get("accountNumber");
+      const achAccountLast4 =
+        searchParams.get("accountLast4") ||
+        String(achAccountMaskedNumber || "").replace(/\D/g, "").slice(-4) ||
+        null;
       const routingNumber = searchParams.get("routingNumber");
       const achToken = searchParams.get("achToken");
+      const providerName = searchParams.get("providerName");
+      const callbackHasAchSignals =
+        String(transactionTypeParam || "") === "10" ||
+        String(cardType || "").toUpperCase() === "CHECK" ||
+        String(providerName || "").toUpperCase().includes("ACH") ||
+        Boolean(String(achAccountMaskedNumber || "").trim()) ||
+        Boolean(String(achToken || "").trim());
 
       let parsedData = parseCallbackResponse({
         responseCode: responseCode ? parseInt(responseCode, 10) : undefined,
         responseMessage: responseMessage || "",
         transactionId: transactionId || "",
         transactionReferenceId,
-        transactionType: 1,
-        amount,
-        totalAmount: totalAmount || amount,
+        transactionType: transactionTypeParam ? parseInt(transactionTypeParam, 10) : 1,
+        amount: amount || amt,
+        totalAmount: totalAmount || totalAmt || amount || amt,
         tips,
         customFee,
         localTax,
@@ -92,30 +131,131 @@ export default function PaymentCallback() {
         errResponseCode: errResponseCode || "",
         errResponseMessage: errResponseMessage || "",
         paymentMethod,
+        providerName: providerName || undefined,
+        accountNumber: achAccountMaskedNumber || undefined,
         accountType: achAccountType || undefined,
         accountLast4: achAccountLast4 || undefined,
         routingNumber: routingNumber || undefined,
         achToken: achToken || undefined,
       });
 
+      // Fallbacks for failed/incomplete callback payloads from iPOS
+      parsedData = {
+        ...parsedData,
+        paymentMethod: resolveGatewayPaymentMethod(
+          {
+            ...parsedData,
+            paymentMethod: parsedData.paymentMethod || paymentMethod || pendingPayment?.paymentMethod,
+            cardType: parsedData.cardType || cardType || undefined,
+          },
+          String(pendingPayment?.paymentMethod || "").toLowerCase() === "ach" ? "ach" : "card",
+        ),
+        amount:
+          Number(parsedData.amount || 0) > 0
+            ? parsedData.amount
+            : Number(pendingPayment?.baseAmount || pendingPayment?.amount || 0),
+        totalAmount:
+          Number(parsedData.totalAmount || 0) > 0
+            ? parsedData.totalAmount
+            : Number(pendingPayment?.estimatedChargedAmount || pendingPayment?.amount || pendingPayment?.baseAmount || 0),
+      };
+
       if (transactionReferenceId) {
         const queryResult = await queryIPOSPayStatus(transactionReferenceId);
         if (queryResult.success && queryResult.data) {
+          const queryData = queryResult.data;
           parsedData = {
-            ...queryResult.data,
-            paymentMethod: queryResult.data.paymentMethod || (paymentMethod === "ACH" ? "ach" : "card"),
-            accountType: queryResult.data.accountType || achAccountType || undefined,
-            accountLast4: queryResult.data.accountLast4 || achAccountLast4 || undefined,
-            routingNumber: queryResult.data.routingNumber || routingNumber || undefined,
-            achToken: queryResult.data.achToken || achToken || undefined,
+            ...parsedData,
+            ...queryData,
+            // Prefer non-zero local values when query payload is empty/incomplete
+            amount: Number(queryData.amount || 0) > 0 ? queryData.amount : parsedData.amount,
+            totalAmount: Number(queryData.totalAmount || 0) > 0 ? queryData.totalAmount : parsedData.totalAmount,
+            paymentMethod: resolveGatewayPaymentMethod(
+              {
+                ...queryData,
+                paymentMethod: queryData.paymentMethod || parsedData.paymentMethod || paymentMethod || pendingPayment?.paymentMethod,
+                cardType: queryData.cardType || parsedData.cardType || cardType || undefined,
+              },
+              parsedData.paymentMethod || "card",
+            ),
+            accountType: queryData.accountType || achAccountType || undefined,
+            accountLast4: queryData.accountLast4 || achAccountLast4 || undefined,
+            routingNumber: queryData.routingNumber || routingNumber || undefined,
+            achToken: queryData.achToken || achToken || undefined,
           };
         }
+      }
+
+      if (pendingPayment?.flowType === "credit_line_payment") {
+        const creditAmount = Number(
+          (
+            Number(pendingPayment?.baseAmount || pendingPayment?.amount || parsedData.amount || 0)
+          ).toFixed(2)
+        );
+        const creditPaymentMethod = resolveGatewayPaymentMethod(
+          {
+            ...parsedData,
+            paymentMethod: parsedData.paymentMethod || paymentMethod || pendingPayment?.paymentMethod,
+            cardType: parsedData.cardType || cardType || undefined,
+          },
+          String(pendingPayment?.paymentMethod || "").toLowerCase() === "ach" ? "ach" : "card",
+        );
+
+        parsedData = {
+          ...parsedData,
+          paymentMethod: creditPaymentMethod,
+          amount: Number(parsedData.amount || 0) > 0 ? parsedData.amount : creditAmount,
+          totalAmount: Number(parsedData.totalAmount || 0) > 0 ? parsedData.totalAmount : creditAmount,
+        };
+      }
+
+      // Hard guard: callback ACH signals must win over any stale fallback/query value.
+      if (callbackHasAchSignals) {
+        parsedData = {
+          ...parsedData,
+          paymentMethod: "ach",
+          cardType: parsedData.cardType || cardType || "CHECK",
+          accountLast4:
+            parsedData.accountLast4 ||
+            String(achAccountMaskedNumber || "").replace(/\D/g, "").slice(-4) ||
+            achAccountLast4 ||
+            undefined,
+          achToken: parsedData.achToken || achToken || undefined,
+        };
       }
 
       const normalizedResult = normalizePaymentResult(parsedData);
 
       setPaymentData(parsedData);
       setPaymentResult(normalizedResult);
+      try {
+        localStorage.setItem(
+          "pending_payment",
+          JSON.stringify({
+            ...(pendingPayment || {}),
+            paymentMethod: parsedData.paymentMethod || pendingPayment?.paymentMethod || "card",
+            amount:
+              Number(parsedData.amount || 0) > 0
+                ? Number(parsedData.amount)
+                : Number(pendingPayment?.amount || pendingPayment?.baseAmount || 0),
+            baseAmount:
+              Number(parsedData.amount || 0) > 0
+                ? Number(parsedData.amount)
+                : Number(pendingPayment?.baseAmount || pendingPayment?.amount || 0),
+            estimatedChargedAmount:
+              Number(parsedData.totalAmount || 0) > 0
+                ? Number(parsedData.totalAmount)
+                : Number(
+                    pendingPayment?.estimatedChargedAmount ||
+                      pendingPayment?.amount ||
+                      pendingPayment?.baseAmount ||
+                      0
+                  ),
+          }),
+        );
+      } catch (pendingSyncError) {
+        console.error("Failed to sync pending payment callback data:", pendingSyncError);
+      }
 
       if (normalizedResult.status === "success") {
         setProcessing(true);
@@ -123,7 +263,11 @@ export default function PaymentCallback() {
         setProcessing(false);
         localStorage.removeItem("pending_payment");
       } else {
-        await logFailedPayment(pendingPayment, parsedData, normalizedResult);
+        if (pendingPayment?.flowType === "credit_line_payment") {
+          await logFailedCreditLinePayment(pendingPayment, parsedData, normalizedResult);
+        } else {
+          await logFailedPayment(pendingPayment, parsedData, normalizedResult);
+        }
       }
 
       setLoading(false);
@@ -156,8 +300,12 @@ export default function PaymentCallback() {
       }
 
       if (pendingPayment.flowType === "credit_line_payment") {
-        await finalizeCreditLinePayment(pendingPayment, result);
-        toast.success("Credit payment applied successfully.");
+        const creditResult = await finalizeCreditLinePayment(pendingPayment, result);
+        if (creditResult.applied) {
+          toast.success("Credit payment applied successfully.");
+        } else {
+          toast.error(creditResult.warning || "Payment captured, but allocation needs review.");
+        }
         return;
       }
 
@@ -233,6 +381,20 @@ export default function PaymentCallback() {
 
       if (logError) {
         console.error("Failed to log transaction:", logError);
+      }
+
+      try {
+        await OrderActivityService.logPaymentReceived({
+          orderId,
+          orderNumber: order.order_number || orderId,
+          amount: result.baseAmount || chargedAmount,
+          chargedAmount,
+          processingFeeAmount: processingFee,
+          paymentMethod: result.paymentMethod,
+          paymentId: callbackData.transactionId || callbackData.transactionReferenceId,
+        });
+      } catch (activityError) {
+        console.error("Failed to log payment activity:", activityError);
       }
 
       if (newPaymentStatus === "paid" && order.payment_status !== "paid") {
@@ -414,6 +576,20 @@ export default function PaymentCallback() {
       throw new Error(paymentLogError.message || "Failed to log payment transaction");
     }
 
+    try {
+      await OrderActivityService.logPaymentReceived({
+        orderId: insertedOrder.id,
+        orderNumber: insertedOrder.order_number || orderNumber,
+        amount: baseAmount,
+        chargedAmount,
+        processingFeeAmount: processingFee,
+        paymentMethod: result.paymentMethod,
+        paymentId: callbackData.transactionId || callbackData.transactionReferenceId,
+      });
+    } catch (activityError) {
+      console.error("Failed to log callback create-order payment activity:", activityError);
+    }
+
     const appliedDiscounts = pendingPayment.discountDetails || data?.appliedDiscounts || [];
     await applyPendingOrderDiscounts({
       orderId: insertedOrder.id,
@@ -468,7 +644,7 @@ export default function PaymentCallback() {
   const finalizeCreditLinePayment = async (
     pendingPayment: any,
     result: IPosNormalizedPaymentResult,
-  ) => {
+  ): Promise<{ applied: boolean; warning?: string }> => {
     const userId = pendingPayment.userId;
     const amountToApply = Number((Number(result.baseAmount || pendingPayment.baseAmount || pendingPayment.amount || 0)).toFixed(2));
 
@@ -480,6 +656,171 @@ export default function PaymentCallback() {
       throw new Error("Invalid credit payment amount");
     }
 
+    const getCreditOutstanding = async (targetUserId: string) => {
+      const { data: invoices } = await supabase
+        .from("credit_invoices")
+        .select("balance_due")
+        .eq("user_id", targetUserId)
+        .in("status", ["pending", "partial", "overdue"])
+        .gt("balance_due", 0);
+
+      const invoiceOutstanding = Number(
+        (invoices || []).reduce((sum: number, row: any) => sum + Number(row?.balance_due || 0), 0).toFixed(2),
+      );
+
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("credit_penalty")
+        .eq("id", targetUserId)
+        .maybeSingle();
+
+      const profilePenalty = Number(profileData?.credit_penalty || 0);
+      return Number((invoiceOutstanding + profilePenalty).toFixed(2));
+    };
+
+    const ensureCreditHistoryEntry = async (targetUserId: string, paymentAmount: number, transactionId: string) => {
+      try {
+        const { data: existingTx } = await supabase
+          .from("account_transactions")
+          .select("id")
+          .eq("customer_id", targetUserId)
+          .eq("transectionId", transactionId)
+          .eq("reference_type", "payment")
+          .maybeSingle();
+
+        if (existingTx) return;
+
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("available_credit, credit_limit, credit_used")
+          .eq("id", targetUserId)
+          .maybeSingle();
+
+        const derivedBalance = Number(
+          (
+            Number(profileData?.available_credit || 0) ||
+            (Number(profileData?.credit_limit || 0) - Number(profileData?.credit_used || 0))
+          ).toFixed(2),
+        );
+
+        await supabase.from("account_transactions").insert({
+          customer_id: targetUserId,
+          transaction_date: new Date().toISOString(),
+          transaction_type: "credit",
+          reference_type: "payment",
+          reference_id: null,
+          description: `Credit payment: $${Number(paymentAmount || 0).toFixed(2)} to penalty`,
+          debit_amount: 0,
+          credit_amount: Number(paymentAmount || 0),
+          balance: derivedBalance,
+          created_by: targetUserId,
+          transectionId: transactionId,
+          admin_pay_notes: "Auto-created from callback (penalty-only allocation)",
+        });
+      } catch (historyError) {
+        console.error("Failed to insert credit history entry for penalty-only payment:", historyError);
+      }
+    };
+
+    const ensureCreditHistoryTransactionId = async (
+      targetUserId: string,
+      paymentAmount: number,
+      transactionId: string,
+    ) => {
+      try {
+        if (!transactionId) return;
+
+        // First try: update the most recent payment ledger row without transaction id.
+        const { data: pendingRows } = await supabase
+          .from("account_transactions")
+          .select("id, transaction_date, credit_amount, description, transectionId")
+          .eq("customer_id", targetUserId)
+          .eq("reference_type", "payment")
+          .is("transectionId", null)
+          .order("transaction_date", { ascending: false })
+          .limit(5);
+
+        const candidate = (pendingRows || []).find((row: any) => {
+          const amountMatches = Math.abs(Number(row?.credit_amount || 0) - Number(paymentAmount || 0)) <= 0.01;
+          const textMatches = String(row?.description || "").toLowerCase().includes("credit payment");
+          const ageMs = Math.abs(Date.now() - new Date(row?.transaction_date || 0).getTime());
+          return amountMatches && textMatches && ageMs <= 15 * 60 * 1000;
+        });
+
+        if (candidate?.id) {
+          await supabase
+            .from("account_transactions")
+            .update({ transectionId: transactionId })
+            .eq("id", candidate.id);
+          return;
+        }
+
+        // Second try: if row already exists for same amount/time but different description
+        const { data: recentRows } = await supabase
+          .from("account_transactions")
+          .select("id, transaction_date, credit_amount, transectionId")
+          .eq("customer_id", targetUserId)
+          .eq("reference_type", "payment")
+          .order("transaction_date", { ascending: false })
+          .limit(5);
+
+        const recentCandidate = (recentRows || []).find((row: any) => {
+          if (row?.transectionId) return false;
+          const amountMatches = Math.abs(Number(row?.credit_amount || 0) - Number(paymentAmount || 0)) <= 0.01;
+          const ageMs = Math.abs(Date.now() - new Date(row?.transaction_date || 0).getTime());
+          return amountMatches && ageMs <= 15 * 60 * 1000;
+        });
+
+        if (recentCandidate?.id) {
+          await supabase
+            .from("account_transactions")
+            .update({ transectionId: transactionId })
+            .eq("id", recentCandidate.id);
+        }
+      } catch (historyTxnError) {
+        console.error("Failed to sync transaction id into credit history row:", historyTxnError);
+      }
+    };
+
+    const writeCreditLineTransaction = async (params: {
+      status: "approved" | "pending" | "declined";
+      message: string;
+      allocationApplied: boolean;
+      paymentResultRaw?: any;
+      preOutstanding?: number;
+      postOutstanding?: number;
+    }) => {
+      try {
+        await supabase.from("payment_transactions").insert({
+          profile_id: userId,
+          order_id: null,
+          transaction_id: result.transactionId || result.transactionReferenceId || null,
+          transaction_type: "auth_capture",
+          amount: amountToApply,
+          payment_method_type: result.paymentMethod === "ach" ? "ach" : "card",
+          card_last_four: result.paymentMethod === "ach" ? result.accountLast4 : result.cardLast4Digit,
+          card_type: result.paymentMethod === "ach" ? result.accountType : result.cardType?.toLowerCase(),
+          status: params.status,
+          processor: "ipospay",
+          response_code: "200",
+          response_message: params.message,
+          raw_response: {
+            flowType: "credit_line_payment",
+            normalizedResult: result,
+            pendingPayment,
+            credit_allocation: {
+              applied: params.allocationApplied,
+              pre_outstanding: params.preOutstanding,
+              post_outstanding: params.postOutstanding,
+              rpc_result: params.paymentResultRaw,
+            },
+          },
+        });
+      } catch (logError) {
+        console.error("Failed to log credit line payment transaction:", logError);
+      }
+    };
+
     const rpcClient = supabase as unknown as {
       rpc: (
         fn: string,
@@ -487,10 +828,12 @@ export default function PaymentCallback() {
       ) => Promise<{ data: { success?: boolean; message?: string; error?: string } | null; error: { message?: string } | null }>;
     };
 
+    const preOutstanding = await getCreditOutstanding(userId);
+
     const { data: paymentResult, error: paymentError } = await rpcClient.rpc("process_credit_payment_allocated", {
       p_user_id: userId,
       p_amount: amountToApply,
-      p_payment_method: "card",
+      p_payment_method: result.paymentMethod === "ach" ? "ach" : "card",
       p_transaction_id: result.transactionId || result.transactionReferenceId,
       p_payment_mode: pendingPayment.paymentMode || "full",
       p_target_invoice_id: null,
@@ -502,7 +845,112 @@ export default function PaymentCallback() {
     }
 
     if (!paymentResult?.success) {
-      throw new Error(paymentResult?.message || paymentResult?.error || "Credit payment allocation failed");
+      const allocationMessage = String(paymentResult?.message || paymentResult?.error || "Credit payment allocation failed");
+      const noAllocationApplied = allocationMessage.toLowerCase().includes("no invoice allocation was applied");
+
+      if (noAllocationApplied) {
+        const postOutstanding = await getCreditOutstanding(userId);
+        const paymentLikelyApplied = postOutstanding < preOutstanding - 0.009;
+
+        await writeCreditLineTransaction({
+          status: "approved",
+          message: paymentLikelyApplied
+            ? "Credit payment captured and applied"
+            : "Credit payment captured; allocation pending/manual review",
+          allocationApplied: paymentLikelyApplied,
+          paymentResultRaw: paymentResult,
+          preOutstanding,
+          postOutstanding,
+        });
+
+        if (paymentLikelyApplied) {
+          const txId = String(result.transactionId || result.transactionReferenceId || "");
+          await ensureCreditHistoryTransactionId(userId, amountToApply, txId);
+          await ensureCreditHistoryEntry(
+            userId,
+            amountToApply,
+            txId,
+          );
+        }
+
+        return paymentLikelyApplied
+          ? { applied: true }
+          : { applied: false, warning: "Payment captured, but no invoice allocation was applied. Please review credit ledger." };
+      }
+
+      throw new Error(allocationMessage);
+    }
+
+    const postOutstanding = await getCreditOutstanding(userId);
+    await writeCreditLineTransaction({
+      status: "approved",
+      message: result.responseMessage || "Credit line payment successful",
+      allocationApplied: true,
+      paymentResultRaw: paymentResult,
+      preOutstanding,
+      postOutstanding,
+    });
+
+    await ensureCreditHistoryTransactionId(
+      userId,
+      amountToApply,
+      String(result.transactionId || result.transactionReferenceId || ""),
+    );
+
+    return { applied: true };
+  };
+
+  const logFailedCreditLinePayment = async (
+    pendingPayment: any,
+    callbackData: IPosPaymentCallbackData,
+    result: IPosNormalizedPaymentResult,
+  ) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const profileId = pendingPayment?.userId || user?.id || null;
+      if (!profileId) {
+        toast.error(`Payment failed: ${callbackData.responseMessage || "Failed"}`);
+        return;
+      }
+
+      const failedAmount = Number(
+        (
+          result.chargedAmount ||
+          result.baseAmount ||
+          pendingPayment?.baseAmount ||
+          pendingPayment?.amount ||
+          0
+        ).toFixed(2)
+      );
+
+      await supabase.from("payment_transactions").insert({
+        profile_id: profileId,
+        order_id: null,
+        transaction_id: callbackData.transactionId || callbackData.transactionReferenceId || null,
+        transaction_type: "auth_capture",
+        amount: failedAmount,
+        payment_method_type: result.paymentMethod === "ach" ? "ach" : "card",
+        card_last_four: result.paymentMethod === "ach" ? result.accountLast4 : result.cardLast4Digit,
+        card_type: result.paymentMethod === "ach" ? result.accountType : callbackData.cardType?.toLowerCase(),
+        status: "declined",
+        processor: "ipospay",
+        response_code: String(callbackData.responseCode || 400),
+        response_message: callbackData.responseMessage || "Payment Failed",
+        error_message: callbackData.errResponseMessage,
+        raw_response: {
+          flowType: "credit_line_payment",
+          callbackData,
+          normalizedResult: result,
+          pendingPayment,
+        },
+      });
+
+      toast.error(`Payment failed: ${callbackData.errResponseMessage || callbackData.responseMessage || "Failed"}`);
+    } catch (error) {
+      console.error("Error logging failed credit line payment:", error);
     }
   };
 
@@ -984,8 +1432,22 @@ export default function PaymentCallback() {
   const success = paymentResult.status === "success";
   const isCreditLinePayment = paymentFlowType === "credit_line_payment";
   const primaryNavigatePath = isCreditLinePayment ? "/pharmacy/credit" : ordersPath;
-  const displayAppliedAmount = success ? paymentResult.baseAmount : 0;
-  const displayChargedAmount = success ? paymentResult.chargedAmount : 0;
+  const displayAppliedAmount = Number(
+    (
+      paymentResult.baseAmount ||
+      paymentData.amount ||
+      paymentData.totalAmount ||
+      0
+    ).toFixed(2)
+  );
+  const displayChargedAmount = Number(
+    (
+      paymentResult.chargedAmount ||
+      paymentData.totalAmount ||
+      paymentData.amount ||
+      0
+    ).toFixed(2)
+  );
   const displayMethod =
     paymentResult.paymentMethod === "ach"
       ? `ACH - ${paymentResult.accountType || "Bank"} •••• ${paymentResult.accountLast4 || ""}`.trim()

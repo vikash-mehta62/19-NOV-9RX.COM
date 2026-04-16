@@ -306,7 +306,8 @@ export const PaymentAdjustmentService = {
           original_amount: adjustment.originalAmount,
           new_amount: adjustment.newAmount,
           difference_amount: adjustment.differenceAmount,
-          payment_method: adjustment.paymentMethod,
+          payment_method: OrderActivityService.formatPaymentMethod(adjustment.paymentMethod),
+          payment_mode: OrderActivityService.formatPaymentMethod(adjustment.paymentMethod),
           payment_status: adjustment.paymentStatus,
           transaction_id: adjustment.paymentTransactionId,
           reason: adjustment.reason,
@@ -325,12 +326,14 @@ export const PaymentAdjustmentService = {
    */
   getActivityDescription(adjustment: PaymentAdjustment, adjustmentNumber: string): string {
     const amount = Math.abs(adjustment.differenceAmount).toFixed(2);
+    const paymentMode = OrderActivityService.formatPaymentMethod(adjustment.paymentMethod);
+    const txnText = adjustment.paymentTransactionId ? ` | Txn: ${adjustment.paymentTransactionId}` : "";
     switch (adjustment.adjustmentType) {
       case 'additional_payment':
         if (adjustment.paymentMethod === 'payment_link' || adjustment.paymentMethod === 'ipospay_payment_link') {
           return `Payment link sent for additional payment of $${amount} (${adjustmentNumber})`;
         }
-        return `Additional payment of $${amount} collected via ${adjustment.paymentMethod} (${adjustmentNumber})`;
+        return `Additional payment of $${amount} collected via ${paymentMode} (${adjustmentNumber})${txnText}`;
       case 'partial_refund':
         return `Partial refund of $${amount} processed (${adjustmentNumber})`;
       case 'full_refund':

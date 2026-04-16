@@ -283,9 +283,11 @@ const profileID =
             customerEmail,
             originalAmount: originalTotal,
             newAmount: newTotal,
+            paidAmount: Number(oldOrderData?.paid_amount || 0),
             hasCredit,
             availableCredit,
             creditMemoBalance,
+            processingFeeAmount: Number(oldOrderData?.processing_fee_amount || 0),
             orderData: {
               items: orderData.cartItems,
               tax_amount: orderData.tax,
@@ -1095,10 +1097,12 @@ const profileID =
           customerEmail={paymentAdjustmentData.customerEmail}
           originalAmount={paymentAdjustmentData.originalAmount}
           newAmount={paymentAdjustmentData.newAmount}
+          paidAmount={paymentAdjustmentData.paidAmount}
           hasCredit={paymentAdjustmentData.hasCredit}
           availableCredit={paymentAdjustmentData.availableCredit}
           creditMemoBalance={paymentAdjustmentData.creditMemoBalance}
           orderData={paymentAdjustmentData.orderData}
+          processingFeeAmount={paymentAdjustmentData.processingFeeAmount}
           onPaymentComplete={handlePaymentAdjustmentComplete}
         />
       )}

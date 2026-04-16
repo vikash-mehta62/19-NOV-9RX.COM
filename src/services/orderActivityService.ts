@@ -2,6 +2,16 @@ import { supabase } from "@/supabaseClient";
 import { OrderActivity, OrderActivityType } from "@/types/orderActivity";
 
 export class OrderActivityService {
+  static formatPaymentMethod(method?: string) {
+    const value = String(method || "").toLowerCase();
+    if (value === "ach") return "ACH";
+    if (value === "card") return "Card";
+    if (value === "manual") return "Manual";
+    if (value === "saved_card") return "Saved Card";
+    if (value === "payment_link") return "Payment Link";
+    if (value === "ipospay_payment_link") return "iPOSPay Link";
+    return method || "Unknown";
+  }
   static async logActivity(params: {
     orderId: string;
     activityType: OrderActivityType;
@@ -150,19 +160,23 @@ export class OrderActivityService {
     console.log("🔵 Logging payment received:", params);
     const amountNum = typeof params.amount === 'string' ? parseFloat(params.amount) : params.amount;
     const feeAmount = params.processingFeeAmount || 0;
+    const chargedAmount = params.chargedAmount || amountNum;
+    const paymentMode = this.formatPaymentMethod(params.paymentMethod);
+    const transactionText = params.paymentId ? ` | Txn: ${params.paymentId}` : "";
     return this.logActivity({
       orderId: params.orderId,
       activityType: "payment_received",
-      description: `Payment of $${amountNum.toFixed(2)} received via ${params.paymentMethod}${feeAmount > 0 ? ` with $${feeAmount.toFixed(2)} card fee` : ""}`,
+      description: `Payment received: $${amountNum.toFixed(2)} via ${paymentMode}${feeAmount > 0 ? ` (+$${feeAmount.toFixed(2)} fee)` : ""}${transactionText}`,
       performedBy: params.performedBy,
       performedByName: params.performedByName,
       performedByEmail: params.performedByEmail,
       metadata: {
         order_number: params.orderNumber,
         payment_amount: amountNum,
-        charged_amount: params.chargedAmount || amountNum,
+        charged_amount: chargedAmount,
         processing_fee_amount: feeAmount,
-        payment_method: params.paymentMethod,
+        payment_method: paymentMode,
+        payment_mode: paymentMode,
         payment_id: params.paymentId,
       },
     });
