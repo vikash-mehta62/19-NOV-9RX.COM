@@ -846,6 +846,7 @@ export const OrdersContainer = ({
           })()}
           orderId={paymentOrder.id}
           orders={paymentOrder}
+          payNow={true}
           isBalancePayment={Number((paymentOrder as any).paid_amount || 0) > 0}
           previousPaidAmount={Number((paymentOrder as any).paid_amount || 0)}
           onPaymentSuccess={() => {

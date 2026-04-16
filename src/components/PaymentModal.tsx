@@ -436,6 +436,12 @@ interface PaymentFormProps {
 const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, orders, payNow = false, isBalancePayment = false, previousPaidAmount = 0, onPaymentSuccess, useStockDeductionRpc = false }: PaymentFormProps) => {
   // Check if this is a Purchase Order (PO)
   const isPurchaseOrder = orders?.order_number?.startsWith('PO-') || orders?.order_type === 'purchase_order'
+  const userType = sessionStorage.getItem("userType")?.toLowerCase() || ""
+  const currentPath = window.location.pathname.toLowerCase()
+  const isAdminUser = userType === "admin" || currentPath.startsWith("/admin")
+  const isPharmacyUser = userType === "pharmacy" || currentPath.startsWith("/pharmacy")
+  const isPayNowPharmacyReviewOnly = payNow && isPharmacyUser
+  const isPayNowAdminReview = payNow && isAdminUser
 
   const [paymentType, setPaymentType] = useState(isPurchaseOrder ? "manaul_payemnt" : "credit_card")
   const { toast } = useToast()
@@ -556,9 +562,32 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     }
   }, [customer, amountP])
 
+  useEffect(() => {
+    if (isPurchaseOrder) {
+      setPaymentType("manaul_payemnt")
+      return
+    }
+
+    if (isPayNowPharmacyReviewOnly || isPayNowAdminReview) {
+      setPaymentType("credit_card")
+    }
+  }, [isPurchaseOrder, isPayNowAdminReview, isPayNowPharmacyReviewOnly])
+
+  useEffect(() => {
+    if (!isPayNowAdminReview || !orders?.order_number) return
+
+    setFormData((prev) => ({
+      ...prev,
+      notes: prev.notes?.trim() ? prev.notes : `Manual payment for order ${orders.order_number}`,
+    }))
+  }, [isPayNowAdminReview, orders?.order_number])
+
   const basePaymentAmount = Number(formData.amount || 0)
   const cardProcessingFeeAmount = 0
   const processorChargeAmount = Number(basePaymentAmount.toFixed(2))
+  const orderTotalAmount = Number(orders?.total_amount || orders?.total || 0)
+  const alreadyPaidAmount = Number(previousPaidAmount || orders?.paid_amount || 0)
+  const pendingAfterThisPayment = Math.max(0, orderTotalAmount - (alreadyPaidAmount + basePaymentAmount))
   
   const savableProfileId = orders?.profile_id || orders?.customer || customer?.id || null
   const canOfferSaveCard =
@@ -652,6 +681,11 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
   }
 
   const validateForm = () => {
+    if (isPayNowPharmacyReviewOnly && paymentType === "credit_card") {
+      setErrors({})
+      return true
+    }
+
     const newErrors: Record<string, string | null> = {}
     let hasErrors = false
 
@@ -1442,6 +1476,15 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
     return isNaN(num) ? '0.00' : num.toFixed(2)
   }
 
+  const primaryActionLabel =
+    isPayNowPharmacyReviewOnly
+      ? `Pay Pending Amount $${formatAmount(processorChargeAmount)}`
+      : paymentType === "manaul_payemnt"
+        ? `Record Manual Payment $${formatAmount(processorChargeAmount)}`
+        : paymentType === "credit_card"
+          ? "Continue to Secure Card Checkout"
+          : "Continue to Secure ACH Checkout"
+
   const paymentContent = (
     <div className="fixed inset-0 z-[9999] bg-gradient-to-br from-slate-50 via-white to-slate-100 overflow-y-auto overscroll-contain">
       {/* Header */}
@@ -1479,15 +1522,19 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   Payment Method
                 </CardTitle>
                 <CardDescription className="text-blue-100">
-                  {isPurchaseOrder ? "Manual payment for Purchase Orders" : "Select how you'd like to pay"}
+                  {isPayNowPharmacyReviewOnly
+                    ? "Review pending amount and continue to secure payment"
+                    : isPayNowAdminReview || isPurchaseOrder
+                      ? "Review order and choose payment method"
+                      : "Select how you'd like to pay"}
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
                 <div className={cn(
                   "grid gap-3",
-                  isPurchaseOrder ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
+                  (isPurchaseOrder || isPayNowPharmacyReviewOnly) ? "grid-cols-1" : (isPayNowAdminReview ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1 sm:grid-cols-3")
                 )}>
-                  {!isPurchaseOrder && (
+                  {!isPurchaseOrder && !isPayNowPharmacyReviewOnly && (
                     <>
                       <button
                         type="button"
@@ -1504,22 +1551,24 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                         </span>
                         {paymentType === "credit_card" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setPaymentType("ach")}
-                        className={cn(
-                          "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
-                          paymentType === "ach" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                        )}
-                      >
-                        <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
-                          <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
-                          <span className="text-xs text-emerald-600 text-center">No card processing fee</span>
-                        {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
-                      </button>
+                      {!isPayNowAdminReview && (
+                        <button
+                          type="button"
+                          onClick={() => setPaymentType("ach")}
+                          className={cn(
+                            "p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 relative",
+                            paymentType === "ach" ? "border-blue-500 bg-blue-50 shadow-md" : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
+                          )}
+                        >
+                          <Landmark className={cn("w-7 h-7", paymentType === "ach" ? "text-blue-600" : "text-gray-400")} />
+                            <span className={cn("font-medium text-sm", paymentType === "ach" ? "text-blue-700" : "text-gray-600")}>Bank (ACH)</span>
+                            <span className="text-xs text-emerald-600 text-center">No card processing fee</span>
+                          {paymentType === "ach" && <CheckCircle2 className="w-4 h-4 text-blue-500 absolute top-2 right-2" />}
+                        </button>
+                      )}
                     </>
                   )}
-                  {sessionStorage.getItem("userType")?.toLowerCase() === "admin" && (
+                  {isAdminUser && (
                     <button
                       type="button"
                       onClick={() => setPaymentType("manaul_payemnt")}
@@ -1534,6 +1583,14 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     </button>
                   )}
                 </div>
+                {(isPayNowPharmacyReviewOnly || isPayNowAdminReview) && (
+                  <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-800 space-y-1">
+                    <p><strong>Order total:</strong> ${formatAmount(orderTotalAmount)}</p>
+                    <p><strong>Already paid:</strong> ${formatAmount(alreadyPaidAmount)}</p>
+                    <p><strong>Pending to pay now:</strong> ${formatAmount(basePaymentAmount)}</p>
+                    <p><strong>Pending after this payment:</strong> ${formatAmount(pendingAfterThisPayment)}</p>
+                  </div>
+                )}
                 {isPurchaseOrder && (
                   <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-700">
                     <p className="flex items-start gap-2">
@@ -1550,13 +1607,23 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               <Card className="shadow-lg border-0">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
-                    {paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-blue-600" /> Secure Card Checkout</>}
-                    {paymentType === "ach" && <><Landmark className="w-5 h-5 text-blue-600" /> Secure ACH Checkout</>}
-                    {paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-blue-600" /> Manual Payment</>}
+                    {isPayNowPharmacyReviewOnly && <><Receipt className="w-5 h-5 text-blue-600" /> Review Pending Payment</>}
+                    {!isPayNowPharmacyReviewOnly && paymentType === "credit_card" && <><CreditCard className="w-5 h-5 text-blue-600" /> Secure Card Checkout</>}
+                    {!isPayNowPharmacyReviewOnly && paymentType === "ach" && <><Landmark className="w-5 h-5 text-blue-600" /> Secure ACH Checkout</>}
+                    {!isPayNowPharmacyReviewOnly && paymentType === "manaul_payemnt" && <><FileText className="w-5 h-5 text-blue-600" /> Manual Payment</>}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-5">
-                  {paymentType === "credit_card" && (
+                  {isPayNowPharmacyReviewOnly && (
+                    <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                      <p className="flex items-start gap-2">
+                        <ShieldCheck className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                        Review complete. Click the payment button to pay pending amount on secure iPOSPay page.
+                      </p>
+                    </div>
+                  )}
+
+                  {paymentType === "credit_card" && !isPayNowPharmacyReviewOnly && (
                     <>
                       <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                         <p className="flex items-start gap-2">
@@ -1582,7 +1649,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     </>
                   )}
 
-                  {paymentType === "ach" && (
+                  {paymentType === "ach" && !isPayNowPharmacyReviewOnly && (
                     <>
                       <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                         <p className="flex items-start gap-2">
@@ -1626,6 +1693,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
               </Card>
 
               {/* Billing Address */}
+              {!isPayNowPharmacyReviewOnly && paymentType !== "manaul_payemnt" && (
               <Card className="shadow-lg border-0 mt-6">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg flex items-center gap-2">
@@ -1696,6 +1764,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   </div>
                 </CardContent>
               </Card>
+              )}
 
               {/* Mobile Submit Button */}
               <div className="lg:hidden mt-6">
@@ -1707,7 +1776,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Redirecting...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />{paymentType === "credit_card" ? "Continue to Secure Card Checkout" : paymentType === "ach" ? "Continue to Secure ACH Checkout" : `Pay $${formatAmount(processorChargeAmount)}`}</>
+                    <><Lock className="w-5 h-5 mr-2" />{primaryActionLabel}</>
                   )}
                 </Button>
               </div>
@@ -1768,7 +1837,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                     </Badge>
                   </div>
 
-                  {paymentType !== "credit_card" && (
+                  {paymentType !== "credit_card" && !isPayNowAdminReview && (
                     <Card className={cn(
                       "border",
                       paymentType === "ach"
@@ -1812,7 +1881,7 @@ const PaymentForm = ({ modalIsOpen, setModalIsOpen, customer, amountP, orderId, 
                   {loading ? (
                     <><Loader2 className="w-5 h-5 mr-2 animate-spin" />Redirecting...</>
                   ) : (
-                    <><Lock className="w-5 h-5 mr-2" />{paymentType === "credit_card" ? "Continue to Secure Card Checkout" : paymentType === "ach" ? "Continue to Secure ACH Checkout" : `Pay $${formatAmount(processorChargeAmount)}`}</>
+                    <><Lock className="w-5 h-5 mr-2" />{primaryActionLabel}</>
                   )}
                 </Button>
               </div>

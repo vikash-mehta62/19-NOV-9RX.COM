@@ -1218,6 +1218,9 @@ export function OrdersList({
               return balanceDue;
             })()}            orderId={selectCustomerInfo.id}
             orders={selectCustomerInfo}
+            payNow={true}
+            isBalancePayment={Number(selectCustomerInfo.paid_amount || 0) > 0}
+            previousPaidAmount={Number(selectCustomerInfo.paid_amount || 0)}
             useStockDeductionRpc={userRole === "pharmacy"}
           />
         )}

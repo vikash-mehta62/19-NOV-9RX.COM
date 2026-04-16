@@ -109,7 +109,9 @@ const CreateOrderPaymentForm = ({
   discountAmount = 0,
   discountDetails = [],
 }: CreateOrderPaymentFormProps) => {
-  const [paymentType, setPaymentType] = useState("credit_card");
+  // Review-first flow: keep card checkout fixed for iPOSPay hosted page.
+  // ACH/Card selector intentionally disabled for now.
+  const [paymentType] = useState("credit_card");
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
   const userProfile = useSelector(selectUserProfile);
@@ -1182,50 +1184,24 @@ const CreateOrderPaymentForm = ({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Payment Form - Left Side */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Payment Method Selection */}
+            {/* Payment method selection disabled by request. Show review-first pending amount. */}
             <Card className="shadow-lg border-0">
               <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <CreditCard className="w-6 h-6" />
-                  Payment Method
+                  <Receipt className="w-6 h-6" />
+                  Order Review
                 </CardTitle>
                 <CardDescription className="text-blue-100">
-                  Choose your preferred payment method
+                  Pending payment summary before secure checkout
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6">
-                <div className="grid grid-cols-2 gap-4 mb-6">
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType("credit_card")}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
-                      paymentType === "credit_card"
-                        ? "border-blue-500 bg-blue-50 shadow-md"
-                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <CreditCard className={`w-8 h-8 ${paymentType === "credit_card" ? "text-blue-600" : "text-gray-400"}`} />
-                    <span className={`font-medium ${paymentType === "credit_card" ? "text-blue-700" : "text-gray-600"}`}>
-                      Credit Card
-                    </span>
-                    {paymentType === "credit_card" && (
-                      <CheckCircle2 className="w-5 h-5 text-blue-500 absolute top-2 right-2" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPaymentType("ach")}
-                    className={`p-4 rounded-xl border-2 transition-all duration-200 flex flex-col items-center gap-2 ${
-                      paymentType === "ach"
-                        ? "border-blue-500 bg-blue-50 shadow-md"
-                        : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
-                    }`}
-                  >
-                    <Landmark className={`w-8 h-8 ${paymentType === "ach" ? "text-blue-600" : "text-gray-400"}`} />
-                    <span className={`font-medium ${paymentType === "ach" ? "text-blue-700" : "text-gray-600"}`}>
-                      Bank Transfer (ACH)
-                    </span>
-                  </button>
+                <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                  <p className="text-sm text-blue-900">Pending amount to pay</p>
+                  <p className="text-2xl font-bold text-blue-700 mt-1">${basePaymentAmount.toFixed(2)}</p>
+                  <p className="text-xs text-blue-800 mt-2">
+                    Click pay button to continue on secure iPOSPay page.
+                  </p>
                 </div>
               </CardContent>
             </Card>
@@ -1240,55 +1216,27 @@ const CreateOrderPaymentForm = ({
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className={`rounded-xl border p-4 text-sm ${paymentType === "credit_card" ? "border-blue-200 bg-blue-50 text-blue-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
-                    {paymentType === "credit_card"
-                      ? "Enter the payer name and billing address here. Card details will be collected on the secure iPOSPay page."
-                      : "Enter the payer name and billing address here. Bank account details will be collected on the secure iPOSPay page."}
+                    Enter the payer name and billing address here. Payment details will be collected on the secure iPOSPay page.
                   </div>
-                  {paymentType === "credit_card" ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="cardholderName" className="text-sm font-medium">
-                          Name on Card
-                        </Label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input
-                            id="cardholderName"
-                            name="cardholderName"
-                            placeholder="John Doe"
-                            value={formData.cardholderName}
-                            onChange={handleChange}
-                            className={`pl-11 h-12 ${errors.cardholderName ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {errors.cardholderName && (
-                          <p className="text-sm text-red-500">{errors.cardholderName}</p>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="nameOnAccount" className="text-sm font-medium">
-                          Name on Bank Account
-                        </Label>
-                        <div className="relative">
-                          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                          <Input
-                            id="nameOnAccount"
-                            name="nameOnAccount"
-                            placeholder="John Doe"
-                            value={formData.nameOnAccount}
-                            onChange={handleChange}
-                            className={`pl-11 h-12 ${errors.nameOnAccount ? "border-red-500" : ""}`}
-                          />
-                        </div>
-                        {errors.nameOnAccount && (
-                          <p className="text-sm text-red-500">{errors.nameOnAccount}</p>
-                        )}
-                      </div>
-                    </>
-                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="cardholderName" className="text-sm font-medium">
+                      Name on Payer Account
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                      <Input
+                        id="cardholderName"
+                        name="cardholderName"
+                        placeholder="John Doe"
+                        value={formData.cardholderName}
+                        onChange={handleChange}
+                        className={`pl-11 h-12 ${errors.cardholderName ? "border-red-500" : ""}`}
+                      />
+                    </div>
+                    {errors.cardholderName && (
+                      <p className="text-sm text-red-500">{errors.cardholderName}</p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1414,10 +1362,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Continue to Secure Checkout
-                      {/* {paymentType === "credit_card"
-                        ? "Continue to Secure Card Checkout"
-                        : "Continue to Secure ACH Checkout"} */}
+                      Pay Pending Amount
                     </>
                   )}
                 </Button>
@@ -1546,45 +1491,12 @@ const CreateOrderPaymentForm = ({
                 </CardContent>
               </Card>
 
-              {paymentType !== "credit_card" && (
-                <Card className={`border ${paymentType === "ach" ? "border-emerald-200 bg-emerald-50" : "border-slate-200 bg-slate-50"}`}>
-                  <CardContent className="p-5">
-                    {paymentType === "ach" ? (
-                      <div className="space-y-3">
-                        <div className="flex items-start gap-3">
-                          <div className="rounded-full bg-emerald-100 p-2">
-                            <ShieldCheck className="h-5 w-5 text-emerald-700" />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-sm font-semibold text-emerald-900">ACH payments avoid card fees</p>
-                            <p className="text-sm text-emerald-800">
-                              The amount charged typically matches your order total. Final payment details are confirmed on the secure bank payment page.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="rounded-xl border border-emerald-200 bg-white/80 p-4">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-slate-600">Charged today</span>
-                            <span className="text-lg font-bold text-emerald-700">${processorChargeAmount.toFixed(2)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-slate-600">
-                        The amount shown above is the amount charged and applied to this order.
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
-
               {/* Submit Button - Desktop */}
               <div className="hidden lg:block">
                 <Button
                   type="submit"
                   form="payment-form"
                   disabled={loading}
-                  onClick={handleHostedSubmit}
                   className="w-full h-14 text-lg bg-blue-600 hover:bg-blue-700 shadow-lg"
                 >
                   {loading ? (
@@ -1595,10 +1507,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Continue to Secure Checkout
-                      {/* {paymentType === "credit_card"
-                        ? `Continue to Secure Card Checkout`
-                        : `Continue to Secure ACH Checkout`} */}
+                      Pay Pending Amount
                     </>
                   )}
                 </Button>

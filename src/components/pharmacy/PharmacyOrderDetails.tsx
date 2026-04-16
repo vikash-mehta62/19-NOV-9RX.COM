@@ -1392,6 +1392,7 @@ console.log(order,"PHARorder")
         })()}
         orderId={order.id}
         orders={order}
+        payNow={true}
         isBalancePayment={paidAmount > 0}
         previousPaidAmount={paidAmount}
         useStockDeductionRpc={true}
