@@ -1,6 +1,6 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { format } from "date-fns";
-import { ArrowLeftRight, Building2, Download, FileUp, RefreshCw, Wallet } from "lucide-react";
+import { ArrowLeftRight, Building2, Download, FileUp, Wallet } from "lucide-react";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,14 +31,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { SUPABASE_PUBLISHABLE_KEY, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
+import { queryIPOSPayBatchReport } from "@/services/iPosPayService";
 
 type PaymentTransaction = {
   id: string;
+  transaction_id: string | null;
   gateway_batch_id: string | null;
   gateway_settlement_time: string | null;
   amount: number;
   status: string;
+  created_at: string;
 };
 
 type ReconciliationBatch = {
@@ -66,6 +69,8 @@ type ReconciliationBatch = {
   reconciliation_status: string;
   notes: string | null;
   last_synced_at: string | null;
+  gateway_reported_at?: string | null;
+  gateway_payload?: unknown;
 };
 
 type BankDeposit = {
@@ -96,17 +101,56 @@ type ProcessorStatementEntry = {
   notes: string | null;
 };
 
-type BatchAggregate = {
+type LocalBatchAggregate = {
+  gateway_batch_id: string;
+  settlement_date: string | null;
+  local_amount: number;
+  local_transaction_count: number;
+};
+
+type IPosBatchDetail = {
+  transactionId?: string;
+};
+
+type IPosBatchProfile = {
+  batch_number?: string | number;
+  settleDate?: string;
+  batch_total?: number;
+  fee?: number;
+  without_fee?: number;
+  transaction_no?: number;
+  batch_details?: IPosBatchDetail[];
+};
+
+type IPosBatchReport = {
+  batch_number?: string | number;
+  batch_status?: string;
+  batch_total?: number;
+  total_transactions?: number;
+  total_fee?: number;
+  total_without_fee?: number;
+  batch_profiles?: IPosBatchProfile[];
+};
+
+type NormalizedGatewayBatch = {
   gateway_batch_id: string;
   settlement_date: string | null;
   gateway_amount: number;
-  local_amount: number;
-  transaction_count: number;
   expected_net_amount: number;
-  last_synced_at: string;
+  processor_fee_amount: number;
+  gateway_transaction_count: number;
+  gateway_status: string | null;
+  gateway_reported_at: string;
+  transaction_ids: string[];
+  payload: unknown;
 };
 
 const money = (value: number) => Number(value.toFixed(2));
+const MANUAL_MISMATCH_CATEGORIES = new Set([
+  "duplicate_statement_row",
+  "duplicate_bank_deposit",
+  "net_formula_mismatch",
+]);
 
 function escapeCsvValue(value: string | number | null | undefined) {
   const normalized = String(value ?? "");
@@ -180,10 +224,159 @@ function validateStatementMath(grossAmount: number, feeAmount: number, netAmount
   return Math.abs(money(grossAmount - feeAmount) - money(netAmount)) < 0.01;
 }
 
+function normalizeBatchReportItems(rawData: unknown): IPosBatchReport[] {
+  if (Array.isArray(rawData)) {
+    return rawData as IPosBatchReport[];
+  }
+
+  if (rawData && typeof rawData === "object") {
+    return [rawData as IPosBatchReport];
+  }
+
+  return [];
+}
+
+function sumNumbers(values: number[]) {
+  return money(values.reduce((sum, value) => sum + Number(value || 0), 0));
+}
+
+function normalizeGatewayBatches(rawData: unknown): NormalizedGatewayBatch[] {
+  return normalizeBatchReportItems(rawData)
+    .map((batch): NormalizedGatewayBatch | null => {
+      const profiles = Array.isArray(batch.batch_profiles) ? batch.batch_profiles : [];
+      const gatewayBatchId = String(
+        batch.batch_number ||
+          profiles.find((profile) => profile.batch_number != null)?.batch_number ||
+          "",
+      ).trim();
+
+      if (!gatewayBatchId) return null;
+
+      const settlementDateSource =
+        profiles.find((profile) => profile.settleDate)?.settleDate || null;
+      const gatewayAmount =
+        Number(batch.batch_total) > 0
+          ? money(Number(batch.batch_total))
+          : sumNumbers(profiles.map((profile) => Number(profile.batch_total || 0)));
+      const processorFeeAmount =
+        Number(batch.total_fee) >= 0
+          ? money(Number(batch.total_fee || 0))
+          : sumNumbers(profiles.map((profile) => Number(profile.fee || 0)));
+      const expectedNetAmount =
+        Number(batch.total_without_fee) > 0
+          ? money(Number(batch.total_without_fee))
+          : money(gatewayAmount - processorFeeAmount);
+      const gatewayTransactionCount =
+        Number(batch.total_transactions) > 0
+          ? Number(batch.total_transactions)
+          : profiles.reduce((sum, profile) => sum + Number(profile.transaction_no || 0), 0);
+      const transactionIds = profiles.flatMap((profile) =>
+        Array.isArray(profile.batch_details)
+          ? profile.batch_details
+              .map((detail) => String(detail.transactionId || "").trim())
+              .filter(Boolean)
+          : [],
+      );
+
+      return {
+        gateway_batch_id: gatewayBatchId,
+        settlement_date: settlementDateSource ? settlementDateSource.slice(0, 10) : null,
+        gateway_amount: gatewayAmount,
+        expected_net_amount: expectedNetAmount,
+        processor_fee_amount: processorFeeAmount,
+        gateway_transaction_count: gatewayTransactionCount,
+        gateway_status: batch.batch_status || null,
+        gateway_reported_at: new Date().toISOString(),
+        transaction_ids: Array.from(new Set(transactionIds)),
+        payload: batch,
+      };
+    })
+    .filter((batch): batch is NormalizedGatewayBatch => Boolean(batch));
+}
+
+function buildLocalBatchAggregates(transactions: PaymentTransaction[]) {
+  const byBatchId = new Map<string, LocalBatchAggregate>();
+  const byTransactionId = new Map<string, PaymentTransaction>();
+
+  transactions.forEach((transaction) => {
+    const transactionId = String(transaction.transaction_id || "").trim();
+    if (transactionId) {
+      byTransactionId.set(transactionId, transaction);
+    }
+
+    if (!transaction.gateway_batch_id || transaction.status !== "approved") return;
+
+    const existing = byBatchId.get(transaction.gateway_batch_id);
+    const settlementDate = transaction.gateway_settlement_time
+      ? transaction.gateway_settlement_time.slice(0, 10)
+      : null;
+
+    if (existing) {
+      existing.local_amount = money(existing.local_amount + Number(transaction.amount || 0));
+      existing.local_transaction_count += 1;
+      if (!existing.settlement_date && settlementDate) {
+        existing.settlement_date = settlementDate;
+      }
+      return;
+    }
+
+    byBatchId.set(transaction.gateway_batch_id, {
+      gateway_batch_id: transaction.gateway_batch_id,
+      settlement_date: settlementDate,
+      local_amount: money(Number(transaction.amount || 0)),
+      local_transaction_count: 1,
+    });
+  });
+
+  return { byBatchId, byTransactionId };
+}
+
+function buildCandidateBatchDates(
+  transactions: PaymentTransaction[],
+  existingBatches: ReconciliationBatch[],
+  statementRows: ProcessorStatementEntry[],
+) {
+  const uniqueDates = new Set<string>();
+
+  transactions.forEach((transaction) => {
+    const dateValue = transaction.gateway_settlement_time || transaction.created_at;
+    if (dateValue) uniqueDates.add(dateValue.slice(0, 10));
+  });
+
+  existingBatches.forEach((batch) => {
+    if (batch.settlement_date) uniqueDates.add(batch.settlement_date);
+  });
+
+  statementRows.forEach((statement) => {
+    if (statement.statement_date) uniqueDates.add(statement.statement_date);
+  });
+
+  return Array.from(uniqueDates)
+    .filter(Boolean)
+    .sort((a, b) => b.localeCompare(a))
+    .slice(0, 45);
+}
+
+function getSyncMismatchCategory(
+  existingBatch: ReconciliationBatch | undefined,
+  localAmount: number,
+  gatewayAmount: number,
+  missingLocalCount: number,
+  missingGatewayCount: number,
+) {
+  if (existingBatch?.mismatch_category && MANUAL_MISMATCH_CATEGORIES.has(existingBatch.mismatch_category)) {
+    return existingBatch.mismatch_category;
+  }
+
+  if (missingLocalCount > 0) return "missing_local";
+  if (missingGatewayCount > 0) return "missing_gateway";
+  if (Math.abs(money(localAmount) - money(gatewayAmount)) >= 0.01) return "amount_mismatch";
+  return null;
+}
+
 export default function PaymentReconciliation() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [syncingGateway, setSyncingGateway] = useState(false);
   const [syncingBatches, setSyncingBatches] = useState(false);
   const [bulkMatching, setBulkMatching] = useState(false);
   const [importingStatements, setImportingStatements] = useState(false);
@@ -256,130 +449,6 @@ export default function PaymentReconciliation() {
     void loadData();
   }, [loadData]);
 
-  const getValidatedAccessToken = async () => {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      throw sessionError;
-    }
-
-    if (session?.access_token) {
-      const { error: userError } = await supabase.auth.getUser(session.access_token);
-      if (!userError) {
-        return session.access_token;
-      }
-    }
-
-    if (!session?.refresh_token) {
-      return null;
-    }
-
-    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession({
-      refresh_token: session.refresh_token,
-    });
-
-    if (refreshError) {
-      throw refreshError;
-    }
-
-    return refreshed.session?.access_token || null;
-  };
-
-  const syncGatewayStatuses = async () => {
-    setSyncingGateway(true);
-    let accessToken: string | null = null;
-
-    try {
-      accessToken = await getValidatedAccessToken();
-    } catch (error) {
-      toast({
-        title: "Authentication required",
-        description: error instanceof Error ? error.message : "Please log in again and retry gateway sync.",
-        variant: "destructive",
-      });
-      setSyncingGateway(false);
-      return;
-    }
-
-    if (!accessToken) {
-      toast({
-        title: "Authentication required",
-        description: "No active admin session was found. Please log in again and retry gateway sync.",
-        variant: "destructive",
-      });
-      setSyncingGateway(false);
-      return;
-    }
-
-    const { data, error } = await supabase.functions.invoke("reconcile-authorize-transactions-v2", {
-      headers: {
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        "x-user-jwt": accessToken,
-      },
-      body: {
-        mode: "sync_batches",
-        daysBack: 7,
-        maxBatches: 20,
-        accessToken,
-      },
-    });
-
-    if (error || !data?.success) {
-      toast({
-        title: "Gateway sync failed",
-        description: error?.message || data?.error || "Could not refresh Authorize.Net statuses.",
-        variant: "destructive",
-      });
-      setSyncingGateway(false);
-      return;
-    }
-
-    await loadData();
-    setSyncingGateway(false);
-    toast({
-      title: "Gateway sync complete",
-      description: `Synced ${data.summary?.batchesUpserted || 0} Authorize.Net batches.`,
-    });
-  };
-
-  const buildBatchAggregates = (transactions: PaymentTransaction[], existingBatches: ReconciliationBatch[]): BatchAggregate[] => {
-    const grouped = new Map<string, BatchAggregate>();
-    const existingBatchMap = new Map(existingBatches.map((batch) => [batch.gateway_batch_id, batch]));
-
-    transactions.forEach((tx) => {
-      if (!tx.gateway_batch_id || tx.status !== "approved") return;
-
-      const settlementDate = tx.gateway_settlement_time ? tx.gateway_settlement_time.slice(0, 10) : null;
-      const existing = grouped.get(tx.gateway_batch_id);
-
-      if (existing) {
-        existing.gateway_amount = money(existing.gateway_amount + Number(tx.amount || 0));
-        existing.local_amount = money(existing.local_amount + Number(tx.amount || 0));
-        existing.expected_net_amount = existing.local_amount;
-        existing.transaction_count += 1;
-        if (!existing.settlement_date && settlementDate) existing.settlement_date = settlementDate;
-        return;
-      }
-
-      const existingBatch = existingBatchMap.get(tx.gateway_batch_id);
-      grouped.set(tx.gateway_batch_id, {
-        gateway_batch_id: tx.gateway_batch_id,
-        settlement_date: existingBatch?.settlement_date || settlementDate,
-        gateway_amount: money(Number(existingBatch?.gateway_amount || tx.amount || 0)),
-        local_amount: money(Number(tx.amount || 0)),
-        transaction_count: 1,
-        expected_net_amount: money(Number(existingBatch?.expected_net_amount || tx.amount || 0)),
-        last_synced_at: new Date().toISOString(),
-      });
-    });
-
-    return Array.from(grouped.values());
-  };
-
   const syncBatchesFromTransactions = async () => {
     setSyncingBatches(true);
     const [
@@ -388,9 +457,9 @@ export default function PaymentReconciliation() {
     ] = await Promise.all([
       supabase
         .from("payment_transactions")
-        .select("id, gateway_batch_id, gateway_settlement_time, amount, status")
-        .not("gateway_batch_id", "is", null)
-        .order("gateway_settlement_time", { ascending: false }),
+        .select("id, transaction_id, gateway_batch_id, gateway_settlement_time, amount, status, created_at")
+        .eq("processor", "ipospay")
+        .order("created_at", { ascending: false }),
       supabase
         .from("payment_reconciliation_batches")
         .select("*")
@@ -403,33 +472,141 @@ export default function PaymentReconciliation() {
       return;
     }
 
-    const aggregates = buildBatchAggregates(
-      (txRows || []) as PaymentTransaction[],
-      (existingBatchRows || []) as ReconciliationBatch[],
-    );
+    const paymentTransactions = (txRows || []) as PaymentTransaction[];
+    const existingBatches = (existingBatchRows || []) as ReconciliationBatch[];
+    const existingBatchMap = new Map(existingBatches.map((batch) => [batch.gateway_batch_id, batch]));
+    const { byBatchId: localBatchMap, byTransactionId } = buildLocalBatchAggregates(paymentTransactions);
+    const batchDates = buildCandidateBatchDates(paymentTransactions, existingBatches, statementEntries);
+    const gatewayBatchMap = new Map<string, NormalizedGatewayBatch>();
+    const syncStartedAt = new Date().toISOString();
 
-    if (aggregates.length > 0) {
+    for (const batchDate of batchDates) {
+      const result = await queryIPOSPayBatchReport(batchDate);
+
+      if (!result.success) {
+        toast({
+          title: "Batch sync failed",
+          description: result.error || `Could not fetch iPOSPay batches for ${batchDate}.`,
+          variant: "destructive",
+        });
+        setSyncingBatches(false);
+        return;
+      }
+
+      normalizeGatewayBatches(result.data).forEach((batch) => {
+        gatewayBatchMap.set(batch.gateway_batch_id, batch);
+      });
+    }
+
+    for (const batch of gatewayBatchMap.values()) {
+      if (!batch.transaction_ids.length) continue;
+
+      const { error: txUpdateError } = await supabase
+        .from("payment_transactions")
+        .update({
+          gateway_batch_id: batch.gateway_batch_id,
+          gateway_settlement_time: batch.settlement_date ? `${batch.settlement_date}T00:00:00.000Z` : null,
+          gateway_last_checked_at: syncStartedAt,
+          gateway_transaction_status: batch.gateway_status,
+          updated_at: syncStartedAt,
+        })
+        .in("transaction_id", batch.transaction_ids);
+
+      if (txUpdateError) {
+        toast({
+          title: "Batch sync failed",
+          description: txUpdateError.message,
+          variant: "destructive",
+        });
+        setSyncingBatches(false);
+        return;
+      }
+    }
+
+    const upsertRows = Array.from(gatewayBatchMap.values()).map((batch) => {
+      const existingBatch = existingBatchMap.get(batch.gateway_batch_id);
+      const matchedLocalTransactions = batch.transaction_ids
+        .map((transactionId) => byTransactionId.get(transactionId))
+        .filter((transaction): transaction is PaymentTransaction => Boolean(transaction) && transaction.status === "approved");
+      const fallbackLocalBatch = localBatchMap.get(batch.gateway_batch_id);
+      const localAmount = matchedLocalTransactions.length
+        ? sumNumbers(matchedLocalTransactions.map((transaction) => Number(transaction.amount || 0)))
+        : money(Number(fallbackLocalBatch?.local_amount || 0));
+      const localTransactionCount = matchedLocalTransactions.length || Number(fallbackLocalBatch?.local_transaction_count || 0);
+      const missingLocalCount = Math.max(batch.gateway_transaction_count - localTransactionCount, 0);
+      const mismatchCategory = getSyncMismatchCategory(
+        existingBatch,
+        localAmount,
+        batch.gateway_amount,
+        missingLocalCount,
+        0,
+      );
+
+      return {
+        ...existingBatch,
+        gateway_batch_id: batch.gateway_batch_id,
+        settlement_date: batch.settlement_date || existingBatch?.settlement_date || null,
+        gateway_amount: batch.gateway_amount,
+        local_amount: localAmount,
+        transaction_count: batch.gateway_transaction_count,
+        gateway_transaction_count: batch.gateway_transaction_count,
+        local_transaction_count: localTransactionCount,
+        missing_local_count: missingLocalCount,
+        missing_gateway_count: 0,
+        gateway_status: batch.gateway_status,
+        gateway_reported_at: batch.gateway_reported_at,
+        gateway_payload: batch.payload,
+        processor_fee_amount:
+          existingBatch?.processor_statement_entry_id ? existingBatch.processor_fee_amount : batch.processor_fee_amount,
+        expected_net_amount:
+          existingBatch?.processor_statement_entry_id ? existingBatch.expected_net_amount : batch.expected_net_amount,
+        mismatch_category: mismatchCategory,
+        reconciliation_status:
+          mismatchCategory ? "review_required" : existingBatch?.reconciliation_status || "unmatched",
+        last_synced_at: syncStartedAt,
+        updated_at: syncStartedAt,
+      };
+    });
+
+    const gatewayBatchIds = new Set(Array.from(gatewayBatchMap.keys()));
+    const localOnlyRows = Array.from(localBatchMap.values())
+      .filter((batch) => !gatewayBatchIds.has(batch.gateway_batch_id))
+      .map((batch) => {
+        const existingBatch = existingBatchMap.get(batch.gateway_batch_id);
+        const mismatchCategory = getSyncMismatchCategory(
+          existingBatch,
+          batch.local_amount,
+          Number(existingBatch?.gateway_amount || batch.local_amount),
+          0,
+          batch.local_transaction_count,
+        );
+
+        return {
+          ...existingBatch,
+          gateway_batch_id: batch.gateway_batch_id,
+          settlement_date: batch.settlement_date || existingBatch?.settlement_date || null,
+          gateway_amount: Number(existingBatch?.gateway_amount || batch.local_amount),
+          local_amount: batch.local_amount,
+          transaction_count: Number(existingBatch?.gateway_transaction_count || batch.local_transaction_count),
+          gateway_transaction_count: Number(existingBatch?.gateway_transaction_count || 0),
+          local_transaction_count: batch.local_transaction_count,
+          missing_local_count: Number(existingBatch?.missing_local_count || 0),
+          missing_gateway_count: batch.local_transaction_count,
+          gateway_status: existingBatch?.gateway_status || "not_found_in_ipospay_batch_report",
+          mismatch_category: mismatchCategory,
+          reconciliation_status:
+            mismatchCategory ? "review_required" : existingBatch?.reconciliation_status || "unmatched",
+          last_synced_at: syncStartedAt,
+          updated_at: syncStartedAt,
+        };
+      });
+
+    const allRows = [...upsertRows, ...localOnlyRows];
+
+    if (allRows.length > 0) {
       const { error: upsertError } = await supabase
         .from("payment_reconciliation_batches")
-        .upsert(aggregates.map((batch) => {
-          const existingBatch = (existingBatchRows || []).find((row: any) => row.gateway_batch_id === batch.gateway_batch_id) as ReconciliationBatch | undefined;
-          const missingGateway = !existingBatch;
-          const mismatchCategory = missingGateway
-            ? "missing_gateway"
-            : Math.abs(money(batch.local_amount) - money(existingBatch.gateway_amount || 0)) >= 0.01
-              ? "amount_mismatch"
-              : existingBatch.mismatch_category;
-
-          return {
-            ...existingBatch,
-            ...batch,
-            local_transaction_count: batch.transaction_count,
-            missing_gateway_count: missingGateway ? batch.transaction_count : 0,
-            mismatch_category: mismatchCategory,
-            reconciliation_status: mismatchCategory ? "review_required" : existingBatch?.reconciliation_status || "unmatched",
-            updated_at: new Date().toISOString(),
-          };
-        }), {
+        .upsert(allRows, {
           onConflict: "gateway_batch_id",
         });
 
@@ -444,7 +621,7 @@ export default function PaymentReconciliation() {
     setSyncingBatches(false);
     toast({
       title: "Batches synced",
-      description: `${aggregates.length} settlement batches were refreshed.`,
+      description: `${gatewayBatchMap.size} iPOSPay settlement batches were refreshed.`,
     });
   };
 
@@ -1112,17 +1289,13 @@ export default function PaymentReconciliation() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Payment Reconciliation</h1>
             <p className="text-muted-foreground">
-              Match Authorize.Net settlement batches to processor fees and final bank deposits.
+              Match iPOSPay settlement batches to processor fees and final bank deposits.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={syncGatewayStatuses} disabled={syncingGateway}>
-              <RefreshCw className={`mr-2 h-4 w-4 ${syncingGateway ? "animate-spin" : ""}`} />
-              Refresh Authorize
-            </Button>
             <Button variant="outline" onClick={syncBatchesFromTransactions} disabled={syncingBatches}>
               <ArrowLeftRight className={`mr-2 h-4 w-4 ${syncingBatches ? "animate-spin" : ""}`} />
-              Sync Batches
+              Refresh iPOSPay Batches
             </Button>
             <Button onClick={bulkAutoMatch} disabled={bulkMatching || loading}>
               <Wallet className={`mr-2 h-4 w-4 ${bulkMatching ? "animate-spin" : ""}`} />
@@ -1137,9 +1310,9 @@ export default function PaymentReconciliation() {
           </CardHeader>
           <CardContent className="grid gap-3 text-sm text-slate-700 md:grid-cols-4">
             <div className="rounded-lg border bg-white p-3">
-              <div className="font-semibold">1. Refresh Authorize</div>
+              <div className="font-semibold">1. Refresh iPOSPay Batches</div>
               <p className="mt-1 text-xs text-muted-foreground">
-                Pull the latest settlement batches from Authorize.Net. 
+                Pull the latest closed iPOSPay settlement batches and refresh local batch mapping.
               </p>
             </div>
             <div className="rounded-lg border bg-white p-3">
@@ -1164,7 +1337,7 @@ export default function PaymentReconciliation() {
         </Card>
 
         <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
-          <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.gross.toFixed(2)}</div><p className="text-sm text-muted-foreground">Authorize Gross</p></CardContent></Card>
+          <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.gross.toFixed(2)}</div><p className="text-sm text-muted-foreground">iPOSPay Gross</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.fees.toFixed(2)}</div><p className="text-sm text-muted-foreground">Processor Fees</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.expectedNet.toFixed(2)}</div><p className="text-sm text-muted-foreground">Expected Net</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.deposited.toFixed(2)}</div><p className="text-sm text-muted-foreground">Bank Deposited</p></CardContent></Card>
@@ -1187,7 +1360,7 @@ export default function PaymentReconciliation() {
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2"><Label htmlFor="statement-date">Statement Date</Label><Input id="statement-date" type="date" value={newStatement.statementDate} onChange={(e) => setNewStatement((prev) => ({ ...prev, statementDate: e.target.value }))} /></div>
                 <div className="space-y-2"><Label htmlFor="statement-bank">Bank Account</Label><Input id="statement-bank" value={newStatement.bankAccountName} onChange={(e) => setNewStatement((prev) => ({ ...prev, bankAccountName: e.target.value }))} placeholder="Checking 001" /></div>
-                <div className="space-y-2"><Label htmlFor="statement-batch">Batch Reference</Label><Input id="statement-batch" value={newStatement.batchReference} onChange={(e) => setNewStatement((prev) => ({ ...prev, batchReference: e.target.value }))} placeholder="Authorize batch id" /></div>
+                <div className="space-y-2"><Label htmlFor="statement-batch">Batch Reference</Label><Input id="statement-batch" value={newStatement.batchReference} onChange={(e) => setNewStatement((prev) => ({ ...prev, batchReference: e.target.value }))} placeholder="iPOSPay batch id" /></div>
                 <div className="space-y-2"><Label htmlFor="statement-gross">Gross Amount</Label><Input id="statement-gross" value={newStatement.grossAmount} onChange={(e) => setNewStatement((prev) => ({ ...prev, grossAmount: e.target.value }))} placeholder="1000.00" /></div>
                 <div className="space-y-2"><Label htmlFor="statement-fee">Fee Amount</Label><Input id="statement-fee" value={newStatement.feeAmount} onChange={(e) => setNewStatement((prev) => ({ ...prev, feeAmount: e.target.value }))} placeholder="25.00" /></div>
                 <div className="space-y-2"><Label htmlFor="statement-net">Net Amount</Label><Input id="statement-net" value={newStatement.netAmount} onChange={(e) => setNewStatement((prev) => ({ ...prev, netAmount: e.target.value }))} placeholder="975.00" /></div>

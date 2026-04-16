@@ -715,30 +715,34 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                 Credit Account
               </CardTitle>
               <div className={cn("flex items-center gap-2", isCompact && "w-full justify-between")}>
-                {(() => {
-                  const displayCreditStatus = getDisplayCreditStatus(creditSettings.credit_status);
-                  return (
-                <Badge
-                  className={cn(getCreditStatusColor(displayCreditStatus), isCompact ? "text-xs px-2 py-1" : "")}
-                >
-                  {getCreditStatusIcon(displayCreditStatus)}
-                  <span className="ml-1 capitalize">
-                    {displayCreditStatus}
-                  </span>
-                </Badge>
-                  );
-                })()}
-                <Badge
-                  variant="outline"
-                  className={cn(
-                    isCheckoutCreditAvailable
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                      : "border-slate-200 bg-slate-50 text-slate-700",
-                    isCompact ? "text-xs px-2 py-1" : ""
-                  )}
-                >
-                  {checkoutAvailabilityLabel}
-                </Badge>
+                {!readOnly && (
+                  <>
+                    {(() => {
+                      const displayCreditStatus = getDisplayCreditStatus(creditSettings.credit_status);
+                      return (
+                        <Badge
+                          className={cn(getCreditStatusColor(displayCreditStatus), isCompact ? "text-xs px-2 py-1" : "")}
+                        >
+                          {getCreditStatusIcon(displayCreditStatus)}
+                          <span className="ml-1 capitalize">
+                            {displayCreditStatus}
+                          </span>
+                        </Badge>
+                      );
+                    })()}
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        isCheckoutCreditAvailable
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-slate-200 bg-slate-50 text-slate-700",
+                        isCompact ? "text-xs px-2 py-1" : ""
+                      )}
+                    >
+                      {checkoutAvailabilityLabel}
+                    </Badge>
+                  </>
+                )}
                 {!readOnly && (
                   <Dialog
                     open={isEditDialogOpen}
@@ -866,46 +870,48 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             </div>
           </CardHeader>
           <CardContent className={cn(isCompact && "pt-0")}>
-            <div
-              className={cn(
-                "mb-4 rounded-lg border px-4 py-3",
-                isCheckoutCreditAvailable
-                  ? "border-emerald-200 bg-emerald-50"
-                  : "border-amber-200 bg-amber-50"
-              )}
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p
+            {!readOnly && (
+              <div
+                className={cn(
+                  "mb-4 rounded-lg border px-4 py-3",
+                  isCheckoutCreditAvailable
+                    ? "border-emerald-200 bg-emerald-50"
+                    : "border-amber-200 bg-amber-50"
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p
+                      className={cn(
+                        "font-medium",
+                        isCheckoutCreditAvailable ? "text-emerald-900" : "text-amber-900"
+                      )}
+                    >
+                      Credit account checkout status
+                    </p>
+                    <p
+                      className={cn(
+                        "text-sm",
+                        isCheckoutCreditAvailable ? "text-emerald-700" : "text-amber-700"
+                      )}
+                    >
+                      {isCheckoutCreditAvailable
+                        ? "Pharmacy can use Credit Account during checkout."
+                        : "Pharmacy cannot use Credit Account during checkout until it is reactivated."}
+                    </p>
+                  </div>
+                  <Badge
                     className={cn(
-                      "font-medium",
-                      isCheckoutCreditAvailable ? "text-emerald-900" : "text-amber-900"
+                      isCheckoutCreditAvailable
+                        ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                        : "bg-amber-100 text-amber-800 hover:bg-amber-100"
                     )}
                   >
-                    Credit account checkout status
-                  </p>
-                  <p
-                    className={cn(
-                      "text-sm",
-                      isCheckoutCreditAvailable ? "text-emerald-700" : "text-amber-700"
-                    )}
-                  >
-                    {isCheckoutCreditAvailable
-                      ? "Pharmacy can use Credit Account during checkout."
-                      : "Pharmacy cannot use Credit Account during checkout until it is reactivated."}
-                  </p>
+                    {checkoutAvailabilityLabel}
+                  </Badge>
                 </div>
-                <Badge
-                  className={cn(
-                    isCheckoutCreditAvailable
-                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
-                      : "bg-amber-100 text-amber-800 hover:bg-amber-100"
-                  )}
-                >
-                  {checkoutAvailabilityLabel}
-                </Badge>
               </div>
-            </div>
+            )}
 
             {/* Credit amounts - Stack on mobile, grid on tablet+ */}
             <div className={cn("gap-4 mb-4", 

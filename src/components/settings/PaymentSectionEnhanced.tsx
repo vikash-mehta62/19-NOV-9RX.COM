@@ -176,8 +176,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
   };
 
   return (
-    <div className="space-y-6">
-      
+    <div className="space-y-6">     
       {/* iPOS Pays Configuration */}
       <Card>
         <CardHeader>
@@ -420,8 +419,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
       </Card>
       
       {/* Payment Processor Selection */}
-      <Card>
-        <CardHeader>
+      {/* <Card> */}
+        {/* <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Payment Processor Configuration
@@ -429,8 +428,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
           <CardDescription>
             Select which payment processors to use for credit cards and ACH payments
           </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        </CardHeader> */}
+        {/* <CardContent className="space-y-6"> */}
           {/* Credit Card Processor Selection */}
           {/* <FormField
             control={form.control}
@@ -520,12 +519,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
               </div>
             </AlertDescription>
           </Alert> */}
-        </CardContent>
-      </Card>
+        {/* </CardContent> */}
+      {/* </Card> */}
 
       {/* Authorize.Net Configuration */}
-      <Card>
-        <CardHeader>
+      {/* <Card> */}
+        {/* <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Authorize.Net Configuration
@@ -533,10 +532,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
           <CardDescription>
             Configure Authorize.Net for credit card {achProcessor === 'authorize_net' ? 'and ACH' : ''} payments
           </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+        </CardHeader> */}
+        {/* <CardContent className="space-y-6"> */}
           {/* Enable Toggle */}
-          <FormField
+          {/* <FormField
             control={form.control}
             name="authorize_net_enabled"
             render={({ field }) => (
@@ -552,12 +551,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 </FormControl>
               </FormItem>
             )}
-          />
+          /> */}
 
-          {isEnabled && (
-            <>
+          {/* {isEnabled && ( */}
+            {/* <> */}
               {/* Test Mode Toggle */}
-              <FormField
+              {/* <FormField
             control={form.control}
             name="authorize_net_test_mode"
             render={({ field }) => (
@@ -580,10 +579,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     </FormControl>
                   </FormItem>
                 )}
-              />
+              /> */}
 
               {/* Info Alert */}
-              <Alert>
+              {/* <Alert>
                 <Info className="h-4 w-4" />
                 <AlertTitle>Important</AlertTitle>
                 <AlertDescription>
@@ -592,11 +591,11 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     : "You are in PRODUCTION MODE. Real charges will be made. Make sure to use your production API credentials."
                   }
                 </AlertDescription>
-              </Alert>
+              </Alert> */}
 
               {/* API Credentials */}
-              <div className="space-y-4 p-4 border rounded-lg">
-                <div className="flex items-center justify-between">
+              {/* <div className="space-y-4 p-4 border rounded-lg"> */}
+                {/* <div className="flex items-center justify-between">
                   <h4 className="font-medium flex items-center gap-2">
                     <Shield className="h-4 w-4 text-green-600" />
                     API Credentials
@@ -613,9 +612,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     Get credentials
                     <ExternalLink className="h-3 w-3" />
                   </a>
-                </div>
+                </div> */}
 
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="authorize_net_api_login_id"
                   render={({ field }) => (
@@ -645,9 +644,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </FormDescription>
                     </FormItem>
                   )}
-                />
+                /> */}
 
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="authorize_net_transaction_key"
                   render={({ field }) => (
@@ -677,11 +676,11 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </FormDescription>
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* Test Connection Button */}
-                <div className="space-y-3 pt-2">
-                  <Button
+                {/* <div className="space-y-3 pt-2"> */}
+                  {/* <Button
                     type="button"
                     variant="outline"
                     onClick={testConnection}
@@ -696,9 +695,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     ) : (
                       "Test Connection"
                     )}
-                  </Button>
+                  </Button> */}
                   
-                  {testResult === "success" && (
+                  {/* {testResult === "success" && (
                     <Alert className="bg-green-50 border-green-200">
                       <CheckCircle2 className="h-4 w-4 text-green-600" />
                       <AlertTitle className="text-green-800">Connection Verified</AlertTitle>
@@ -707,8 +706,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </AlertDescription>
                     </Alert>
                   )}
-                  
-                  {testResult === "error" && (
+                   */}
+                  {/* {testResult === "error" && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>Connection Failed</AlertTitle>
@@ -716,12 +715,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                         {testMessage}
                       </AlertDescription>
                     </Alert>
-                  )}
-                </div>
-              </div>
+                  )} */}
+                {/* </div> */}
+              {/* </div> */}
 
               {/* Payment Methods Accepted */}
-              <div className="p-4 border rounded-lg space-y-4">
+              {/* <div className="p-4 border rounded-lg space-y-4">
                 <h4 className="font-medium">Accepted Payment Methods via Authorize.Net</h4>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -762,10 +761,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     <span className="font-bold">Discover</span>
                   </Badge>
                 </div>
-              </div>
+              </div> */}
 
               {/* Security Info */}
-              <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+              {/* <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                 <div className="flex items-start gap-3">
                   <Shield className="h-5 w-5 text-green-600 mt-0.5" />
                   <div>
@@ -776,18 +775,18 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                     </p>
                   </div>
                 </div>
-              </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              </div> */}
+            {/* </> */}
+          {/* )} */}
+        {/* </CardContent> */}
+      {/* </Card> */}
 
       
 
       {/* FortisPay Configuration */}
-      {achProcessor === 'fortispay' && (
-        <Card>
-          <CardHeader>
+      {/* {achProcessor === 'fortispay' && ( */}
+        {/* <Card> */}
+          {/* <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Landmark className="h-5 w-5" />
               FortisPay ACH Configuration
@@ -795,10 +794,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
             <CardDescription>
               Configure FortisPay for ACH/eCheck payments
             </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
+          </CardHeader> */}
+          {/* <CardContent className="space-y-6"> */}
             {/* Enable Toggle */}
-            <FormField
+            {/* <FormField
               control={form.control}
               name="fortispay_enabled"
               render={({ field }) => (
@@ -814,12 +813,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   </FormControl>
                 </FormItem>
               )}
-            />
+            /> */}
 
-            {fortisPayEnabled && (
-              <>
+            {/* {fortisPayEnabled && ( */}
+              {/* <> */}
                 {/* Test Mode Toggle */}
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="fortispay_test_mode"
                   render={({ field }) => (
@@ -842,10 +841,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </FormControl>
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 {/* Info Alert */}
-                <Alert>
+                {/* <Alert>
                   <Info className="h-4 w-4" />
                   <AlertTitle>Important</AlertTitle>
                   <AlertDescription>
@@ -854,10 +853,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       : "You are in PRODUCTION MODE. Real ACH charges will be made. Make sure to use your production API credentials."
                     }
                   </AlertDescription>
-                </Alert>
+                </Alert> */}
 
                 {/* API Credentials */}
-                <div className="space-y-4 p-4 border rounded-lg">
+                {/* <div className="space-y-4 p-4 border rounded-lg">
                   <div className="flex items-center justify-between">
                     <h4 className="font-medium flex items-center gap-2">
                       <Shield className="h-4 w-4 text-green-600" />
@@ -994,10 +993,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       Sandbox mode also depends on valid sandbox-specific values.
                     </AlertDescription>
                   </Alert>
-                </div>
+                </div> */}
 
                 {/* Payment Methods Accepted */}
-                <div className="p-4 border rounded-lg space-y-4">
+                {/* <div className="p-4 border rounded-lg space-y-4">
                   <h4 className="font-medium">Accepted Payment Methods via FortisPay</h4>
                   
                   <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
@@ -1009,10 +1008,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </p>
                     </div>
                   </div>
-                </div>
+                </div> */}
 
                 {/* Security Info */}
-                <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                {/* <div className="p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-start gap-3">
                     <Shield className="h-5 w-5 text-green-600 mt-0.5" />
                     <div>
@@ -1023,31 +1022,31 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                       </p>
                     </div>
                   </div>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
+                </div> */}
+              {/* </> */}
+            {/* )} */}
+          {/* </CardContent> */}
+        {/* </Card> */}
+      {/* )} */}
 
       {/* Payment Terms & Fees Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
+      {/* <Card> */}
+        {/* <CardHeader> */}
+          {/* <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Payment Terms & Fees
-          </CardTitle>
+          </CardTitle> */}
 
           {/* TODO: Main Heading of this section */}
           {/* <CardDescription>
             Configure late payment fees, processing fees, and payment terms
           </CardDescription> */}
 
-          <CardDescription>
+          {/* <CardDescription>
             Configure Credit Card processing fees
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
+          </CardDescription> */}
+        {/* </CardHeader> */}
+        {/* <CardContent className="space-y-6"> */}
 
           {/* TODO: Late Payment Settings */}
           {/* <div className="space-y-4">
@@ -1187,12 +1186,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
           <Separator /> */}
 
           {/* Card Processing Fees */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          {/* <div className="space-y-4"> */}
+            {/* <div className="flex items-center justify-between">
               <h4 className="font-medium text-base">Credit Card Processing Fees</h4>
-            </div>
+            </div> */}
 
-            <FormField
+            {/* <FormField
               control={form.control}
               name="card_processing_fee_enabled"
               render={({ field }) => (
@@ -1208,9 +1207,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   </FormControl>
                 </FormItem>
               )}
-            />
+            /> */}
 
-            {form.watch("card_processing_fee_enabled") && (
+            {/* {form.watch("card_processing_fee_enabled") && (
               <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
                 <FormField
                   control={form.control}
@@ -1265,8 +1264,8 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                   </AlertDescription>
                 </Alert>
               </div>
-            )}
-          </div>
+            )} */}
+          {/* </div> */}
 
           <Separator />
 
@@ -1486,7 +1485,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
           </div> */}
 
           {/* Summary */}
-          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          {/* <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
             <h4 className="font-medium text-blue-900 mb-2">Payment Terms Summary</h4>
             <div className="space-y-1 text-sm text-blue-800">
               {form.watch("late_payment_enabled") && (
@@ -1507,9 +1506,9 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 <p>• Minimum payment: ${form.watch("minimum_payment_amount")}</p>
               )}
             </div>
-          </div>
-        </CardContent>
-      </Card>
+          </div> */}
+        {/* </CardContent> */}
+      {/* </Card> */}
     </div>
   );
 }

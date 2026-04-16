@@ -101,6 +101,13 @@ export interface IPosQueryStatusResponse {
   errorCode?: string;
 }
 
+export interface IPosBatchReportResponse {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  errorCode?: string;
+}
+
 function hasProcessorDecline(callbackData: Pick<IPosPaymentCallbackData, "errResponseCode" | "errResponseMessage">) {
   const errCode = String(callbackData.errResponseCode || "").trim().toUpperCase();
   const errMessage = String(callbackData.errResponseMessage || "").trim().toLowerCase();
@@ -424,6 +431,51 @@ export async function queryIPOSPayStatus(
     return {
       success: false,
       error: error instanceof Error ? error.message : "Failed to query payment status",
+      errorCode: "EXCEPTION",
+    };
+  }
+}
+
+export async function queryIPOSPayBatchReport(
+  batchDate?: string,
+  batchNo?: string,
+): Promise<IPosBatchReportResponse> {
+  try {
+    const supabaseUrl = supabase.supabaseUrl;
+    const functionUrl = `${supabaseUrl}/functions/v1/ipospay-payment`;
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
+        apikey: SUPABASE_PUBLISHABLE_KEY,
+      },
+      body: JSON.stringify({
+        action: "queryBatchReport",
+        batchDate,
+        batchNo,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: data?.error || `HTTP ${response.status}: Failed to query iPOSPay batch report`,
+        errorCode: "HTTP_ERROR",
+      };
+    }
+
+    return {
+      success: true,
+      data: data?.data,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to query iPOSPay batch report",
       errorCode: "EXCEPTION",
     };
   }

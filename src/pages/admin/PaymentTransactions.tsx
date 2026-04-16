@@ -40,9 +40,10 @@ import {
   ArrowUp,
   ArrowDown,
 } from "lucide-react";
-import { SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { normalizePaymentResult, queryIPOSPayStatus } from "@/services/iPosPayService";
 
 interface PaymentTransaction {
   id: string;
@@ -97,7 +98,6 @@ export default function PaymentTransactions() {
   const [transactions, setTransactions] = useState<PaymentTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [reconciling, setReconciling] = useState(false);
-  const [syncingFortis, setSyncingFortis] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [reconciliationFilter, setReconciliationFilter] = useState("all");
@@ -119,6 +119,7 @@ export default function PaymentTransactions() {
           company_name
         )
       `)
+      .eq("processor", "ipospay")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -135,160 +136,81 @@ export default function PaymentTransactions() {
     fetchTransactions();
   }, []);
 
-  const getValidatedAccessToken = async () => {
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession();
-
-    if (sessionError) {
-      throw sessionError;
-    }
-
-    if (session?.access_token) {
-      const { error: userError } = await supabase.auth.getUser(session.access_token);
-      if (!userError) {
-        return session.access_token;
-      }
-    }
-
-    if (!session?.refresh_token) {
-      return null;
-    }
-
-    const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession({
-      refresh_token: session.refresh_token,
-    });
-
-    if (refreshError) {
-      throw refreshError;
-    }
-
-    return refreshed.session?.access_token || null;
-  };
-
-  const reconcileTransactions = async () => {
+  const syncIposPayTransactions = async () => {
     setReconciling(true);
-    let accessToken: string | null = null;
-
     try {
-      accessToken = await getValidatedAccessToken();
-    } catch (error) {
-      toast({
-        title: "Authentication required",
-        description: error instanceof Error ? error.message : "Please log in again and retry reconciliation.",
-        variant: "destructive",
-      });
-      setReconciling(false);
-      return;
-    }
+      const transactionsToSync = transactions
+        .filter((transaction) => Boolean(transaction.transaction_id))
+        .slice(0, 25);
 
-    if (!accessToken) {
-      toast({
-        title: "Authentication required",
-        description: "No active admin session was found. Please log in again and retry reconciliation.",
-        variant: "destructive",
-      });
-      setReconciling(false);
-      return;
-    }
+      let checked = 0;
+      let updated = 0;
 
-    const { data, error } = await supabase.functions.invoke("reconcile-authorize-transactions-v2", {
-      headers: {
-        apikey: SUPABASE_PUBLISHABLE_KEY,
-        Authorization: `Bearer ${SUPABASE_PUBLISHABLE_KEY}`,
-        "x-user-jwt": accessToken,
-      },
-      body: {
-        mode: "reconcile_transactions",
-        transactionIds: transactions
-          .filter((transaction) => Boolean(transaction.transaction_id))
-          .slice(0, 25)
-          .map((transaction) => transaction.id),
-        maxTransactions: 25,
-        accessToken,
-      },
-    });
+      for (const transaction of transactionsToSync) {
+        checked += 1;
+        const result = await queryIPOSPayStatus(String(transaction.transaction_id));
 
-    if (error || !data?.success) {
-      toast({
-        title: "Reconciliation failed",
-        description: error?.message || data?.error || "Could not sync with Authorize.Net.",
-        variant: "destructive",
-      });
-      setReconciling(false);
-      return;
-    }
+        if (!result.success || !result.data) {
+          continue;
+        }
 
-    await fetchTransactions();
-    setReconciling(false);
-    toast({
-      title: "Reconciliation complete",
-      description: `Checked ${data.summary?.checked || 0} transactions.`,
-    });
-  };
+        const normalizedResult = normalizePaymentResult(result.data);
+        const mappedStatus =
+          normalizedResult.status === "success"
+            ? "approved"
+            : normalizedResult.status === "cancelled"
+              ? "voided"
+              : normalizedResult.status === "rejected"
+                ? "declined"
+                : "error";
 
-  const syncFortisTransactions = async () => {
-    setSyncingFortis(true);
-    let accessToken: string | null = null;
+        const { error } = await supabase
+          .from("payment_transactions")
+          .update({
+            transaction_id: result.data.transactionId || result.data.transactionReferenceId || transaction.transaction_id,
+            auth_code: result.data.responseApprovalCode || transaction.auth_code,
+            amount: normalizedResult.chargedAmount || transaction.amount,
+            payment_method_type: normalizedResult.paymentMethod || transaction.payment_method_type,
+            card_last_four:
+              normalizedResult.paymentMethod === "ach"
+                ? normalizedResult.accountLast4 || transaction.card_last_four
+                : normalizedResult.cardLast4Digit || transaction.card_last_four,
+            card_type:
+              normalizedResult.paymentMethod === "ach"
+                ? normalizedResult.accountType || transaction.card_type
+                : (result.data.cardType || transaction.card_type),
+            processor: "ipospay",
+            status: mappedStatus,
+            response_message: result.data.responseMessage || transaction.response_message,
+            error_message:
+              mappedStatus === "approved"
+                ? null
+                : result.data.errResponseMessage || result.data.responseMessage || transaction.error_message,
+            gateway_transaction_status: result.data.responseMessage || transaction.gateway_transaction_status,
+            gateway_batch_id: result.data.batchNumber ? String(result.data.batchNumber) : transaction.gateway_batch_id,
+            gateway_last_checked_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", transaction.id);
 
-    try {
-      accessToken = await getValidatedAccessToken();
-    } catch (error) {
-      toast({
-        title: "Authentication required",
-        description: error instanceof Error ? error.message : "Please log in again and retry Fortis sync.",
-        variant: "destructive",
-      });
-      setSyncingFortis(false);
-      return;
-    }
-
-    if (!accessToken) {
-      toast({
-        title: "Authentication required",
-        description: "No active admin session was found. Please log in again and retry Fortis sync.",
-        variant: "destructive",
-      });
-      setSyncingFortis(false);
-      return;
-    }
-
-    try {
-      const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || "https://9rx.mahitechnocrafts.in";
-      const response = await fetch(`${apiBaseUrl}/fortis/ach/sync-statuses`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify({
-          transactionIds: transactions
-            .filter((transaction) => transaction.processor === "fortispay" && transaction.payment_method_type === "ach")
-            .slice(0, 25)
-            .map((transaction) => transaction.id),
-          maxTransactions: 25,
-        }),
-      });
-
-      const result = await response.json();
-      if (!response.ok || !result?.success) {
-        throw new Error(result?.message || "Could not sync Fortis ACH transactions.");
+        if (!error) {
+          updated += 1;
+        }
       }
 
       await fetchTransactions();
       toast({
-        title: "Fortis ACH sync complete",
-        description: `Checked ${result.summary?.checked || 0} transactions and flagged ${result.summary?.returned || 0} potential returns.`,
+        title: "iPOSPay sync complete",
+        description: `Checked ${checked} transactions and refreshed ${updated}.`,
       });
     } catch (error) {
       toast({
-        title: "Fortis ACH sync failed",
-        description: error instanceof Error ? error.message : "Could not sync Fortis ACH transactions.",
+        title: "iPOSPay sync failed",
+        description: error instanceof Error ? error.message : "Could not sync iPOSPay transactions.",
         variant: "destructive",
       });
     } finally {
-      setSyncingFortis(false);
+      setReconciling(false);
     }
   };
 
@@ -348,24 +270,27 @@ export default function PaymentTransactions() {
         case "created_at":
           comparison = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
           break;
-        case "customer":
+        case "customer": {
           const nameA = `${a.profiles?.first_name || ""} ${a.profiles?.last_name || ""}`.toLowerCase();
           const nameB = `${b.profiles?.first_name || ""} ${b.profiles?.last_name || ""}`.toLowerCase();
           comparison = nameA.localeCompare(nameB);
           break;
+        }
         case "amount":
           comparison = a.amount - b.amount;
           break;
-        case "status":
+        case "status": {
           const orderA = statusConfig[a.status]?.order || 99;
           const orderB = statusConfig[b.status]?.order || 99;
           comparison = orderA - orderB;
           break;
-        case "payment_method":
+        }
+        case "payment_method": {
           const methodA = a.payment_method_type || "";
           const methodB = b.payment_method_type || "";
           comparison = methodA.localeCompare(methodB);
           break;
+        }
       }
 
       return sortDirection === "asc" ? comparison : -comparison;
@@ -409,6 +334,12 @@ export default function PaymentTransactions() {
     );
   };
 
+  const getProcessorLabel = (processor: string | null) => {
+    if (!processor) return "iPOSPay";
+    if (processor === "ipospay") return "iPOSPay";
+    return processor.replace(/_/g, " ");
+  };
+
   // Calculate stats
   const stats = {
     total: transactions.length,
@@ -440,17 +371,13 @@ export default function PaymentTransactions() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Payment Transactions</h1>
             <p className="text-muted-foreground">
-              View and manage all payment transactions
+              View and manage all iPOSPay payment transactions
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={reconcileTransactions} className="gap-2" disabled={reconciling}>
+            <Button variant="outline" onClick={syncIposPayTransactions} className="gap-2" disabled={reconciling}>
               <RefreshCw className={`h-4 w-4 ${reconciling ? "animate-spin" : ""}`} />
-              Reconcile Now
-            </Button>
-            <Button variant="outline" onClick={syncFortisTransactions} className="gap-2" disabled={syncingFortis}>
-              <RefreshCw className={`h-4 w-4 ${syncingFortis ? "animate-spin" : ""}`} />
-              Refresh Fortis ACH
+              Refresh iPOSPay Status
             </Button>
             <Button variant="outline" onClick={fetchTransactions} className="gap-2">
               <RefreshCw className="h-4 w-4" />
@@ -607,7 +534,7 @@ export default function PaymentTransactions() {
                         <div className="space-y-1">
                           <p className="font-medium">{transaction.gateway_transaction_status || "-"}</p>
                           <p className="text-muted-foreground">
-                            {(transaction.processor || "authorize_net").replace(/_/g, " ")}
+                            {getProcessorLabel(transaction.processor)}
                           </p>
                           <p className="text-muted-foreground">
                             {transaction.gateway_settlement_time
@@ -695,7 +622,7 @@ export default function PaymentTransactions() {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-muted-foreground">Processor</p>
-                    <p>{(selectedTransaction.processor || "authorize_net").replace(/_/g, " ")}</p>
+                    <p>{getProcessorLabel(selectedTransaction.processor)}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Gateway Status</p>

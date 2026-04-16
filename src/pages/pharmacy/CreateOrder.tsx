@@ -215,13 +215,26 @@ export default function PharmacyCreateOrder() {
       // Card and ACH both continue into the hosted secure checkout flow.
       // If total is 0, skip payment redirect and create the order directly.
       if ((paymentMethod === "card" || paymentMethod === "ach") && finalTotal > 0) {
+        const customerName =
+          orderData.customer?.name ||
+          orderData.shippingAddress?.fullName ||
+          orderData.billingAddress?.company_name ||
+          "Customer";
+        const customerEmail =
+          orderData.customer?.email ||
+          orderData.shippingAddress?.email ||
+          "";
+        const customerPhone =
+          orderData.customer?.phone ||
+          orderData.shippingAddress?.phone ||
+          "";
         const formDataa = {
           status: "new",
           customerInfo: {
-            name: orderData.customer?.name || "",
-            email: orderData.customer?.email || "",
-            phone: orderData.customer?.phone || "",
-            business_name: orderData.customer?.company_name || "",
+            name: customerName,
+            email: customerEmail,
+            phone: customerPhone,
+            business_name: orderData.customer?.company_name || "RX Pharmacy",
             address: {
               street: orderData.billingAddress?.street || "",
               city: orderData.billingAddress?.city || "",
@@ -253,11 +266,11 @@ export default function PharmacyCreateOrder() {
           amount: finalTotal,
           orderId: "draft-order",
           paymentMethod: paymentMethod === "ach" ? "ach" : "card",
-          customerName: orderData.customer?.name || "Customer",
-          customerEmail: orderData.customer?.email || "",
-          customerMobile: orderData.customer?.phone || "",
-          description: `Create order payment for ${orderData.customer?.name || "customer"}`,
-          merchantName: orderData.customer?.company_name || "Your Store",
+          customerName,
+          customerEmail,
+          customerMobile: customerPhone,
+          description: `Create order payment for ${customerEmail || customerName}`,
+          merchantName: "RX Pharmacy",
           returnUrl: `${window.location.origin}/payment/callback`,
           failureUrl: `${window.location.origin}/payment/callback`,
           cancelUrl: `${window.location.origin}/payment/cancel`,
@@ -288,14 +301,15 @@ export default function PharmacyCreateOrder() {
           discountAmount: orderData.totalDiscount || 0,
           discountDetails: orderData.appliedDiscounts || [],
           cartItems: orderData.cartItems || [],
-          customerName: orderData.customer?.name || "",
-          customerEmail: orderData.customer?.email || "",
-          customerPhone: orderData.customer?.phone || "",
-          merchantName: orderData.customer?.company_name || "Your Store",
+          customerName,
+          customerEmail,
+          customerPhone,
+          merchantName: "RX Pharmacy",
           timestamp: new Date().toISOString(),
         }));
 
-        window.location.href = paymentResult.paymentUrl;
+        sessionStorage.setItem("pending_payment_redirect_url", paymentResult.paymentUrl);
+        navigate("/payment/launch", { replace: true });
         return;
       }
 

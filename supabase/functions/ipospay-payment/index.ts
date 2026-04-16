@@ -33,7 +33,13 @@ interface QueryPaymentStatusRequest {
   transactionReferenceId: string;
 }
 
-type IPosPayRequest = GeneratePaymentUrlRequest | QueryPaymentStatusRequest;
+interface QueryBatchReportRequest {
+  action: "queryBatchReport";
+  batchDate?: string;
+  batchNo?: string;
+}
+
+type IPosPayRequest = GeneratePaymentUrlRequest | QueryPaymentStatusRequest | QueryBatchReportRequest;
 
 interface IPosPayCredentials {
   enabled: boolean;
@@ -147,6 +153,35 @@ function formatAmountForIPosPay(amount: number) {
   return Math.round(amount * 100).toString();
 }
 
+function sanitizeText(value: string | undefined, fallback = "", maxLength = 60) {
+  const normalized = String(value || "")
+    .normalize("NFKD")
+    .replace(/[^\x20-\x7E]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) {
+    return fallback;
+  }
+
+  return normalized.slice(0, maxLength);
+}
+
+function sanitizeEmail(value?: string) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (!normalized) return "";
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized) ? normalized.slice(0, 100) : "";
+}
+
+function sanitizePhone(value?: string) {
+  const digitsOnly = String(value || "").replace(/\D/g, "");
+  if (digitsOnly.length === 10) {
+    return `1${digitsOnly}`;
+  }
+  if (digitsOnly.length < 11) return "";
+  return digitsOnly.slice(0, 15);
+}
+
 function validateGeneratePaymentUrlRequest(body: Partial<GeneratePaymentUrlRequest>) {
   if (!body.orderId?.trim()) {
     return "Order ID is required";
@@ -175,6 +210,12 @@ async function handleGeneratePaymentUrl(body: GeneratePaymentUrlRequest, credent
 
   const { paymentBaseUrl } = getIPosPayBaseUrls(credentials.testMode);
   const transactionReferenceId = generateTransactionReferenceId();
+  const customerName = sanitizeText(body.customerName, "Customer", 50);
+  const customerEmail = sanitizeEmail(body.customerEmail);
+  const customerMobile = sanitizePhone(body.customerMobile);
+  const merchantName = sanitizeText(body.merchantName, "RX Pharmacy", 35);
+  const description = sanitizeText(body.description, `Order #${body.orderId}`, 150);
+  const hasReceiptDestination = Boolean(customerEmail || customerMobile);
 
   const payload = {
     merchantAuthentication: {
@@ -202,22 +243,21 @@ async function handleGeneratePaymentUrl(body: GeneratePaymentUrlRequest, credent
     preferences: {
       integrationType: 1,
       avsVerification: true,
-      eReceipt: Boolean(body.customerEmail || body.customerMobile),
-      eReceiptInputPrompt: !body.customerEmail && !body.customerMobile,
-      customerName: body.customerName || "",
-      customerEmail: body.customerEmail || "",
-      customerMobile: body.customerMobile || "",
+      eReceipt: hasReceiptDestination,
+      eReceiptInputPrompt: !hasReceiptDestination,
+      customerName,
+      customerEmail,
+      customerMobile,
       requestCardToken: true,
       shortenURL: false,
       sendPaymentLink: false,
       integrationVersion: "v2",
-      enableACH: true,
     },
     personalization: {
-      merchantName: body.merchantName || "9RX Pharmacy",
+      merchantName,
       logoUrl: body.logoUrl || "",
       themeColor: body.themeColor || "#2563EB",
-      description: body.description || `Order #${body.orderId}`,
+      description,
       payNowButtonText: body.paymentMethod === "ach" ? "Pay with Bank" : "Pay Now",
       buttonColor: body.themeColor || "#2563EB",
       cancelButtonText: "Cancel",
@@ -299,6 +339,67 @@ async function handleQueryPaymentStatus(body: QueryPaymentStatusRequest, credent
   });
 }
 
+function validateBatchDate(value?: string) {
+  if (!value) return true;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+async function handleQueryBatchReport(body: QueryBatchReportRequest, credentials: IPosPayCredentials) {
+  if (body.batchNo?.trim() && !body.batchDate?.trim()) {
+    return jsonResponse(200, {
+      success: false,
+      error: "Batch date is required when batch number is provided",
+      errorCode: "INVALID_REQUEST",
+    });
+  }
+
+  if (!validateBatchDate(body.batchDate)) {
+    return jsonResponse(200, {
+      success: false,
+      error: "Batch date must be in YYYY-MM-DD format",
+      errorCode: "INVALID_REQUEST",
+    });
+  }
+
+  const { paymentBaseUrl } = getIPosPayBaseUrls(credentials.testMode);
+  const payload: Record<string, string> = {
+    merchantId: credentials.tpn,
+  };
+
+  if (body.batchDate?.trim()) {
+    payload.batchDate = body.batchDate.trim();
+  }
+
+  if (body.batchNo?.trim()) {
+    payload.batchNo = body.batchNo.trim();
+  }
+
+  const response = await fetch(`${paymentBaseUrl}/batch-report`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      token: credentials.authToken,
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    return jsonResponse(200, {
+      success: false,
+      error: data?.message || data?.error || "Failed to fetch iPOSPay batch report",
+      errors: data?.errors,
+      errorCode: "BATCH_REPORT_HTTP_ERROR",
+    });
+  }
+
+  return jsonResponse(200, {
+    success: true,
+    data,
+  });
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -332,9 +433,13 @@ serve(async (req) => {
       return await handleQueryPaymentStatus(body, credentials);
     }
 
+    if (body.action === "queryBatchReport") {
+      return await handleQueryBatchReport(body, credentials);
+    }
+
     return jsonResponse(400, {
       success: false,
-      error: "Invalid action. Use 'generatePaymentUrl' or 'queryPaymentStatus'",
+      error: "Invalid action. Use 'generatePaymentUrl', 'queryPaymentStatus', or 'queryBatchReport'",
       errorCode: "INVALID_ACTION",
     });
   } catch (error) {
