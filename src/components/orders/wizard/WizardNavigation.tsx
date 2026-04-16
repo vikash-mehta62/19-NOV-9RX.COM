@@ -23,14 +23,13 @@ const WizardNavigationComponent = ({
   const userType = sessionStorage.getItem("userType")?.toLowerCase();
   const isAdmin = userType === "admin";
   
-  // For Admin, show "Place Order Without Payment" on Review step (step 4) as well
-  const isReviewStep = isAdmin && totalSteps === 5 && currentStep === 4;
-  const showPlaceOrderWithoutPayment = (isLastStep || isReviewStep) && isAdmin && onPlaceOrderWithoutPayment;
+  const showPlaceOrderWithoutPayment = isLastStep && isAdmin && onPlaceOrderWithoutPayment;
   
   // Determine button text based on payment method
   const getButtonText = () => {
     if (!isLastStep) return "Continue";
-    if (paymentMethod === "card") return "Place Order & Payment";
+    if (paymentMethod === "card" || paymentMethod === "ach") return "Continue to Secure Checkout";
+    if (paymentMethod === "credit") return "Place Order on Credit";
     return "Place Order";
   };
 

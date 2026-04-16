@@ -808,12 +808,16 @@ export const PaymentAdjustmentService = {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('credit_limit, credit_used')
+        .select('credit_limit, credit_used, credit_status')
         .eq('id', customerId)
         .single();
 
       if (error) throw error;
-      return (data?.credit_limit || 0) > 0;
+      const creditStatus = String(data?.credit_status || '').toLowerCase();
+      return (
+        (data?.credit_limit || 0) > 0 &&
+        !['suspended', 'blocked', 'inactive', 'disabled'].includes(creditStatus)
+      );
     } catch (error) {
       console.error('Error checking credit option:', error);
       return false;

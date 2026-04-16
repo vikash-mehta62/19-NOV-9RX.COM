@@ -27,6 +27,10 @@ export interface ReviewOrderStepProps {
   onEditCustomer: () => void;
   onEditAddress: () => void;
   onEditProducts: () => void;
+  hideSummaryCard?: boolean;
+  compact?: boolean;
+  hideCustomerAndAddress?: boolean;
+  hideOrderItems?: boolean;
 }
 
 export const ReviewOrderStep = ({
@@ -41,6 +45,10 @@ export const ReviewOrderStep = ({
   onEditCustomer,
   onEditAddress,
   onEditProducts,
+  hideSummaryCard = false,
+  compact = false,
+  hideCustomerAndAddress = false,
+  hideOrderItems = false,
 }: ReviewOrderStepProps) => {
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   
@@ -76,136 +84,138 @@ export const ReviewOrderStep = ({
   };
 
   return (
-    <div className="space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Review Order</h2>
-        <p className="text-xs sm:text-sm text-gray-500 mt-1">
-          Please review all order details before proceeding to payment
-        </p>
-      </div>
-
-      <Separator />
-
-      {/* Customer Information Card */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <User className="h-5 w-5 text-blue-600" />
-              <CardTitle>Customer Information</CardTitle>
-            </div>
-            <Button variant="ghost" size="sm" onClick={onEditCustomer}>
-              <Edit2 className="h-4 w-4 mr-2" />
-              Edit
-            </Button>
+    <div className={compact ? "space-y-4" : "space-y-4 sm:space-y-6"}>
+      {!compact && (
+        <>
+          <div>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Review Order</h2>
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              Please review all order details before proceeding to payment
+            </p>
           </div>
-        </CardHeader>
-        <CardContent>
-          {customer ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Name</p>
-                <p className="text-sm text-gray-900">{customer.name}</p>
-              </div>
-              {customer.company_name && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700">Company</p>
-                  <p className="text-sm text-gray-900">{customer.company_name}</p>
+          <Separator />
+        </>
+      )}
+
+      {!hideCustomerAndAddress && (
+        <>
+          <Card className={compact ? "shadow-sm" : ""}>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-5 w-5 text-blue-600" />
+                  <CardTitle>Customer Information</CardTitle>
                 </div>
+                <Button variant="ghost" size="sm" onClick={onEditCustomer}>
+                  <Edit2 className="h-4 w-4 mr-2" />
+                  Edit
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {customer ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Name</p>
+                    <p className="text-sm text-gray-900">{customer.name}</p>
+                  </div>
+                  {customer.company_name && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Company</p>
+                      <p className="text-sm text-gray-900">{customer.company_name}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Email</p>
+                    <p className="text-sm text-gray-900">{customer.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Phone</p>
+                    <p className="text-sm text-gray-900">{customer.phone || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Type</p>
+                    <Badge className={getTypeBadgeColor(customer.type)}>
+                      {customer.type}
+                    </Badge>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500">No customer selected</p>
               )}
-              <div>
-                <p className="text-sm font-medium text-gray-700">Email</p>
-                <p className="text-sm text-gray-900">{customer.email}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700">Phone</p>
-                <p className="text-sm text-gray-900">{customer.phone || "N/A"}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-gray-700">Type</p>
-                <Badge className={getTypeBadgeColor(customer.type)}>
-                  {customer.type}
-                </Badge>
-              </div>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">No customer selected</p>
-          )}
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
 
-      {/* Address Information Cards */}
-      <div className="grid grid-cols-1 2xl:grid-cols-2 gap-6">
-        {/* Billing Address Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                <CardTitle>Billing Address</CardTitle>
-              </div>
-              <Button variant="ghost" size="sm" onClick={onEditAddress}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {billingAddress?.street ? (
-              <div className="space-y-2 text-sm">
-                {billingAddress.company_name && (
-                  <p className="font-medium">{billingAddress.company_name}</p>
+          <div className={compact ? "grid grid-cols-1 gap-4 2xl:grid-cols-2" : "grid grid-cols-1 2xl:grid-cols-2 gap-6"}>
+            <Card className={compact ? "shadow-sm" : ""}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-blue-600" />
+                    <CardTitle>Billing Address</CardTitle>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={onEditAddress}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {billingAddress?.street ? (
+                  <div className="space-y-2 text-sm">
+                    {billingAddress.company_name && (
+                      <p className="font-medium">{billingAddress.company_name}</p>
+                    )}
+                    {billingAddress.attention && (
+                      <p className="text-gray-600">Attn: {billingAddress.attention}</p>
+                    )}
+                    <p>{billingAddress.street}</p>
+                    <p>
+                      {billingAddress.city}, {billingAddress.state} {billingAddress.zip_code}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No billing address provided</p>
                 )}
-                {billingAddress.attention && (
-                  <p className="text-gray-600">Attn: {billingAddress.attention}</p>
+              </CardContent>
+            </Card>
+
+            <Card className={compact ? "shadow-sm" : ""}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MapPin className="h-5 w-5 text-blue-600" />
+                    <CardTitle>Shipping Address</CardTitle>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={onEditAddress}>
+                    <Edit2 className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {shippingAddress?.street ? (
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">{shippingAddress.fullName}</p>
+                    <p className="text-gray-600">{shippingAddress.email}</p>
+                    <p className="text-gray-600">{shippingAddress.phone}</p>
+                    <p>{shippingAddress.street}</p>
+                    <p>
+                      {shippingAddress.city}, {shippingAddress.state}{" "}
+                      {shippingAddress.zip_code}
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No shipping address provided</p>
                 )}
-                <p>{billingAddress.street}</p>
-                <p>
-                  {billingAddress.city}, {billingAddress.state} {billingAddress.zip_code}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No billing address provided</p>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </>
+      )}
 
-        {/* Shipping Address Card */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-blue-600" />
-                <CardTitle>Shipping Address</CardTitle>
-              </div>
-              <Button variant="ghost" size="sm" onClick={onEditAddress}>
-                <Edit2 className="h-4 w-4 mr-2" />
-                Edit
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {shippingAddress?.street ? (
-              <div className="space-y-2 text-sm">
-                <p className="font-medium">{shippingAddress.fullName}</p>
-                <p className="text-gray-600">{shippingAddress.email}</p>
-                <p className="text-gray-600">{shippingAddress.phone}</p>
-                <p>{shippingAddress.street}</p>
-                <p>
-                  {shippingAddress.city}, {shippingAddress.state}{" "}
-                  {shippingAddress.zip_code}
-                </p>
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500">No shipping address provided</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Order Items Card */}
-      <Card>
+      {!hideOrderItems && (
+      <Card className={compact ? "shadow-sm" : ""}>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -402,38 +412,40 @@ export const ReviewOrderStep = ({
           )}
         </CardContent>
       </Card>
+      )}
 
-      {/* Order Summary Card (Read-only) */}
-      <Card className="border-2 border-blue-500">
-        <CardHeader>
-          <CardTitle>Order Summary</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Subtotal:</span>
-              <span className="font-medium text-gray-900">
-                ${subtotal.toFixed(2)}
-              </span>
+      {!hideSummaryCard && (
+        <Card className="border-2 border-blue-500">
+          <CardHeader>
+            <CardTitle>Order Summary</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Subtotal:</span>
+                <span className="font-medium text-gray-900">
+                  ${subtotal.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Tax:</span>
+                <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">Shipping:</span>
+                <span className="font-medium text-gray-900">
+                  ${shipping.toFixed(2)}
+                </span>
+              </div>
+              <Separator />
+              <div className="flex justify-between text-lg font-bold">
+                <span className="text-gray-900">Total:</span>
+                <span className="text-blue-600">${total.toFixed(2)}</span>
+              </div>
             </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Tax:</span>
-              <span className="font-medium text-gray-900">${tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-gray-600">Shipping:</span>
-              <span className="font-medium text-gray-900">
-                ${shipping.toFixed(2)}
-              </span>
-            </div>
-            <Separator />
-            <div className="flex justify-between text-lg font-bold">
-              <span className="text-gray-900">Total:</span>
-              <span className="text-blue-600">${total.toFixed(2)}</span>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

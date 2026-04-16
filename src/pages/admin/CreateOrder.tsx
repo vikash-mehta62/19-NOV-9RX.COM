@@ -5,9 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { useState, useEffect } from "react";
-import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 import axios from "../../../axiosconfig";
 import PaymentAdjustmentModal from "@/components/orders/PaymentAdjustmentModal";
 import PaymentAdjustmentService from "@/services/paymentAdjustmentService";
@@ -105,8 +105,6 @@ export default function CreateOrder() {
   const { orderId } = useParams();
   const { toast } = useToast();
   const { clearCart } = useCart();
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [existingOrderData, setExistingOrderData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   // Payment adjustment state
@@ -257,11 +255,14 @@ const profileID =
           // Get customer info for payment adjustment modal
           const { data: customerProfile } = await supabase
             .from("profiles")
-            .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email")
+            .select("credit_limit, credit_used, credit_memo_balance, company_name, first_name, last_name, email, credit_status")
             .eq("id", orderData.customerId)
             .single();
 
-          const hasCredit = (customerProfile?.credit_limit || 0) > 0;
+          const creditStatus = String(customerProfile?.credit_status || "").toLowerCase();
+          const hasCredit =
+            (customerProfile?.credit_limit || 0) > 0 &&
+            !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
           const availableCredit = Math.max(0, (customerProfile?.credit_limit || 0) - (customerProfile?.credit_used || 0));
           const creditMemoBalance = customerProfile?.credit_memo_balance || 0;
           const customerName = customerProfile?.company_name || 
@@ -415,14 +416,90 @@ const profileID =
       console.log("🔵 Admin Order - Total discount:", orderData.totalDiscount);
       console.log("🔵 Admin Order - Original total:", orderData.originalTotal);
       
-      // If payment method is "card", open payment modal instead of creating order directly
-      // BUT if total is 0, skip payment modal and create order directly
-      if (paymentMethod === "card" && finalTotal > 0) {
-        // Store order data and open payment modal
-        console.log("Opening payment modal with orderData:", orderData);
-        console.log("Customer ID being passed to payment modal:", orderData.customerId);
-        setPendingOrderData(orderData);
-        setIsPaymentModalOpen(true);
+      // For iPOSPay card / ACH payments, initialize hosted checkout directly.
+      // If total is 0, skip payment and create the order directly.
+      if ((paymentMethod === "card" || paymentMethod === "ach") && finalTotal > 0) {
+        const formDataa = {
+          status: "new",
+          customerInfo: {
+            name: orderData.customer?.name || "",
+            email: orderData.customer?.email || "",
+            phone: orderData.customer?.phone || "",
+            address: {
+              street: orderData.billingAddress?.street || "",
+              city: orderData.billingAddress?.city || "",
+              state: orderData.billingAddress?.state || "",
+              zip_code: orderData.billingAddress?.zip_code || "",
+            },
+          },
+          shippingAddress: {
+            fullName: orderData.shippingAddress?.fullName || "",
+            email: orderData.shippingAddress?.email || "",
+            phone: orderData.shippingAddress?.phone || "",
+            address: {
+              street: orderData.shippingAddress?.street || "",
+              city: orderData.shippingAddress?.city || "",
+              state: orderData.shippingAddress?.state || "",
+              zip_code: orderData.shippingAddress?.zip_code || "",
+            },
+          },
+          items: orderData.cartItems,
+          specialInstructions: orderData.specialInstructions || "",
+          shipping: {
+            method: "FedEx",
+          },
+          appliedDiscounts: orderData.appliedDiscounts || [],
+          totalDiscount: orderData.totalDiscount || 0,
+        };
+
+        const paymentResult = await processPaymentIPOSPay({
+          amount: finalTotal,
+          orderId: "draft-order",
+          paymentMethod: paymentMethod === "ach" ? "ach" : "card",
+          customerName: orderData.customer?.name || "Customer",
+          customerEmail: orderData.customer?.email || "",
+          customerMobile: orderData.customer?.phone || "",
+          description: `Create order payment for ${orderData.customer?.name || "customer"}`,
+          merchantName: orderData.customer?.company_name || "Your Store",
+          returnUrl: `${window.location.origin}/payment/callback`,
+          failureUrl: `${window.location.origin}/payment/callback`,
+          cancelUrl: `${window.location.origin}/payment/cancel`,
+          calculateFee: paymentMethod !== "ach",
+          calculateTax: false,
+          tipsInputPrompt: false,
+          themeColor: "#2563EB",
+        });
+
+        if (!paymentResult.success || !paymentResult.paymentUrl || !paymentResult.transactionReferenceId) {
+          throw new Error(paymentResult.error || "Failed to initialize secure checkout");
+        }
+
+        localStorage.setItem("pending_payment", JSON.stringify({
+          flowType: "create_order",
+          transactionReferenceId: paymentResult.transactionReferenceId,
+          amount: finalTotal,
+          baseAmount: finalTotal,
+          estimatedChargedAmount: finalTotal,
+          estimatedProcessingFee: 0,
+          paymentMethod: paymentMethod === "ach" ? "ach" : "card",
+          formDataa,
+          pId: orderData.customerId,
+          isCus: false,
+          orderSubtotal: orderData.subtotal || 0,
+          orderTax: orderData.tax || 0,
+          orderShipping: orderData.shipping || 0,
+          discountAmount: orderData.totalDiscount || 0,
+          discountDetails: orderData.appliedDiscounts || [],
+          cartItems: orderData.cartItems || [],
+          customerName: orderData.customer?.name || "",
+          customerEmail: orderData.customer?.email || "",
+          customerPhone: orderData.customer?.phone || "",
+          merchantName: orderData.customer?.company_name || "Your Store",
+          timestamp: new Date().toISOString(),
+        }));
+
+        sessionStorage.setItem("pending_payment_redirect_url", paymentResult.paymentUrl);
+        navigate("/payment/launch", { replace: true });
         return;
       }
 
@@ -430,7 +507,7 @@ const profileID =
       if (paymentMethod === "credit") {
         const { data: customerProfile, error: profileError } = await supabase
           .from("profiles")
-          .select("credit_used, credit_limit")
+          .select("credit_used, credit_limit, credit_status")
           .eq("id", orderData.customerId)
           .single();
 
@@ -441,7 +518,18 @@ const profileID =
 
         const creditUsed = customerProfile.credit_used || 0;
         const creditLimit = customerProfile.credit_limit || 0;
+        const creditStatus = String(customerProfile.credit_status || "").toLowerCase();
+        const creditEnabled = !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
         const availableCredit = creditLimit - creditUsed;
+
+        if (!creditEnabled || creditLimit <= 0) {
+          toast({
+            title: "Credit Account Unavailable",
+            description: "This customer's credit account is currently inactive.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         // Check if order total exceeds available credit
         if (orderData.total > availableCredit) {
@@ -841,22 +929,6 @@ const profileID =
     navigate("/admin/orders");
   };
 
-  const handlePaymentModalClose = (open: boolean) => {
-    setIsPaymentModalOpen(open);
-
-    // "Back to Cart" and close actions should return to the current create-order flow,
-    // not redirect to sales orders.
-    if (!open) {
-      setPendingOrderData(null);
-    }
-    
-          // Old flow (kept for quick rollback): closing checkout redirected to sales orders.
-            // setIsPaymentModalOpen(false);
-            // setPendingOrderData(null);
-            // Navigate to orders page after payment (CreateOrderPayment handles order creation)
-            // navigate("/admin/orders");
-  };
-
   if (isLoading) {
     return (
       <DashboardLayout>
@@ -1023,61 +1095,6 @@ const profileID =
         onComplete={handleComplete}
         onCancel={handleCancel}
       />
-      
-      {/* Payment Modal */}
-      {isPaymentModalOpen && pendingOrderData && (
-        <>
-          {console.log("Rendering payment modal with pId:", pendingOrderData.customerId)}
-          {console.log("Full pendingOrderData:", pendingOrderData)}
-          <CreateOrderPaymentForm
-            modalIsOpen={isPaymentModalOpen}
-            setModalIsOpen={handlePaymentModalClose}
-            formDataa={{
-              status: "new",
-              customerInfo: {
-                name: pendingOrderData.customer?.name || "",
-                email: pendingOrderData.customer?.email || "",
-                phone: pendingOrderData.customer?.phone || "",
-                address: {
-                  street: pendingOrderData.billingAddress?.street || "",
-                  city: pendingOrderData.billingAddress?.city || "",
-                  state: pendingOrderData.billingAddress?.state || "",
-                  zip_code: pendingOrderData.billingAddress?.zip_code || "",
-                },
-              },
-              shippingAddress: {
-                fullName: pendingOrderData.shippingAddress?.fullName || "",
-                email: pendingOrderData.shippingAddress?.email || "",
-                phone: pendingOrderData.shippingAddress?.phone || "",
-                address: {
-                  street: pendingOrderData.shippingAddress?.street || "",
-                  city: pendingOrderData.shippingAddress?.city || "",
-                  state: pendingOrderData.shippingAddress?.state || "",
-                  zip_code: pendingOrderData.shippingAddress?.zip_code || "",
-                },
-              },
-              items: pendingOrderData.cartItems,
-              specialInstructions: pendingOrderData.specialInstructions || "",
-              shipping: {
-                method: "FedEx",
-              },
-              // Pass discount information
-              appliedDiscounts: pendingOrderData.appliedDiscounts || [],
-              totalDiscount: pendingOrderData.totalDiscount || 0,
-            }}
-            form={null}
-            pId={pendingOrderData.customerId}
-            setIsCus={() => {}}
-            isCus={false}
-            orderTotal={pendingOrderData.total}
-            orderSubtotal={pendingOrderData.subtotal}
-            orderTax={pendingOrderData.tax}
-            orderShipping={pendingOrderData.shipping}
-            discountAmount={pendingOrderData.totalDiscount || 0}
-            discountDetails={pendingOrderData.appliedDiscounts || []}
-          />
-        </>
-      )}
 
       {/* Payment Adjustment Modal for Edit Mode */}
       {isPaymentAdjustmentOpen && paymentAdjustmentData && (

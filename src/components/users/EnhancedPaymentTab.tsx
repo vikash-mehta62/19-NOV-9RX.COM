@@ -61,6 +61,10 @@ interface EnhancedPaymentTabProps {
   readOnly?: boolean;
 }
 
+const DISABLED_CREDIT_STATUSES = ["suspended", "blocked", "inactive", "disabled"];
+const getDisplayCreditStatus = (status?: string | null) =>
+  DISABLED_CREDIT_STATUSES.includes(String(status || "").toLowerCase()) ? "inactive" : "active";
+
 interface Transaction {
   id: string;
   transaction_date: string;
@@ -98,6 +102,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   const [lateFeePercentage, setLateFeePercentage] = useState("2");
   const [autoStatement, setAutoStatement] = useState(true);
   const [statementFrequency, setStatementFrequency] = useState("monthly");
+  const [creditAccountEnabled, setCreditAccountEnabled] = useState(true);
 
   useEffect(() => {
     if (userId) {
@@ -158,11 +163,15 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       }
 
       let settings = profileData as CreditSettings;
+      const profileCreditStatus = String(profileData?.credit_status || "").toLowerCase();
 
       if (creditLineData) {
         // Use profile's credit_used as the source of truth (live data)
         // Recalculate available credit based on new limit and existing usage
         const currentUsed = settings.credit_used || 0;
+        const effectiveCreditStatus = DISABLED_CREDIT_STATUSES.includes(profileCreditStatus)
+          ? profileCreditStatus
+          : creditLineData.status;
         
         settings = {
           ...settings,
@@ -175,7 +184,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           payment_terms: `net_${creditLineData.net_terms}`, 
           credit_days: creditLineData.net_terms,
           late_payment_fee_percentage: creditLineData.interest_rate,
-          credit_status: creditLineData.status
+          credit_status: effectiveCreditStatus
         };
       }
 
@@ -191,6 +200,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
         );
         setAutoStatement(settings.auto_statement ?? true);
         setStatementFrequency(settings.statement_frequency || "monthly");
+        setCreditAccountEnabled(!DISABLED_CREDIT_STATUSES.includes((settings.credit_status || "").toLowerCase()));
       }
     } catch (error) {
       console.error("Error loading credit settings:", error);
@@ -216,6 +226,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           late_payment_fee_percentage: parseFloat(lateFeePercentage),
           auto_statement: autoStatement,
           statement_frequency: statementFrequency,
+          credit_status: creditAccountEnabled ? "good" : "suspended",
         })
         .eq("id", userId);
 
@@ -228,9 +239,10 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
           credit_limit: parseFloat(creditLimit),
           net_terms: parseInt(creditDays),
           interest_rate: parseFloat(lateFeePercentage),
+          status: creditAccountEnabled ? "active" : "suspended",
         })
         .eq("user_id", userId)
-        .eq("status", "active");
+        .in("status", ["active", "suspended"]);
 
       if (lineError) throw lineError;
 
@@ -425,15 +437,10 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   };
 
   const getCreditStatusColor = (status: string) => {
-    switch (status) {
-      case "good":
+    switch (getDisplayCreditStatus(status)) {
       case "active":
         return "text-green-600 bg-green-50 border-green-200";
-      case "warning":
-        return "text-yellow-600 bg-yellow-50 border-yellow-200";
-      case "suspended":
-        return "text-orange-600 bg-orange-50 border-orange-200";
-      case "blocked":
+      case "inactive":
         return "text-red-600 bg-red-50 border-red-200";
       default:
         return "text-gray-600 bg-gray-50 border-gray-200";
@@ -441,19 +448,24 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
   };
 
   const getCreditStatusIcon = (status: string) => {
-    switch (status) {
-      case "good":
+    switch (getDisplayCreditStatus(status)) {
       case "active":
         return <CheckCircle className="w-5 h-5" />;
-      case "warning":
-        return <AlertCircle className="w-5 h-5" />;
-      case "suspended":
-      case "blocked":
+      case "inactive":
         return <AlertCircle className="w-5 h-5" />;
       default:
         return <Clock className="w-5 h-5" />;
     }
   };
+
+  const isCheckoutCreditAvailable =
+    !!creditSettings &&
+    (creditSettings.credit_limit || 0) > 0 &&
+    !DISABLED_CREDIT_STATUSES.includes(String(creditSettings.credit_status || "").toLowerCase());
+
+  const checkoutAvailabilityLabel = isCheckoutCreditAvailable
+    ? "Visible at checkout"
+    : "Hidden at checkout";
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -703,13 +715,29 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                 Credit Account
               </CardTitle>
               <div className={cn("flex items-center gap-2", isCompact && "w-full justify-between")}>
+                {(() => {
+                  const displayCreditStatus = getDisplayCreditStatus(creditSettings.credit_status);
+                  return (
                 <Badge
-                  className={cn(getCreditStatusColor(creditSettings.credit_status), isCompact ? "text-xs px-2 py-1" : "")}
+                  className={cn(getCreditStatusColor(displayCreditStatus), isCompact ? "text-xs px-2 py-1" : "")}
                 >
-                  {getCreditStatusIcon(creditSettings.credit_status)}
+                  {getCreditStatusIcon(displayCreditStatus)}
                   <span className="ml-1 capitalize">
-                    {creditSettings.credit_status}
+                    {displayCreditStatus}
                   </span>
+                </Badge>
+                  );
+                })()}
+                <Badge
+                  variant="outline"
+                  className={cn(
+                    isCheckoutCreditAvailable
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                      : "border-slate-200 bg-slate-50 text-slate-700",
+                    isCompact ? "text-xs px-2 py-1" : ""
+                  )}
+                >
+                  {checkoutAvailabilityLabel}
                 </Badge>
                 {!readOnly && (
                   <Dialog
@@ -736,6 +764,20 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                             placeholder="0.00"
                             className={cn(isCompact && "h-9 text-sm")}
                           />
+                        </div>
+                        <div className="rounded-lg border p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="space-y-1">
+                              <Label className={cn(isCompact && "text-sm")}>Credit account active</Label>
+                              <p className="text-xs text-muted-foreground">
+                                When disabled, the pharmacy will not see or use the credit account option at checkout.
+                              </p>
+                            </div>
+                            <Switch
+                              checked={creditAccountEnabled}
+                              onCheckedChange={setCreditAccountEnabled}
+                            />
+                          </div>
                         </div>
                         <div className={cn("grid gap-3", isCompact ? "grid-cols-1" : "grid-cols-2 gap-4")}>
                           <div>
@@ -824,6 +866,47 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             </div>
           </CardHeader>
           <CardContent className={cn(isCompact && "pt-0")}>
+            <div
+              className={cn(
+                "mb-4 rounded-lg border px-4 py-3",
+                isCheckoutCreditAvailable
+                  ? "border-emerald-200 bg-emerald-50"
+                  : "border-amber-200 bg-amber-50"
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p
+                    className={cn(
+                      "font-medium",
+                      isCheckoutCreditAvailable ? "text-emerald-900" : "text-amber-900"
+                    )}
+                  >
+                    Credit account checkout status
+                  </p>
+                  <p
+                    className={cn(
+                      "text-sm",
+                      isCheckoutCreditAvailable ? "text-emerald-700" : "text-amber-700"
+                    )}
+                  >
+                    {isCheckoutCreditAvailable
+                      ? "Pharmacy can use Credit Account during checkout."
+                      : "Pharmacy cannot use Credit Account during checkout until it is reactivated."}
+                  </p>
+                </div>
+                <Badge
+                  className={cn(
+                    isCheckoutCreditAvailable
+                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-100"
+                      : "bg-amber-100 text-amber-800 hover:bg-amber-100"
+                  )}
+                >
+                  {checkoutAvailabilityLabel}
+                </Badge>
+              </div>
+            </div>
+
             {/* Credit amounts - Stack on mobile, grid on tablet+ */}
             <div className={cn("gap-4 mb-4", 
               isMobile ? "space-y-4" : 

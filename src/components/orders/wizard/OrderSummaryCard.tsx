@@ -75,7 +75,7 @@ const OrderSummaryCardComponent = ({
     return `${SUPABASE_URL}/storage/v1/object/public/product-images/${image}`;
   };
 
-  const [isItemsExpanded, setIsItemsExpanded] = useState(false);
+  const [isItemsExpanded, setIsItemsExpanded] = useState(true);
   const [appliedDiscounts, setAppliedDiscounts] = useState<AppliedDiscount[]>([]);
   const [totalDiscount, setTotalDiscount] = useState(0);
   
@@ -166,7 +166,7 @@ const OrderSummaryCardComponent = ({
     <Card
       className={cn(
         "bg-white shadow-lg border border-gray-200 rounded-xl overflow-hidden",
-        "lg:sticky lg:top-8 lg:h-fit",
+        isPharmacyMode ? "h-fit" : "lg:sticky lg:top-8 lg:h-fit",
         "w-full max-w-full",
         className
       )}

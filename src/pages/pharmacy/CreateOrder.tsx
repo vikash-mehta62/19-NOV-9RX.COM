@@ -6,10 +6,10 @@ import { supabase } from "@/supabaseClient";
 import { generateOrderId } from "@/components/orders/utils/orderUtils";
 import { calculateFinalTotal } from "@/utils/orderCalculations";
 import { useState, useEffect } from "react";
-import CreateOrderPaymentForm from "@/components/CreateOrderPayment";
 import { OrderActivityService } from "@/services/orderActivityService";
 import { awardOrderPoints } from "@/services/rewardsService";
 import { PaymentAdjustmentService } from "@/services/paymentAdjustmentService";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 import { useCart } from "@/hooks/use-cart";
 import axios from "../../../axiosconfig";
 import { useDispatch } from "react-redux";
@@ -97,8 +97,6 @@ export default function PharmacyCreateOrder() {
   const { toast } = useToast();
   const dispatch = useDispatch();
   const { clearCart } = useCart();
-  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [pendingOrderData, setPendingOrderData] = useState<any>(null);
   const [prefilledData, setPrefilledData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -143,6 +141,7 @@ export default function PharmacyCreateOrder() {
               company_name: profile.company_name || "",
               tax_percentage: profile.taxPercantage || 0,
               freeShipping: profile.freeShipping || false,
+              credit_status: profile.credit_status || null,
             },
             customerId: profile.id,
             billingAddress: {
@@ -213,12 +212,90 @@ export default function PharmacyCreateOrder() {
       // Check payment method
       const paymentMethod = orderData.paymentMethod;
       
-      // If payment method is "card", open payment modal instead of creating order directly
-      // BUT if total is 0, skip payment modal and create order directly
-      if (paymentMethod === "card" && finalTotal > 0) {
-        // Store order data and open payment modal
-        setPendingOrderData(orderData);
-        setIsPaymentModalOpen(true);
+      // Card and ACH both continue into the hosted secure checkout flow.
+      // If total is 0, skip payment redirect and create the order directly.
+      if ((paymentMethod === "card" || paymentMethod === "ach") && finalTotal > 0) {
+        const formDataa = {
+          status: "new",
+          customerInfo: {
+            name: orderData.customer?.name || "",
+            email: orderData.customer?.email || "",
+            phone: orderData.customer?.phone || "",
+            business_name: orderData.customer?.company_name || "",
+            address: {
+              street: orderData.billingAddress?.street || "",
+              city: orderData.billingAddress?.city || "",
+              state: orderData.billingAddress?.state || "",
+              zip_code: orderData.billingAddress?.zip_code || "",
+            },
+          },
+          shippingAddress: {
+            fullName: orderData.shippingAddress?.fullName || "",
+            email: orderData.shippingAddress?.email || "",
+            phone: orderData.shippingAddress?.phone || "",
+            address: {
+              street: orderData.shippingAddress?.street || "",
+              city: orderData.shippingAddress?.city || "",
+              state: orderData.shippingAddress?.state || "",
+              zip_code: orderData.shippingAddress?.zip_code || "",
+            },
+          },
+          items: orderData.cartItems,
+          specialInstructions: orderData.specialInstructions || "",
+          shipping: {
+            method: "FedEx",
+          },
+          appliedDiscounts: orderData.appliedDiscounts || [],
+          totalDiscount: orderData.totalDiscount || 0,
+        };
+
+        const paymentResult = await processPaymentIPOSPay({
+          amount: finalTotal,
+          orderId: "draft-order",
+          paymentMethod: paymentMethod === "ach" ? "ach" : "card",
+          customerName: orderData.customer?.name || "Customer",
+          customerEmail: orderData.customer?.email || "",
+          customerMobile: orderData.customer?.phone || "",
+          description: `Create order payment for ${orderData.customer?.name || "customer"}`,
+          merchantName: orderData.customer?.company_name || "Your Store",
+          returnUrl: `${window.location.origin}/payment/callback`,
+          failureUrl: `${window.location.origin}/payment/callback`,
+          cancelUrl: `${window.location.origin}/payment/cancel`,
+          calculateFee: paymentMethod !== "ach",
+          calculateTax: false,
+          tipsInputPrompt: false,
+          themeColor: "#2563EB",
+        });
+
+        if (!paymentResult.success || !paymentResult.paymentUrl || !paymentResult.transactionReferenceId) {
+          throw new Error(paymentResult.error || "Failed to initialize secure checkout");
+        }
+
+        localStorage.setItem("pending_payment", JSON.stringify({
+          flowType: "create_order",
+          transactionReferenceId: paymentResult.transactionReferenceId,
+          amount: finalTotal,
+          baseAmount: finalTotal,
+          estimatedChargedAmount: finalTotal,
+          estimatedProcessingFee: 0,
+          paymentMethod: paymentMethod === "ach" ? "ach" : "card",
+          formDataa,
+          pId: orderData.customerId,
+          isCus: false,
+          orderSubtotal: orderData.subtotal || 0,
+          orderTax: orderData.tax || 0,
+          orderShipping: orderData.shipping || 0,
+          discountAmount: orderData.totalDiscount || 0,
+          discountDetails: orderData.appliedDiscounts || [],
+          cartItems: orderData.cartItems || [],
+          customerName: orderData.customer?.name || "",
+          customerEmail: orderData.customer?.email || "",
+          customerPhone: orderData.customer?.phone || "",
+          merchantName: orderData.customer?.company_name || "Your Store",
+          timestamp: new Date().toISOString(),
+        }));
+
+        window.location.href = paymentResult.paymentUrl;
         return;
       }
 
@@ -226,7 +303,7 @@ export default function PharmacyCreateOrder() {
       if (paymentMethod === "credit") {
         const { data: customerProfile, error: profileError } = await supabase
           .from("profiles")
-          .select("credit_used, credit_limit")
+          .select("credit_used, credit_limit, credit_status")
           .eq("id", session.user.id)
           .single();
 
@@ -237,7 +314,18 @@ export default function PharmacyCreateOrder() {
 
         const creditUsed = customerProfile.credit_used || 0;
         const creditLimit = customerProfile.credit_limit || 0;
+        const creditStatus = String(customerProfile.credit_status || "").toLowerCase();
+        const creditEnabled = !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
         const availableCredit = creditLimit - creditUsed;
+
+        if (!creditEnabled || creditLimit <= 0) {
+          toast({
+            title: "Credit Account Unavailable",
+            description: "Your credit account is currently inactive. Please use iPOSPay instead.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         // Check if order total exceeds available credit
         if (finalTotal > availableCredit) {
@@ -740,20 +828,6 @@ export default function PharmacyCreateOrder() {
     navigate("/pharmacy/orders");
   };
 
-  const handlePaymentModalClose = (open: boolean) => {
-    setIsPaymentModalOpen(open);
-
-    // "Back to Cart" and close actions should return to the current create-order flow.
-    if (!open) {
-      setPendingOrderData(null);
-    }
-    
-    // Old flow (kept for quick rollback):
-      // setIsPaymentModalOpen(false);
-      // setPendingOrderData(null);
-      // navigate("/pharmacy/orders");
-  };
-
   if (isLoading) {
     return (
       <DashboardLayout role="pharmacy">
@@ -786,57 +860,6 @@ export default function PharmacyCreateOrder() {
         onComplete={handleComplete}
         onCancel={handleCancel}
       />
-      
-      {/* Payment Modal */}
-      {isPaymentModalOpen && pendingOrderData && (
-        <CreateOrderPaymentForm
-          modalIsOpen={isPaymentModalOpen}
-          setModalIsOpen={handlePaymentModalClose}
-          formDataa={{
-            status: "new",
-            customerInfo: {
-              name: pendingOrderData.customer?.name || "",
-              email: pendingOrderData.customer?.email || "",
-              phone: pendingOrderData.customer?.phone || "",
-              address: {
-                street: pendingOrderData.billingAddress?.street || "",
-                city: pendingOrderData.billingAddress?.city || "",
-                state: pendingOrderData.billingAddress?.state || "",
-                zip_code: pendingOrderData.billingAddress?.zip_code || "",
-              },
-            },
-            shippingAddress: {
-              fullName: pendingOrderData.shippingAddress?.fullName || "",
-              email: pendingOrderData.shippingAddress?.email || "",
-              phone: pendingOrderData.shippingAddress?.phone || "",
-              address: {
-                street: pendingOrderData.shippingAddress?.street || "",
-                city: pendingOrderData.shippingAddress?.city || "",
-                state: pendingOrderData.shippingAddress?.state || "",
-                zip_code: pendingOrderData.shippingAddress?.zip_code || "",
-              },
-            },
-            items: pendingOrderData.cartItems,
-            specialInstructions: pendingOrderData.specialInstructions || "",
-            shipping: {
-              method: "FedEx",
-            },
-            // Pass discount information
-            appliedDiscounts: pendingOrderData.appliedDiscounts || [],
-            totalDiscount: pendingOrderData.totalDiscount || 0,
-          }}
-          form={null}
-          pId={pendingOrderData.customerId}
-          setIsCus={() => {}}
-          isCus={false}
-          orderTotal={Math.max(0, (pendingOrderData.total || 0) - (pendingOrderData.totalDiscount || 0))}
-          orderSubtotal={pendingOrderData.subtotal}
-          orderTax={pendingOrderData.tax}
-          orderShipping={pendingOrderData.shipping}
-          discountAmount={pendingOrderData.totalDiscount || 0}
-          discountDetails={pendingOrderData.appliedDiscounts || []}
-        />
-      )}
     </DashboardLayout>
   );
 }

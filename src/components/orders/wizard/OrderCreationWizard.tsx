@@ -13,7 +13,12 @@ import { ReviewOrderStep } from "./steps/ReviewOrderStep";
 import { PaymentConfirmationStep } from "./steps/PaymentConfirmationStep";
 import { ShippingOverrideSection } from "./ShippingOverrideSection";
 import type { BillingAddress, ShippingAddress, PaymentMethod } from "./types";
-import { validateStep, ValidationError } from "./validation";
+import {
+  validatePaymentConfirmation,
+  validateReviewOrder,
+  validateStep,
+  ValidationError,
+} from "./validation";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
@@ -26,7 +31,6 @@ import {
   User,
   MapPin,
   Package,
-  FileCheck,
   CreditCard,
 } from "lucide-react";
 import "./wizard-animations.css";
@@ -48,6 +52,12 @@ interface AppliedDiscount {
   discountValue?: number;
   applicableTo?: string;
 }
+
+const hasActiveCreditAccount = (creditLimit: unknown, creditStatus?: string | null) =>
+  Number(creditLimit || 0) > 0 &&
+  !["suspended", "blocked", "inactive", "disabled"].includes(
+    String(creditStatus || "").toLowerCase()
+  );
 
 const findScrollContainer = (element: HTMLElement | null): HTMLElement | Window => {
   if (!element) return window;
@@ -79,7 +89,7 @@ const OrderCreationWizardComponent = ({
   onCancel,
 }: OrderCreationWizardProps) => {
   // Determine total steps based on user type
-  const totalSteps = isPharmacyMode || userType === "group" ? 3 : 5;
+  const totalSteps = isPharmacyMode || userType === "group" ? 1 : 4;
   const wizardState = useWizardState(totalSteps);
   const navigate = useNavigate();
   const [formData, setFormData] = useState(initialData || {});
@@ -88,6 +98,7 @@ const OrderCreationWizardComponent = ({
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
     initialData?.customer || null
   );
+  const [hasCreditAccount, setHasCreditAccount] = useState(false);
   const [billingAddress, setBillingAddress] = useState<BillingAddress | undefined>(
     initialData?.billingAddress
   );
@@ -228,6 +239,7 @@ const OrderCreationWizardComponent = ({
               },
               freeShipping: profile.freeShipping || false,
               tax_percentage: profile.tax_percentage || 0,
+              credit_status: profile.credit_status || null,
             };
             
             setSelectedCustomer(groupCustomer);
@@ -247,13 +259,14 @@ const OrderCreationWizardComponent = ({
               zip_code: groupCustomer.billing_address?.zip_code || "",
             });
             setCustomerHasFreeShipping(groupCustomer.freeShipping || false);
+            setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
             
             // Fetch profile shipping settings for group customer
             if (profile.id) {
               try {
                 const { data: profileData, error: profileError } = await supabase
                   .from("profiles")
-                  .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+                  .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
                   .eq("id", profile.id)
                   .maybeSingle();
 
@@ -267,13 +280,16 @@ const OrderCreationWizardComponent = ({
                     auto_shipping_threshold: profileData.auto_shipping_threshold,
                     auto_shipping_amount: profileData.auto_shipping_amount,
                   });
+                  setHasCreditAccount(hasActiveCreditAccount(profileData.credit_limit || profile.credit_limit, profileData.credit_status || profile.credit_status));
                 } else {
                   console.log("❌ No profile shipping settings found for group customer:", profile.id);
                   setProfileShippingSettings(null);
+                  setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
                 }
               } catch (err) {
                 console.error("Error fetching profile shipping settings for group customer:", err);
                 setProfileShippingSettings(null);
+                setHasCreditAccount(hasActiveCreditAccount(profile.credit_limit, profile.credit_status));
               }
             }
             
@@ -306,13 +322,19 @@ const OrderCreationWizardComponent = ({
       // Set customer
       if (initialData.customer) {
         setSelectedCustomer(initialData.customer);
+        setHasCreditAccount(
+          hasActiveCreditAccount(
+            (initialData.customer as any)?.credit_limit,
+            (initialData.customer as any)?.credit_status
+          )
+        );
         
         // Fetch profile shipping settings for pre-loaded customer
         if (initialData.customer.id) {
           try {
             const { data: profileData, error: profileError } = await supabase
               .from("profiles")
-              .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+              .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
               .eq("id", initialData.customer.id)
               .maybeSingle();
 
@@ -326,13 +348,31 @@ const OrderCreationWizardComponent = ({
                 auto_shipping_threshold: profileData.auto_shipping_threshold,
                 auto_shipping_amount: profileData.auto_shipping_amount,
               });
+              setHasCreditAccount(
+                hasActiveCreditAccount(
+                  profileData.credit_limit || (initialData.customer as any)?.credit_limit,
+                  profileData.credit_status || (initialData.customer as any)?.credit_status
+                )
+              );
             } else {
               console.log("❌ No profile shipping settings found for pre-loaded customer:", initialData.customer.id);
               setProfileShippingSettings(null);
+              setHasCreditAccount(
+                hasActiveCreditAccount(
+                  (initialData.customer as any)?.credit_limit,
+                  (initialData.customer as any)?.credit_status
+                )
+              );
             }
           } catch (err) {
             console.error("Error fetching profile shipping settings for pre-loaded customer:", err);
             setProfileShippingSettings(null);
+            setHasCreditAccount(
+              hasActiveCreditAccount(
+                (initialData.customer as any)?.credit_limit,
+                (initialData.customer as any)?.credit_status
+              )
+            );
           }
         }
         
@@ -577,30 +617,18 @@ const OrderCreationWizardComponent = ({
   // For group mode: Similar to pharmacy mode but with group-specific labels
   const steps: WizardStep[] = useMemo(() => {
     if (isPharmacyMode || userType === "group") {
-      // Pharmacy/Group mode: 3 visible steps - Customer+Address (combined), Review, Payment
+      // Pharmacy/Group mode: 1 visible step - a single combined create/review/pay screen
       return [
         {
           number: 1,
-          label: userType === "group" ? "Pharmacy Info" : "Info & Address",
-          icon: User,
-          description: userType === "group" ? "Selected pharmacy details" : "Your details",
-        },
-        {
-          number: 2,
-          label: "Review",
-          icon: FileCheck,
-          description: "Verify order",
-        },
-        {
-          number: 3,
-          label: "Payment",
+          label: userType === "group" ? "Pharmacy Checkout" : "Create Order",
           icon: CreditCard,
-          description: "Complete",
+          description: "Review and checkout",
         },
       ];
     }
     
-    // Admin mode: All 5 steps
+    // Admin mode: 4 steps with review and payment merged into one final step
     return [
       {
         number: 1,
@@ -622,13 +650,7 @@ const OrderCreationWizardComponent = ({
       },
       {
         number: 4,
-        label: "Review",
-        icon: FileCheck,
-        description: "Verify order",
-      },
-      {
-        number: 5,
-        label: "Payment",
+        label: "Review & Payment",
         icon: CreditCard,
         description: "Complete order",
       },
@@ -636,7 +658,7 @@ const OrderCreationWizardComponent = ({
   }, [isPharmacyMode, userType]);
 
   // Step validation with comprehensive error handling
-  const validateCurrentStep = async (): Promise<boolean> => {
+  const validateCurrentStep = useCallback(async (): Promise<boolean> => {
     // Clear previous validation errors
     setValidationErrors([]);
 
@@ -650,7 +672,27 @@ const OrderCreationWizardComponent = ({
       accuracyConfirmed,
     };
 
-    const result = await validateStep(wizardState.currentStep, validationData);
+    const result =
+      userType === "admin" && totalSteps === 4 && wizardState.currentStep === 4
+        ? (() => {
+            const reviewValidation = validateReviewOrder(
+              validationData.customer,
+              validationData.billingAddress,
+              validationData.shippingAddress,
+              validationData.cartItems || []
+            );
+            const paymentValidation = validatePaymentConfirmation(
+              validationData.paymentMethod,
+              validationData.termsAccepted || false,
+              validationData.accuracyConfirmed || false
+            );
+
+            return {
+              isValid: reviewValidation.isValid && paymentValidation.isValid,
+              errors: [...reviewValidation.errors, ...paymentValidation.errors],
+            };
+          })()
+        : await validateStep(wizardState.currentStep, validationData);
 
     if (!result.isValid) {
       setValidationErrors(result.errors);
@@ -671,7 +713,20 @@ const OrderCreationWizardComponent = ({
     }
 
     return result.isValid;
-  };
+  }, [
+    selectedCustomer,
+    billingAddress,
+    shippingAddress,
+    cartItems,
+    paymentMethod,
+    termsAccepted,
+    accuracyConfirmed,
+    totalSteps,
+    userType,
+    wizardState,
+    toast,
+    smartScrollToWizard,
+  ]);
 
   // Handle customer selection - memoized to prevent recreation
   const handleCustomerSelect = useCallback(async (customer: Customer) => {
@@ -679,6 +734,9 @@ const OrderCreationWizardComponent = ({
     console.log("Customer ID:", customer.id);
     
     setSelectedCustomer(customer);
+    setHasCreditAccount(
+      hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
+    );
     
     // Fetch locations for this customer from locations table
     try {
@@ -716,7 +774,7 @@ const OrderCreationWizardComponent = ({
     try {
       const { data: profileData, error: profileError } = await supabase
         .from("profiles")
-        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount")
+        .select("free_shipping_enabled, free_shipping_threshold, custom_shipping_rate, auto_shipping_enabled, auto_shipping_threshold, auto_shipping_amount, credit_limit, credit_status")
         .eq("id", customer.id)
         .maybeSingle();
 
@@ -730,13 +788,25 @@ const OrderCreationWizardComponent = ({
           auto_shipping_threshold: profileData.auto_shipping_threshold,
           auto_shipping_amount: profileData.auto_shipping_amount,
         });
+        setHasCreditAccount(
+          hasActiveCreditAccount(
+            profileData.credit_limit || (customer as any)?.credit_limit,
+            profileData.credit_status || (customer as any)?.credit_status
+          )
+        );
       } else {
         console.log("❌ No profile shipping settings found for customer:", customer.id);
         setProfileShippingSettings(null);
+        setHasCreditAccount(
+          hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
+        );
       }
     } catch (err) {
       console.error("Error fetching profile shipping settings:", err);
       setProfileShippingSettings(null);
+      setHasCreditAccount(
+        hasActiveCreditAccount((customer as any)?.credit_limit, (customer as any)?.credit_status)
+      );
     }
     
     // Autofill billing address from customer data if available
@@ -953,12 +1023,12 @@ const OrderCreationWizardComponent = ({
         setIsSubmitting(false);
       }
     } else {
-      // Pharmacy mode has 3 steps, Admin mode has 5 steps
+      // Pharmacy mode has 1 step, Admin mode has 4 steps
       // Just move to next step normally
       wizardState.goToNextStep();
       scrollAfterStepChange();
     }
-  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete, isPharmacyMode, scrollAfterStepChange]);
+  }, [validateCurrentStep, wizardState, totalSteps, formData, selectedCustomer, billingAddress, shippingAddress, cartItems, paymentMethod, specialInstructions, poNumber, termsAccepted, accuracyConfirmed, subtotal, tax, shipping, total, totalDiscount, appliedDiscounts, toast, onComplete, scrollAfterStepChange]);
 
   const handleBack = useCallback(() => {
     // Clear validation errors when going back
@@ -967,7 +1037,7 @@ const OrderCreationWizardComponent = ({
     // Just go to previous step - both modes work the same now
     wizardState.goToPreviousStep();
     scrollAfterStepChange();
-  }, [wizardState, isPharmacyMode, scrollAfterStepChange]);
+  }, [wizardState, scrollAfterStepChange]);
 
   const handleCancel = useCallback(() => {
     const hasData = 
@@ -993,7 +1063,7 @@ const OrderCreationWizardComponent = ({
     if (isPharmacyMode) {
       switch (wizardState.currentStep) {
         case 1:
-          // Combined Customer + Address step - both addresses must be filled
+          // Single pharmacy page: addresses, items, payment choice, and confirmations
           return !!(
             billingAddress?.street &&
             billingAddress?.city &&
@@ -1005,14 +1075,12 @@ const OrderCreationWizardComponent = ({
             shippingAddress?.zip_code &&
             shippingAddress?.fullName &&
             shippingAddress?.email &&
-            shippingAddress?.phone
+            shippingAddress?.phone &&
+            cartItems.length > 0 &&
+            paymentMethod &&
+            termsAccepted &&
+            accuracyConfirmed
           );
-        case 2:
-          // Review step - cart must have items
-          return cartItems.length > 0;
-        case 3:
-          // Payment step
-          return !!(paymentMethod && termsAccepted && accuracyConfirmed);
         default:
           return false;
       }
@@ -1042,16 +1110,16 @@ const OrderCreationWizardComponent = ({
         // At least one product must be in cart
         return cartItems.length > 0;
       case 4:
-        // Review step - all previous data should be present
+        // Final step - review data plus payment/confirmation
         return !!(
           selectedCustomer &&
           billingAddress?.street &&
           shippingAddress?.street &&
-          cartItems.length > 0
+          cartItems.length > 0 &&
+          paymentMethod &&
+          termsAccepted &&
+          accuracyConfirmed
         );
-      case 5:
-        // Payment step - payment method and confirmations required
-        return !!(paymentMethod && termsAccepted && accuracyConfirmed);
       default:
         return false;
     }
@@ -1082,26 +1150,24 @@ const OrderCreationWizardComponent = ({
       // wizardState.goToStep(3); // For admin, go to products step
       navigate("/admin/products");
     }
-  }, [wizardState, isPharmacyMode, navigate]);
+  }, [isPharmacyMode, navigate]);
 
   // Handle edit navigation from review step
   const handleEditCustomer = useCallback(() => {
     if (isPharmacyMode) {
-      // In pharmacy mode, go to step 1 (combined customer+address)
-      wizardState.goToStep(1);
+      smartScrollToWizard(true);
     } else {
       wizardState.goToStep(1);
     }
-  }, [wizardState, isPharmacyMode]);
+  }, [wizardState, isPharmacyMode, smartScrollToWizard]);
 
   const handleEditAddress = useCallback(() => {
     if (isPharmacyMode) {
-      // In pharmacy mode, go to step 1 (combined customer+address)
-      wizardState.goToStep(1);
+      smartScrollToWizard(true);
     } else {
       wizardState.goToStep(2);
     }
-  }, [wizardState, isPharmacyMode]);
+  }, [wizardState, isPharmacyMode, smartScrollToWizard]);
 
   const handleEditProducts = useCallback(() => {
     if (isPharmacyMode || userType === "group") {
@@ -1187,68 +1253,71 @@ const OrderCreationWizardComponent = ({
           }
         : undefined);
 
-    // Pharmacy mode or Group mode has different step mapping (3 steps instead of 5)
+    // Pharmacy mode or Group mode has different step mapping (1 step instead of 5)
     if (isPharmacyMode || userType === "group") {
       switch (wizardState.currentStep) {
         case 1:
-          // Combined Customer + Address step for pharmacy/group
+          // Single combined checkout page for pharmacy/group
           return (
-            <CustomerAndAddressStep
-              customer={selectedCustomer}
-              billingAddress={billingAddress}
-              shippingAddress={shippingAddress}
-              onBillingAddressChange={handleBillingAddressChange}
-              onShippingAddressChange={handleShippingAddressChange}
-              isGroupMode={userType === "group"}
-              selectedPharmacyName={userType === "group" ? 
-                JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}")?.name : undefined
-              }
-              savedLocations={customerLocations}
-              profileBillingAddress={profileBillingAddressFallback}
-              profileShippingAddress={profileShippingAddressFallback}
-            />
-          );
-        case 2:
-          // Review step
-          return (
-            <ReviewOrderStep
-              customer={selectedCustomer || undefined}
-              billingAddress={billingAddress}
-              shippingAddress={shippingAddress}
-              cartItems={cartItems}
-              subtotal={subtotal}
-              tax={tax}
-              shipping={shipping}
-              total={total}
-              onEditCustomer={handleEditCustomer}
-              onEditAddress={handleEditAddress}
-              onEditProducts={handleEditProducts}
-            />
-          );
-        case 3:
-          // Payment step
-          return (
-            <PaymentConfirmationStep
-              cartItems={cartItems}
-              subtotal={subtotal}
-              tax={tax}
-              shipping={shipping}
-              total={total}
-              totalDiscount={totalDiscount}
-              appliedDiscounts={appliedDiscounts}
-              onPaymentMethodChange={handlePaymentMethodChange}
-              onSpecialInstructionsChange={handleSpecialInstructionsChange}
-              onPONumberChange={handlePONumberChange}
-              onTermsAcceptedChange={setTermsAccepted}
-              onAccuracyConfirmedChange={setAccuracyConfirmed}
-              initialPaymentMethod={paymentMethod}
-              initialSpecialInstructions={specialInstructions}
-              initialPONumber={poNumber}
-              initialTermsAccepted={termsAccepted}
-              initialAccuracyConfirmed={accuracyConfirmed}
-              isEditMode={isEditMode}
-              isAdmin={false}
-            />
+            <div className="space-y-8">
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-sm font-semibold">1</div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Customer and delivery details</h3>
+                    <p className="text-sm text-slate-500">Keep this section short and editable.</p>
+                  </div>
+                </div>
+                <CustomerAndAddressStep
+                  customer={selectedCustomer}
+                  billingAddress={billingAddress}
+                  shippingAddress={shippingAddress}
+                  onBillingAddressChange={handleBillingAddressChange}
+                  onShippingAddressChange={handleShippingAddressChange}
+                  isGroupMode={userType === "group"}
+                  selectedPharmacyName={userType === "group" ?
+                    JSON.parse(sessionStorage.getItem("selectedPharmacyData") || "{}")?.name : undefined
+                  }
+                  savedLocations={customerLocations}
+                  profileBillingAddress={profileBillingAddressFallback}
+                  profileShippingAddress={profileShippingAddressFallback}
+                  compact={true}
+                />
+              </section>
+
+              <section className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-violet-100 text-violet-700 flex items-center justify-center text-sm font-semibold">2</div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Payment and confirmation</h3>
+                    <p className="text-sm text-slate-500">Choose the payment route and continue once.</p>
+                  </div>
+                </div>
+              <PaymentConfirmationStep
+                cartItems={cartItems}
+                subtotal={subtotal}
+                tax={tax}
+                shipping={shipping}
+                total={total}
+                totalDiscount={totalDiscount}
+                appliedDiscounts={appliedDiscounts}
+                onPaymentMethodChange={handlePaymentMethodChange}
+                onSpecialInstructionsChange={handleSpecialInstructionsChange}
+                onPONumberChange={handlePONumberChange}
+                onTermsAcceptedChange={setTermsAccepted}
+                onAccuracyConfirmedChange={setAccuracyConfirmed}
+                initialPaymentMethod={paymentMethod}
+                initialSpecialInstructions={specialInstructions}
+                initialPONumber={poNumber}
+                initialTermsAccepted={termsAccepted}
+                initialAccuracyConfirmed={accuracyConfirmed}
+                isEditMode={isEditMode}
+                isAdmin={false}
+                compact={true}
+                showCreditAccount={hasCreditAccount}
+              />
+              </section>
+            </div>
           );
         default:
           console.error(`Invalid step ${wizardState.currentStep} for pharmacy mode`);
@@ -1298,43 +1367,44 @@ const OrderCreationWizardComponent = ({
         return <ProductSelectionStep onCartUpdate={onCartUpdate} />;
       case 4:
         return (
-          <ReviewOrderStep
-            customer={selectedCustomer || undefined}
-            billingAddress={billingAddress}
-            shippingAddress={shippingAddress}
-            cartItems={cartItems}
-            subtotal={subtotal}
-            tax={tax}
-            shipping={shipping}
-            total={total}
-            onEditCustomer={handleEditCustomer}
-            onEditAddress={handleEditAddress}
-            onEditProducts={handleEditProducts}
-          />
-        );
-      case 5:
-        return (
-          <PaymentConfirmationStep
-            cartItems={cartItems}
-            subtotal={subtotal}
-            tax={tax}
-            shipping={shipping}
-            total={total}
-            totalDiscount={totalDiscount}
-            appliedDiscounts={appliedDiscounts}
-            onPaymentMethodChange={handlePaymentMethodChange}
-            onSpecialInstructionsChange={handleSpecialInstructionsChange}
-            onPONumberChange={handlePONumberChange}
-            onTermsAcceptedChange={setTermsAccepted}
-            onAccuracyConfirmedChange={setAccuracyConfirmed}
-            initialPaymentMethod={paymentMethod}
-            initialSpecialInstructions={specialInstructions}
-            initialPONumber={poNumber}
-            initialTermsAccepted={termsAccepted}
-            initialAccuracyConfirmed={accuracyConfirmed}
-            isEditMode={isEditMode}
-            isAdmin={true}
-          />
+          <div className="space-y-6">
+            <ReviewOrderStep
+              customer={selectedCustomer || undefined}
+              billingAddress={billingAddress}
+              shippingAddress={shippingAddress}
+              cartItems={cartItems}
+              subtotal={subtotal}
+              tax={tax}
+              shipping={shipping}
+              total={total}
+              onEditCustomer={handleEditCustomer}
+              onEditAddress={handleEditAddress}
+              onEditProducts={handleEditProducts}
+              hideSummaryCard={true}
+            />
+            <PaymentConfirmationStep
+              cartItems={cartItems}
+              subtotal={subtotal}
+              tax={tax}
+              shipping={shipping}
+              total={total}
+              totalDiscount={totalDiscount}
+              appliedDiscounts={appliedDiscounts}
+              onPaymentMethodChange={handlePaymentMethodChange}
+              onSpecialInstructionsChange={handleSpecialInstructionsChange}
+              onPONumberChange={handlePONumberChange}
+              onTermsAcceptedChange={setTermsAccepted}
+              onAccuracyConfirmedChange={setAccuracyConfirmed}
+              initialPaymentMethod={paymentMethod}
+              initialSpecialInstructions={specialInstructions}
+              initialPONumber={poNumber}
+              initialTermsAccepted={termsAccepted}
+              initialAccuracyConfirmed={accuracyConfirmed}
+              isEditMode={isEditMode}
+              isAdmin={true}
+              showCreditAccount={hasCreditAccount}
+            />
+          </div>
         );
       default:
         console.error(`Invalid step ${wizardState.currentStep} for admin mode`);
@@ -1371,9 +1441,21 @@ const OrderCreationWizardComponent = ({
     <div className="min-h-screen bg-gray-50 w-full max-w-full overflow-x-hidden" role="main" aria-label="Order Creation Wizard">
       <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Main Content Area with Order Summary */}
-        <div className="grid grid-cols-1 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 sm:gap-6">
+        <div
+          className={
+            isPharmacyMode || userType === "group"
+              ? "grid grid-cols-1 gap-4 sm:gap-6 2xl:grid-cols-[minmax(0,2fr)_minmax(360px,1fr)] 2xl:items-start"
+              : "grid grid-cols-1 2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-4 sm:gap-6"
+          }
+        >
           {/* Main Content - Takes 2 columns on 2xl screens */}
-          <div className="min-w-0">
+          <div
+            className={
+              isPharmacyMode || userType === "group"
+                ? "min-w-0 2xl:pr-2"
+                : "min-w-0"
+            }
+          >
             {/* Validation Errors Alert */}
             {validationErrors.length > 0 && (
               <Alert 
@@ -1426,42 +1508,54 @@ const OrderCreationWizardComponent = ({
 
           {/* Order Summary - Sidebar on 2xl screens, top on smaller screens */}
           <aside 
-            className="min-w-0 order-first 2xl:order-last space-y-4"
+            className={
+              isPharmacyMode || userType === "group"
+                ? "min-w-0 order-first 2xl:order-last"
+                : "min-w-0 order-first 2xl:order-last space-y-4"
+            }
             aria-label="Order summary"
             role="complementary"
           >
-            <OrderSummaryCard
-              items={cartItems}
-              subtotal={subtotal}
-              tax={tax}
-              shipping={shipping}
-              total={total}
-              onEditItems={handleEditItems}
-              customerId={selectedCustomer?.id || initialData?.customerId}
-              hasFreeShipping={customerHasFreeShipping}
-              disableRewards={userType === "group"}
-              onDiscountChange={handleDiscountChange}
-              paymentMethod={paymentMethod}
-              cardProcessingFeePercentage={2.9}
-              currentStep={wizardState.currentStep}
-              totalSteps={totalSteps}
-              isPharmacyMode={isPharmacyMode || userType === "group"}
-            />
-            
-            {/* Shipping Override Section - Show on review step for admin/pharmacy */}
-            {(wizardState.currentStep === 4 || (isPharmacyMode && wizardState.currentStep === 2)) && 
-             userType !== "group" && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <ShippingOverrideSection
-                  subtotal={subtotal}
-                  currentShipping={shipping}
-                  autoChargeEnabled={shippingSettings.auto_shipping_charge_enabled}
-                  autoChargeThreshold={shippingSettings.auto_shipping_charge_threshold}
-                  autoChargeAmount={shippingSettings.auto_shipping_charge_amount}
-                  onShippingChange={handleShippingOverride}
-                />
-              </div>
-            )}
+            <div
+              className={
+                isPharmacyMode || userType === "group"
+                  ? "space-y-4 2xl:sticky 2xl:top-6"
+                  : "space-y-4"
+              }
+            >
+              <OrderSummaryCard
+                items={cartItems}
+                subtotal={subtotal}
+                tax={tax}
+                shipping={shipping}
+                total={total}
+                onEditItems={handleEditItems}
+                customerId={selectedCustomer?.id || initialData?.customerId}
+                hasFreeShipping={customerHasFreeShipping}
+                disableRewards={userType === "group"}
+                onDiscountChange={handleDiscountChange}
+                paymentMethod={paymentMethod}
+                cardProcessingFeePercentage={2.9}
+                currentStep={wizardState.currentStep}
+                totalSteps={totalSteps}
+                isPharmacyMode={isPharmacyMode || userType === "group"}
+              />
+              
+              {/* Shipping Override Section - Show on review step for admin/pharmacy */}
+              {(wizardState.currentStep === 4 || (isPharmacyMode && wizardState.currentStep === 2)) && 
+               userType !== "group" && (
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <ShippingOverrideSection
+                    subtotal={subtotal}
+                    currentShipping={shipping}
+                    autoChargeEnabled={shippingSettings.auto_shipping_charge_enabled}
+                    autoChargeThreshold={shippingSettings.auto_shipping_charge_threshold}
+                    autoChargeAmount={shippingSettings.auto_shipping_charge_amount}
+                    onShippingChange={handleShippingOverride}
+                  />
+                </div>
+              )}
+            </div>
           </aside>
         </div>
       </div>

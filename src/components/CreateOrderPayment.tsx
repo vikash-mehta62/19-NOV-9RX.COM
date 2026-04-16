@@ -81,6 +81,7 @@ import { getACHProcessor, getPaymentExperienceSettings, type PaymentExperienceSe
 interface CreateOrderPaymentFormProps {
   modalIsOpen: boolean;
   setModalIsOpen: (open: boolean) => void;
+  initialPaymentMethod?: "card" | "ach";
   form?: any;
   formDataa: any;
   pId?: string;
@@ -97,6 +98,7 @@ interface CreateOrderPaymentFormProps {
 const CreateOrderPaymentForm = ({
   modalIsOpen,
   setModalIsOpen,
+  initialPaymentMethod = "card",
   form,
   formDataa,
   pId,
@@ -109,9 +111,7 @@ const CreateOrderPaymentForm = ({
   discountAmount = 0,
   discountDetails = [],
 }: CreateOrderPaymentFormProps) => {
-  // Review-first flow: keep card checkout fixed for iPOSPay hosted page.
-  // ACH/Card selector intentionally disabled for now.
-  const [paymentType] = useState("credit_card");
+  const paymentType = initialPaymentMethod === "ach" ? "ach" : "credit_card";
   const { toast } = useToast();
   const { cartItems, clearCart } = useCart();
   const userProfile = useSelector(selectUserProfile);
@@ -163,6 +163,17 @@ const CreateOrderPaymentForm = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const paymentFormRef = useRef<HTMLFormElement>(null);
   const feeConfirmBypassRef = useRef(false);
+
+  useEffect(() => {
+    if (!modalIsOpen) return;
+
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousBodyOverflow;
+    };
+  }, [modalIsOpen]);
 
   const totalShippingCost =
     sessionStorage.getItem("shipping") == "true"
@@ -294,6 +305,17 @@ const CreateOrderPaymentForm = ({
   const cardFeeApplies = false;
   const cardProcessingFeeAmount = 0;
   const processorChargeAmount = Number(basePaymentAmount.toFixed(2));
+  const cardFeeDisclosureEnabled =
+    paymentType === "credit_card" &&
+    feeSettings.cardProcessingFeeEnabled &&
+    feeSettings.cardProcessingFeePassToCustomer &&
+    feeSettings.cardProcessingFeePercentage > 0;
+  const checkoutTitle = paymentType === "credit_card" ? "Secure Card Checkout" : "Secure ACH Checkout";
+  const checkoutMethodLabel = paymentType === "credit_card" ? "Card via iPOSPay" : "ACH via iPOSPay";
+  const checkoutButtonLabel = paymentType === "credit_card" ? "Continue to iPOSPay Card Checkout" : "Continue to iPOSPay ACH Checkout";
+  const payerFieldName = paymentType === "credit_card" ? "cardholderName" : "nameOnAccount";
+  const payerFieldValue = paymentType === "credit_card" ? formData.cardholderName : formData.nameOnAccount;
+  const payerFieldError = paymentType === "credit_card" ? errors.cardholderName : errors.nameOnAccount;
 
   const formatCardNumber = (value: string) => {
     const v = value.replace(/\s+/g, "").replace(/[^0-9]/gi, "");
@@ -1146,7 +1168,7 @@ const CreateOrderPaymentForm = ({
   if (!modalIsOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-gradient-to-br from-slate-50 to-slate-100 overflow-auto">
+    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
       <div className="sticky top-0 z-10 bg-white border-b shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -1180,28 +1202,51 @@ const CreateOrderPaymentForm = ({
       </div>
 
       {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Payment Form - Left Side */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Payment method selection disabled by request. Show review-first pending amount. */}
             <Card className="shadow-lg border-0">
               <CardHeader className="bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-t-lg">
                 <CardTitle className="flex items-center gap-3 text-xl">
-                  <Receipt className="w-6 h-6" />
-                  Order Review
+                  {paymentType === "credit_card" ? <CreditCard className="w-6 h-6" /> : <Landmark className="w-6 h-6" />}
+                  Secure iPOSPay Checkout
                 </CardTitle>
                 <CardDescription className="text-blue-100">
-                  Pending payment summary before secure checkout
+                  Review billing details once, then finish payment on the hosted iPOSPay page.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className="space-y-4 p-6">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge className="bg-white/20 text-white hover:bg-white/20">{checkoutMethodLabel}</Badge>
+                  {paymentType === "ach" ? (
+                    <Badge className="bg-emerald-100 text-emerald-900 hover:bg-emerald-100">ACH fee-free</Badge>
+                  ) : cardFeeDisclosureEnabled ? (
+                    <Badge className="bg-amber-100 text-amber-900 hover:bg-amber-100">
+                      Card fee may apply
+                    </Badge>
+                  ) : null}
+                </div>
                 <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
-                  <p className="text-sm text-blue-900">Pending amount to pay</p>
-                  <p className="text-2xl font-bold text-blue-700 mt-1">${basePaymentAmount.toFixed(2)}</p>
-                  <p className="text-xs text-blue-800 mt-2">
-                    Click pay button to continue on secure iPOSPay page.
+                  <p className="text-sm text-blue-900">Amount due today</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-700">${basePaymentAmount.toFixed(2)}</p>
+                  <p className="mt-2 text-xs text-blue-800">
+                    You are not entering card or bank details here. Those are entered only on secure iPOSPay.
                   </p>
+                </div>
+                <div
+                  className={`rounded-xl border p-4 text-sm ${
+                    paymentType === "credit_card"
+                      ? "border-amber-200 bg-amber-50 text-amber-900"
+                      : "border-emerald-200 bg-emerald-50 text-emerald-900"
+                  }`}
+                >
+                  {paymentType === "credit_card"
+                    ? cardFeeDisclosureEnabled
+                      ? `Card payments may include a ${feeSettings.cardProcessingFeePercentage}% processing fee, shown by iPOSPay before final confirmation.`
+                      : "Card payments are completed on secure iPOSPay. Any applicable fee is shown before final confirmation."
+                    : "ACH is free for the customer. Bank account details are collected on secure iPOSPay after you continue."}
                 </div>
               </CardContent>
             </Card>
@@ -1210,31 +1255,29 @@ const CreateOrderPaymentForm = ({
             <form id="payment-form" ref={paymentFormRef} onSubmit={handleHostedSubmit}>
               <Card className="shadow-lg border-0">
                 <CardHeader>
-                  <CardTitle className="text-lg">
-                    {paymentType === "credit_card" ? "Secure Card Checkout" : "Secure Bank Checkout"}
-                  </CardTitle>
+                  <CardTitle className="text-lg">{checkoutTitle}</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className={`rounded-xl border p-4 text-sm ${paymentType === "credit_card" ? "border-blue-200 bg-blue-50 text-blue-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                     Enter the payer name and billing address here. Payment details will be collected on the secure iPOSPay page.
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="cardholderName" className="text-sm font-medium">
-                      Name on Payer Account
+                    <Label htmlFor={payerFieldName} className="text-sm font-medium">
+                      {paymentType === "credit_card" ? "Name on Card" : "Name on Bank Account"}
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                       <Input
-                        id="cardholderName"
-                        name="cardholderName"
+                        id={payerFieldName}
+                        name={payerFieldName}
                         placeholder="John Doe"
-                        value={formData.cardholderName}
+                        value={payerFieldValue}
                         onChange={handleChange}
-                        className={`pl-11 h-12 ${errors.cardholderName ? "border-red-500" : ""}`}
+                        className={`pl-11 h-12 ${payerFieldError ? "border-red-500" : ""}`}
                       />
                     </div>
-                    {errors.cardholderName && (
-                      <p className="text-sm text-red-500">{errors.cardholderName}</p>
+                    {payerFieldError && (
+                      <p className="text-sm text-red-500">{payerFieldError}</p>
                     )}
                   </div>
                 </CardContent>
@@ -1362,7 +1405,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay Pending Amount
+                      {checkoutButtonLabel}
                     </>
                   )}
                 </Button>
@@ -1507,7 +1550,7 @@ const CreateOrderPaymentForm = ({
                   ) : (
                     <>
                       <Lock className="w-5 h-5 mr-2" />
-                      Pay Pending Amount
+                      {checkoutButtonLabel}
                     </>
                   )}
                 </Button>
@@ -1541,8 +1584,9 @@ const CreateOrderPaymentForm = ({
               </div>
             </div>
           </div>
+          </div>
         </div>
-    </div>
+      </div>
 
       <AlertDialog open={showCardFeeConfirm} onOpenChange={setShowCardFeeConfirm}>
         <AlertDialogContent>

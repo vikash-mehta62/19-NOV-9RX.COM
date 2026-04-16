@@ -110,6 +110,7 @@ export interface CustomerAndAddressStepProps {
     phone?: string;
     attention?: string;
   };
+  compact?: boolean;
 }
 
 export const CustomerAndAddressStep = ({
@@ -123,6 +124,7 @@ export const CustomerAndAddressStep = ({
   savedLocations = [],
   profileBillingAddress,
   profileShippingAddress,
+  compact = false,
 }: CustomerAndAddressStepProps) => {
   const [isEditingBilling, setIsEditingBilling] = useState(!billingAddress?.street);
   const [isEditingShipping, setIsEditingShipping] = useState(!shippingAddress?.street);
@@ -278,7 +280,17 @@ export const CustomerAndAddressStep = ({
       onShippingAddressChange(updatedShipping);
       setIsEditingShipping(false);
     }
-  }, [sameAsBilling, billingForm]);
+  }, [
+    sameAsBilling,
+    billingForm,
+    shippingForm.fullName,
+    shippingForm.email,
+    shippingForm.phone,
+    customer?.name,
+    customer?.email,
+    customer?.phone,
+    onShippingAddressChange,
+  ]);
 
   useEffect(() => {
     if (
@@ -434,32 +446,32 @@ export const CustomerAndAddressStep = ({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4">
-        <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-          <User className="w-5 h-5 text-blue-600" />
-          {isGroupMode ? "Pharmacy & Address Information" : "Customer & Address Information"}
-        </h2>
-        <p className="text-sm text-gray-600 mt-1">
-          {isGroupMode 
-            ? "Review selected pharmacy information and confirm addresses for this order"
-            : "Review your information and confirm addresses for this order"
-          }
-        </p>
-        {isGroupMode && selectedPharmacyName && (
-          <div className="mt-2 flex items-center gap-2">
-            <Badge className="bg-blue-100 text-blue-700 border-blue-300">
-              <MapPin className="w-3 h-3 mr-1" />
-              {selectedPharmacyName}
-            </Badge>
-          </div>
-        )}
-      </div>
+    <div className={compact ? "space-y-4" : "space-y-6"}>
+      {!compact && (
+        <div className="rounded-xl border border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 p-4">
+          <h2 className="flex items-center gap-2 text-lg font-semibold text-gray-900">
+            <User className="w-5 h-5 text-blue-600" />
+            {isGroupMode ? "Pharmacy & Address Information" : "Customer & Address Information"}
+          </h2>
+          <p className="mt-1 text-sm text-gray-600">
+            {isGroupMode
+              ? "Review selected pharmacy information and confirm addresses for this order"
+              : "Review your information and confirm addresses for this order"}
+          </p>
+          {isGroupMode && selectedPharmacyName && (
+            <div className="mt-2 flex items-center gap-2">
+              <Badge className="border-blue-300 bg-blue-100 text-blue-700">
+                <MapPin className="mr-1 w-3 h-3" />
+                {selectedPharmacyName}
+              </Badge>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Customer Info Card - Read-only */}
-      <Card className="border-blue-200 bg-blue-50/30">
-        <CardHeader className="pb-3">
+      <Card className={compact ? "border-slate-200 shadow-sm" : "border-blue-200 bg-blue-50/30"}>
+        <CardHeader className={compact ? "pb-2 pt-3" : "pb-3"}>
           <div className="flex items-center justify-between">
             <CardTitle className="text-base flex items-center gap-2">
               <User className="w-4 h-4 text-blue-600" />
@@ -471,8 +483,8 @@ export const CustomerAndAddressStep = ({
             </Badge>
           </div>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+        <CardContent className={compact ? "pt-0" : undefined}>
+          <div className={compact ? "grid grid-cols-2 gap-3 sm:grid-cols-4" : "grid grid-cols-2 sm:grid-cols-4 gap-6"}>
             <div>
               <p className="text-xs text-gray-500 mb-0.5">Name</p>
               <p className="text-sm font-medium text-gray-900">{customer?.name || "-"}</p>
@@ -493,29 +505,29 @@ export const CustomerAndAddressStep = ({
         </CardContent>
       </Card>
 
-      <Separator />
+      {!compact && <Separator />}
 
       {/* Address Cards */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+      <div className={compact ? "grid grid-cols-1 gap-3 xl:grid-cols-2" : "grid grid-cols-1 xl:grid-cols-2 gap-4"}>
         {/* Billing Address */}
-        <Card className={`transition-all duration-300 ${isEditingBilling ? "border-blue-500 shadow-lg" : ""}`}>
-          <CardHeader className="pb-2">
+        <Card className={`transition-all duration-300 ${compact && !isEditingBilling ? "shadow-sm" : ""} ${isEditingBilling ? "border-blue-500 shadow-lg" : ""}`}>
+          <CardHeader className={compact ? "pb-2 pt-3" : "pb-2"}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
                 Billing Address
               </CardTitle>
               {!isEditingBilling && billingForm.street && (
-                <Button variant="ghost" size="sm" onClick={() => setIsEditingBilling(true)} className="h-8">
+                <Button variant="ghost" size="sm" onClick={() => setIsEditingBilling(true)} className="h-7 px-2 text-xs">
                   <Edit2 className="w-3 h-3 mr-1" /> Edit
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className={compact ? "pt-0" : undefined}>
             {/* Saved Locations Dropdown */}
             {(validLocations.length > 0 || hasProfileBilling) && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className={`${compact ? "mb-3 p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
                 <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Select Saved Location
@@ -610,11 +622,17 @@ export const CustomerAndAddressStep = ({
                 </Button>
               </div>
             ) : billingForm.street ? (
-              <div className="text-sm space-y-1">
-                {billingForm.company_name && <p className="font-medium">{billingForm.company_name}</p>}
-                {billingForm.attention && <p className="text-gray-600">Attn: {billingForm.attention}</p>}
-                <p>{billingForm.street}</p>
-                <p>{billingForm.city}, {billingForm.state} {billingForm.zip_code}</p>
+              <div className={compact ? "space-y-1.5 text-sm leading-6" : "text-sm space-y-1"}>
+                {(billingForm.company_name || billingForm.attention) && (
+                  <div className="space-y-0.5">
+                    {billingForm.company_name && <p className="font-medium text-slate-900">{billingForm.company_name}</p>}
+                    {billingForm.attention && <p className="text-slate-500">Attn: {billingForm.attention}</p>}
+                  </div>
+                )}
+                <div className="text-slate-700">
+                  <p>{billingForm.street}</p>
+                  <p>{billingForm.city}, {billingForm.state} {billingForm.zip_code}</p>
+                </div>
               </div>
             ) : (
               <Alert><AlertCircle className="h-4 w-4" /><AlertDescription>Please enter billing address</AlertDescription></Alert>
@@ -623,24 +641,24 @@ export const CustomerAndAddressStep = ({
         </Card>
 
         {/* Shipping Address */}
-        <Card className={`transition-all duration-300 ${isEditingShipping ? "border-blue-500 shadow-lg" : ""}`}>
-          <CardHeader className="pb-2">
+        <Card className={`transition-all duration-300 ${compact && !isEditingShipping ? "shadow-sm" : ""} ${isEditingShipping ? "border-blue-500 shadow-lg" : ""}`}>
+          <CardHeader className={compact ? "pb-2 pt-3" : "pb-2"}>
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-600" />
                 Shipping Address
               </CardTitle>
               {!isEditingShipping && shippingForm.street && (
-                <Button variant="ghost" size="sm" onClick={() => { setSameAsBilling(false); setIsEditingShipping(true); }} className="h-8">
+                <Button variant="ghost" size="sm" onClick={() => { setSameAsBilling(false); setIsEditingShipping(true); }} className="h-7 px-2 text-xs">
                   <Edit2 className="w-3 h-3 mr-1" /> Edit
                 </Button>
               )}
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className={compact ? "pt-0" : undefined}>
             {/* Saved Locations Dropdown */}
             {(validLocations.length > 0 || hasProfileShipping) && (
-              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className={`${compact ? "mb-3 p-2.5" : "mb-4 p-3"} bg-blue-50 border border-blue-200 rounded-lg`}>
                 <Label className="text-xs text-blue-700 font-medium flex items-center gap-1.5 mb-2">
                   <Building2 className="h-3.5 w-3.5" />
                   Select Saved Location
@@ -675,11 +693,11 @@ export const CustomerAndAddressStep = ({
                 </Select>
               </div>
             )}
-            <div className="space-y-4">
+            <div className={compact ? "space-y-3" : "space-y-4"}>
               {/* Same as Billing Checkbox */}
               <div className="flex items-center space-x-2">
                 <Checkbox id="same-billing" checked={sameAsBilling} onCheckedChange={(c) => { setSameAsBilling(c as boolean); setSelectedShippingLocation(""); if (!c) setIsEditingShipping(true); }} disabled={!billingForm.street} />
-                <Label htmlFor="same-billing" className="text-sm">Same as billing address</Label>
+                <Label htmlFor="same-billing" className={compact ? "text-sm font-medium" : "text-sm"}>Same as billing address</Label>
               </div>
 
               {isEditingShipping && !sameAsBilling ? (

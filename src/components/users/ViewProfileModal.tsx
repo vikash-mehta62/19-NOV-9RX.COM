@@ -508,7 +508,19 @@ export function ViewProfileModal({
 
       if (error) throw error;
 
-      toast({ title: "Success", description: `Credit status changed to ${newStatus}` });
+      const mappedLineStatus =
+        newStatus === "good" || newStatus === "active" ? "active" : "suspended";
+
+      const { error: lineError } = await supabase
+        .from("user_credit_lines")
+        .update({ status: mappedLineStatus })
+        .eq("user_id", userId)
+        .in("status", ["active", "suspended"]);
+
+      if (lineError) throw lineError;
+
+      const displayStatus = newStatus === "good" || newStatus === "active" ? "Active" : "Inactive";
+      toast({ title: "Success", description: `Credit status changed to ${displayStatus}` });
       fetchAllData();
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -1650,20 +1662,12 @@ export function ViewProfileModal({
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
                     <DropdownMenuItem onClick={() => handleChangeCreditStatus("good")}>
-                      <Badge className="bg-green-500 mr-2">Good</Badge>
-                      Set to Good
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("warning")}>
-                      <Badge className="bg-yellow-500 mr-2">Warning</Badge>
-                      Set to Warning
+                      <Badge className="bg-green-500 mr-2">Active</Badge>
+                      Set to Active
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => handleChangeCreditStatus("suspended")}>
-                      <Badge className="bg-orange-500 mr-2">Suspended</Badge>
-                      Set to Suspended
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => handleChangeCreditStatus("blocked")}>
-                      <Badge className="bg-red-500 mr-2">Blocked</Badge>
-                      Set to Blocked
+                      <Badge className="bg-red-500 mr-2">Inactive</Badge>
+                      Set to Inactive
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

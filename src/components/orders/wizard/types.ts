@@ -73,6 +73,7 @@ export interface Customer {
   phone: string;
   type: "Pharmacy" | "Hospital" | "Group";
   company_name?: string;
+  credit_status?: string | null;
   billing_address?: {
     street?: string;
     street1?: string;

@@ -177,7 +177,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
 
   return (
     <div className="space-y-6">
-
+      
       {/* iPOS Pays Configuration */}
       <Card>
         <CardHeader>
@@ -432,7 +432,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           {/* Credit Card Processor Selection */}
-          <FormField
+          {/* <FormField
             control={form.control}
             name="credit_card_processor"
             render={({ field }) => (
@@ -464,12 +464,12 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 </FormDescription>
               </FormItem>
             )}
-          />
+          /> */}
 
-          <Separator />
+          {/* <Separator /> */}
 
           {/* ACH Processor Selection */}
-          <FormField
+          {/* <FormField
             control={form.control}
             name="ach_processor"
             render={({ field }) => (
@@ -507,10 +507,10 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 </FormDescription>
               </FormItem>
             )}
-          />
+          /> */}
 
           {/* Processor Info */}
-          <Alert>
+          {/* <Alert>
             <Info className="h-4 w-4" />
             <AlertTitle>Current Configuration</AlertTitle>
             <AlertDescription>
@@ -519,7 +519,7 @@ export function PaymentSection({ form }: PaymentSectionProps) {
                 <p><strong>ACH Payments:</strong> {achProcessor === 'ipospay' ? 'iPOSPay' : achProcessor === 'authorize_net' ? 'Authorize.Net' : achProcessor === 'fortispay' ? 'FortisPay' : 'Not configured'}</p>
               </div>
             </AlertDescription>
-          </Alert>
+          </Alert> */}
         </CardContent>
       </Card>
 

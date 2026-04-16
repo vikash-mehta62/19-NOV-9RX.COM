@@ -227,7 +227,7 @@ export default function PharmacyOrder() {
       if (paymentMethod === "credit") {
         const { data: customerProfile, error: profileError } = await supabase
           .from("profiles")
-          .select("credit_used, credit_limit")
+          .select("credit_used, credit_limit, credit_status")
           .eq("id", session.user.id)
           .single();
 
@@ -238,7 +238,18 @@ export default function PharmacyOrder() {
 
         const creditUsed = customerProfile.credit_used || 0;
         const creditLimit = customerProfile.credit_limit || 0;
+        const creditStatus = String(customerProfile.credit_status || "").toLowerCase();
+        const creditEnabled = !["suspended", "blocked", "inactive", "disabled"].includes(creditStatus);
         const availableCredit = creditLimit - creditUsed;
+
+        if (!creditEnabled || creditLimit <= 0) {
+          toast({
+            title: "Credit Account Unavailable",
+            description: "Your credit account is currently inactive. Please use iPOSPay instead.",
+            variant: "destructive",
+          });
+          return;
+        }
 
         if (finalTotal > availableCredit) {
           toast({
