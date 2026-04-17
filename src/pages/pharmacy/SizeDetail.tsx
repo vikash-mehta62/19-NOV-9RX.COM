@@ -701,7 +701,18 @@ export default function SizeDetail() {
                 {!similarLoading && similarProducts.length > 0 && (
                   <div className="grid grid-cols-1 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4">
                     {similarProducts.map((sp: any) => (
-                      <PharmacyProductCard key={sp.id} product={sp} />
+                      <PharmacyProductCard
+                        key={sp.id}
+                        product={sp}
+                        onProductClick={() =>
+                          navigate(`/${userType}/products`, {
+                            state: {
+                              selectedCategory: sp.category,
+                              selectedProductId: String(sp.id),
+                            },
+                          })
+                        }
+                      />
                     ))}
                   </div>
                 )}

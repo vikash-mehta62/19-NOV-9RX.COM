@@ -48,6 +48,7 @@ export const InlineProductSizes = ({
   const [customizationInstruction, setCustomizationInstruction] = useState('')
   const [isCustomizationDialogOpen, setIsCustomizationDialogOpen] = useState(false)
   const [isSendingCustomizationEnquiry, setIsSendingCustomizationEnquiry] = useState(false)
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false)
   const [productOffer, setProductOffer] = useState<{
     effectivePrice: number;
     discountPercent: number;
@@ -305,6 +306,14 @@ export const InlineProductSizes = ({
     return matchedSizes.length > 0 ? matchedSizes : sortedSizes
   }, [displayProduct?.sizes, normalizedFocusedSizeIds])
   const isFocusedSearchResult = normalizedFocusedSizeIds.length > 0
+  const keyFeatures = useMemo(
+    () =>
+      (displayProduct?.key_features || "")
+        .split(",")
+        .map((feature) => feature.trim())
+        .filter(Boolean),
+    [displayProduct?.key_features]
+  )
 
   if (!displayProduct) return null
 
@@ -613,7 +622,7 @@ export const InlineProductSizes = ({
         {/* Action Buttons - Mobile: Row below, Desktop: Right side */}
         <div className="flex items-center gap-2 justify-end sm:justify-start">
           {/* View Full Page Button */}
-          <Button
+          {/* <Button
             variant="outline"
             size="sm"
             onClick={() => navigate(`/${userType}/product/${displayProduct.id}`)}
@@ -621,9 +630,55 @@ export const InlineProductSizes = ({
           >
             <ExternalLink className="w-3.5 h-3.5 sm:w-4 sm:h-4 mr-1 sm:mr-1.5" />
             View Full Page
-          </Button>
+          </Button> */}
         </div>
       </div>
+
+      {(displayProduct.description || keyFeatures.length > 0) && (
+        <div className="mb-4 rounded-xl border border-blue-200 bg-white/80 shadow-sm">
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={() => setIsDetailsOpen((current) => !current)}
+            className="flex h-auto w-full items-center justify-between rounded-xl px-4 py-3 text-left hover:bg-blue-50"
+          >
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-slate-900">Product Description & Key Features</p>
+              <p className="text-xs text-slate-500">
+                {isDetailsOpen ? "Close details" : "Open details"}
+              </p>
+            </div>
+            <div className="ml-3 shrink-0 rounded-full bg-blue-100 p-2 text-blue-700">
+              {isDetailsOpen ? <Minus className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+            </div>
+          </Button>
+
+          {isDetailsOpen && (
+            <div className="space-y-4 border-t border-blue-100 px-4 py-4">
+              {displayProduct.description && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-900">Product Description</h3>
+                  <p className="text-sm leading-relaxed text-slate-700">{displayProduct.description}</p>
+                </div>
+              )}
+
+              {keyFeatures.length > 0 && (
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <h3 className="mb-2 text-sm font-semibold text-slate-900">Key Features</h3>
+                  <div className="space-y-2">
+                    {keyFeatures.map((feature, index) => (
+                      <div key={`${feature}-${index}`} className="flex items-start gap-2 text-sm text-slate-700">
+                        <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-purple-500" />
+                        <span className="break-words">{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Sizes Grid */}
       <div className="space-y-3 sm:space-y-4">
