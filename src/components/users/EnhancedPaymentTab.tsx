@@ -1113,7 +1113,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
       {!readOnly && <SendCreditTermsSection userId={userId} />}
 
       {/* Payment Methods - Only for Admin, not for Pharmacy */}
-      {!readOnly && (
+      {/* {!readOnly && (
         <Card>
           <CardHeader className={cn(isCompact && "pb-3")}>
             <CardTitle className={cn("flex items-center gap-2", isCompact ? "text-base" : "text-lg")}>
@@ -1131,7 +1131,7 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             </div>
           </CardContent>
         </Card>
-      )}
+      )} */}
 
       {/* Credit History */}
       <Card>

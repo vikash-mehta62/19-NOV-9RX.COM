@@ -103,7 +103,10 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
       {
         label: "Catalog",
         items: [
-          { icon: Package, label: "Products", path: "/admin/products", requiredPermission: "products" },
+
+          // TODO: Pending to remove this old products management flow, after Final completion need to remvoe this. 
+          // { icon: Package, label: "Products", path: "/admin/products", requiredPermission: "products" },
+          
           { icon: Layers, label: "Categories", path: "/admin/categories", requiredPermission: "categories" },
           { icon: BoxIcon, label: "Inventory", path: "/admin/inventory", requiredPermission: "inventory" },
           { icon: DollarSign, label: "Special Pricing", path: "/admin/group-pricing", requiredPermission: "special_pricing" },
@@ -177,7 +180,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
         label: "Payments & Rewards",
         items: [
           { icon: Wallet, label: "Credit Balance", path: "/pharmacy/credit" },
-          { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" },
+          // { icon: CreditCard, label: "Payment Methods", path: "/pharmacy/payment-methods" }, //No need this because we are now using iPOS Pay hosted payment page.
           { icon: Gift, label: "Rewards", path: "/pharmacy/rewards" },
         ],
       },

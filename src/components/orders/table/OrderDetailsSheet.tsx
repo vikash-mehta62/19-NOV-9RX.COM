@@ -147,7 +147,7 @@ interface OrderDetailsSheetProps {
   order: OrderFormValues;
   isEditing: boolean;
   poIs?: boolean;
-  setIsEditing: (value: boolean) => void;
+  setIsEditing?: (value: boolean) => void;
   loadOrders?: (poIs) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -163,7 +163,7 @@ interface OrderDetailsSheetProps {
 export const OrderDetailsSheet = ({
   order,
   isEditing,
-  setIsEditing,
+  setIsEditing = () => {},
   open,
   onOpenChange,
   onProcessOrder,

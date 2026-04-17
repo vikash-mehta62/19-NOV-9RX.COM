@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect } from "react";
-import { GripVertical, Save, RotateCcw, Image as ImageIcon, ChevronDown, Package, Pencil, Plus, Trash2 } from "lucide-react";
+import { GripVertical, Save, RotateCcw, Image as ImageIcon, ChevronDown, Package, Pencil, Plus, Trash2, Loader2 } from "lucide-react";
 import { fetchCategoryConfigs, bulkUpdateCategoryOrders, CategoryConfig } from "@/utils/categoryUtils";
 import {
   canDeleteSubcategory,
@@ -43,7 +43,9 @@ interface SortableCategoryItemProps {
   index: number;
   products: CategoryProductSummary[];
   isExpanded: boolean;
+  isUploadingImage: boolean;
   onToggleExpanded: (categoryId: string) => void;
+  onImageUpload: (categoryId: string, file: File) => Promise<void>;
   onEditProduct: (productId: string) => void;
   onDeleteProduct: (product: CategoryProductSummary) => void;
   onToggleProductStatus: (product: CategoryProductSummary) => void;
@@ -164,7 +166,9 @@ const SortableCategoryItem = ({
   index,
   products,
   isExpanded,
+  isUploadingImage,
   onToggleExpanded,
+  onImageUpload,
   onEditProduct,
   onDeleteProduct,
   onToggleProductStatus,
@@ -341,6 +345,19 @@ const SortableCategoryItem = ({
     }));
   };
 
+  const handleCategoryImageSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      await onImageUpload(category.id, file);
+    } finally {
+      event.target.value = "";
+    }
+  };
+
   // Render the sortable category item
   return (
     <div
@@ -363,15 +380,51 @@ const SortableCategoryItem = ({
           </button>
 
           {/* Category Image */}
-          <div className="flex h-20 w-20 md:h-24 md:w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 p-3 shadow-md">
+          <div className="group/category-image relative flex h-24 w-24 md:h-28 md:w-28 shrink-0 items-center justify-center overflow-visible rounded-2xl border-2 border-gray-200 bg-gradient-to-br from-gray-50 to-gray-100 shadow-md transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg">
+            <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[inherit] bg-gradient-to-br from-slate-50 via-white to-slate-100">
+            <input
+              id={`category-image-input-${category.id}`}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCategoryImageSelect}
+              disabled={isUploadingImage}
+            />
+
             {imageUrl ? (
               <img
                 src={imageUrl}
                 alt={category.category_name}
-                className="h-full w-full object-contain hover:scale-110 transition-transform duration-300"
+                className="h-full w-full object-cover transition-transform duration-300 group-hover/category-image:scale-105"
               />
             ) : (
-              <ImageIcon className="w-8 h-8 text-gray-400" />
+              <div className="flex flex-col items-center justify-center text-slate-400">
+                <ImageIcon className="h-9 w-9" />
+                <span className="mt-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                  No Image
+                </span>
+              </div>
+            )}
+            </div>
+
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                document.getElementById(`category-image-input-${category.id}`)?.click();
+              }}
+              className="absolute -right-1 -top-2 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-white/90 bg-white text-slate-600 shadow-lg transition-all duration-200 hover:scale-105 hover:bg-blue-50 hover:text-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+              aria-label={`Change image for ${category.category_name}`}
+              title="Change category image"
+            >
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+
+            {isUploadingImage && (
+              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 bg-black/45 text-white">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-xs font-medium">Uploading...</span>
+              </div>
             )}
           </div>
 
@@ -436,12 +489,12 @@ const SortableCategoryItem = ({
                 >
                   <div className="flex flex-col items-stretch gap-4 px-4 py-4 md:px-6 md:py-5 xl:flex-row xl:items-center xl:justify-between">
                     <div className="flex min-w-0 items-start gap-3 md:gap-4">
-                      <div className="flex h-16 w-16 md:h-24 md:w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 p-2 md:p-3 shadow-sm">
+                      <div className="flex h-20 w-20 md:h-28 md:w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 shadow-sm">
                         {productImageUrls[product.id] ? (
                           <img
                             src={productImageUrls[product.id]}
                             alt={product.name}
-                            className="h-full w-full object-contain hover:scale-110 transition-transform"
+                            className="h-full w-full object-cover transition-transform"
                           />
                         ) : (
                           <Package className="h-8 w-8 text-slate-400" />
@@ -752,6 +805,7 @@ const CategoryManagement = () => {
   const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
   const [categoryManagerInitialCategory, setCategoryManagerInitialCategory] = useState<string>('');
   const [categoryManagerInitialTab, setCategoryManagerInitialTab] = useState<'category' | 'subcategory'>('category');
+  const [uploadingCategoryImageId, setUploadingCategoryImageId] = useState<string | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1445,6 +1499,44 @@ const CategoryManagement = () => {
     setIsCategoryManagerOpen(true);
   };
 
+  const handleCategoryImageUpload = async (categoryId: string, file: File) => {
+    setUploadingCategoryImageId(categoryId);
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `category-${categoryId}-${Date.now()}.${fileExt}`;
+      const filePath = `categories/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { error: updateError } = await supabase
+        .from("category_configs")
+        .update({ image_url: filePath })
+        .eq("id", categoryId);
+
+      if (updateError) throw updateError;
+
+      await loadCategories();
+
+      toast({
+        title: "Success",
+        description: "Category image updated successfully.",
+      });
+    } catch (error) {
+      console.error("Error uploading category image:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update category image.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingCategoryImageId(null);
+    }
+  };
+
   const handleAddProduct = async (data: ProductFormValues) => {
     setIsSubmittingProduct(true);
     try {
@@ -1694,7 +1786,9 @@ const CategoryManagement = () => {
                         index={index}
                         products={productsByCategory[category.category_name] || []}
                         isExpanded={!!expandedCategoryIds[category.id]}
+                        isUploadingImage={uploadingCategoryImageId === category.id}
                         onToggleExpanded={handleToggleExpanded}
+                        onImageUpload={handleCategoryImageUpload}
                         onEditProduct={handleOpenProductEdit}
                         onDeleteProduct={handleDeleteSubcategory}
                         onToggleProductStatus={handleToggleProductStatus}
