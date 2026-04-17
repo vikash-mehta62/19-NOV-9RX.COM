@@ -319,21 +319,21 @@ export default function Alerts() {
     <DashboardLayout role="admin">
       <div className="container mx-auto p-6 max-w-7xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <Bell className="h-8 w-8 text-blue-600" />
-              <h1 className="text-3xl font-bold">Alerts & Notifications</h1>
+        <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-3">
+              <Bell className="h-8 w-8 shrink-0 text-blue-600" />
+              <h1 className="text-2xl font-bold leading-tight sm:text-3xl">Alerts & Notifications</h1>
               {unreadCount > 0 && (
                 <Badge className="bg-red-500 text-white">{unreadCount} New</Badge>
               )}
             </div>
-            <p className="text-gray-600">
+            <p className="max-w-2xl text-sm text-gray-600 sm:text-base">
               Monitor system alerts and stay updated on important events
             </p>
           </div>
-          <div className="flex gap-2">
-            <Button onClick={refreshData} variant="outline">
+          <div className="flex w-full flex-col gap-2 sm:flex-row lg:w-auto lg:flex-col xl:flex-row">
+            <Button onClick={refreshData} variant="outline" className="w-full sm:w-auto">
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
             </Button>
@@ -380,7 +380,7 @@ export default function Alerts() {
             </Button> */}
             {((viewMode === "alerts" && stats && stats.unread > 0) || 
               (viewMode === "notifications" && unreadCount > 0)) && (
-              <Button onClick={handleMarkAllAsRead}>
+              <Button onClick={handleMarkAllAsRead} className="w-full sm:w-auto">
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Mark All Read
               </Button>

@@ -1336,7 +1336,7 @@ export default function PaymentReconciliation() {
           </CardContent>
         </Card>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3">
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.gross.toFixed(2)}</div><p className="text-sm text-muted-foreground">iPOSPay Gross</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.fees.toFixed(2)}</div><p className="text-sm text-muted-foreground">Processor Fees</p></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-2xl font-bold">${summary.expectedNet.toFixed(2)}</div><p className="text-sm text-muted-foreground">Expected Net</p></CardContent></Card>
@@ -1405,16 +1405,16 @@ export default function PaymentReconciliation() {
 
         <Card>
           <CardHeader>
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+              <div className="min-w-0 xl:max-w-sm">
                 <CardTitle>Settlement Batches</CardTitle>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Click a status badge to review that batch. Start with rows marked `review required` or `unmatched`.
                 </p>
               </div>
-              <div className="w-full lg:w-auto">
-                <div className="flex flex-col items-stretch gap-3 lg:min-w-[640px]">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto_auto]">
+              <div className="w-full xl:max-w-3xl">
+                <div className="flex flex-col items-stretch gap-3">
+                  <div className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[minmax(150px,1fr)_minmax(150px,1fr)_auto_auto]">
                     <Input
                       type="date"
                       value={dateRange.startDate}
@@ -1432,19 +1432,19 @@ export default function PaymentReconciliation() {
                         type="button"
                         variant="ghost"
                         onClick={() => setDateRange({ startDate: "", endDate: "" })}
-                        className="w-full sm:w-auto"
+                        className="w-full xl:w-auto"
                       >
                         Clear Date Filter
                       </Button>
                     ) : (
-                      <div className="hidden sm:block" />
+                      <div className="hidden xl:block" />
                     )}
                     <Button
                       type="button"
                       variant="outline"
                       onClick={exportSettlementBatchesCsv}
                       disabled={filteredBatches.length === 0}
-                      className="w-full sm:w-auto"
+                      className="w-full xl:w-auto"
                     >
                       <Download className="mr-2 h-4 w-4" />
                       Export CSV

@@ -552,7 +552,7 @@ export default function Settings() {
           <form onSubmit={form.handleSubmit(handleSubmit)}>
             <Tabs defaultValue="business" className="space-y-6">
               <div className="space-y-2">
-                <TabsList className="grid grid-cols-3 md:grid-cols-7 gap-1 h-auto p-1 w-full">
+                <TabsList className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-1 h-auto p-1 w-full">
                   <TabsTrigger value="business" className="flex flex-col sm:flex-row items-center gap-1 sm:gap-2 p-2 sm:p-3 text-xs sm:text-sm">
                     <Building2 className="h-4 w-4 flex-shrink-0" />
                     <span className="truncate">Business</span>

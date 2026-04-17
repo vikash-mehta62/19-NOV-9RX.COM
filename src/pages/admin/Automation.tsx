@@ -249,7 +249,7 @@ export default function Automation() {
               Automate repetitive tasks and streamline your operations
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-col md:flex-col lg:flex-row xl:flex-row gap-2">
             <Button onClick={handleExecuteRules} disabled={executing}>
               <Play className="h-4 w-4 mr-2" />
               {executing ? "Executing..." : "Run Now"}

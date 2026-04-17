@@ -491,7 +491,7 @@ export function ShippingSettingsSection({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           <div className="rounded-lg border bg-background p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -574,7 +574,7 @@ export function ShippingSettingsSection({
               These are features available through the single FedEx integration in this app.
             </p>
           </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
             {capabilityItems.map((item) => {
               const Icon = item.icon;
               return (
