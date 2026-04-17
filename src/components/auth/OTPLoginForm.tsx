@@ -116,11 +116,13 @@ export const OTPLoginForm = () => {
         
         // Log this attempt for admin visibility
         try {
-          await supabase.from("password_reset_requests").insert({
-            user_id: profileData.id,
-            email: email.trim().toLowerCase(),
-            requested_at: new Date().toISOString(),
+          const { error: logError } = await supabase.rpc("log_password_reset_request", {
+            p_user_id: profileData.id,
+            p_email: email.trim().toLowerCase(),
           });
+          if (logError) {
+            throw logError;
+          }
         } catch (logError) {
           console.error("Failed to log password reset request:", logError);
         }
@@ -158,11 +160,13 @@ export const OTPLoginForm = () => {
             .maybeSingle();
           
           if (profileData) {
-            await supabase.from("password_reset_requests").insert({
-              user_id: profileData.id,
-              email: email.trim().toLowerCase(),
-              requested_at: new Date().toISOString(),
+            const { error: logError } = await supabase.rpc("log_password_reset_request", {
+              p_user_id: profileData.id,
+              p_email: email.trim().toLowerCase(),
             });
+            if (logError) {
+              throw logError;
+            }
           }
         } catch (logError) {
           console.error("Failed to log password reset request:", logError);

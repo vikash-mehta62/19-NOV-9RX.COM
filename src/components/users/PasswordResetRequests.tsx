@@ -22,6 +22,15 @@ interface PasswordResetRequest {
   };
 }
 
+interface GroupedPasswordResetRequest {
+  id: string;
+  user_id: string;
+  email: string;
+  requested_at: string;
+  attemptCount: number;
+  profiles?: PasswordResetRequest["profiles"];
+}
+
 export const PasswordResetRequests = () => {
   const [requests, setRequests] = useState<PasswordResetRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +73,28 @@ export const PasswordResetRequests = () => {
     }
   };
 
+  const groupedRequests = requests.reduce<GroupedPasswordResetRequest[]>((acc, request) => {
+    const existingRequest = acc.find((item) => item.user_id === request.user_id);
+
+    if (existingRequest) {
+      existingRequest.attemptCount += 1;
+
+      if (new Date(request.requested_at) > new Date(existingRequest.requested_at)) {
+        existingRequest.requested_at = request.requested_at;
+        existingRequest.id = request.id;
+      }
+
+      return acc;
+    }
+
+    acc.push({
+      ...request,
+      attemptCount: 1,
+    });
+
+    return acc;
+  }, []);
+
   useEffect(() => {
     fetchRequests();
   }, []);
@@ -77,7 +108,7 @@ export const PasswordResetRequests = () => {
   };
 
   // Filter requests based on search query
-  const filteredRequests = requests.filter((request) => {
+  const filteredRequests = groupedRequests.filter((request) => {
     const profile = Array.isArray(request.profiles) 
       ? request.profiles[0] 
       : request.profiles;
@@ -142,7 +173,7 @@ export const PasswordResetRequests = () => {
               Password Reset Requests
             </CardTitle>
             <CardDescription>
-              Users who attempted to login and need password reset ({requests.length} total)
+              Users who attempted to login and need password reset ({groupedRequests.length} users)
             </CardDescription>
           </div>
           <Button
@@ -207,6 +238,9 @@ export const PasswordResetRequests = () => {
                         <span className="text-xs text-gray-500">
                           {new Date(request.requested_at).toLocaleString()}
                         </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {request.attemptCount} {request.attemptCount === 1 ? "attempt" : "attempts"}
+                        </Badge>
                       </div>
                     </div>
                   </div>
