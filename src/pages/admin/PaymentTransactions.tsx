@@ -100,7 +100,7 @@ export default function PaymentTransactions() {
   const [reconciling, setReconciling] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [reconciliationFilter, setReconciliationFilter] = useState("all");
+  // const [reconciliationFilter, setReconciliationFilter] = useState("all");
   const [selectedTransaction, setSelectedTransaction] = useState<PaymentTransaction | null>(null);
   const [sortField, setSortField] = useState<SortField>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -243,9 +243,9 @@ export default function PaymentTransactions() {
       filtered = filtered.filter(t => t.status === statusFilter);
     }
 
-    if (reconciliationFilter !== "all") {
-      filtered = filtered.filter(t => (t.reconciliation_status || "not_checked") === reconciliationFilter);
-    }
+    // if (reconciliationFilter !== "all") {
+    //   filtered = filtered.filter(t => (t.reconciliation_status || "not_checked") === reconciliationFilter);
+    // }
 
     // Apply search filter
     if (searchTerm) {
@@ -257,8 +257,7 @@ export default function PaymentTransactions() {
         t.profiles?.first_name?.toLowerCase().includes(search) ||
         t.profiles?.last_name?.toLowerCase().includes(search) ||
         t.card_last_four?.includes(search) ||
-        t.gateway_transaction_status?.toLowerCase().includes(search) ||
-        t.reconciliation_reason?.toLowerCase().includes(search)
+        t.gateway_transaction_status?.toLowerCase().includes(search)
       );
     }
 
@@ -297,7 +296,7 @@ export default function PaymentTransactions() {
     });
 
     return sorted;
-  }, [transactions, statusFilter, reconciliationFilter, searchTerm, sortField, sortDirection]);
+  }, [transactions, statusFilter, searchTerm, sortField, sortDirection]);
 
   const getStatusBadge = (status: string) => {
     const config = statusConfig[status] || statusConfig.pending;
@@ -317,22 +316,22 @@ export default function PaymentTransactions() {
     return <CreditCard className="h-4 w-4 text-blue-600" />;
   };
 
-  const getReconciliationBadge = (status: string | null) => {
-    const value = status || "not_checked";
-    const variants: Record<string, string> = {
-      matched: "bg-green-100 text-green-700",
-      mismatch: "bg-red-100 text-red-700",
-      not_found: "bg-amber-100 text-amber-700",
-      error: "bg-red-100 text-red-700",
-      not_checked: "bg-slate-100 text-slate-700",
-    };
+  // const getReconciliationBadge = (status: string | null) => {
+  //   const value = status || "not_checked";
+  //   const variants: Record<string, string> = {
+  //     matched: "bg-green-100 text-green-700",
+  //     mismatch: "bg-red-100 text-red-700",
+  //     not_found: "bg-amber-100 text-amber-700",
+  //     error: "bg-red-100 text-red-700",
+  //     not_checked: "bg-slate-100 text-slate-700",
+  //   };
 
-    return (
-      <Badge className={variants[value] || variants.not_checked}>
-        {value.replace(/_/g, " ")}
-      </Badge>
-    );
-  };
+  //   return (
+  //     <Badge className={variants[value] || variants.not_checked}>
+  //       {value.replace(/_/g, " ")}
+  //     </Badge>
+  //   );
+  // };
 
   const getProcessorLabel = (processor: string | null) => {
     if (!processor) return "iPOSPay";
@@ -345,7 +344,7 @@ export default function PaymentTransactions() {
     total: transactions.length,
     approved: transactions.filter(t => t.status === "approved").length,
     declined: transactions.filter(t => t.status === "declined").length,
-    mismatched: transactions.filter(t => t.reconciliation_status === "mismatch").length,
+    // mismatched: transactions.filter(t => t.reconciliation_status === "mismatch").length,
     totalAmount: transactions
       .filter(t => t.status === "approved")
       .reduce((sum, t) => sum + t.amount, 0),
@@ -375,10 +374,10 @@ export default function PaymentTransactions() {
             </p>
           </div>
           <div className="flex flex-col lg:flex lg:flex-row items-center gap-2">
-            <Button variant="outline" onClick={syncIposPayTransactions} className="gap-2" disabled={reconciling}>
+            {/* <Button variant="outline" onClick={syncIposPayTransactions} className="gap-2" disabled={reconciling}>
               <RefreshCw className={`h-4 w-4 ${reconciling ? "animate-spin" : ""}`} />
               Refresh iPOSPay Status
-            </Button>
+            </Button> */}
             <Button variant="outline" onClick={fetchTransactions} className="gap-2">
               <RefreshCw className="h-4 w-4" />
               Refresh
@@ -387,7 +386,7 @@ export default function PaymentTransactions() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4">
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">{stats.total}</div>
@@ -406,12 +405,12 @@ export default function PaymentTransactions() {
               <p className="text-sm text-muted-foreground">Declined</p>
             </CardContent>
           </Card>
-          <Card>
+          {/* <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold text-red-600">{stats.mismatched}</div>
               <p className="text-sm text-muted-foreground">Mismatched</p>
             </CardContent>
-          </Card>
+          </Card> */}
           <Card>
             <CardContent className="pt-6">
               <div className="text-2xl font-bold">${stats.totalAmount.toFixed(2)}</div>
@@ -447,7 +446,7 @@ export default function PaymentTransactions() {
                   <SelectItem value="voided">Voided</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={reconciliationFilter} onValueChange={setReconciliationFilter}>
+              {/* <Select value={reconciliationFilter} onValueChange={setReconciliationFilter}>
                 <SelectTrigger className="w-[200px]">
                   <SelectValue placeholder="Reconciliation status" />
                 </SelectTrigger>
@@ -459,7 +458,7 @@ export default function PaymentTransactions() {
                   <SelectItem value="error">Sync Error</SelectItem>
                   <SelectItem value="not_checked">Not Checked</SelectItem>
                 </SelectContent>
-              </Select>
+              </Select> */}
             </div>
           </CardContent>
         </Card>
@@ -476,21 +475,21 @@ export default function PaymentTransactions() {
                   <SortableHeader field="payment_method">Payment</SortableHeader>
                   <SortableHeader field="amount">Amount</SortableHeader>
                   <SortableHeader field="status">Status</SortableHeader>
-                  <TableHead>Gateway</TableHead>
-                  <TableHead>Reconciliation</TableHead>
+                  {/* <TableHead>Gateway</TableHead> */}
+                  {/* <TableHead>Reconciliation</TableHead> */}
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8">
+                    <TableCell colSpan={7} className="text-center py-8">
                       Loading transactions...
                     </TableCell>
                   </TableRow>
                 ) : sortedTransactions.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                       No transactions found
                     </TableCell>
                   </TableRow>
@@ -530,7 +529,7 @@ export default function PaymentTransactions() {
                         ${transaction.amount.toFixed(2)}
                       </TableCell>
                       <TableCell>{getStatusBadge(transaction.status)}</TableCell>
-                      <TableCell className="text-xs">
+                      {/* <TableCell className="text-xs">
                         <div className="space-y-1">
                           <p className="font-medium">{transaction.gateway_transaction_status || "-"}</p>
                           <p className="text-muted-foreground">
@@ -542,8 +541,8 @@ export default function PaymentTransactions() {
                               : "Unsettled"}
                           </p>
                         </div>
-                      </TableCell>
-                      <TableCell>
+                      </TableCell> */}
+                      {/* <TableCell>
                         <div className="space-y-1">
                           {getReconciliationBadge(transaction.reconciliation_status)}
                           {transaction.reconciliation_reason && (
@@ -552,7 +551,7 @@ export default function PaymentTransactions() {
                             </p>
                           )}
                         </div>
-                      </TableCell>
+                      </TableCell> */}
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"
@@ -578,14 +577,14 @@ export default function PaymentTransactions() {
             </DialogHeader>
             {selectedTransaction && (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="min-w-0">
                     <p className="text-sm text-muted-foreground">Transaction ID</p>
-                    <p className="font-mono">{selectedTransaction.transaction_id || "-"}</p>
+                    <p className="break-all font-mono text-sm">{selectedTransaction.transaction_id || "-"}</p>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-sm text-muted-foreground">Auth Code</p>
-                    <p className="font-mono">{selectedTransaction.auth_code || "-"}</p>
+                    <p className="break-all font-mono text-sm">{selectedTransaction.auth_code || "-"}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Amount</p>
@@ -624,38 +623,38 @@ export default function PaymentTransactions() {
                     <p className="text-sm text-muted-foreground">Processor</p>
                     <p>{getProcessorLabel(selectedTransaction.processor)}</p>
                   </div>
-                  <div>
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Gateway Status</p>
                     <p>{selectedTransaction.gateway_transaction_status || "-"}</p>
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Reconciliation</p>
                     <div className="mt-1">{getReconciliationBadge(selectedTransaction.reconciliation_status)}</div>
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Settlement Time</p>
                     <p>{selectedTransaction.gateway_settlement_time ? format(new Date(selectedTransaction.gateway_settlement_time), "PPpp") : "-"}</p>
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Batch ID</p>
                     <p className="font-mono">{selectedTransaction.gateway_batch_id || "-"}</p>
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Gateway Status ID</p>
                     <p>{selectedTransaction.gateway_status_id ?? "-"}</p>
-                  </div>
-                  <div>
+                  </div> */}
+                  {/* <div>
                     <p className="text-sm text-muted-foreground">Gateway Checked</p>
                     <p>{selectedTransaction.gateway_last_checked_at ? format(new Date(selectedTransaction.gateway_last_checked_at), "PPpp") : "-"}</p>
-                  </div>
+                  </div> */}
                 </div>
 
-                {selectedTransaction.reconciliation_reason && (
+                {/* {selectedTransaction.reconciliation_reason && (
                   <div>
                     <p className="text-sm text-muted-foreground">Reconciliation Note</p>
                     <p>{selectedTransaction.reconciliation_reason}</p>
                   </div>
-                )}
+                )} */}
 
                 {selectedTransaction.gateway_return_message && (
                   <div className="p-3 bg-amber-50 rounded-lg">

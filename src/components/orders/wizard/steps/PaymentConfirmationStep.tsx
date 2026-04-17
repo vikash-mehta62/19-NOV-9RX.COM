@@ -115,6 +115,7 @@ export const PaymentConfirmationStep = ({
     feeSettings.cardProcessingFeeEnabled &&
     feeSettings.cardProcessingFeePassToCustomer &&
     feeSettings.cardProcessingFeePercentage > 0;
+  const displayCardFeePercentage = Math.round(feeSettings.cardProcessingFeePercentage);
   const orderTotal = Math.max(0, total - totalDiscount);
 
   const allPaymentMethods: PaymentMethodCard[] = [
@@ -122,7 +123,7 @@ export const PaymentConfirmationStep = ({
       id: "card",
       label: "Pay with iPOSPay",
       description: cardFeeNoteEnabled
-        ? `Use secure iPOSPay for card or ACH. Card payments may add ${feeSettings.cardProcessingFeePercentage}% processing fee; ACH is free.`
+        ? `Use secure iPOSPay for card or ACH. Card payments may add ${displayCardFeePercentage}% processing fee; ACH is free.`
         : "Use secure iPOSPay for card or ACH checkout.",
       icon: CreditCard,
     },
@@ -228,7 +229,7 @@ export const PaymentConfirmationStep = ({
               <p className="text-sm font-medium text-amber-900">Card payments</p>
               <p className="text-xs text-amber-800">
                 {cardFeeNoteEnabled
-                  ? `A ${feeSettings.cardProcessingFeePercentage}% processing fee may be added at secure checkout.`
+                  ? `A ${displayCardFeePercentage}% processing fee may be added at secure checkout.`
                   : "Any applicable fee is shown on the secure checkout page before the customer confirms payment."}
               </p>
             </div>

@@ -482,8 +482,16 @@ const Expenses = () => {
             expenseDate.getFullYear() === currentDate.getFullYear()
           )
         })
+        const fedexTotal = monthExpenses
+          .filter(isFedExExpense)
+          .reduce((sum, expense) => sum + Number(expense.amount), 0)
         const total = monthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
-        months.push({ month: monthKey, amount: total })
+        months.push({
+          month: monthKey,
+          amount: total,
+          fedexLabels: fedexTotal,
+          otherExpenses: Math.max(total - fedexTotal, 0),
+        })
         
         currentDate.setMonth(currentDate.getMonth() + 1)
       }
@@ -501,19 +509,29 @@ const Expenses = () => {
             expenseDate.getFullYear() === date.getFullYear()
           )
         })
+        const fedexTotal = monthExpenses
+          .filter(isFedExExpense)
+          .reduce((sum, expense) => sum + Number(expense.amount), 0)
         const total = monthExpenses.reduce((sum, expense) => sum + Number(expense.amount), 0)
-        months.push({ month: monthKey, amount: total })
+        months.push({
+          month: monthKey,
+          amount: total,
+          fedexLabels: fedexTotal,
+          otherExpenses: Math.max(total - fedexTotal, 0),
+        })
       }
     }
     
     return months
   })()
 
-  // Prepare pie chart data - Category breakdown (by expense name)
+  // Prepare pie chart data - Category breakdown with FedEx labels split out explicitly.
   const categoryChartData = (() => {
     const categories: Record<string, number> = {}
     filteredExpenses.forEach((expense) => {
-      const category = expense.category || expense.name || "Other"
+      const category = isFedExExpense(expense)
+        ? "FedEx Labels"
+        : getExpenseCategoryLabel(expense.category || expense.name || "Other")
       categories[category] = (categories[category] || 0) + Number(expense.amount)
     })
     return Object.entries(categories)
@@ -1193,26 +1211,28 @@ const Expenses = () => {
             <TabsContent value="analytics">
               <Card className="shadow-lg border-gray-200 dark:border-gray-700">
                 <CardHeader>
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0">
                       <CardTitle>Expense Analytics</CardTitle>
                       <CardDescription>Visualize your spending patterns and trends</CardDescription>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:justify-end">
+                      <div className="flex w-full items-center gap-2 sm:w-auto">
                         <Label className="text-sm whitespace-nowrap">From:</Label>
                         <DatePicker
                           date={startDate}
                           setDate={setStartDate}
                           placeholder="Start date"
+                          className="w-full sm:w-[180px]"
                         />
                       </div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex w-full items-center gap-2 sm:w-auto">
                         <Label className="text-sm whitespace-nowrap">To:</Label>
                         <DatePicker
                           date={endDate}
                           setDate={setEndDate}
                           placeholder="End date"
+                          className="w-full sm:w-[180px]"
                         />
                       </div>
                       {(startDate || endDate) && (
@@ -1223,7 +1243,7 @@ const Expenses = () => {
                             setStartDate(undefined)
                             setEndDate(undefined)
                           }}
-                          className="whitespace-nowrap"
+                          className="w-full whitespace-nowrap sm:w-auto"
                         >
                           Clear Filters
                         </Button>
@@ -1232,21 +1252,22 @@ const Expenses = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                  <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 sm:p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                       <h3 className="text-lg font-medium mb-4">Monthly Breakdown</h3>
                       <div className="h-64">
                         {monthlyChartData.length > 0 && monthlyChartData.some(d => d.amount > 0) ? (
                           <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={monthlyChartData}>
+                            <BarChart data={monthlyChartData} margin={{ top: 8, right: 8, left: 0, bottom: 8 }}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="month" />
+                              <XAxis dataKey="month" tick={{ fontSize: 12 }} minTickGap={20} />
                               <YAxis />
                               <RechartsTooltip 
                                 formatter={(value: number) => `$${value.toFixed(2)}`}
                               />
                               <Legend />
-                              <Bar dataKey="amount" fill="#3b82f6" name="Expenses" />
+                              <Bar dataKey="otherExpenses" fill="#3b82f6" name="Other Expenses" />
+                              <Bar dataKey="fedexLabels" fill="#10b981" name="FedEx Labels" />
                             </BarChart>
                           </ResponsiveContainer>
                         ) : (
@@ -1261,31 +1282,60 @@ const Expenses = () => {
                       </div>
                     </div>
 
-                    <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg border border-gray-200 dark:border-gray-700">
+                    <div className="bg-gray-50 dark:bg-gray-800 p-4 sm:p-6 rounded-lg border border-gray-200 dark:border-gray-700">
                       <h3 className="text-lg font-medium mb-4">Expense Categories</h3>
                       <div className="h-64">
                         {categoryChartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RechartsPieChart>
-                              <Pie
-                                data={categoryChartData}
-                                cx="50%"
-                                cy="50%"
-                                labelLine={false}
-                                label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                                outerRadius={80}
-                                fill="#8884d8"
-                                dataKey="value"
-                              >
-                                {categoryChartData.map((entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <RechartsTooltip 
-                                formatter={(value: number) => `$${value.toFixed(2)}`}
-                              />
-                            </RechartsPieChart>
-                          </ResponsiveContainer>
+                          <div className="flex h-full flex-col gap-4 lg:flex-row lg:items-center">
+                            <div className="h-40 min-h-[160px] flex-1 sm:h-48 lg:h-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <RechartsPieChart>
+                                  <Pie
+                                    data={categoryChartData}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                  >
+                                    {categoryChartData.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip 
+                                    formatter={(value: number) => `$${value.toFixed(2)}`}
+                                  />
+                                </RechartsPieChart>
+                              </ResponsiveContainer>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 lg:w-52">
+                              {categoryChartData.map((entry, index) => {
+                                const total = categoryChartData.reduce((sum, item) => sum + item.value, 0)
+                                const percentage = total > 0 ? (entry.value / total) * 100 : 0
+
+                                return (
+                                  <div
+                                    key={entry.name}
+                                    className="flex items-start gap-2 rounded-lg bg-white/80 px-3 py-2 text-sm dark:bg-gray-900/40"
+                                  >
+                                    <span
+                                      className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full"
+                                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="break-words font-medium text-gray-900 dark:text-gray-100">
+                                        {entry.name}
+                                      </p>
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                                        {percentage.toFixed(0)}% - ${entry.value.toFixed(2)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          </div>
                         ) : (
                           <div className="h-full flex items-center justify-center">
                             <div className="text-center text-gray-500">

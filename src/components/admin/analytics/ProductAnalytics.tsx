@@ -47,9 +47,13 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       .sort((a: any, b: any) => b.revenue - a.revenue)
       .map((size: any) => ({
         ...size,
+        displayLabel: size.sizeName || size.label,
         value: size.revenue,
       }));
   }, [selectedProductForSizes]);
+
+  const getSizeLabel = (size: { size_value?: string | number | null; size_unit?: string | null }, showUnit?: boolean) =>
+    [size?.size_value, showUnit ? size?.size_unit : ""].filter(Boolean).join(" ").trim() || "Standard";
 
   const fetchProductAnalytics = async () => {
     setLoading(true);
@@ -199,7 +203,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
       // Fetch products separately
       const { data: products, error: productsError } = await supabase
         .from('products')
-        .select('id, name, category, subcategory, product_sizes(id, size_value, size_unit, sku, quantity_per_case)')
+        .select('id, name, category, subcategory, unitToggle, product_sizes(id, size_name, size_value, size_unit, sku, quantity_per_case)')
         .in('id', productIds);
 
       if (productsError) {
@@ -238,13 +242,13 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
 
             const quantity = Number(soldSize.quantity) || 0;
             const revenue = quantity * (Number(soldSize.price) || 0);
-            const sizeLabel = [
-              soldSize.size_value ?? matchingCatalogSize?.size_value,
-              soldSize.size_unit ?? matchingCatalogSize?.size_unit,
-            ]
-              .filter(Boolean)
-              .join(" ")
-              .trim() || "Standard";
+            const sizeLabel = getSizeLabel(
+              {
+                size_value: soldSize.size_value ?? matchingCatalogSize?.size_value,
+                size_unit: soldSize.size_unit ?? matchingCatalogSize?.size_unit,
+              },
+              product.unitToggle
+            );
             const sizeKey = soldSize.id || matchingCatalogSize?.id || sizeLabel;
 
             const existingSize = existingSizes.find((size: any) => size.id === sizeKey);
@@ -255,6 +259,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
             } else {
               existingSizes.push({
                 id: sizeKey,
+                sizeName: soldSize.size_name || matchingCatalogSize?.size_name || "",
                 label: sizeLabel,
                 quantity,
                 revenue,
@@ -325,8 +330,8 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
             ? orderLine.sizes.find((size: any) => size.id === item.product_size_id)
             : null;
           const sizeLabel = sizeMeta
-            ? `${sizeMeta.size_value} ${sizeMeta.size_unit}`.trim()
-            : [matchingOrderSize?.size_value, matchingOrderSize?.size_unit].filter(Boolean).join(" ").trim() || "Standard";
+            ? getSizeLabel(sizeMeta, product.unitToggle)
+            : getSizeLabel(matchingOrderSize || {}, product.unitToggle);
           const actualRevenue = (Number(item.quantity) || 0) * (Number(item.unit_price) || 0);
 
           const existingSize = existing.sizeBreakdown.find((size: any) => size.id === (item.product_size_id || sizeLabel));
@@ -336,6 +341,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
           } else {
             existing.sizeBreakdown.push({
               id: item.product_size_id || sizeLabel,
+              sizeName: matchingOrderSize?.size_name || sizeMeta?.size_name || "",
               label: sizeLabel,
               quantity: Number(item.quantity) || 0,
               revenue: actualRevenue > 0 ? actualRevenue : itemRevenue,
@@ -395,14 +401,19 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
     }
   };
   const renderCustomizedLabel = (props: any) => {
-    const { cx, cy, midAngle, innerRadius, outerRadius, percent, index, name } = props;
+    const { cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, payload } = props;
     const RADIAN = Math.PI / 180;
-    const radius = innerRadius + (outerRadius - innerRadius) * 1.2;
+    const isSmallSlice = percent < 0.08;
+    const radiusMultiplier = isSmallSlice ? 1.42 : 1.2;
+    const radius = innerRadius + (outerRadius - innerRadius) * radiusMultiplier;
     const x = cx + radius * Math.cos(-midAngle * RADIAN);
-    const y = cy + radius * Math.sin(-midAngle * RADIAN);
+    const baseY = cy + radius * Math.sin(-midAngle * RADIAN);
+    const verticalOffset = isSmallSlice ? ((index % 3) - 1) * 14 : 0;
+    const y = baseY + verticalOffset;
+    const displayName = name || payload?.displayLabel || payload?.sizeName || payload?.label || payload?.name || "Unknown";
     return (
       <text x={x} y={y} fill={COLORS[index % COLORS.length]} fontSize={12} textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="central">
-        {`${name}: ${(percent * 100).toFixed(0)}%`}
+        {`${displayName}: ${(percent * 100).toFixed(0)}%`}
       </text>
     );
   };
@@ -458,7 +469,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
                 <BarChart data={selectedProductForSizes ? selectedProductSizeData : topProducts} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis type="number" />
-                  <YAxis dataKey={selectedProductForSizes ? "label" : "name"} type="category" width={170} />
+                  <YAxis dataKey={selectedProductForSizes ? "displayLabel" : "name"} type="category" width={170} />
                   <Tooltip
                     formatter={(value: number, _name: string, payload: any) => {
                       if (selectedProductForSizes) {
@@ -496,6 +507,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
                     cy="50%"
                     labelLine={false}
                     label={renderCustomizedLabel}
+                    nameKey={selectedProductForSizes ? "displayLabel" : "name"}
                     outerRadius={80}
                     fill="#8884d8"
                     dataKey={selectedProductForSizes ? "revenue" : "value"}
@@ -605,7 +617,16 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
                                   className="grid gap-3 rounded-xl border bg-white px-3 py-3 text-sm sm:grid-cols-[minmax(0,1.2fr)_110px_120px] md:grid-cols-[minmax(0,1.5fr)_120px_140px]"
                                 >
                                   <div className="min-w-0">
-                                    <p className="break-words font-medium text-slate-900">{size.label}</p>
+                                    {size.sizeName ? (
+                                      <p className="break-words font-medium text-slate-900">
+                                        <span className="text-slate-500">Size name: </span>
+                                        {size.sizeName}
+                                      </p>
+                                    ) : null}
+                                    <p className="break-words font-medium text-slate-900">
+                                      <span className="text-slate-500">Size: </span>
+                                      {size.label}
+                                    </p>
                                     <p className="break-words text-xs text-muted-foreground">
                                       {size.quantityPerCase ? `${size.quantityPerCase}/case` : "Case pack not available"}
                                       {size.sku ? ` • ${size.sku}` : ""}
