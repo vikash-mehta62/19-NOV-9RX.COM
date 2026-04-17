@@ -8,14 +8,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -38,12 +30,17 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Building2,
+  Calendar,
   Loader2,
+  Mail,
   MapPin,
   Pencil,
+  Phone,
   Plus,
   Power,
   Trash2,
+  User,
 } from "lucide-react";
 
 type LocationAddress = {
@@ -97,13 +94,30 @@ const getStatusBadgeClass = (status: string) =>
     ? "bg-green-100 text-green-800 hover:bg-green-100"
     : "bg-gray-100 text-gray-800 hover:bg-gray-100";
 
+const getTypeBadgeClass = (type: string) => {
+  switch (type) {
+    case "headquarters": return "bg-purple-100 text-purple-800";
+    case "branch": return "bg-blue-100 text-blue-800";
+    case "warehouse": return "bg-orange-100 text-orange-800";
+    case "retail": return "bg-teal-100 text-teal-800";
+    default: return "bg-gray-100 text-gray-800";
+  }
+};
+
 const formatAddress = (address: LocationAddress | null) => {
-  if (!address) return "No address added";
+  if (!address) return null;
+  const parts = [
+    [address.street1, address.street2].filter(Boolean).join(", "),
+    [address.city, address.state, address.zip_code].filter(Boolean).join(", "),
+  ].filter(Boolean);
+  return parts.length ? parts : null;
+};
 
-  const firstLine = [address.street1, address.street2].filter(Boolean).join(", ");
-  const secondLine = [address.city, address.state, address.zip_code].filter(Boolean).join(", ");
-
-  return [firstLine, secondLine].filter(Boolean).join(" | ") || "No address added";
+const typeLabel: Record<string, string> = {
+  headquarters: "Main Office",
+  branch: "Branch",
+  warehouse: "Warehouse",
+  retail: "Retail Store",
 };
 
 interface PharmacyLocationsSectionProps {
@@ -122,7 +136,6 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
 
   const fetchLocations = async () => {
     if (!userId) return;
-
     setIsLoading(true);
     try {
       const { data, error } = await supabase
@@ -130,34 +143,19 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
         .select("*")
         .eq("profile_id", userId)
         .order("created_at", { ascending: false });
-
       if (error) throw error;
       setLocations((data || []) as PharmacyLocation[]);
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to load pharmacy locations.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message || "Failed to load pharmacy locations.", variant: "destructive" });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    void fetchLocations();
-  }, [userId]);
+  useEffect(() => { void fetchLocations(); }, [userId]);
 
-  const resetForm = () => {
-    setLocationForm(emptyForm);
-    setEditingLocation(null);
-  };
-
-  const openCreateDialog = () => {
-    resetForm();
-    setIsLocationDialogOpen(true);
-  };
-
+  const resetForm = () => { setLocationForm(emptyForm); setEditingLocation(null); };
+  const openCreateDialog = () => { resetForm(); setIsLocationDialogOpen(true); };
   const openEditDialog = (location: PharmacyLocation) => {
     setEditingLocation(location);
     setLocationForm({
@@ -174,29 +172,20 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
   const handleSaveLocation = async () => {
     if (!userId) return;
     if (!locationForm.name.trim()) {
-      toast({
-        title: "Error",
-        description: "Location name is required.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Location name is required.", variant: "destructive" });
       return;
     }
-
     setIsSubmitting(true);
     try {
       if (editingLocation) {
-        const { error } = await supabase
-          .from("locations")
-          .update({
-            name: locationForm.name.trim(),
-            type: locationForm.type,
-            manager: locationForm.manager.trim() || null,
-            contact_phone: locationForm.contact_phone.trim() || null,
-            contact_email: locationForm.contact_email.trim() || null,
-            address: locationForm.address,
-          })
-          .eq("id", editingLocation.id);
-
+        const { error } = await supabase.from("locations").update({
+          name: locationForm.name.trim(),
+          type: locationForm.type,
+          manager: locationForm.manager.trim() || null,
+          contact_phone: locationForm.contact_phone.trim() || null,
+          contact_email: locationForm.contact_email.trim() || null,
+          address: locationForm.address,
+        }).eq("id", editingLocation.id);
         if (error) throw error;
         toast({ title: "Success", description: "Location updated successfully." });
       } else {
@@ -210,20 +199,14 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
           address: locationForm.address,
           status: "active",
         });
-
         if (error) throw error;
         toast({ title: "Success", description: "Location added successfully." });
       }
-
       setIsLocationDialogOpen(false);
       resetForm();
       await fetchLocations();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to save location.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message || "Failed to save location.", variant: "destructive" });
     } finally {
       setIsSubmitting(false);
     }
@@ -231,45 +214,26 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
 
   const handleDeleteLocation = async () => {
     if (!deleteLocationId) return;
-
     try {
       const { error } = await supabase.from("locations").delete().eq("id", deleteLocationId);
       if (error) throw error;
-
       toast({ title: "Success", description: "Location deleted successfully." });
       setDeleteLocationId(null);
       await fetchLocations();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to delete location.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message || "Failed to delete location.", variant: "destructive" });
     }
   };
 
   const handleToggleStatus = async (location: PharmacyLocation) => {
     const nextStatus = location.status === "active" ? "inactive" : "active";
-
     try {
-      const { error } = await supabase
-        .from("locations")
-        .update({ status: nextStatus })
-        .eq("id", location.id);
-
+      const { error } = await supabase.from("locations").update({ status: nextStatus }).eq("id", location.id);
       if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: `Location ${nextStatus === "active" ? "activated" : "deactivated"}.`,
-      });
+      toast({ title: "Success", description: `Location ${nextStatus === "active" ? "activated" : "deactivated"}.` });
       await fetchLocations();
     } catch (err: any) {
-      toast({
-        title: "Error",
-        description: err.message || "Failed to update location status.",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: err.message || "Failed to update location status.", variant: "destructive" });
     }
   };
 
@@ -294,92 +258,57 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
             </Button>
           </div>
         </CardHeader>
+
         <CardContent>
-          <div className="rounded-2xl border border-border/70 overflow-hidden">
-            <Table className="w-full">
-            <colgroup>
-              <col style={{ width: "13%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "10%" }} />
-              <col style={{ width: "16%" }} />
-              <col style={{ width: "26%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "8%" }} />
-              <col style={{ width: "11%" }} />
-            </colgroup>
-            <TableHeader className="bg-blue-600 [&_th]:border-r [&_th]:border-blue-500 [&_th]:text-white [&_th:last-child]:border-r-0">
-              <TableRow className="border-b border-blue-500 hover:bg-blue-600">
-                <TableHead className="h-12 px-4 text-left text-xs font-semibold uppercase tracking-wide">Name</TableHead>
-                <TableHead className="h-12 px-4 text-left text-xs font-semibold uppercase tracking-wide">Type</TableHead>
-                <TableHead className="h-12 px-4 text-left text-xs font-semibold uppercase tracking-wide">Manager</TableHead>
-                <TableHead className="h-12 px-4 text-left text-xs font-semibold uppercase tracking-wide">Contact</TableHead>
-                <TableHead className="h-12 px-4 text-left text-xs font-semibold uppercase tracking-wide">Address</TableHead>
-                <TableHead className="h-12 px-4 text-center text-xs font-semibold uppercase tracking-wide">Status</TableHead>
-                <TableHead className="h-12 px-4 text-center text-xs font-semibold uppercase tracking-wide">Updated</TableHead>
-                <TableHead className="h-12 px-4 text-center text-xs font-semibold uppercase tracking-wide">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody className="[&_td]:border-r [&_td]:border-border/60 [&_td:last-child]:border-r-0">
-              {isLoading ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Loading locations...
-                    </span>
-                  </TableCell>
-                </TableRow>
-              ) : locations.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
-                    No locations added yet.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                locations.map((location) => (
-                  <TableRow key={location.id}>
-                    <TableCell className="px-4 py-4 align-top font-medium break-words">{location.name}</TableCell>
-                    <TableCell className="px-4 py-4 align-top capitalize">{location.type || "-"}</TableCell>
-                    <TableCell className="px-4 py-4 align-top break-words">{location.manager || "-"}</TableCell>
-                    <TableCell className="px-4 py-4 align-top">
-                      <div className="space-y-1 text-sm">
-                        <div className="break-all">{location.contact_phone || "-"}</div>
-                        <div className="break-all text-muted-foreground">
-                          {location.contact_email || "-"}
+          {isLoading ? (
+            <div className="flex h-32 items-center justify-center text-muted-foreground">
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Loading locations...
+            </div>
+          ) : locations.length === 0 ? (
+            <div className="flex h-32 flex-col items-center justify-center gap-2 rounded-xl border border-dashed text-muted-foreground">
+              <MapPin className="h-8 w-8 opacity-30" />
+              <p className="text-sm">No locations added yet.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {locations.map((location) => {
+                const addressLines = formatAddress(location.address);
+                return (
+                  <div
+                    key={location.id}
+                    className="group relative flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-sm transition-shadow hover:shadow-md"
+                  >
+                    {/* Header row */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold leading-tight">{location.name}</p>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <Badge className={`${getTypeBadgeClass(location.type)} text-xs`}>
+                            {typeLabel[location.type] ?? location.type}
+                          </Badge>
+                          <Badge className={`${getStatusBadgeClass(location.status)} text-xs`}>
+                            {location.status}
+                          </Badge>
                         </div>
                       </div>
-                    </TableCell>
-                    <TableCell className="px-4 py-4 align-top break-words text-sm leading-6 text-muted-foreground">
-                      {formatAddress(location.address)}
-                    </TableCell>
-                    <TableCell className="px-4 py-4 align-top text-center">
-                      <Badge className={getStatusBadgeClass(location.status)}>{location.status}</Badge>
-                    </TableCell>
-                    <TableCell className="px-4 py-4 align-top text-center text-sm text-muted-foreground whitespace-nowrap">
-                      {location.updated_at
-                        ? new Date(location.updated_at).toLocaleDateString()
-                        : "-"}
-                    </TableCell>
-                    <TableCell className="px-3 py-4 align-top">
+
+                      {/* Action buttons */}
                       <TooltipProvider delayDuration={150}>
-                        <div className="flex items-center justify-center gap-1">
+                        <div className="flex shrink-0 items-center gap-1">
                           <Tooltip>
                             <TooltipTrigger asChild>
                               <Button
                                 type="button"
                                 variant={location.status === "active" ? "success" : "outline"}
                                 size="iconSm"
-                                className={
-                                  location.status === "active"
-                                    ? "h-8 w-8 rounded-lg"
-                                    : "h-8 w-8 rounded-lg text-gray-600"
-                                }
+                                className={location.status === "active" ? "h-8 w-8 rounded-lg" : "h-8 w-8 rounded-lg text-gray-600"}
                                 onClick={() => handleToggleStatus(location)}
                               >
-                                <Power className="h-4 w-4" />
+                                <Power className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>{location.status === "active" ? "Deactivate location" : "Activate location"}</TooltipContent>
+                            <TooltipContent>{location.status === "active" ? "Deactivate" : "Activate"}</TooltipContent>
                           </Tooltip>
                           <Tooltip>
                             <TooltipTrigger asChild>
@@ -390,7 +319,7 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
                                 className="h-8 w-8 rounded-lg"
                                 onClick={() => openEditDialog(location)}
                               >
-                                <Pencil className="h-4 w-4" />
+                                <Pencil className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Edit location</TooltipContent>
@@ -404,30 +333,72 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
                                 className="h-8 w-8 rounded-lg text-destructive"
                                 onClick={() => setDeleteLocationId(location.id)}
                               >
-                                <Trash2 className="h-4 w-4" />
+                                <Trash2 className="h-3.5 w-3.5" />
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Delete location</TooltipContent>
                           </Tooltip>
                         </div>
                       </TooltipProvider>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-          </div>
+                    </div>
+
+                    {/* Divider */}
+                    <div className="h-px bg-border/60" />
+
+                    {/* Details */}
+                    <div className="space-y-2 text-sm">
+                      {location.manager && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <User className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{location.manager}</span>
+                        </div>
+                      )}
+                      {location.contact_phone && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Phone className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{location.contact_phone}</span>
+                        </div>
+                      )}
+                      {location.contact_email && (
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Mail className="h-3.5 w-3.5 shrink-0" />
+                          <span className="truncate">{location.contact_email}</span>
+                        </div>
+                      )}
+                      {addressLines ? (
+                        <div className="flex items-start gap-2 text-muted-foreground">
+                          <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <div>
+                            {addressLines.map((line, i) => (
+                              <p key={i} className="leading-snug">{line}</p>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-muted-foreground/50">
+                          <MapPin className="h-3.5 w-3.5 shrink-0" />
+                          <span>No address added</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer */}
+                    {location.updated_at && (
+                      <div className="flex items-center gap-1.5 border-t border-border/50 pt-2 text-xs text-muted-foreground/70">
+                        <Calendar className="h-3 w-3" />
+                        Updated {new Date(location.updated_at).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </CardContent>
       </Card>
 
-      <Dialog
-        open={isLocationDialogOpen}
-        onOpenChange={(open) => {
-          setIsLocationDialogOpen(open);
-          if (!open) resetForm();
-        }}
-      >
+      {/* Dialog & AlertDialog — unchanged */}
+      <Dialog open={isLocationDialogOpen} onOpenChange={(open) => { setIsLocationDialogOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{editingLocation ? "Edit Location" : "Add New Location"}</DialogTitle>
@@ -435,27 +406,13 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
           <div className="space-y-4 py-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label htmlFor="location-name" className="text-sm font-medium">
-                  Location Name *
-                </label>
-                <Input
-                  id="location-name"
-                  placeholder="e.g., Downtown Branch"
-                  value={locationForm.name}
-                  onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })}
-                />
+                <label htmlFor="location-name" className="text-sm font-medium">Location Name *</label>
+                <Input id="location-name" placeholder="e.g., Downtown Branch" value={locationForm.name} onChange={(e) => setLocationForm({ ...locationForm, name: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label htmlFor="location-type" className="text-sm font-medium">
-                  Type
-                </label>
-                <Select
-                  value={locationForm.type}
-                  onValueChange={(value) => setLocationForm({ ...locationForm, type: value })}
-                >
-                  <SelectTrigger id="location-type">
-                    <SelectValue />
-                  </SelectTrigger>
+                <label htmlFor="location-type" className="text-sm font-medium">Type</label>
+                <Select value={locationForm.type} onValueChange={(value) => setLocationForm({ ...locationForm, type: value })}>
+                  <SelectTrigger id="location-type"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="headquarters">Main Office</SelectItem>
                     <SelectItem value="branch">Branch</SelectItem>
@@ -465,124 +422,36 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
                 </Select>
               </div>
             </div>
-
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label htmlFor="location-manager" className="text-sm font-medium">
-                  Manager Name
-                </label>
-                <Input
-                  id="location-manager"
-                  placeholder="Manager name"
-                  value={locationForm.manager}
-                  onChange={(e) => setLocationForm({ ...locationForm, manager: e.target.value })}
-                />
+                <label htmlFor="location-manager" className="text-sm font-medium">Manager Name</label>
+                <Input id="location-manager" placeholder="Manager name" value={locationForm.manager} onChange={(e) => setLocationForm({ ...locationForm, manager: e.target.value })} />
               </div>
               <div className="space-y-2">
-                <label htmlFor="location-phone" className="text-sm font-medium">
-                  Contact Phone
-                </label>
-                <Input
-                  id="location-phone"
-                  placeholder="(555) 123-4567"
-                  value={locationForm.contact_phone}
-                  onChange={(e) =>
-                    setLocationForm({ ...locationForm, contact_phone: e.target.value })
-                  }
-                />
+                <label htmlFor="location-phone" className="text-sm font-medium">Contact Phone</label>
+                <Input id="location-phone" placeholder="(555) 123-4567" value={locationForm.contact_phone} onChange={(e) => setLocationForm({ ...locationForm, contact_phone: e.target.value })} />
               </div>
             </div>
-
             <div className="space-y-2">
-              <label htmlFor="location-email" className="text-sm font-medium">
-                Contact Email
-              </label>
-              <Input
-                id="location-email"
-                type="email"
-                placeholder="location@example.com"
-                value={locationForm.contact_email}
-                onChange={(e) => setLocationForm({ ...locationForm, contact_email: e.target.value })}
-              />
+              <label htmlFor="location-email" className="text-sm font-medium">Contact Email</label>
+              <Input id="location-email" type="email" placeholder="location@example.com" value={locationForm.contact_email} onChange={(e) => setLocationForm({ ...locationForm, contact_email: e.target.value })} />
             </div>
-
             <div className="space-y-3">
               <label className="text-sm font-medium">Address</label>
               <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
-                <Input
-                  placeholder="Street Address"
-                  value={locationForm.address.street1}
-                  onChange={(e) =>
-                    setLocationForm({
-                      ...locationForm,
-                      address: { ...locationForm.address, street1: e.target.value },
-                    })
-                  }
-                />
-                <Input
-                  placeholder="Apt, Suite, Unit (optional)"
-                  value={locationForm.address.street2}
-                  onChange={(e) =>
-                    setLocationForm({
-                      ...locationForm,
-                      address: { ...locationForm.address, street2: e.target.value },
-                    })
-                  }
-                />
+                <Input placeholder="Street Address" value={locationForm.address.street1} onChange={(e) => setLocationForm({ ...locationForm, address: { ...locationForm.address, street1: e.target.value } })} />
+                <Input placeholder="Apt, Suite, Unit (optional)" value={locationForm.address.street2} onChange={(e) => setLocationForm({ ...locationForm, address: { ...locationForm.address, street2: e.target.value } })} />
                 <div className="grid gap-3 md:grid-cols-3">
-                  <Input
-                    placeholder="City"
-                    value={locationForm.address.city}
-                    onChange={(e) =>
-                      setLocationForm({
-                        ...locationForm,
-                        address: { ...locationForm.address, city: e.target.value },
-                      })
-                    }
-                  />
-                  <Input
-                    placeholder="State"
-                    value={locationForm.address.state}
-                    onChange={(e) =>
-                      setLocationForm({
-                        ...locationForm,
-                        address: { ...locationForm.address, state: e.target.value },
-                      })
-                    }
-                  />
-                  <Input
-                    placeholder="ZIP Code"
-                    value={locationForm.address.zip_code}
-                    onChange={(e) =>
-                      setLocationForm({
-                        ...locationForm,
-                        address: { ...locationForm.address, zip_code: e.target.value },
-                      })
-                    }
-                  />
+                  <Input placeholder="City" value={locationForm.address.city} onChange={(e) => setLocationForm({ ...locationForm, address: { ...locationForm.address, city: e.target.value } })} />
+                  <Input placeholder="State" value={locationForm.address.state} onChange={(e) => setLocationForm({ ...locationForm, address: { ...locationForm.address, state: e.target.value } })} />
+                  <Input placeholder="ZIP Code" value={locationForm.address.zip_code} onChange={(e) => setLocationForm({ ...locationForm, address: { ...locationForm.address, zip_code: e.target.value } })} />
                 </div>
               </div>
             </div>
-
             <div className="flex justify-end gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setIsLocationDialogOpen(false);
-                  resetForm();
-                }}
-              >
-                Cancel
-              </Button>
+              <Button type="button" variant="outline" onClick={() => { setIsLocationDialogOpen(false); resetForm(); }}>Cancel</Button>
               <Button type="button" onClick={handleSaveLocation} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : editingLocation ? (
-                  <Pencil className="mr-2 h-4 w-4" />
-                ) : (
-                  <Plus className="mr-2 h-4 w-4" />
-                )}
+                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : editingLocation ? <Pencil className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
                 {editingLocation ? "Update Location" : "Add Location"}
               </Button>
             </div>
@@ -594,18 +463,11 @@ export function PharmacyLocationsSection({ userId }: PharmacyLocationsSectionPro
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Location</AlertDialogTitle>
-            <AlertDialogDescription>
-              This location will be removed permanently.
-            </AlertDialogDescription>
+            <AlertDialogDescription>This location will be removed permanently.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDeleteLocation}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleDeleteLocation} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
