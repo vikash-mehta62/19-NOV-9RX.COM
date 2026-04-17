@@ -79,6 +79,20 @@ const getFedExSettings = async (supabase: ReturnType<typeof createClient>) => {
   return data as JsonRecord;
 };
 
+const getOptionalFedExSettings = async (supabase: ReturnType<typeof createClient>) => {
+  const { data, error } = await supabase
+    .from("settings")
+    .select("*")
+    .eq("is_global", true)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error("Failed to load FedEx settings");
+  }
+
+  return (data || null) as JsonRecord | null;
+};
+
 const getBaseUrl = (settings: JsonRecord) =>
   settings.fedex_use_sandbox === false ? FEDEX_BASE_URL.production : FEDEX_BASE_URL.sandbox;
 
@@ -767,11 +781,19 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const settings = await getFedExSettings(supabase);
+    const settings =
+      action === "test_auth"
+        ? await getOptionalFedExSettings(supabase)
+        : await getFedExSettings(supabase);
     const activeSettings =
       action === "test_auth" && body.settingsOverride && typeof body.settingsOverride === "object"
-        ? { ...settings, ...(body.settingsOverride as JsonRecord) }
+        ? { ...(settings || {}), ...(body.settingsOverride as JsonRecord) }
         : settings;
+
+    if (!activeSettings || activeSettings.fedex_enabled !== true) {
+      throw new Error("FedEx settings not configured");
+    }
+
     const token = await getAuthToken(activeSettings);
     const activeCredentials = getFedExCredentials(activeSettings);
     const accountNumber = activeCredentials.accountNumber;
@@ -806,7 +828,7 @@ Deno.serve(async (req) => {
       }
 
       case "validate_address": {
-        const data = await fedexRequest(settings, token, "/address/v1/addresses/resolve", {
+        const data = await fedexRequest(activeSettings, token, "/address/v1/addresses/resolve", {
           addressesToValidate: [
             {
               address: {
@@ -824,7 +846,7 @@ Deno.serve(async (req) => {
 
       case "rate_quote": {
         requireAccountNumber();
-        validateShipperSettings(settings);
+        validateShipperSettings(activeSettings);
         validateRecipient(body.shipment || {});
         let data: JsonRecord;
         try {
@@ -848,7 +870,7 @@ Deno.serve(async (req) => {
 
       case "create_shipment": {
         requireAccountNumber();
-        validateShipperSettings(settings);
+        validateShipperSettings(activeSettings);
         validateRecipient(body.shipment || {});
         const createPayload = {
           labelResponseOptions: "LABEL",
