@@ -521,7 +521,7 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
-            <div className="grid grid-cols-12 gap-4 text-sm font-medium text-muted-foreground pb-2 border-b">
+            <div className="hidden grid-cols-12 gap-4 border-b pb-2 text-sm font-medium text-muted-foreground md:grid">
               <div className="col-span-1">#</div>
               <div className="col-span-5">Product Name</div>
               <div className="col-span-2">Category</div>
@@ -532,51 +532,60 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
               const isExpanded = expandedProductId === product.id;
               return (
                 <div key={product.id} className="rounded-lg transition-colors hover:bg-muted/40">
-                  <div className="grid grid-cols-12 gap-4 text-sm items-center py-2">
-                    <div className="col-span-1">
-                      <Badge variant="outline">{index + 1}</Badge>
-                    </div>
-                    <div className="col-span-5">
+                  <div className="grid gap-3 py-3 text-sm md:grid-cols-12 md:items-center md:gap-4 md:py-2">
+                    <div className="flex min-w-0 items-start gap-2 md:col-span-6">
+                      <Badge variant="outline" className="shrink-0">{index + 1}</Badge>
                       <Button
                         type="button"
                         variant="ghost"
                         onClick={() => setExpandedProductId(isExpanded ? null : product.id)}
-                        className="h-auto p-0 text-left hover:bg-transparent"
+                        className="h-auto min-w-0 p-0 text-left hover:bg-transparent"
                       >
-                        <div className="flex items-start gap-2">
+                        <div className="flex min-w-0 items-start gap-2">
                           {isExpanded ? (
-                            <ChevronDown className="mt-0.5 h-4 w-4 text-slate-500" />
+                            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                           ) : (
-                            <ChevronRight className="mt-0.5 h-4 w-4 text-slate-500" />
+                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                           )}
-                          <div>
-                            <div className="font-medium text-slate-900">{product.name}</div>
-                            <div className="text-xs text-muted-foreground">
+                          <div className="min-w-0">
+                            <div className="break-words font-medium text-slate-900">{product.name}</div>
+                            <div className="break-words text-xs text-muted-foreground">
                               {product.subcategory || "No subcategory"} • {(product.sizes || []).length} sizes
                             </div>
                           </div>
                         </div>
                       </Button>
                     </div>
-                    <div className="col-span-2">
-                      <Badge variant="secondary">{product.category}</Badge>
-                    </div>
-                    <div className="col-span-2 text-right font-semibold">{product.quantity}</div>
-                    <div className="col-span-2 text-right font-semibold text-green-600">
-                      ${product.revenue.toFixed(2)}
+                    <div className="grid grid-cols-2 gap-3 rounded-xl border bg-slate-50 p-3 md:col-span-6 md:grid-cols-3 md:gap-4 md:border-0 md:bg-transparent md:p-0">
+                      <div className="col-span-2 md:col-span-1">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 md:hidden">Category</div>
+                        <Badge variant="secondary" className="mt-1 max-w-full whitespace-normal break-words text-center md:mt-0">
+                          {product.category}
+                        </Badge>
+                      </div>
+                      <div className="md:text-right">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 md:hidden">Units Sold</div>
+                        <div className="mt-1 font-semibold md:mt-0">{product.quantity}</div>
+                      </div>
+                      <div className="md:text-right">
+                        <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 md:hidden">Revenue</div>
+                        <div className="mt-1 font-semibold text-green-600 md:mt-0">
+                          ${product.revenue.toFixed(2)}
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="ml-10 mr-2 mb-3 rounded-2xl border bg-slate-50 p-4">
-                      <div className="grid gap-4 md:grid-cols-3">
+                    <div className="mb-3 rounded-2xl border bg-slate-50 p-4 md:ml-10 md:mr-2">
+                      <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                         <div>
                           <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Category</p>
-                          <p className="mt-1 text-sm font-medium text-slate-900">{product.category || "Uncategorized"}</p>
+                          <p className="mt-1 break-words text-sm font-medium text-slate-900">{product.category || "Uncategorized"}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Subcategory</p>
-                          <p className="mt-1 text-sm font-medium text-slate-900">{product.subcategory || "Not assigned"}</p>
+                          <p className="mt-1 break-words text-sm font-medium text-slate-900">{product.subcategory || "Not assigned"}</p>
                         </div>
                         <div>
                           <p className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Catalog sizes</p>
@@ -593,19 +602,19 @@ export function ProductAnalytics({ dateRange, refresh, selectedProducts = [] }: 
                               .map((size: any) => (
                                 <div
                                   key={size.id}
-                                  className="grid gap-3 rounded-xl border bg-white px-3 py-2 text-sm md:grid-cols-[minmax(0,1.5fr)_120px_140px]"
+                                  className="grid gap-3 rounded-xl border bg-white px-3 py-3 text-sm sm:grid-cols-[minmax(0,1.2fr)_110px_120px] md:grid-cols-[minmax(0,1.5fr)_120px_140px]"
                                 >
                                   <div className="min-w-0">
-                                    <p className="font-medium text-slate-900">{size.label}</p>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="break-words font-medium text-slate-900">{size.label}</p>
+                                    <p className="break-words text-xs text-muted-foreground">
                                       {size.quantityPerCase ? `${size.quantityPerCase}/case` : "Case pack not available"}
                                       {size.sku ? ` • ${size.sku}` : ""}
                                     </p>
                                   </div>
-                                  <div className="font-medium text-slate-700 md:text-right">
+                                  <div className="font-medium text-slate-700 sm:text-right">
                                     {size.quantity} sold
                                   </div>
-                                  <div className="font-semibold text-emerald-600 md:text-right">
+                                  <div className="font-semibold text-emerald-600 sm:text-right">
                                     ${Number(size.revenue || 0).toFixed(2)}
                                   </div>
                                 </div>

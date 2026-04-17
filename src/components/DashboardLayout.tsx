@@ -343,7 +343,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
   }, [hideFinancialData])
 
   return (
-    <SidebarProvider>
+    <SidebarProvider mobileBreakpoint={1024}>
       <div className="min-h-screen flex w-full bg-gray-50 dark:bg-gray-900">
         <Sidebar
           collapsible="icon"

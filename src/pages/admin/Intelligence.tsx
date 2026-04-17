@@ -11,7 +11,7 @@ import { Brain, TrendingUp, Users, ShoppingCart, Package } from "lucide-react";
 export default function Intelligence() {
   return (
     <DashboardLayout role="admin">
-      <div className="container mx-auto p-6 max-w-7xl">
+      <div className="container mx-auto max-w-7xl p-4 sm:p-6">
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <Brain className="h-8 w-8 text-purple-600" />
@@ -23,24 +23,24 @@ export default function Intelligence() {
       </div>
 
       <Tabs defaultValue="kpis" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="kpis" className="flex items-center gap-2">
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-lg bg-gray-100 p-1 sm:grid-cols-3 lg:grid-cols-5">
+          <TabsTrigger value="kpis" className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs sm:text-sm">
             <TrendingUp className="h-4 w-4" />
             KPIs
           </TabsTrigger>
-          <TabsTrigger value="forecast" className="flex items-center gap-2">
+          <TabsTrigger value="forecast" className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs sm:text-sm">
             <TrendingUp className="h-4 w-4" />
             Forecast
           </TabsTrigger>
-          <TabsTrigger value="customers" className="flex items-center gap-2">
+          <TabsTrigger value="customers" className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs sm:text-sm">
             <Users className="h-4 w-4" />
             Customers
           </TabsTrigger>
-          <TabsTrigger value="funnel" className="flex items-center gap-2">
+          <TabsTrigger value="funnel" className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs sm:text-sm">
             <ShoppingCart className="h-4 w-4" />
             Funnel
           </TabsTrigger>
-          <TabsTrigger value="inventory" className="flex items-center gap-2">
+          <TabsTrigger value="inventory" className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs sm:text-sm">
             <Package className="h-4 w-4" />
             Inventory
           </TabsTrigger>

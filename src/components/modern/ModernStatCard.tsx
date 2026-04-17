@@ -62,16 +62,16 @@ export function ModernStatCard({
       aria-label={actionLabel || title}
     >
       <div className={`absolute inset-0 bg-gradient-to-br ${gradientClass}`} />
-      <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-1 sm:pb-2 relative p-4 sm:p-5 lg:p-6">
-        <CardTitle className="text-sm font-medium text-gray-600 whitespace-nowrap">{title}</CardTitle>
+      <CardHeader className="relative space-y-3 pb-1 p-4 sm:flex sm:flex-row sm:items-start sm:justify-between sm:space-y-0 sm:pb-2 sm:p-5 lg:p-6">
+        <CardTitle className="pr-2 text-sm font-medium leading-snug text-gray-600 whitespace-normal break-words">{title}</CardTitle>
         {icon && (
-          <div className={`h-8 w-8 sm:h-9 sm:w-9 lg:h-10 lg:w-10 flex items-center justify-center ${bgClass} rounded-full flex-shrink-0 ml-2`}>
+          <div className={`h-8 w-8 sm:h-9 sm:w-9 lg:h-10 lg:w-10 flex items-center justify-center ${bgClass} rounded-full flex-shrink-0 self-start sm:ml-2`}>
             <span className="scale-75 sm:scale-90 lg:scale-100">{icon}</span>
           </div>
         )}
       </CardHeader>
       <CardContent className="relative p-4 sm:p-5 lg:p-6 pt-0">
-        <div className="text-2xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-1 sm:mb-2">{value}</div>
+        <div className="mb-1 break-words text-2xl font-bold leading-tight text-gray-900 sm:mb-2 sm:text-2xl lg:text-3xl">{value}</div>
         {(change || subtitle) && (
           <div className="flex items-center gap-1 sm:gap-2 text-xs sm:text-sm flex-wrap">
             {change && trend !== 'neutral' && (

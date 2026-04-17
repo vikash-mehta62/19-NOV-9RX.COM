@@ -103,25 +103,25 @@ export function SalesForecastChart() {
   return (
     <Card className="shadow-sm">
       <CardHeader className="pb-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center gap-3">
-              <CardTitle className="text-2xl">Sales Forecast</CardTitle>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 space-y-1">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+              <CardTitle className="text-2xl leading-tight">Sales Forecast</CardTitle>
               <Badge variant="outline" className={`${trendBgColor} ${trendBorderColor} ${trendColor} border`}>
                 <TrendIcon className="h-3 w-3 mr-1" />
                 {forecast.trend === 'up' ? 'Growing' : forecast.trend === 'down' ? 'Declining' : 'Stable'}
               </Badge>
             </div>
-            <CardDescription className="text-base">
+            <CardDescription className="max-w-2xl text-base">
               AI-powered revenue prediction for the next {period} days
             </CardDescription>
           </div>
-          <div className="flex gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <Button
               variant={period === 30 ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriod(30)}
-              className="min-w-[80px]"
+              className="w-full sm:min-w-[80px]"
             >
               30 Days
             </Button>
@@ -129,7 +129,7 @@ export function SalesForecastChart() {
               variant={period === 60 ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriod(60)}
-              className="min-w-[80px]"
+              className="w-full sm:min-w-[80px]"
             >
               60 Days
             </Button>
@@ -137,7 +137,7 @@ export function SalesForecastChart() {
               variant={period === 90 ? "default" : "outline"}
               size="sm"
               onClick={() => setPeriod(90)}
-              className="min-w-[80px]"
+              className="col-span-2 w-full sm:col-span-1 sm:min-w-[80px]"
             >
               90 Days
             </Button>
@@ -147,14 +147,14 @@ export function SalesForecastChart() {
       
       <CardContent className="space-y-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {/* Expected Revenue */}
           <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4 border border-blue-200">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-medium text-blue-900">Expected Revenue</p>
               <Info className="h-4 w-4 text-blue-600" />
             </div>
-            <p className="text-3xl font-bold text-blue-900">
+            <p className="break-words text-2xl font-bold text-blue-900 sm:text-3xl">
               ${forecast.summary.expectedRevenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
             </p>
             <p className="text-xs text-blue-700 mt-1">Total for {period} days</p>
@@ -172,7 +172,7 @@ export function SalesForecastChart() {
               </p>
               <TrendIcon className={`h-4 w-4 ${forecast.summary.growthRate >= 0 ? 'text-green-600' : 'text-red-600'}`} />
             </div>
-            <p className={`text-3xl font-bold ${forecast.summary.growthRate >= 0 ? 'text-green-900' : 'text-red-900'}`}>
+            <p className={`break-words text-2xl font-bold ${forecast.summary.growthRate >= 0 ? 'text-green-900' : 'text-red-900'} sm:text-3xl`}>
               {forecast.summary.growthRate >= 0 ? '+' : ''}{forecast.summary.growthRate.toFixed(2)}%
             </p>
             <p className={`text-xs mt-1 ${forecast.summary.growthRate >= 0 ? 'text-green-700' : 'text-red-700'}`}>
@@ -188,7 +188,7 @@ export function SalesForecastChart() {
                 {confidenceLabel}
               </Badge>
             </div>
-            <p className="text-3xl font-bold text-purple-900">
+            <p className="break-words text-2xl font-bold text-purple-900 sm:text-3xl">
               {confidenceLevel.toFixed(1)}%
             </p>
             <p className="text-xs text-purple-700 mt-1">Model accuracy</p>
@@ -209,7 +209,7 @@ export function SalesForecastChart() {
         )}
 
         {/* Chart */}
-        <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 p-3 sm:p-4">
           <div className="mb-4">
             <h3 className="text-sm font-semibold text-gray-900 mb-1">Revenue Forecast Trend</h3>
             <p className="text-xs text-gray-600">
@@ -217,7 +217,7 @@ export function SalesForecastChart() {
             </p>
           </div>
           
-          <ResponsiveContainer width="100%" height={350}>
+          <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={forecast.forecast} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="confidenceGradient" x1="0" y1="0" x2="0" y2="1">
@@ -233,6 +233,7 @@ export function SalesForecastChart() {
                 tickFormatter={(date) => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                 tick={{ fontSize: 12, fill: '#6b7280' }}
                 stroke="#9ca3af"
+                minTickGap={24}
               />
               
               <YAxis 
@@ -284,7 +285,7 @@ export function SalesForecastChart() {
         </div>
 
         {/* Insights */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
           <div className="bg-white rounded-lg p-4 border border-gray-200">
             <h4 className="text-sm font-semibold text-gray-900 mb-2">📊 What This Means</h4>
             <ul className="text-xs text-gray-700 space-y-1">

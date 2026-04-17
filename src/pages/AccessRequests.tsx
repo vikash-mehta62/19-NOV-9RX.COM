@@ -278,22 +278,24 @@ export default function AccessRequests() {
     <DashboardLayout role="admin">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight flex items-center gap-3">
-              <Bell className="h-8 w-8 text-orange-600" />
-              Access Requests
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between md:gap-4">
+              <h1 className="flex min-w-0 items-start gap-3 text-2xl font-bold tracking-tight sm:text-3xl">
+                <Bell className="mt-1 h-7 w-7 shrink-0 text-orange-600 sm:h-8 sm:w-8" />
+                <span className="break-words leading-tight">Access Requests</span>
+              </h1>
               {pendingCount > 0 && (
-                <Badge variant="destructive" className="text-lg px-3 py-1">
+                <Badge variant="destructive" className="w-fit whitespace-normal px-3 py-1 text-base sm:text-lg">
                   {pendingCount} Pending
                 </Badge>
               )}
-            </h1>
+            </div>
             <p className="text-muted-foreground mt-2">
               Review and manage user access requests to the system
             </p>
           </div>
-          <Button onClick={loadRequests} disabled={loading}>
+          <Button onClick={loadRequests} disabled={loading} className="w-full sm:w-auto">
             <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
             Refresh
           </Button>

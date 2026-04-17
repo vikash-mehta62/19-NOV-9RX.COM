@@ -205,19 +205,19 @@ export function AdvancedProductFilter({ selectedFilters, onFiltersChange }: Adva
   ]);
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
             variant="outline"
             role="combobox"
             aria-expanded={open}
-            className="w-[320px] justify-between"
+            className="w-full min-w-0 justify-between sm:w-[320px]"
           >
-            <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4" />
+            <div className="flex min-w-0 items-center gap-2">
+              <Filter className="h-4 w-4 shrink-0" />
               {getTotalFiltersCount() === 0 ? (
-                "Filter by products, categories & sizes..."
+                <span className="truncate">Filter by products, categories & sizes...</span>
               ) : (
                 <span className="truncate">
                   {getTotalFiltersCount()} filter{getTotalFiltersCount() > 1 ? 's' : ''} applied
@@ -227,7 +227,7 @@ export function AdvancedProductFilter({ selectedFilters, onFiltersChange }: Adva
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-[450px] p-0 mt-2" align="start" sideOffset={5}>
+        <PopoverContent className="mt-2 w-[calc(100vw-2rem)] max-w-[450px] p-0" align="start" sideOffset={5}>
           {open && (
             <div className="rounded-lg border-0 shadow-none">
               {/* Header with Clear All */}
@@ -543,7 +543,7 @@ export function AdvancedProductFilter({ selectedFilters, onFiltersChange }: Adva
           variant="ghost"
           size="sm"
           onClick={handleClearAll}
-          className="h-9 px-2"
+          className="h-9 px-2 shrink-0"
           title="Clear all filters"
         >
           <X className="h-4 w-4" />

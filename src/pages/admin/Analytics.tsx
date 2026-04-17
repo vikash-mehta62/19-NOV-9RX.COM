@@ -426,16 +426,16 @@ export default function Analytics() {
     <DashboardLayout role="admin">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0">
             <h1 className="text-3xl font-bold tracking-tight">Analytics & Reports</h1>
             <p className="text-muted-foreground mt-1">
               Comprehensive business intelligence and reporting
             </p>
           </div>
 
-          <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3">
+          <div className="w-full lg:w-auto">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center lg:justify-end">
               <AdvancedProductFilter
                 selectedFilters={selectedFilters}
                 onFiltersChange={setSelectedFilters}
@@ -449,6 +449,7 @@ export default function Analytics() {
                 size="sm"
                 onClick={handleRefresh}
                 disabled={isRefreshing}
+                className="w-full sm:w-auto"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
                 Refresh
@@ -458,7 +459,7 @@ export default function Analytics() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-3 gap-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
@@ -518,22 +519,22 @@ export default function Analytics() {
 
         {/* Main Analytics Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 p-1 sm:grid-cols-4 lg:w-auto">
+            <TabsTrigger value="overview" className="flex min-w-0 flex-col items-center gap-1 px-2 py-2 text-[11px] sm:flex-row sm:gap-2 sm:px-3 sm:text-sm">
               <BarChart3 className="h-4 w-4" />
-              <span className="hidden sm:inline">Overview</span>
+              <span className="whitespace-normal break-words text-center leading-tight">Overview</span>
             </TabsTrigger>
-            <TabsTrigger value="products" className="flex items-center gap-2">
+            <TabsTrigger value="products" className="flex min-w-0 flex-col items-center gap-1 px-2 py-2 text-[11px] sm:flex-row sm:gap-2 sm:px-3 sm:text-sm">
               <Package className="h-4 w-4" />
-              <span className="hidden sm:inline">Products</span>
+              <span className="whitespace-normal break-words text-center leading-tight">Products</span>
             </TabsTrigger>
-            <TabsTrigger value="stores" className="flex items-center gap-2">
+            <TabsTrigger value="stores" className="flex min-w-0 flex-col items-center gap-1 px-2 py-2 text-[11px] sm:flex-row sm:gap-2 sm:px-3 sm:text-sm">
               <Store className="h-4 w-4" />
-              <span className="hidden sm:inline">Stores</span>
+              <span className="whitespace-normal break-words text-center leading-tight">Stores</span>
             </TabsTrigger>
-            <TabsTrigger value="reports" className="flex items-center gap-2">
+            <TabsTrigger value="reports" className="flex min-w-0 flex-col items-center gap-1 px-2 py-2 text-[11px] sm:flex-row sm:gap-2 sm:px-3 sm:text-sm">
               <FileText className="h-4 w-4" />
-              <span className="hidden sm:inline">Reports</span>
+              <span className="whitespace-normal break-words text-center leading-tight">Reports</span>
             </TabsTrigger>
           </TabsList>
 

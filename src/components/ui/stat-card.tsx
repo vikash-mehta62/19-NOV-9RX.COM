@@ -47,22 +47,27 @@ export function StatCard({
   return (
     <Card className={cn(variantStyles[variant], "border-2 transition-all hover:shadow-lg", className)}>
       <CardContent className="p-4 sm:p-6">
-        <div className="flex items-start justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex justify-end sm:hidden">
+            <div className={cn("rounded-lg p-2", iconStyles[variant])}>
+              <Icon className="h-5 w-5" />
+            </div>
+          </div>
           <div className="flex-1 min-w-0">
-            <p className="text-xs sm:text-sm font-medium text-gray-600 mb-1 truncate">
+            <p className="mb-1 whitespace-normal break-words text-xs font-medium leading-snug text-gray-600 sm:text-sm">
               {title}
             </p>
-            <h3 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900 mb-2 break-words">
+            <h3 className="mb-2 whitespace-normal break-words text-xl font-bold leading-tight text-gray-900 sm:text-2xl lg:text-3xl">
               {value}
             </h3>
             {change && (
-              <Badge className={cn("text-xs", trendStyles[trend])}>
+              <Badge className={cn("max-w-full whitespace-normal break-words text-xs leading-snug", trendStyles[trend])}>
                 <TrendIcon className="h-3 w-3 mr-1" />
                 {change}
               </Badge>
             )}
           </div>
-          <div className={cn("p-2 sm:p-3 rounded-lg flex-shrink-0 ml-2", iconStyles[variant])}>
+          <div className={cn("ml-2 hidden flex-shrink-0 rounded-lg p-2 sm:block sm:p-3", iconStyles[variant])}>
             <Icon className="h-5 w-5 sm:h-6 sm:w-6" />
           </div>
         </div>

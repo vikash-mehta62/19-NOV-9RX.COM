@@ -51,7 +51,7 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
   };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex w-full items-center gap-2 sm:w-auto">
       <Popover open={open} onOpenChange={(isOpen) => {
         setOpen(isOpen);
         if (isOpen) {
@@ -59,12 +59,14 @@ export function DateRangePicker({ dateRange, onDateRangeChange }: DateRangePicke
         }
       }}>
         <PopoverTrigger asChild>
-          <Button variant="outline" size="sm" className="justify-start text-left font-normal">
-            <CalendarIcon className="mr-2 h-4 w-4" />
-            {format(dateRange.from, "MMM dd, yyyy")} - {format(dateRange.to, "MMM dd, yyyy")}
+          <Button variant="outline" size="sm" className="w-full min-w-0 justify-start text-left font-normal sm:w-auto">
+            <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+            <span className="truncate">
+              {format(dateRange.from, "MMM dd, yyyy")} - {format(dateRange.to, "MMM dd, yyyy")}
+            </span>
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto max-w-[95vw] p-0" align="end" side="bottom" sideOffset={8}>
+        <PopoverContent className="w-[calc(100vw-2rem)] max-w-[95vw] p-0 sm:w-auto" align="end" side="bottom" sideOffset={8}>
           <div className="p-3 border-b">
             <div className="grid grid-cols-2 gap-2">
               {presets.map((preset) => (

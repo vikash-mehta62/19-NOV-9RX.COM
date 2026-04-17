@@ -217,7 +217,7 @@ export default function AdminLogs() {
                     </Card>
                 </div>
             ) : (
-                <div className="container mx-auto p-6 space-y-6">
+                <div className="container mx-auto space-y-6 p-4 sm:p-6">
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
@@ -228,9 +228,9 @@ export default function AdminLogs() {
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {/* Search and Filter Section */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
                                 {/* Search by Order Number */}
-                                <form onSubmit={handleSearch} className="flex items-center gap-2">
+                                <form onSubmit={handleSearch} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                     <div className="relative flex-1">
                                         <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                                         <Input
@@ -241,27 +241,27 @@ export default function AdminLogs() {
                                             onChange={(e) => handleFilterChange("orderNumber", e.target.value)}
                                         />
                                     </div>
-                                    <Button type="submit">Search</Button>
+                                    <Button type="submit" className="w-full sm:w-auto">Search</Button>
                                 </form>
 
                                 {/* Date Filter */}
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" className="flex-1 justify-start text-left font-normal">
-                                                <Calendar className="mr-2 h-4 w-4" />
+                                            <Button variant="outline" className="w-full min-w-0 flex-1 justify-start text-left font-normal">
+                                                <Calendar className="mr-2 h-4 w-4 shrink-0" />
                                                 {filters.startDate && filters.endDate ? (
-                                                    <>
+                                                    <span className="truncate">
                                                         {format(filters.startDate, "PPP")} - {format(filters.endDate, "PPP")}
-                                                    </>
+                                                    </span>
                                                 ) : (
                                                     <span>Select date range</span>
                                                 )}
                                             </Button>
                                         </PopoverTrigger>
-                                        <PopoverContent className="w-auto p-0" align="start">
+                                        <PopoverContent className="w-[calc(100vw-2rem)] max-w-[95vw] p-0 xl:w-auto" align="start">
                                             <div className="grid gap-2">
-                                                <div className="grid grid-cols-2 gap-2">
+                                                <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
                                                     <div>
                                                         <Label className="px-4 pt-2 block">Start Date</Label>
                                                         <CalendarComponent
@@ -300,8 +300,8 @@ export default function AdminLogs() {
                                     {/* Action Type Filter */}
                                     <Popover>
                                         <PopoverTrigger asChild>
-                                            <Button variant="outline" className="flex-1">
-                                                <Filter className="mr-2 h-4 w-4" />
+                                            <Button variant="outline" className="w-full min-w-0 flex-1">
+                                                <Filter className="mr-2 h-4 w-4 shrink-0" />
                                                 {filters.actions.length > 0 ? `${filters.actions.length} filters` : "Filter Actions"}
                                             </Button>
                                         </PopoverTrigger>
@@ -338,7 +338,7 @@ export default function AdminLogs() {
                             </div>
 
                             {/* Table */}
-                            <div className="rounded-md border">
+                            <div className="overflow-hidden rounded-md border">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
@@ -354,21 +354,18 @@ export default function AdminLogs() {
                                         {logs.map((log) => (
                                             <TableRow key={log._id}>
                                                 <TableCell>{getActionBadge(log.action)}</TableCell>
-                                                <TableCell className="font-mono font-medium">{log.orderId}</TableCell>
+                                                <TableCell className="max-w-[140px] break-words font-mono font-medium sm:max-w-none">{log.orderId}</TableCell>
                                                 {/* <TableCell className="font-mono text-sm text-muted-foreground">
                                                 {log.userId.slice(0, 8)}...
                                             </TableCell> */}
                                                 <TableCell className="text-sm">
-                                                    <div className="flex items-center gap-1">
-                                                        <Calendar className="h-3 w-3" />
-                                                        {formatTimestamp(log.timestamp)}
-                                                    </div>
+                                                    {formatTimestamp(log.timestamp)}
                                                 </TableCell>
                                                 {/* <TableCell className="max-w-xs truncate">{log.details.message}</TableCell> */}
                                                 <TableCell className="text-right">
                                                     <Dialog>
                                                         <DialogTrigger asChild>
-                                                            <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)}>
+                                                            <Button variant="outline" size="sm" onClick={() => setSelectedLog(log)} className="whitespace-nowrap">
                                                                 <Eye className="h-4 w-4 mr-1" />
                                                                 View Details
                                                             </Button>
@@ -501,11 +498,11 @@ export default function AdminLogs() {
 
                             {/* Pagination */}
                             {logs.length > 0 && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                                     <div className="text-sm text-muted-foreground">
                                         Showing {startIndex + 1} to {endIndex} of {totalItems} entries
                                     </div>
-                                    <div className="flex items-center space-x-2">
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:space-x-2">
                                         <div className="flex items-center space-x-2">
                                             <Label htmlFor="itemsPerPage">Show</Label>
                                             <Select
@@ -529,7 +526,7 @@ export default function AdminLogs() {
                                             <span>entries</span>
                                         </div>
 
-                                        <div className="flex items-center space-x-2">
+                                        <div className="flex items-center justify-between sm:justify-start sm:space-x-2">
                                             <Button
                                                 variant="outline"
                                                 size="icon"

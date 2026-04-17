@@ -158,18 +158,18 @@ export function InventoryDemandPredictor() {
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
             <CardTitle className="flex items-center gap-2">
               <Package className="h-5 w-5" />
               Inventory Demand Prediction
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="max-w-2xl">
               AI-powered stock level recommendations based on sales trends (excludes cancelled/void orders)
             </CardDescription>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={exportToCSV} disabled={predictions.length === 0}>
+          <div className="w-full sm:w-auto">
+            <Button variant="outline" size="sm" onClick={exportToCSV} disabled={predictions.length === 0} className="w-full sm:w-auto">
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </Button>
@@ -178,7 +178,7 @@ export function InventoryDemandPredictor() {
       </CardHeader>
       <CardContent>
         {/* Summary Statistics */}
-        <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
           <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
             <div className="text-sm text-gray-600 mb-1">Critical Items</div>
             <div className="text-2xl font-bold text-red-600">{criticalPriority.length}</div>
@@ -228,18 +228,18 @@ export function InventoryDemandPredictor() {
         {/* Search and Filter Controls */}
         <div className="mb-4 space-y-3">
           {/* Search Bar */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <input
               type="text"
               placeholder="Search products..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'urgency' | 'stock' | 'sales')}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 sm:w-auto"
             >
               <option value="urgency">Sort by Urgency</option>
               <option value="stock">Sort by Stock Level</option>
@@ -248,16 +248,17 @@ export function InventoryDemandPredictor() {
           </div>
 
           {/* Urgency Filter */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <Filter className="h-4 w-4 text-gray-500" />
             <span className="text-sm text-gray-600">Filter by urgency:</span>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               {['all', 'critical', 'high', 'medium', 'low'].map(level => (
                 <Button
                   key={level}
                   variant={filterUrgency === level ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setFilterUrgency(level)}
+                  className="whitespace-nowrap"
                 >
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                   {level !== 'all' && ` (${predictions.filter(p => p.urgency === level).length})`}
@@ -285,10 +286,10 @@ export function InventoryDemandPredictor() {
                 </div>
               )}
 
-              <div className="flex justify-between items-start mb-2">
+              <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="flex-1">
-                  <h4 className="font-semibold text-lg">{prediction.productName}</h4>
-                  <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                  <h4 className="break-words font-semibold text-lg">{prediction.productName}</h4>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                     <span>Total: {prediction.currentStock}</span>
                     {prediction.reservedStock > 0 && (
                       <span className="text-orange-600 font-medium">Reserved: {prediction.reservedStock}</span>
@@ -313,10 +314,12 @@ export function InventoryDemandPredictor() {
                     </div>
                   </div>
                 </div>
-                {getUrgencyBadge(prediction.urgency)}
+                <div className="self-start">
+                  {getUrgencyBadge(prediction.urgency)}
+                </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4 mt-3">
+              <div className="mt-3 grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <div className={`p-3 rounded ${
                   prediction.isOversold ? 'bg-red-200' :
                   prediction.urgency === 'critical' ? 'bg-red-100' : 

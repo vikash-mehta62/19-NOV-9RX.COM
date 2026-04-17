@@ -618,12 +618,12 @@ export default function LoginLogsPage() {
 
                 {/* Pagination */}
                 {logs.length > 0 && (
-                  <div className="flex items-center justify-between p-4">
+                  <div className="flex flex-col gap-4 p-4 md:flex-row md:items-center md:justify-between">
                     <div className="text-sm text-muted-foreground">
                       Showing {(currentPage - 1) * itemsPerPage + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} entries
                     </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="flex items-center space-x-2">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between md:justify-end md:gap-4">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Label htmlFor="itemsPerPage">Show</Label>
                         <Select
                           value={itemsPerPage.toString()}
@@ -646,7 +646,7 @@ export default function LoginLogsPage() {
                         <span>entries</span>
                       </div>
 
-                      <div className="flex items-center space-x-2">
+                      <div className="flex items-center justify-between gap-2 sm:justify-start">
                         <Button
                           variant="outline"
                           size="icon"
@@ -655,7 +655,7 @@ export default function LoginLogsPage() {
                         >
                           <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <div className="text-sm">
+                        <div className="min-w-0 text-center text-sm">
                           Page {currentPage} of {totalPages}
                         </div>
                         <Button
