@@ -678,110 +678,6 @@ export default function PaymentCallback() {
       return Number((invoiceOutstanding + profilePenalty).toFixed(2));
     };
 
-    const ensureCreditHistoryEntry = async (targetUserId: string, paymentAmount: number, transactionId: string) => {
-      try {
-        const { data: existingTx } = await supabase
-          .from("account_transactions")
-          .select("id")
-          .eq("customer_id", targetUserId)
-          .eq("transectionId", transactionId)
-          .eq("reference_type", "payment")
-          .maybeSingle();
-
-        if (existingTx) return;
-
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("available_credit, credit_limit, credit_used")
-          .eq("id", targetUserId)
-          .maybeSingle();
-
-        const derivedBalance = Number(
-          (
-            Number(profileData?.available_credit || 0) ||
-            (Number(profileData?.credit_limit || 0) - Number(profileData?.credit_used || 0))
-          ).toFixed(2),
-        );
-
-        await supabase.from("account_transactions").insert({
-          customer_id: targetUserId,
-          transaction_date: new Date().toISOString(),
-          transaction_type: "credit",
-          reference_type: "payment",
-          reference_id: null,
-          description: `Credit payment: $${Number(paymentAmount || 0).toFixed(2)} to penalty`,
-          debit_amount: 0,
-          credit_amount: Number(paymentAmount || 0),
-          balance: derivedBalance,
-          created_by: targetUserId,
-          transectionId: transactionId,
-          admin_pay_notes: "Auto-created from callback (penalty-only allocation)",
-        });
-      } catch (historyError) {
-        console.error("Failed to insert credit history entry for penalty-only payment:", historyError);
-      }
-    };
-
-    const ensureCreditHistoryTransactionId = async (
-      targetUserId: string,
-      paymentAmount: number,
-      transactionId: string,
-    ) => {
-      try {
-        if (!transactionId) return;
-
-        // First try: update the most recent payment ledger row without transaction id.
-        const { data: pendingRows } = await supabase
-          .from("account_transactions")
-          .select("id, transaction_date, credit_amount, description, transectionId")
-          .eq("customer_id", targetUserId)
-          .eq("reference_type", "payment")
-          .is("transectionId", null)
-          .order("transaction_date", { ascending: false })
-          .limit(5);
-
-        const candidate = (pendingRows || []).find((row: any) => {
-          const amountMatches = Math.abs(Number(row?.credit_amount || 0) - Number(paymentAmount || 0)) <= 0.01;
-          const textMatches = String(row?.description || "").toLowerCase().includes("credit payment");
-          const ageMs = Math.abs(Date.now() - new Date(row?.transaction_date || 0).getTime());
-          return amountMatches && textMatches && ageMs <= 15 * 60 * 1000;
-        });
-
-        if (candidate?.id) {
-          await supabase
-            .from("account_transactions")
-            .update({ transectionId: transactionId })
-            .eq("id", candidate.id);
-          return;
-        }
-
-        // Second try: if row already exists for same amount/time but different description
-        const { data: recentRows } = await supabase
-          .from("account_transactions")
-          .select("id, transaction_date, credit_amount, transectionId")
-          .eq("customer_id", targetUserId)
-          .eq("reference_type", "payment")
-          .order("transaction_date", { ascending: false })
-          .limit(5);
-
-        const recentCandidate = (recentRows || []).find((row: any) => {
-          if (row?.transectionId) return false;
-          const amountMatches = Math.abs(Number(row?.credit_amount || 0) - Number(paymentAmount || 0)) <= 0.01;
-          const ageMs = Math.abs(Date.now() - new Date(row?.transaction_date || 0).getTime());
-          return amountMatches && ageMs <= 15 * 60 * 1000;
-        });
-
-        if (recentCandidate?.id) {
-          await supabase
-            .from("account_transactions")
-            .update({ transectionId: transactionId })
-            .eq("id", recentCandidate.id);
-        }
-      } catch (historyTxnError) {
-        console.error("Failed to sync transaction id into credit history row:", historyTxnError);
-      }
-    };
-
     const writeCreditLineTransaction = async (params: {
       status: "approved" | "pending" | "declined";
       message: string;
@@ -835,6 +731,7 @@ export default function PaymentCallback() {
       p_amount: amountToApply,
       p_payment_method: result.paymentMethod === "ach" ? "ach" : "card",
       p_transaction_id: result.transactionId || result.transactionReferenceId,
+      p_card_fee: Number(result.processingFee || 0),
       p_payment_mode: pendingPayment.paymentMode || "full",
       p_target_invoice_id: null,
       p_notes: pendingPayment.notes || "iPOSPay credit line payment",
@@ -863,16 +760,6 @@ export default function PaymentCallback() {
           postOutstanding,
         });
 
-        if (paymentLikelyApplied) {
-          const txId = String(result.transactionId || result.transactionReferenceId || "");
-          await ensureCreditHistoryTransactionId(userId, amountToApply, txId);
-          await ensureCreditHistoryEntry(
-            userId,
-            amountToApply,
-            txId,
-          );
-        }
-
         return paymentLikelyApplied
           ? { applied: true }
           : { applied: false, warning: "Payment captured, but no invoice allocation was applied. Please review credit ledger." };
@@ -890,12 +777,6 @@ export default function PaymentCallback() {
       preOutstanding,
       postOutstanding,
     });
-
-    await ensureCreditHistoryTransactionId(
-      userId,
-      amountToApply,
-      String(result.transactionId || result.transactionReferenceId || ""),
-    );
 
     return { applied: true };
   };

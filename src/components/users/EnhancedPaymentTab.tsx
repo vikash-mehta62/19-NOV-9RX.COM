@@ -1158,6 +1158,9 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
             <div className={cn("space-y-2", isCompact && "space-y-1")}>
               {transactions.map((tx) => {
                 const isPenalty = tx.description.includes('Late payment penalty');
+                const amountValue = tx.credit_amount > 0 ? tx.credit_amount : tx.debit_amount > 0 ? tx.debit_amount : 0;
+                const feeMatch = tx.description.match(/Card Fee:\s*\$([0-9]+(?:\.[0-9]{1,2})?)/i);
+                const cardFee = feeMatch ? Number(feeMatch[1]) : 0;
                 return (
                   <div
                     key={tx.id}
@@ -1181,9 +1184,19 @@ export function EnhancedPaymentTab({ userId, readOnly = false }: EnhancedPayment
                       </span>
                       {/* Display transactionId or admin notes */}
                       {tx.transectionId ? (
-                        <span className={cn("text-blue-600", isCompact ? "text-xs" : "text-xs")}>
-                          Transaction ID: {tx.transectionId}
-                        </span>
+                        <>
+                          <span className={cn("text-blue-600", isCompact ? "text-xs" : "text-xs")}>
+                            Transaction ID: {tx.transectionId}
+                          </span>
+                          <span className={cn("text-muted-foreground", isCompact ? "text-xs" : "text-xs")}>
+                            Amount: ${amountValue.toFixed(2)}
+                          </span>
+                          {cardFee > 0 && (
+                            <span className={cn("text-amber-700", isCompact ? "text-xs" : "text-xs")}>
+                              Fee: ${cardFee.toFixed(2)}
+                            </span>
+                          )}
+                        </>
                       ) : tx.admin_pay_notes ? (
                         <span className={cn(isPenalty ? "text-red-600" : "text-purple-600", isCompact ? "text-xs" : "text-xs")}>
                           {isPenalty ? '⚠️ ' : ''}
