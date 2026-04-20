@@ -767,7 +767,7 @@ export function PromoAndRewardsSection({
           if (allItemsHaveGroupPricing) {
             toast({
               title: "Cannot Apply Offer",
-              description: "All items in your cart have group pricing. Offers cannot be combined with group pricing discounts.",
+              description: "You are not eligible to apply this offer",
               variant: "destructive",
             });
             return;

@@ -479,7 +479,6 @@ const launchPasswordResetTemplate = (name, email, resetLink, termsLink) => {
                   <ul class="section-list">
                     <li>📧 Email: <a href="mailto:info@9rx.com" style="color: #1d4ed8; text-decoration: none; font-weight: 600;">info@9rx.com</a></li>
                     <li>📞 Phone: <strong>(800) 940-9619</strong></li>
-                    <li>💬 Live chat available on our website</li>
                   </ul>
                 </div>
                 
