@@ -432,7 +432,7 @@ const HeroSection = () => {
       </section>
 
       {/* Banner Section */}
-      <section className="relative py-8 sm:py-12 lg:py-16 bg-gradient-to-b from-slate-950 to-slate-900">
+      {/* <section className="relative py-8 sm:py-12 lg:py-16 bg-gradient-to-b from-slate-950 to-slate-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <BannerSlider
             bannerType="hero"
@@ -446,7 +446,7 @@ const HeroSection = () => {
             showIndicators={true}
           />
         </div>
-      </section>
+      </section> */}
 
       <style>{`
         @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }

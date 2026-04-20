@@ -34,7 +34,9 @@ const Contact = () => {
         name: formData.name,
         email: formData.email,
         contact: formData.phone,
-        message: `Company: ${formData.company}\nSubject: ${formData.subject}\n\n${formData.message}`
+        company: formData.company,
+        subject: formData.subject,
+        message: formData.message
       });
 
       toast({

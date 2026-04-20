@@ -1,4 +1,4 @@
-const contactUsEmail = (name ,email, contact, message, role) => {
+const contactUsEmail = (name, email, contact, company, subject, message) => {
     return `<!DOCTYPE html>
     <html>
     <head>
@@ -156,11 +156,9 @@ const contactUsEmail = (name ,email, contact, message, role) => {
                     ${name ? `<p><span class="highlight">Name:</span> ${name}</p>` : ''}
                     ${email ? `<p><span class="highlight">Email:</span> ${email}</p>` : ''}
                     ${contact ? `<p><span class="highlight">Contact:</span> ${contact}</p>` : ''}
+                    ${company ? `<p><span class="highlight">Company:</span> ${company}</p>` : ''}
+                    ${subject ? `<p><span class="highlight">Subject:</span> ${subject}</p>` : ''}
                     ${message ? `<p><span class="highlight">Message:</span> ${message}</p>` : ''}
-                </div>
-                <a href="https://9rx.com/admin" class="cta">View in Dashboard</a>
-                <div class="support">
-                    This is an automated notification. Please do not reply to this email.
                 </div>
             </div>
         </div>

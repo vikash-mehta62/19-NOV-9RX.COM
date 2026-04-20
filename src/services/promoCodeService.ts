@@ -540,9 +540,10 @@ export function preparePromoDisplayData(
           price: size.price || item.price,
           quantity: size.quantity || 1,
           hasDiscount,
-          notEligibleReason: (groupPricingSizeIds && groupPricingSizeIds.includes(sizeId)) 
-            ? "Group pricing already applied" 
-            : undefined
+          // notEligibleReason: (groupPricingSizeIds && groupPricingSizeIds.includes(sizeId)) 
+          //   ? "Group pricing already applied" 
+          //   : undefined
+          notEligibleReason: undefined
         });
       });
     } else {

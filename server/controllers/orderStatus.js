@@ -704,7 +704,7 @@ exports.adminAccountActivation = async (req, res) => {
 
 
 exports.contactCtrl = async (req, res) => {
-  const { name, email, contact, message } = req.body;
+  const { name, email, contact, company, subject, message } = req.body;
   try {
 
     if (!name || !contact) {
@@ -717,7 +717,7 @@ exports.contactCtrl = async (req, res) => {
     const emailRes = await mailSender(
       ADMIN_EMAIL,
       "New Contact Form Submission",
-      contactUsEmail(name, email, contact, message)
+      contactUsEmail(name, email, contact, company, subject, message)
     )
     res.status(200).send({
       message: "Email send successfully.Our team will contact you soon!",

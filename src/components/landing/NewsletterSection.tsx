@@ -136,7 +136,8 @@ const NewsletterSection = () => {
             ))}
           </div>
 
-          {/* Form */}
+          {/* Subscribe form is currently not in use */}
+          {/*
           {isSubscribed ? (
             <div className="flex flex-col items-center justify-center gap-3 sm:gap-4 bg-gradient-to-r from-blue-500/20 to-indigo-500/20 backdrop-blur-sm rounded-2xl sm:rounded-3xl p-6 sm:p-8 border border-blue-500/30">
               <div className="w-16 sm:w-20 h-16 sm:h-20 bg-gradient-to-br from-blue-400 to-indigo-400 rounded-full flex items-center justify-center animate-bounce">
@@ -184,6 +185,7 @@ const NewsletterSection = () => {
               </p>
             </div>
           )}
+          */}
         </div>
       </div>
 
