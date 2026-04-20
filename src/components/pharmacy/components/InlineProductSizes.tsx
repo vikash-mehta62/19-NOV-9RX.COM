@@ -257,7 +257,7 @@ export const InlineProductSizes = ({
 
         // Load product offers
         if (product.id) {
-          getProductEffectivePrice(product.id).then(offerData => {
+          getProductEffectivePrice(String(product.id)).then(offerData => {
             if (offerData && offerData.hasOffer) {
               console.log("InlineProductSizes - Product has offer:", offerData);
               setProductOffer({
@@ -750,21 +750,24 @@ export const InlineProductSizes = ({
               // Check for group pricing discount OR product offer discount
               const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
               const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
-              
-              // ⚠️ IMPORTANT: If product has group pricing, DON'T show any discount UI
-              // Group pricing is a silent discount - user gets special price but no discount badges/strikethrough
-              // ONLY show discount UI for offers (when there's NO group pricing)
-              const hasDiscount = !hasGroupDiscount && hasOfferDiscount // Only show offer discount UI
-              const discountPercent = (!hasGroupDiscount && hasOfferDiscount) ? productOffer.discountPercent : 0
-              
-              // Calculate case price - DON'T apply offer discount if group pricing exists
-              const originalCasePrice = size.price
-              const casePrice = (!hasGroupDiscount && hasOfferDiscount)
-                ? originalCasePrice * (1 - productOffer.discountPercent / 100)
-                : originalCasePrice
-              
-              // For display: ONLY show original price strikethrough for offers (NOT for group pricing)
-              const displayOriginalPrice = (!hasGroupDiscount && hasOfferDiscount) ? originalCasePrice : 0
+              const hasDiscount = hasGroupDiscount || hasOfferDiscount
+
+              const discountPercent = hasGroupDiscount
+                ? Math.round((1 - size.price / size.originalPrice) * 100)
+                : hasOfferDiscount
+                  ? productOffer.discountPercent
+                  : 0
+
+              // Group pricing already stores the discounted case price in size.price.
+              // Offers still need to be applied on top of the base case price.
+              const originalCasePrice = hasGroupDiscount ? size.originalPrice : size.price
+              const casePrice = hasGroupDiscount
+                ? size.price
+                : hasOfferDiscount
+                  ? originalCasePrice * (1 - productOffer.discountPercent / 100)
+                  : originalCasePrice
+
+              const displayOriginalPrice = hasDiscount ? originalCasePrice : 0
               const showSavingsText = hasDiscount && discountPercent > 0
               
               const unitsPerCase = size.quantity_per_case || 0
@@ -859,7 +862,7 @@ export const InlineProductSizes = ({
                           <p className="text-[9px] sm:text-[10px] text-gray-400 mb-1 sm:mb-2">SKU: {size.sku}</p>
                         )}
 
-                        {/* Offer Badge - ONLY show if NO group pricing */}
+                        {/* Offer Badge - show for offers, group pricing uses the price block below */}
                         {!hasGroupDiscount && hasOfferDiscount && productOffer?.offerBadge && (
                           <div className="mb-1.5 sm:mb-2">
                             <Badge className="bg-red-500 text-white text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
@@ -870,7 +873,7 @@ export const InlineProductSizes = ({
 
                         {/* Case Price - Large & Bold */}
                         <div className="mb-0.5 sm:mb-1 flex flex-wrap items-baseline gap-0.5 sm:gap-1">
-                          {/* Show original price crossed out ONLY for offers (NOT for group pricing) */}
+                          {/* Show original price crossed out for group pricing and offers */}
                           {displayOriginalPrice > 0 && (
                             <span className="text-sm sm:text-base text-gray-400 line-through">${displayOriginalPrice.toFixed(2)}</span>
                           )}
@@ -881,7 +884,7 @@ export const InlineProductSizes = ({
                           <span className="text-[10px] sm:text-sm text-gray-500">/ case</span>
                         </div>
                         
-                        {/* Show savings text ONLY for offers (NOT for group pricing) */}
+                        {/* Show savings text for group pricing and offers */}
                         {showSavingsText && (
                           <p className="text-[9px] sm:text-xs text-red-600 font-semibold mb-1">
                             Save {discountPercent}% • ${(originalCasePrice * discountPercent / 100).toFixed(2)} off
