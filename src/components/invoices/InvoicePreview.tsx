@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/components/ui/use-toast"
 import { supabase } from "@/integrations/supabase/client"
-import { getPaymentExperienceSettings } from "@/config/paymentConfig"
 import { 
   Building, MapPin, Phone, Mail, Globe, Download, 
   FileText, CheckCircle, XCircle, CreditCard, Hash,
@@ -240,17 +239,6 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     }
   }
 
-  const getInvoiceBaseTotal = () => {
-    const subtotalAmount = Number(invoice?.subtotal || 0)
-    const taxAmount = Number(invoice?.tax || 0)
-    const shippingCost = Number(invoice?.shippin_cost || 0)
-    const discountAmount = Number((invoice as any)?.discount_amount || 0)
-    const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
-  const calculatedTotal = subtotalAmount + taxAmount + shippingCost + processingFeeAmount - discountAmount
-  const totalAmount = storedTotal > 0 ? storedTotal : calculatedTotal
-    return storedTotal > 0 ? storedTotal : calculatedTotal
-  }
-
   const fetchProcessingFeeAmount = async (): Promise<number> => {
     const inlineFeeAmount = Number(invoice?.processing_fee_amount || 0)
     if (inlineFeeAmount > 0) {
@@ -261,43 +249,32 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     try {
       if (invoice?.order_id) {
         const { data, error } = await supabase
-          .from("order_activities")
-          .select("metadata, created_at")
-          .eq("order_id", invoice.order_id)
-          .eq("activity_type", "payment_received")
-          .order("created_at", { ascending: false })
-          .limit(10)
+          .from("orders")
+          .select("processing_fee_amount, total_amount, subtotal, tax_amount, shipping_cost, discount_amount")
+          .eq("id", invoice.order_id)
+          .maybeSingle()
 
-        if (!error && Array.isArray(data)) {
-          const activityFee = data.reduce((maxFee, activity: any) => {
-            const fee = Number(activity?.metadata?.processing_fee_amount || 0)
-            return fee > maxFee ? fee : maxFee
-          }, 0)
-
-          if (activityFee > 0) {
-            setProcessingFeeAmount(activityFee)
-            return activityFee
+        if (!error && data) {
+          const orderFeeAmount = Number((data as any)?.processing_fee_amount || 0)
+          if (orderFeeAmount > 0) {
+            setProcessingFeeAmount(orderFeeAmount)
+            return orderFeeAmount
           }
-        }
-      }
-
-      if (invoice?.payment_method === "card") {
-        const feeSettings = await getPaymentExperienceSettings(invoice?.profile_id || undefined)
-        const shouldShowConfiguredFee =
-          feeSettings.cardProcessingFeeEnabled &&
-          feeSettings.cardProcessingFeePassToCustomer &&
-          feeSettings.cardProcessingFeePercentage > 0
-
-        if (shouldShowConfiguredFee) {
-          const calculatedFee = Number(
-            ((getInvoiceBaseTotal() * feeSettings.cardProcessingFeePercentage) / 100).toFixed(2)
-          )
-          setProcessingFeeAmount(calculatedFee)
-          return calculatedFee
         }
       }
     } catch (error) {
       console.error("Error fetching processing fee amount:", error)
+    }
+
+    const subtotalAmount = Number(invoice?.subtotal || 0)
+    const taxAmount = Number(invoice?.tax || 0)
+    const shippingCost = Number(invoice?.shippin_cost || 0)
+    const discountAmount = Number((invoice as any)?.discount_amount || 0)
+    const storedTotal = Number(invoice?.total || invoice?.total_amount || 0)
+    const inferredFeeAmount = Number((storedTotal - (subtotalAmount + taxAmount + shippingCost - discountAmount)).toFixed(2))
+    if (inferredFeeAmount > 0.009) {
+      setProcessingFeeAmount(inferredFeeAmount)
+      return inferredFeeAmount
     }
 
     setProcessingFeeAmount(0)
@@ -549,7 +526,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     setIsGeneratingPDF(true)
     try {
       const resolvedPaidAmount = await fetchPaidAmount()
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" })
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
@@ -808,7 +785,7 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     setIsGeneratingPDF(true)
     try {
       const resolvedPaidAmount = await fetchPaidAmount()
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" })
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
