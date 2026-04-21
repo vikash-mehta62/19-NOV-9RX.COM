@@ -57,10 +57,10 @@ const Help = () => {
   ];
 
   const quickLinks = [
-    { title: "Shipping Policy", icon: FileText, href: "#" },
-    { title: "Return Policy", icon: FileText, href: "#" },
-    { title: "Terms of Service", icon: FileText, href: "#" },
-    { title: "Privacy Policy", icon: FileText, href: "#" },
+    { title: "Shipping Policy", icon: FileText, href: "/shipping-info", newTab: true },
+    { title: "Return Policy", icon: FileText, href: "/return-policy", newTab: true },
+    { title: "Terms of Service", icon: FileText, href: "/terms-of-service", newTab: true },
+    { title: "Privacy Policy", icon: FileText, href: "/privacy-policy", newTab: true },
   ];
 
   return (
@@ -93,17 +93,17 @@ const Help = () => {
         </Card>
 
         {/* Contact Options */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
               <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <MessageCircle className="w-6 h-6 text-green-600" />
+                <MessageCircle className="w-6 h-6 text-green-600" />  
               </div>
               <h3 className="font-semibold text-gray-900">Live Chat</h3>
               <p className="text-sm text-gray-500 mt-1">Chat with our support team</p>
               <Badge className="mt-3 bg-green-100 text-green-700">Available Now</Badge>
             </CardContent>
-          </Card>
+          </Card> */}
 
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardContent className="p-6 text-center">
@@ -112,7 +112,7 @@ const Help = () => {
               </div>
               <h3 className="font-semibold text-gray-900">Call Us</h3>
               <p className="text-sm text-gray-500 mt-1">(800) 940-9619</p>
-              <p className="text-xs text-gray-400 mt-2">Mon-Fri 9AM-6PM EST</p>
+              <p className="text-xs text-gray-400 mt-2">Mon-Fri 9AM-5PM EST</p>
             </CardContent>
           </Card>
 
@@ -155,14 +155,21 @@ const Help = () => {
               {quickLinks.map((link, index) => (
                 <Button
                   key={index}
+                  asChild
                   variant="outline"
                   className="w-full min-w-0 h-auto py-3 flex items-start justify-between gap-3"
                 >
-                  <span className="flex flex-1 items-start gap-2 min-w-0 text-left">
-                    <link.icon className="w-4 h-4" />
-                    <span className="whitespace-normal break-words">{link.title}</span>
-                  </span>
-                  <ExternalLink className="w-4 h-4 shrink-0" />
+                  <a
+                    href={link.href}
+                    target={link.newTab ? "_blank" : undefined}
+                    rel={link.newTab ? "noopener noreferrer" : undefined}
+                  >
+                    <span className="flex flex-1 items-start gap-2 min-w-0 text-left">
+                      <link.icon className="w-4 h-4" />
+                      <span className="whitespace-normal break-words">{link.title}</span>
+                    </span>
+                    <ExternalLink className="w-4 h-4 shrink-0" />
+                  </a>
                 </Button>
               ))}
             </div>
