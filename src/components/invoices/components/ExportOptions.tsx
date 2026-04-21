@@ -20,7 +20,7 @@ interface ExportOptionsProps {
 }
 
 export const exportToPDF = (invoice?: Invoice) => {
-  const doc = new jsPDF() as jsPDFWithAutoTable;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" }) as jsPDFWithAutoTable;
   const invoicesToExport = invoice ? [invoice] : [];
 
   invoicesToExport.forEach((inv, index) => {

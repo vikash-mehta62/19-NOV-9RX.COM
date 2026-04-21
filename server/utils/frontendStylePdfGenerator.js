@@ -19,6 +19,8 @@ const PAGE_HEIGHT = 297; // A4 height in mm
 const TOP_BAND_HEIGHT = 5;
 const FOOTER_Y = PAGE_HEIGHT - 30;
 const FOOTER_SAFE_TOP_Y = PAGE_HEIGHT - 58;
+const FOOTER_MIN_Y = PAGE_HEIGHT - 72;
+const FOOTER_GAP_AFTER_CONTENT = 14;
 const CONTINUATION_TOP_Y = 15;
 const SUMMARY_ROW_HEIGHT = 8;
 const SUMMARY_BOX_HEIGHT = 10;
@@ -711,6 +713,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         doc.font('Helvetica').fillColor(TEXT_DARK);
         rowY += rowHeight;
       }
+      let contentBottomY = rowY;
       
       if (includePricingInPdf) {
       // Totals section
@@ -721,7 +724,6 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fontSize(9)
          .font('Helvetica');
       
-      let totalY = totalsStartY;
       const discountRows = getDiscountRows(discountAmount, discountDetails);
       const summaryRows = [
         { label: 'Subtotal', value: subtotal },
@@ -740,6 +742,23 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       if (processingFeeAmount > 0) {
         summaryRows.push({ label: 'Credit Card Processing Fee', value: processingFeeAmount });
       }
+      const totalBoxWidth = 80;
+      const totalBoxHeight = SUMMARY_BOX_HEIGHT;
+      const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - 85;
+      const hasPaidBlock = actualPaid > 0;
+      const hasBalanceBlock = actualPaid > 0 && balanceDue > 0 && !isPurchaseOrder;
+      const hasFullyPaidBlock = actualPaid > 0 && balanceDue === 0;
+      const finalBlockHeight = totalBoxHeight
+        + (hasPaidBlock ? SUMMARY_BOX_GAP + totalBoxHeight : 0)
+        + ((hasBalanceBlock || hasFullyPaidBlock) ? SUMMARY_BOX_GAP + totalBoxHeight : 0);
+      const estimatedSummaryHeight =
+        (summaryRows.length * SUMMARY_ROW_HEIGHT)
+        + (discountRows.length > 0 ? SUMMARY_ROW_HEIGHT + (discountRows.length * SUMMARY_ROW_HEIGHT) : 0)
+        + 4
+        + 2
+        + finalBlockHeight;
+      const summaryAnchorY = FOOTER_SAFE_TOP_Y - estimatedSummaryHeight;
+      let totalY = Math.max(totalsStartY, summaryAnchorY);
 
       const moveSummaryToNextPage = () => {
         totalY = addContinuationPage(doc, mm);
@@ -786,12 +805,6 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       totalY += 4;
       
       // Total box (blue background)
-      const totalBoxWidth = 80;
-      const totalBoxHeight = SUMMARY_BOX_HEIGHT;
-      const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - 85;
-      const finalBlockHeight = totalBoxHeight
-        + (actualPaid > 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0)
-        + (actualPaid > 0 && balanceDue === 0 ? SUMMARY_BOX_GAP + totalBoxHeight : 0);
       ensureSummarySpace(finalBlockHeight);
       const totalBoxY = totalY + 2;
       doc.roundedRect(mm(totalBoxX), mm(totalBoxY), mm(totalBoxWidth), mm(totalBoxHeight), mm(1))
@@ -845,6 +858,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
              .text('FULLY PAID', mm(totalBoxX), mm(totalY + 3.5), { width: mm(totalBoxWidth), align: 'center' });
         }
       }
+      contentBottomY = Math.max(contentBottomY, totalY + totalBoxHeight);
       
       } else if (isPurchaseOrder) {
         doc.roundedRect(mm(PAGE_MARGIN), mm(rowY + 10), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(12), mm(2))
@@ -861,16 +875,22 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
            .text('This purchase order includes quantities and delivery details only.', mm(PAGE_MARGIN + 4), mm(rowY + 18), {
              width: mm(PAGE_WIDTH - PAGE_MARGIN * 2 - 8),
            });
+        contentBottomY = Math.max(contentBottomY, rowY + 24);
       }
 
       const pageRange = doc.bufferedPageRange();
+      const lastPageFooterY = Math.max(
+        FOOTER_MIN_Y,
+        Math.min(FOOTER_Y, contentBottomY + FOOTER_GAP_AFTER_CONTENT)
+      );
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
 
         drawTopBand(doc, mm);
         drawBottomBand(doc, mm);
 
-        const footerY = FOOTER_Y;
+        const isLastPage = i === pageRange.start + pageRange.count - 1;
+        const footerY = isLastPage ? lastPageFooterY : FOOTER_Y;
         const contactY = footerY + 6;
           const cautionY = contactY + 4.5;
         const showSalesOrderCaution = documentTitle === 'SALES ORDER';

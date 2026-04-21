@@ -21,7 +21,7 @@ interface InvoiceExportProps {
 
 const InvoiceExport: React.FC<InvoiceExportProps> = ({ invoices, companyName, logoUrl }) => {
   const exportToPDF = () => {
-    const doc = new jsPDF() as jsPDFWithAutoTable
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" }) as jsPDFWithAutoTable
 console.log(invoices)
     invoices.forEach((inv, index) => {
       if (index > 0) {

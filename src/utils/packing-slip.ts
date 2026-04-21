@@ -32,7 +32,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: "a4",
+      format: "letter",
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();

@@ -331,7 +331,7 @@ const generateOrderDocumentPdf = async (order = {}, options = {}) =>
       const balanceDue = adjustmentAmount > 0 ? adjustmentAmount : Math.max(0, total - paid);
 
       const doc = new PDFDocument({
-        size: "A4",
+        size: "LETTER",
         margin: PAGE_MARGIN,
         autoFirstPage: false,
         bufferPages: true,

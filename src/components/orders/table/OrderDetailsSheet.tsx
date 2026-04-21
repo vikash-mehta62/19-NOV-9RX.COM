@@ -889,7 +889,7 @@ export const OrderDetailsSheet = ({
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: "a4",
+      format: [210, 297],
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -1095,13 +1095,14 @@ export const OrderDetailsSheet = ({
         ? showPricing
           ? { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 56 }, 2: { halign: "center", cellWidth: 45 }, 3: { halign: "center", cellWidth: 14 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 26 } }
           : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 75 }, 2: { halign: "center", cellWidth: 70 }, 3: { halign: "center", cellWidth: 20 } }
-        : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: "auto" }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
+        : { 0: { halign: "center", cellWidth: 22 }, 1: { cellWidth: 80 }, 2: { halign: "center", cellWidth: 25 }, 3: { halign: "center", cellWidth: 15 }, 4: { halign: "right", cellWidth: 25 }, 5: { halign: "right", cellWidth: 25 } },
       totalRow: poIs
         ? undefined
         : ["", "", "", "", "TOTAL:", `$${itemsGrandTotal.toFixed(2)}`],
     }));
 
     let footerAnchorY = (doc as any).lastAutoTable.finalY + 8;
+    const footerPinnedNearBottomY = pageHeight - 22;
     if (showPricing) {
       const summaryBody: any[] = poIs
         ? [["Subtotal", `$${subtotal.toFixed(2)}`], ["Freight", `$${freight.toFixed(2)}`], ["Handling", `$${handling.toFixed(2)}`]]
@@ -1118,22 +1119,26 @@ export const OrderDetailsSheet = ({
         summaryBody.push(...buildDiscountSummaryRows(discountAmount, discountDetails));
       }
 
+      const summaryStartY = footerAnchorY + 6;
+      const summaryWidth = 75;
+      const summaryX = pageWidth - margin - summaryWidth;
+
       autoTable(doc as any, {
         body: summaryBody,
-        startY: footerAnchorY,
+        startY: summaryStartY,
         theme: "plain",
         styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: {
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
-        tableWidth: 80,
+        margin: { left: summaryX, bottom: SUMMARY_BOTTOM_RESERVE },
+        tableWidth: summaryWidth,
         didDrawCell: (data: any) => {
           if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
             doc.setDrawColor(220, 220, 220);
             doc.setLineWidth(0.3);
-            doc.line(data.cell.x, data.cell.y, data.cell.x + 80, data.cell.y);
+            doc.line(data.cell.x, data.cell.y, data.cell.x + summaryWidth, data.cell.y);
           }
         },
       });
@@ -1148,33 +1153,35 @@ export const OrderDetailsSheet = ({
         summaryFinalY = 20;
       }
       doc.setFillColor(...brandColor);
-      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F");
+      doc.roundedRect(summaryX, summaryFinalY + 2, summaryWidth, 10, 1, 1, "F");
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(255, 255, 255);
-      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9);
-      doc.text(`$${total.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" });
+      doc.text("TOTAL", summaryX + 5, summaryFinalY + 9);
+      doc.text(`$${total.toFixed(2)}`, summaryX + summaryWidth - 5, summaryFinalY + 9, { align: "right" });
 
       let paymentY = summaryFinalY + 14;
       if (paidAmount > 0) {
         doc.setFillColor(34, 197, 94);
-        doc.roundedRect(pageWidth - margin - 85, paymentY, 80, 10, 1, 1, "F");
+        doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
         doc.setFontSize(10);
-        doc.text("PAID", pageWidth - margin - 80, paymentY + 7);
-        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, paymentY + 7, { align: "right" });
+        doc.text("PAID", summaryX + 5, paymentY + 7);
+        doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
       if (balanceDue > 0 && !poIs) {
         doc.setFillColor(239, 68, 68);
-        doc.roundedRect(pageWidth - margin - 85, paymentY, 80, 10, 1, 1, "F");
-        doc.text("BALANCE DUE", pageWidth - margin - 80, paymentY + 7);
-        doc.text(`$${balanceDue.toFixed(2)}`, pageWidth - margin - 7, paymentY + 7, { align: "right" });
+        doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
+        doc.text("BALANCE DUE", summaryX + 5, paymentY + 7);
+        doc.text(`$${balanceDue.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
       footerAnchorY = paymentY;
     }
 
-    const footerY = Math.max(footerAnchorY + 8, pageHeight - 25);
+    const footerPreferredY = footerAnchorY + 8;
+    const footerMaxY = pageHeight - 15;
+    const footerY = Math.min(Math.max(footerPreferredY, footerPinnedNearBottomY), footerMaxY);
     if (footerY <= pageHeight - 15) {
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.3);
@@ -1234,7 +1241,7 @@ export const OrderDetailsSheet = ({
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: "a4",
+        format: "letter",
       });
 
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -1722,7 +1729,7 @@ export const OrderDetailsSheet = ({
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: "a4",
+        format: "letter",
       });
 
       const pageWidth = doc.internal.pageSize.getWidth();

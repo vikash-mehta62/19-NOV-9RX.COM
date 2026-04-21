@@ -203,10 +203,10 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
     // Create PDF - single page, no auto-pagination
     const doc = new PDFDocument({ 
       autoFirstPage: false,
-      size: 'A4'
+      size: 'LETTER'
     });
     // Manually add exactly one page
-    doc.addPage({ size: 'A4', margin: 0 });
+    doc.addPage({ size: 'LETTER', margin: 0 });
     console.log('Step 4: ✅ PDF document created');
     
     console.log('Step 5: Setting response headers...');
@@ -221,9 +221,9 @@ router.get("/generate-pdf/:profileId", async (req, res) => {
 
     console.log('Step 7: Adding content to PDF...');
     
-    // Page dimensions (A4 in points: 595.28 x 841.89)
-    const pageWidth = 595.28;
-    const pageHeight = 841.89;
+    // Page dimensions (Letter in points: 612 x 792)
+    const pageWidth = 612;
+    const pageHeight = 792;
     const margin = 40;
     const contentWidth = pageWidth - (margin * 2);
     

@@ -164,9 +164,9 @@ export default function OrderDetail() {
   const handleDownloadPDF = async () => {
     if (!order) return;
     setIsGeneratingPDF(true);
-    
+    console.log("YES")
     try {
-      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
       const margin = 12;

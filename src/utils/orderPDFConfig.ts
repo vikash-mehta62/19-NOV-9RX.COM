@@ -7,7 +7,7 @@ import { OrderPDFConfig } from '@/types/orderStatement';
 export const ORDER_PDF_CONFIG: OrderPDFConfig = {
   orientation: 'landscape',
   unit: 'mm',
-  format: 'a4',
+  format: 'letter',
   margins: {
     top: 15,
     right: 10,
@@ -52,13 +52,13 @@ export const formatCurrency = (amount: number): string => {
 };
 
 /**
- * PDF page dimensions for landscape A4
+ * PDF page dimensions for landscape Letter
  */
 export const PDF_DIMENSIONS = {
-  width: 297, // A4 landscape width in mm
-  height: 210, // A4 landscape height in mm
-  usableWidth: 277, // Width minus margins (297 - 10 - 10)
-  usableHeight: 180, // Height minus margins (210 - 15 - 15)
+  width: 279.4, // Letter landscape width in mm (11 in)
+  height: 215.9, // Letter landscape height in mm (8.5 in)
+  usableWidth: 259.4, // Width minus margins (279.4 - 10 - 10)
+  usableHeight: 185.9, // Height minus margins (215.9 - 15 - 15)
 };
 
 /**

@@ -76,6 +76,7 @@ const buildDiscountSummaryRows = (
 }
 
 const SUMMARY_BOTTOM_RESERVE = 58
+const SUMMARY_FOOTER_GAP = 8
 
 export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrderDetailsProps) => {
   const { toast } = useToast()
@@ -267,7 +268,7 @@ console.log(order,"PHARorder")
     logo: HTMLImageElement | null
     headerInfo: any
   }) => {
-    const headerContentY = 10
+    const headerContentY = 7
     const leftColumnWidth = 64
     const rightColumnX = pageWidth - margin
     const rightColumnWidth = 62
@@ -431,7 +432,7 @@ console.log(order,"PHARorder")
 	      const doc = new jsPDF({
 	        orientation: "portrait",
 	        unit: "mm",
-        format: "a4",
+        format: "letter",
       })
 
       const pageWidth = doc.internal.pageSize.getWidth()
@@ -572,7 +573,7 @@ console.log(order,"PHARorder")
         totalValue: `$${itemsGrandTotal.toFixed(2)}`,
       }))
 
-      let finalY = (doc as any).lastAutoTable.finalY + 8
+      const summaryBaseY = (doc as any).lastAutoTable.finalY + 8
 
       // ===== SUMMARY SECTION =====
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
@@ -601,6 +602,9 @@ console.log(order,"PHARorder")
         firstDiscountRowIndex = summaryBody.length
         summaryBody.push(...buildDiscountSummaryRows(pdfDiscountAmount, discountDetails))
       }
+      const estimatedSummaryHeight = Math.max(18, summaryBody.length * 6 + 4)
+      const summaryAnchorY = pageHeight - SUMMARY_BOTTOM_RESERVE - estimatedSummaryHeight - SUMMARY_FOOTER_GAP
+      const finalY = Math.max(summaryBaseY, summaryAnchorY)
 
       const pdfBalanceDue = Math.max(0, pdfTotal - paidAmount)
 
@@ -741,7 +745,7 @@ console.log(order,"PHARorder")
 	    setIsGeneratingPDF(true)
 	    try {
 	      const headerInfo = await getPdfHeaderInfo()
-	      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" })
+	      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" })
 	      const pageWidth = doc.internal.pageSize.getWidth()
 	      const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 12
@@ -856,7 +860,7 @@ console.log(order,"PHARorder")
         totalValue: `$${itemsGrandTotal.toFixed(2)}`,
       }))
 
-      let finalY = (doc as any).lastAutoTable.finalY + 8
+      const printSummaryBaseY = (doc as any).lastAutoTable.finalY + 8
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
       const isPurchaseOrder = (order as any)?.poAccept === false
       const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
@@ -875,6 +879,9 @@ console.log(order,"PHARorder")
         printFirstDiscountRowIndex = printSummaryBody.length
         printSummaryBody.push(...buildDiscountSummaryRows(printDiscountAmount, discountDetails))
       }
+      const estimatedPrintSummaryHeight = Math.max(18, printSummaryBody.length * 6 + 4)
+      const printSummaryAnchorY = pageHeight - SUMMARY_BOTTOM_RESERVE - estimatedPrintSummaryHeight - SUMMARY_FOOTER_GAP
+      const finalY = Math.max(printSummaryBaseY, printSummaryAnchorY)
 
       const printBalanceDue = Math.max(0, pdfTotal - paidAmount)
 

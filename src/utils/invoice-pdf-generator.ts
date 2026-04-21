@@ -103,7 +103,7 @@ export async function generateInvoicePdfBlob(
   const invoiceCompanyName = invoiceCompany.name || "9RX LLC";
   const supportEmail = invoiceCompany.email || "info@9rx.com";
 
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" }) as any;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" }) as any;
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 12;

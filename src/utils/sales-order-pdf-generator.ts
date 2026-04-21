@@ -89,7 +89,7 @@ export class SalesOrderPDFGenerator {
       const doc = new jsPDF({
         orientation: "portrait",
         unit: "mm",
-        format: "a4",
+        format: "letter",
       }) as jsPDFWithAutoTable;
 
       const pageWidth = doc.internal.pageSize.getWidth();

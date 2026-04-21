@@ -91,7 +91,7 @@ export interface OrderStatementResponse {
 export interface OrderPDFConfig {
   orientation: 'landscape';
   unit: 'mm';
-  format: 'a4';
+  format: 'letter';
   margins: {
     top: 15;
     right: 10;
