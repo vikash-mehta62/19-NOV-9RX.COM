@@ -43,6 +43,15 @@ export const DealsSection = () => {
     seconds: 0,
   });
 
+  const openInlineProduct = (productId: string) => {
+    const userType = sessionStorage.getItem("userType")?.toLowerCase() || "pharmacy";
+    navigate(`/${userType}/products`, {
+      state: {
+        selectedProductId: String(productId),
+      },
+    });
+  };
+
   // Countdown timer - ends at midnight
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -205,12 +214,11 @@ export const DealsSection = () => {
         <div className="p-6 bg-gradient-to-b from-orange-50/30 to-white">
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
             {deals.map((product) => {
-              const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
               return (
                 <div
                   key={product.id}
                   className="flex-shrink-0 w-52 bg-white rounded-xl shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer group border border-gray-100"
-                  onClick={() => navigate(`/${userType}/product/${product.id}`)}
+                  onClick={() => openInlineProduct(product.id)}
                 >
                 {/* Image */}
                 <div className="relative h-40 overflow-hidden rounded-t-xl bg-gray-100">
@@ -277,8 +285,7 @@ export const DealsSection = () => {
                     className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white h-9 text-xs shadow-md hover:shadow-lg transition-all duration-300"
                     onClick={(e) => {
                       e.stopPropagation();
-                      const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy'
-                      navigate(`/${userType}/product/${product.id}`);
+                      openInlineProduct(product.id);
                     }}
                   >
                     <ShoppingCart className="h-3.5 w-3.5 mr-1.5" />

@@ -44,6 +44,15 @@ export default function Deals() {
     seconds: 0,
   });
 
+  const openInlineProduct = (productId: string) => {
+    const userType = sessionStorage.getItem("userType")?.toLowerCase() || "pharmacy";
+    navigate(`/${userType}/products`, {
+      state: {
+        selectedProductId: String(productId),
+      },
+    });
+  };
+
   // Countdown timer - ends at midnight
   useEffect(() => {
     const calculateTimeLeft = () => {
@@ -284,12 +293,11 @@ export default function Deals() {
         {/* Deals Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4 md:gap-6">
           {deals.map((product) => {
-            const userType = sessionStorage.getItem('userType')?.toLowerCase() || 'pharmacy';
             return (
               <Card
                 key={product.id}
                 className="group overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 bg-white"
-                onClick={() => navigate(`/${userType}/product/${product.id}`)}
+                onClick={() => openInlineProduct(product.id)}
               >
                 {/* Image Container */}
                 <div className="relative h-56 overflow-hidden bg-gray-100">
@@ -361,7 +369,7 @@ export default function Deals() {
                     className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md hover:shadow-lg transition-all duration-300"
                     onClick={(e) => {
                       e.stopPropagation();
-                      navigate(`/${userType}/product/${product.id}`);
+                      openInlineProduct(product.id);
                     }}
                   >
                     <ShoppingCart className="h-4 w-4 mr-2" />

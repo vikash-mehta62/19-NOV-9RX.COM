@@ -118,6 +118,56 @@ interface ProductOffer {
   products?: { name: string; price: number; sku: string };
 }
 
+interface ProductPriceSize {
+  price: number | null;
+}
+
+interface ProductRow {
+  id: string;
+  name: string;
+  base_price: number | null;
+  sku: string;
+  image_url: string | null;
+  offer_id: string | null;
+  product_sizes?: ProductPriceSize[] | null;
+}
+
+interface DailyDealProductRow {
+  id: string;
+  name: string;
+  base_price: number | null;
+  image_url: string | null;
+  product_sizes?: ProductPriceSize[] | null;
+}
+
+interface DailyDealRow extends Omit<DailyDeal, "products"> {
+  products?: DailyDealProductRow | null;
+}
+
+interface ProductOfferRow extends Omit<ProductOffer, "products"> {
+  products?: {
+    name: string;
+    base_price: number | null;
+    sku: string;
+    product_sizes?: ProductPriceSize[] | null;
+  } | null;
+}
+
+const getDisplayPrice = (
+  basePrice?: number | null,
+  sizes?: ProductPriceSize[] | null
+) => {
+  const sizePrices = (sizes || [])
+    .map((size) => Number(size.price) || 0)
+    .filter((price) => price > 0);
+
+  if (sizePrices.length > 0) {
+    return Math.min(...sizePrices);
+  }
+
+  return Number(basePrice) || 0;
+};
+
 // Quick offer templates
 const offerTemplates = [
   {
@@ -277,12 +327,25 @@ export default function Offers() {
         .from("daily_deals")
         .select(`
           *,
-          products (id, name, base_price, image_url)
+          products (id, name, base_price, image_url, product_sizes(price))
         `)
         .order("display_order", { ascending: true });
 
       if (error) throw error;
-      setDailyDeals(data || []);
+      const mappedDeals = ((data || []) as DailyDealRow[]).map((deal) => ({
+        ...deal,
+        products: deal.products
+          ? {
+              ...deal.products,
+              base_price: getDisplayPrice(
+                deal.products.base_price,
+                deal.products.product_sizes
+              ),
+            }
+          : undefined,
+      }));
+
+      setDailyDeals(mappedDeals);
     } catch (error: any) {
       console.error("Error fetching daily deals:", error);
     }
@@ -633,10 +696,14 @@ export default function Offers() {
     try {
       const { data } = await supabase
         .from("products")
-        .select("id, name, base_price, sku, image_url, offer_id")
+        .select("id, name, base_price, sku, image_url, offer_id, product_sizes(price)")
         .order("name");
-      // Map base_price to price for compatibility
-      setProducts((data || []).map(p => ({ ...p, price: p.base_price })));
+      setProducts(
+        ((data || []) as ProductRow[]).map((product) => ({
+          ...product,
+          price: getDisplayPrice(product.base_price, product.product_sizes),
+        }))
+      );
     } catch (error) {
       console.error("Error fetching products:", error);
     }
@@ -648,7 +715,7 @@ export default function Offers() {
         .from("product_offers")
         .select(`
           *,
-          products (name, base_price, sku)
+          products (name, base_price, sku, product_sizes(price))
         `)
         .eq("offer_id", offerId);
       
@@ -658,11 +725,11 @@ export default function Offers() {
       }
       
       // Map base_price to price for compatibility
-      const mappedData = (data || []).map(po => ({
+      const mappedData = ((data || []) as ProductOfferRow[]).map((po) => ({
         ...po,
         products: po.products ? {
           ...po.products,
-          price: po.products.base_price
+          price: getDisplayPrice(po.products.base_price, po.products.product_sizes)
         } : null
       }));
       
@@ -1727,14 +1794,7 @@ export default function Offers() {
                     {/* Product Selection */}
                     <div>
                       <Label>Select Product *</Label>
-                      <Input
-                        placeholder="Search products..."
-                        value={dealProductSearch}
-                        onChange={(e) => setDealProductSearch(e.target.value)}
-                        className="mb-2"
-                      />
-                      {dealProductSearch && (
-                        <div className="border rounded-lg max-h-40 overflow-y-auto">
+                      <div className="border rounded-lg max-h-40 overflow-y-auto">
                           {filteredDealProducts.length === 0 ? (
                             <p className="p-3 text-center text-muted-foreground text-sm">No products found</p>
                           ) : (
@@ -1751,7 +1811,6 @@ export default function Offers() {
                               >
                                 <div>
                                   <p className="font-medium text-sm">{product.name}</p>
-                                  <p className="text-xs text-muted-foreground">SKU: {product.sku}</p>
                                   {product.price === 0 && (
                                     <p className="text-xs text-amber-600 font-medium">⚠️ Zero price - may not display correctly</p>
                                   )}
@@ -1767,7 +1826,6 @@ export default function Offers() {
                             ))
                           )}
                         </div>
-                      )}
                       {dealFormData.product_id && (
                         <div className="mt-2 p-3 bg-muted rounded-lg">
                           <p className="text-sm font-medium">

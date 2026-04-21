@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback, memo } from "react"
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from "react"
 import { BannerSlider } from "./components/BannerSlider"
 import { Button } from "@/components/ui/button"
 import { QuickReorder } from "./components/QuickReorder"
@@ -123,6 +123,7 @@ export const PharmacyProductsFullPage = () => {
   const [categories, setCategories] = useState<string[]>([]); // Fetched categories from database
   const [categoryConfigs, setCategoryConfigs] = useState<any[]>([]); // Full category configs with images
   const [hadSearchQuery, setHadSearchQuery] = useState(false)
+  const inlineProductRef = useRef<HTMLDivElement | null>(null)
 
   const totalCartItems = cartItems.reduce((sum, item) => sum + (item.quantity || 1), 0)
 
@@ -692,6 +693,19 @@ export const PharmacyProductsFullPage = () => {
     }
   }, [selectedProduct?.id])
 
+  useEffect(() => {
+    if (!selectedProduct || !inlineProductRef.current) return
+
+    const timer = window.setTimeout(() => {
+      inlineProductRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      })
+    }, 150)
+
+    return () => window.clearTimeout(timer)
+  }, [selectedProduct?.id])
+
   const handleImageClick = useCallback((imageUrl: string) => {
     setFullscreenImage(imageUrl)
     setImageZoom(1)
@@ -1102,7 +1116,7 @@ export const PharmacyProductsFullPage = () => {
                 )}
 
                 {/* Enhanced Category Grid - Only show when no specific category is selected */}
-                {selectedCategory === "all" && !hasActiveResultFilters && (
+                {selectedCategory === "all" && !hasActiveResultFilters && !selectedProduct && (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6 lg:gap-8 mb-8 sm:mb-12">
                     {visibleCategories.map((category, index) => {
                       const categoryImage = getCategoryImageUrl(category, index);
@@ -1185,21 +1199,23 @@ export const PharmacyProductsFullPage = () => {
 
                 {/* Show only selected product with its sizes */}
                 {selectedProduct && (
-                  <InlineProductSizes
-                    product={selectedProduct}
-                    focusedSizeIds={selectedSizeIds}
-                    searchQuery={searchQuery}
-                    wishlistItems={wishlistItems}
-                    onAddToWishlist={addToWishlist}
-                    onRemoveFromWishlist={removeFromWishlist}
-                    isInWishlist={isInWishlist}
-                    onClose={() => {
-                      setSelectedSubcategory("all")
-                      setSelectedProduct(null)
-                      setSelectedSizeIds([])
-                    }}
-                    onImageClick={handleImageClick}
-                  />
+                  <div ref={inlineProductRef}>
+                    <InlineProductSizes
+                      product={selectedProduct}
+                      focusedSizeIds={selectedSizeIds}
+                      searchQuery={searchQuery}
+                      wishlistItems={wishlistItems}
+                      onAddToWishlist={addToWishlist}
+                      onRemoveFromWishlist={removeFromWishlist}
+                      isInWishlist={isInWishlist}
+                      onClose={() => {
+                        setSelectedSubcategory("all")
+                        setSelectedProduct(null)
+                        setSelectedSizeIds([])
+                      }}
+                      onImageClick={handleImageClick}
+                    />
+                  </div>
                 )}
               </div>
             )}

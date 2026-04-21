@@ -256,6 +256,7 @@ export const InlineProductSizes = ({
         // }
 
         // Load product offers
+        setProductOffer(null)
         if (product.id) {
           getProductEffectivePrice(String(product.id)).then(offerData => {
             if (offerData && offerData.hasOffer) {
@@ -266,9 +267,12 @@ export const InlineProductSizes = ({
                 offerBadge: offerData.offerBadge,
                 hasOffer: offerData.hasOffer
               });
+            } else {
+              setProductOffer(null)
             }
           }).catch(err => {
             console.error("Error loading product offer:", err);
+            setProductOffer(null)
           });
         }
       } catch (error) {
