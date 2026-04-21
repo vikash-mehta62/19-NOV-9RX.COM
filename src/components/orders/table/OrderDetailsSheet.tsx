@@ -889,7 +889,7 @@ export const OrderDetailsSheet = ({
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: [210, 297],
+      format: "letter",
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
