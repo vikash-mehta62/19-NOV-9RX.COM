@@ -4,7 +4,7 @@ import { matchesPoWorkflowFilter } from "../utils/poWorkflow";
 
 export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [statusFilter2, setStatusFilter2] = useState<string>("all");
+  const [statusFilter2, setStatusFilter2] = useState<string | string[]>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [dateRange, setDateRange] = useState<{
     from: Date | undefined;
@@ -19,13 +19,30 @@ export const useOrderFilters = (orders: OrderFormValues[], po: boolean = true) =
       statusFilter === "all" ? true : order.payment_status === statusFilter
     )
     .filter((order) => {
-      if (statusFilter2 === "all") return true;
+      const selectedStatuses =
+        statusFilter2 === "all"
+          ? []
+          : Array.isArray(statusFilter2)
+            ? statusFilter2
+            : [statusFilter2];
+
+      if (selectedStatuses.length === 0) return true;
 
       if (po) {
-        return matchesPoWorkflowFilter(order, statusFilter2);
+        return selectedStatuses.some((status) => matchesPoWorkflowFilter(order, status));
       }
 
-      return order.status?.toLowerCase() === statusFilter2.toLowerCase();
+      return selectedStatuses.some((status) => {
+        if (status === "voided") {
+          return Boolean(order.void);
+        }
+
+        if (status === "cancelled") {
+          return order.status?.toLowerCase() === "cancelled";
+        }
+
+        return !order.void && order.status?.toLowerCase() === status.toLowerCase();
+      });
     })
     .filter((order) => {
       if (!searchQuery) return true;

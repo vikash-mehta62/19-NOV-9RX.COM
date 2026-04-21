@@ -26,7 +26,7 @@ interface OrderSummaryCardsProps {
   stats: OrderStats;
   isLoading?: boolean;
   onCardClick?: (status: string) => void;
-  activeFilter?: string;
+  activeFilter?: string | string[];
 }
 
 export function OrderSummaryCards({ 
@@ -102,7 +102,15 @@ export function OrderSummaryCards({
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
       {cards.map((card) => {
-        const isActive = activeFilter === card.filter;
+        const activeFilters = Array.isArray(activeFilter)
+          ? activeFilter
+          : activeFilter && activeFilter !== "all"
+            ? [activeFilter]
+            : [];
+        const isActive =
+          card.filter === "all"
+            ? activeFilters.length === 0
+            : activeFilters.includes(card.filter);
         return (
           <Card 
             key={card.title}

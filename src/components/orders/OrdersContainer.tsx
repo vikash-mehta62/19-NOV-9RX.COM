@@ -112,6 +112,7 @@ export const OrdersContainer = ({
   const [searchParams] = useSearchParams();
   const [orderStatus, setOrderStatus] = useState<string>("");
   const openedOrderIdRef = useRef<string | null>(null);
+  const filtersHydratedRef = useRef(false);
 
   // Payment modal state for collect balance payment
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
@@ -125,6 +126,7 @@ export const OrdersContainer = ({
     shipped: 0,
     delivered: 0,
     cancelled: 0,
+    voided: 0,
     totalRevenue: 0,
     pendingPayment: 0,
   });
@@ -295,12 +297,16 @@ export const OrdersContainer = ({
           shipped: 0,
           delivered: 0,
           cancelled: 0,
+          voided: 0,
           totalRevenue: 0,
           pendingPayment: 0,
         };
 
         allOrders?.forEach((order: any) => {
-          if (order.void) return; // Skip voided orders
+          if (order.void) {
+            stats.voided++;
+            return;
+          }
 
           const status = order.status?.toLowerCase();
           const total = parseFloat(order.total_amount || "0");
@@ -357,20 +363,56 @@ export const OrdersContainer = ({
     filteredOrders,
   } = useOrderFilters(orders, poIs);
 
+  const filterStorageKey = useMemo(
+    () => `orders-filters:${userRole}:${poIs ? "po" : "sales"}`,
+    [poIs, userRole]
+  );
+
   useEffect(() => {
     const orderIdFromUrl = searchParams.get("orderId") || "";
     const statusFromUrl = searchParams.get("status") || "all";
     const searchFromUrl = searchParams.get("search") || "";
     const paymentStatusFromUrl = searchParams.get("paymentStatus") || "all";
+    const parsedStatuses: string | string[] =
+      statusFromUrl === "all"
+        ? "all"
+        : statusFromUrl.split(",").map((status) => status.trim()).filter(Boolean);
+    const hasUrlFilters =
+      statusFromUrl !== "all" ||
+      searchFromUrl !== "" ||
+      paymentStatusFromUrl !== "all";
 
-    setStatusFilter(paymentStatusFromUrl);
-    setStatusFilter2(statusFromUrl);
-    setSearchQuery(searchFromUrl);
+    if (hasUrlFilters) {
+      setStatusFilter(paymentStatusFromUrl);
+      setStatusFilter2(Array.isArray(parsedStatuses) && parsedStatuses.length === 0 ? "all" : parsedStatuses);
+      setSearchQuery(searchFromUrl);
+      filtersHydratedRef.current = true;
+      return;
+    }
+
+    try {
+      const rawSavedFilters = localStorage.getItem(filterStorageKey);
+      if (rawSavedFilters) {
+        const savedFilters = JSON.parse(rawSavedFilters);
+        setStatusFilter(savedFilters.statusFilter || "all");
+        setStatusFilter2(savedFilters.statusFilter2 || "all");
+        setSearchQuery(savedFilters.searchQuery || "");
+        setDateRange({
+          from: savedFilters.dateRange?.from ? new Date(savedFilters.dateRange.from) : undefined,
+          to: savedFilters.dateRange?.to ? new Date(savedFilters.dateRange.to) : undefined,
+        });
+      }
+    } catch (error) {
+      console.error("Failed to restore order filters:", error);
+    } finally {
+      filtersHydratedRef.current = true;
+    }
 
     if ((orderIdFromUrl || statusFromUrl !== "all" || searchFromUrl || paymentStatusFromUrl !== "all") && page !== 1) {
       setPage(1);
     }
   }, [
+    filterStorageKey,
     page,
     searchParams,
     setPage,
@@ -378,6 +420,27 @@ export const OrdersContainer = ({
     setStatusFilter,
     setStatusFilter2,
   ]);
+
+  useEffect(() => {
+    if (!filtersHydratedRef.current) return;
+
+    try {
+      localStorage.setItem(
+        filterStorageKey,
+        JSON.stringify({
+          statusFilter,
+          statusFilter2,
+          searchQuery,
+          dateRange: {
+            from: dateRange.from ? dateRange.from.toISOString() : null,
+            to: dateRange.to ? dateRange.to.toISOString() : null,
+          },
+        })
+      );
+    } catch (error) {
+      console.error("Failed to persist order filters:", error);
+    }
+  }, [dateRange, filterStorageKey, searchQuery, statusFilter, statusFilter2]);
 
   // Filter orders for history cards
   const filteredHistoryOrders = useMemo(() => {
@@ -550,7 +613,7 @@ export const OrdersContainer = ({
     if (filter === "all") {
       setStatusFilter2("all");
     } else {
-      setStatusFilter2(filter);
+      setStatusFilter2([filter]);
     }
   };
 
@@ -561,6 +624,8 @@ export const OrdersContainer = ({
           <div className="space-y-3">
             <div className="min-w-0">
               <OrderFilters
+                searchValue={searchQuery}
+                dateRange={dateRange}
                 onSearch={setSearchQuery}
                 onDateChange={setDateRange}
                 onExport={() =>
@@ -684,6 +749,8 @@ export const OrdersContainer = ({
         {/* Left side - Search and Filters */}
         <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-center gap-3 w-full xl:w-auto">
           <OrderFilters
+            searchValue={searchQuery}
+            dateRange={dateRange}
             onSearch={setSearchQuery}
             onDateChange={setDateRange}
             onExport={() =>
@@ -695,6 +762,7 @@ export const OrdersContainer = ({
             <StatusFilter
               value={statusFilter2}
               onValueChange={setStatusFilter2}
+              multiSelect={userRole === "admin"}
             />
           )}
         </div>

@@ -27,7 +27,7 @@ export const useOrderManagement = () => {
     poIs
   }: {
     statusFilter?: string;
-    statusFilter2?: string;
+    statusFilter2?: string | string[];
     searchQuery?: string;
     dateRange?: { from?: Date; to?: Date };
     poIs?: boolean;
@@ -99,8 +99,15 @@ setOrders([])
       if (statusFilter && statusFilter !== "all") {
         query = query.eq("payment_status", statusFilter);
       }
-      if (poIs === true && statusFilter2 && statusFilter2 !== "all") {
-        switch (statusFilter2) {
+      const selectedStatuses =
+        statusFilter2 === "all" || !statusFilter2
+          ? []
+          : Array.isArray(statusFilter2)
+            ? statusFilter2
+            : [statusFilter2];
+
+      if (poIs === true && selectedStatuses.length === 1) {
+        switch (selectedStatuses[0]) {
           case "pending":
             query = query.eq("poApproved", false).eq("poRejected", false);
             break;
@@ -120,8 +127,22 @@ setOrders([])
             query = query.eq("poRejected", true);
             break;
         }
-      } else if (statusFilter2 && statusFilter2 !== "all") {
-        query = query.ilike("status", statusFilter2);
+      } else if (!poIs && selectedStatuses.length > 0) {
+        const nonVoidedStatuses = selectedStatuses.filter((status) => status !== "voided");
+        const includesVoided = selectedStatuses.includes("voided");
+        const orFilters: string[] = [];
+
+        if (nonVoidedStatuses.length > 0) {
+          orFilters.push(`and(void.is.false,status.in.(${nonVoidedStatuses.join(",")}))`);
+        }
+
+        if (includesVoided) {
+          orFilters.push("void.is.true");
+        }
+
+        if (orFilters.length > 0) {
+          query = query.or(orFilters.join(","));
+        }
       }
 
       // Apply search

@@ -9,28 +9,48 @@ import {
 import { Calendar as CalendarIcon, Download } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 interface OrderFiltersProps {
+  searchValue?: string;
+  dateRange?: { from: Date | undefined; to: Date | undefined };
   onSearch: (value: string) => void;
   onDateChange: (dates: { from: Date | undefined; to: Date | undefined }) => void;
   onExport: () => void;
 }
 
-export function OrderFilters({ onSearch, onDateChange, onExport }: OrderFiltersProps) {
+export function OrderFilters({
+  searchValue = "",
+  dateRange,
+  onSearch,
+  onDateChange,
+  onExport,
+}: OrderFiltersProps) {
   const [date, setDate] = useState<{
     from: Date | undefined;
     to: Date | undefined;
-  }>({
-    from: undefined,
-    to: undefined,
-  });
+  }>(
+    dateRange || {
+      from: undefined,
+      to: undefined,
+    }
+  );
+
+  useEffect(() => {
+    setDate(
+      dateRange || {
+        from: undefined,
+        to: undefined,
+      }
+    );
+  }, [dateRange]);
 
   return (
     <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
       <div className="flex gap-2 w-full sm:w-auto">
         <Input
           placeholder="Search orders..."
+          value={searchValue}
           onChange={(e) => onSearch(e.target.value)}
           className="w-full sm:w-[300px]"
         />
