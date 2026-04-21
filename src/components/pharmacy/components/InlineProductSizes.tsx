@@ -769,6 +769,7 @@ export const InlineProductSizes = ({
 
               const displayOriginalPrice = hasDiscount ? originalCasePrice : 0
               const showSavingsText = hasDiscount && discountPercent > 0
+              const savingsAmount = hasDiscount ? Math.max(0, displayOriginalPrice - casePrice) : 0
               
               const unitsPerCase = size.quantity_per_case || 0
               const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
@@ -887,7 +888,7 @@ export const InlineProductSizes = ({
                         {/* Show savings text for group pricing and offers */}
                         {showSavingsText && (
                           <p className="text-[9px] sm:text-xs text-red-600 font-semibold mb-1">
-                            Save {discountPercent}% • ${(originalCasePrice * discountPercent / 100).toFixed(2)} off
+                            Save {discountPercent}% • ${savingsAmount.toFixed(2)} off
                           </p>
                         )}
 

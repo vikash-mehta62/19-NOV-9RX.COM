@@ -799,7 +799,7 @@ export function PromoAndRewardsSection({
           if (applicableAmount <= 0) {
             toast({
               title: "Cannot Apply Offer",
-              description: "No eligible items in cart. Offers cannot be applied to products with group pricing.",
+              description: "No eligible items in cart. Offers cannot be applied to this products.",
               variant: "destructive",
             });
             return;
