@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useToast } from "./hooks/use-toast";
 import { useAuthCheck } from "./useAuthCheck";
@@ -271,7 +271,55 @@ const ProtectedRoute = ({
 function App() {
   const { toast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   useAuthCheck();
+
+  // Global magic link redirect handler - redirect to /update-profile if magic link detected
+  useEffect(() => {
+    const hash = window.location.hash;
+    const currentPath = location.pathname;
+    
+    // Check if we have a magic link hash and we're NOT already on update-profile
+    if (hash && hash.includes('access_token') && hash.includes('type=magiclink') && currentPath !== '/update-profile') {
+      console.log('🔗 Magic link detected, redirecting to /update-profile');
+      console.log('Current path:', currentPath);
+      console.log('Hash:', hash);
+      
+      // Redirect to update-profile with the hash preserved
+      window.location.href = '/update-profile' + hash;
+    }
+  }, [location.pathname]);
+
+  // Browser close detection - clear localStorage when all tabs are closed
+  useEffect(() => {
+    // Mark that this tab is open
+    sessionStorage.setItem('tabOpen', 'true');
+    
+    const handleBeforeUnload = () => {
+      // Remove this tab's marker
+      sessionStorage.removeItem('tabOpen');
+      
+      // Check if this is the last tab closing
+      // Use a small delay to allow other tabs to update
+      setTimeout(() => {
+        if (!sessionStorage.getItem('tabOpen')) {
+          // Last tab closing - clear localStorage to logout
+          const authKeys = Object.keys(localStorage).filter(key => 
+            key.startsWith('sb-') || key.includes('supabase')
+          );
+          authKeys.forEach(key => localStorage.removeItem(key));
+          console.log('🚪 Last tab closed - localStorage cleared for logout');
+        }
+      }, 100);
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      handleBeforeUnload();
+    };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;

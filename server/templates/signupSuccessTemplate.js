@@ -59,9 +59,39 @@
 
 const signupSuccessTemplate = (name, email, profileCompletionLink = null) => {
     const frontendUrl = process.env.FRONTEND_URL || 'https://9rx.vercel.app';
-    // Use secure magic link if provided, otherwise fall back to login page.
-    const updateProfileUrl = profileCompletionLink || `${frontendUrl}/login`;
-    const ctaText = profileCompletionLink ? "Complete Your Profile" : "Go to Login";
+    
+    // If magic link is provided, wrap it with our redirect handler
+    let updateProfileUrl;
+    let ctaText;
+    
+    if (profileCompletionLink) {
+      // Extract token from the magic link
+      try {
+        const url = new URL(profileCompletionLink);
+        const token = url.searchParams.get('token');
+        const type = url.searchParams.get('type');
+        
+        if (token && type) {
+          // Create a custom link that will redirect to update-profile after verification
+          // Format: https://supabase.co/auth/v1/verify?token=xxx&type=magiclink&redirect_to=https://9rx.vercel.app/update-profile
+          updateProfileUrl = `${url.origin}${url.pathname}?token=${token}&type=${type}&redirect_to=${encodeURIComponent(frontendUrl + '/update-profile')}`;
+          ctaText = "Complete Your Profile";
+          console.log("📧 Email template using custom redirect URL:", updateProfileUrl);
+        } else {
+          // Fallback to original link
+          updateProfileUrl = profileCompletionLink;
+          ctaText = "Complete Your Profile";
+        }
+      } catch (err) {
+        console.error("Error parsing magic link:", err);
+        updateProfileUrl = profileCompletionLink;
+        ctaText = "Complete Your Profile";
+      }
+    } else {
+      // No magic link - fallback to login
+      updateProfileUrl = `${frontendUrl}/login`;
+      ctaText = "Go to Login";
+    }
     
     return `<!DOCTYPE html>
     <html>

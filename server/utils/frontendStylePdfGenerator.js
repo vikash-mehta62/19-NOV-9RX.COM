@@ -860,6 +860,44 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       }
       contentBottomY = Math.max(contentBottomY, totalY + totalBoxHeight);
       
+      // Add QR code for payment link (if available and balance due > 0)
+      if (options.paymentUrl && balanceDue > 0 && !isPurchaseOrder) {
+        try {
+          const qrSize = 50; // 50mm square
+          const qrX = PAGE_MARGIN + 10;
+          const qrY = totalsStartY + 10;
+          
+          // Generate QR code for payment link
+          const qrCodeBuffer = await bwipjs.toBuffer({
+            bcid: 'qrcode',
+            text: options.paymentUrl,
+            scale: 3,
+            height: 15,
+            width: 15,
+            includetext: false,
+          });
+          
+          // Draw QR code
+          doc.image(qrCodeBuffer, mm(qrX), mm(qrY), {
+            width: mm(qrSize),
+            height: mm(qrSize),
+          });
+          
+          // Add label below QR code
+          doc.fontSize(8)
+             .fillColor(TEXT_MUTED)
+             .font('Helvetica')
+             .text('Scan to Pay', mm(qrX), mm(qrY + qrSize + 2), {
+               width: mm(qrSize),
+               align: 'center',
+             });
+          
+          console.log("✅ QR code added for payment link:", options.paymentUrl);
+        } catch (qrError) {
+          console.error("❌ QR code generation failed:", qrError);
+        }
+      }
+      
       } else if (isPurchaseOrder) {
         doc.roundedRect(mm(PAGE_MARGIN), mm(rowY + 10), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(12), mm(2))
            .fill(BOX_LIGHT);

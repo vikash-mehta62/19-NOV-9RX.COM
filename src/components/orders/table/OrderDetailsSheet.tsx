@@ -1152,29 +1152,70 @@ export const OrderDetailsSheet = ({
         doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
         summaryFinalY = 20;
       }
-      doc.setFillColor(...brandColor);
+      
+      // TOTAL box - light background only, no border
+      doc.setFillColor(240, 245, 255); // Light blue background
       doc.roundedRect(summaryX, summaryFinalY + 2, summaryWidth, 10, 1, 1, "F");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(12);
+      doc.setTextColor(...brandColor);
       doc.text("TOTAL", summaryX + 5, summaryFinalY + 9);
       doc.text(`$${total.toFixed(2)}`, summaryX + summaryWidth - 5, summaryFinalY + 9, { align: "right" });
 
       let paymentY = summaryFinalY + 14;
       if (paidAmount > 0) {
-        doc.setFillColor(34, 197, 94);
+        // PAID box - light green background only, no border
+        doc.setFillColor(240, 253, 244); // Light green background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
-        doc.setFontSize(10);
+        doc.setTextColor(34, 197, 94);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
         doc.text("PAID", summaryX + 5, paymentY + 7);
         doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
       if (balanceDue > 0 && !poIs) {
-        doc.setFillColor(239, 68, 68);
+        // BALANCE DUE box - light red background only, no border
+        doc.setFillColor(254, 242, 242); // Light red background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
+        doc.setTextColor(239, 68, 68);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
         doc.text("BALANCE DUE", summaryX + 5, paymentY + 7);
         doc.text(`$${balanceDue.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
+        
+        // Add QR code for payment link
+        try {
+          const paymentUrl = `${window.location.origin}/pay-now?orderid=${currentOrder.id}`;
+          const qrSize = 50; // 50mm square
+          const qrX = margin + 10;
+          const qrY = summaryStartY + 10;
+          
+          // Generate QR code using qrcode library
+          const QRCode = (await import('qrcode')).default;
+          const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
+            width: 200,
+            margin: 1,
+            color: {
+              dark: '#000000',
+              light: '#FFFFFF'
+            }
+          });
+          
+          // Add QR code to PDF
+          doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+          
+          // Add label below QR code
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(9);
+          doc.setTextColor(60, 60, 60);
+          doc.text('Scan to Pay', qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center' });
+          
+          console.log("✅ QR code added for payment:", paymentUrl);
+        } catch (qrError) {
+          console.error("❌ QR code generation failed:", qrError);
+        }
       }
       footerAnchorY = paymentY;
     }
