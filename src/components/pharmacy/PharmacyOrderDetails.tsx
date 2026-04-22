@@ -720,7 +720,7 @@ console.log(order,"PHARorder")
           doc.setFont("helvetica", "bold")
           doc.setFontSize(9)
           doc.setTextColor(...brandColor)
-          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
         }
         
         // Page number text
@@ -986,7 +986,7 @@ console.log(order,"PHARorder")
           doc.setFont("helvetica", "bold")
           doc.setFontSize(9)
           doc.setTextColor(...brandColor)
-          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
         }
         
         // Page number text

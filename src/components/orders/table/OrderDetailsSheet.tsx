@@ -1295,9 +1295,9 @@ export const OrderDetailsSheet = ({
 
       if (showSalesOrderCaution) {
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(6.4);
+        doc.setFontSize(9);
         doc.setTextColor(...brandColor);
-        doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center", maxWidth: pageWidth - margin * 2 });
+        doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center", maxWidth: pageWidth - margin * 2 });
       }
 
       doc.setFont("helvetica", "normal");
@@ -1754,9 +1754,9 @@ export const OrderDetailsSheet = ({
 
         if (showSalesOrderCaution) {
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(5.8);
+          doc.setFontSize(9);
           doc.setTextColor(...brandColor);
-          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
         }
 
         // Draw page number text
@@ -2206,9 +2206,9 @@ export const OrderDetailsSheet = ({
 
         if (showSalesOrderCaution) {
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(5.8);
+          doc.setFontSize(9);
           doc.setTextColor(...brandColor);
-          doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
         }
 
         // Draw page number text

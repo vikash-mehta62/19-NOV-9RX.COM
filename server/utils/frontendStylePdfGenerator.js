@@ -1008,7 +1008,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         const contactY = footerY + 6;
           const cautionY = contactY + 4.5;
         const showSalesOrderCaution = documentTitle === 'SALES ORDER';
-        const cautionLine = 'Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC';
+        const cautionLine = 'Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC';
           doc.moveTo(mm(PAGE_MARGIN), mm(footerY - 5))
             .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(footerY - 5))
             .strokeColor(DIVIDER_LINE)
