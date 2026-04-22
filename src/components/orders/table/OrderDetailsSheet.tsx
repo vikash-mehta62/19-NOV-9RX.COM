@@ -1187,7 +1187,7 @@ export const OrderDetailsSheet = ({
         doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
-      if (!poIs) {
+      if (balanceDue > 0 && !poIs) {
         // BALANCE DUE box - light red background only, no border
         doc.setFillColor(254, 242, 242); // Light red background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
