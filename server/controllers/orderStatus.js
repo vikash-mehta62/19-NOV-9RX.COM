@@ -546,18 +546,44 @@ exports.userNotificationCtrl = async (req, res) => {
 
         const frontendUrl = process.env.FRONTEND_URL || "https://9rx.vercel.app";
         const redirectUrl = `${frontendUrl}/update-profile`;
+        
+        console.log("🔗 Generating magic link with redirect:", redirectUrl);
+        
+        // Generate magic link using admin API
         const { data: magicLinkData, error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
           type: "magiclink",
           email: email.toLowerCase().trim(),
-          options: { redirectTo: redirectUrl },
+          options: { 
+            redirectTo: redirectUrl,
+          },
         });
 
         if (magicLinkError) {
+          console.error("❌ Magic link generation error:", magicLinkError);
           throw magicLinkError;
         }
 
-        profileCompletionLink = magicLinkData?.properties?.action_link || null;
-        console.log("Profile completion link generated for:", email);
+        // Get the action_link which contains the verification URL
+        let actionLink = magicLinkData?.properties?.action_link || null;
+        
+        if (actionLink) {
+          // Parse and modify the URL to ensure proper redirect
+          try {
+            const url = new URL(actionLink);
+            
+            // Force the redirect_to parameter to update-profile
+            url.searchParams.set('redirect_to', redirectUrl);
+            
+            profileCompletionLink = url.toString();
+            console.log("✅ Profile completion link generated with redirect_to:", redirectUrl);
+            console.log("📧 Full magic link:", profileCompletionLink);
+          } catch (urlError) {
+            console.error("❌ Error parsing magic link URL:", urlError);
+            profileCompletionLink = actionLink;
+          }
+        } else {
+          console.warn("⚠️ No action_link in magic link response");
+        }
       } catch (linkError) {
         console.error("Failed to generate profile completion link:", linkError.message);
         // Continue without link - user can still complete profile later

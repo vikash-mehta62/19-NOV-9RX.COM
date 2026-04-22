@@ -16,20 +16,26 @@ function UserSelfDetails() {
   const [session, setSession] = useState(null);
   const navigate = useNavigate();
 
-  // Check for valid Supabase session from magic-link flow.
+  // Check for valid Supabase session from magic-link flow OR direct signup flow
   useEffect(() => {
     const checkSession = async () => {
       try {
+        // First, let Supabase process the hash fragment
+        // This is important for magic links
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         
         console.log("🔍 Checking authentication method:", { 
           hasSession: !!session,
           sessionUser: session?.user?.email,
-          sessionError: sessionError?.message
+          sessionError: sessionError?.message,
+          urlHash: window.location.hash,
+          hashLength: window.location.hash.length
         });
 
         if (session?.user) {
-          console.log("✅ Active Supabase session detected (magic link flow)");
+          console.log("✅ Active Supabase session detected");
           setSession(session);
           
           // Verify session with backend and get user info
@@ -49,11 +55,82 @@ function UserSelfDetails() {
             }
           } catch (err) {
             console.error("❌ Session verification failed:", err);
-            setError("Failed to verify your session. Please try again.");
+            
+            // Fallback: Try to get user data directly from profiles table
+            try {
+              const { data: profile, error: profileError } = await supabase
+                .from("profiles")
+                .select("*")
+                .eq("id", session.user.id)
+                .single();
+              
+              if (profileError) throw profileError;
+              
+              if (profile) {
+                setUserData(profile);
+                setEditModalOpen(true);
+                console.log("✅ Profile loaded directly from database");
+              } else {
+                throw new Error("Profile not found");
+              }
+            } catch (fallbackErr) {
+              console.error("❌ Fallback profile fetch failed:", fallbackErr);
+              setError("Failed to load your profile. Please try again.");
+            }
           }
         } else {
           console.log("❌ No authentication method found");
-          setError("Session expired or invalid. Please use the latest link from your email.");
+          
+          // Check if there's a hash but no session - might need manual token exchange
+          if (window.location.hash && window.location.hash.includes('access_token')) {
+            console.log("🔄 Hash detected but no session, attempting manual token exchange...");
+            
+            try {
+              // Extract tokens from hash
+              const hashParams = new URLSearchParams(window.location.hash.substring(1));
+              const accessToken = hashParams.get('access_token');
+              const refreshToken = hashParams.get('refresh_token');
+              
+              if (accessToken) {
+                // Set session manually
+                const { data: sessionData, error: setSessionError } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken || '',
+                });
+                
+                if (setSessionError) throw setSessionError;
+                
+                if (sessionData.session?.user) {
+                  console.log("✅ Session set manually from hash");
+                  setSession(sessionData.session);
+                  
+                  // Try to get profile
+                  const { data: profile, error: profileError } = await supabase
+                    .from("profiles")
+                    .select("*")
+                    .eq("id", sessionData.session.user.id)
+                    .single();
+                  
+                  if (profile && !profileError) {
+                    setUserData(profile);
+                    setEditModalOpen(true);
+                    console.log("✅ Profile loaded after manual session set");
+                  } else {
+                    throw new Error("Profile not found");
+                  }
+                } else {
+                  throw new Error("Failed to set session from tokens");
+                }
+              } else {
+                throw new Error("No access token in hash");
+              }
+            } catch (manualErr) {
+              console.error("❌ Manual token exchange failed:", manualErr);
+              setError("Session expired or invalid. Please login to complete your profile.");
+            }
+          } else {
+            setError("Session expired or invalid. Please login to complete your profile.");
+          }
         }
       } catch (err) {
         console.error("❌ Error in authentication:", err);
@@ -73,6 +150,9 @@ function UserSelfDetails() {
       const signOutUser = async () => {
         try {
           await supabase.auth.signOut();
+          // Clear both storages
+          window.localStorage.clear();
+          window.sessionStorage.clear();
           console.log("✅ User signed out after canceling profile completion");
         } catch (err) {
           console.error("❌ Error signing out:", err);
@@ -114,12 +194,17 @@ function UserSelfDetails() {
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Link Expired or Invalid</h2>
           <p className="text-gray-600 mb-6">{error}</p>
-          <button
-            onClick={() => navigate("/login")}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Go to Login
-          </button>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => navigate("/login")}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Go to Login
+            </button>
+          </div>
+          <p className="text-sm text-gray-500 mt-4">
+            If you just signed up, please login with your credentials to complete your profile.
+          </p>
         </div>
       </div>
     );
@@ -141,14 +226,31 @@ function UserSelfDetails() {
           onOpenChange={setEditModalOpen}
           onUserUpdated={() => {
             console.log("Profile updated successfully");
-            toast({
-              title: "Success",
-              description: "Your profile has been updated successfully! Please login to continue.",
-            });
-            // Navigate to login after successful profile completion
-            setTimeout(() => {
-              navigate("/login");
-            }, 1500);
+            
+            // Sign out after profile completion
+            const signOutAndRedirect = async () => {
+              try {
+                await supabase.auth.signOut();
+                // Clear localStorage after successful profile completion
+                window.localStorage.clear();
+                window.sessionStorage.clear();
+                console.log("✅ User signed out after profile completion");
+              } catch (err) {
+                console.error("❌ Error signing out:", err);
+              }
+              
+              toast({
+                title: "Success",
+                description: "Your profile has been completed! Please login to continue.",
+              });
+              
+              // Navigate to login after successful profile completion
+              setTimeout(() => {
+                navigate("/login");
+              }, 1500);
+            };
+            
+            signOutAndRedirect();
           }}
           self={true}
           isProfileCompletion={!!session} // TRUE if magic link session exists, FALSE if logged-in user

@@ -19,4 +19,30 @@ export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ey
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+// Custom storage adapter that uses sessionStorage but allows magic links to work
+const customStorage = {
+  getItem: (key: string) => {
+    // Check both storages for flexibility
+    return window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
+  },
+  setItem: (key: string, value: string) => {
+    // Store in sessionStorage for browser-close logout
+    window.sessionStorage.setItem(key, value);
+    // Also temporarily in localStorage for magic link flow
+    window.localStorage.setItem(key, value);
+  },
+  removeItem: (key: string) => {
+    window.sessionStorage.removeItem(key);
+    window.localStorage.removeItem(key);
+  },
+};
+
+export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+  auth: {
+    storage: customStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+  },
+});

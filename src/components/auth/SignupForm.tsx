@@ -142,24 +142,24 @@ export const SignupForm = () => {
         }
       }
 
-
+      console.log("User signup completed successfully");
+      
+      // Send verification email with magic link (for later use)
       try {
         const response = await axios.post("/user-verification", {
           name: `${formData.firstName} ${formData.lastName}`,
           email: formData.email,
           userId: authData.user.id,
         });
-      
-        console.log("Verification Successful:", response.data);
+        
+        console.log("Verification email sent:", response.data);
       } catch (error) {
         console.error("Error in user verification:", error.response?.data || error.message);
       }
       
-      console.log("User signup completed successfully");
       toast({
-        title: "Account Created",
-        description:
-          "Your account has been created successfully. Please check your email to verify your account.",
+        title: "Account Created Successfully! 🎉",
+        description: "Redirecting to complete your profile...",
       });
 
       setFormData({
@@ -173,9 +173,17 @@ export const SignupForm = () => {
         termsAccepted: false,
       });
 
-      navigate("/login", { state: { defaultTab: "login" } });
-      
-      window.location.reload();
+      // DON'T sign out - keep session active for immediate profile completion
+      // Redirect directly to update-profile page
+      setTimeout(() => {
+        navigate("/update-profile", { 
+          state: { 
+            fromSignup: true,
+            userId: authData.user.id,
+            email: formData.email
+          } 
+        });
+      }, 1500);
     } catch (error: unknown) {
       const err = error as { message?: string; stack?: string };
       // console.error("Detailed signup error:", error);

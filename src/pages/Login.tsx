@@ -107,6 +107,19 @@ const Login = () => {
   const [currentTestimonial, setCurrentTestimonial] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
 
+  // Show success message if coming from signup
+  useEffect(() => {
+    if (location?.state?.successMessage) {
+      toast({
+        title: "Success",
+        description: location.state.successMessage,
+        duration: 5000,
+      });
+      // Clear the state to prevent showing again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location, toast]);
+
   // Auto-rotate testimonials
   useEffect(() => {
     const interval = setInterval(() => {
