@@ -30,7 +30,7 @@ const WizardNavigationComponent = ({
     if (!isLastStep) return "Continue";
     if (paymentMethod === "card" || paymentMethod === "ach") return "Continue to Secure Checkout";
     if (paymentMethod === "credit") return "Place Order on Credit";
-    return "Place Order";
+    return "Place Order (No Payment)";
   };
 
   return (
@@ -69,7 +69,7 @@ const WizardNavigationComponent = ({
           {/* Right side - Continue or Place Order */}
           <div className="order-1 sm:order-2 flex flex-col sm:flex-row gap-2">
             {/* Place Order Without Payment - For Admin on Review step (step 4) or last step */}
-            {showPlaceOrderWithoutPayment && (
+            {/* {showPlaceOrderWithoutPayment && (
               <Button
                 type="button"
                 variant="outline"
@@ -93,7 +93,7 @@ const WizardNavigationComponent = ({
                   </>
                 )}
               </Button>
-            )}
+            )} */}
             
             <Button
               type="button"
