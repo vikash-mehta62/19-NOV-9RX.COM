@@ -94,6 +94,8 @@ export const OrderShipAction = ({
         method: shippingMethod,
         trackingNumber,
         cost: shippingCost,
+        weight: fedexData?.weight || order.shipping?.weight,
+        weightUnits: fedexData?.weightUnits || order.shipping?.weightUnits || "LB",
         labelUrl: storedLabel ? undefined : fedexData?.labelUrl || order.shipping?.labelUrl,
         labelStoragePath: storedLabel?.storagePath || fedexData?.labelStoragePath || order.shipping?.labelStoragePath,
         labelFileName: storedLabel?.fileName || fedexData?.labelFileName || order.shipping?.labelFileName,

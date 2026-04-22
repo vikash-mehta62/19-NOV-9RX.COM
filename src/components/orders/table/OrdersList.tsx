@@ -837,9 +837,21 @@ export function OrdersList({
                   }}
                 >
                   <div className="mx-auto max-w-[220px]">
-                    <p className="truncate text-sm font-medium text-slate-800">
-                      {((order as any)?.receiving_notes as string) || "No receiving notes"}
-                    </p>
+                    {(() => {
+                      const receivingNote = String(
+                        (order as any)?.receiving_notes ||
+                        (order as any)?.specialInstructions ||
+                        (order as any)?.payment?.notes ||
+                        (order as any)?.notes ||
+                        ""
+                      ).trim();
+
+                      return (
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {receivingNote || "No receiving notes"}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </TableCell>
               )}

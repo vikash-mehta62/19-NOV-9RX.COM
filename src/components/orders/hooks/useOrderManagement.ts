@@ -228,7 +228,13 @@ setOrders([])
               trackingNumber: order.tracking_number || order.shipping?.trackingNumber || "",
               estimatedDelivery: order.estimated_delivery || order.shipping?.estimatedDelivery || "",
             },
-            receiving_notes: order.receiving_notes || "",
+            receiving_notes:
+              String(
+                order.receiving_notes ||
+                order.notes ||
+                order.payment_notes ||
+                ""
+              ).trim(),
             payment: {
               method: normalizedPaymentMethod,
               notes: order.payment_notes || "",

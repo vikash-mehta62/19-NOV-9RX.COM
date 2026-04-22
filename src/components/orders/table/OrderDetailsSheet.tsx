@@ -90,6 +90,10 @@ const buildDiscountSummaryRows = (
 };
 
 const SUMMARY_BOTTOM_RESERVE = 58;
+const PDF_TABLE_BOTTOM_RESERVE = 40;
+const PDF_SUMMARY_BOTTOM_RESERVE = 34;
+const PDF_DECORATION_BOTTOM_RESERVE = 18;
+const PDF_FOOTER_TEXT_HEIGHT = 12;
 
 const toDateInputValue = (value?: string | null) => {
   if (!value) return "";
@@ -868,7 +872,7 @@ export const OrderDetailsSheet = ({
         fillColor: [255, 255, 255] as [number, number, number],
       },
       columnStyles,
-      margin: { left: margin, right: margin, bottom: 30 },
+      margin: { left: margin, right: margin, bottom: PDF_TABLE_BOTTOM_RESERVE },
       tableWidth: "auto",
       showHead: "everyPage" as const,
       didParseCell: (data: any) => {
@@ -1102,7 +1106,7 @@ export const OrderDetailsSheet = ({
     }));
 
     let footerAnchorY = (doc as any).lastAutoTable.finalY + 8;
-    const footerPinnedNearBottomY = pageHeight - 22;
+    const footerPinnedNearBottomY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + 6);
     if (showPricing) {
       const summaryBody: any[] = poIs
         ? [["Subtotal", `$${subtotal.toFixed(2)}`], ["Freight", `$${freight.toFixed(2)}`], ["Handling", `$${handling.toFixed(2)}`]]
@@ -1122,6 +1126,13 @@ export const OrderDetailsSheet = ({
       const summaryStartY = footerAnchorY + 6;
       const summaryWidth = 75;
       const summaryX = pageWidth - margin - summaryWidth;
+      const pdfNotesText = String(
+        (currentOrder as any)?.receiving_notes ||
+        (currentOrder as any)?.specialInstructions ||
+        (currentOrder as any)?.notes ||
+        (currentOrder as any)?.payment?.notes ||
+        ""
+      ).trim();
 
       autoTable(doc as any, {
         body: summaryBody,
@@ -1132,7 +1143,7 @@ export const OrderDetailsSheet = ({
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: summaryX, bottom: SUMMARY_BOTTOM_RESERVE },
+        margin: { left: summaryX, bottom: PDF_SUMMARY_BOTTOM_RESERVE },
         tableWidth: summaryWidth,
         didDrawCell: (data: any) => {
           if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
@@ -1144,7 +1155,7 @@ export const OrderDetailsSheet = ({
       });
 
       let summaryFinalY = (doc as any).lastAutoTable.finalY;
-      if (summaryFinalY + 38 > pageHeight - 30) {
+      if (summaryFinalY + 38 > pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + 4)) {
         doc.addPage();
         doc.setFillColor(...brandColor);
         doc.rect(0, 0, pageWidth, 5, "F");
@@ -1163,6 +1174,8 @@ export const OrderDetailsSheet = ({
       doc.text(`$${total.toFixed(2)}`, summaryX + summaryWidth - 5, summaryFinalY + 9, { align: "right" });
 
       let paymentY = summaryFinalY + 14;
+      let qrBottomAnchorY = paymentY;
+      let notesBottomAnchorY = paymentY;
       if (paidAmount > 0) {
         // PAID box - light green background only, no border
         doc.setFillColor(240, 253, 244); // Light green background
@@ -1174,7 +1187,7 @@ export const OrderDetailsSheet = ({
         doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
-      if (balanceDue > 0 && !poIs) {
+      if (!poIs) {
         // BALANCE DUE box - light red background only, no border
         doc.setFillColor(254, 242, 242); // Light red background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
@@ -1188,14 +1201,16 @@ export const OrderDetailsSheet = ({
         // Add QR code for payment link
         try {
           const paymentUrl = `${window.location.origin}/pay-now?orderid=${currentOrder.id}`;
-          const qrSize = 50; // 50mm square
-          const qrX = margin + 10;
-          const qrY = summaryStartY + 10;
+          const qrSize = 26;
+          const qrGap = 8;
+          const qrX = summaryX - qrSize - qrGap;
+          const maxQrY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + qrSize + 4);
+          const qrY = Math.min(Math.max(summaryFinalY + 2, margin + 4), maxQrY);
           
           // Generate QR code using qrcode library
           const QRCode = (await import('qrcode')).default;
           const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
-            width: 200,
+            width: 140,
             margin: 1,
             color: {
               dark: '#000000',
@@ -1208,22 +1223,54 @@ export const OrderDetailsSheet = ({
           
           // Add label below QR code
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(9);
+          doc.setFontSize(7);
           doc.setTextColor(60, 60, 60);
-          doc.text('Scan to Pay', qrX + qrSize / 2, qrY + qrSize + 4, { align: 'center' });
+          doc.text("Scan to Pay", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" });
+          qrBottomAnchorY = qrY + qrSize + 4;
           
           console.log("✅ QR code added for payment:", paymentUrl);
         } catch (qrError) {
           console.error("❌ QR code generation failed:", qrError);
         }
       }
-      footerAnchorY = paymentY;
+      if (poIs && pdfNotesText) {
+        const notesBoxX = margin + 6;
+        const notesBoxY = summaryStartY + 2;
+        const notesBoxWidth = Math.max(62, summaryX - notesBoxX - 8);
+        const notesTextWidth = notesBoxWidth - 8;
+        const rawLines = doc.splitTextToSize(pdfNotesText, notesTextWidth) as string[];
+        const maxLines = 5;
+        const visibleLines = rawLines.slice(0, maxLines);
+        if (rawLines.length > maxLines && visibleLines.length > 0) {
+          const lastLine = visibleLines[visibleLines.length - 1];
+          visibleLines[visibleLines.length - 1] = `${String(lastLine).slice(0, Math.max(0, String(lastLine).length - 3))}...`;
+        }
+        const notesBoxHeight = Math.max(22, 11 + visibleLines.length * 4.2);
+
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(notesBoxX, notesBoxY, notesBoxWidth, notesBoxHeight, 1.5, 1.5, "F");
+        doc.setDrawColor(226, 232, 240);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(notesBoxX, notesBoxY, notesBoxWidth, notesBoxHeight, 1.5, 1.5, "S");
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.setTextColor(...brandColor);
+        doc.text("NOTES", notesBoxX + 4, notesBoxY + 5);
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(...darkGray);
+        doc.text(visibleLines, notesBoxX + 4, notesBoxY + 9);
+        notesBottomAnchorY = notesBoxY + notesBoxHeight;
+      }
+      footerAnchorY = Math.max(paymentY, qrBottomAnchorY, notesBottomAnchorY);
     }
 
     const footerPreferredY = footerAnchorY + 8;
-    const footerMaxY = pageHeight - 15;
+    const footerMaxY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT);
     const footerY = Math.min(Math.max(footerPreferredY, footerPinnedNearBottomY), footerMaxY);
-    if (footerY <= pageHeight - 15) {
+    if (footerY <= footerMaxY) {
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.3);
       doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
@@ -1248,9 +1295,9 @@ export const OrderDetailsSheet = ({
 
       if (showSalesOrderCaution) {
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
+        doc.setFontSize(6.4);
         doc.setTextColor(...brandColor);
-        doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center" });
+        doc.text("Caution: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center", maxWidth: pageWidth - margin * 2 });
       }
 
       doc.setFont("helvetica", "normal");
@@ -1591,6 +1638,14 @@ export const OrderDetailsSheet = ({
 
       // Total row with highlight
       let summaryFinalY = (doc as any).lastAutoTable.finalY;
+      if (summaryFinalY + 38 > pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + 4)) {
+        doc.addPage();
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        summaryFinalY = 20;
+      }
       if (summaryFinalY + 38 > pageHeight - 30) {
         doc.addPage();
         doc.setFillColor(...brandColor);
@@ -2042,6 +2097,14 @@ export const OrderDetailsSheet = ({
 
       // Total row with highlight
       let summaryFinalY = (doc as any).lastAutoTable.finalY;
+      if (summaryFinalY + 38 > pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + 4)) {
+        doc.addPage();
+        doc.setFillColor(...brandColor);
+        doc.rect(0, 0, pageWidth, 5, "F");
+        doc.setFillColor(...brandColor);
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+        summaryFinalY = 20;
+      }
       if (summaryFinalY + 38 > pageHeight - 30) {
         doc.addPage();
         doc.setFillColor(...brandColor);
@@ -4691,4 +4754,6 @@ export const OrderDetailsSheet = ({
     </>
   );
 };
+
+
 

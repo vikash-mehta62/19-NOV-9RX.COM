@@ -25,6 +25,8 @@ const CONTINUATION_TOP_Y = 15;
 const SUMMARY_ROW_HEIGHT = 8;
 const SUMMARY_BOX_HEIGHT = 10;
 const SUMMARY_BOX_GAP = 12;
+const QR_SIZE = 26;
+const QR_GAP_FROM_SUMMARY = 8;
 const ADDRESS_LINE_GAP = 1.1;
 const ADDRESS_MIN_LINE_HEIGHT = 4.2;
 const DEFAULT_DOCUMENT_HEADER = {
@@ -745,6 +747,13 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const totalBoxWidth = 80;
       const totalBoxHeight = SUMMARY_BOX_HEIGHT;
       const totalBoxX = PAGE_WIDTH - PAGE_MARGIN - 85;
+      const poNotesText = String(
+        order?.receiving_notes ||
+        order?.notes ||
+        order?.payment_notes ||
+        order?.payment?.notes ||
+        ""
+      ).trim();
       const hasPaidBlock = actualPaid > 0;
       const hasBalanceBlock = actualPaid > 0 && balanceDue > 0 && !isPurchaseOrder;
       const hasFullyPaidBlock = actualPaid > 0 && balanceDue === 0;
@@ -817,6 +826,41 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       doc.fillColor('#FFFFFF')
         .font('Helvetica-Bold')
         .text(`$${formatCurrency(total)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalBoxY + 3.5), { width: mm(25), align: 'right' });
+
+      if (isPurchaseOrder && poNotesText) {
+        const notesBoxX = PAGE_MARGIN + 6;
+        const notesBoxY = totalBoxY;
+        const notesBoxWidth = Math.max(62, totalBoxX - notesBoxX - 8);
+        const notesBoxHeight = 26;
+
+        doc.roundedRect(mm(notesBoxX), mm(notesBoxY), mm(notesBoxWidth), mm(notesBoxHeight), mm(1.5))
+          .fillColor('#F8FAFC')
+          .fill();
+
+        doc.roundedRect(mm(notesBoxX), mm(notesBoxY), mm(notesBoxWidth), mm(notesBoxHeight), mm(1.5))
+          .lineWidth(0.3)
+          .strokeColor(GRID_LINE)
+          .stroke();
+
+        doc.fontSize(8)
+          .fillColor(BRAND_BLUE)
+          .font('Helvetica-Bold')
+          .text('NOTES', mm(notesBoxX + 3.5), mm(notesBoxY + 2.5), {
+            width: mm(notesBoxWidth - 7),
+            lineBreak: false,
+          });
+
+        doc.fontSize(8)
+          .fillColor(TEXT_DARK)
+          .font('Helvetica')
+          .text(poNotesText, mm(notesBoxX + 3.5), mm(notesBoxY + 7.5), {
+            width: mm(notesBoxWidth - 7),
+            height: mm(notesBoxHeight - 10),
+            ellipsis: true,
+          });
+
+        contentBottomY = Math.max(contentBottomY, notesBoxY + notesBoxHeight);
+      }
       
       // Add "PAID AMOUNT" and "FULLY PAID" badges if paid
       if (actualPaid > 0) {
@@ -859,15 +903,19 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         }
       }
       contentBottomY = Math.max(contentBottomY, totalY + totalBoxHeight);
+      let qrBottomY = contentBottomY;
       
       // Add QR code for payment link (if available and balance due > 0)
       if (options.paymentUrl && balanceDue > 0 && !isPurchaseOrder) {
         try {
-          const qrSize = 50; // 50mm square
-          const qrX = PAGE_MARGIN + 10;
-          const qrY = totalsStartY + 10;
+          const qrSize = QR_SIZE;
+          const qrX = totalBoxX - qrSize - QR_GAP_FROM_SUMMARY;
+          const qrY = Math.min(
+            Math.max(totalBoxY + 2, PAGE_MARGIN + 4),
+            FOOTER_SAFE_TOP_Y - qrSize - 6
+          );
           
-          // Generate QR code for payment link
+          // Generate QR code for payment link with high error correction
           const qrCodeBuffer = await bwipjs.toBuffer({
             bcid: 'qrcode',
             text: options.paymentUrl,
@@ -875,6 +923,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             height: 15,
             width: 15,
             includetext: false,
+            eclevel: 'H', // High error correction for logo overlay
           });
           
           // Draw QR code
@@ -883,20 +932,47 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             height: mm(qrSize),
           });
           
+          // Add logo in center of QR code
+          try {
+            const logoBuffer = await fetchLogo();
+            if (logoBuffer) {
+              const logoSize = 8;
+              const logoX = qrX + (qrSize - logoSize) / 2;
+              const logoY = qrY + (qrSize - logoSize) / 2;
+              
+              // Draw white rounded rectangle background for logo
+              doc.roundedRect(mm(logoX - 1), mm(logoY - 1), mm(logoSize + 2), mm(logoSize + 2), mm(2))
+                 .fillColor('#FFFFFF')
+                 .fill();
+              
+              // Draw logo on top
+              doc.image(logoBuffer, mm(logoX), mm(logoY), {
+                width: mm(logoSize),
+                height: mm(logoSize),
+              });
+              
+              console.log("✅ Logo added to QR code center");
+            }
+          } catch (logoErr) {
+            console.log("⚠️ Logo in QR code skipped:", logoErr.message);
+          }
+          
           // Add label below QR code
-          doc.fontSize(8)
-             .fillColor(TEXT_MUTED)
-             .font('Helvetica')
+          doc.fontSize(7)
+             .fillColor(TEXT_DARK)
+             .font('Helvetica-Bold')
              .text('Scan to Pay', mm(qrX), mm(qrY + qrSize + 2), {
                width: mm(qrSize),
                align: 'center',
              });
+          qrBottomY = qrY + qrSize + 4;
           
           console.log("✅ QR code added for payment link:", options.paymentUrl);
         } catch (qrError) {
           console.error("❌ QR code generation failed:", qrError);
         }
       }
+      contentBottomY = Math.max(contentBottomY, qrBottomY);
       
       } else if (isPurchaseOrder) {
         doc.roundedRect(mm(PAGE_MARGIN), mm(rowY + 10), mm(PAGE_WIDTH - PAGE_MARGIN * 2), mm(12), mm(2))
@@ -969,7 +1045,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
            );
 
         if (showSalesOrderCaution) {
-          doc.fontSize(9)
+          doc.fontSize(6.4)
              .fillColor(BRAND_BLUE)
              .font('Helvetica-Bold')
              .text(cautionLine, mm(PAGE_MARGIN), mm(cautionY), {

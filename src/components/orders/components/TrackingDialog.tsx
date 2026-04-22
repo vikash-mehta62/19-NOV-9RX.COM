@@ -59,6 +59,8 @@ export interface FedExDialogState {
   deliveryLocation?: string;
   quotedAmount?: number;
   quotedCurrency?: string;
+  weight?: number;
+  weightUnits?: string;
   trackingRaw?: Record<string, any>;
 }
 
@@ -795,7 +797,8 @@ export const TrackingDialog = ({
     try {
       await ensureAddressValidated();
       const activeRecipient = normalizeRecipientDraft(recipientDraft);
-      const quote = await fedexService.rateQuote(order, buildPackageInput(), activeRecipient);
+      const packageInput = buildPackageInput();
+      const quote = await fedexService.rateQuote(order, packageInput, activeRecipient);
       if (quote.serviceType) setServiceType(quote.serviceType);
       
       const newFedExData = {
@@ -805,6 +808,8 @@ export const TrackingDialog = ({
         labelStockType,
         serviceType: quote.serviceType || serviceType,
         estimatedDeliveryDate: quote.deliveryTimestamp || fedexData?.estimatedDeliveryDate,
+        weight: packageInput.weightValue,
+        weightUnits: packageInput.weightUnits,
       };
       
       updateFedExData(newFedExData);
@@ -880,6 +885,8 @@ export const TrackingDialog = ({
         estimatedDeliveryDate: shipment.estimatedDeliveryDate,
         quotedAmount,
         quotedCurrency,
+        weight: packageInput.weightValue,
+        weightUnits: packageInput.weightUnits,
       };
       
       updateFedExData(newFedExData);

@@ -45,6 +45,22 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
 
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Initialize packing data from order shipping info
+  useEffect(() => {
+    if (open && orderData) {
+      const shipping = orderData.shipping || {};
+      setPackingData({
+        shipVia: shipping.method || "",
+        trackingNumber: shipping.trackingNumber || "",
+        weight: shipping.weight?.toString() || "",
+        cartons: "1",
+        packedBy: "",
+        checkedBy: "",
+        notes: "",
+      });
+    }
+  }, [open, orderData]);
+
   // Calculate packed items - quantity = cases ordered
   const packedItems = useMemo(() => {
     const items: any[] = [];
@@ -490,12 +506,13 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                       <Select value={packingData.shipVia} onValueChange={(v) => handleInputChange("shipVia", v)}>
                         <SelectTrigger className="h-9"><SelectValue placeholder="Select" /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="UPS Ground">UPS Ground</SelectItem>
-                          <SelectItem value="UPS 2-Day">UPS 2-Day</SelectItem>
-                          <SelectItem value="FedEx Ground">FedEx Ground</SelectItem>
-                          <SelectItem value="FedEx Express">FedEx Express</SelectItem>
+                          <SelectItem value="FedEx">FedEx</SelectItem>
+                          <SelectItem value="UPS">UPS</SelectItem>
+                          <SelectItem value="USPS">USPS</SelectItem>
+                          <SelectItem value="DHL">DHL</SelectItem>
                           <SelectItem value="Freight">Freight</SelectItem>
                           <SelectItem value="Customer Pickup">Customer Pickup</SelectItem>
+                          <SelectItem value="custom">Other</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
