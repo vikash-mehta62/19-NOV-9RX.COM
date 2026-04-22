@@ -1551,6 +1551,227 @@ app.get("/api/pay-now-order/:orderId", payNowLimiter, async (req, res) => {
   }
 });
 
+// POST process iPOSPay hosted callback for public pay-now flow
+app.post("/api/pay-now-ipospay-callback", payNowLimiter, async (req, res) => {
+  try {
+    if (!supabaseAdmin) {
+      return res.status(500).json({ success: false, message: "Server configuration error" });
+    }
+
+    const { orderId, callbackData = {}, result = {} } = req.body || {};
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+    if (!orderId || !uuidRegex.test(orderId)) {
+      return res.status(400).json({ success: false, message: "Invalid order ID" });
+    }
+
+    if (String(result.status || "").toLowerCase() !== "success") {
+      return res.status(400).json({ success: false, message: "Payment is not successful" });
+    }
+
+    const transactionId = String(callbackData.transactionId || result.transactionId || "").trim();
+    if (!transactionId) {
+      return res.status(400).json({ success: false, message: "Missing transaction ID" });
+    }
+
+    const { data: existingTransaction } = await supabaseAdmin
+      .from("payment_transactions")
+      .select("id, order_id")
+      .eq("transaction_id", transactionId)
+      .maybeSingle();
+
+    if (existingTransaction) {
+      const { data: existingOrder } = await supabaseAdmin
+        .from("orders")
+        .select("order_number")
+        .eq("id", orderId)
+        .maybeSingle();
+
+      return res.json({
+        success: true,
+        alreadyProcessed: true,
+        message: "Payment already recorded.",
+        orderNumber: existingOrder?.order_number || null,
+      });
+    }
+
+    const { data: order, error: orderError } = await supabaseAdmin
+      .from("orders")
+      .select("*")
+      .eq("id", orderId)
+      .maybeSingle();
+
+    if (orderError || !order) {
+      return res.status(404).json({ success: false, message: "Order not found" });
+    }
+
+    const chargedAmount = Number(result.chargedAmount || result.totalAmount || callbackData.totalAmount || callbackData.amount || 0);
+    const processingFee = Number(result.processingFee || 0);
+    if (!Number.isFinite(chargedAmount) || chargedAmount <= 0) {
+      return res.status(400).json({ success: false, message: "Invalid charged amount" });
+    }
+
+    const currentPaid = Number(order.paid_amount || 0);
+    const currentTotal = Number(order.total_amount || 0);
+    const previousProcessingFee = Number(order.processing_fee_amount || 0);
+    const newPaidAmount = Number((currentPaid + chargedAmount).toFixed(2));
+    const newTotalAmount = Number((currentTotal + processingFee).toFixed(2));
+    const totalProcessingFee = Number((previousProcessingFee + processingFee).toFixed(2));
+    const newPaymentStatus = newPaidAmount >= newTotalAmount - 0.01 ? "paid" : "partial_paid";
+    const paymentMethod = String(result.paymentMethod || "").toLowerCase() === "ach" ? "ach" : "card";
+    const previousPaymentStatus = String(order.payment_status || "").toLowerCase();
+
+    const { error: updateError } = await supabaseAdmin
+      .from("orders")
+      .update({
+        payment_status: newPaymentStatus,
+        paid_amount: newPaidAmount,
+        total_amount: newTotalAmount,
+        processing_fee_amount: totalProcessingFee,
+        payment_method: paymentMethod,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId);
+
+    if (updateError) {
+      return res.status(500).json({ success: false, message: `Failed to update order: ${updateError.message}` });
+    }
+
+    const profileId = order.profile_id || order.customer || null;
+    if (profileId) {
+      const { error: logError } = await supabaseAdmin.from("payment_transactions").insert({
+        profile_id: profileId,
+        order_id: orderId,
+        transaction_id: transactionId,
+        auth_code: callbackData.responseApprovalCode || null,
+        transaction_type: "auth_capture",
+        amount: chargedAmount,
+        payment_method_type: paymentMethod,
+        card_last_four: paymentMethod === "ach" ? result.accountLast4 : result.cardLast4Digit,
+        card_type: paymentMethod === "ach" ? result.accountType : callbackData.cardType?.toLowerCase(),
+        status: "approved",
+        processor: "ipospay",
+        response_code: String(callbackData.responseCode || "200"),
+        response_message: callbackData.responseMessage || "Transaction Approved",
+        raw_response: {
+          callbackData,
+          normalizedResult: result,
+          processedBy: "pay-now-ipospay-callback",
+        },
+      });
+
+      if (logError) {
+        console.error("[pay-now-ipospay-callback] Failed to log transaction:", logError);
+      }
+    }
+
+    try {
+      const { data: existingInvoice } = await supabaseAdmin
+        .from("invoices")
+        .select("*")
+        .eq("order_id", orderId)
+        .maybeSingle();
+
+      if (existingInvoice) {
+        await supabaseAdmin
+          .from("invoices")
+          .update({
+            payment_status: newPaymentStatus,
+            paid_amount: newPaidAmount,
+            total_amount: newTotalAmount,
+            processing_fee_amount: totalProcessingFee,
+            payment_method: paymentMethod,
+            payment_transication: transactionId,
+          })
+          .eq("id", existingInvoice.id);
+      } else {
+        const { data: invoiceNumber } = await supabaseAdmin.rpc("generate_invoice_number");
+        const shippingAmount = Number(order.shipping_cost || 0);
+        const taxAmount = Number(order.tax_amount || 0);
+        const discountAmount = Number(order.discount_amount || 0);
+        const subtotal = Number(
+          (newTotalAmount - taxAmount - shippingAmount + discountAmount - totalProcessingFee).toFixed(2)
+        );
+        const dueDate = new Date(order.estimated_delivery || Date.now());
+        dueDate.setDate(dueDate.getDate() + 30);
+
+        await supabaseAdmin.from("invoices").insert({
+          invoice_number: invoiceNumber || `INV-${Date.now()}`,
+          order_id: orderId,
+          profile_id: profileId,
+          due_date: dueDate.toISOString(),
+          status: "pending",
+          amount: subtotal,
+          tax_amount: taxAmount,
+          total_amount: newTotalAmount,
+          processing_fee_amount: totalProcessingFee,
+          payment_status: newPaymentStatus,
+          payment_method: paymentMethod,
+          payment_transication: transactionId,
+          shippin_cost: shippingAmount,
+          notes: order.notes || null,
+          items: order.items || [],
+          customer_info: order.customerInfo || {},
+          shipping_info: order.shippingAddress || {},
+          subtotal,
+          paid_amount: newPaidAmount,
+          discount_amount: discountAmount,
+          discount_details: order.discount_details || [],
+        });
+      }
+    } catch (invoiceError) {
+      console.error("[pay-now-ipospay-callback] Invoice sync failed:", invoiceError);
+    }
+
+    if (
+      newPaymentStatus === "paid" &&
+      ["unpaid", "pending", "partial_paid"].includes(previousPaymentStatus) &&
+      !isPurchaseOrder(order)
+    ) {
+      try {
+        await deductQuickOrderStockAfterPayment(order);
+      } catch (stockError) {
+        console.error(`[pay-now-ipospay-callback] Stock deduction failed for order ${orderId}:`, stockError);
+      }
+    }
+
+    await awardPayNowOrderPoints({
+      order,
+      orderId,
+      orderTotal: newTotalAmount,
+      newPaymentStatus,
+    });
+
+    try {
+      await supabaseAdmin.from("order_activities").insert({
+        order_id: orderId,
+        activity_type: "payment_received",
+        description: `Payment received via iPOSPay callback`,
+        metadata: {
+          amount: chargedAmount,
+          processing_fee_amount: processingFee,
+          payment_method: paymentMethod,
+          payment_id: transactionId,
+          source: "public_pay_now_callback",
+        },
+      });
+    } catch (activityError) {
+      console.error("[pay-now-ipospay-callback] Activity log failed:", activityError);
+    }
+
+    return res.json({
+      success: true,
+      message: "Payment successful! Order updated.",
+      orderNumber: order.order_number || null,
+      paymentStatus: newPaymentStatus,
+      chargedAmount,
+    });
+  } catch (error) {
+    console.error("[pay-now-ipospay-callback] Unexpected error:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+});
+
 // POST process payment for pay-now (unauthenticated - full server-side flow)
 app.post("/api/pay-now-process", payNowLimiter, async (req, res) => {
   try {

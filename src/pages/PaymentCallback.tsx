@@ -310,6 +310,38 @@ export default function PaymentCallback() {
       }
 
       const orderId = pendingPayment.orderId;
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      const isDirectOrderFlow = !pendingPayment?.flowType;
+
+      const finalizeViaServer = async () => {
+        const response = await axios.post("/api/pay-now-ipospay-callback", {
+          orderId,
+          callbackData,
+          result,
+          pendingPayment: {
+            orderId: pendingPayment?.orderId,
+            orderNumber: pendingPayment?.orderNumber,
+            transactionReferenceId: pendingPayment?.transactionReferenceId,
+          },
+        });
+
+        if (!response?.data?.success) {
+          throw new Error(response?.data?.message || "Server callback processing failed");
+        }
+
+        if (response?.data?.orderNumber) {
+          setCompletedOrderNumber(response.data.orderNumber);
+        }
+
+        toast.success(response?.data?.message || "Payment successful! Order updated.");
+      };
+
+      if (isDirectOrderFlow && !session?.user?.id) {
+        await finalizeViaServer();
+        return;
+      }
 
       const { data: existingTransaction } = await supabase
         .from("payment_transactions")
@@ -329,6 +361,17 @@ export default function PaymentCallback() {
         .maybeSingle();
 
       if (orderError || !order) {
+        const combinedErrorMessage = `${orderError?.message || ""} ${orderError?.details || ""}`.toLowerCase();
+        const authOrRlsFailure =
+          combinedErrorMessage.includes("jwt") ||
+          combinedErrorMessage.includes("unauthorized") ||
+          combinedErrorMessage.includes("permission") ||
+          combinedErrorMessage.includes("rls");
+
+        if (isDirectOrderFlow && authOrRlsFailure) {
+          await finalizeViaServer();
+          return;
+        }
         throw new Error("Order not found");
       }
 
