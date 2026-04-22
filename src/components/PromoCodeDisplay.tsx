@@ -8,7 +8,7 @@ interface PromoCodeDisplayProps {
   discountAmount: number;
   applicableAmount: number;
   totalAmount: number;
-  applicableTo: "all" | "product" | "category" | "user_group" | "first_order";
+  applicableTo: "all" | "product" | "specific_product" | "category" | "user_group" | "first_order";
   applicableItems?: Array<{
     id: string;
     name: string;
@@ -67,6 +67,7 @@ export function PromoCodeDisplay({
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900 mb-1">
                   {applicableTo === "product" && "Applied to specific products"}
+                  {applicableTo === "specific_product" && "Applied to specific sizes"}
                   {applicableTo === "category" && "Applied to specific categories"}
                   {applicableTo === "user_group" && "Applied to your account type"}
                   {applicableTo === "first_order" && "First order discount"}
@@ -210,6 +211,7 @@ export function PromoCodeBadge({
             {applicableTo !== "all" && (
               <Badge variant="outline" className="text-[10px] px-1 py-0">
                 {applicableTo === "product" && "Specific items"}
+                {applicableTo === "specific_product" && "Specific sizes"}
                 {applicableTo === "category" && "Category"}
               </Badge>
             )}

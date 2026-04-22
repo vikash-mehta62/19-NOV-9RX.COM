@@ -44,7 +44,7 @@ import { ProductReviewForm } from "@/components/reviews/ProductReviewForm"
 import { PharmacyProductCard } from "@/components/pharmacy/components/product-showcase/PharmacyProductCard"
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
 import { canUserReview } from "@/services/reviewService"
-import { getProductEffectivePrice } from "@/services/productOfferService"
+import { getSizeVariantOffer } from "@/services/productOfferService"
 import { formatPointsRedemptionRule, normalizePointRedemptionValue, normalizePointsPerDollar } from "@/lib/rewards"
 import logo from "../../assests/home/9rx_logo.png"
 
@@ -78,6 +78,12 @@ export default function SizeDetail() {
     offerBadge: string | null;
     hasOffer: boolean;
   } | null>(null)
+  const [sizeOffers, setSizeOffers] = useState<Record<string, {
+    effectivePrice?: number;
+    discountPercent: number;
+    offerBadge: string | null;
+    hasOffer: boolean;
+  } | null>>({})
   const [rewardsConfig, setRewardsConfig] = useState({
     pointsPerDollar: 1,
     pointValue: 0.01,
@@ -190,19 +196,35 @@ export default function SizeDetail() {
         if (hasGroupPricing) {
           console.log("⚠️ Skipping offers - size has group pricing applied");
           setProductOffer(null);
+          setSizeOffers({});
         } else {
-          getProductEffectivePrice(productId).then(offerData => {
+          getSizeVariantOffer(productId, sizeId, userProfile?.id).then(offerData => {
             if (offerData && offerData.hasOffer) {
-              console.log("SizeDetail - Product has offer:", offerData);
+              console.log("SizeDetail - Size has offer:", offerData);
               setProductOffer({
-                effectivePrice: offerData.effectivePrice,
+                effectivePrice: offerData.effectivePrice || 0,
                 discountPercent: offerData.discountPercent,
                 offerBadge: offerData.offerBadge,
                 hasOffer: offerData.hasOffer
               });
+            } else {
+              setProductOffer(null);
             }
           }).catch(err => {
-            console.error("Error loading product offer:", err);
+            console.error("Error loading size offer:", err);
+          });
+
+          Promise.all(
+            (productData.product_sizes || []).map(async (productSize: any) => {
+              const sizeOffer = await getSizeVariantOffer(productId, productSize.id, userProfile?.id);
+              return [productSize.id, sizeOffer] as const;
+            })
+          ).then((sizeOfferEntries) => {
+            if (isMounted) {
+              setSizeOffers(Object.fromEntries(sizeOfferEntries));
+            }
+          }).catch((err) => {
+            console.error("Error loading size offers:", err);
           });
         }
       }
@@ -628,9 +650,10 @@ export default function SizeDetail() {
                           const sUnitPrice = sUnitsPerCase > 0 ? s.price / sUnitsPerCase : 0
                           const sRewardPoints = Math.floor((Number(s.price) || 0) * rewardsConfig.pointsPerDollar)
                           const sHasGroupDiscount = s.originalPrice > 0 && s.originalPrice > s.price
+                          const sizeOffer = sizeOffers[s.id]
                           
                           // Calculate effective price display for this size
-                          const sHasOfferDiscount = !sHasGroupDiscount && hasOfferDiscount
+                          const sHasOfferDiscount = Boolean(!sHasGroupDiscount && sizeOffer?.hasOffer && sizeOffer.discountPercent > 0)
                           const sOriginalPrice = sHasGroupDiscount
                             ? s.originalPrice
                             : sHasOfferDiscount
@@ -639,12 +662,14 @@ export default function SizeDetail() {
                           const sEffectivePrice = sHasGroupDiscount
                             ? s.price
                             : sHasOfferDiscount
-                              ? s.price * (1 - productOffer.discountPercent / 100)
+                              ? (typeof sizeOffer?.effectivePrice === "number"
+                                  ? sizeOffer.effectivePrice
+                                  : s.price * (1 - sizeOffer!.discountPercent / 100))
                               : s.price
                           const sDiscountPercent = sHasGroupDiscount
                             ? Math.round((1 - s.price / s.originalPrice) * 100)
                             : sHasOfferDiscount
-                              ? productOffer.discountPercent
+                              ? sizeOffer!.discountPercent
                               : 0
                           
                           return (
@@ -665,7 +690,7 @@ export default function SizeDetail() {
                                   Earn {sRewardPoints} points
                                 </p>
                                 {/* Show offer badge if applicable */}
-                                {sHasOfferDiscount && productOffer?.offerBadge && (
+                                {sHasOfferDiscount && sizeOffer?.offerBadge && (
                                   <Badge className="mt-1 bg-red-500 text-white text-xs">
                                     🎁 {sDiscountPercent}% OFF
                                   </Badge>

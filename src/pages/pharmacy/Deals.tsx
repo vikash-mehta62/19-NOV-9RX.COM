@@ -4,6 +4,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { useSelector } from "react-redux";
+import { selectUserProfile } from "@/store/selectors/userSelectors";
+import {
+  hasAnyActiveSpecialPricing,
+  getSpecialPricingProductIdsForProducts,
+  getSpecialPricingSizeMap,
+} from "@/services/specialPricingService";
 import { Clock, Flame, ShoppingCart, ArrowLeft, Menu, User } from "lucide-react";
 import {
   DropdownMenu,
@@ -17,12 +24,14 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 interface DealProduct {
   id: string;
+  product_id: string;
   name: string;
   image_url: string;
   base_price: number;
   original_price: number;
   discount_percent: number;
   offer_badge: string;
+  product_name?: string;
 }
 
 interface DealsSettings {
@@ -33,8 +42,69 @@ interface DealsSettings {
   max_products: number;
 }
 
+interface DealSizeRow {
+  id: string;
+  size_name: string | null;
+  size_value: string | null;
+  size_unit: string | null;
+  price: number | null;
+  image: string | null;
+}
+
+interface DealProductRow {
+  id: string;
+  name: string;
+  base_price: number | null;
+  image_url: string | null;
+  unitToggle: boolean | null;
+  product_sizes?: DealSizeRow[] | null;
+}
+
+interface DealOfferRow {
+  applicable_to: string | null;
+  applicable_ids: string[] | null;
+}
+
+interface DailyDealRow {
+  id: string;
+  discount_percent: number;
+  badge_type: string;
+  products: DealProductRow | null;
+  offers: DealOfferRow | null;
+}
+
+const getSizeLabel = (size: DealSizeRow, unitToggle?: boolean | null) => {
+  const parts = [
+    size.size_name,
+    size.size_value,
+    unitToggle ? size.size_unit : null,
+  ]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .map((part) => part!.trim());
+
+  return parts.join(" ").trim() || "Unnamed Size";
+};
+
+const getProductImageUrl = (image?: string | null) => {
+  const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/";
+
+  if (!image) {
+    return "/placeholder.svg";
+  }
+
+  if (image.startsWith("http")) {
+    return image;
+  }
+
+  return `${basePath}${image}`;
+};
+
+const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
 export default function Deals() {
   const navigate = useNavigate();
+  const userProfile = useSelector(selectUserProfile);
+  const isLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
   const [deals, setDeals] = useState<DealProduct[]>([]);
   const [settings, setSettings] = useState<DealsSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -76,8 +146,30 @@ export default function Deals() {
   }, []);
 
   useEffect(() => {
+    let isActive = true;
+
     const fetchDealsAndSettings = async () => {
       try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        const viewerId = userProfile?.id || user?.id || null;
+
+        if (isLoggedIn && !viewerId) {
+          if (isActive) {
+            setLoading(true);
+          }
+          return;
+        }
+
+        if (viewerId && await hasAnyActiveSpecialPricing(viewerId)) {
+          if (isActive) {
+            setDeals([]);
+            setLoading(false);
+          }
+          return;
+        }
+
         // Fetch settings
         const { data: settingsData } = await supabase
           .from("daily_deals_settings")
@@ -85,10 +177,16 @@ export default function Deals() {
           .maybeSingle();
 
         if (settingsData) {
-          setSettings(settingsData);
+          if (isActive) {
+            setSettings(settingsData);
+          }
           
           // Fetch all active deals (no limit for this page)
           if (settingsData.is_enabled) {
+            if (isActive) {
+              setDeals([]);
+            }
+
             const now = new Date().toISOString();
             const { data: dealsData } = await supabase
               .from("daily_deals")
@@ -96,7 +194,8 @@ export default function Deals() {
                 id,
                 discount_percent,
                 badge_type,
-                products (id, name, base_price, image_url)
+                offers (applicable_to, applicable_ids),
+                products (id, name, base_price, image_url, unitToggle, product_sizes(id, size_name, size_value, size_unit, price, image))
               `)
               .eq("is_active", true)
               .lte("start_date", now)
@@ -104,37 +203,99 @@ export default function Deals() {
               .order("display_order", { ascending: true });
 
             if (dealsData) {
-              const formattedDeals = dealsData
+              const dealRows = dealsData as DailyDealRow[];
+              const productRows = dealRows
+                .map((deal) => deal.products)
+                .filter((product): product is DealProductRow => Boolean(product));
+              const productIds = productRows.map((product) => product.id);
+              const sizeIds = productRows.flatMap((product) =>
+                (product.product_sizes || []).map((size) => size.id)
+              );
+              const specialPricingProductIds = viewerId
+                ? await getSpecialPricingProductIdsForProducts(viewerId, productIds)
+                : new Set<string>();
+              const specialPricingSizeMap = viewerId
+                ? await getSpecialPricingSizeMap(viewerId, sizeIds)
+                : new Map<string, number>();
+
+              const formattedDeals = (dealsData as DailyDealRow[])
                 .filter(d => d.products)
-                .map(d => {
-                  const basePrice = d.products.base_price || 0;
-                  const discountedPrice = basePrice > 0 
-                    ? basePrice * (1 - d.discount_percent / 100)
-                    : 0;
-                  
-                  return {
-                    id: d.products.id,
-                    name: d.products.name,
-                    image_url: d.products.image_url || "/placeholder.svg",
+                .flatMap((d) => {
+                  if (d.products?.id && specialPricingProductIds.has(d.products.id)) {
+                    return [];
+                  }
+
+                  const targetedSizes =
+                    d.offers?.applicable_to === "specific_product" && d.offers.applicable_ids?.length
+                      ? (d.products?.product_sizes || []).filter((size) =>
+                          d.offers?.applicable_ids?.includes(size.id)
+                        )
+                      : [];
+
+                  if (targetedSizes.length > 0) {
+                    return targetedSizes.map((targetedSize) => {
+                      if (specialPricingSizeMap.has(targetedSize.id)) {
+                        return null;
+                      }
+
+                      const basePrice = Number(targetedSize.price ?? 0);
+                      const discountedPrice =
+                        basePrice > 0
+                          ? roundCurrency(basePrice * (1 - d.discount_percent / 100))
+                          : 0;
+
+                      return {
+                        id: targetedSize.id,
+                        product_id: d.products!.id,
+                        name: getSizeLabel(targetedSize, d.products?.unitToggle),
+                        product_name: d.products?.name,
+                        image_url: getProductImageUrl(targetedSize.image || d.products?.image_url),
+                        original_price: basePrice,
+                        base_price: discountedPrice,
+                        discount_percent: d.discount_percent,
+                        offer_badge: d.badge_type,
+                      };
+                    }).filter((dealProduct): dealProduct is DealProduct => Boolean(dealProduct));
+                  }
+
+                  const basePrice = Number(d.products?.base_price ?? 0);
+                  const discountedPrice =
+                    basePrice > 0
+                      ? roundCurrency(basePrice * (1 - d.discount_percent / 100))
+                      : 0;
+
+                  return [{
+                    id: d.id,
+                    product_id: d.products!.id,
+                    name: d.products?.name || "Product",
+                    image_url: getProductImageUrl(d.products?.image_url),
                     original_price: basePrice,
                     base_price: discountedPrice,
                     discount_percent: d.discount_percent,
                     offer_badge: d.badge_type,
-                  };
+                  }];
                 });
-              setDeals(formattedDeals);
+              if (isActive) {
+                setDeals(formattedDeals);
+              }
             }
           }
         }
       } catch (error) {
         console.error("Error fetching deals:", error);
       } finally {
-        setLoading(false);
+        if (isActive) {
+          setLoading(false);
+        }
       }
     };
 
     fetchDealsAndSettings();
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [isLoggedIn, userProfile?.id]);
 
   if (loading) {
     return (
@@ -297,14 +458,14 @@ export default function Deals() {
               <Card
                 key={product.id}
                 className="group overflow-hidden hover:shadow-2xl transition-all duration-300 cursor-pointer border-0 bg-white"
-                onClick={() => openInlineProduct(product.id)}
+                      onClick={() => openInlineProduct(product.product_id)}
               >
                 {/* Image Container */}
-                <div className="relative h-56 overflow-hidden bg-gray-100">
+                <div className="relative h-56 overflow-hidden bg-gray-100 p-4">
                   <img
                     src={product.image_url || "/placeholder.svg"}
                     alt={product.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                    className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-500"
                   />
                   
                   {/* Gradient Overlay on Hover */}
@@ -313,7 +474,7 @@ export default function Deals() {
                   {/* Badges */}
                   <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
                     <Badge className="bg-red-500 hover:bg-red-600 text-white border-0 text-sm font-bold shadow-lg">
-                      -{product.discount_percent}% OFF
+                      {product.discount_percent}% OFF
                     </Badge>
                     {product.offer_badge && (
                       <Badge className="bg-gradient-to-r from-yellow-400 to-orange-400 text-gray-900 border-0 text-xs font-bold shadow-lg">
@@ -330,6 +491,11 @@ export default function Deals() {
 
                 {/* Content */}
                 <CardContent className="p-4">
+                  {product.product_name && (
+                    <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {product.product_name}
+                    </p>
+                  )}
                   <h3 className="font-semibold text-sm text-gray-900 line-clamp-2 mb-3 group-hover:text-blue-600 transition-colors min-h-[40px] leading-tight">
                     {product.name}
                   </h3>

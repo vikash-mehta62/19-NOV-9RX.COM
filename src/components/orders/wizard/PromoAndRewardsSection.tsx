@@ -16,6 +16,10 @@ import {
   calculateItemDiscounts,
   type CartItem 
 } from "@/services/promoCodeService";
+import {
+  getSpecialPricingSizeIds,
+  hasAnyActiveSpecialPricing,
+} from "@/services/specialPricingService";
 import { 
   Tag,
   Gift,
@@ -95,7 +99,7 @@ interface PromoDisplayData {
   discountAmount: number;
   applicableAmount: number;
   totalAmount: number;
-  applicableTo: "all" | "product" | "category" | "user_group" | "first_order";
+  applicableTo: "all" | "product" | "specific_product" | "category" | "user_group" | "first_order";
   applicableItems: Array<{
     id: string;
     name: string;
@@ -117,6 +121,12 @@ interface PromoAndRewardsSectionProps {
   onDiscountChange: (discounts: AppliedDiscount[], totalDiscount: number) => void;
   cartItems?: any[]; // Full cart items with sizes array
 }
+
+const isProductScopedOffer = (applicableTo?: string | null) =>
+  applicableTo === "product";
+
+const isSizeScopedOffer = (applicableTo?: string | null) =>
+  applicableTo === "specific_product";
 
 export function PromoAndRewardsSection({
   customerId,
@@ -311,6 +321,11 @@ export function PromoAndRewardsSection({
     const fetchOffers = async () => {
       setLoadingOffers(true);
       try {
+        if (customerId && await hasAnyActiveSpecialPricing(customerId)) {
+          setAvailableOffers([]);
+          return;
+        }
+
         const now = new Date().toISOString();
         const { data, error } = await supabase
           .from("offers")
@@ -324,16 +339,34 @@ export function PromoAndRewardsSection({
 
         const userType = sessionStorage.getItem("userType");
         const productIds = cartItems.map((item) => item.productId);
+        const productMap = new Map<string, { name?: string; category?: string }>();
 
         // Fetch product categories for cart items (for category filtering)
         let cartCategories: string[] = [];
         if (productIds.length > 0) {
           const { data: products } = await supabase
             .from("products")
-            .select("id, category")
+            .select("id, name, category")
             .in("id", productIds);
+
+          (products || []).forEach((product) => {
+            productMap.set(product.id, { name: product.name, category: product.category });
+          });
+
           cartCategories = (products || []).map((p) => p.category).filter(Boolean);
         }
+
+        const cartItemsForEligibility: CartItem[] = cartItems.map((item) => ({
+          productId: item.productId,
+          categoryId: productMap.get(item.productId)?.category || item.categoryId,
+          price: item.price,
+          quantity: item.quantity,
+          sizes: item.sizes || [],
+        }));
+        const cartSizeIds = cartItemsForEligibility.flatMap((item) =>
+          Array.isArray(item.sizes) ? item.sizes.map((size: any) => size.id).filter(Boolean) : []
+        );
+        const groupPricingSizeIds = await getSpecialPricingSizeIds(customerId, cartSizeIds);
 
         // Filter offers based on all criteria
         const qualifyingOffers = (data || []).filter((offer) => {
@@ -366,10 +399,17 @@ export function PromoAndRewardsSection({
             if (!hasMatch) {
               return false;
             }
+
+            return calculateApplicableAmount(
+              cartItemsForEligibility,
+              offer.applicable_ids,
+              "category",
+              groupPricingSizeIds
+            ) > 0;
           }
 
           // For product offers: applicable_ids should contain product IDs (UUIDs)
-          if (offer.applicable_to === "product") {
+          if (isProductScopedOffer(offer.applicable_to)) {
             // If no applicable_ids specified, reject (invalid configuration)
             if (!offer.applicable_ids || offer.applicable_ids.length === 0) {
               console.warn(`Offer ${offer.title} has product restriction but no applicable_ids`);
@@ -380,10 +420,51 @@ export function PromoAndRewardsSection({
             if (!hasMatch) {
               return false;
             }
+
+            return calculateApplicableAmount(
+              cartItemsForEligibility,
+              offer.applicable_ids,
+              "product",
+              groupPricingSizeIds
+            ) > 0;
           }
 
-          // For "all" offers, always qualify (no restrictions)
-          // For "first_order" and "user_group", already checked above
+          if (isSizeScopedOffer(offer.applicable_to)) {
+            if (!offer.applicable_ids || offer.applicable_ids.length === 0) {
+              console.warn(`Offer ${offer.title} has size restriction but no applicable_ids`);
+              return false;
+            }
+
+            const cartSizeIds = cartItems.flatMap((item: any) =>
+              Array.isArray(item.sizes) ? item.sizes.map((size: any) => size.id).filter(Boolean) : []
+            );
+            const hasMatch = cartSizeIds.some((id) => offer.applicable_ids.includes(id));
+            if (!hasMatch) {
+              return false;
+            }
+
+            return calculateApplicableAmount(
+              cartItemsForEligibility,
+              offer.applicable_ids,
+              "size",
+              groupPricingSizeIds
+            ) > 0;
+          }
+
+          if (offer.applicable_to === "all") {
+            const eligibleAmount = cartItemsForEligibility.reduce((sum, item) => {
+              if (!item.sizes || item.sizes.length === 0) return sum + (item.price * item.quantity);
+
+              const itemTotal = item.sizes.reduce((sizeSum: number, size: any) => {
+                if (groupPricingSizeIds.includes(size.id)) return sizeSum;
+                return sizeSum + ((size.price || item.price) * (size.quantity || 1));
+              }, 0);
+
+              return sum + itemTotal;
+            }, 0);
+
+            return eligibleAmount > 0;
+          }
 
           return true;
         });
@@ -397,7 +478,7 @@ export function PromoAndRewardsSection({
     };
 
     fetchOffers();
-  }, [subtotal, cartItems]);
+  }, [subtotal, cartItems, customerId]);
 
   // Calculate and notify parent of discount changes
   useEffect(() => {
@@ -547,44 +628,12 @@ export function PromoAndRewardsSection({
         );
 
         // ⚠️ CHECK FOR GROUP PRICING FIRST - Collect size IDs that have group pricing
-        let groupPricingSizeIds: string[] = [];
-        if (customerId) {
-          const sizeIds: string[] = [];
-          
-          // Collect all size IDs from cart items
-          cartItemsForValidation.forEach(item => {
-            if (item.sizes && Array.isArray(item.sizes)) {
-              item.sizes.forEach((size: any) => {
-                if (size.id) {
-                  sizeIds.push(size.id);
-                }
-              });
-            }
-          });
-
-          if (sizeIds.length > 0) {
-            // Fetch active group pricing rules for this user
-            const { data: groupPricingData, error: groupError } = await supabase
-              .from("group_pricing")
-              .select("product_arrayjson, group_ids")
-              .eq("status", "active");
-
-            if (!groupError && groupPricingData && groupPricingData.length > 0) {
-              // Identify which size IDs have group pricing
-              groupPricingData.forEach((group: any) => {
-                if (group.group_ids && group.group_ids.includes(customerId)) {
-                  if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
-                    group.product_arrayjson.forEach((product: any) => {
-                      if (sizeIds.includes(product.product_id)) {
-                        groupPricingSizeIds.push(product.product_id);
-                      }
-                    });
-                  }
-                }
-              });
-            }
-          }
-        }
+        const sizeIds = cartItemsForValidation.flatMap((item) =>
+          item.sizes && Array.isArray(item.sizes)
+            ? item.sizes.map((size: any) => size.id).filter(Boolean)
+            : []
+        );
+        const groupPricingSizeIds = await getSpecialPricingSizeIds(customerId, sizeIds);
 
         // Prepare display data WITH group pricing info
         const displayData = preparePromoDisplayData(
@@ -719,44 +768,12 @@ export function PromoAndRewardsSection({
           }));
 
           // ⚠️ CHECK FOR GROUP PRICING - Collect size IDs that have group pricing
-          let groupPricingSizeIds: string[] = [];
-          if (customerId) {
-            const sizeIds: string[] = [];
-
-            // Collect all size IDs from cart items
-            cartItemsForValidation.forEach(item => {
-              if (item.sizes && Array.isArray(item.sizes)) {
-                item.sizes.forEach((size: any) => {
-                  if (size.id) {
-                    sizeIds.push(size.id);
-                  }
-                });
-              }
-            });
-
-            if (sizeIds.length > 0) {
-              // Fetch active group pricing rules for this user
-              const { data: groupPricingData, error: groupError } = await supabase
-                .from("group_pricing")
-                .select("product_arrayjson, group_ids")
-                .eq("status", "active");
-
-              if (!groupError && groupPricingData && groupPricingData.length > 0) {
-                // Identify which size IDs have group pricing
-                groupPricingData.forEach((group: any) => {
-                  if (group.group_ids && group.group_ids.includes(customerId)) {
-                    if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
-                      group.product_arrayjson.forEach((product: any) => {
-                        if (sizeIds.includes(product.product_id)) {
-                          groupPricingSizeIds.push(product.product_id);
-                        }
-                      });
-                    }
-                  }
-                });
-              }
-            }
-          }
+          const sizeIds = cartItemsForValidation.flatMap((item) =>
+            item.sizes && Array.isArray(item.sizes)
+              ? item.sizes.map((size: any) => size.id).filter(Boolean)
+              : []
+          );
+          const groupPricingSizeIds = await getSpecialPricingSizeIds(customerId, sizeIds);
 
           // Check if ALL items have group pricing
           const allItemsHaveGroupPricing = cartItemsForValidation.every(item => {
@@ -776,8 +793,10 @@ export function PromoAndRewardsSection({
           // Calculate applicable amount based on offer type (excluding group pricing items)
           let applicableAmount = subtotal;
 
-          if (offer.applicable_to === "product" && offer.applicable_ids) {
+          if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids) {
             applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'product', groupPricingSizeIds);
+          } else if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids) {
+            applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'size', groupPricingSizeIds);
           } else if (offer.applicable_to === "category" && offer.applicable_ids) {
             applicableAmount = calculateApplicableAmount(cartItemsForValidation, offer.applicable_ids, 'category', groupPricingSizeIds);
           } else {

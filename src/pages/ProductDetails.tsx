@@ -30,7 +30,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { getProductEffectivePrice } from "@/services/productOfferService"
+import { getProductEffectivePrice, getSizeVariantOffer } from "@/services/productOfferService"
 import axios from "../../axiosconfig"
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from "@/components/pharmacy/components/CustomizationEnquiryDialog"
 import { EditSizeDialog, type EditableSize } from "@/components/products/EditSizeDialog"
@@ -233,6 +233,12 @@ const ProductDetails = () => {
     offerBadge: string | null
     hasOffer: boolean
   } | null>(null)
+  const [sizeOffers, setSizeOffers] = useState<Record<string, {
+    effectivePrice?: number
+    discountPercent: number
+    offerBadge: string | null
+    hasOffer: boolean
+  } | null>>({})
   const isAdmin = userProfile?.type === "admin" || userProfile?.role === "admin"
   const userType = sessionStorage.getItem('userType')?.toLowerCase();
   const isDashboardRoute = /^(\/admin|\/pharmacy|\/group|\/hospital)\//.test(location.pathname)
@@ -392,6 +398,11 @@ const ProductDetails = () => {
   // Get price for a size - Apply offer discount if available
   const getSizePrice = (size: any) => {
     if (!isLoggedIn) return null
+
+    const sizeOffer = sizeOffers[size.id]
+    if (sizeOffer?.hasOffer && typeof sizeOffer.effectivePrice === "number") {
+      return sizeOffer.effectivePrice
+    }
     
     let basePrice = size.price || 0;
     
@@ -761,8 +772,9 @@ const ProductDetails = () => {
           if (hasGroupPricing) {
             console.log("⚠️ Skipping offers - product has group pricing applied (flag detected)");
             setProductOffer(null);
+            setSizeOffers({});
           } else {
-            const offerData = await getProductEffectivePrice(mappedProduct.id);
+            const offerData = await getProductEffectivePrice(mappedProduct.id, userProfile?.id);
             console.log("=== PRODUCT OFFER DEBUG ===");
             console.log("Product ID:", mappedProduct.id);
             console.log("Product Name:", mappedProduct.name);
@@ -779,7 +791,16 @@ const ProductDetails = () => {
               console.log("productOffer state set successfully");
             } else {
               console.log("No active offer for this product");
+              setProductOffer(null);
             }
+
+            const sizeOfferEntries = await Promise.all(
+              (mappedProduct.sizes || []).map(async (size: any) => {
+                const sizeOffer = await getSizeVariantOffer(mappedProduct.id, size.id, userProfile?.id);
+                return [size.id, sizeOffer] as const;
+              })
+            );
+            setSizeOffers(Object.fromEntries(sizeOfferEntries));
           }
         } catch (offerError) {
           console.error("Error fetching product offers:", offerError);
@@ -1441,8 +1462,9 @@ return (
                   const groupDiscountPercent = hasGroupDiscount ? Math.round((1 - originalPrice / size.originalPrice) * 100) : 0
                   
                   // Check for offer discount
-                  const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
-                  const offerDiscountPercent = hasOfferDiscount ? productOffer.discountPercent : 0
+                  const sizeOffer = sizeOffers[size.id]
+                  const hasOfferDiscount = Boolean(sizeOffer?.hasOffer && sizeOffer.discountPercent > 0)
+                  const offerDiscountPercent = hasOfferDiscount ? sizeOffer!.discountPercent : 0
                   
                   // Debug logging for first size only
                   if ([...product.sizes].sort((a, b) => (a.sizeSquanence || 0) - (b.sizeSquanence || 0)).indexOf(size) === 0) {

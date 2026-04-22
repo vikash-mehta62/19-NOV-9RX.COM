@@ -1,5 +1,9 @@
 // Promo Code Service - Validate and apply promo codes
 import { supabase } from "@/integrations/supabase/client";
+import {
+  getSpecialPricingSizeIds,
+  hasAnyActiveSpecialPricing,
+} from "@/services/specialPricingService";
 
 export interface CartItem {
   productId: string;
@@ -39,11 +43,17 @@ interface Offer {
   user_groups: string[] | null;
 }
 
+const isProductScopedOffer = (applicableTo?: string | null) =>
+  applicableTo === "product";
+
+const isSizeScopedOffer = (applicableTo?: string | null) =>
+  applicableTo === "specific_product";
+
 // Helper function to calculate applicable amount for product/category specific offers
 export function calculateApplicableAmount(
   cartItems: CartItem[],
   applicableIds: string[],
-  applicationType: 'product' | 'category',
+  applicationType: 'product' | 'category' | 'size',
   groupPricingSizeIds?: string[]
 ): number {
   return cartItems
@@ -51,6 +61,12 @@ export function calculateApplicableAmount(
       // Check if item matches the applicable criteria
       if (applicationType === 'product') {
         return applicableIds.includes(item.productId);
+      } else if (applicationType === 'size') {
+        return Boolean(
+          item.sizes &&
+          Array.isArray(item.sizes) &&
+          item.sizes.some((size: any) => applicableIds.includes(size.id))
+        );
       } else {
         return item.categoryId && applicableIds.includes(item.categoryId);
       }
@@ -63,8 +79,14 @@ export function calculateApplicableAmount(
           if (groupPricingSizeIds && groupPricingSizeIds.includes(size.id)) {
             return sizeSum; // Skip this size
           }
+          if (applicationType === 'size' && !applicableIds.includes(size.id)) {
+            return sizeSum;
+          }
           return sizeSum + ((size.price || item.price) * (size.quantity || 1));
         }, 0);
+      }
+      if (applicationType === 'size') {
+        return sum;
       }
       return sum + (item.price * item.quantity);
     }, 0);
@@ -81,6 +103,13 @@ export async function validatePromoCode(
   try {
     if (!code || code.trim() === "") {
       return { valid: false, message: "Please enter a promo code" };
+    }
+
+    if (userId && await hasAnyActiveSpecialPricing(userId)) {
+      return {
+        valid: false,
+        message: "Promo codes cannot be applied because your account has active special pricing.",
+      };
     }
 
     // ⚠️ CHECK FOR GROUP PRICING - Show warning if some items have group pricing
@@ -104,37 +133,16 @@ export async function validatePromoCode(
       });
 
       if (sizeIds.length > 0) {
-        // Fetch active group pricing rules for this user
-        const { data: groupPricingData, error: groupError} = await supabase
-          .from("group_pricing")
-          .select("product_arrayjson, group_ids")
-          .eq("status", "active");
+        groupPricingSizeIds = await getSpecialPricingSizeIds(userId, sizeIds);
 
-        if (!groupError && groupPricingData && groupPricingData.length > 0) {
-          // Check which sizes have group pricing
-          groupPricingData.forEach((group: any) => {
-            if (group.group_ids && group.group_ids.includes(userId)) {
-              if (group.product_arrayjson && Array.isArray(group.product_arrayjson)) {
-                group.product_arrayjson.forEach((product: any) => {
-                  if (sizeIds.includes(product.product_id)) {
-                    groupPricingSizeIds.push(product.product_id);
-                  }
-                });
-              }
-            }
-          });
-          
-          // Check if we have both types of items
-          hasGroupPricingItems = groupPricingSizeIds.length > 0;
-          hasNonGroupPricingItems = sizeIds.length > groupPricingSizeIds.length;
-          
-          // If ALL items have group pricing, reject promo code
-          if (hasGroupPricingItems && !hasNonGroupPricingItems) {
-            return { 
-              valid: false, 
-              message: "Promo codes cannot be applied. All items in your cart have group pricing and you're already getting a special discount!" 
-            };
-          }
+        hasGroupPricingItems = groupPricingSizeIds.length > 0;
+        hasNonGroupPricingItems = sizeIds.length > groupPricingSizeIds.length;
+
+        if (hasGroupPricingItems && !hasNonGroupPricingItems) {
+          return {
+            valid: false,
+            message: "Promo codes cannot be applied. All items in your cart have group pricing and you're already getting a special discount!"
+          };
         }
       }
     }
@@ -202,6 +210,11 @@ export async function validatePromoCode(
     const categoryIds = cartItems
       .map(item => item.categoryId)
       .filter((id): id is string => id !== undefined);
+    const sizeIds = cartItems.flatMap((item) =>
+      item.sizes && Array.isArray(item.sizes)
+        ? item.sizes.map((size: any) => size.id).filter(Boolean)
+        : []
+    );
 
     // Check category restriction
     if (offer.applicable_to === "category" && offer.applicable_ids && categoryIds.length > 0) {
@@ -212,9 +225,16 @@ export async function validatePromoCode(
     }
 
     // Check product restriction
-    if (offer.applicable_to === "product" && offer.applicable_ids && productIds.length > 0) {
+    if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids && productIds.length > 0) {
       const hasMatchingProduct = productIds.some(id => offer.applicable_ids!.includes(id));
       if (!hasMatchingProduct) {
+        return { valid: false, message: "This offer is not applicable to items in your cart" };
+      }
+    }
+
+    if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids && sizeIds.length > 0) {
+      const hasMatchingSize = sizeIds.some(id => offer.applicable_ids!.includes(id));
+      if (!hasMatchingSize) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
       }
     }
@@ -228,11 +248,18 @@ export async function validatePromoCode(
     console.log('cartItems:', cartItems);
     console.log('orderAmount:', orderAmount);
 
-    if (offer.applicable_to === "product" && offer.applicable_ids) {
+    if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids) {
       // Calculate only for matching products (excluding group pricing)
       applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'product', groupPricingSizeIds);
       console.log('Product-specific applicableAmount:', applicableAmount);
       
+      if (applicableAmount === 0) {
+        return { valid: false, message: "This offer is not applicable to items in your cart" };
+      }
+    } else if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids) {
+      applicableAmount = calculateApplicableAmount(cartItems, offer.applicable_ids, 'size', groupPricingSizeIds);
+      console.log('Size-specific applicableAmount:', applicableAmount);
+
       if (applicableAmount === 0) {
         return { valid: false, message: "This offer is not applicable to items in your cart" };
       }
@@ -440,10 +467,14 @@ export async function getAutoApplyOffers(
       }
 
       // Check product
-      if (offer.applicable_to === "product" && offer.applicable_ids && productIds) {
+      if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids && productIds) {
         if (!productIds.some(id => offer.applicable_ids!.includes(id))) {
           return false;
         }
+      }
+
+      if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids) {
+        return false;
       }
 
       return true;
@@ -515,18 +546,20 @@ export function preparePromoDisplayData(
     if (item.sizes && Array.isArray(item.sizes) && item.sizes.length > 0) {
       item.sizes.forEach((size: any) => {
         let hasDiscount = false;
+        const sizeId = size.id || `${item.productId}-${size.size_value}`;
 
         // Check if this item gets the discount
         if (offer.applicable_to === "all") {
           hasDiscount = true;
-        } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+        } else if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids) {
           hasDiscount = offer.applicable_ids.includes(item.productId);
+        } else if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids) {
+          hasDiscount = offer.applicable_ids.includes(sizeId);
         } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
           hasDiscount = offer.applicable_ids.includes(item.categoryId);
         }
 
         // ⚠️ Override: Check if this size has group pricing
-        const sizeId = size.id || `${item.productId}-${size.size_value}`;
         if (groupPricingSizeIds && groupPricingSizeIds.includes(sizeId)) {
           hasDiscount = false;
         }
@@ -552,8 +585,10 @@ export function preparePromoDisplayData(
 
       if (offer.applicable_to === "all") {
         hasDiscount = true;
-      } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+      } else if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids) {
         hasDiscount = offer.applicable_ids.includes(item.productId);
+      } else if (isSizeScopedOffer(offer.applicable_to)) {
+        hasDiscount = false;
       } else if (offer.applicable_to === "category" && offer.applicable_ids && item.categoryId) {
         hasDiscount = offer.applicable_ids.includes(item.categoryId);
       }
@@ -620,7 +655,7 @@ export function calculateItemDiscounts(
         }
       });
     }
-  } else if (offer.applicable_to === "product" && offer.applicable_ids) {
+  } else if (isProductScopedOffer(offer.applicable_to) && offer.applicable_ids) {
     // Calculate discount only for matching products (only eligible sizes)
     const applicableItems = cartItems.filter(item => 
       offer.applicable_ids!.includes(item.productId) && hasEligibleSizes(item)
@@ -636,6 +671,31 @@ export function calculateItemDiscounts(
           const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
           itemDiscounts.set(item.productId, itemDiscount);
         }
+      });
+    }
+  } else if (isSizeScopedOffer(offer.applicable_to) && offer.applicable_ids) {
+    const sizeTotalsByProduct = new Map<string, number>();
+    let applicableAmount = 0;
+
+    cartItems.forEach((item) => {
+      if (!item.sizes || !Array.isArray(item.sizes)) return;
+
+      const matchingTotal = item.sizes.reduce((sum: number, size: any) => {
+        if (!offer.applicable_ids!.includes(size.id)) return sum;
+        if (groupPricingSizeIds && groupPricingSizeIds.includes(size.id)) return sum;
+        return sum + ((size.price || item.price) * (size.quantity || 1));
+      }, 0);
+
+      if (matchingTotal > 0) {
+        sizeTotalsByProduct.set(item.productId, matchingTotal);
+        applicableAmount += matchingTotal;
+      }
+    });
+
+    if (applicableAmount > 0) {
+      sizeTotalsByProduct.forEach((itemTotal, productId) => {
+        const itemDiscount = (itemTotal / applicableAmount) * totalDiscount;
+        itemDiscounts.set(productId, itemDiscount);
       });
     }
   } else if (offer.applicable_to === "category" && offer.applicable_ids) {

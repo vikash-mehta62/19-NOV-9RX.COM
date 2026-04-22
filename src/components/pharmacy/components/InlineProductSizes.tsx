@@ -13,7 +13,7 @@ import { useCart } from '@/hooks/use-cart'
 import { useToast } from '@/hooks/use-toast'
 import { ProductDetails } from '../types/product.types'
 import { WishlistItem } from '@/hooks/use-wishlist'
-import { getProductEffectivePrice } from '@/services/productOfferService'
+import { getProductEffectivePrice, getSizeVariantOffer } from '@/services/productOfferService'
 import axios from '../../../../axiosconfig'
 import { CustomizationEnquiryDialog, type CustomizationEnquiryItem } from './CustomizationEnquiryDialog'
 
@@ -55,6 +55,12 @@ export const InlineProductSizes = ({
     offerBadge: string | null;
     hasOffer: boolean;
   } | null>(null)
+  const [sizeOffers, setSizeOffers] = useState<Record<string, {
+    effectivePrice?: number;
+    discountPercent: number;
+    offerBadge: string | null;
+    hasOffer: boolean;
+  } | null>>({})
   const { addToCart, cartItems } = useCart()
   const { toast } = useToast()
   const userProfile = useSelector(selectUserProfile)
@@ -67,8 +73,21 @@ export const InlineProductSizes = ({
     const fetchProductWithSizes = async () => {
       if (!product) return
 
-      setLoading(true)
+      setLoading(false)
       try {
+        setFullProduct(product)
+        setProductOffer(null)
+
+        const sizeOfferEntries = await Promise.all(
+          (product.sizes || []).map(async (size: any) => {
+            const sizeOffer = await getSizeVariantOffer(String(product.id), String(size.id), userProfile?.id)
+            return [String(size.id), sizeOffer] as const
+          })
+        )
+
+        setSizeOffers(Object.fromEntries(sizeOfferEntries))
+        return
+
         // Fetch Group Pricing Data - Only active rules
         const { data: groupData, error: fetchError } = await supabase
           .from("group_pricing")
@@ -258,7 +277,7 @@ export const InlineProductSizes = ({
         // Load product offers
         setProductOffer(null)
         if (product.id) {
-          getProductEffectivePrice(String(product.id)).then(offerData => {
+          getProductEffectivePrice(String(product.id), userProfile?.id).then(offerData => {
             if (offerData && offerData.hasOffer) {
               console.log("InlineProductSizes - Product has offer:", offerData);
               setProductOffer({
@@ -274,6 +293,14 @@ export const InlineProductSizes = ({
             console.error("Error loading product offer:", err);
             setProductOffer(null)
           });
+
+          const sizeOfferEntries = await Promise.all(
+            (mappedProduct.sizes || []).map(async (size: any) => {
+              const sizeOffer = await getSizeVariantOffer(String(product.id), String(size.id), userProfile?.id)
+              return [String(size.id), sizeOffer] as const
+            })
+          )
+          setSizeOffers(Object.fromEntries(sizeOfferEntries))
         }
       } catch (error) {
         console.error("Error fetching product:", error)
@@ -288,7 +315,7 @@ export const InlineProductSizes = ({
     }
 
     fetchProductWithSizes()
-  }, [product?.id, userProfile?.id])
+  }, [product, userProfile, toast])
 
   const displayProduct = fullProduct || product
   const normalizedFocusedSizeIds = useMemo(
@@ -753,13 +780,14 @@ export const InlineProductSizes = ({
               
               // Check for group pricing discount OR product offer discount
               const hasGroupDiscount = size.originalPrice > 0 && size.originalPrice > size.price
-              const hasOfferDiscount = productOffer?.hasOffer && productOffer.discountPercent > 0
+              const sizeOffer = sizeOffers[String(size.id)]
+              const hasOfferDiscount = Boolean(sizeOffer?.hasOffer && sizeOffer.discountPercent > 0)
               const hasDiscount = hasGroupDiscount || hasOfferDiscount
 
               const discountPercent = hasGroupDiscount
                 ? Math.round((1 - size.price / size.originalPrice) * 100)
                 : hasOfferDiscount
-                  ? productOffer.discountPercent
+                  ? sizeOffer!.discountPercent
                   : 0
 
               // Group pricing already stores the discounted case price in size.price.
@@ -768,12 +796,17 @@ export const InlineProductSizes = ({
               const casePrice = hasGroupDiscount
                 ? size.price
                 : hasOfferDiscount
-                  ? originalCasePrice * (1 - productOffer.discountPercent / 100)
+                  ? (typeof sizeOffer?.effectivePrice === 'number'
+                      ? sizeOffer.effectivePrice
+                      : originalCasePrice * (1 - sizeOffer!.discountPercent / 100))
                   : originalCasePrice
 
               const displayOriginalPrice = hasDiscount ? originalCasePrice : 0
               const showSavingsText = hasDiscount && discountPercent > 0
               const savingsAmount = hasDiscount ? Math.max(0, displayOriginalPrice - casePrice) : 0
+              const topBadgeText = hasGroupDiscount
+                ? `${discountPercent}% OFF`
+                : sizeOffer?.offerBadge || (discountPercent > 0 ? `${discountPercent}% OFF` : null)
               
               const unitsPerCase = size.quantity_per_case || 0
               const unitPrice = unitsPerCase > 0 ? casePrice / unitsPerCase : 0
@@ -808,9 +841,9 @@ export const InlineProductSizes = ({
                         </div>
                         
                         {/* Discount Badge */}
-                        {hasDiscount && discountPercent > 5 && (
+                        {hasDiscount && topBadgeText && discountPercent > 0 && (
                           <Badge className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-red-500 text-white text-[8px] sm:text-[10px] px-1 sm:px-1.5">
-                            {discountPercent}% OFF
+                            {topBadgeText}
                           </Badge>
                         )}
                         
@@ -865,15 +898,6 @@ export const InlineProductSizes = ({
                         {/* SKU */}
                         {size.sku && (
                           <p className="text-[9px] sm:text-[10px] text-gray-400 mb-1 sm:mb-2">SKU: {size.sku}</p>
-                        )}
-
-                        {/* Offer Badge - show for offers, group pricing uses the price block below */}
-                        {!hasGroupDiscount && hasOfferDiscount && productOffer?.offerBadge && (
-                          <div className="mb-1.5 sm:mb-2">
-                            <Badge className="bg-red-500 text-white text-[9px] sm:text-[10px] px-1.5 sm:px-2 py-0.5">
-                              🎁 {productOffer.offerBadge}
-                            </Badge>
-                          </div>
                         )}
 
                         {/* Case Price - Large & Bold */}

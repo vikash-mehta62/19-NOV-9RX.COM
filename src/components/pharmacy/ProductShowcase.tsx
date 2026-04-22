@@ -29,7 +29,7 @@ const ProductShowcase = ({ groupShow, isEditing=false, form={}, onProductClick }
   const [selectedSubcategory, setSelectedSubcategory] = useState("all");
   const [priceRange, setPriceRange] = useState("all");
   const userProfile = useSelector(selectUserProfile);
-
+console.log(userProfile)
   // Fetch products from Supabase
   useEffect(() => {
     const fetchProducts = async () => {

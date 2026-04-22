@@ -1,5 +1,11 @@
 // Product Offer Service - Get product prices with offers applied
 import { supabase } from "@/integrations/supabase/client";
+import {
+  hasAnyActiveSpecialPricing,
+  getSpecialPricingProductIdsForProducts,
+  hasSpecialPricingForProduct,
+  hasSpecialPricingForSize,
+} from "@/services/specialPricingService";
 
 type OfferApplicableTo = "all" | "category" | "product" | "user_group" | "first_order" | string;
 
@@ -10,6 +16,13 @@ interface ProductPriceOfferRpcRow {
   offer_badge: string | null;
   has_offer: boolean;
   offer_id: string | null;
+}
+
+interface SizeOfferResult {
+  offerBadge: string | null;
+  hasOffer: boolean;
+  discountPercent: number;
+  effectivePrice?: number;
 }
 
 const CHECKOUT_ONLY_APPLICABLE_TO = new Set<OfferApplicableTo>(["user_group", "first_order"]);
@@ -100,6 +113,14 @@ export async function getProductEffectivePrice(
   hasOffer: boolean;
 } | null> {
   try {
+    if (userId && await hasAnyActiveSpecialPricing(userId)) {
+      return null;
+    }
+
+    if (userId && await hasSpecialPricingForProduct(userId, productId)) {
+      return null;
+    }
+
     // Use the new database function that handles all offer types
     const { data, error } = await supabase
       .rpc("get_product_price_with_offers", { 
@@ -162,11 +183,30 @@ export async function getProductsWithOffers(
   }>();
 
   try {
+    if (userId && await hasAnyActiveSpecialPricing(userId)) {
+      return results;
+    }
+
+    const specialPricingProductIds = userId
+      ? await getSpecialPricingProductIdsForProducts(userId, productIds)
+      : new Set<string>();
     console.log("🔍 Fetching offers for products:", productIds.length, "products");
     console.log("👤 User ID:", userId || "No user ID provided");
 
     // Use the new database function that handles all offer types
     const offerPromises = productIds.map(async (productId) => {
+      if (specialPricingProductIds.has(productId)) {
+        return {
+          productId,
+          originalPrice: 0,
+          effectivePrice: 0,
+          discountPercent: 0,
+          offerBadge: null,
+          hasOffer: false,
+          offerId: null,
+        };
+      }
+
       const { data, error } = await supabase
         .rpc("get_product_price_with_offers", { 
           p_product_id: productId,
@@ -285,8 +325,8 @@ export async function getProductsOnSale(limit: number = 50): Promise<ProductWith
     // Add linked offer products (avoid duplicates)
     if (linkedOfferProducts) {
       for (const po of linkedOfferProducts) {
-        const product = po.products as any;
-        const offer = po.offers as any;
+        const product = po.products as { id: string; name: string; base_price: number | null } | null;
+        const offer = po.offers as { offer_type: string; discount_value: number } | null;
         
         if (product && offer && !results.find(r => r.id === product.id)) {
           const price = product.base_price || 0;
@@ -327,16 +367,82 @@ export async function getProductsOnSale(limit: number = 50): Promise<ProductWith
 // Get offer information for size variants (inherits from parent product)
 export async function getSizeVariantOffer(
   productId: string,
-  sizeId: string
-): Promise<{
-  offerBadge: string | null;
-  hasOffer: boolean;
-  discountPercent: number;
-  effectivePrice?: number;
-} | null> {
+  sizeId: string,
+  userId?: string
+): Promise<SizeOfferResult | null> {
   try {
+    if (userId && await hasAnyActiveSpecialPricing(userId)) {
+      return {
+        offerBadge: null,
+        hasOffer: false,
+        discountPercent: 0,
+      };
+    }
+
+    if (userId && await hasSpecialPricingForSize(userId, sizeId)) {
+      return {
+        offerBadge: null,
+        hasOffer: false,
+        discountPercent: 0,
+      };
+    }
+
+    const { data: sizeData, error: sizeError } = await supabase
+      .from('product_sizes')
+      .select('price')
+      .eq('id', sizeId)
+      .single();
+
+    if (sizeError || !sizeData) {
+      return null;
+    }
+
+    const now = new Date().toISOString();
+
+    const { data: sizeScopedOffers, error: sizeOfferError } = await supabase
+      .from('offers')
+      .select('id, offer_type, discount_value, applicable_to')
+      .eq('applicable_to', 'specific_product')
+      .eq('is_active', true)
+      .lte('start_date', now)
+      .gte('end_date', now)
+      .contains('applicable_ids', [sizeId])
+      .order('discount_value', { ascending: false })
+      .limit(1);
+
+    if (!sizeOfferError && sizeScopedOffers && sizeScopedOffers.length > 0) {
+      const sizeOffer = sizeScopedOffers[0] as {
+        offer_type: string;
+        discount_value: number;
+      };
+      const sizePrice = Number(sizeData.price) || 0;
+
+      if (sizeOffer.offer_type === 'percentage') {
+        return {
+          offerBadge: `${sizeOffer.discount_value}% OFF`,
+          hasOffer: true,
+          discountPercent: sizeOffer.discount_value,
+          effectivePrice: Math.round(sizePrice * (1 - sizeOffer.discount_value / 100) * 100) / 100,
+        };
+      }
+
+      if (sizeOffer.offer_type === 'flat') {
+        const effectivePrice = Math.max(sizePrice - sizeOffer.discount_value, 0);
+        const discountPercent = sizePrice > 0
+          ? Math.round((sizeOffer.discount_value / sizePrice) * 100)
+          : 0;
+
+        return {
+          offerBadge: `$${sizeOffer.discount_value} OFF`,
+          hasOffer: true,
+          discountPercent,
+          effectivePrice: Math.round(effectivePrice * 100) / 100,
+        };
+      }
+    }
+
     // Get parent product offer
-    const parentOffer = await getProductEffectivePrice(productId);
+    const parentOffer = await getProductEffectivePrice(productId, userId);
     
     if (!parentOffer || !parentOffer.hasOffer) {
       return {
@@ -346,23 +452,8 @@ export async function getSizeVariantOffer(
       };
     }
 
-    // Get the size price
-    const { data: sizeData } = await supabase
-      .from('product_sizes')
-      .select('price')
-      .eq('id', sizeId)
-      .single();
-
-    if (!sizeData) {
-      return {
-        offerBadge: parentOffer.offerBadge,
-        hasOffer: true,
-        discountPercent: parentOffer.discountPercent
-      };
-    }
-
     // Calculate effective price for this size using parent discount
-    const sizePrice = sizeData.price;
+    const sizePrice = Number(sizeData.price) || 0;
     const effectivePrice = sizePrice * (1 - parentOffer.discountPercent / 100);
 
     // Return offer info for size variant

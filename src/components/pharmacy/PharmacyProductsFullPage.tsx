@@ -473,6 +473,7 @@ export const PharmacyProductsFullPage = () => {
 
     fetchProducts()
   }, [userProfile])
+console.log(userProfile)
 
   // Optimized filtering with single pass and memoized results
   const filteredProducts = useMemo(() => {

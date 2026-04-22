@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { DashboardLayout } from "@/components/DashboardLayout";
+import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +8,19 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -36,10 +50,11 @@ import { ConfirmDeleteDialog } from "@/components/common/ConfirmDeleteDialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
+  Check, ChevronsUpDown,
   Plus, Pencil, Trash2, Gift, Copy, Percent, DollarSign, Truck, Package,
   Sparkles, Clock, TrendingUp, Users, ShoppingCart, Zap, Calendar,
   RefreshCw, Eye, BarChart3, Tag, CheckCircle2, XCircle, AlertCircle,
-  Link, Unlink, Search, Flame, Settings, Power, PowerOff
+  Link, Unlink, Search, Flame, Settings, Power, PowerOff, X
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -104,7 +119,9 @@ interface Product {
   id: string;
   name: string;
   price: number;
-  sku: string;
+  category?: string | null;
+  subcategory?: string | null;
+  sku: string | null;
   image_url: string | null;
   offer_id: string | null;
 }
@@ -125,11 +142,30 @@ interface ProductPriceSize {
 interface ProductRow {
   id: string;
   name: string;
+  category: string | null;
+  subcategory: string | null;
   base_price: number | null;
-  sku: string;
+  sku: string | null;
   image_url: string | null;
   offer_id: string | null;
   product_sizes?: ProductPriceSize[] | null;
+}
+
+interface ProductSizeOption {
+  id: string;
+  product_id: string;
+  size_name: string | null;
+  size_value: string | null;
+  size_unit: string | null;
+  sku: string | null;
+  price: number | null;
+  is_active?: boolean | null;
+  product: {
+    id: string;
+    name: string;
+    sku: string | null;
+    unitToggle?: boolean | null;
+  } | null;
 }
 
 interface DailyDealProductRow {
@@ -148,7 +184,7 @@ interface ProductOfferRow extends Omit<ProductOffer, "products"> {
   products?: {
     name: string;
     base_price: number | null;
-    sku: string;
+    sku: string | null;
     product_sizes?: ProductPriceSize[] | null;
   } | null;
 }
@@ -166,6 +202,89 @@ const getDisplayPrice = (
   }
 
   return Number(basePrice) || 0;
+};
+
+const getProductImageUrl = (image?: string | null) => {
+  const basePath = "https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/";
+
+  if (!image) {
+    return "/placeholder.svg";
+  }
+
+  if (image.startsWith("http")) {
+    return image;
+  }
+
+  return `${basePath}${image}`;
+};
+
+const matchesProductSearch = (
+  product: Pick<Product, "name" | "sku">,
+  searchTerm: string
+) => {
+  const query = searchTerm.trim().toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  return (
+    product.name.toLowerCase().includes(query) ||
+    (product.sku || "").toLowerCase().includes(query)
+  );
+};
+
+const matchesSizeSearch = (
+  size: ProductSizeOption,
+  searchTerm: string
+) => {
+  const query = searchTerm.trim().toLowerCase();
+
+  if (!query) {
+    return true;
+  }
+
+  const haystack = [
+    size.size_name,
+    size.size_value,
+    size.product?.unitToggle ? size.size_unit : null,
+    size.sku,
+    size.product?.sku,
+    size.product?.name,
+    getSizeOptionLabel(size),
+  ]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join(" ")
+    .toLowerCase();
+
+  return haystack.includes(query);
+};
+
+const getSizeOptionLabel = (size: ProductSizeOption) => {
+  const parts = [
+    size.size_name,
+    size.size_value,
+    size.product?.unitToggle ? size.size_unit : null,
+  ]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .map((part) => part!.trim());
+
+  return parts.join(" ").trim() || "Unnamed Size";
+};
+
+const getSizeOptionDisplay = (size: ProductSizeOption) => {
+  const sizeName = size.size_name?.trim() || "";
+  const sizeValue = [size.size_value, size.product?.unitToggle ? size.size_unit : null]
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .map((part) => part!.trim())
+    .join(" ")
+    .trim();
+
+  return {
+    sizeName,
+    sizeValue,
+    shouldStack: Boolean(sizeName && sizeValue),
+  };
 };
 
 // Quick offer templates
@@ -244,7 +363,8 @@ const offerTypeConfig = {
 const applicableOptions = [
   { value: "all", label: "All Products" },
   { value: "category", label: "Specific Categories" },
-  { value: "product", label: "Specific Products" },
+  { value: "product", label: "Specific Subcategories" },
+  { value: "specific_product", label: "Specific Products" },
   { value: "first_order", label: "First Order Only" },
   { value: "user_group", label: "Specific User Groups" },
 ];
@@ -280,6 +400,7 @@ export default function Offers() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productSizes, setProductSizes] = useState<ProductSizeOption[]>([]);
   const [productOffers, setProductOffers] = useState<ProductOffer[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -288,6 +409,10 @@ export default function Offers() {
   const [selectedOffer, setSelectedOffer] = useState<Offer | null>(null);
   const [formData, setFormData] = useState(initialFormState);
   const [productSearch, setProductSearch] = useState("");
+  const [sizeSearch, setSizeSearch] = useState("");
+  const [categoryPickerOpen, setCategoryPickerOpen] = useState(false);
+  const [subcategoryPickerOpen, setSubcategoryPickerOpen] = useState(false);
+  const [specificProductPickerOpen, setSpecificProductPickerOpen] = useState(false);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -310,12 +435,21 @@ export default function Offers() {
     end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
   });
   const [dealProductSearch, setDealProductSearch] = useState("");
+  const [dealApplicableTo, setDealApplicableTo] = useState<"all" | "category" | "product" | "specific_product">("all");
+  const [dealApplicableIds, setDealApplicableIds] = useState<string[]>([]);
+  const [dealCategoryPickerOpen, setDealCategoryPickerOpen] = useState(false);
+  const [dealSubcategoryPickerOpen, setDealSubcategoryPickerOpen] = useState(false);
+  const [dealProductPickerOpen, setDealProductPickerOpen] = useState(false);
+  const [dealFinalProductPickerOpen, setDealFinalProductPickerOpen] = useState(false);
+  const [dealSpecificSizePickerOpen, setDealSpecificSizePickerOpen] = useState(false);
+  const [dealSizeSearch, setDealSizeSearch] = useState("");
   const [mainTab, setMainTab] = useState("offers");
 
   useEffect(() => {
     fetchOffers();
     fetchCategories();
     fetchProducts();
+    fetchProductSizes();
     fetchDailyDeals();
     fetchDealsSettings();
   }, []);
@@ -425,7 +559,16 @@ export default function Offers() {
 
   const handleDealSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    if (dealApplicableTo === "specific_product" && dealApplicableIds.length === 0) {
+      toast({
+        title: "Select at least one size",
+        description: "Specific Products deals must target one or more product sizes.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate product has a valid price
     const selectedProduct = products.find(p => p.id === dealFormData.product_id);
     if (selectedProduct && selectedProduct.price === 0) {
@@ -438,8 +581,25 @@ export default function Offers() {
     }
     
     try {
+      const productName = products.find(p => p.id === dealFormData.product_id)?.name || "Product";
+      const dealOfferScope = getDealOfferScope();
+      const offerPayload = {
+        title: `Daily Deal: ${dealFormData.badge_type} - ${productName}`,
+        description: `Auto-created offer for daily deal. Discount: ${dealFormData.discount_percent}%`,
+        offer_type: "percentage",
+        discount_value: dealFormData.discount_percent,
+        is_active: dealFormData.is_active,
+        start_date: dealFormData.start_date,
+        end_date: dealFormData.end_date,
+        applicable_to: dealOfferScope.applicable_to,
+        applicable_ids: dealOfferScope.applicable_ids,
+        min_order_amount: 0,
+        max_discount_amount: 0,
+        usage_limit: 0,
+        promo_code: null,
+      };
+
       if (editingDeal) {
-        // UPDATE EXISTING DEAL
         const dealPayload = {
           product_id: dealFormData.product_id,
           discount_percent: dealFormData.discount_percent,
@@ -461,16 +621,19 @@ export default function Offers() {
           const { error: offerError } = await supabase
             .from("offers")
             .update({
-              discount_value: dealFormData.discount_percent,
-              is_active: dealFormData.is_active,
-              start_date: dealFormData.start_date,
-              end_date: dealFormData.end_date,
+              ...offerPayload,
             })
             .eq("id", editingDeal.offer_id);
           
           if (offerError) {
             console.error("Error updating linked offer:", offerError);
             // Don't throw - deal update succeeded
+          } else {
+            await syncDealOfferProductLink(
+              editingDeal.offer_id,
+              dealFormData.product_id,
+              dealOfferScope.applicable_to
+            );
           }
         }
 
@@ -496,23 +659,6 @@ export default function Offers() {
         if (dealError) throw dealError;
 
         // Step 2: Create corresponding offer for checkout integration
-        const productName = products.find(p => p.id === dealFormData.product_id)?.name || "Product";
-        const offerPayload = {
-          title: `Daily Deal: ${dealFormData.badge_type} - ${productName}`,
-          description: `Auto-created offer for daily deal. Discount: ${dealFormData.discount_percent}%`,
-          offer_type: "percentage",
-          discount_value: dealFormData.discount_percent,
-          is_active: dealFormData.is_active,
-          start_date: dealFormData.start_date,
-          end_date: dealFormData.end_date,
-          applicable_to: "product",
-          applicable_ids: [dealFormData.product_id],
-          min_order_amount: 0,
-          max_discount_amount: 0,
-          usage_limit: 0,
-          promo_code: null, // Auto-apply, no code needed
-        };
-
         const { data: offer, error: offerError } = await supabase
           .from("offers")
           .insert([offerPayload])
@@ -529,17 +675,11 @@ export default function Offers() {
           });
         } else {
           // Step 3: Link offer to product via product_offers
-          const { error: linkError } = await supabase
-            .from("product_offers")
-            .insert([{
-              product_id: dealFormData.product_id,
-              offer_id: offer.id,
-              is_active: true,
-            }]);
-          
-          if (linkError) {
-            console.error("Error linking offer to product:", linkError);
-          }
+          await syncDealOfferProductLink(
+            offer.id,
+            dealFormData.product_id,
+            dealOfferScope.applicable_to
+          );
 
           // Step 4: Update daily_deal with offer_id reference
           const { error: updateError } = await supabase
@@ -568,6 +708,9 @@ export default function Offers() {
         start_date: new Date().toISOString().split("T")[0],
         end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       });
+      setDealApplicableTo("all");
+      setDealApplicableIds([]);
+      setDealProductSearch("");
       fetchDailyDeals();
       fetchOffers();
     } catch (error: any) {
@@ -576,6 +719,14 @@ export default function Offers() {
   };
 
   const handleEditDeal = (deal: DailyDeal) => {
+    const linkedOffer = deal.offer_id
+      ? offers.find((offer) => offer.id === deal.offer_id)
+      : null;
+    const isSizeScopedDeal =
+      linkedOffer?.applicable_to === "specific_product" &&
+      Array.isArray(linkedOffer.applicable_ids) &&
+      linkedOffer.applicable_ids.length > 0;
+
     setEditingDeal(deal);
     setDealFormData({
       product_id: deal.product_id,
@@ -585,6 +736,9 @@ export default function Offers() {
       start_date: deal.start_date.split("T")[0],
       end_date: deal.end_date.split("T")[0],
     });
+    setDealApplicableTo(isSizeScopedDeal ? "specific_product" : "all");
+    setDealApplicableIds(isSizeScopedDeal ? linkedOffer.applicable_ids || [] : []);
+    setDealProductSearch("");
     setDealsDialogOpen(true);
   };
 
@@ -650,13 +804,88 @@ export default function Offers() {
     }
   };
 
-  const filteredDealProducts = products.filter(p => 
-    dealProductSearch === "" ||
-    p.name.toLowerCase().includes(dealProductSearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(dealProductSearch.toLowerCase())
-  ).filter(p => !dailyDeals.some(d => d.product_id === p.id) || editingDeal?.product_id === p.id)
+  const availableDealProducts = products.filter((p) =>
+    !dailyDeals.some(d => d.product_id === p.id) || editingDeal?.product_id === p.id
+  );
+
+  const filteredDealProducts = availableDealProducts.filter((p) =>
+    matchesProductSearch(p, dealProductSearch)
+  )
   .slice(0, 20);
 
+  const dealSubcategories = Array.from(
+    new Set(
+      products
+        .map((product) => product.subcategory?.trim())
+        .filter((subcategory): subcategory is string => Boolean(subcategory))
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const selectedDealCategories = categories.filter((category) =>
+    dealApplicableIds.includes(category.name)
+  );
+  const selectedDealSubcategories = dealSubcategories.filter((subcategory) =>
+    dealApplicableIds.includes(subcategory)
+  );
+  const selectedDealProducts = products.filter((product) =>
+    dealApplicableIds.includes(product.id)
+  );
+  const selectedDealSizes = productSizes.filter((size) =>
+    dealApplicableIds.includes(size.id)
+  );
+  const selectedDealSizeProducts = products.filter((product) =>
+    selectedDealSizes.some((size) => size.product_id === product.id)
+  );
+  const scopedDealProducts = availableDealProducts.filter((product) => {
+    if (dealApplicableTo === "category" && dealApplicableIds.length > 0) {
+      return dealApplicableIds.includes(product.category || "");
+    }
+
+    if (dealApplicableTo === "product" && dealApplicableIds.length > 0) {
+      return dealApplicableIds.includes(product.subcategory || "");
+    }
+
+    if (dealApplicableTo === "specific_product" && dealApplicableIds.length > 0) {
+      return productSizes.some(
+        (size) => size.product_id === product.id && dealApplicableIds.includes(size.id)
+      );
+    }
+
+    return true;
+  });
+
+  useEffect(() => {
+    if (!dealsDialogOpen) return;
+
+    if (dealApplicableTo === "all") {
+      return;
+    }
+
+    const nextProductId = scopedDealProducts[0]?.id || "";
+
+    setDealFormData((current) =>
+      current.product_id === nextProductId
+        ? current
+        : { ...current, product_id: nextProductId }
+    );
+  }, [dealsDialogOpen, dealApplicableTo, dealApplicableIds, scopedDealProducts]);
+  const dealFilteredProducts = filteredDealProducts.filter((product) => {
+    if (dealApplicableTo === "category" && dealApplicableIds.length > 0) {
+      return dealApplicableIds.includes(product.category || "");
+    }
+
+    if (dealApplicableTo === "product" && dealApplicableIds.length > 0) {
+      return dealApplicableIds.includes(product.subcategory || "");
+    }
+
+    if (dealApplicableTo === "specific_product" && dealApplicableIds.length > 0) {
+      return productSizes.some(
+        (size) => size.product_id === product.id && dealApplicableIds.includes(size.id)
+      );
+    }
+
+    return true;
+  });
   const fetchOffers = async () => {
     try {
       const { data, error } = await supabase
@@ -696,7 +925,7 @@ export default function Offers() {
     try {
       const { data } = await supabase
         .from("products")
-        .select("id, name, base_price, sku, image_url, offer_id, product_sizes(price)")
+        .select("id, name, category, subcategory, base_price, sku, image_url, offer_id, product_sizes(price)")
         .order("name");
       setProducts(
         ((data || []) as ProductRow[]).map((product) => ({
@@ -706,6 +935,33 @@ export default function Offers() {
       );
     } catch (error) {
       console.error("Error fetching products:", error);
+    }
+  };
+
+  const fetchProductSizes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("product_sizes")
+        .select(`
+          id,
+          product_id,
+          size_name,
+          size_value,
+          size_unit,
+          sku,
+          price,
+          is_active,
+          product:products!inner(id, name, sku, unitToggle)
+        `)
+        .order("product_id")
+        .order("size_name")
+        .order("size_value");
+
+      if (error) throw error;
+
+      setProductSizes((data || []) as ProductSizeOption[]);
+    } catch (error) {
+      console.error("Error fetching product sizes:", error);
     }
   };
 
@@ -800,10 +1056,154 @@ export default function Offers() {
     }
   };
 
-  const filteredProducts = products.filter(p => 
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(productSearch.toLowerCase())
+  const filteredProducts = products.filter((p) =>
+    matchesProductSearch(p, productSearch)
   ).slice(0, 20);
+
+  const selectedApplicableCategories = categories.filter((category) =>
+    formData.applicable_ids.includes(category.name)
+  );
+  const selectedApplicableProducts = products.filter((product) =>
+    formData.applicable_ids.includes(product.id)
+  );
+  const selectedApplicableSizes = productSizes.filter((size) =>
+    formData.applicable_ids.includes(size.id)
+  );
+  const orderedProductSizes = [...productSizes].sort((a, b) => {
+    const productCompare = (a.product?.name || "").localeCompare(b.product?.name || "");
+    if (productCompare !== 0) return productCompare;
+
+    return getSizeOptionLabel(a).localeCompare(getSizeOptionLabel(b));
+  });
+  const filteredDealProductSizes = orderedProductSizes.filter((size) =>
+    matchesSizeSearch(size, dealSizeSearch)
+  );
+  const filteredProductSizes = orderedProductSizes.filter((size) =>
+    matchesSizeSearch(size, sizeSearch)
+  );
+
+  const toggleApplicableProduct = (id: string) => {
+    const ids = formData.applicable_ids.includes(id)
+      ? formData.applicable_ids.filter((itemId) => itemId !== id)
+      : [...formData.applicable_ids, id];
+
+    setFormData({ ...formData, applicable_ids: ids });
+  };
+
+  const toggleApplicableCategory = (name: string) => {
+    const ids = formData.applicable_ids.includes(name)
+      ? formData.applicable_ids.filter((itemId) => itemId !== name)
+      : [...formData.applicable_ids, name];
+
+    setFormData({ ...formData, applicable_ids: ids });
+  };
+
+  const toggleDealApplicableId = (id: string) => {
+    setDealApplicableIds((currentIds) => {
+      if (currentIds.includes(id)) {
+        return currentIds.filter((itemId) => itemId !== id);
+      }
+
+      if (
+        (dealApplicableTo === "category" || dealApplicableTo === "product") &&
+        currentIds.length > 0
+      ) {
+        toast({
+          title: "Single selection only",
+          description:
+            dealApplicableTo === "category"
+              ? "Per deal only one category can be applied."
+              : "Per deal only one subcategory can be applied.",
+          variant: "destructive",
+        });
+        return currentIds;
+      }
+
+      return [...currentIds, id];
+    });
+  };
+
+  const toggleDealApplicableSize = (size: ProductSizeOption) => {
+    const selectedSizeIdsForProduct = selectedDealSizes
+      .filter((selectedSize) => selectedSize.product_id === size.product_id)
+      .map((selectedSize) => selectedSize.id);
+
+    const isCurrentlySelected = dealApplicableIds.includes(size.id);
+
+    if (isCurrentlySelected) {
+      const nextIds = dealApplicableIds.filter((itemId) => itemId !== size.id);
+      setDealApplicableIds(nextIds);
+
+      if (nextIds.length === 0) {
+        setDealFormData((current) => ({ ...current, product_id: "" }));
+      }
+      return;
+    }
+
+    const nextIds =
+      selectedSizeIdsForProduct.length > 0
+        ? [...selectedSizeIdsForProduct, size.id]
+        : [size.id];
+
+    if (dealApplicableIds.length > 0 && selectedSizeIdsForProduct.length === 0) {
+      toast({
+        title: "Single product only",
+        description: "Per deal only one subcategory's products can be applied.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setDealApplicableIds(nextIds);
+    setDealFormData((current) => ({ ...current, product_id: size.product_id }));
+  };
+
+  const getDealOfferScope = () => {
+    if (dealApplicableTo === "specific_product" && dealApplicableIds.length > 0) {
+      return {
+        applicable_to: "specific_product",
+        applicable_ids: dealApplicableIds,
+      };
+    }
+
+    return {
+      applicable_to: "product",
+      applicable_ids: dealFormData.product_id ? [dealFormData.product_id] : [],
+    };
+  };
+
+  const syncDealOfferProductLink = async (
+    offerId: string,
+    productId: string,
+    applicableTo: string
+  ) => {
+    const { error: deleteLinkError } = await supabase
+      .from("product_offers")
+      .delete()
+      .eq("offer_id", offerId);
+
+    if (deleteLinkError) {
+      console.error("Error clearing existing deal product links:", deleteLinkError);
+    }
+
+    if (applicableTo === "specific_product") {
+      return;
+    }
+
+    const { error: linkError } = await supabase
+      .from("product_offers")
+      .insert([
+        {
+          product_id: productId,
+          offer_id: offerId,
+          is_active: true,
+        },
+      ]);
+
+    if (linkError) {
+      console.error("Error linking offer to product:", linkError);
+    }
+  };
 
   const generatePromoCode = () => {
     const prefixes = ["SAVE", "DEAL", "OFFER", "PROMO", "DISC"];
@@ -1130,7 +1530,14 @@ export default function Offers() {
                     <Label htmlFor="applicable_to">Applicable To</Label>
                     <Select
                       value={formData.applicable_to}
-                      onValueChange={(value) => setFormData({ ...formData, applicable_to: value })}
+                      onValueChange={(value) =>
+                        setFormData({
+                          ...formData,
+                          applicable_to: value,
+                          applicable_ids: value === formData.applicable_to ? formData.applicable_ids : [],
+                          user_groups: value === "user_group" ? formData.user_groups : [],
+                        })
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -1146,76 +1553,378 @@ export default function Offers() {
                   {formData.applicable_to === "category" && (
                     <div className="col-span-2">
                       <Label>Select Categories</Label>
-                      <div className="flex flex-wrap gap-2 mt-2 p-3 border rounded-lg max-h-32 overflow-y-auto">
-                        {categories.length === 0 ? (
-                          <p className="text-sm text-muted-foreground">No categories found. Please add categories first.</p>
-                        ) : (
-                          categories.map((cat) => (
-                            <Badge
-                              key={cat.id}
-                              variant={formData.applicable_ids.includes(cat.name) ? "default" : "outline"}
-                              className="cursor-pointer"
-                              onClick={() => {
-                                // ⚠️ IMPORTANT: For category offers, use category NAME not ID
-                                const ids = formData.applicable_ids.includes(cat.name)
-                                  ? formData.applicable_ids.filter(id => id !== cat.name)
-                                  : [...formData.applicable_ids, cat.name];
-                                setFormData({ ...formData, applicable_ids: ids });
-                              }}
+                      <div className="space-y-3 mt-2">
+                        <Popover open={categoryPickerOpen} onOpenChange={setCategoryPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={categoryPickerOpen}
+                              className="w-full justify-between font-normal"
                             >
-                              {cat.name}
-                            </Badge>
-                          ))
+                              <span className="truncate">
+                                {selectedApplicableCategories.length === 0
+                                  ? "Select categories..."
+                                  : `${selectedApplicableCategories.length} categor${selectedApplicableCategories.length > 1 ? "ies" : "y"} selected`}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                            <Command>
+                              <CommandInput
+                                placeholder="Search categories..."
+                                className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              />
+                              <CommandList
+                                className="max-h-80 overscroll-contain"
+                                onWheelCapture={(event) => event.stopPropagation()}
+                              >
+                                <CommandEmpty>No categories found.</CommandEmpty>
+                                <CommandGroup className="p-2">
+                                  {categories.map((cat) => (
+                                    <CommandItem
+                                      key={cat.id}
+                                      value={cat.name}
+                                      onSelect={() => toggleApplicableCategory(cat.name)}
+                                      className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                    >
+                                      <div className="flex min-w-0 flex-1 items-center gap-3">
+                                        <div className={cn(
+                                          "flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                          formData.applicable_ids.includes(cat.name)
+                                            ? "border-blue-600 bg-blue-600 text-white"
+                                            : "border-slate-300 bg-white text-transparent"
+                                        )}>
+                                          <Check className="h-3.5 w-3.5" />
+                                        </div>
+                                        <p className="truncate text-sm font-semibold text-slate-900">
+                                          {cat.name}
+                                        </p>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {!categoryPickerOpen && selectedApplicableCategories.length > 0 && (
+                          <div className="rounded-lg border p-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-medium text-muted-foreground">
+                                Selected categories ({selectedApplicableCategories.length})
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setFormData({ ...formData, applicable_ids: [] })}
+                              >
+                                Clear all
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedApplicableCategories.map((cat) => (
+                                <Badge key={cat.id} variant="secondary" className="gap-1 pr-1">
+                                  <span className="max-w-[260px] truncate">{cat.name}</span>
+                                  <button
+                                    type="button"
+                                    className="rounded-sm p-0.5 hover:bg-muted"
+                                    onClick={() => toggleApplicableCategory(cat.name)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
                         )}
-                      </div>
-                      {formData.applicable_ids.length > 0 && (
-                        <p className="text-xs text-muted-foreground mt-2">
-                          {formData.applicable_ids.length} categories selected: {formData.applicable_ids.join(", ")}
+                        <p className="text-xs text-muted-foreground">
+                          Search and select categories.
                         </p>
-                      )}
+                      </div>
                     </div>
                   )}
 
                   {formData.applicable_to === "product" && (
                     <div className="col-span-2">
-                      <Label>Select Products</Label>
-                      <div className="space-y-2 mt-2">
-                        <Input
-                          placeholder="Search products by name or SKU..."
-                          value={productSearch}
-                          onChange={(e) => setProductSearch(e.target.value)}
-                        />
-                        <div className="flex flex-wrap gap-2 p-3 border rounded-lg max-h-40 overflow-y-auto">
-                          {products.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No products found.</p>
-                          ) : (
-                            products
-                              .filter(p => 
-                                productSearch === "" || 
-                                p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                                p.sku.toLowerCase().includes(productSearch.toLowerCase())
-                              )
-                              .slice(0, 30)
-                              .map((product) => (
-                                <Badge
-                                  key={product.id}
-                                  variant={formData.applicable_ids.includes(product.id) ? "default" : "outline"}
-                                  className="cursor-pointer"
-                                  onClick={() => {
-                                    const ids = formData.applicable_ids.includes(product.id)
-                                      ? formData.applicable_ids.filter(id => id !== product.id)
-                                      : [...formData.applicable_ids, product.id];
-                                    setFormData({ ...formData, applicable_ids: ids });
-                                  }}
-                                >
-                                  {product.name} (${product.price})
+                      <Label>Select Subcategories</Label>
+                      <div className="space-y-3 mt-2">
+                        <Popover open={subcategoryPickerOpen} onOpenChange={setSubcategoryPickerOpen}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={subcategoryPickerOpen}
+                              className="w-full justify-between font-normal"
+                            >
+                              <span className="truncate">
+                                {selectedApplicableProducts.length === 0
+                                  ? "Select subcategories..."
+                                  : `${selectedApplicableProducts.length} subcategor${selectedApplicableProducts.length > 1 ? "ies" : "y"} selected`}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                            <Command>
+                              <CommandInput
+                                placeholder="Search subcategories by product name or SKU..."
+                                className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              />
+                              <CommandList
+                                className="max-h-80 overscroll-contain"
+                                onWheelCapture={(event) => event.stopPropagation()}
+                              >
+                                <CommandEmpty>No subcategories found.</CommandEmpty>
+                                <CommandGroup className="p-2">
+                                  {products.map((product) => (
+                                    <CommandItem
+                                      key={product.id}
+                                      value={[
+                                        product.name,
+                                        product.sku,
+                                        String(product.price),
+                                      ].filter(Boolean).join(" ")}
+                                      onSelect={() => toggleApplicableProduct(product.id)}
+                                      className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                    >
+                                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                                        <div className={cn(
+                                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                          formData.applicable_ids.includes(product.id)
+                                            ? "border-blue-600 bg-blue-600 text-white"
+                                            : "border-slate-300 bg-white text-transparent"
+                                        )}>
+                                          <Check className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <p className="truncate text-sm font-semibold text-slate-900">
+                                                {product.name}
+                                              </p>
+                                            </div>
+                                            <span className="shrink-0 text-sm font-semibold text-slate-700">
+                                              ${Number(product.price || 0).toFixed(2)}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {!subcategoryPickerOpen && selectedApplicableProducts.length > 0 && (
+                          <div className="rounded-lg border p-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-medium text-muted-foreground">
+                                Selected subcategories ({selectedApplicableProducts.length})
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setFormData({ ...formData, applicable_ids: [] })}
+                              >
+                                Clear all
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedApplicableProducts.map((product) => (
+                                <Badge key={product.id} variant="secondary" className="gap-1 pr-1">
+                                  <span className="max-w-[260px] truncate">
+                                    {product.name} (${Number(product.price || 0).toFixed(2)})
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className="rounded-sm p-0.5 hover:bg-muted"
+                                    onClick={() => toggleApplicableProduct(product.id)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
                                 </Badge>
-                              ))
-                          )}
-                        </div>
-                        {formData.applicable_ids.length > 0 && (
-                          <p className="text-xs text-muted-foreground">{formData.applicable_ids.length} products selected</p>
+                              ))}
+                            </div>
+                          </div>
                         )}
+                        <p className="text-xs text-muted-foreground">
+                          Search by product name or SKU.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {formData.applicable_to === "specific_product" && (
+                    <div className="col-span-2">
+                      <Label>Select Products</Label>
+                      <div className="space-y-3 mt-2">
+                        <Popover
+                          open={specificProductPickerOpen}
+                          onOpenChange={(open) => {
+                            setSpecificProductPickerOpen(open);
+                            if (!open) {
+                              setSizeSearch("");
+                            }
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              role="combobox"
+                              aria-expanded={specificProductPickerOpen}
+                              className="w-full justify-between font-normal"
+                            >
+                              <span className="truncate">
+                                {selectedApplicableSizes.length === 0
+                                  ? "Select product sizes..."
+                                  : `${selectedApplicableSizes.length} size${selectedApplicableSizes.length > 1 ? "s" : ""} selected`}
+                              </span>
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                            <Command shouldFilter={false}>
+                              <CommandInput
+                                placeholder="Search by size name, product, or SKU..."
+                                value={sizeSearch}
+                                onValueChange={setSizeSearch}
+                                className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                              />
+                              <CommandList
+                                className="max-h-80 overscroll-contain"
+                                onWheelCapture={(event) => event.stopPropagation()}
+                              >
+                                <CommandEmpty>No sizes found.</CommandEmpty>
+                                <CommandGroup className="p-2">
+                                  {filteredProductSizes.map((size) => (
+                                    <CommandItem
+                                      key={size.id}
+                                      value={[
+                                        size.product?.name,
+                                        size.product?.sku,
+                                        size.sku,
+                                        getSizeOptionLabel(size),
+                                      ].filter(Boolean).join(" ")}
+                                      onSelect={() => toggleApplicableProduct(size.id)}
+                                      className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                    >
+                                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                                        <div className={cn(
+                                          "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                          formData.applicable_ids.includes(size.id)
+                                            ? "border-blue-600 bg-blue-600 text-white"
+                                            : "border-slate-300 bg-white text-transparent"
+                                        )}>
+                                          <Check className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                          <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                              {(() => {
+                                                const sizeDisplay = getSizeOptionDisplay(size);
+
+                                                if (sizeDisplay.shouldStack) {
+                                                  return (
+                                                    <div className="flex min-w-0 flex-col">
+                                                      <p className="truncate text-sm font-semibold text-slate-900">
+                                                        {sizeDisplay.sizeName}
+                                                      </p>
+                                                      <p className="truncate text-sm font-semibold text-slate-900">
+                                                        {sizeDisplay.sizeValue}
+                                                      </p>
+                                                    </div>
+                                                  );
+                                                }
+
+                                                return (
+                                                  <p className="truncate text-sm font-semibold text-slate-900">
+                                                    {getSizeOptionLabel(size)}
+                                                  </p>
+                                                );
+                                              })()}
+                                              <p className="truncate text-xs text-muted-foreground">
+                                                {size.product?.name || "Unknown Product"}
+                                              </p>
+                                            </div>
+                                            <span className="shrink-0 text-sm font-semibold text-slate-700">
+                                              ${Number(size.price || 0).toFixed(2)}
+                                            </span>
+                                          </div>
+                                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                            <span>{size.sku ? `Size SKU: ${size.sku}` : "No size SKU"}</span>
+                                            {size.product?.sku && <span>Product SKU: {size.product.sku}</span>}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        {!specificProductPickerOpen && selectedApplicableSizes.length > 0 && (
+                          <div className="rounded-lg border p-3 space-y-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-medium text-muted-foreground">
+                                Selected sizes ({selectedApplicableSizes.length})
+                              </p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs"
+                                onClick={() => setFormData({ ...formData, applicable_ids: [] })}
+                              >
+                                Clear all
+                              </Button>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {selectedApplicableSizes.map((size) => (
+                                <Badge key={size.id} variant="secondary" className="gap-1 pr-1">
+                                  {(() => {
+                                    const sizeDisplay = getSizeOptionDisplay(size);
+
+                                    if (sizeDisplay.shouldStack) {
+                                      return (
+                                        <span className="flex max-w-[260px] flex-col leading-tight">
+                                          <span className="truncate">{sizeDisplay.sizeName}</span>
+                                          <span className="truncate">{sizeDisplay.sizeValue}</span>
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <span className="max-w-[260px] truncate">
+                                        {getSizeOptionLabel(size)}
+                                      </span>
+                                    );
+                                  })()}
+                                  <button
+                                    type="button"
+                                    className="rounded-sm p-0.5 hover:bg-muted"
+                                    onClick={() => toggleApplicableProduct(size.id)}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Search by size, product, or SKU.
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1778,12 +2487,14 @@ export default function Offers() {
                       start_date: new Date().toISOString().split("T")[0],
                       end_date: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
                     });
+                    setDealApplicableTo("all");
+                    setDealApplicableIds([]);
                     setDealProductSearch("");
                   }}>
                     <Plus className="mr-2 h-4 w-4" /> Add Deal Product
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-lg">
+                <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle>{editingDeal ? "Edit Deal" : "Add Product to Deals"}</DialogTitle>
                     <DialogDescription>
@@ -1792,49 +2503,400 @@ export default function Offers() {
                   </DialogHeader>
                   <form onSubmit={handleDealSubmit} className="space-y-4">
                     {/* Product Selection */}
-                    <div>
-                      <Label>Select Product *</Label>
-                      <div className="border rounded-lg max-h-40 overflow-y-auto">
-                          {filteredDealProducts.length === 0 ? (
-                            <p className="p-3 text-center text-muted-foreground text-sm">No products found</p>
-                          ) : (
-                            filteredDealProducts.map((product) => (
-                              <div
-                                key={product.id}
-                                className={`flex items-center justify-between p-3 border-b last:border-b-0 cursor-pointer hover:bg-muted/50 ${
-                                  dealFormData.product_id === product.id ? "bg-primary/10" : ""
-                                }`}
-                                onClick={() => {
-                                  setDealFormData({ ...dealFormData, product_id: product.id });
-                                  setDealProductSearch("");
-                                }}
-                              >
-                                <div>
-                                  <p className="font-medium text-sm">{product.name}</p>
-                                  {product.price === 0 && (
-                                    <p className="text-xs text-amber-600 font-medium">⚠️ Zero price - may not display correctly</p>
-                                  )}
-                                </div>
-                                <p className="font-medium">
-                                  {product.price === 0 ? (
-                                    <span className="text-amber-600">$0.00</span>
-                                  ) : (
-                                    `$${product.price.toFixed(2)}`
-                                  )}
-                                </p>
+                    <div className="space-y-4">
+                      <div>
+                        <Label>Applicable To</Label>
+                        <Select
+                          value={dealApplicableTo}
+                          onValueChange={(value: "all" | "category" | "product" | "specific_product") => {
+                            setDealApplicableTo(value);
+                            setDealApplicableIds([]);
+                            setDealProductSearch("");
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All Products</SelectItem>
+                            <SelectItem value="category">Specific Categories</SelectItem>
+                            <SelectItem value="product">Specific Subcategories</SelectItem>
+                            <SelectItem value="specific_product">Specific Products</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {dealApplicableTo === "category" && (
+                        <div className="space-y-3">
+                          <Label>Select Categories</Label>
+                          <Popover open={dealCategoryPickerOpen} onOpenChange={setDealCategoryPickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                                <span className="truncate">
+                                  {selectedDealCategories.length === 0
+                                    ? "Select categories..."
+                                    : `${selectedDealCategories.length} categor${selectedDealCategories.length > 1 ? "ies" : "y"} selected`}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search categories..." className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                                <CommandList className="max-h-80 overscroll-contain" onWheelCapture={(event) => event.stopPropagation()}>
+                                  <CommandEmpty>No categories found.</CommandEmpty>
+                                  <CommandGroup className="p-2">
+                                    {categories.map((category) => (
+                                      <CommandItem
+                                        key={category.id}
+                                        value={category.name}
+                                        onSelect={() => toggleDealApplicableId(category.name)}
+                                        className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                      >
+                                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                                          <div className={cn(
+                                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                            dealApplicableIds.includes(category.name)
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          )}>
+                                            <Check className="h-3.5 w-3.5" />
+                                          </div>
+                                          <p className="truncate text-sm font-semibold text-slate-900">{category.name}</p>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {!dealCategoryPickerOpen && selectedDealCategories.length > 0 && (
+                            <div className="rounded-lg border p-3 space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-medium text-muted-foreground">Selected categories ({selectedDealCategories.length})</p>
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDealApplicableIds([])}>Clear all</Button>
                               </div>
-                            ))
+                              <div className="flex flex-wrap gap-2">
+                                {selectedDealCategories.map((category) => (
+                                  <Badge key={category.id} variant="secondary" className="gap-1 pr-1">
+                                    <span className="max-w-[240px] truncate">{category.name}</span>
+                                    <button type="button" className="rounded-sm p-0.5 hover:bg-muted" onClick={() => toggleDealApplicableId(category.name)}>
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
                           )}
                         </div>
-                      {dealFormData.product_id && (
-                        <div className="mt-2 p-3 bg-muted rounded-lg">
+                      )}
+
+                      {dealApplicableTo === "product" && (
+                        <div className="space-y-3">
+                          <Label>Select Subcategories</Label>
+                          <Popover open={dealSubcategoryPickerOpen} onOpenChange={setDealSubcategoryPickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                                <span className="truncate">
+                                  {selectedDealSubcategories.length === 0
+                                    ? "Select subcategories..."
+                                    : `${selectedDealSubcategories.length} subcategor${selectedDealSubcategories.length > 1 ? "ies" : "y"} selected`}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command>
+                                <CommandInput placeholder="Search subcategories..." className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0" />
+                                <CommandList className="max-h-80 overscroll-contain" onWheelCapture={(event) => event.stopPropagation()}>
+                                  <CommandEmpty>No subcategories found.</CommandEmpty>
+                                  <CommandGroup className="p-2">
+                                    {dealSubcategories.map((subcategory) => (
+                                      <CommandItem
+                                        key={subcategory}
+                                        value={subcategory}
+                                        onSelect={() => toggleDealApplicableId(subcategory)}
+                                        className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                      >
+                                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                                          <div className={cn(
+                                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                            dealApplicableIds.includes(subcategory)
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          )}>
+                                            <Check className="h-3.5 w-3.5" />
+                                          </div>
+                                          <p className="truncate text-sm font-semibold text-slate-900">{subcategory}</p>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {!dealSubcategoryPickerOpen && selectedDealSubcategories.length > 0 && (
+                            <div className="rounded-lg border p-3 space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-medium text-muted-foreground">Selected subcategories ({selectedDealSubcategories.length})</p>
+                                <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setDealApplicableIds([])}>Clear all</Button>
+                              </div>
+                              <div className="flex flex-wrap gap-2">
+                                {selectedDealSubcategories.map((subcategory) => (
+                                  <Badge key={subcategory} variant="secondary" className="gap-1 pr-1">
+                                    <span className="max-w-[240px] truncate">{subcategory}</span>
+                                    <button type="button" className="rounded-sm p-0.5 hover:bg-muted" onClick={() => toggleDealApplicableId(subcategory)}>
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {dealApplicableTo === "specific_product" && (
+                        <div className="space-y-3">
+                          <Label>Select Products</Label>
+                          <Popover
+                            open={dealSpecificSizePickerOpen}
+                            onOpenChange={(open) => {
+                              setDealSpecificSizePickerOpen(open);
+                              if (!open) {
+                                setDealSizeSearch("");
+                              }
+                            }}
+                          >
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                                <span className="truncate">
+                                  {selectedDealSizes.length === 0
+                                    ? "Select product sizes..."
+                                    : `${selectedDealSizes.length} size${selectedDealSizes.length > 1 ? "s" : ""} selected`}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command shouldFilter={false}>
+                                <CommandInput
+                                  placeholder="Search by size name, product, or SKU..."
+                                  value={dealSizeSearch}
+                                  onValueChange={setDealSizeSearch}
+                                  className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                />
+                                <CommandList className="max-h-80 overscroll-contain" onWheelCapture={(event) => event.stopPropagation()}>
+                                  <CommandEmpty>No sizes found.</CommandEmpty>
+                                  <CommandGroup className="p-2">
+                                    {filteredDealProductSizes.map((size) => (
+                                      <CommandItem
+                                        key={size.id}
+                                        value={[
+                                          size.product?.name,
+                                          size.product?.sku,
+                                          size.sku,
+                                          getSizeOptionLabel(size),
+                                        ].filter(Boolean).join(" ")}
+                                        onSelect={() => toggleDealApplicableSize(size)}
+                                        className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                      >
+                                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                                          <div className={cn(
+                                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                            dealApplicableIds.includes(size.id)
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          )}>
+                                            <Check className="h-3.5 w-3.5" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="min-w-0">
+                                                {(() => {
+                                                  const sizeDisplay = getSizeOptionDisplay(size);
+
+                                                  if (sizeDisplay.shouldStack) {
+                                                    return (
+                                                      <div className="flex min-w-0 flex-col">
+                                                        <p className="truncate text-sm font-semibold text-slate-900">
+                                                          {sizeDisplay.sizeName}
+                                                        </p>
+                                                        <p className="truncate text-sm font-semibold text-slate-900">
+                                                          {sizeDisplay.sizeValue}
+                                                        </p>
+                                                      </div>
+                                                    );
+                                                  }
+
+                                                  return (
+                                                    <p className="truncate text-sm font-semibold text-slate-900">
+                                                      {getSizeOptionLabel(size)}
+                                                    </p>
+                                                  );
+                                                })()}
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                  {size.product?.name || "Unknown Product"}
+                                                </p>
+                                              </div>
+                                              <span className="shrink-0 text-sm font-semibold text-slate-700">
+                                                ${Number(size.price || 0).toFixed(2)}
+                                              </span>
+                                            </div>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
+                                              <span>{size.sku ? `Size SKU: ${size.sku}` : "No size SKU"}</span>
+                                              {size.product?.sku && <span>Product SKU: {size.product.sku}</span>}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {!dealSpecificSizePickerOpen && selectedDealSizes.length > 0 && (
+                            <div className="rounded-lg border p-3 space-y-3">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-xs font-medium text-muted-foreground">Selected sizes ({selectedDealSizes.length})</p>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs"
+                                  onClick={() => {
+                                    setDealApplicableIds([]);
+                                    setDealFormData((current) => ({ ...current, product_id: "" }));
+                                  }}
+                                >
+                                  Clear all
+                                </Button>
+                              </div>
+                              <div className="max-h-36 overflow-y-auto pr-1">
+                                <div className="flex flex-wrap gap-2">
+                                {selectedDealSizes.map((size) => (
+                                  <Badge key={size.id} variant="secondary" className="gap-1 pr-1">
+                                    {(() => {
+                                      const sizeDisplay = getSizeOptionDisplay(size);
+
+                                      if (sizeDisplay.shouldStack) {
+                                        return (
+                                          <span className="flex max-w-[260px] flex-col leading-tight">
+                                            <span className="truncate">{sizeDisplay.sizeName}</span>
+                                            <span className="truncate">{sizeDisplay.sizeValue}</span>
+                                          </span>
+                                        );
+                                      }
+
+                                      return (
+                                        <span className="max-w-[260px] truncate">
+                                          {getSizeOptionLabel(size)}
+                                        </span>
+                                      );
+                                    })()}
+                                    <button type="button" className="rounded-sm p-0.5 hover:bg-muted" onClick={() => toggleDealApplicableSize(size)}>
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </Badge>
+                                ))}
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {dealApplicableTo !== "all" && dealFormData.product_id && (
+                        <div className="rounded-lg border p-3 bg-muted/30">
                           <p className="text-sm font-medium">
-                            Selected: {products.find(p => p.id === dealFormData.product_id)?.name}
+                            Deal product: {products.find((product) => product.id === dealFormData.product_id)?.name}
                           </p>
-                          {products.find(p => p.id === dealFormData.product_id)?.price === 0 && (
+                          {products.find((product) => product.id === dealFormData.product_id)?.price === 0 && (
                             <p className="text-xs text-amber-600 font-medium mt-1">
-                              ⚠️ Warning: This product has a zero base price and may not display correctly in the deals section.
+                              Warning: This product has a zero base price and may not display correctly in the deals section.
                             </p>
+                          )}
+                        </div>
+                      )}
+
+                      {dealApplicableTo === "all" && (
+                        <div className="space-y-3">
+                          <Label>Select Product *</Label>
+                          <Popover open={dealFinalProductPickerOpen} onOpenChange={setDealFinalProductPickerOpen}>
+                            <PopoverTrigger asChild>
+                              <Button type="button" variant="outline" className="w-full justify-between font-normal">
+                                <span className="truncate">
+                                  {dealFormData.product_id
+                                    ? (products.find((product) => product.id === dealFormData.product_id)?.name || "Select product...")
+                                    : "Select product..."}
+                                </span>
+                                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+                              <Command>
+                                <CommandInput
+                                  placeholder="Search products by name or SKU..."
+                                  value={dealProductSearch}
+                                  onValueChange={setDealProductSearch}
+                                  className="focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                />
+                                <CommandList className="max-h-80 overscroll-contain" onWheelCapture={(event) => event.stopPropagation()}>
+                                  <CommandEmpty>No products found.</CommandEmpty>
+                                  <CommandGroup className="p-2">
+                                    {dealFilteredProducts.map((product) => (
+                                      <CommandItem
+                                        key={product.id}
+                                        value={[product.name, product.sku, String(product.price)].filter(Boolean).join(" ")}
+                                        onSelect={() => {
+                                          setDealFormData({ ...dealFormData, product_id: product.id });
+                                          setDealFinalProductPickerOpen(false);
+                                        }}
+                                        className="mb-1 rounded-md border border-transparent px-3 py-3 aria-selected:bg-slate-50 data-[selected=true]:border-blue-200 data-[selected=true]:bg-blue-50"
+                                      >
+                                        <div className="flex min-w-0 flex-1 items-start gap-3">
+                                          <div className={cn(
+                                            "mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-sm border",
+                                            dealFormData.product_id === product.id
+                                              ? "border-blue-600 bg-blue-600 text-white"
+                                              : "border-slate-300 bg-white text-transparent"
+                                          )}>
+                                            <Check className="h-3.5 w-3.5" />
+                                          </div>
+                                          <div className="min-w-0 flex-1">
+                                            <div className="flex items-start justify-between gap-3">
+                                              <div className="min-w-0">
+                                                <p className="truncate text-sm font-semibold text-slate-900">{product.name}</p>
+                                                {product.price === 0 && <p className="text-xs text-amber-600 font-medium">Zero price - may not display correctly</p>}
+                                              </div>
+                                              <span className={cn(
+                                                "shrink-0 text-sm font-semibold",
+                                                product.price === 0 ? "text-amber-600" : "text-slate-700"
+                                              )}>
+                                                ${Number(product.price || 0).toFixed(2)}
+                                              </span>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                          {dealFormData.product_id && (
+                            <div className="rounded-lg border p-3 bg-muted/30">
+                              <p className="text-sm font-medium">Selected: {products.find((product) => product.id === dealFormData.product_id)?.name}</p>
+                              {products.find((product) => product.id === dealFormData.product_id)?.price === 0 && (
+                                <p className="text-xs text-amber-600 font-medium mt-1">
+                                  Warning: This product has a zero base price and may not display correctly in the deals section.
+                                </p>
+                              )}
+                            </div>
                           )}
                         </div>
                       )}
@@ -1965,13 +3027,14 @@ export default function Offers() {
                           <TableRow key={deal.id}>
                             <TableCell>
                               <div className="flex items-center gap-3">
-                                {deal.products?.image_url && (
-                                  <img 
-                                    src={deal.products.image_url} 
-                                    alt={deal.products?.name}
-                                    className="w-10 h-10 rounded object-cover"
-                                  />
-                                )}
+                                <img
+                                  src={getProductImageUrl(deal.products?.image_url)}
+                                  alt={deal.products?.name}
+                                  className="w-10 h-10 rounded object-contain bg-muted p-1"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/placeholder.svg";
+                                  }}
+                                />
                                 <span className="font-medium">{deal.products?.name}</span>
                               </div>
                             </TableCell>
@@ -2062,3 +3125,4 @@ export default function Offers() {
     </DashboardLayout>
   );
 }
+

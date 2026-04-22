@@ -47,7 +47,7 @@ export const PharmacyProductCard = ({
 
   const isOutOfStock = product.totalStock <= 0
   const sizesCount = product.sizes?.length || 0
-  
+  const hideOfferUi = true
   // Check if customization is available
   const hasCustomization = product.customization?.allowed === true
 
@@ -123,12 +123,6 @@ export const PharmacyProductCard = ({
       >
       {/* Top Left Badges */}
       <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
-        {/* Offer Badge - Highest Priority */}
-        {product.offerBadge && product.hasOffer && (
-          <Badge className="bg-red-500 text-white text-[10px] px-2 py-0.5 font-bold shadow-md">
-            {product.offerBadge}
-          </Badge>
-        )}
         {sizesCount > 1 && (
           <Badge className="bg-blue-500 text-white text-[10px] px-2 py-0.5">
             {sizesCount} Sizes
@@ -206,19 +200,13 @@ export const PharmacyProductCard = ({
           <div className="flex items-baseline gap-2">
             <div>
               <span className="text-base sm:text-xl font-bold text-gray-900">
-                ${(product.effectivePrice || product.displayPrice).toFixed(2)}
+                ${product.displayPrice.toFixed(2)}
               </span>
               <span className="text-xs sm:text-sm text-gray-500 ml-0.5 sm:ml-1">/ case</span>
             </div>
-            {/* Show original price if there's an offer */}
-            {product.hasOffer && product.effectivePrice && product.effectivePrice < product.displayPrice && (
-              <span className="text-xs sm:text-sm text-gray-400 line-through">
-                ${product.displayPrice.toFixed(2)}
-              </span>
-            )}
           </div>
           {/* Show savings amount */}
-          {product.hasOffer && product.discountPercent && product.discountPercent > 0 && (
+          {!hideOfferUi && product.hasOffer && product.discountPercent && product.discountPercent > 0 && (
             <div className="text-[10px] sm:text-xs text-red-600 font-semibold mt-0.5">
               Save {product.discountPercent}% • ${(product.displayPrice - (product.effectivePrice || product.displayPrice)).toFixed(2)} off
             </div>
