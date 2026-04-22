@@ -17,14 +17,16 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { BatchInventoryService, BatchAllocation, ProductBatch } from "@/services/batchInventoryService";
 import { hasOrderBatchDeductions } from "@/services/orderBatchDeductionService";
+import { supabase } from "@/integrations/supabase/client";
 
 interface PackingSlipModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   orderData: any;
+  onOrderUpdate?: (updates: Record<string, any>) => void;
 }
 
-export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipModalProps) => {
+export const PackingSlipModal = ({ open, onOpenChange, orderData, onOrderUpdate }: PackingSlipModalProps) => {
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [currentStep, setCurrentStep] = useState(1);
@@ -49,14 +51,15 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
   useEffect(() => {
     if (open && orderData) {
       const shipping = orderData.shipping || {};
+      const savedPackingSlip = (shipping.packingSlip || {}) as Record<string, any>;
       setPackingData({
-        shipVia: shipping.method || "",
-        trackingNumber: shipping.trackingNumber || "",
-        weight: shipping.weight?.toString() || "",
-        cartons: "1",
-        packedBy: "",
-        checkedBy: "",
-        notes: "",
+        shipVia: savedPackingSlip.shipVia || shipping.method || "",
+        trackingNumber: savedPackingSlip.trackingNumber || shipping.trackingNumber || "",
+        weight: String(savedPackingSlip.weight || shipping.weight || ""),
+        cartons: String(savedPackingSlip.cartons || "1"),
+        packedBy: savedPackingSlip.packedBy || "",
+        checkedBy: savedPackingSlip.checkedBy || "",
+        notes: savedPackingSlip.notes || "",
       });
     }
   }, [open, orderData]);
@@ -172,6 +175,20 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
     return { totalCases, totalWeight };
   }, [packedItems]);
 
+  const displayWeight = useMemo(() => {
+    const enteredWeight = Number(packingData.weight);
+    if (Number.isFinite(enteredWeight) && enteredWeight > 0) {
+      return enteredWeight;
+    }
+
+    const shipmentWeight = Number(orderData?.shipping?.weight);
+    if (Number.isFinite(shipmentWeight) && shipmentWeight > 0) {
+      return shipmentWeight;
+    }
+
+    return totals.totalWeight;
+  }, [packingData.weight, orderData?.shipping?.weight, totals.totalWeight]);
+
   const handleInputChange = (field: string, value: string) => {
     setPackingData((prev) => ({ ...prev, [field]: value }));
   };
@@ -254,10 +271,49 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
         ...orderData,
         packingDetails: { ...packingData, packedAt: new Date().toLocaleString() },
         packedItems: itemsWithBatches,
-        totals,
+        totals: {
+          ...totals,
+          totalWeight: displayWeight,
+        },
       };
       
       await generateWorkOrderPDF(orderData, completeData);
+
+      const packingSlipPayload = {
+        shipVia: packingData.shipVia,
+        trackingNumber: packingData.trackingNumber,
+        cartons: Number(packingData.cartons || 0),
+        weight: displayWeight,
+        packedBy: packingData.packedBy.trim(),
+        checkedBy: packingData.checkedBy.trim(),
+        notes: packingData.notes || "",
+        packedAt: new Date().toISOString(),
+        totalCases: totals.totalCases,
+        totalWeight: displayWeight,
+      };
+
+      const existingShipping = (((orderData as any)?.shipping || {}) as Record<string, any>) || {};
+      const updatedShipping = {
+        ...existingShipping,
+        packingSlip: packingSlipPayload,
+      };
+
+      if (orderData?.id) {
+        const { error: packingSaveError } = await supabase
+          .from("orders")
+          .update({
+            shipping: updatedShipping,
+          } as any)
+          .eq("id", orderData.id);
+
+        if (packingSaveError) {
+          throw new Error(packingSaveError.message || "Failed to save packing slip data");
+        }
+
+        onOrderUpdate?.({
+          shipping: updatedShipping,
+        });
+      }
       
       // Deduct from SELECTED batches after successful PDF generation.
       // Skip deduction when already consumed earlier in order flow.
@@ -288,10 +344,14 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
         });
       }
       
-      toast({ title: "Success", description: "Packing slip downloaded and inventory updated" });
+      toast({ title: "Success", description: "Packing slip downloaded and saved" });
       onOpenChange(false);
     } catch (error) {
-      toast({ title: "Error", description: "Failed to generate", variant: "destructive" });
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to generate",
+        variant: "destructive",
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -313,7 +373,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                 <DialogTitle className="text-xl font-bold">Packing Slip - {orderData?.order_number}</DialogTitle>
                 <p className="text-sm text-gray-500 mt-1">
                   {orderData?.purchase_number_external && `PO: ${orderData.purchase_number_external} • `}
-                  {totals.totalCases} cases • {totals.totalWeight.toFixed(1)} lbs
+                  {totals.totalCases} cases • {displayWeight.toFixed(1)} lbs
                 </p>
               </div>
             </div>
@@ -356,7 +416,6 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                       <th className="text-center px-3 py-2 w-20">QTY/Case</th>
                       <th className="text-center px-3 py-2 bg-blue-100 w-16">Cases</th>
                       <th className="text-left px-3 py-2 w-80">Lot/Batch</th>
-                      <th className="text-right px-3 py-2 w-20">Weight</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
@@ -449,7 +508,6 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                               <span className="text-xs text-gray-400">No batch tracking</span>
                             )}
                           </td>
-                          <td className="px-3 py-2 text-right text-sm">{item.totalWeight.toFixed(1)} lbs</td>
                         </tr>
                       );
                     })}
@@ -460,8 +518,7 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData }: PackingSlipM
                       <td className="px-3 py-2 text-center bg-blue-100">
                         <Badge className="bg-blue-700">{totals.totalCases}</Badge>
                       </td>
-                      <td className="px-3 py-2"></td>
-                      <td className="px-3 py-2 text-right text-sm">{totals.totalWeight.toFixed(1)} lbs</td>
+                      <td className="px-3 py-2 text-right text-sm">Weight: {displayWeight.toFixed(1)} lbs</td>
                     </tr>
                   </tfoot>
                 </table>

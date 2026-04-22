@@ -19,6 +19,7 @@ interface OrderActionsProps {
   onDeleteOrder?: (orderId: string, reason?: string) => Promise<void>
   onOrderUpdate?: (updates: Record<string, any>) => void
   allowDelete?: boolean
+  showShipAction?: boolean
 }
 
 export const OrderActions = ({
@@ -29,6 +30,7 @@ export const OrderActions = ({
   onDeleteOrder,
   onOrderUpdate,
   allowDelete = true,
+  showShipAction = true,
 }: OrderActionsProps) => {
   const [isLoading, setIsLoading] = useState(false)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
@@ -179,7 +181,9 @@ export const OrderActions = ({
   if (status === "processing" && !order.void) {
     return (
       <div className="flex gap-2">
-        <OrderShipAction order={order} onShipOrder={onShipOrder} onOrderUpdate={onOrderUpdate} />
+        {showShipAction && (
+          <OrderShipAction order={order} onShipOrder={onShipOrder} onOrderUpdate={onOrderUpdate} />
+        )}
         {allowDelete && canDeleteOrder(order) && renderDeleteButton()}
       </div>
     )

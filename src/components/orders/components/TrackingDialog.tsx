@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
@@ -66,6 +67,18 @@ export interface FedExDialogState {
 
 export interface TrackingDialogSubmitPayload {
   recipient: FedExRecipientInput | null;
+  packingSlip?: TrackingDialogPackingSlipPayload | null;
+}
+
+export interface TrackingDialogPackingSlipPayload {
+  shipVia: string;
+  trackingNumber: string;
+  cartons: number;
+  weight: number;
+  packedBy: string;
+  checkedBy: string;
+  notes: string;
+  packedAt: string;
 }
 
 interface TrackingDialogProps {
@@ -79,6 +92,8 @@ interface TrackingDialogProps {
   order?: OrderFormValues;
   onFedExDataChange?: (value: FedExDialogState | null) => void;
   onOrderUpdate?: (updates: Record<string, any>) => void;
+  showPackingSection?: boolean;
+  onDownloadPackingSlip?: (packingSlip: TrackingDialogPackingSlipPayload) => void | Promise<void>;
 }
 
 const FEDEX_SERVICE_OPTIONS = [
@@ -105,6 +120,7 @@ const FEDEX_PAPER_STOCK_OPTIONS = [
 const FEDEX_THERMAL_STOCK_OPTIONS = [
   { value: "STOCK_4X6", label: "4 x 6 Thermal" },
 ] as const;
+const PACKING_SHIP_VIA_OPTIONS = ["FedEx", "UPS", "USPS", "Other", "Self Ship"] as const;
 
 const US_STATE_OPTIONS = [
   ["AL", "Alabama"],
@@ -188,8 +204,17 @@ const resolveLabelDocumentInfo = (format?: string) => {
   return { extension: "pdf", mimeType: "application/pdf" };
 };
 
+const normalizeBase64Payload = (value: string) => {
+  const raw = String(value || "").trim();
+  const payload = raw.includes(",") ? raw.split(",").pop() || "" : raw;
+  const cleaned = payload.replace(/\s+/g, "").replace(/-/g, "+").replace(/_/g, "/");
+  const padLength = cleaned.length % 4;
+  if (padLength === 0) return cleaned;
+  return `${cleaned}${"=".repeat(4 - padLength)}`;
+};
+
 const decodeBase64Label = (value: string) => {
-  const binary = window.atob(value);
+  const binary = window.atob(normalizeBase64Payload(value));
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   return { binary, bytes };
 };
@@ -236,6 +261,17 @@ const detectLabelDocumentInfo = (format?: string, labelBase64?: string) => {
 const getLabelStockOptions = (format: string) =>
   format === "ZPLII" ? FEDEX_THERMAL_STOCK_OPTIONS : FEDEX_PAPER_STOCK_OPTIONS;
 
+const normalizeLabelImageType = (
+  value: unknown,
+  fallback: "PDF" | "PNG" | "ZPLII" = "ZPLII",
+): "PDF" | "PNG" | "ZPLII" => {
+  const normalized = String(value || "").trim().toUpperCase();
+  if (normalized === "PNG") return "PNG";
+  if (normalized === "PDF") return "PDF";
+  if (normalized === "ZPL" || normalized === "ZPLII" || normalized === "ZPL2") return "ZPLII";
+  return fallback;
+};
+
 const normalizeRecipientDraft = (draft: FedExRecipientInput): FedExRecipientInput => ({
   name: draft.name.trim(),
   email: (draft.email || "").trim(),
@@ -279,6 +315,8 @@ export const TrackingDialog = ({
   order,
   onFedExDataChange,
   onOrderUpdate,
+  showPackingSection = false,
+  onDownloadPackingSlip,
 }: TrackingDialogProps) => {
   const { toast } = useToast();
   const [weightValue, setWeightValue] = useState("1");
@@ -286,8 +324,8 @@ export const TrackingDialog = ({
   const [width, setWidth] = useState("10");
   const [height, setHeight] = useState("8");
   const [serviceType, setServiceType] = useState("FEDEX_GROUND");
-  const [labelImageType, setLabelImageType] = useState<"PDF" | "PNG" | "ZPLII">("PDF");
-  const [labelStockType, setLabelStockType] = useState("PAPER_85X11_TOP_HALF_LABEL");
+  const [labelImageType, setLabelImageType] = useState<"PDF" | "PNG" | "ZPLII">("ZPLII");
+  const [labelStockType, setLabelStockType] = useState("STOCK_4X6");
   const [pickupDate, setPickupDate] = useState("");
   const [recipientDraft, setRecipientDraft] = useState<FedExRecipientInput>(buildRecipientDraft(order));
   const [suggestedRecipientDraft, setSuggestedRecipientDraft] = useState<FedExRecipientInput | null>(null);
@@ -309,6 +347,17 @@ export const TrackingDialog = ({
   const [isCheckingPickup, setIsCheckingPickup] = useState(false);
   const [isCreatingPickup, setIsCreatingPickup] = useState(false);
   const [isCancellingPickup, setIsCancellingPickup] = useState(false);
+  const [isPrintingLabel, setIsPrintingLabel] = useState(false);
+  const [isSavingShipping, setIsSavingShipping] = useState(false);
+  const [packingData, setPackingData] = useState({
+    shipVia: "",
+    cartons: "1",
+    weight: "",
+    packedBy: "",
+    checkedBy: "",
+    notes: "",
+  });
+  const [packingErrors, setPackingErrors] = useState<string[]>([]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -364,11 +413,7 @@ export const TrackingDialog = ({
     }
     setPickupDate(String(storedShipping?.pickupScheduledDate || ""));
     setServiceType(String(storedShipping?.serviceType || "FEDEX_GROUND"));
-    const nextImageType = String(storedShipping?.labelFormat || "PDF").toUpperCase();
-    const normalizedImageType =
-      nextImageType === "PNG" || nextImageType === "ZPLII" || nextImageType === "PDF"
-        ? (nextImageType as "PDF" | "PNG" | "ZPLII")
-        : "PDF";
+    const normalizedImageType = normalizeLabelImageType(storedShipping?.labelFormat, "ZPLII");
     const nextStockOptions = getLabelStockOptions(normalizedImageType);
     setLabelImageType(normalizedImageType);
     setLabelStockType(
@@ -376,7 +421,58 @@ export const TrackingDialog = ({
         ? storedShipping.labelStockType
         : nextStockOptions[0].value,
     );
+    setWeightValue(
+      String(
+        storedShipping?.weight ??
+          (storedShipping?.packingSlip as Record<string, any> | undefined)?.weight ??
+          "1",
+      ),
+    );
+    const savedPackingSlip = (storedShipping?.packingSlip || {}) as Record<string, any>;
+    setPackingData({
+      shipVia: String(savedPackingSlip.shipVia || storedShipping?.method || "FedEx"),
+      cartons: String(savedPackingSlip.cartons || "1"),
+      weight: String(
+        savedPackingSlip.weight ||
+          storedShipping?.weight ||
+          fedexData?.weight ||
+          weightValue ||
+          "",
+      ),
+      packedBy: String(savedPackingSlip.packedBy || ""),
+      checkedBy: String(savedPackingSlip.checkedBy || ""),
+      notes: String(savedPackingSlip.notes || ""),
+    });
+    setPackingErrors([]);
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !showPackingSection) return;
+    const syncedShipVia = shippingMethod === "FedEx" ? "FedEx" : "Self Ship";
+    setPackingData((prev) =>
+      prev.shipVia === syncedShipVia
+        ? prev
+        : {
+            ...prev,
+            shipVia: syncedShipVia,
+          },
+    );
+  }, [isOpen, showPackingSection, shippingMethod]);
+
+  useEffect(() => {
+    if (!isOpen || !showPackingSection) return;
+    const fallbackWeight = fedexData?.weight != null ? String(fedexData.weight) : "";
+    const syncedWeight = String(weightValue || fallbackWeight || "").trim();
+    if (!syncedWeight) return;
+    setPackingData((prev) =>
+      prev.weight === syncedWeight
+        ? prev
+        : {
+            ...prev,
+            weight: syncedWeight,
+          },
+    );
+  }, [isOpen, showPackingSection, weightValue, fedexData?.weight]);
 
   const recipientSummary = useMemo(
     () =>
@@ -416,6 +512,16 @@ export const TrackingDialog = ({
 
   const canContinueFedExFlow = addressValidated && !hasSuggestedAddress;
   const hasGeneratedLabel = hasShippingLabelDocument(fedexData);
+  const existingShipping = useMemo(
+    () => ((((order as any)?.shipping || {}) as Record<string, any>) || {}),
+    [order],
+  );
+  const actionableLabelData = hasShippingLabelDocument(fedexData)
+    ? fedexData
+    : hasShippingLabelDocument(existingShipping as any)
+      ? (existingShipping as any)
+      : null;
+  const hasActionableLabel = Boolean(actionableLabelData);
   const currentLabelMatchesSelection =
     hasGeneratedLabel &&
     (String(fedexData?.labelFormat || "").toUpperCase() === labelImageType) &&
@@ -424,6 +530,51 @@ export const TrackingDialog = ({
   const updateFedExData = (value: FedExDialogState | null) => {
     setFedexData(value);
     onFedExDataChange?.(value);
+  };
+
+  const recoverLabelFromStorage = async (): Promise<FedExDialogState | null> => {
+    if (!order?.id) return null;
+
+    try {
+      const prefix = `shipping-labels/${order.id}`;
+      const { data: entries, error } = await supabase.storage
+        .from("documents")
+        .list(prefix, { limit: 50, sortBy: { column: "created_at", order: "desc" } });
+
+      if (error || !entries || entries.length === 0) {
+        return null;
+      }
+
+      const firstFile = entries.find((entry) => !!entry.name);
+      if (!firstFile?.name) {
+        return null;
+      }
+
+      const storagePath = `${prefix}/${firstFile.name}`;
+      const lowerName = firstFile.name.toLowerCase();
+      const recoveredFormat = lowerName.endsWith(".zpl")
+        ? "ZPLII"
+        : lowerName.endsWith(".png")
+          ? "PNG"
+          : "PDF";
+
+      const recovered: FedExDialogState = {
+        labelStoragePath: storagePath,
+        labelFileName: firstFile.name,
+        labelFormat: recoveredFormat,
+        labelStockType: fedexData?.labelStockType || (existingShipping as any)?.labelStockType,
+        serviceType: fedexData?.serviceType || (existingShipping as any)?.serviceType,
+        trackingStatus: fedexData?.trackingStatus || (existingShipping as any)?.trackingStatus,
+        estimatedDeliveryDate: fedexData?.estimatedDeliveryDate || (existingShipping as any)?.estimatedDelivery,
+      };
+
+      console.log("Recovered shipping label from storage:", { orderId: order.id, storagePath });
+      updateFedExData({ ...(fedexData || {}), ...recovered });
+      return recovered;
+    } catch (error) {
+      console.error("Failed to recover shipping label from storage:", error);
+      return null;
+    }
   };
 
   const invalidateGeneratedLabel = (reason?: string) => {
@@ -458,7 +609,8 @@ export const TrackingDialog = ({
       trackingNumber: shipment.trackingNumber,
       labelUrl: shipment.labelUrl,
       // labelBase64: shipment.labelBase64,  // Don't save base64 - too large for database
-      labelFormat: shipment.labelFormat || labelImageType,
+      // Persist exactly what user selected in the form.
+      labelFormat: labelImageType,
       labelStockType,
       serviceType: shipment.serviceType || selectedServiceType,
       packagingType: shipment.packagingType,
@@ -799,14 +951,13 @@ export const TrackingDialog = ({
       const activeRecipient = normalizeRecipientDraft(recipientDraft);
       const packageInput = buildPackageInput();
       const quote = await fedexService.rateQuote(order, packageInput, activeRecipient);
-      if (quote.serviceType) setServiceType(quote.serviceType);
-      
       const newFedExData = {
         ...(fedexData || {}),
+        labelFormat: labelImageType,
         quotedAmount: quote.totalNetCharge,
         quotedCurrency: quote.currency || "USD",
         labelStockType,
-        serviceType: quote.serviceType || serviceType,
+        serviceType,
         estimatedDeliveryDate: quote.deliveryTimestamp || fedexData?.estimatedDeliveryDate,
         weight: packageInput.weightValue,
         weightUnits: packageInput.weightUnits,
@@ -848,11 +999,6 @@ export const TrackingDialog = ({
           const quote = await fedexService.rateQuote(order, packageInput, activeRecipient);
           quotedAmount = quote.totalNetCharge;
           quotedCurrency = quote.currency || "USD";
-          if (quote.serviceType) {
-            selectedServiceType = quote.serviceType;
-            setServiceType(quote.serviceType);
-            packageInput = buildPackageInput(quote.serviceType);
-          }
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           if (!FEDEX_QUOTE_TRANSIENT_ERROR_PATTERN.test(message)) {
@@ -878,7 +1024,8 @@ export const TrackingDialog = ({
         labelBase64: shipment.labelBase64,
         labelStoragePath: fedexData?.labelStoragePath,
         labelFileName: fedexData?.labelFileName,
-        labelFormat: shipment.labelFormat,
+        // Keep UI selection as source of truth for persistence/display.
+        labelFormat: labelImageType,
         labelStockType,
         serviceType: shipment.serviceType || selectedServiceType,
         packagingType: shipment.packagingType,
@@ -1017,56 +1164,163 @@ export const TrackingDialog = ({
   };
 
   const downloadLabel = async () => {
-    if (!fedexData) return;
+    let activeLabelData = actionableLabelData;
+    if (!activeLabelData) {
+      activeLabelData = await recoverLabelFromStorage();
+    }
+    if (!activeLabelData) {
+      toast({
+        title: "Download failed",
+        description: "No saved label is available. Regenerate FedEx label and save shipping.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    await downloadShippingLabelDocument(
-      fedexData,
-      buildShippingLabelFileName(order?.order_number || "fedex-label", fedexData.labelFormat, fedexData.labelFileName),
-    );
+    console.log("Download label debug:", activeLabelData);
+    try {
+      const downloaded = await downloadShippingLabelDocument(
+        activeLabelData,
+        buildShippingLabelFileName(
+          order?.order_number || "fedex-label",
+          activeLabelData.labelFormat,
+          activeLabelData.labelFileName,
+        ),
+      );
+      if (!downloaded) {
+        toast({
+          title: "Download failed",
+          description: "No shipping label content found to download.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Unable to download label.",
+        variant: "destructive",
+      });
+    }
   };
 
   const previewLabel = async () => {
-    if (!fedexData) return;
-
-    if (fedexData.labelStoragePath) {
-      await openShippingLabelDocument(fedexData);
+    let activeLabelData = actionableLabelData;
+    if (!activeLabelData) {
+      activeLabelData = await recoverLabelFromStorage();
+    }
+    if (!activeLabelData) {
+      toast({
+        title: "Preview failed",
+        description: "No saved label is available. Regenerate FedEx label and save shipping.",
+        variant: "destructive",
+      });
       return;
     }
 
-    if (fedexData.labelUrl) {
-      window.open(fedexData.labelUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    if (fedexData.labelBase64) {
-      const { mimeType } = detectLabelDocumentInfo(
-        fedexData.labelFormat,
-        fedexData.labelBase64,
-      );
-      const { binary, bytes } = decodeBase64Label(fedexData.labelBase64);
-      const blob = new Blob([bytes], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      if (mimeType === "text/plain") {
-        const previewWindow = window.open("", "_blank", "noopener,noreferrer");
-        if (previewWindow) {
-          previewWindow.document.write(
-            `<pre style="white-space: pre-wrap; font-family: monospace; padding: 16px;">${binary
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")}</pre>`,
-          );
-          previewWindow.document.close();
-        }
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer");
-      }
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    console.log("Preview label debug:", activeLabelData);
+    try {
+      const opened = await openShippingLabelDocument(activeLabelData);
+      if (!opened) throw new Error("Saved label could not be opened. Regenerate label and save shipping again.");
+    } catch (error) {
+      toast({
+        title: "Preview failed",
+        description: error instanceof Error ? error.message : "Unable to preview saved label.",
+        variant: "destructive",
+      });
     }
   };
 
   const printLabel = async () => {
-    if (!fedexData) return;
-    await printShippingLabelDocument(fedexData);
+    setIsPrintingLabel(true);
+    let activeLabelData = actionableLabelData;
+    if (!activeLabelData) {
+      activeLabelData = await recoverLabelFromStorage();
+    }
+    if (!activeLabelData) {
+      toast({
+        title: "Print failed",
+        description: "No saved label is available. Regenerate FedEx label and save shipping.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    console.log("Print label debug:", activeLabelData);
+    try {
+      const printed = await printShippingLabelDocument(activeLabelData);
+      if (!printed) {
+        toast({
+          title: "Print failed",
+          description: "No saved label is available for printing.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Print failed",
+        description: error instanceof Error ? error.message : "Unable to print saved label.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPrintingLabel(false);
+    }
+  };
+
+  const updatePackingField = (field: keyof typeof packingData, value: string) => {
+    setPackingData((prev) => ({ ...prev, [field]: value }));
+    if (packingErrors.length > 0) {
+      setPackingErrors([]);
+    }
+  };
+
+  const validatePackingSection = () => {
+    if (!showPackingSection) return true;
+    const errors: string[] = [];
+    if (!packingData.shipVia.trim()) errors.push("Ship Via is required");
+    if (!packingData.cartons.trim() || Number(packingData.cartons) <= 0) errors.push("Cartons must be greater than 0");
+    if (!packingData.weight.trim() || Number(packingData.weight) <= 0) errors.push("Weight must be greater than 0");
+    if (!packingData.packedBy.trim()) errors.push("Packed By is required");
+    if (!packingData.checkedBy.trim()) errors.push("Checked By is required");
+    if (
+      packingData.packedBy.trim() &&
+      packingData.checkedBy.trim() &&
+      packingData.packedBy.trim().toLowerCase() === packingData.checkedBy.trim().toLowerCase()
+    ) {
+      errors.push("Packed By and Checked By must be different");
+    }
+    setPackingErrors(errors);
+    return errors.length === 0;
+  };
+
+  const buildPackingSlipPayload = (): TrackingDialogPackingSlipPayload => ({
+    shipVia: packingData.shipVia.trim(),
+    trackingNumber: trackingNumber.trim(),
+    cartons: Number(packingData.cartons || 0),
+    weight: Number(packingData.weight || 0),
+    packedBy: packingData.packedBy.trim(),
+    checkedBy: packingData.checkedBy.trim(),
+    notes: packingData.notes.trim(),
+    packedAt: new Date().toISOString(),
+  });
+
+  const handleSaveShipping = async () => {
+    if (!validatePackingSection()) return;
+    setIsSavingShipping(true);
+    try {
+      await onSubmit({
+        recipient: shippingMethod === "FedEx" ? recipientDraft : null,
+        packingSlip: showPackingSection ? buildPackingSlipPayload() : null,
+      });
+    } finally {
+      setIsSavingShipping(false);
+    }
+  };
+
+  const handleDownloadPackingSlip = async () => {
+    if (!showPackingSection) return;
+    if (!validatePackingSection()) return;
+    if (!onDownloadPackingSlip) return;
+    await onDownloadPackingSlip(buildPackingSlipPayload());
   };
 
   const rateLoaded = fedexData?.quotedAmount != null;
@@ -1074,7 +1328,7 @@ export const TrackingDialog = ({
   const canSaveShipping = Boolean(trackingNumber.trim());
   const hasShipmentActions = Boolean(hasGeneratedLabel || trackingNumber.trim());
   const proofOfDeliveryAvailable = Boolean(fedexData?.deliveredAt || fedexData?.signedBy || fedexData?.deliveryLocation);
-  const existingShipping = (((order as any)?.shipping || {}) as Record<string, any>) || {};
+  const hasSavedLabelDocument = hasShippingLabelDocument(existingShipping as any) || hasShippingLabelDocument(fedexData);
   const shipmentAlreadySaved = Boolean(
     existingShipping?.trackingNumber ||
       existingShipping?.labelStoragePath ||
@@ -1082,8 +1336,8 @@ export const TrackingDialog = ({
       existingShipping?.pickupConfirmationNumber ||
       (order as any)?.tracking_number,
   );
-  const recipientFieldsReadOnly = shipmentAlreadySaved;
-  const packageFieldsReadOnly = shipmentAlreadySaved;
+  const recipientFieldsReadOnly = hasSavedLabelDocument;
+  const packageFieldsReadOnly = hasSavedLabelDocument;
 
   const extractProofOfDelivery = (raw?: Record<string, any>) => {
     const track = raw?.output?.completeTrackResults?.[0]?.trackResults?.[0] || raw?.completeTrackResults?.[0]?.trackResults?.[0] || {};
@@ -1152,18 +1406,20 @@ export const TrackingDialog = ({
                 <div className="space-y-1">
                   <div className="text-sm font-semibold">Step 1: Recipient</div>
                   <p className="text-sm text-muted-foreground">
-                    {shipmentAlreadySaved
+                    {hasSavedLabelDocument
                       ? "Shipping is already saved. Recipient details are locked for review."
+                      : shipmentAlreadySaved
+                        ? "Shipment is saved but label file is missing. Validate and regenerate the label, then save shipping."
                       : "Confirm the delivery contact and validate the address with FedEx first."}
                   </p>
                   <p className="text-sm text-slate-700">{recipientSummary || "Enter recipient details"}</p>
                 </div>
                 <Badge variant="outline" className={addressValidated ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-white text-slate-600"}>
-                  {shipmentAlreadySaved ? "Saved" : addressValidated ? "Validated" : "Needs Validation"}
+                  {hasSavedLabelDocument ? "Saved" : shipmentAlreadySaved ? "Label Missing" : addressValidated ? "Validated" : "Needs Validation"}
                 </Badge>
               </div>
 
-              <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${shipmentAlreadySaved ? "opacity-80" : ""}`}>
+              <div className={`grid grid-cols-1 gap-3 md:grid-cols-2 ${hasSavedLabelDocument ? "opacity-80" : ""}`}>
                 <div className="space-y-2">
                   <Label>Recipient Name</Label>
                   <Input readOnly={recipientFieldsReadOnly} value={recipientDraft.name} onChange={(e) => updateRecipientField("name", e.target.value)} />
@@ -1205,7 +1461,7 @@ export const TrackingDialog = ({
                 </div>
               </div>
 
-              {!shipmentAlreadySaved && (
+              {!hasSavedLabelDocument && (
                 <div className="flex flex-wrap gap-2">
                 <Button type="button" onClick={handleValidateAddress} disabled={isValidatingAddress}>
                   {isValidatingAddress ? "Validating..." : "Validate Address"}
@@ -1298,7 +1554,7 @@ export const TrackingDialog = ({
                 </Alert>
               ) : null}
 
-              <div className={`grid grid-cols-2 gap-3 md:grid-cols-5 ${shipmentAlreadySaved ? "opacity-80" : ""}`}>
+              <div className={`grid grid-cols-2 gap-3 md:grid-cols-5 ${hasSavedLabelDocument ? "opacity-80" : ""}`}>
                 <div className="space-y-2 md:col-span-2">
                   <Label>Service Type</Label>
                   <Select value={serviceType} onValueChange={setServiceType} disabled={packageFieldsReadOnly}>
@@ -1323,7 +1579,12 @@ export const TrackingDialog = ({
                       if (value === labelImageType) return;
                       invalidateGeneratedLabel("Label format changed. Generate a new FedEx label to apply this output type.");
                       setLabelImageType(value);
-                      setLabelStockType(getLabelStockOptions(value)[0].value);
+                      setLabelStockType((current) => {
+                        const nextOptions = getLabelStockOptions(value);
+                        return nextOptions.some((option) => option.value === current)
+                          ? current
+                          : nextOptions[0].value;
+                      });
                     }}
                   >
                     <SelectTrigger>
@@ -1380,7 +1641,7 @@ export const TrackingDialog = ({
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {!shipmentAlreadySaved && (
+                {!hasSavedLabelDocument && (
                   <>
                 <Button type="button" variant="outline" onClick={handleGetRate} disabled={!canContinueFedExFlow || isGettingRate}>
                   {isGettingRate ? "Loading Rate..." : "Get FedEx Rate"}
@@ -1483,26 +1744,26 @@ export const TrackingDialog = ({
                     </div>
                   </div>
                   
-                  {hasShippingLabelDocument(fedexData) && currentLabelMatchesSelection && (
+                  {hasActionableLabel && currentLabelMatchesSelection && (
                     <div className="flex flex-wrap gap-2 pt-3 border-t border-blue-200">
                       <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={previewLabel}>
                         Preview Label
                       </Button>
-                      <Button type="button" variant="outline" onClick={printLabel}>
-                        Print Label
+                      <Button type="button" variant="outline" onClick={printLabel} disabled={isPrintingLabel}>
+                        {isPrintingLabel ? "Printing..." : "Print Label"}
                       </Button>
                       <Button type="button" variant="outline" onClick={downloadLabel}>
                         Download Label
                       </Button>
                     </div>
                   )}
-                  {hasShippingLabelDocument(fedexData) && !currentLabelMatchesSelection && (
+                  {hasActionableLabel && !currentLabelMatchesSelection && (
                     <div className="flex flex-wrap gap-2 pt-3 border-t border-blue-200">
                       <Button type="button" variant="default" className="bg-blue-600 hover:bg-blue-700" onClick={previewLabel}>
                         Preview Saved Label
                       </Button>
-                      <Button type="button" variant="outline" onClick={printLabel}>
-                        Print Saved Label
+                      <Button type="button" variant="outline" onClick={printLabel} disabled={isPrintingLabel}>
+                        {isPrintingLabel ? "Printing..." : "Print Saved Label"}
                       </Button>
                       <Button type="button" variant="outline" onClick={downloadLabel}>
                         Download Saved Label
@@ -1528,6 +1789,106 @@ export const TrackingDialog = ({
                 : "Enter the carrier tracking number to save the shipment."}
             </p>
           </div>
+
+          {showPackingSection && (
+        <div className="space-y-4 rounded-lg border border-blue-200 bg-blue-50/60 p-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-semibold text-blue-900">Packing Slip Details</h4>
+                <Badge variant="outline" className="border-blue-300 bg-white text-blue-700">
+                  One-Step Save
+                </Badge>
+              </div>
+
+              {packingErrors.length > 0 && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    <ul className="list-disc pl-4">
+                      {packingErrors.map((error, idx) => (
+                        <li key={`${error}-${idx}`}>{error}</li>
+                      ))}
+                    </ul>
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Ship Via</Label>
+                  <Select
+                    value={packingData.shipVia || "FedEx"}
+                    disabled
+                    onValueChange={(value) => updatePackingField("shipVia", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Ship Via" />
+                    </SelectTrigger>
+                    <SelectContent className="z-[100002]">
+                      {PACKING_SHIP_VIA_OPTIONS.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {option}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Cartons</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    value={packingData.cartons}
+                    onChange={(event) => updatePackingField("cartons", event.target.value)}
+                    placeholder="1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Weight (lbs)</Label>
+                  <Input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={packingData.weight}
+                    readOnly
+                    placeholder="0.0"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Packed By</Label>
+                  <Input
+                    value={packingData.packedBy}
+                    onChange={(event) => updatePackingField("packedBy", event.target.value)}
+                    placeholder="Packer name"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Checked By</Label>
+                  <Input
+                    value={packingData.checkedBy}
+                    onChange={(event) => updatePackingField("checkedBy", event.target.value)}
+                    placeholder="Checker name"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Special Instructions</Label>
+                  <Textarea
+                    value={packingData.notes}
+                    onChange={(event) => updatePackingField("notes", event.target.value)}
+                    placeholder="Optional notes..."
+                    rows={3}
+                  />
+                </div>
+              </div>
+
+              {onDownloadPackingSlip && (
+                <div className="border-t border-blue-200 pt-3">
+                  <Button type="button" variant="outline" onClick={handleDownloadPackingSlip}>
+                    Download Packing Slip
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
         </div>
 
@@ -1535,8 +1896,8 @@ export const TrackingDialog = ({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="button" disabled={!canSaveShipping} onClick={() => onSubmit({ recipient: shippingMethod === "FedEx" ? recipientDraft : null })}>
-            Save Shipping
+          <Button type="button" disabled={!canSaveShipping || isSavingShipping} onClick={handleSaveShipping}>
+            {isSavingShipping ? "Saving..." : "Save Shipping"}
           </Button>
         </DialogFooter>
         </div>

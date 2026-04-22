@@ -25,6 +25,7 @@ interface OrderHeaderProps {
   onSendEmail?: () => void;
   onShipOrder?: () => void;
   onPrint?: () => void;
+  onPackingSlip?: () => void;
   onOrderUpdate?: (updates: Record<string, any>) => void;
   isGeneratingPDF?: boolean;
   isSendingEmail?: boolean;
@@ -42,6 +43,7 @@ export const OrderHeader = ({
   onSendEmail,
   onShipOrder,
   onPrint,
+  onPackingSlip,
   onOrderUpdate,
   isGeneratingPDF,
   isSendingEmail,
@@ -489,6 +491,18 @@ export const OrderHeader = ({
                 <span className="text-xs md:text-sm">
                   {hasSavedShippingLabel ? "Shipment" : "Ship"}
                 </span>
+              </Button>
+            )}
+
+            {onPackingSlip && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={onPackingSlip}
+                className="gap-2 hover:bg-blue-50 hover:border-blue-300"
+              >
+                <Package className="w-4 h-4 text-blue-600" />
+                <span className="text-xs md:text-sm">Packing Slip</span>
               </Button>
             )}
 

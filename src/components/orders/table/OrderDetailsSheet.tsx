@@ -29,6 +29,12 @@ import autoTable from "jspdf-autotable";
 import Swal from "sweetalert2";
 import { ChargesDialog } from "./ChargesDialog";
 import { PackingSlipModal } from "../PackingSlipModal";
+import {
+  FedExDialogState,
+  TrackingDialog,
+  TrackingDialogPackingSlipPayload,
+  TrackingDialogSubmitPayload,
+} from "../components/TrackingDialog";
 import { PharmacyOrderDetails } from "@/components/pharmacy/PharmacyOrderDetails";
 import Logo from "../../../assests/home/9rx_logo.png";
 import { OrderActivityService } from "@/services/orderActivityService";
@@ -49,6 +55,8 @@ import {
 } from "@/lib/documentSettings";
 import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { fetchOrderedSubcategories, insertSubcategorySafely } from "@/services/productTreeService";
+import { uploadShippingLabelToStorage } from "../utils/shippingLabelDocuments";
+import { generateWorkOrderPDF } from "@/utils/packing-slip";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -192,6 +200,11 @@ export const OrderDetailsSheet = ({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [chargesOpen, setChargesOpen] = useState(false);
   const [isPackingSlipModalOpen, setIsPackingSlipModalOpen] = useState(false);
+  const [showPackingSlipShippingDialog, setShowPackingSlipShippingDialog] = useState(false);
+  const [trackingNumber, setTrackingNumber] = useState("");
+  const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
+  const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
+  const [openPackingAfterShipping, setOpenPackingAfterShipping] = useState(false);
   const [paidAmount, setPaidAmount] = useState(0);
   const [activePoTab, setActivePoTab] = useState("workspace");
   const [receivingQuantities, setReceivingQuantities] = useState<Record<string, string>>({});
@@ -246,6 +259,20 @@ export const OrderDetailsSheet = ({
       isPO
     });
     return isPO;
+  }, [currentOrder]);
+
+  const isShippingCompletedForPacking = useMemo(() => {
+    const status = String(currentOrder?.status || "").toLowerCase();
+    if (["shipped", "delivered", "completed"].includes(status)) {
+      return true;
+    }
+
+    const shippingData = ((currentOrder as any)?.shipping || {}) as Record<string, any>;
+    return Boolean(
+      String(shippingData.trackingNumber || (currentOrder as any)?.tracking_number || "").trim() ||
+      shippingData.labelStoragePath ||
+      shippingData.labelUrl
+    );
   }, [currentOrder]);
 
   // Cleanup on unmount
@@ -924,6 +951,7 @@ export const OrderDetailsSheet = ({
                 ? [34, 197, 94]
                 : [100, 116, 139];
     const logo = await loadPdfLogo();
+    const showPublicPayNowArtifacts = userRole !== "pharmacy";
 
     const subtotal = (currentOrder.items || []).reduce((sum: number, item: any) => {
       return sum + (item.sizes || []).reduce((sizeSum: number, size: any) => sizeSum + ((Number(size.quantity) || 0) * (Number(size.price) || 0)), 0);
@@ -1187,7 +1215,7 @@ export const OrderDetailsSheet = ({
         doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
-      if (balanceDue > 0 && !poIs) {
+      if (balanceDue > 0 && !poIs && showPublicPayNowArtifacts) {
         // BALANCE DUE box - light red background only, no border
         doc.setFillColor(254, 242, 242); // Light red background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
@@ -1285,7 +1313,7 @@ export const OrderDetailsSheet = ({
     }
 
     const totalPages = (doc as any).internal.getNumberOfPages();
-    const showSalesOrderCaution = documentTitle === "SALES ORDER";
+    const showSalesOrderCaution = documentTitle === "SALES ORDER" && showPublicPayNowArtifacts;
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFillColor(...brandColor);
@@ -1297,7 +1325,7 @@ export const OrderDetailsSheet = ({
         doc.setFont("helvetica", "bold");
         doc.setFontSize(9);
         doc.setTextColor(...brandColor);
-        doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 10, { align: "center", maxWidth: pageWidth - margin * 2 });
+        doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 14, { align: "center", maxWidth: pageWidth - margin * 2 });
       }
 
       doc.setFont("helvetica", "normal");
@@ -1739,7 +1767,7 @@ export const OrderDetailsSheet = ({
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      const showSalesOrderCaution = documentTitle === "SALES ORDER";
+      const showSalesOrderCaution = documentTitle === "SALES ORDER" && userRole !== "pharmacy";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -1756,7 +1784,7 @@ export const OrderDetailsSheet = ({
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
           doc.setTextColor(...brandColor);
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" });
         }
 
         // Draw page number text
@@ -2191,7 +2219,7 @@ export const OrderDetailsSheet = ({
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      const showSalesOrderCaution = documentTitle === "SALES ORDER";
+      const showSalesOrderCaution = documentTitle === "SALES ORDER" && userRole !== "pharmacy";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -2208,7 +2236,7 @@ export const OrderDetailsSheet = ({
           doc.setFont("helvetica", "bold");
           doc.setFontSize(9);
           doc.setTextColor(...brandColor);
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 10, { align: "center" });
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" });
         }
 
         // Draw page number text
@@ -2725,9 +2753,234 @@ export const OrderDetailsSheet = ({
   };
 
 
+  const handlePackingSlipShippingSubmit = async ({ recipient, packingSlip }: TrackingDialogSubmitPayload) => {
+    if (!trackingNumber.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a tracking number",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      const shippingCost =
+        shippingMethod === "FedEx"
+          ? Number(fedexData?.quotedAmount ?? (currentOrder as any)?.shipping_cost ?? (currentOrder as any)?.shipping?.cost ?? 0)
+          : 0;
+      const storedLabel =
+        shippingMethod === "FedEx" && fedexData?.labelBase64 && currentOrder.id
+          ? await uploadShippingLabelToStorage({
+              orderId: currentOrder.id,
+              orderNumber: currentOrder.order_number,
+              labelBase64: fedexData.labelBase64,
+              labelFormat: fedexData.labelFormat,
+              previousStoragePath: currentOrder.shipping?.labelStoragePath,
+            })
+          : null;
+
+      const existingShippingAddress =
+        (((currentOrder as any)?.shippingAddress || {}) as Record<string, any>) || {};
+      const existingShippingFields =
+        ((existingShippingAddress.shipping || {}) as Record<string, any>) || {};
+      const updatedShippingAddress = recipient
+        ? sanitizeJsonObject({
+            ...existingShippingAddress,
+            fullName: recipient.name,
+            email: recipient.email || "",
+            phone: recipient.phone,
+            address: {
+              street: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zip_code: recipient.zip_code,
+            },
+            shipping: sanitizeJsonObject({
+              ...existingShippingFields,
+              street1: recipient.street,
+              city: recipient.city,
+              state: recipient.state,
+              zipCode: recipient.zip_code,
+              phone: recipient.phone,
+            }),
+          })
+        : currentOrder.shippingAddress;
+
+      const updatedShipping = sanitizeJsonObject({
+        ...(((currentOrder as any)?.shipping || {}) as Record<string, any>),
+        method: shippingMethod,
+        trackingNumber: trackingNumber.trim(),
+        cost: shippingCost,
+        weight: fedexData?.weight || (currentOrder as any)?.shipping?.weight,
+        weightUnits: fedexData?.weightUnits || (currentOrder as any)?.shipping?.weightUnits || "LB",
+        labelUrl: storedLabel ? undefined : fedexData?.labelUrl || (currentOrder as any)?.shipping?.labelUrl,
+        labelStoragePath:
+          storedLabel?.storagePath || fedexData?.labelStoragePath || (currentOrder as any)?.shipping?.labelStoragePath,
+        labelFileName: storedLabel?.fileName || fedexData?.labelFileName || (currentOrder as any)?.shipping?.labelFileName,
+        labelFormat: fedexData?.labelFormat || (currentOrder as any)?.shipping?.labelFormat,
+        labelStockType: fedexData?.labelStockType || (currentOrder as any)?.shipping?.labelStockType,
+        serviceType: fedexData?.serviceType || (currentOrder as any)?.shipping?.serviceType,
+        packagingType: fedexData?.packagingType || (currentOrder as any)?.shipping?.packagingType,
+        pickupConfirmationNumber:
+          fedexData?.pickupConfirmationNumber || (currentOrder as any)?.shipping?.pickupConfirmationNumber,
+        pickupScheduledDate:
+          fedexData?.pickupScheduledDate || (currentOrder as any)?.shipping?.pickupScheduledDate,
+        trackingStatus: fedexData?.trackingStatus || (currentOrder as any)?.shipping?.trackingStatus,
+        estimatedDelivery: fedexData?.estimatedDeliveryDate || (currentOrder as any)?.shipping?.estimatedDelivery,
+        quotedAmount:
+          typeof fedexData?.quotedAmount === "number"
+            ? fedexData.quotedAmount
+            : (currentOrder as any)?.shipping?.quotedAmount,
+        quotedCurrency: fedexData?.quotedCurrency || (currentOrder as any)?.shipping?.quotedCurrency,
+        packingSlip: packingSlip
+          ? sanitizeJsonObject({
+              ...((((currentOrder as any)?.shipping || {}) as Record<string, any>)?.packingSlip || {}),
+              ...packingSlip,
+              trackingNumber: trackingNumber.trim(),
+            })
+          : (currentOrder as any)?.shipping?.packingSlip,
+      });
+
+      const orderShippingUpdate = {
+        shipping: updatedShipping,
+        shippingAddress: updatedShippingAddress,
+        tracking_number: updatedShipping.trackingNumber || null,
+        shipping_method: updatedShipping.method || null,
+        estimated_delivery: updatedShipping.estimatedDelivery || null,
+        status: "shipped",
+      };
+
+      const { error } = await supabase
+        .from("orders")
+        .update(orderShippingUpdate)
+        .eq("id", currentOrder.id);
+
+      if (error) {
+        throw error;
+      }
+
+      persistCurrentOrder({
+        ...orderShippingUpdate,
+        shipping: updatedShipping,
+        shippingAddress: updatedShippingAddress,
+      });
+
+      if (onShipOrder && currentOrder.id) {
+        await onShipOrder(currentOrder.id);
+      }
+
+      setShowPackingSlipShippingDialog(false);
+      setFedexData(null);
+      setTrackingNumber("");
+      setOpenPackingAfterShipping(false);
+
+      toast({
+        title: "Shipment Saved",
+        description: `Order shipped with tracking number: ${updatedShipping.trackingNumber}`,
+      });
+
+    } catch (error) {
+      console.error("Error saving shipping before packing slip:", error);
+      toast({
+        title: "Error",
+        description: "Failed to save shipment details",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDownloadPackingSlip = () => {
-    // Open modal instead of directly downloading
-    setIsPackingSlipModalOpen(true);
+    const existingShipping = (((currentOrder as any)?.shipping || {}) as Record<string, any>) || {};
+    setTrackingNumber(String(existingShipping.trackingNumber || (currentOrder as any)?.tracking_number || ""));
+    setShippingMethod(existingShipping.method === "custom" ? "custom" : "FedEx");
+    setFedexData(
+      existingShipping
+        ? ({
+            trackingNumber: existingShipping.trackingNumber,
+            labelStoragePath: existingShipping.labelStoragePath,
+            labelFileName: existingShipping.labelFileName,
+            labelFormat: existingShipping.labelFormat,
+            labelStockType: existingShipping.labelStockType,
+            serviceType: existingShipping.serviceType,
+            quotedAmount: existingShipping.quotedAmount,
+            quotedCurrency: existingShipping.quotedCurrency,
+            weight: existingShipping.weight,
+            weightUnits: existingShipping.weightUnits,
+          } as any)
+        : null,
+    );
+    setOpenPackingAfterShipping(true);
+    setShowPackingSlipShippingDialog(true);
+  };
+
+  const handleInlinePackingSlipDownload = async (
+    packingSlipPayload: TrackingDialogPackingSlipPayload,
+  ) => {
+    try {
+      const packedItems = (currentOrder?.items || []).flatMap((item: any) =>
+        (item.sizes || []).map((size: any) => ({
+          sku: size.sku || "-",
+          name: size.size_name || item.size_name || item.name || "-",
+          size: `${size.size_value || ""} ${size.size_unit || ""}`.trim(),
+          qtyPerCase: Number(size.quantity_per_case || 1),
+          casesOrdered: Number(size.quantity || 0),
+          batches: [],
+        })),
+      );
+
+      const totalCases = packedItems.reduce((sum: number, item: any) => sum + Number(item.casesOrdered || 0), 0);
+      const totalWeight = Number(packingSlipPayload.weight || 0);
+
+      const completeData = {
+        ...currentOrder,
+        packingDetails: {
+          ...packingSlipPayload,
+          packedAt: new Date(packingSlipPayload.packedAt || Date.now()).toLocaleString(),
+        },
+        packedItems,
+        totals: {
+          totalCases,
+          totalWeight,
+        },
+      };
+
+      await generateWorkOrderPDF(currentOrder, completeData);
+
+      const existingShipping = (((currentOrder as any)?.shipping || {}) as Record<string, any>) || {};
+      const updatedShipping = sanitizeJsonObject({
+        ...existingShipping,
+        packingSlip: sanitizeJsonObject({
+          ...(existingShipping.packingSlip || {}),
+          ...packingSlipPayload,
+          totalCases,
+          totalWeight,
+        }),
+      });
+
+      if (currentOrder?.id) {
+        const { error } = await supabase
+          .from("orders")
+          .update({ shipping: updatedShipping } as any)
+          .eq("id", currentOrder.id);
+
+        if (error) {
+          throw error;
+        }
+      }
+
+      persistCurrentOrder({ shipping: updatedShipping });
+      toast({
+        title: "Packing Slip Downloaded",
+        description: "Packing slip has been downloaded and saved.",
+      });
+    } catch (error) {
+      console.error("Failed inline packing slip download:", error);
+      toast({
+        title: "Error",
+        description: "Failed to download packing slip",
+        variant: "destructive",
+      });
+    }
   };
 
   const poSubtotal = (currentOrder.items || []).reduce((sum: number, item: any) => {
@@ -3769,8 +4022,8 @@ export const OrderDetailsSheet = ({
                   onDownload={!hideFinancialData ? handleDownloadPDF : undefined}
                   onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
                   onSendEmail={!hideFinancialData ? sendMail : undefined}
-                  onShipOrder={!poIs && onShipOrder ? () => handleStatusUpdate("ship") : undefined}
                   onPrint={!hideFinancialData ? handlePrint : undefined}
+                  onPackingSlip={!hideFinancialData && !poIs ? handleDownloadPackingSlip : undefined}
                   onOrderUpdate={persistCurrentOrder}
                   isGeneratingPDF={isGeneratingPDF}
                   isSendingEmail={loading}
@@ -4681,14 +4934,6 @@ export const OrderDetailsSheet = ({
                 {/* Admin Actions */}
                 {userRole === "admin" && !poIs && (
                   <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-2 sm:gap-3 mt-4 pt-4 border-t">
-
-                    <button
-                      onClick={handleDownloadPackingSlip}
-                      className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg shadow hover:shadow-lg transition duration-300 w-full sm:w-auto"
-                    >
-                      <Package size={18} />
-                      Packing Slip
-                    </button>
                     <OrderActions
                       order={currentOrder}
                       onProcessOrder={() => handleStatusUpdate("process")}
@@ -4697,6 +4942,7 @@ export const OrderDetailsSheet = ({
                       onDeleteOrder={onDeleteOrder}
                       onOrderUpdate={persistCurrentOrder}
                       allowDelete={!hideFinancialData}
+                      showShipAction={false}
                     />
                   </div>
                 )}
@@ -4750,6 +4996,30 @@ export const OrderDetailsSheet = ({
         open={isPackingSlipModalOpen}
         onOpenChange={setIsPackingSlipModalOpen}
         orderData={currentOrder}
+        onOrderUpdate={persistCurrentOrder}
+      />
+
+      <TrackingDialog
+        isOpen={showPackingSlipShippingDialog}
+        onOpenChange={(nextOpen) => {
+          setShowPackingSlipShippingDialog(nextOpen);
+          if (!nextOpen) {
+            setOpenPackingAfterShipping(false);
+          }
+        }}
+        trackingNumber={trackingNumber}
+        onTrackingNumberChange={setTrackingNumber}
+        shippingMethod={shippingMethod}
+        onShippingMethodChange={setShippingMethod}
+        order={currentOrder}
+        onFedExDataChange={setFedexData}
+        onOrderUpdate={persistCurrentOrder}
+        showPackingSection={
+          openPackingAfterShipping ||
+          Boolean((((currentOrder as any)?.shipping || {}) as Record<string, any>)?.packingSlip)
+        }
+        onDownloadPackingSlip={handleInlinePackingSlipDownload}
+        onSubmit={handlePackingSlipShippingSubmit}
       />
     </>
   );

@@ -173,7 +173,7 @@ export async function fetchCategoryConfigs() {
   console.log('✅ CATEGORY_CONFIGS loaded:', CATEGORY_CONFIGS);
 }
 
-// Protected route wrapper component
+// Protected route wrapper component - Optimized for instant session check
 const ProtectedRoute = ({
   children,
   allowedRoles,
@@ -192,9 +192,37 @@ const ProtectedRoute = ({
     () => new Set(allowedRolesKey.split("|").filter(Boolean).map((role) => role.toLowerCase())),
     [allowedRolesKey]
   );
-  const [isChecking, setIsChecking] = useState(true);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isAllowed, setIsAllowed] = useState(false);
+  
+  // Check if session exists in localStorage (instant check, no API call)
+  const hasSupabaseSession = useMemo(() => {
+    const keys = Object.keys(localStorage);
+    return keys.some(key => key.startsWith('sb-') && key.includes('auth-token'));
+  }, []);
+  
+  // Check sessionStorage for cached user data
+  const cachedIsLoggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+  const cachedUserType = sessionStorage.getItem("userType")?.toLowerCase();
+  const cachedUserRole = sessionStorage.getItem("userRole")?.toLowerCase();
+  
+  // If no Supabase session in localStorage, immediately redirect to login (no blinking)
+  if (!hasSupabaseSession) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  // Start with cached state to avoid blinking
+  const [isChecking, setIsChecking] = useState(!cachedIsLoggedIn);
+  const [isLoggedIn, setIsLoggedIn] = useState(cachedIsLoggedIn);
+  const [isAllowed, setIsAllowed] = useState(() => {
+    // Quick check with cached data
+    if (!cachedIsLoggedIn) return false;
+    const roleCandidates = new Set<string>();
+    if (cachedUserType) roleCandidates.add(cachedUserType);
+    if (cachedUserRole) {
+      roleCandidates.add(cachedUserRole);
+      if (cachedUserRole === "superadmin") roleCandidates.add("admin");
+    }
+    return [...roleCandidates].some((role) => allowedRolesSet.has(role));
+  });
 
   useEffect(() => {
     let isMounted = true;
@@ -207,6 +235,7 @@ const ProtectedRoute = ({
           if (!isMounted) return;
           setIsLoggedIn(false);
           setIsAllowed(false);
+          setIsChecking(false);
           return;
         }
 
@@ -246,14 +275,21 @@ const ProtectedRoute = ({
       }
     };
 
-    checkAccess();
+    // Only check if we don't have cached data or need to verify
+    if (!cachedIsLoggedIn) {
+      checkAccess();
+    } else {
+      // Verify in background but don't block UI
+      checkAccess();
+    }
 
     return () => {
       isMounted = false;
     };
-  }, [allowedPermissionsKey, allowedPermissions, allowedRolesKey, allowedRolesSet]);
+  }, [allowedPermissionsKey, allowedPermissions, allowedRolesKey, allowedRolesSet, cachedIsLoggedIn]);
 
-  if (isChecking) {
+  // Only show loader if we're checking AND don't have cached data
+  if (isChecking && !cachedIsLoggedIn) {
     return <PageLoader />;
   }
 
@@ -290,36 +326,183 @@ function App() {
     }
   }, [location.pathname]);
 
-  // Browser close detection - clear localStorage when all tabs are closed
+  // Session management: Tab/Browser close + 5 min inactivity with warning
   useEffect(() => {
-    // Mark that this tab is open
-    sessionStorage.setItem('tabOpen', 'true');
+    const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+    const WARNING_BEFORE_LOGOUT = 20 * 1000; // 20 seconds before logout
+    const SESSION_CHECK_KEY = 'session_check_timestamp';
+    const TAB_ID_KEY = 'active_tab_id';
     
-    const handleBeforeUnload = () => {
-      // Remove this tab's marker
-      sessionStorage.removeItem('tabOpen');
+    // Generate unique tab ID
+    const tabId = `tab_${Date.now()}_${Math.random()}`;
+    sessionStorage.setItem(TAB_ID_KEY, tabId);
+    
+    // Initialize session check timestamp
+    const initSession = () => {
+      const now = Date.now();
+      localStorage.setItem(SESSION_CHECK_KEY, now.toString());
+      localStorage.setItem('lastActivity', now.toString());
+      localStorage.setItem('activeTabId', tabId);
+    };
+    
+    // Check if session should be cleared (tab/browser was closed)
+    const checkSessionValidity = () => {
+      const lastCheck = localStorage.getItem(SESSION_CHECK_KEY);
+      const lastActivity = localStorage.getItem('lastActivity');
+      const activeTabId = localStorage.getItem('activeTabId');
       
-      // Check if this is the last tab closing
-      // Use a small delay to allow other tabs to update
-      setTimeout(() => {
-        if (!sessionStorage.getItem('tabOpen')) {
-          // Last tab closing - clear localStorage to logout
-          const authKeys = Object.keys(localStorage).filter(key => 
-            key.startsWith('sb-') || key.includes('supabase')
-          );
-          authKeys.forEach(key => localStorage.removeItem(key));
-          console.log('🚪 Last tab closed - localStorage cleared for logout');
+      if (!lastCheck || !lastActivity) {
+        initSession();
+        return true;
+      }
+      
+      const now = Date.now();
+      const timeSinceCheck = now - parseInt(lastCheck);
+      
+      // If more than 10 seconds since last check, tab/browser was closed
+      if (timeSinceCheck > 10000) {
+        console.log('🚪 Tab/Browser was closed - Clearing session');
+        clearSession();
+        return false;
+      }
+      
+      return true;
+    };
+    
+    const clearSession = () => {
+      // Clear Supabase session
+      const authKeys = Object.keys(localStorage).filter(key => 
+        key.startsWith('sb-') || key.includes('supabase')
+      );
+      authKeys.forEach(key => localStorage.removeItem(key));
+      
+      // Clear tracking data
+      localStorage.removeItem(SESSION_CHECK_KEY);
+      localStorage.removeItem('lastActivity');
+      localStorage.removeItem('activeTabId');
+      localStorage.removeItem('inactivityWarningShown');
+      sessionStorage.clear();
+    };
+    
+    // Check session validity on mount
+    const isValid = checkSessionValidity();
+    if (!isValid) {
+      window.location.href = '/login';
+      return;
+    }
+    
+    // Show inactivity warning
+    const showInactivityWarning = () => {
+      const warningShown = localStorage.getItem('inactivityWarningShown');
+      if (warningShown === 'true') return; // Already shown
+      
+      localStorage.setItem('inactivityWarningShown', 'true');
+      
+      // Show warning toast with countdown
+      let countdown = 20;
+      const toastId = toast({
+        title: "⚠️ Session Expiring Soon",
+        description: `You will be logged out in ${countdown} seconds due to inactivity. Move your mouse or click anywhere to stay logged in.`,
+        duration: 20000,
+        variant: "destructive",
+      });
+      
+      // Update countdown every second
+      const countdownInterval = setInterval(() => {
+        countdown--;
+        if (countdown <= 0) {
+          clearInterval(countdownInterval);
         }
-      }, 100);
+      }, 1000);
+      
+      // Listen for any user activity to cancel warning
+      const cancelWarning = () => {
+        clearInterval(countdownInterval);
+        localStorage.setItem('lastActivity', Date.now().toString());
+        localStorage.removeItem('inactivityWarningShown');
+        toast({
+          title: "✅ Session Extended",
+          description: "Your session has been extended.",
+        });
+        // Remove listeners
+        window.removeEventListener('mousemove', cancelWarning);
+        window.removeEventListener('keydown', cancelWarning);
+        window.removeEventListener('click', cancelWarning);
+      };
+      
+      window.addEventListener('mousemove', cancelWarning, { once: true });
+      window.addEventListener('keydown', cancelWarning, { once: true });
+      window.addEventListener('click', cancelWarning, { once: true });
+    };
+    
+    // Update session check timestamp every 2 seconds
+    const updateInterval = setInterval(() => {
+      const now = Date.now();
+      localStorage.setItem(SESSION_CHECK_KEY, now.toString());
+      localStorage.setItem('activeTabId', tabId);
+      
+      // Check inactivity
+      const lastActivity = localStorage.getItem('lastActivity');
+      if (lastActivity) {
+        const timeSinceActivity = now - parseInt(lastActivity);
+        
+        // Show warning 20 seconds before logout
+        if (timeSinceActivity > INACTIVITY_TIMEOUT - WARNING_BEFORE_LOGOUT && 
+            timeSinceActivity < INACTIVITY_TIMEOUT) {
+          showInactivityWarning();
+        }
+        
+        // Logout after 5 minutes
+        if (timeSinceActivity > INACTIVITY_TIMEOUT) {
+          console.log('⏰ 5 minutes inactivity - Logging out');
+          clearSession();
+          window.location.href = '/login';
+        }
+      }
+    }, 2000);
+    
+    // Track user activity
+    const updateActivity = () => {
+      localStorage.setItem('lastActivity', Date.now().toString());
+      localStorage.removeItem('inactivityWarningShown'); // Reset warning
+    };
+    
+    // Throttle activity updates (max once per second)
+    let activityTimeout: NodeJS.Timeout | null = null;
+    const throttledUpdateActivity = () => {
+      if (!activityTimeout) {
+        updateActivity();
+        activityTimeout = setTimeout(() => {
+          activityTimeout = null;
+        }, 1000);
+      }
+    };
+    
+    window.addEventListener('mousemove', throttledUpdateActivity);
+    window.addEventListener('keydown', throttledUpdateActivity);
+    window.addEventListener('scroll', throttledUpdateActivity);
+    window.addEventListener('touchstart', throttledUpdateActivity);
+    window.addEventListener('click', throttledUpdateActivity);
+    
+    // Handle tab close
+    const handleBeforeUnload = () => {
+      // Stop updating timestamp so next tab open will detect closure
+      clearInterval(updateInterval);
     };
     
     window.addEventListener('beforeunload', handleBeforeUnload);
     
     return () => {
+      clearInterval(updateInterval);
+      if (activityTimeout) clearTimeout(activityTimeout);
+      window.removeEventListener('mousemove', throttledUpdateActivity);
+      window.removeEventListener('keydown', throttledUpdateActivity);
+      window.removeEventListener('scroll', throttledUpdateActivity);
+      window.removeEventListener('touchstart', throttledUpdateActivity);
+      window.removeEventListener('click', throttledUpdateActivity);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      handleBeforeUnload();
     };
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     let isMounted = true;
@@ -337,6 +520,17 @@ function App() {
 
     const syncTrustedAuthState = async () => {
       try {
+        // First check if localStorage has any Supabase session
+        const hasLocalSession = Object.keys(localStorage).some(key => 
+          key.startsWith('sb-') && key.includes('auth-token')
+        );
+        
+        if (!hasLocalSession) {
+          // No session in localStorage, clear everything
+          clearAuthSessionStorage();
+          return;
+        }
+        
         const {
           data: { session },
         } = await supabase.auth.getSession();

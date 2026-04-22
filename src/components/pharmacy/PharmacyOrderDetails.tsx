@@ -703,7 +703,7 @@ console.log(order,"PHARorder")
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
-      const showSalesOrderCaution = documentTitle === "SALES ORDER"
+      const showSalesOrderCaution = false
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
@@ -720,7 +720,7 @@ console.log(order,"PHARorder")
           doc.setFont("helvetica", "bold")
           doc.setFontSize(9)
           doc.setTextColor(...brandColor)
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" })
         }
         
         // Page number text
@@ -969,7 +969,7 @@ console.log(order,"PHARorder")
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
-      const showSalesOrderCaution = documentTitle === "SALES ORDER"
+      const showSalesOrderCaution = false
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
@@ -986,7 +986,7 @@ console.log(order,"PHARorder")
           doc.setFont("helvetica", "bold")
           doc.setFontSize(9)
           doc.setTextColor(...brandColor)
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 11, { align: "center" })
+          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" })
         }
         
         // Page number text
