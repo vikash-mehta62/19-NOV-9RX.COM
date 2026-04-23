@@ -614,11 +614,23 @@ export const downloadShippingLabelDocument = async (
   const remoteBytes = await fetchRemoteLabelBytes(shipping);
   if (remoteBytes) {
     const detected = detectDocumentInfoFromBytes(remoteBytes, shipping.labelFormat);
+    
+    // Log format mismatch for debugging
+    const requestedFormat = String(shipping.labelFormat || "").toUpperCase();
+    const actualFormat = detected.extension.toUpperCase();
+    if (requestedFormat.includes("ZPL") && actualFormat === "PDF") {
+      console.warn(`Label format mismatch: Requested ${requestedFormat} but received ${actualFormat}. This is a known FedEx API limitation in sandbox mode.`);
+    }
+    
     const blob = new Blob([remoteBytes], { type: detected.mimeType });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = fileName || shipping.labelFileName || `fedex-label.${detected.extension}`;
+    // Use detected extension for download filename to match actual content
+    const downloadFileName = fileName 
+      ? fileName.replace(/\.(pdf|png|zpl)$/i, `.${detected.extension}`)
+      : (shipping.labelFileName?.replace(/\.(pdf|png|zpl)$/i, `.${detected.extension}`) || `fedex-label.${detected.extension}`);
+    anchor.download = downloadFileName;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -629,11 +641,23 @@ export const downloadShippingLabelDocument = async (
   if (shipping.labelBase64) {
     const { bytes } = decodeLabel(shipping.labelBase64);
     const { mimeType, extension } = detectDocumentInfoFromBytes(bytes, shipping.labelFormat);
+    
+    // Log format mismatch for debugging
+    const requestedFormat = String(shipping.labelFormat || "").toUpperCase();
+    const actualFormat = extension.toUpperCase();
+    if (requestedFormat.includes("ZPL") && actualFormat === "PDF") {
+      console.warn(`Label format mismatch: Requested ${requestedFormat} but received ${actualFormat}. This is a known FedEx API limitation in sandbox mode.`);
+    }
+    
     const blob = new Blob([bytes], { type: mimeType });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = fileName || shipping.labelFileName || `fedex-label.${extension}`;
+    // Use detected extension for download filename to match actual content
+    const downloadFileName = fileName 
+      ? fileName.replace(/\.(pdf|png|zpl)$/i, `.${extension}`)
+      : (shipping.labelFileName?.replace(/\.(pdf|png|zpl)$/i, `.${extension}`) || `fedex-label.${extension}`);
+    anchor.download = downloadFileName;
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);

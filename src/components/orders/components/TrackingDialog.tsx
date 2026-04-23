@@ -1329,11 +1329,11 @@ export const TrackingDialog = ({
   const previewLabel = async () => {
     const activeLabelData = await getPrimaryLabelData();
     if (!activeLabelData) {
-      toast({
-        title: "Preview failed",
-        description: "No saved label is available. Regenerate FedEx label and save shipping.",
-        variant: "destructive",
-      });
+      // toast({
+      //   title: "Preview failed",
+      //   description: "No saved label is available. Regenerate FedEx label and save shipping.",
+      //   variant: "destructive",
+      // });
       return;
     }
 
@@ -1342,11 +1342,11 @@ export const TrackingDialog = ({
       const opened = await openShippingLabelDocument(activeLabelData);
       if (!opened) throw new Error("Saved label could not be opened. Regenerate label and save shipping again.");
     } catch (error) {
-      toast({
-        title: "Preview failed",
-        description: error instanceof Error ? error.message : "Unable to preview saved label.",
-        variant: "destructive",
-      });
+      // toast({
+      //   title: "Preview failed",
+      //   description: error instanceof Error ? error.message : "Unable to preview saved label.",
+      //   variant: "destructive",
+      // });
     }
   };
 
