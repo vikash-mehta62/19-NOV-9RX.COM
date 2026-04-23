@@ -1,24 +1,24 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import JsBarcode from "jsbarcode";
+// import JsBarcode from "jsbarcode";
 import Logo from "../assests/home/9rx_logo.png"
 import {
   fetchAdminDocumentSettings,
   formatDocumentContactLine,
 } from "@/lib/documentSettings";
 
-// Generate barcode as base64 image
-const generateBarcode = (text: string): string => {
-  const canvas = document.createElement("canvas");
-  JsBarcode(canvas, text, {
-    format: "CODE128",
-    width: 2,
-    height: 35,
-    displayValue: false,
-    margin: 0,
-  });
-  return canvas.toDataURL("image/png");
-};
+// Barcode rendering is intentionally disabled for packing slips.
+// const generateBarcode = (text: string): string => {
+//   const canvas = document.createElement("canvas");
+//   JsBarcode(canvas, text, {
+//     format: "CODE128",
+//     width: 2,
+//     height: 35,
+//     displayValue: false,
+//     margin: 0,
+//   });
+//   return canvas.toDataURL("image/png");
+// };
 
 export const generateWorkOrderPDF = async (workOrderData: any, packingData: any) => {
   try {
@@ -45,6 +45,9 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const totals = packingData?.totals || {};
     const customerInfo = packingData?.customerInfo || {};
     const shipTo = packingData?.shippingAddress || {};
+    const cartonTrackingNumbers = Array.isArray(packingDetails.cartonTrackingNumbers)
+      ? packingDetails.cartonTrackingNumbers.filter((item: any) => item?.trackingNumber)
+      : [];
 
     // Professional blue color scheme
     const COLORS = {
@@ -154,15 +157,16 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setTextColor(...COLORS.white);
     doc.text("PACKED", badgeX + badgeW / 2, badgeY + 5.5, { align: "center" });
 
-    const barcodeY = badgeY + 13;
-    try {
-      const barcodeUrl = generateBarcode(orderNumber);
-      doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, 12);
-    } catch (e) {
-      console.warn("Barcode generation failed:", e);
-    }
+    // Barcode hidden from packing slip header.
+    // const barcodeY = badgeY + 13;
+    // try {
+    //   const barcodeUrl = generateBarcode(orderNumber);
+    //   doc.addImage(barcodeUrl, "PNG", pageWidth - margin - 50, barcodeY, 50, 12);
+    // } catch (e) {
+    //   console.warn("Barcode generation failed:", e);
+    // }
 
-    const dividerY = Math.max(addressY, logoBottomY, barcodeY + 12) + 2;
+    const dividerY = Math.max(addressY, logoBottomY, badgeY + badgeH) + 6;
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
     doc.line(margin, dividerY, pageWidth - margin, dividerY);
@@ -347,7 +351,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.text(packingDetails.shipVia || "FedEx Express", col1X + labelW, currentY);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Tracking #:", col2X, currentY);
+    doc.text(cartonTrackingNumbers.length > 1 ? "Master Tracking:" : "Tracking #:", col2X, currentY);
     doc.setFont("helvetica", "normal");
     doc.text(packingDetails.trackingNumber || "N/A", col2X + labelW, currentY);
 
@@ -363,6 +367,47 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.text("Shipping Class:", col2X, currentY);
     doc.setFont("helvetica", "normal");
     doc.text(packingDetails.shippingClass || "N/A", col2X + labelW + 3, currentY);
+
+    if (cartonTrackingNumbers.length > 0) {
+      currentY += 11;
+      checkPageBreak(12 + cartonTrackingNumbers.length * 7);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...COLORS.primary);
+      doc.text("CARTON TRACKING", margin, currentY);
+      currentY += 4;
+
+      autoTable(doc as any, {
+        head: [["CARTON", "TRACKING NUMBER"]],
+        body: cartonTrackingNumbers.map((item: any) => [
+          `Carton ${item.carton || ""}`.trim(),
+          item.trackingNumber,
+        ]),
+        startY: currentY,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2.5,
+          lineColor: [220, 220, 220],
+          lineWidth: 0.2,
+        },
+        theme: "grid",
+        headStyles: {
+          fillColor: COLORS.primary,
+          textColor: COLORS.white,
+          fontStyle: "bold",
+          halign: "center",
+          fontSize: 8,
+        },
+        columnStyles: {
+          0: { cellWidth: 34, halign: "center" },
+          1: { cellWidth: 80, halign: "left", font: "courier" },
+        },
+        margin: { left: margin, right: margin },
+      });
+
+      currentY = (doc as any).lastAutoTable.finalY;
+    }
 
     // ==========================================
     // SECTION 6: WAREHOUSE QC

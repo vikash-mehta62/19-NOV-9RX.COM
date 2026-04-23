@@ -8,6 +8,7 @@ export interface FedExPackageInput {
   width: number;
   height: number;
   dimensionUnits: "IN" | "CM";
+  packageCount?: number;
   serviceType?: string;
   packagingType?: string;
   pickupType?: string;
@@ -22,6 +23,14 @@ export interface FedExShipmentResult {
   labelFormat?: string;
   serviceType?: string;
   packagingType?: string;
+  packageCount?: number;
+  packageLabels?: Array<{
+    sequenceNumber?: number;
+    trackingNumber?: string;
+    labelUrl?: string;
+    labelBase64?: string;
+    labelFormat?: string;
+  }>;
   estimatedDeliveryDate?: string;
   shipmentId?: string;
   raw?: Record<string, any>;

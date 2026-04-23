@@ -63,6 +63,30 @@ export const OrderShipAction = ({
               previousStoragePath: order.shipping?.labelStoragePath,
             })
           : null;
+      const storedPackageLabels =
+        shippingMethod === "FedEx" && Array.isArray(fedexData?.packageLabels) && order.id
+          ? await Promise.all(
+              fedexData.packageLabels.map(async (label, index) => {
+                if (!label.labelBase64) return label;
+                const stored = await uploadShippingLabelToStorage({
+                  orderId: order.id,
+                  orderNumber: order.order_number,
+                  labelBase64: label.labelBase64,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                  previousStoragePath: label.labelStoragePath,
+                  fileNameSuffix: `box-${label.sequenceNumber || index + 1}`,
+                });
+                return {
+                  ...label,
+                  labelUrl: undefined,
+                  labelBase64: undefined,
+                  labelStoragePath: stored.storagePath,
+                  labelFileName: stored.fileName,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                };
+              }),
+            )
+          : fedexData?.packageLabels || order.shipping?.packageLabels;
       const existingShippingAddress =
         (((order as any)?.shippingAddress || {}) as Record<string, any>) || {};
       const existingShippingFields =
@@ -103,6 +127,8 @@ export const OrderShipAction = ({
         labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || order.shipping?.serviceType,
         packagingType: fedexData?.packagingType || order.shipping?.packagingType,
+        packageCount: fedexData?.packageCount || order.shipping?.packageCount,
+        packageLabels: storedPackageLabels,
         pickupConfirmationNumber:
           fedexData?.pickupConfirmationNumber || order.shipping?.pickupConfirmationNumber,
         pickupScheduledDate:

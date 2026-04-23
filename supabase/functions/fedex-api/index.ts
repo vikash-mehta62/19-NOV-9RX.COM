@@ -462,6 +462,7 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
   const pkg = shipment.package || {};
   const weightUnits = pkg.weightUnits || settings.fedex_default_weight_units || "LB";
   const weightValue = Number(pkg.weightValue || settings.fedex_default_weight_value || 1);
+  const packageCount = Math.max(1, Math.floor(Number(pkg.packageCount || pkg.cartons || 1)));
   const dimensionUnits = pkg.dimensionUnits || settings.fedex_default_dimension_units || "IN";
   const length = Number(pkg.length || settings.fedex_default_length || 12);
   const width = Number(pkg.width || settings.fedex_default_width || 10);
@@ -493,13 +494,38 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
   // fields that commonly fail in sandbox/fallback paths.
   const selectedImageType = imageType;
   const selectedLabelStockType = labelStockType;
+  const requestedPackageLineItems = Array.from({ length: packageCount }, (_, index) => ({
+    sequenceNumber: index + 1,
+    ...(options?.minimal ? {} : { groupPackageCount: 1 }),
+    weight: {
+      units: weightUnits,
+      value: weightValue,
+    },
+    dimensions: {
+      length,
+      width,
+      height,
+      units: dimensionUnits,
+    },
+    ...(options?.minimal || !shipment.customerReference
+      ? {}
+      : {
+          customerReferences: [
+            {
+              customerReferenceType: "CUSTOMER_REFERENCE",
+              value: shipment.customerReference,
+            },
+          ],
+        }),
+  }));
+
   const requestedShipment = {
     shipDatestamp: new Date().toISOString().slice(0, 10),
     pickupType: selectedPickupType,
     serviceType,
     packagingType,
     rateRequestType: ["ACCOUNT"],
-    totalPackageCount: 1,
+    totalPackageCount: packageCount,
     ...(options?.minimal
       ? {}
       : {
@@ -549,32 +575,7 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
       imageType: selectedImageType,
       labelStockType: selectedLabelStockType,
     },
-    requestedPackageLineItems: [
-      {
-        sequenceNumber: 1,
-        ...(options?.minimal ? {} : { groupPackageCount: 1 }),
-        weight: {
-          units: weightUnits,
-          value: weightValue,
-        },
-        dimensions: {
-          length,
-          width,
-          height,
-          units: dimensionUnits,
-        },
-        ...(options?.minimal || !shipment.customerReference
-          ? {}
-          : {
-              customerReferences: [
-                {
-                  customerReferenceType: "CUSTOMER_REFERENCE",
-                  value: shipment.customerReference,
-                },
-              ],
-            }),
-      },
-    ],
+    requestedPackageLineItems,
   };
 
   return cleanObject(requestedShipment);
@@ -600,7 +601,20 @@ const buildRequestedRateQuoteShipment = (
 
 const extractShipmentResult = (result: JsonRecord) => {
   const completed = result?.output?.transactionShipments?.[0] || result?.transactionShipments?.[0] || {};
-  const packageResult = completed?.pieceResponses?.[0]?.packageDocuments?.[0] || completed?.packageDocuments?.[0] || {};
+  const pieceResponses = Array.isArray(completed?.pieceResponses) ? completed.pieceResponses : [];
+  const packageLabels = pieceResponses
+    .map((piece: JsonRecord, index: number) => {
+      const document = piece?.packageDocuments?.[0] || {};
+      return cleanObject({
+        sequenceNumber: Number(piece?.sequenceNumber || index + 1),
+        trackingNumber: piece?.trackingNumber || "",
+        labelUrl: document?.url,
+        labelBase64: document?.encodedLabel,
+        labelFormat: document?.contentType,
+      });
+    })
+    .filter((label: JsonRecord) => label.labelUrl || label.labelBase64);
+  const packageResult = packageLabels[0] || completed?.packageDocuments?.[0] || {};
   return {
     trackingNumber:
       completed?.masterTrackingNumber ||
@@ -611,6 +625,8 @@ const extractShipmentResult = (result: JsonRecord) => {
     labelFormat: packageResult?.contentType,
     serviceType: completed?.serviceType,
     packagingType: completed?.packagingDescription,
+    packageCount: packageLabels.length || (pieceResponses.length || undefined),
+    packageLabels,
     estimatedDeliveryDate: completed?.serviceCommitMessage?.dateDetail?.dayFormat,
     shipmentId: completed?.shipmentDocuments?.[0]?.trackingNumber,
     raw: result,

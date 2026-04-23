@@ -8,9 +8,14 @@ export interface ShippingLabelData {
   labelStoragePath?: string;
   labelFileName?: string;
   labelFormat?: string;
+  packageLabels?: ShippingLabelData[];
 }
 
 const isZplFormat = (format?: string) => String(format || "").toLowerCase().includes("zpl");
+const isPlainTextLabelFormat = (format?: string) => {
+  const normalized = String(format || "").toLowerCase();
+  return normalized.includes("zpl") || normalized.includes("text/plain") || normalized.includes("plain");
+};
 const hasUsableValue = (value: unknown) => {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
@@ -519,7 +524,8 @@ export const hasShippingLabelDocument = (shipping?: ShippingLabelData | null) =>
   Boolean(
     hasUsableValue(shipping?.labelStoragePath) ||
     hasUsableValue(shipping?.labelUrl) ||
-    (hasUsableValue(shipping?.labelBase64) && String(shipping?.labelBase64 || "").trim().length > 20)
+    (hasUsableValue(shipping?.labelBase64) && String(shipping?.labelBase64 || "").trim().length > 20) ||
+    shipping?.packageLabels?.some((label) => hasShippingLabelDocument(label))
   );
 
 export const openShippingLabelDocument = async (shipping?: ShippingLabelData | null) => {
@@ -683,18 +689,23 @@ export const uploadShippingLabelToStorage = async ({
   labelBase64,
   labelFormat,
   previousStoragePath,
+  fileNameSuffix,
 }: {
   orderId: string;
   orderNumber?: string;
   labelBase64: string;
   labelFormat?: string;
   previousStoragePath?: string;
+  fileNameSuffix?: string;
 }) => {
   const { bytes } = decodeLabel(labelBase64);
   const { extension, mimeType } = detectDocumentInfoFromBytes(bytes, labelFormat);
-  const fileName = buildShippingLabelFileName(orderNumber || orderId, extension);
+  const fileName = buildShippingLabelFileName(
+    fileNameSuffix ? `${orderNumber || orderId}-${fileNameSuffix}` : orderNumber || orderId,
+    extension,
+  );
   const storagePath = `shipping-labels/${orderId}/${crypto.randomUUID()}.${extension}`;
-  const mimeCandidates = isZplFormat(labelFormat)
+  const mimeCandidates = isPlainTextLabelFormat(labelFormat) || mimeType === "text/plain"
     ? ["text/plain", "application/pdf", "image/png", "application/octet-stream"]
     : [mimeType];
   let uploadedMimeType = mimeCandidates[0];

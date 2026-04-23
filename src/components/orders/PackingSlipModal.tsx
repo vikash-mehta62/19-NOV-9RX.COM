@@ -267,9 +267,19 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData, onOrderUpdate 
         };
       });
       
+      const existingShipping = (((orderData as any)?.shipping || {}) as Record<string, any>) || {};
+      const cartonTrackingNumbers = Array.isArray(existingShipping.packageLabels)
+        ? existingShipping.packageLabels
+            .map((label: any, index: number) => ({
+              carton: Number(label.sequenceNumber || index + 1),
+              trackingNumber: String(label.trackingNumber || "").trim(),
+            }))
+            .filter((item: any) => item.trackingNumber)
+        : [];
+
       const completeData = {
         ...orderData,
-        packingDetails: { ...packingData, packedAt: new Date().toLocaleString() },
+        packingDetails: { ...packingData, cartonTrackingNumbers, packedAt: new Date().toLocaleString() },
         packedItems: itemsWithBatches,
         totals: {
           ...totals,
@@ -292,7 +302,6 @@ export const PackingSlipModal = ({ open, onOpenChange, orderData, onOrderUpdate 
         totalWeight: displayWeight,
       };
 
-      const existingShipping = (((orderData as any)?.shipping || {}) as Record<string, any>) || {};
       const updatedShipping = {
         ...existingShipping,
         packingSlip: packingSlipPayload,

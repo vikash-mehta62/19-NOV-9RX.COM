@@ -12,11 +12,6 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDate } from "../../utils/dateUtils";
-import {
-  hasShippingLabelDocument,
-  openShippingLabelDocument,
-  printShippingLabelDocument,
-} from "../../utils/shippingLabelDocuments";
 
 // Helper function to generate tracking URL based on carrier
 const getTrackingUrl = (method: string, trackingNumber: string): string => {
@@ -81,6 +76,7 @@ export const ShippingTab = ({
   hideFinancialData = false,
 }: ShippingTabProps) => {
   const [copied, setCopied] = useState(false);
+  const [copiedTrackingNumber, setCopiedTrackingNumber] = useState("");
   const { toast } = useToast();
   const orderDate = order.date || (order as any).created_at;
   
@@ -129,10 +125,13 @@ export const ShippingTab = ({
     }
   };
 
-  const handleCopyTracking = () => {
-    if (order.shipping?.trackingNumber) {
-      navigator.clipboard.writeText(order.shipping.trackingNumber);
+  const handleCopyTracking = (trackingNumber?: string) => {
+    const value = String(trackingNumber || "").trim();
+    if (value) {
+      navigator.clipboard.writeText(value);
+      setCopiedTrackingNumber(value);
       toast({ title: "Copied!", description: "Tracking number copied to clipboard" });
+      setTimeout(() => setCopiedTrackingNumber(""), 2000);
     }
   };
 
@@ -220,7 +219,15 @@ export const ShippingTab = ({
   };
 
   const statusStyle = getStatusStyle();
-  const hasSavedShippingLabel = hasShippingLabelDocument(order.shipping);
+  const packageTrackingItems = Array.isArray((order.shipping as any)?.packageLabels)
+    ? ((order.shipping as any).packageLabels as any[])
+        .map((label, index) => ({
+          box: Number(label.sequenceNumber || index + 1),
+          trackingNumber: String(label.trackingNumber || "").trim(),
+          label,
+        }))
+        .filter((item) => item.trackingNumber)
+    : [];
 
   return (
     <div className="space-y-6">
@@ -278,59 +285,88 @@ export const ShippingTab = ({
             </div>
           )}
 
-          {order.shipping?.trackingNumber && (
-            <div className="p-4 rounded-lg bg-blue-50 border border-blue-100">
-              <div className="flex items-start justify-between">
+          {(packageTrackingItems.length > 0 || order.shipping?.trackingNumber) && (
+            <div className="rounded-xl border border-blue-200 bg-gradient-to-br from-blue-50 to-sky-50 p-4 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                 <div className="flex items-start gap-3">
-                  <div className="p-2 bg-white rounded-lg shadow-sm">
+                  <div className="rounded-lg bg-white p-2 shadow-sm ring-1 ring-blue-100">
                     <Package className="w-4 h-4 text-blue-600" />
                   </div>
-                  <div>
-                    <p className="text-xs text-blue-700 font-semibold uppercase tracking-wide">Tracking Number</p>
-                    <p className="font-mono text-blue-900 mt-1">{order.shipping.trackingNumber}</p>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      {packageTrackingItems.length > 1 ? "Carton Tracking Numbers" : "Tracking Number"}
+                    </p>
+                      {packageTrackingItems.length > 1 && (
+                        <Badge variant="outline" className="border-blue-200 bg-white text-blue-700">
+                          {packageTrackingItems.length} cartons
+                        </Badge>
+                      )}
+                    </div>
+                    {packageTrackingItems.length > 0 ? (
+                      <div className="mt-3 grid gap-3 md:grid-cols-4 lg:grid-cols-4">
+                        {packageTrackingItems.map((item) => (
+                          <div key={`${item.box}-${item.trackingNumber}`} className="rounded-lg border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                            <div className="mb-1 flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Carton {item.box}</p>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleCopyTracking(item.trackingNumber)}
+                                className="h-7 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                                aria-label={`Copy carton ${item.box} tracking number`}
+                              >
+                                {copiedTrackingNumber === item.trackingNumber ? (
+                                  <Check className="h-3.5 w-3.5" />
+                                ) : (
+                                  <Copy className="h-3.5 w-3.5" />
+                                )}
+                              </Button>
+                            </div>
+                            <p className="break-all font-mono text-sm font-semibold text-blue-950">{item.trackingNumber}</p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center gap-2 rounded-lg border border-blue-100 bg-white px-4 py-3 shadow-sm">
+                        <p className="min-w-0 flex-1 break-all font-mono text-sm font-semibold text-blue-950">
+                          {order.shipping?.trackingNumber}
+                        </p>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleCopyTracking(order.shipping?.trackingNumber)}
+                          className="h-8 px-2 text-blue-600 hover:bg-blue-50 hover:text-blue-700"
+                          aria-label="Copy tracking number"
+                        >
+                          {copiedTrackingNumber === order.shipping?.trackingNumber ? (
+                            <Check className="h-4 w-4" />
+                          ) : (
+                            <Copy className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyTracking}
-                  className="text-blue-600 hover:text-blue-700 hover:bg-blue-100"
-                >
-                  <Copy className="w-4 h-4" />
-                </Button>
               </div>
               
-              <div className="mt-4">
+              <div className="mt-4 border-t border-blue-200 pt-4">
                 <div className="flex flex-wrap gap-2">
-                  <a
-                    href={getTrackingUrl(order.shipping.method, order.shipping.trackingNumber)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Track Package
-                  </a>
-                  {hasSavedShippingLabel && (
-                    <>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openShippingLabelDocument(order.shipping)}
-                        className="border-blue-200 text-blue-700 hover:bg-blue-100"
-                      >
-                        Open Label
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => printShippingLabelDocument(order.shipping)}
-                        className="border-blue-200 text-blue-700 hover:bg-blue-100"
-                      >
-                        Print Label
-                      </Button>
-                    </>
-                  )}
+                  {(packageTrackingItems.length > 0 ? packageTrackingItems : [{ box: 1, trackingNumber: order.shipping?.trackingNumber, label: order.shipping }]).map((item) => (
+                    <a
+                      key={`${item.box}-${item.trackingNumber}`}
+                      href={getTrackingUrl(order.shipping?.method || "FedEx", String(item.trackingNumber || ""))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      {packageTrackingItems.length > 1 ? `Track Carton ${item.box}` : "Track Package"}
+                    </a>
+                  ))}
                 </div>
               </div>
             </div>

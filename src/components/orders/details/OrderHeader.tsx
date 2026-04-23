@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, Truck, CreditCard, Ban } from "lucide-react";
+import { Calendar, Clock, Copy, Edit, Download, Trash2, Package, Mail, Printer, Truck, CreditCard, Ban, Loader2 } from "lucide-react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import { useToast } from "@/hooks/use-toast";
 import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
@@ -24,8 +24,9 @@ interface OrderHeaderProps {
   onDelete?: () => void;
   onSendEmail?: () => void;
   onShipOrder?: () => void;
-  onPrint?: () => void;
-  onPackingSlip?: () => void;
+  onCreateLabel?: () => void;
+  onPrint?: () => void | Promise<void>;
+  onPackingSlip?: () => void | Promise<void>;
   onOrderUpdate?: (updates: Record<string, any>) => void;
   isGeneratingPDF?: boolean;
   isSendingEmail?: boolean;
@@ -42,6 +43,7 @@ export const OrderHeader = ({
   onDelete,
   onSendEmail,
   onShipOrder,
+  onCreateLabel,
   onPrint,
   onPackingSlip,
   onOrderUpdate,
@@ -55,10 +57,14 @@ export const OrderHeader = ({
   const { toast } = useToast();
   const [showShipConfirmDialog, setShowShipConfirmDialog] = useState(false);
   const [showTrackingDialog, setShowTrackingDialog] = useState(false);
+  const [showLabelActions, setShowLabelActions] = useState(false);
   const [trackingNumber, setTrackingNumber] = useState("");
   const [shippingMethod, setShippingMethod] = useState<"FedEx" | "custom">("FedEx");
   const [fedexData, setFedexData] = useState<FedExDialogState | null>(null);
   const [isShipping, setIsShipping] = useState(false);
+  const [isPackingSlipLoading, setIsPackingSlipLoading] = useState(false);
+  const [isPrintLoading, setIsPrintLoading] = useState(false);
+  const [printingLabelKey, setPrintingLabelKey] = useState("");
   const compactObject = <T extends Record<string, any>>(value: T): T =>
     Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
 
@@ -76,10 +82,34 @@ export const OrderHeader = ({
     setShowTrackingDialog(true);
   };
 
-  const openShippingDialog = () => {
-    setTrackingNumber(order.shipping?.trackingNumber || "");
-    setShippingMethod(order.shipping?.method === "custom" ? "custom" : "FedEx");
-    setShowTrackingDialog(true);
+  const handlePackingSlipClick = async () => {
+    if (!onPackingSlip || isPackingSlipLoading) return;
+    setIsPackingSlipLoading(true);
+    try {
+      await onPackingSlip();
+    } finally {
+      setIsPackingSlipLoading(false);
+    }
+  };
+
+  const handlePrintClick = async () => {
+    if (!onPrint || isPrintLoading) return;
+    setIsPrintLoading(true);
+    try {
+      await onPrint();
+    } finally {
+      setIsPrintLoading(false);
+    }
+  };
+
+  const handlePrintLabel = async (label: any, key: string) => {
+    if (printingLabelKey) return;
+    setPrintingLabelKey(key);
+    try {
+      await printShippingLabelDocument(label);
+    } finally {
+      setPrintingLabelKey("");
+    }
   };
 
   const handleTrackingSubmit = async ({ recipient }: TrackingDialogSubmitPayload) => {
@@ -108,6 +138,30 @@ export const OrderHeader = ({
               previousStoragePath: order.shipping?.labelStoragePath,
             })
           : null;
+      const storedPackageLabels =
+        shippingMethod === "FedEx" && Array.isArray(fedexData?.packageLabels) && order.id
+          ? await Promise.all(
+              fedexData.packageLabels.map(async (label, index) => {
+                if (!label.labelBase64) return label;
+                const stored = await uploadShippingLabelToStorage({
+                  orderId: order.id,
+                  orderNumber: order.order_number,
+                  labelBase64: label.labelBase64,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                  previousStoragePath: label.labelStoragePath,
+                  fileNameSuffix: `box-${label.sequenceNumber || index + 1}`,
+                });
+                return {
+                  ...label,
+                  labelUrl: undefined,
+                  labelBase64: undefined,
+                  labelStoragePath: stored.storagePath,
+                  labelFileName: stored.fileName,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                };
+              }),
+            )
+          : fedexData?.packageLabels || order.shipping?.packageLabels;
 
       // Get old status before update
       const { data: oldOrder } = await supabase
@@ -156,6 +210,8 @@ export const OrderHeader = ({
         labelStockType: fedexData?.labelStockType || order.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || order.shipping?.serviceType,
         packagingType: fedexData?.packagingType || order.shipping?.packagingType,
+        packageCount: fedexData?.packageCount || order.shipping?.packageCount,
+        packageLabels: storedPackageLabels,
         pickupConfirmationNumber:
           fedexData?.pickupConfirmationNumber || order.shipping?.pickupConfirmationNumber,
         pickupScheduledDate:
@@ -272,6 +328,12 @@ export const OrderHeader = ({
 
   const status = getOrderStatusDisplay(order.status);
   const hasSavedShippingLabel = hasShippingLabelDocument(order.shipping);
+  const savedPackageLabels = Array.isArray((order.shipping as any)?.packageLabels)
+    ? ((order.shipping as any).packageLabels as any[]).filter((label) => hasShippingLabelDocument(label))
+    : [];
+  const savedLabelActions = savedPackageLabels.length > 0 ? savedPackageLabels : order.shipping ? [order.shipping] : [];
+  const hasSavedPackingSlip = Boolean((order.shipping as any)?.packingSlip);
+
   const poWorkflowState = getPoWorkflowState(order);
   const poStatusLabel = getPoWorkflowLabel(poWorkflowState);
   const poStatusBadgeClass = getPoWorkflowBadgeClass(poWorkflowState);
@@ -437,7 +499,7 @@ export const OrderHeader = ({
             Admin Actions
           </p>
           <div className="flex flex-wrap gap-2">
-            {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && !hideFinancialData && (
+            {/* {normalizedPaymentStatus !== "paid" && onSendEmail && !poIs && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
@@ -448,61 +510,112 @@ export const OrderHeader = ({
                 <Mail className="w-4 h-4 text-blue-600" />
                 <span className="text-xs md:text-sm">{isSendingEmail ? "Sending..." : "Email"}</span>
               </Button>
-            )}
+            )} */}
 
             {onPrint && !hideFinancialData && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onPrint}
+                onClick={handlePrintClick}
+                disabled={isPrintLoading}
                 className="gap-2 hover:bg-gray-50 hover:border-gray-400"
               >
-                <Printer className="w-4 h-4 text-gray-600" />
-                <span className="text-xs md:text-sm">Print</span>
+                {isPrintLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-gray-600" />
+                ) : (
+                  <Printer className="w-4 h-4 text-gray-600" />
+                )}
+                <span className="text-xs md:text-sm">{isPrintLoading ? "Printing..." : "Print"}</span>
               </Button>
             )}
 
             {hasSavedShippingLabel && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => printShippingLabelDocument(order.shipping)}
-                className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
-              >
-                <Printer className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs md:text-sm">Print Label</span>
-              </Button>
+              <div className="relative">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    if (savedLabelActions.length === 1) {
+                      await handlePrintLabel(savedLabelActions[0], "single");
+                      return;
+                    }
+                    setShowLabelActions((current) => !current);
+                  }}
+                  disabled={Boolean(printingLabelKey)}
+                  className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
+                >
+                  {printingLabelKey === "single" ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-600" />
+                  ) : (
+                    <Printer className="w-4 h-4 text-indigo-600" />
+                  )}
+                  <span className="text-xs md:text-sm">
+                    {printingLabelKey === "single"
+                      ? "Printing..."
+                      : savedLabelActions.length > 1
+                        ? `FedEx Label (${savedLabelActions.length})`
+                        : "FedEx Label"}
+                  </span>
+                </Button>
+
+                {showLabelActions && savedLabelActions.length > 1 && (
+                  <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-lg border bg-white p-2 shadow-lg">
+                    {savedLabelActions.map((label: any, index: number) => (
+                      <div key={`${label.trackingNumber || label.labelStoragePath || index}`}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            await handlePrintLabel(label, `box-${index}`);
+                            setShowLabelActions(false);
+                          }}
+                          disabled={Boolean(printingLabelKey)}
+                          className="w-full justify-start gap-2"
+                        >
+                          {printingLabelKey === `box-${index}` ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Printer className="h-4 w-4" />
+                          )}
+                          {printingLabelKey === `box-${index}` ? "Printing..." : `Print box ${index + 1}`}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
 
-            {(hasSavedShippingLabel || (onShipOrder && order.status !== "shipped" && order.status !== "delivered")) && (
+            {!hasSavedShippingLabel && onCreateLabel && order.status !== "shipped" && order.status !== "delivered" && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => {
-                  if (hasSavedShippingLabel) {
-                    openShippingDialog();
-                    return;
-                  }
-                  setShowShipConfirmDialog(true);
+                  onCreateLabel?.();
                 }}
                 className="gap-2 hover:bg-indigo-50 hover:border-indigo-300"
               >
                 <Truck className="w-4 h-4 text-indigo-600" />
-                <span className="text-xs md:text-sm">
-                  {hasSavedShippingLabel ? "Shipment" : "Ship"}
-                </span>
+                <span className="text-xs md:text-sm">Create Label</span>
               </Button>
             )}
 
-            {onPackingSlip && (
+            {onPackingSlip && hasSavedPackingSlip && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onPackingSlip}
+                onClick={handlePackingSlipClick}
+                disabled={isPackingSlipLoading}
                 className="gap-2 hover:bg-blue-50 hover:border-blue-300"
               >
-                <Package className="w-4 h-4 text-blue-600" />
-                <span className="text-xs md:text-sm">Packing Slip</span>
+                {isPackingSlipLoading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
+                ) : (
+                  <Package className="w-4 h-4 text-blue-600" />
+                )}
+                <span className="text-xs md:text-sm">
+                  {isPackingSlipLoading ? "Preparing..." : "Packing Slip"}
+                </span>
               </Button>
             )}
 
@@ -514,8 +627,14 @@ export const OrderHeader = ({
                 disabled={isSendingEmail}
                 className="gap-2 hover:bg-green-50 hover:border-green-300"
               >
-                <CreditCard className="w-4 h-4 text-green-600" />
-                <span className="text-xs md:text-sm">Send Payment Link</span>
+                {isSendingEmail ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-green-600" />
+                ) : (
+                  <CreditCard className="w-4 h-4 text-green-600" />
+                )}
+                <span className="text-xs md:text-sm">
+                  {isSendingEmail ? "Sending..." : "Send Payment Link"}
+                </span>
               </Button>
             )}
           </div>

@@ -60,6 +60,88 @@ import Swal from "sweetalert2";
 type SortField = "customer" | "date" | "total" | "status" | "payment_status";
 type SortDirection = "asc" | "desc";
 
+const getPackageTrackingItems = (order: OrderFormValues) => {
+  const labels = Array.isArray((order.shipping as any)?.packageLabels)
+    ? ((order.shipping as any).packageLabels as any[])
+    : [];
+
+  return labels
+    .map((label, index) => ({
+      box: Number(label.sequenceNumber || index + 1),
+      trackingNumber: String(label.trackingNumber || "").trim(),
+    }))
+    .filter((item) => item.trackingNumber);
+};
+
+const TrackingCell = ({ order }: { order: OrderFormValues }) => {
+  if (order.shipping?.method === "custom") {
+    return <span className="text-xs text-gray-400 italic">Manual</span>;
+  }
+
+  const packageTrackingItems = getPackageTrackingItems(order);
+  const trackingItems =
+    packageTrackingItems.length > 0
+      ? packageTrackingItems
+      : order.shipping?.trackingNumber
+        ? [{ box: 1, trackingNumber: order.shipping.trackingNumber }]
+        : [];
+
+  if (trackingItems.length === 0) {
+    return <span className="text-xs text-gray-400 italic">Manual</span>;
+  }
+
+  if (trackingItems.length === 1) {
+    const item = trackingItems[0];
+    return (
+      <Button
+        variant="link"
+        className="h-auto p-0 font-mono text-xs text-blue-600 hover:text-blue-800"
+        onClick={(e) => {
+          e.stopPropagation();
+          window.open(getTrackingUrl(order.shipping?.method || "FedEx", item.trackingNumber), "_blank");
+        }}
+      >
+        {item.trackingNumber}
+        <ExternalLink className="ml-1 h-3 w-3" />
+      </Button>
+    );
+  }
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 gap-2 rounded-full px-3 text-xs font-semibold text-blue-700 hover:bg-blue-50"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <Package className="h-3.5 w-3.5" />
+          {trackingItems.length} Cartons
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="w-64">
+        {trackingItems.map((item) => (
+          <DropdownMenuItem
+            key={`${item.box}-${item.trackingNumber}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open(getTrackingUrl(order.shipping?.method || "FedEx", item.trackingNumber), "_blank");
+            }}
+            className="flex cursor-pointer items-center justify-between gap-3"
+          >
+            <span className="min-w-0">
+              <span className="block text-xs font-semibold text-slate-600">Carton {item.box}</span>
+              <span className="block truncate font-mono text-xs text-blue-700">{item.trackingNumber}</span>
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-blue-600" />
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+};
+
 interface OrdersListProps {
   orders: OrderFormValues[];
   onOrderClick: (order: OrderFormValues) => void;
@@ -1080,28 +1162,7 @@ export function OrdersList({
                   </TableCell>
                   
                   <TableCell className="text-center">
-                    {order.shipping?.trackingNumber &&
-                    order?.shipping.method !== "custom" ? (
-                      <Button
-                        variant="link"
-                        className="p-0 h-auto text-blue-600 hover:text-blue-800 font-mono text-xs"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(
-                            getTrackingUrl(
-                              order.shipping.method,
-                              order.shipping.trackingNumber!
-                            ),
-                            "_blank"
-                          );
-                        }}
-                      >
-                        {order.shipping.trackingNumber}
-                        <ExternalLink className="ml-1 h-3 w-3" />
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Manual</span>
-                    )}
+                    <TrackingCell order={order} />
                   </TableCell>
                   
                   {userRole === "admin" && (

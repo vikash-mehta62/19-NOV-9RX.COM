@@ -2778,6 +2778,30 @@ export const OrderDetailsSheet = ({
               previousStoragePath: currentOrder.shipping?.labelStoragePath,
             })
           : null;
+      const storedPackageLabels =
+        shippingMethod === "FedEx" && Array.isArray(fedexData?.packageLabels) && currentOrder.id
+          ? await Promise.all(
+              fedexData.packageLabels.map(async (label, index) => {
+                if (!label.labelBase64) return label;
+                const stored = await uploadShippingLabelToStorage({
+                  orderId: currentOrder.id,
+                  orderNumber: currentOrder.order_number,
+                  labelBase64: label.labelBase64,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                  previousStoragePath: label.labelStoragePath,
+                  fileNameSuffix: `box-${label.sequenceNumber || index + 1}`,
+                });
+                return {
+                  ...label,
+                  labelUrl: undefined,
+                  labelBase64: undefined,
+                  labelStoragePath: stored.storagePath,
+                  labelFileName: stored.fileName,
+                  labelFormat: label.labelFormat || fedexData.labelFormat,
+                };
+              }),
+            )
+          : fedexData?.packageLabels || (currentOrder as any)?.shipping?.packageLabels;
 
       const existingShippingAddress =
         (((currentOrder as any)?.shippingAddress || {}) as Record<string, any>) || {};
@@ -2821,6 +2845,8 @@ export const OrderDetailsSheet = ({
         labelStockType: fedexData?.labelStockType || (currentOrder as any)?.shipping?.labelStockType,
         serviceType: fedexData?.serviceType || (currentOrder as any)?.shipping?.serviceType,
         packagingType: fedexData?.packagingType || (currentOrder as any)?.shipping?.packagingType,
+        packageCount: fedexData?.packageCount || (currentOrder as any)?.shipping?.packageCount,
+        packageLabels: storedPackageLabels,
         pickupConfirmationNumber:
           fedexData?.pickupConfirmationNumber || (currentOrder as any)?.shipping?.pickupConfirmationNumber,
         pickupScheduledDate:
@@ -2889,8 +2915,16 @@ export const OrderDetailsSheet = ({
     }
   };
 
-  const handleDownloadPackingSlip = () => {
+  const handleDownloadPackingSlip = async () => {
     const existingShipping = (((currentOrder as any)?.shipping || {}) as Record<string, any>) || {};
+    if (existingShipping.packingSlip) {
+      await handleInlinePackingSlipDownload(
+        existingShipping.packingSlip as TrackingDialogPackingSlipPayload,
+        existingShipping,
+      );
+      return;
+    }
+
     setTrackingNumber(String(existingShipping.trackingNumber || (currentOrder as any)?.tracking_number || ""));
     setShippingMethod(existingShipping.method === "custom" ? "custom" : "FedEx");
     setFedexData(
@@ -2906,6 +2940,8 @@ export const OrderDetailsSheet = ({
             quotedCurrency: existingShipping.quotedCurrency,
             weight: existingShipping.weight,
             weightUnits: existingShipping.weightUnits,
+            packageCount: existingShipping.packageCount,
+            packageLabels: existingShipping.packageLabels,
           } as any)
         : null,
     );
@@ -2913,8 +2949,18 @@ export const OrderDetailsSheet = ({
     setShowPackingSlipShippingDialog(true);
   };
 
+  const handleCreateLabelFlow = () => {
+    const existingShipping = (((currentOrder as any)?.shipping || {}) as Record<string, any>) || {};
+    setTrackingNumber(String(existingShipping.trackingNumber || (currentOrder as any)?.tracking_number || ""));
+    setShippingMethod(existingShipping.method === "custom" ? "custom" : "FedEx");
+    setFedexData(null);
+    setOpenPackingAfterShipping(true);
+    setShowPackingSlipShippingDialog(true);
+  };
+
   const handleInlinePackingSlipDownload = async (
     packingSlipPayload: TrackingDialogPackingSlipPayload,
+    shippingOverride?: Record<string, any>,
   ) => {
     try {
       const packedItems = (currentOrder?.items || []).flatMap((item: any) =>
@@ -2930,11 +2976,23 @@ export const OrderDetailsSheet = ({
 
       const totalCases = packedItems.reduce((sum: number, item: any) => sum + Number(item.casesOrdered || 0), 0);
       const totalWeight = Number(packingSlipPayload.weight || 0);
+      const shippingData =
+        shippingOverride ||
+        ((((currentOrder as any)?.shipping || {}) as Record<string, any>) || {});
+      const cartonTrackingNumbers = Array.isArray(shippingData.packageLabels)
+        ? shippingData.packageLabels
+            .map((label: any, index: number) => ({
+              carton: Number(label.sequenceNumber || index + 1),
+              trackingNumber: String(label.trackingNumber || "").trim(),
+            }))
+            .filter((item: any) => item.trackingNumber)
+        : [];
 
       const completeData = {
         ...currentOrder,
         packingDetails: {
           ...packingSlipPayload,
+          cartonTrackingNumbers,
           packedAt: new Date(packingSlipPayload.packedAt || Date.now()).toLocaleString(),
         },
         packedItems,
@@ -2946,7 +3004,9 @@ export const OrderDetailsSheet = ({
 
       await generateWorkOrderPDF(currentOrder, completeData);
 
-      const existingShipping = (((currentOrder as any)?.shipping || {}) as Record<string, any>) || {};
+      const existingShipping =
+        shippingOverride ||
+        ((((currentOrder as any)?.shipping || {}) as Record<string, any>) || {});
       const updatedShipping = sanitizeJsonObject({
         ...existingShipping,
         packingSlip: sanitizeJsonObject({
@@ -4024,6 +4084,7 @@ export const OrderDetailsSheet = ({
                   onSendEmail={!hideFinancialData ? sendMail : undefined}
                   onPrint={!hideFinancialData ? handlePrint : undefined}
                   onPackingSlip={!hideFinancialData && !poIs ? handleDownloadPackingSlip : undefined}
+                  onCreateLabel={!hideFinancialData && !poIs ? handleCreateLabelFlow : undefined}
                   onOrderUpdate={persistCurrentOrder}
                   isGeneratingPDF={isGeneratingPDF}
                   isSendingEmail={loading}

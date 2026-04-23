@@ -27,10 +27,10 @@ const passwordResetTemplate = (name) => {
 
 const profileUpdateTemplate = (name, email) => {
     const currentYear = new Date().getFullYear();
-    const updateDate = new Date().toLocaleDateString('en-US', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
+    const updateDate = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
@@ -51,12 +51,10 @@ const profileUpdateTemplate = (name, email) => {
                     
                     <!-- Header -->
                     <tr>
-                        <td style="background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%); padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
-                            <div style="background-color: rgba(255,255,255,0.2); width: 70px; height: 70px; border-radius: 50%; margin: 0 auto 20px; line-height: 70px;">
-                                <span style="font-size: 32px;">✅</span>
-                            </div>
-                            <h1 style="margin: 0; color: #ffffff; font-size: 26px; font-weight: 700;">Profile Updated Successfully</h1>
-                            <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 15px;">Your account information has been saved</p>
+                        <td style="background-color: #eff6ff; padding: 40px 30px; border-radius: 16px 16px 0 0; text-align: center;">
+                            <img src="https://qiaetxkxweghuoxyhvml.supabase.co/storage/v1/object/public/product-images/9RX%20LOGO/9rx_logo.png" alt="9RX LLC" style="width: auto; height: 80px; object-fit: contain; margin: 0 auto 20px; display: block;">
+                            <h1 style="margin: 0; color: #1f2937; font-size: 26px; font-weight: 700;">Profile Updated Successfully</h1>
+                            <p style="margin: 10px 0 0 0; color: #6b7280; font-size: 15px;">Your account information has been saved</p>
                         </td>
                     </tr>
 
@@ -152,7 +150,7 @@ const profileUpdateTemplate = (name, email) => {
                     <!-- Footer -->
                     <tr>
                         <td style="background-color: #1f2937; padding: 30px; border-radius: 0 0 16px 16px; text-align: center;">
-                            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #ffffff;">9RX</p>
+                            <p style="margin: 0 0 8px 0; font-size: 18px; font-weight: 700; color: #ffffff;">9RX LLC</p>
                             <p style="margin: 0 0 16px 0; font-size: 13px; color: #9ca3af;">Your Trusted Pharmacy Partner</p>
                             <div style="margin-bottom: 16px;">
                                 <a href="https://9rx.com" style="display: inline-block; margin: 0 8px; color: #3b82f6; text-decoration: none; font-size: 13px;">Website</a>
@@ -210,4 +208,4 @@ const paymentSuccessTemplate = (name, orderNumber, transactionId) => {
 
 
 
-module.exports = { passwordResetTemplate, profileUpdateTemplate,paymentSuccessTemplate };
+module.exports = { passwordResetTemplate, profileUpdateTemplate, paymentSuccessTemplate };

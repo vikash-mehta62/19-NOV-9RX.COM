@@ -69,6 +69,8 @@ const shippingSchema = z.object({
   labelStockType: z.string().optional(),
   serviceType: z.string().optional(),
   packagingType: z.string().optional(),
+  packageCount: z.number().optional(),
+  packageLabels: z.array(z.record(z.any())).optional(),
   pickupConfirmationNumber: z.string().optional(),
   pickupScheduledDate: z.string().optional(),
   trackingStatus: z.string().optional(),
