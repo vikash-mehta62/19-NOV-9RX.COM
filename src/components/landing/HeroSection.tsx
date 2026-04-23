@@ -53,6 +53,22 @@ export const Navbar = ({ forceScrolledStyle = false }: { forceScrolledStyle?: bo
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Check if user is logged in
+  useEffect(() => {
+    const checkLoginStatus = () => {
+      const loggedIn = sessionStorage.getItem("isLoggedIn") === "true";
+      const userType = sessionStorage.getItem("userType");
+      setIsLoggedIn(loggedIn && !!userType);
+    };
+    
+    checkLoginStatus();
+    
+    // Listen for storage changes (login/logout events)
+    window.addEventListener('storage', checkLoginStatus);
+    return () => window.removeEventListener('storage', checkLoginStatus);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -77,6 +93,18 @@ export const Navbar = ({ forceScrolledStyle = false }: { forceScrolledStyle?: bo
   ];
 
   const isScrolledOrForced = scrolled || forceScrolledStyle;
+  
+  // Get dashboard route based on user type
+  const getDashboardRoute = () => {
+    const userType = sessionStorage.getItem("userType");
+    const routes: Record<string, string> = {
+      pharmacy: "/pharmacy/products",
+      admin: "/admin/dashboard",
+      hospital: "/hospital/dashboard",
+      group: "/group/dashboard",
+    };
+    return routes[userType || ""] || "/pharmacy/products";
+  };
 
   return (
     <nav
@@ -110,20 +138,31 @@ export const Navbar = ({ forceScrolledStyle = false }: { forceScrolledStyle?: bo
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <Button
-              onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
-              variant="ghost"
-              className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${isScrolledOrForced || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
-                }`}
-            >
-              Sign Up
-            </Button>
-            <Button
-              className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
-              onClick={() => navigate("/login")}
-            >
-              Login
-            </Button>
+            {isLoggedIn ? (
+              <Button
+                onClick={() => navigate(getDashboardRoute())}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+                Dashboard
+              </Button>
+            ) : (
+              <>
+                <Button
+                  onClick={() => navigate("/login", { state: { defaultTab: "signup" } })}
+                  variant="ghost"
+                  className={`hidden sm:inline-flex font-semibold rounded-xl min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 ${isScrolledOrForced || mobileMenuOpen ? "text-slate-700 hover:text-blue-600" : "text-white/90 hover:bg-white/10"
+                    }`}
+                >
+                  Sign Up
+                </Button>
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 sm:px-6 rounded-xl shadow-lg shadow-blue-500/25 min-h-[40px] sm:min-h-[44px] text-sm sm:text-base focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                  onClick={() => navigate("/login")}
+                >
+                  Login
+                </Button>
+              </>
+            )}
 
             {/* Mobile Menu Button */}
             <button
@@ -151,15 +190,17 @@ export const Navbar = ({ forceScrolledStyle = false }: { forceScrolledStyle?: bo
                   {link.name}
                 </a>
               ))}
-              <button
-                onClick={() => {
-                  navigate("/login", { state: { defaultTab: "signup" } });
-                  setMobileMenuOpen(false);
-                }}
-                className="sm:hidden font-semibold text-blue-600 py-3 px-4 rounded-xl hover:bg-blue-50 transition-colors text-left"
-              >
-                Sign Up
-              </button>
+              {!isLoggedIn && (
+                <button
+                  onClick={() => {
+                    navigate("/login", { state: { defaultTab: "signup" } });
+                    setMobileMenuOpen(false);
+                  }}
+                  className="sm:hidden font-semibold text-blue-600 py-3 px-4 rounded-xl hover:bg-blue-50 transition-colors text-left"
+                >
+                  Sign Up
+                </button>
+              )}
             </div>
           </div>
         )}

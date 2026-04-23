@@ -620,7 +620,9 @@ export const TrackingDialog = ({
   }, [fedexData?.packageLabels, existingShipping]);
   const hasActionableLabel = Boolean(actionableLabelData);
   const getPrimaryLabelData = async () => {
-    if (packageLabelActions.length === 1) {
+    // For multi-carton shipments, label documents often exist per package.
+    // Use the first available package label as the primary fallback.
+    if (packageLabelActions.length > 0) {
       return packageLabelActions[0];
     }
 

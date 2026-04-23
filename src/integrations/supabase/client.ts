@@ -19,21 +19,86 @@ export const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.ey
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
-// Custom storage adapter that uses sessionStorage but allows magic links to work
+const isSupabaseAuthKey = (key: string) => key.startsWith("sb-") && key.includes("auth-token");
+
+const readCookie = (name: string): string | null => {
+  const encodedName = encodeURIComponent(name) + "=";
+  const parts = document.cookie.split("; ");
+  for (const part of parts) {
+    if (part.startsWith(encodedName)) {
+      return decodeURIComponent(part.slice(encodedName.length));
+    }
+  }
+  return null;
+};
+
+const writeSessionCookie = (name: string, value: string) => {
+  // No Expires/Max-Age => session cookie (clears on browser close)
+  document.cookie = `${encodeURIComponent(name)}=${encodeURIComponent(value)}; path=/; SameSite=Lax`;
+};
+
+const removeCookie = (name: string) => {
+  document.cookie = `${encodeURIComponent(name)}=; path=/; Max-Age=0; SameSite=Lax`;
+};
+
+export const hasPersistedSupabaseSession = (): boolean => {
+  const hasSessionStorage = Object.keys(window.sessionStorage).some(isSupabaseAuthKey);
+  if (hasSessionStorage) return true;
+
+  // Keep backward compatibility for any old localStorage sessions.
+  const hasLegacyLocalStorage = Object.keys(window.localStorage).some(isSupabaseAuthKey);
+  if (hasLegacyLocalStorage) return true;
+
+  return document.cookie
+    .split("; ")
+    .some((part) => {
+      const [rawName] = part.split("=");
+      if (!rawName) return false;
+      const key = decodeURIComponent(rawName);
+      return isSupabaseAuthKey(key);
+    });
+};
+
+export const clearPersistedSupabaseSession = () => {
+  Object.keys(window.sessionStorage).forEach((key) => {
+    if (key.startsWith("sb-") || key.includes("supabase")) {
+      window.sessionStorage.removeItem(key);
+    }
+  });
+
+  Object.keys(window.localStorage).forEach((key) => {
+    if (key.startsWith("sb-") || key.includes("supabase")) {
+      window.localStorage.removeItem(key);
+    }
+  });
+
+  document.cookie.split("; ").forEach((part) => {
+    const [rawName] = part.split("=");
+    if (!rawName) return;
+    const key = decodeURIComponent(rawName);
+    if (key.startsWith("sb-") || key.includes("supabase")) {
+      removeCookie(key);
+    }
+  });
+};
+
+// Custom storage adapter:
+// - sessionStorage for fast same-tab access
+// - session cookie for cross-tab + browser-close expiry behavior
 const customStorage = {
   getItem: (key: string) => {
-    // Check both storages for flexibility
-    return window.sessionStorage.getItem(key) || window.localStorage.getItem(key);
+    return window.sessionStorage.getItem(key) || readCookie(key);
   },
   setItem: (key: string, value: string) => {
-    // Store in sessionStorage for browser-close logout
     window.sessionStorage.setItem(key, value);
-    // Also temporarily in localStorage for magic link flow
-    window.localStorage.setItem(key, value);
+    writeSessionCookie(key, value);
+    // Remove legacy persistent entry if it exists.
+    window.localStorage.removeItem(key);
   },
   removeItem: (key: string) => {
     window.sessionStorage.removeItem(key);
     window.localStorage.removeItem(key);
+    removeCookie(key);
   },
 };
 

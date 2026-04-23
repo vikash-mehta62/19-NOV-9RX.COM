@@ -2,7 +2,10 @@ import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useToast } from "./hooks/use-toast";
 import { useAuthCheck } from "./useAuthCheck";
-import { supabase } from "./integrations/supabase/client";
+import {
+  hasPersistedSupabaseSession,
+  supabase,
+} from "./integrations/supabase/client";
 import { CartSync } from "./components/CartSync";
 import MaintenanceBanner from "./components/MaintenanceBanner";
 import MaintenanceModal from "./components/MaintenanceModal";
@@ -193,10 +196,9 @@ const ProtectedRoute = ({
     [allowedRolesKey]
   );
   
-  // Check if session exists in localStorage (instant check, no API call)
+  // Check if session exists in auth storage (instant check, no API call)
   const hasSupabaseSession = useMemo(() => {
-    const keys = Object.keys(localStorage);
-    return keys.some(key => key.startsWith('sb-') && key.includes('auth-token'));
+    return hasPersistedSupabaseSession();
   }, []);
   
   // Check sessionStorage for cached user data
@@ -328,6 +330,10 @@ function App() {
 
   // Session management: Tab/Browser close + 5 min inactivity with warning
   useEffect(() => {
+    // Session persistence/expiry is handled in Supabase client storage.
+    // Disable App.tsx tab/browser heuristics to avoid false redirects on payment gateway return.
+    return;
+
     const INACTIVITY_TIMEOUT = 5 * 60 * 1000; // 5 minutes
     const WARNING_BEFORE_LOGOUT = 20 * 1000; // 20 seconds before logout
     const SESSION_CHECK_KEY = 'session_check_timestamp';
@@ -520,10 +526,8 @@ function App() {
 
     const syncTrustedAuthState = async () => {
       try {
-        // First check if localStorage has any Supabase session
-        const hasLocalSession = Object.keys(localStorage).some(key => 
-          key.startsWith('sb-') && key.includes('auth-token')
-        );
+        // First check if auth storage has any Supabase session
+        const hasLocalSession = hasPersistedSupabaseSession();
         
         if (!hasLocalSession) {
           // No session in localStorage, clear everything

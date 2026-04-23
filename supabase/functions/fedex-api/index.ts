@@ -620,9 +620,11 @@ const extractShipmentResult = (result: JsonRecord) => {
       completed?.masterTrackingNumber ||
       completed?.pieceResponses?.[0]?.trackingNumber ||
       "",
-    labelUrl: packageResult?.url,
-    labelBase64: packageResult?.encodedLabel,
-    labelFormat: packageResult?.contentType,
+    // packageResult can come either from cleaned packageLabels[] (camelCase)
+    // or raw completed.packageDocuments[] (FedEx raw keys).
+    labelUrl: packageResult?.labelUrl || packageResult?.url,
+    labelBase64: packageResult?.labelBase64 || packageResult?.encodedLabel,
+    labelFormat: packageResult?.labelFormat || packageResult?.contentType,
     serviceType: completed?.serviceType,
     packagingType: completed?.packagingDescription,
     packageCount: packageLabels.length || (pieceResponses.length || undefined),
