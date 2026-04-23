@@ -3,11 +3,12 @@ import { OrderFormValues } from "@/components/orders/schemas/orderSchema";
 
 export interface FedExPackageInput {
   weightValue: number;
+  packageWeights?: number[];
   weightUnits: "LB" | "KG";
-  length: number;
-  width: number;
-  height: number;
-  dimensionUnits: "IN" | "CM";
+  length?: number;
+  width?: number;
+  height?: number;
+  dimensionUnits?: "IN" | "CM";
   packageCount?: number;
   serviceType?: string;
   packagingType?: string;

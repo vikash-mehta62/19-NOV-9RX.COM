@@ -48,6 +48,14 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const cartonTrackingNumbers = Array.isArray(packingDetails.cartonTrackingNumbers)
       ? packingDetails.cartonTrackingNumbers.filter((item: any) => item?.trackingNumber)
       : [];
+    const cartonWeights = Array.isArray(packingDetails.cartonWeights)
+      ? packingDetails.cartonWeights
+          .map((item: any) => Number(item))
+          .filter((item: number) => Number.isFinite(item) && item > 0)
+      : [];
+    const totalWeightValue = cartonWeights.length > 0
+      ? cartonWeights.reduce((sum: number, entry: number) => sum + entry, 0)
+      : Number(totals.totalWeight || packingDetails.weight || 0);
 
     // Professional blue color scheme
     const COLORS = {
@@ -64,7 +72,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // SECTION 1: THIN BLUE LINE AT TOP
     // ==========================================
     doc.setFillColor(...COLORS.primary);
-    doc.rect(0, 0, pageWidth, 5, 'F');
+    doc.rect(0, 0, pageWidth, 4, 'F');
 
     // ==========================================
     // SECTION 2: HEADER
@@ -85,7 +93,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
         logo.onerror = reject;
         setTimeout(reject, 2000);
       });
-      const logoHeight = 26;
+      const logoHeight = 20;
       const logoWidth = (logo.width / logo.height) * logoHeight;
       doc.addImage(logo, "PNG", pageWidth / 2 - logoWidth / 2, headerTopY, logoWidth, logoHeight);
       logoBottomY = headerTopY + logoHeight;
@@ -166,7 +174,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     //   console.warn("Barcode generation failed:", e);
     // }
 
-    const dividerY = Math.max(addressY, logoBottomY, badgeY + badgeH) + 6;
+    const dividerY = Math.max(addressY, logoBottomY, badgeY + badgeH) + 4;
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.5);
     doc.line(margin, dividerY, pageWidth - margin, dividerY);
@@ -174,10 +182,10 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     // SECTION 3: BILL TO & SHIP TO (Equal Boxes)
     // ==========================================
-    yPos = dividerY + 5;
+    yPos = dividerY + 4;
     const boxGap = 10;
     const boxW = (contentWidth - boxGap) / 2;
-    const boxH = 32;
+    const boxH = 24;
 
     // BILL TO Box
     doc.setFillColor(...COLORS.light);
@@ -194,9 +202,9 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const billName = customerInfo.name || "Jaydeep Patel";
     const billPhone = customerInfo.phone || "7043096277";
     const billEmail = customerInfo.email || "daviedrugs@gmail.com";
-    doc.text(billName, margin + 6, yPos + 14);
-    doc.text(billPhone, margin + 6, yPos + 19);
-    doc.text(billEmail, margin + 6, yPos + 24);
+    doc.text(billName, margin + 6, yPos + 12);
+    doc.text(billPhone, margin + 6, yPos + 16.5);
+    doc.text(billEmail, margin + 6, yPos + 21);
 
     // SHIP TO Box
     const shipBoxX = margin + boxW + boxGap;
@@ -217,15 +225,27 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     const shipCity = shipTo.address?.city || "Cooleemee";
     const shipState = shipTo.address?.state || "NC";
     const shipZip = shipTo.address?.zip_code || "27014";
-    doc.text(shipName, shipBoxX + 6, yPos + 14);
-    doc.text(shipPhone, shipBoxX + 6, yPos + 19);
-    doc.text(shipStreet, shipBoxX + 6, yPos + 24);
-    doc.text(`${shipCity}, ${shipState} ${shipZip}`, shipBoxX + 6, yPos + 29);
+    const shipAddressSingleLine = [shipStreet, `${shipCity}, ${shipState} ${shipZip}`]
+      .filter(Boolean)
+      .join(", ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const maxShipAddressWidth = boxW - 12;
+    let shipAddressLine = shipAddressSingleLine;
+    while (doc.getTextWidth(`${shipAddressLine}...`) > maxShipAddressWidth && shipAddressLine.length > 8) {
+      shipAddressLine = shipAddressLine.slice(0, -1);
+    }
+    if (shipAddressLine !== shipAddressSingleLine) {
+      shipAddressLine = `${shipAddressLine}...`;
+    }
+    doc.text(shipName, shipBoxX + 6, yPos + 12);
+    doc.text(shipPhone, shipBoxX + 6, yPos + 16.5);
+    doc.text(shipAddressLine || "-", shipBoxX + 6, yPos + 21);
 
     // ==========================================
     // SECTION 4: ITEMS TABLE
     // ==========================================
-    const tableY = yPos + boxH + 10;
+    const tableY = yPos + boxH + 6;
 
     const tableHead = [["SKU", "DESCRIPTION", "SIZE", "QTY/CS", "CASES", "LOT/BATCH"]];
     const tableBody: string[][] = [];
@@ -271,8 +291,8 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
       body: tableBody,
       startY: tableY,
       styles: {
-        fontSize: 8,
-        cellPadding: 3,
+        fontSize: 7.2,
+        cellPadding: 1.8,
         lineColor: [220, 220, 220],
         lineWidth: 0.2,
       },
@@ -282,15 +302,15 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
         textColor: COLORS.white,
         fontStyle: "bold",
         halign: "center",
-        fontSize: 8,
+        fontSize: 7.3,
       },
       columnStyles: {
-        0: { cellWidth: 20, halign: "center" },
+        0: { cellWidth: 18, halign: "center" },
         1: { cellWidth: "auto" },
-        2: { cellWidth: 25, halign: "center" },
-        3: { cellWidth: 18, halign: "center" },
-        4: { cellWidth: 18, halign: "center" },
-        5: { cellWidth: 40, halign: "left", fontSize: 7 },
+        2: { cellWidth: 22, halign: "center" },
+        3: { cellWidth: 16, halign: "center" },
+        4: { cellWidth: 16, halign: "center" },
+        5: { cellWidth: 36, halign: "left", fontSize: 6.8 },
       },
       didParseCell: (data: any) => {
         if (data.row.index === tableBody.length - 1) {
@@ -304,7 +324,7 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     // SECTION 5: SHIPPING DETAILS
     // ==========================================
-    let currentY = (doc as any).lastAutoTable.finalY + 12;
+    let currentY = (doc as any).lastAutoTable.finalY + 7;
 
     // Footer reserved space (footer text + page number + margin)
     const footerReservedSpace = 25;
@@ -321,20 +341,20 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     };
 
     // Check if we have space for shipping details section (~35mm needed)
-    checkPageBreak(35);
+    checkPageBreak(28);
 
     // Divider line
     doc.setDrawColor(220, 220, 220);
     doc.setLineWidth(0.3);
     doc.line(margin, currentY, pageWidth - margin, currentY);
-    currentY += 8;
+    currentY += 6;
 
     // Section Title
     doc.setFont("helvetica", "bold");
     doc.setFontSize(11);
     doc.setTextColor(...COLORS.dark);
     doc.text("SHIPPING DETAILS", margin, currentY);
-    currentY += 10;
+    currentY += 7;
 
     // Two column layout
     const col1X = margin;
@@ -355,39 +375,56 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     doc.setFont("helvetica", "normal");
     doc.text(packingDetails.trackingNumber || "N/A", col2X + labelW, currentY);
 
-    currentY += 7;
+    currentY += 6;
 
     // Row 2
     doc.setFont("helvetica", "bold");
     doc.text("Total Weight:", col1X, currentY);
     doc.setFont("helvetica", "normal");
-    doc.text(`${totals.totalWeight?.toFixed(1) || "7.5"} lbs`, col1X + labelW, currentY);
+    doc.text(`${Number(totalWeightValue || 0).toFixed(2)} lb`, col1X + labelW, currentY);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Shipping Class:", col2X, currentY);
+    doc.text("Cartons:", col2X, currentY);
     doc.setFont("helvetica", "normal");
-    doc.text(packingDetails.shippingClass || "N/A", col2X + labelW + 3, currentY);
+    doc.text(String(packingDetails.cartons || cartonWeights.length || "1"), col2X + labelW + 3, currentY);
 
-    if (cartonTrackingNumbers.length > 0) {
-      currentY += 11;
-      checkPageBreak(12 + cartonTrackingNumbers.length * 7);
+    const hasCartonWeights = cartonWeights.length > 0;
+    const hasCartonTracking = cartonTrackingNumbers.length > 0;
+    const maxCartons = Math.max(cartonWeights.length, cartonTrackingNumbers.length);
+    if (maxCartons > 0) {
+      currentY += 8;
+      checkPageBreak(10 + maxCartons * 6);
 
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(...COLORS.primary);
-      doc.text("CARTON TRACKING", margin, currentY);
-      currentY += 4;
+      doc.text("CARTON DETAILS", margin, currentY);
+      currentY += 3;
 
       autoTable(doc as any, {
-        head: [["CARTON", "TRACKING NUMBER"]],
-        body: cartonTrackingNumbers.map((item: any) => [
-          `Carton ${item.carton || ""}`.trim(),
-          item.trackingNumber,
-        ]),
+        head: [[
+          "CARTON",
+          hasCartonWeights ? "WEIGHT (LB)" : "",
+          hasCartonTracking ? "TRACKING NUMBER" : "",
+        ].filter(Boolean)],
+        body: Array.from({ length: maxCartons }, (_, index) => {
+          const row = [`Carton ${index + 1}`];
+          if (hasCartonWeights) {
+            row.push(
+              Number.isFinite(Number(cartonWeights[index]))
+                ? Number(cartonWeights[index]).toFixed(2)
+                : "-"
+            );
+          }
+          if (hasCartonTracking) {
+            row.push(cartonTrackingNumbers[index]?.trackingNumber || "-");
+          }
+          return row;
+        }),
         startY: currentY,
         styles: {
-          fontSize: 8,
-          cellPadding: 2.5,
+          fontSize: 7.3,
+          cellPadding: 1.9,
           lineColor: [220, 220, 220],
           lineWidth: 0.2,
         },
@@ -397,12 +434,23 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
           textColor: COLORS.white,
           fontStyle: "bold",
           halign: "center",
-          fontSize: 8,
+          fontSize: 7.5,
         },
-        columnStyles: {
-          0: { cellWidth: 34, halign: "center" },
-          1: { cellWidth: 80, halign: "left", font: "courier" },
-        },
+        columnStyles: hasCartonWeights && hasCartonTracking
+          ? {
+              0: { cellWidth: 28, halign: "center" },
+              1: { cellWidth: 28, halign: "right" },
+              2: { cellWidth: "auto", halign: "left", font: "courier" },
+            }
+          : hasCartonWeights
+            ? {
+                0: { cellWidth: 32, halign: "center" },
+                1: { cellWidth: 34, halign: "right" },
+              }
+            : {
+                0: { cellWidth: 32, halign: "center" },
+                1: { cellWidth: "auto", halign: "left", font: "courier" },
+              },
         margin: { left: margin, right: margin },
       });
 
@@ -412,65 +460,56 @@ export const generateWorkOrderPDF = async (workOrderData: any, packingData: any)
     // ==========================================
     // SECTION 6: WAREHOUSE QC
     // ==========================================
-    currentY += 15;
+    const hasWarehouseQC = Boolean(packingDetails.packedBy || packingDetails.checkedBy || packingDetails.packedAt);
+    if (hasWarehouseQC) {
+      currentY += 9;
+      checkPageBreak(22);
 
-    // Check if we have space for warehouse QC section (~30mm needed)
-    checkPageBreak(30);
+      doc.setDrawColor(220, 220, 220);
+      doc.line(margin, currentY, pageWidth - margin, currentY);
+      currentY += 6;
 
-    // Divider line
-    doc.setDrawColor(220, 220, 220);
-    doc.line(margin, currentY, pageWidth - margin, currentY);
-    currentY += 8;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(...COLORS.dark);
+      doc.text("WAREHOUSE QC", margin, currentY);
+      currentY += 7;
 
-    // Section Title
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.setTextColor(...COLORS.dark);
-    doc.text("WAREHOUSE QC", margin, currentY);
-    currentY += 10;
+      doc.setFontSize(8.5);
+      doc.setFont("helvetica", "bold");
+      doc.text("Packed By:", col1X, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(packingDetails.packedBy || "-", col1X + labelW, currentY);
 
-    doc.setFontSize(9);
-
-    // Packed By
-    doc.setFont("helvetica", "bold");
-    doc.text("Packed By:", col1X, currentY);
-    doc.setFont("helvetica", "normal");
-    doc.text(packingDetails.packedBy || "a", col1X + labelW, currentY);
-
-    // Timestamp
-    doc.setFontSize(8);
-    doc.setTextColor(...COLORS.medium);
-    const packedTime = packingDetails.packedAt || new Date().toLocaleString("en-US");
-    doc.text(`(${packedTime})`, col1X + labelW + 12, currentY);
-
-    // Checked By
-    doc.setFontSize(9);
-    doc.setTextColor(...COLORS.dark);
-    doc.setFont("helvetica", "bold");
-    doc.text("Checked By:", col2X, currentY);
-    doc.setFont("helvetica", "normal");
-    doc.text(packingDetails.checkedBy || "z", col2X + labelW, currentY);
+      doc.setFontSize(8.5);
+      doc.setTextColor(...COLORS.dark);
+      doc.setFont("helvetica", "bold");
+      doc.text("Checked By:", col2X, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(packingDetails.checkedBy || "-", col2X + labelW, currentY);
+    }
 
     // ==========================================
     // SECTION 7: SPECIAL INSTRUCTIONS
     // ==========================================
-    currentY += 15;
+    const notes = String(packingDetails.notes || "").trim();
+    const hasNotes = notes.length > 0;
+    if (hasNotes) {
+      currentY += 8;
+      const splitNotes = doc.splitTextToSize(notes, contentWidth);
+      const notesHeight = splitNotes.length * 3.6 + 12;
+      checkPageBreak(notesHeight);
 
-    // Check space for special instructions
-    const notes = packingDetails.notes || "N/A";
-    const splitNotes = doc.splitTextToSize(notes, contentWidth);
-    const notesHeight = splitNotes.length * 4 + 15;
-    checkPageBreak(notesHeight);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...COLORS.dark);
+      doc.text("Special Instructions:", margin, currentY);
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor(...COLORS.dark);
-    doc.text("Special Instructions:", margin, currentY);
-
-    currentY += 6;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(splitNotes, margin, currentY);
+      currentY += 5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.text(splitNotes, margin, currentY);
+    }
 
     // ==========================================
     // FOOTER WITH PAGE NUMBERS

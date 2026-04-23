@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { PDFDocument, degrees } from "pdf-lib";
 
 const SHIPPING_LABEL_BUCKET = "documents";
 
@@ -9,6 +10,11 @@ export interface ShippingLabelData {
   labelFileName?: string;
   labelFormat?: string;
   packageLabels?: ShippingLabelData[];
+}
+interface PrintableLabelDocument {
+  bytes: Uint8Array;
+  mimeType: string;
+  stockType?: string;
 }
 
 const isZplFormat = (format?: string) => String(format || "").toLowerCase().includes("zpl");
@@ -146,6 +152,91 @@ const bytesToBase64 = (bytes: Uint8Array) => {
 const escapeHtml = (value: string) =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+const isFourBySixStock = (stockType?: string) => {
+  const normalized = String(stockType || "").toUpperCase();
+  return normalized === "STOCK_4X6" || normalized === "PAPER_4X6";
+};
+
+const normalizeThermalPdfToFourBySix = async (bytes: Uint8Array) => {
+  const srcDoc = await PDFDocument.load(bytes);
+  const outDoc = await PDFDocument.create();
+  const targetWidth = 72 * 4; // 4in
+  const targetHeight = 72 * 6; // 6in
+
+  const srcPages = srcDoc.getPages();
+  for (let index = 0; index < srcPages.length; index += 1) {
+    const srcPage = srcPages[index];
+    const embedded = await outDoc.embedPage(srcPage);
+    const page = outDoc.addPage([targetWidth, targetHeight]);
+    const rotation = srcPage.getRotation().angle || 0;
+    const normalizedRotation = ((rotation % 360) + 360) % 360;
+
+    const sourceWidth = embedded.width;
+    const sourceHeight = embedded.height;
+    const effectiveWidth =
+      normalizedRotation === 90 || normalizedRotation === 270 ? sourceHeight : sourceWidth;
+    const effectiveHeight =
+      normalizedRotation === 90 || normalizedRotation === 270 ? sourceWidth : sourceHeight;
+    const scale = Math.min(targetWidth / effectiveWidth, targetHeight / effectiveHeight);
+    const drawWidth = sourceWidth * scale;
+    const drawHeight = sourceHeight * scale;
+
+    if (normalizedRotation === 180) {
+      const x = (targetWidth + drawWidth) / 2;
+      const y = (targetHeight + drawHeight) / 2;
+      page.drawPage(embedded, {
+        x,
+        y,
+        width: drawWidth,
+        height: drawHeight,
+        rotate: degrees(180),
+      });
+      continue;
+    }
+
+    if (normalizedRotation === 90) {
+      const effectiveDrawWidth = drawHeight;
+      const effectiveDrawHeight = drawWidth;
+      const x = (targetWidth + effectiveDrawWidth) / 2;
+      const y = (targetHeight - effectiveDrawHeight) / 2;
+      page.drawPage(embedded, {
+        x,
+        y,
+        width: drawWidth,
+        height: drawHeight,
+        rotate: degrees(90),
+      });
+      continue;
+    }
+
+    if (normalizedRotation === 270) {
+      const effectiveDrawWidth = drawHeight;
+      const effectiveDrawHeight = drawWidth;
+      const x = (targetWidth - effectiveDrawWidth) / 2;
+      const y = (targetHeight + effectiveDrawHeight) / 2;
+      page.drawPage(embedded, {
+        x,
+        y,
+        width: drawWidth,
+        height: drawHeight,
+        rotate: degrees(270),
+      });
+      continue;
+    }
+
+    const x = (targetWidth - drawWidth) / 2;
+    const y = (targetHeight - drawHeight) / 2;
+    page.drawPage(embedded, {
+      x,
+      y,
+      width: drawWidth,
+      height: drawHeight,
+    });
+  }
+
+  return new Uint8Array(await outDoc.save());
+};
+
 const openZplPreviewWindow = (zplText: string, autoPrint = false, targetWindow?: Window | null) => {
   const html = `<!doctype html>
     <html>
@@ -215,15 +306,19 @@ const openRenderedPreviewWindow = (
   title: string,
   autoPrint = false,
   targetWindow?: Window | null,
+  stockType?: string,
 ) => {
   if (mimeType === "text/plain") {
     return openZplPreviewWindow(decodeBytesToText(bytes), autoPrint, targetWindow);
   }
 
   const renderDataUrl = `data:${mimeType};base64,${bytesToBase64(bytes)}`;
+  const fourBySix = isFourBySixStock(stockType);
   const bodyMarkup =
     mimeType === "application/pdf"
-      ? `<iframe id="label-frame" src="${renderDataUrl}" style="width:100%;height:92vh;border:1px solid #cbd5e1;background:white;"></iframe>`
+      ? fourBySix
+        ? `<div class="thermal-wrap"><iframe id="label-frame" src="${renderDataUrl}" style="width:4in;height:6in;border:1px solid #cbd5e1;background:white;"></iframe></div>`
+        : `<iframe id="label-frame" src="${renderDataUrl}" style="width:100%;height:92vh;border:1px solid #cbd5e1;background:white;"></iframe>`
       : `<div class="wrap"><img id="label-image" src="${renderDataUrl}" alt="Label Preview" /></div>`;
 
   const html = `<!doctype html>
@@ -232,9 +327,20 @@ const openRenderedPreviewWindow = (
         <meta charset="utf-8" />
         <title>${escapeHtml(title)}</title>
         <style>
-          body { margin: 0; padding: 12px; background: #f8fafc; font-family: sans-serif; }
+          body { margin: 0; padding: ${fourBySix ? "8px" : "12px"}; background: #f8fafc; font-family: sans-serif; }
           .wrap { display: flex; justify-content: center; }
+          .thermal-wrap { display: flex; justify-content: center; align-items: flex-start; }
           img { max-width: 100%; height: auto; border: 1px solid #cbd5e1; background: white; }
+          ${
+            fourBySix
+              ? `@page { size: 4in 6in; margin: 0; }
+                 @media print {
+                   html, body { width: 4in; height: 6in; margin: 0; padding: 0; background: #fff; overflow: hidden; }
+                   .thermal-wrap { width: 4in; height: 6in; margin: 0; padding: 0; }
+                   #label-frame { width: 4in !important; height: 6in !important; border: 0 !important; }
+                 }`
+              : ""
+          }
         </style>
       </head>
       <body>
@@ -342,8 +448,29 @@ const printInHiddenFrame = (html: string) =>
     iframe.src = htmlUrl;
   });
 
-const openPdfPrintWindow = (bytes: Uint8Array) =>
+const openPdfPrintWindow = (bytes: Uint8Array, stockType?: string) =>
   new Promise<boolean>((resolve) => {
+    if (isFourBySixStock(stockType)) {
+      const renderDataUrl = `data:application/pdf;base64,${bytesToBase64(bytes)}`;
+      const html = `<!doctype html>
+        <html>
+          <head>
+            <meta charset="utf-8" />
+            <title>Label Print</title>
+            <style>
+              @page { size: 4in 6in; margin: 0; }
+              html, body { margin: 0; padding: 0; width: 4in; height: 6in; background: #fff; overflow: hidden; }
+              iframe { width: 4in; height: 6in; border: 0; display: block; }
+            </style>
+          </head>
+          <body>
+            <iframe src="${renderDataUrl}" title="Shipping Label"></iframe>
+          </body>
+        </html>`;
+      printInHiddenFrame(html).then(resolve);
+      return;
+    }
+
     const pdfBlob = new Blob([bytes], { type: "application/pdf" });
     const pdfUrl = URL.createObjectURL(pdfBlob);
     const iframe = document.createElement("iframe");
@@ -457,6 +584,51 @@ const openImagePrintWindow = (
   return printInHiddenFrame(html);
 };
 
+const resolvePrintableLabelDocument = async (
+  shipping?: ShippingLabelData | null,
+): Promise<PrintableLabelDocument | null> => {
+  if (!shipping) return null;
+
+  let bytes: Uint8Array | null = null;
+  if (shipping.labelBase64) {
+    bytes = decodeLabel(shipping.labelBase64).bytes;
+  } else {
+    bytes = await fetchRemoteLabelBytes(shipping);
+  }
+  if (!bytes) return null;
+
+  const detected = detectDocumentInfoFromBytes(bytes, shipping.labelFormat);
+  if (detected.mimeType === "text/plain") {
+    const zplText = decodeBytesToLatin1(bytes);
+    try {
+      const rendered = await renderZplWithLabelary(zplText, (shipping as any)?.labelStockType);
+      if (rendered.detected.mimeType === "text/plain") {
+        const plainTextBytes = new TextEncoder().encode(decodeBytesToText(rendered.bytes));
+        return { bytes: plainTextBytes, mimeType: "text/plain", stockType: (shipping as any)?.labelStockType };
+      }
+      return {
+        bytes: rendered.bytes,
+        mimeType: rendered.detected.mimeType,
+        stockType: (shipping as any)?.labelStockType,
+      };
+    } catch {
+      const plainTextBytes = new TextEncoder().encode(decodeBytesToText(bytes));
+      return { bytes: plainTextBytes, mimeType: "text/plain", stockType: (shipping as any)?.labelStockType };
+    }
+  }
+
+  if (detected.mimeType === "application/pdf" && isFourBySixStock((shipping as any)?.labelStockType)) {
+    try {
+      const normalizedBytes = await normalizeThermalPdfToFourBySix(bytes);
+      return { bytes: normalizedBytes, mimeType: "application/pdf", stockType: (shipping as any)?.labelStockType };
+    } catch {
+      return { bytes, mimeType: detected.mimeType, stockType: (shipping as any)?.labelStockType };
+    }
+  }
+
+  return { bytes, mimeType: detected.mimeType, stockType: (shipping as any)?.labelStockType };
+};
+
 const createLabelBlobUrl = (shipping: ShippingLabelData) => {
   if (!shipping.labelBase64) return null;
 
@@ -535,6 +707,13 @@ export const openShippingLabelDocument = async (shipping?: ShippingLabelData | n
   const remoteBytes = await fetchRemoteLabelBytes(shipping);
   if (remoteBytes) {
     const detected = detectDocumentInfoFromBytes(remoteBytes, shipping.labelFormat);
+    console.info("[Label Preview] remote", {
+      requestedFormat: shipping.labelFormat,
+      stockType: (shipping as any)?.labelStockType,
+      detectedMimeType: detected.mimeType,
+      detectedExtension: detected.extension,
+      bytes: remoteBytes.length,
+    });
     if (detected.mimeType === "text/plain") {
       const zplText = decodeBytesToLatin1(remoteBytes);
       try {
@@ -554,6 +733,23 @@ export const openShippingLabelDocument = async (shipping?: ShippingLabelData | n
       }
     }
 
+    if (detected.mimeType === "application/pdf" && isFourBySixStock((shipping as any)?.labelStockType)) {
+      let normalizedBytes = remoteBytes;
+      try {
+        normalizedBytes = await normalizeThermalPdfToFourBySix(remoteBytes);
+      } catch (error) {
+        console.warn("Thermal PDF normalization failed in preview, using original bytes:", error);
+      }
+      return openRenderedPreviewWindow(
+        normalizedBytes,
+        detected.mimeType,
+        "Shipping Label Preview",
+        false,
+        hostWindow,
+        (shipping as any)?.labelStockType,
+      );
+    }
+
     const blob = new Blob([remoteBytes], { type: detected.mimeType });
     const blobUrl = URL.createObjectURL(blob);
     if (hostWindow && !hostWindow.closed) {
@@ -571,6 +767,11 @@ export const openShippingLabelDocument = async (shipping?: ShippingLabelData | n
 
   const blobInfo = createLabelBlobUrl(shipping);
   if (!blobInfo) return false;
+  console.info("[Label Preview] local", {
+    requestedFormat: shipping.labelFormat,
+    stockType: (shipping as any)?.labelStockType,
+    detectedMimeType: blobInfo.mimeType,
+  });
 
   if (blobInfo.mimeType === "text/plain" && shipping.labelBase64) {
     const { bytes } = decodeLabel(shipping.labelBase64);
@@ -586,6 +787,7 @@ export const openShippingLabelDocument = async (shipping?: ShippingLabelData | n
         "ZPL Label Preview",
         false,
         hostWindow,
+        (shipping as any)?.labelStockType,
       );
     } catch {
       return openZplPreviewWindow(decodeBytesToText(bytes), false, hostWindow);
@@ -671,40 +873,106 @@ export const downloadShippingLabelDocument = async (
 export const printShippingLabelDocument = async (shipping?: ShippingLabelData | null) => {
   if (!shipping) return false;
 
-  let bytes: Uint8Array | null = null;
-  if (shipping.labelBase64) {
-    bytes = decodeLabel(shipping.labelBase64).bytes;
-  } else {
-    bytes = await fetchRemoteLabelBytes(shipping);
+  const printable = await resolvePrintableLabelDocument(shipping);
+  if (!printable) return false;
+  const { bytes, mimeType } = printable;
+  const detected = { mimeType, extension: mimeType === "application/pdf" ? "pdf" : mimeType === "image/png" ? "png" : "txt" };
+  console.info("[Label Print]", {
+    requestedFormat: shipping.labelFormat,
+    stockType: (shipping as any)?.labelStockType,
+    detectedMimeType: mimeType,
+    detectedExtension: detected.extension,
+    bytes: bytes.length,
+  });
+  if (mimeType === "text/plain") {
+    return printTextLabel(decodeBytesToText(bytes));
   }
-  if (!bytes) return false;
-
-  const detected = detectDocumentInfoFromBytes(bytes, shipping.labelFormat);
-  if (detected.mimeType === "text/plain") {
-    const zplText = decodeBytesToLatin1(bytes);
-    try {
-      const rendered = await renderZplWithLabelary(zplText, (shipping as any)?.labelStockType);
-      if (rendered.detected.mimeType === "text/plain") {
-        return printTextLabel(decodeBytesToText(rendered.bytes));
-      }
-      return openImagePrintWindow(
-        rendered.bytes,
-        rendered.detected.mimeType,
-        (shipping as any)?.labelStockType,
-      );
-    } catch {
-      return printTextLabel(decodeBytesToText(bytes));
-    }
-  }
-  if (detected.mimeType === "application/pdf") {
-    return await openPdfPrintWindow(bytes);
+  if (mimeType === "application/pdf") {
+    return await openPdfPrintWindow(bytes, (shipping as any)?.labelStockType);
   }
 
   return await openImagePrintWindow(
     bytes,
-    detected.mimeType,
+    mimeType,
     (shipping as any)?.labelStockType,
   );
+};
+
+export const printAllShippingLabelDocuments = async (labels: Array<ShippingLabelData | null | undefined>) => {
+  const validLabels = labels.filter(Boolean) as ShippingLabelData[];
+  if (validLabels.length === 0) return false;
+
+  const printableDocs: PrintableLabelDocument[] = [];
+  for (const label of validLabels) {
+    const printable = await resolvePrintableLabelDocument(label);
+    if (printable) printableDocs.push(printable);
+  }
+  if (printableDocs.length === 0) return false;
+
+  const useFourBySix = printableDocs.every((item) => isFourBySixStock(item.stockType));
+  const sheetsHtml = printableDocs
+    .map((item, index) => {
+      const counter = `<div class="counter">${index + 1} of ${printableDocs.length}</div>`;
+      if (item.mimeType === "application/pdf") {
+        const dataUrl = `data:application/pdf;base64,${bytesToBase64(item.bytes)}`;
+        return `<section class="sheet">${counter}<iframe src="${dataUrl}" title="Label ${index + 1}"></iframe></section>`;
+      }
+      if (item.mimeType === "image/png") {
+        const dataUrl = `data:image/png;base64,${bytesToBase64(item.bytes)}`;
+        return `<section class="sheet">${counter}<img src="${dataUrl}" alt="Label ${index + 1}" /></section>`;
+      }
+      return `<section class="sheet">${counter}<pre>${escapeHtml(decodeBytesToText(item.bytes))}</pre></section>`;
+    })
+    .join("");
+
+  const html = `<!doctype html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>Print All Labels</title>
+        <style>
+          ${useFourBySix ? "@page { size: 4in 6in; margin: 0; }" : "@page { margin: 0.25in; }"}
+          html, body { margin: 0; padding: 0; background: #fff; }
+          .sheet {
+            position: relative;
+            ${useFourBySix ? "width: 4in; height: 6in;" : "width: 100%; min-height: 10in;"}
+            page-break-after: always;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .sheet:last-child { page-break-after: auto; }
+          .sheet iframe, .sheet img {
+            ${useFourBySix ? "width: 4in; height: 6in;" : "width: 100%; height: auto;"}
+            border: 0;
+            display: block;
+          }
+          .sheet pre {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 12px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-word;
+          }
+          .counter {
+            position: absolute;
+            right: 6px;
+            bottom: 4px;
+            font-size: 10px;
+            color: #334155;
+            background: rgba(255,255,255,0.85);
+            padding: 1px 4px;
+            border-radius: 4px;
+          }
+        </style>
+      </head>
+      <body>${sheetsHtml}</body>
+    </html>`;
+
+  return printInHiddenFrame(html);
 };
 
 export const uploadShippingLabelToStorage = async ({

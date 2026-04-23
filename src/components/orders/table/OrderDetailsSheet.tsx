@@ -2829,6 +2829,7 @@ export const OrderDetailsSheet = ({
         trackingNumber: trackingNumber.trim(),
         cost: shippingCost,
         weight: fedexData?.weight || (currentOrder as any)?.shipping?.weight,
+        packageWeights: fedexData?.packageWeights || (currentOrder as any)?.shipping?.packageWeights,
         weightUnits: fedexData?.weightUnits || (currentOrder as any)?.shipping?.weightUnits || "LB",
         labelUrl: storedLabel ? undefined : fedexData?.labelUrl || (currentOrder as any)?.shipping?.labelUrl,
         labelStoragePath:
@@ -2932,6 +2933,7 @@ export const OrderDetailsSheet = ({
             quotedAmount: existingShipping.quotedAmount,
             quotedCurrency: existingShipping.quotedCurrency,
             weight: existingShipping.weight,
+            packageWeights: existingShipping.packageWeights,
             weightUnits: existingShipping.weightUnits,
             packageCount: existingShipping.packageCount,
             packageLabels: existingShipping.packageLabels,
@@ -2968,7 +2970,11 @@ export const OrderDetailsSheet = ({
       );
 
       const totalCases = packedItems.reduce((sum: number, item: any) => sum + Number(item.casesOrdered || 0), 0);
-      const totalWeight = Number(packingSlipPayload.weight || 0);
+      const totalWeight =
+        Array.isArray((packingSlipPayload as any).cartonWeights) &&
+        (packingSlipPayload as any).cartonWeights.length > 0
+          ? (packingSlipPayload as any).cartonWeights.reduce((sum: number, entry: any) => sum + Number(entry || 0), 0)
+          : Number(packingSlipPayload.weight || 0);
       const shippingData =
         shippingOverride ||
         ((((currentOrder as any)?.shipping || {}) as Record<string, any>) || {});
