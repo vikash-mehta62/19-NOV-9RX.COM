@@ -1,7 +1,5 @@
 import HeroSection from "@/components/landing/HeroSection";
-import ProductCategories from "@/components/landing/ProductCategories";
 import HowItWorksSection from "@/components/landing/HowItWorksSection";
-import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import TrustSection from "@/components/landing/TrustSection";
 import FAQSection from "@/components/landing/FAQSection";
 import NewsletterSection from "@/components/landing/NewsletterSection";
