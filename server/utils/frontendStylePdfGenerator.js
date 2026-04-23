@@ -755,7 +755,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         ""
       ).trim();
       const hasPaidBlock = actualPaid > 0;
-      const hasBalanceBlock = actualPaid > 0 && balanceDue > 0 && !isPurchaseOrder;
+      const hasBalanceBlock = balanceDue > 0 && !isPurchaseOrder;
       const hasFullyPaidBlock = actualPaid > 0 && balanceDue === 0;
       const finalBlockHeight = totalBoxHeight
         + (hasPaidBlock ? SUMMARY_BOX_GAP + totalBoxHeight : 0)
@@ -813,17 +813,18 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       
       totalY += 4;
       
-      // Total box (blue background)
+      // Total box - light background, no border (match frontend ordersheet)
       ensureSummarySpace(finalBlockHeight);
       const totalBoxY = totalY + 2;
       doc.roundedRect(mm(totalBoxX), mm(totalBoxY), mm(totalBoxWidth), mm(totalBoxHeight), mm(1))
-        .fill(BRAND_BLUE);
+        .fillColor('#F0F5FF')
+        .fill();
       
-      doc.fontSize(10)
-         .fillColor('#FFFFFF')
+      doc.fontSize(12)
+         .fillColor(BRAND_BLUE)
          .font('Helvetica-Bold')
-        .text('TOTAL', mm(totalBoxX + 10), mm(totalBoxY + 3.5));
-      doc.fillColor('#FFFFFF')
+        .text('TOTAL', mm(totalBoxX + 5), mm(totalBoxY + 3.5));
+      doc.fillColor(BRAND_BLUE)
         .font('Helvetica-Bold')
         .text(`$${formatCurrency(total)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalBoxY + 3.5), { width: mm(25), align: 'right' });
 
@@ -862,47 +863,50 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         contentBottomY = Math.max(contentBottomY, notesBoxY + notesBoxHeight);
       }
       
-      // Add "PAID AMOUNT" and "FULLY PAID" badges if paid
+      // Add paid/balance blocks (match frontend ordersheet behavior)
+      let paymentBlockBottomY = totalBoxY + totalBoxHeight;
+      let paymentRowY = totalBoxY + SUMMARY_BOX_GAP;
       if (actualPaid > 0) {
-          totalY = totalBoxY + SUMMARY_BOX_GAP;
-        doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
-            .fillColor(SUCCESS_GREEN)
-           .fill();
+        doc.roundedRect(mm(totalBoxX), mm(paymentRowY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
+          .fillColor('#F0FDF4')
+          .fill();
         
         doc.fontSize(10)
-           .fillColor('#FFFFFF')
+           .fillColor(SUCCESS_GREEN)
            .font('Helvetica-Bold')
-            .text(isInvoice ? 'PAID AMOUNT' : 'PAID', mm(totalBoxX + 5), mm(totalY + 3.5));
-          doc.fillColor('#FFFFFF')
+            .text('PAID', mm(totalBoxX + 5), mm(paymentRowY + 3.5));
+          doc.fillColor(SUCCESS_GREEN)
             .font('Helvetica-Bold')
-            .text(`$${formatCurrency(actualPaid)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
-        
-          if (balanceDue > 0 && !isPurchaseOrder) {
-           totalY += SUMMARY_BOX_GAP;
-           doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
-             .fillColor(ALERT_RED)
-             .fill();
-
-           doc.fontSize(10)
-             .fillColor('#FFFFFF')
-             .font('Helvetica-Bold')
-             .text('BALANCE DUE', mm(totalBoxX + 5), mm(totalY + 3.5));
-           doc.fillColor('#FFFFFF')
-              .font('Helvetica-Bold')
-              .text(`$${formatCurrency(balanceDue)}`, mm(totalBoxX + totalBoxWidth - 30), mm(totalY + 3.5), { width: mm(25), align: 'right' });
-          } else if (balanceDue === 0) {
-          totalY += SUMMARY_BOX_GAP;
-          doc.roundedRect(mm(totalBoxX), mm(totalY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
-             .fillColor(SUCCESS_GREEN)
-             .fill();
-          
-          doc.fontSize(11)
-             .fillColor('#FFFFFF')
-             .font('Helvetica-Bold')
-             .text('FULLY PAID', mm(totalBoxX), mm(totalY + 3.5), { width: mm(totalBoxWidth), align: 'center' });
-        }
+            .text(`$${formatCurrency(actualPaid)}`, mm(totalBoxX + totalBoxWidth - 30), mm(paymentRowY + 3.5), { width: mm(25), align: 'right' });
+        paymentBlockBottomY = paymentRowY + totalBoxHeight;
+        paymentRowY += SUMMARY_BOX_GAP;
       }
-      contentBottomY = Math.max(contentBottomY, totalY + totalBoxHeight);
+      if (balanceDue > 0 && !isPurchaseOrder) {
+        doc.roundedRect(mm(totalBoxX), mm(paymentRowY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
+          .fillColor('#FEF2F2')
+          .fill();
+
+        doc.fontSize(10)
+          .fillColor(ALERT_RED)
+          .font('Helvetica-Bold')
+          .text('BALANCE DUE', mm(totalBoxX + 5), mm(paymentRowY + 3.5));
+        doc.fillColor(ALERT_RED)
+          .font('Helvetica-Bold')
+          .text(`$${formatCurrency(balanceDue)}`, mm(totalBoxX + totalBoxWidth - 30), mm(paymentRowY + 3.5), { width: mm(25), align: 'right' });
+        paymentBlockBottomY = paymentRowY + totalBoxHeight;
+        paymentRowY += SUMMARY_BOX_GAP;
+      } else if (actualPaid > 0 && balanceDue === 0) {
+        doc.roundedRect(mm(totalBoxX), mm(paymentRowY), mm(totalBoxWidth), mm(totalBoxHeight), mm(2))
+          .fillColor('#F0FDF4')
+          .fill();
+        
+        doc.fontSize(11)
+          .fillColor(SUCCESS_GREEN)
+          .font('Helvetica-Bold')
+          .text('FULLY PAID', mm(totalBoxX), mm(paymentRowY + 3.5), { width: mm(totalBoxWidth), align: 'center' });
+        paymentBlockBottomY = paymentRowY + totalBoxHeight;
+      }
+      contentBottomY = Math.max(contentBottomY, paymentBlockBottomY);
       let qrBottomY = contentBottomY;
       
       // Add QR code for payment link (if available and balance due > 0)
@@ -931,32 +935,6 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
             width: mm(qrSize),
             height: mm(qrSize),
           });
-          
-          // Add logo in center of QR code
-          try {
-            const logoBuffer = await fetchLogo();
-            if (logoBuffer) {
-              const logoSize = 8;
-              const logoX = qrX + (qrSize - logoSize) / 2;
-              const logoY = qrY + (qrSize - logoSize) / 2;
-              
-              // Draw white rounded rectangle background for logo
-              doc.roundedRect(mm(logoX - 1), mm(logoY - 1), mm(logoSize + 2), mm(logoSize + 2), mm(2))
-                 .fillColor('#FFFFFF')
-                 .fill();
-              
-              // Draw logo on top
-              doc.image(logoBuffer, mm(logoX), mm(logoY), {
-                width: mm(logoSize),
-                height: mm(logoSize),
-              });
-              
-              console.log("✅ Logo added to QR code center");
-            }
-          } catch (logoErr) {
-            console.log("⚠️ Logo in QR code skipped:", logoErr.message);
-          }
-          
           // Add label below QR code
           doc.fontSize(7)
              .fillColor(TEXT_DARK)
@@ -1081,3 +1059,4 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
 module.exports = {
   generateFrontendStylePdf,
 };
+

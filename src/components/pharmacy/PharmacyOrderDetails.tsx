@@ -75,9 +75,12 @@ const buildDiscountSummaryRows = (
   return rows
 }
 
-const SUMMARY_BOTTOM_RESERVE = 58
 const SUMMARY_FOOTER_GAP = 8
 const SUMMARY_FOOTER_LINE_OFFSET = 29
+const PDF_TABLE_BOTTOM_RESERVE = 40
+const PDF_SUMMARY_BOTTOM_RESERVE = 34
+const PDF_DECORATION_BOTTOM_RESERVE = 18
+const PDF_FOOTER_TEXT_HEIGHT = 12
 
 const getFinalSummaryBlockHeight = (paidAmount: number, balanceDue: number): number => {
   if (paidAmount > 0) return 36
@@ -413,7 +416,7 @@ console.log(order,"PHARorder")
         4: { halign: "right", cellWidth: 25 },
         5: { halign: "right", cellWidth: 25 },
       },
-      margin: { left: margin, right: margin, bottom: 45 },
+      margin: { left: margin, right: margin, bottom: PDF_TABLE_BOTTOM_RESERVE },
       tableWidth: "auto",
       showHead: "everyPage" as const,
       didParseCell: (data: any) => {
@@ -522,7 +525,54 @@ console.log(order,"PHARorder")
       doc.text(label, x + width / 2, y + 7, { align: "center" })
     }
   }
-	
+
+  const addPaymentQrCode = async (
+    doc: jsPDF,
+    {
+      paymentUrl,
+      summaryX,
+      summaryFinalY,
+      margin,
+      pageHeight,
+      fallbackAnchorY,
+    }: {
+      paymentUrl: string
+      summaryX: number
+      summaryFinalY: number
+      margin: number
+      pageHeight: number
+      fallbackAnchorY: number
+    }
+  ) => {
+    try {
+      const qrSize = 26
+      const qrGap = 8
+      const qrX = summaryX - qrSize - qrGap
+      const maxQrY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + qrSize + 4)
+      const qrY = Math.min(Math.max(summaryFinalY + 2, margin + 4), maxQrY)
+
+      const QRCode = (await import("qrcode")).default
+      const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
+        width: 140,
+        margin: 1,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      })
+
+      doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize)
+      doc.setFont("helvetica", "bold")
+      doc.setFontSize(7)
+      doc.setTextColor(60, 60, 60)
+      doc.text("Scan to Pay", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" })
+      return qrY + qrSize + 4
+    } catch (qrError) {
+      console.error("QR code generation failed:", qrError)
+      return fallbackAnchorY
+    }
+  }
+
 	  // Download PDF with barcode (same as admin)
 	  const handleDownloadPDF = async () => {
 	    setIsGeneratingPDF(true)
@@ -725,7 +775,7 @@ console.log(order,"PHARorder")
           0: { halign: "right", cellWidth: 45 },
           1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
         },
-        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE },
+        margin: { left: pageWidth - margin - 85, bottom: PDF_SUMMARY_BOTTOM_RESERVE },
         tableWidth: 80,
         didDrawCell: (data: any) => {
           if (data.section === "body" && data.column.index === 0 && data.row.index === firstDiscountRowIndex) {
@@ -757,6 +807,17 @@ console.log(order,"PHARorder")
       
       if (pdfBalanceDue > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "BALANCE DUE", `$${pdfBalanceDue.toFixed(2)}`, "due")
+        if (!isPurchaseOrder && order?.id) {
+          const paymentUrl = `${window.location.origin}/pay-now?orderid=${order.id}`
+          await addPaymentQrCode(doc, {
+            paymentUrl,
+            summaryX: pageWidth - margin - 85,
+            summaryFinalY,
+            margin,
+            pageHeight,
+            fallbackAnchorY: pdfPaidAmountY,
+          })
+        }
       } else if (paidAmount > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "FULLY PAID", null, "paid")
       }
@@ -946,7 +1007,7 @@ console.log(order,"PHARorder")
         body: printSummaryBody,
         startY: finalY, theme: "plain", styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: { 0: { halign: "right", cellWidth: 45 }, 1: { halign: "right", cellWidth: 35, fontStyle: "normal" } },
-        margin: { left: pageWidth - margin - 85, bottom: SUMMARY_BOTTOM_RESERVE }, tableWidth: 80,
+        margin: { left: pageWidth - margin - 85, bottom: PDF_SUMMARY_BOTTOM_RESERVE }, tableWidth: 80,
         didDrawCell: (data: any) => {
           if (data.section === "body" && data.column.index === 0 && data.row.index === printFirstDiscountRowIndex) {
             doc.setDrawColor(220, 220, 220)
@@ -976,6 +1037,17 @@ console.log(order,"PHARorder")
       
       if (printBalanceDue > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "BALANCE DUE", `$${printBalanceDue.toFixed(2)}`, "due")
+        if (!isPurchaseOrder && order?.id) {
+          const paymentUrl = `${window.location.origin}/pay-now?orderid=${order.id}`
+          await addPaymentQrCode(doc, {
+            paymentUrl,
+            summaryX: pageWidth - margin - 85,
+            summaryFinalY,
+            margin,
+            pageHeight,
+            fallbackAnchorY: printPaidAmountY,
+          })
+        }
       } else if (paidAmount > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "FULLY PAID", null, "paid")
       }
