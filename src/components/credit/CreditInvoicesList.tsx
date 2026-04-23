@@ -55,7 +55,7 @@ const CreditInvoicesList = () => {
         .from("user_credit_lines")
         .select("*")
         .eq("user_id", userProfile?.id)
-        .single();
+        .maybeSingle();
 
       setCreditLine(creditLineData);
 

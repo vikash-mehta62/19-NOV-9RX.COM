@@ -573,6 +573,11 @@ console.log(order,"PHARorder")
     }
   }
 
+  const isCreditLinePaymentMethod = (value: unknown) => {
+    const normalized = String(value || "").toLowerCase()
+    return normalized === "credit_line" || normalized === "credit"
+  }
+
 	  // Download PDF with barcode (same as admin)
 	  const handleDownloadPDF = async () => {
 	    setIsGeneratingPDF(true)
@@ -723,6 +728,9 @@ console.log(order,"PHARorder")
       }))
 
       const summaryBaseY = (doc as any).lastAutoTable.finalY + 8
+      const usesCreditLinePayment = isCreditLinePaymentMethod(
+        (order as any)?.payment_method || (order as any)?.paymentMethod || (order as any)?.payment?.method
+      )
 
       // ===== SUMMARY SECTION =====
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
@@ -807,7 +815,7 @@ console.log(order,"PHARorder")
       
       if (pdfBalanceDue > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "BALANCE DUE", `$${pdfBalanceDue.toFixed(2)}`, "due")
-        if (!isPurchaseOrder && order?.id) {
+        if (!isPurchaseOrder && order?.id && !usesCreditLinePayment) {
           const paymentUrl = `${window.location.origin}/pay-now?orderid=${order.id}`
           await addPaymentQrCode(doc, {
             paymentUrl,
@@ -970,6 +978,9 @@ console.log(order,"PHARorder")
       }))
 
       const printSummaryBaseY = (doc as any).lastAutoTable.finalY + 8
+      const usesCreditLinePayment = isCreditLinePaymentMethod(
+        (order as any)?.payment_method || (order as any)?.paymentMethod || (order as any)?.payment?.method
+      )
       // PO charges should ONLY be included for Purchase Orders (poAccept: false)
       const isPurchaseOrder = (order as any)?.poAccept === false
       const handling = isPurchaseOrder ? Number((order as any)?.po_handling_charges || 0) : 0
@@ -1037,7 +1048,7 @@ console.log(order,"PHARorder")
       
       if (printBalanceDue > 0) {
         drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "BALANCE DUE", `$${printBalanceDue.toFixed(2)}`, "due")
-        if (!isPurchaseOrder && order?.id) {
+        if (!isPurchaseOrder && order?.id && !usesCreditLinePayment) {
           const paymentUrl = `${window.location.origin}/pay-now?orderid=${order.id}`
           await addPaymentQrCode(doc, {
             paymentUrl,

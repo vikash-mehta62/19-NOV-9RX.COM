@@ -916,6 +916,79 @@ export const OrderDetailsSheet = ({
     };
   };
 
+  const drawAdminSalesOrderFooter = (
+    doc: jsPDF,
+    {
+      pageNumber,
+      totalPages,
+      pageWidth,
+      pageHeight,
+      margin,
+      brandColor,
+      documentTitle,
+    }: {
+      pageNumber: number;
+      totalPages: number;
+      pageWidth: number;
+      pageHeight: number;
+      margin: number;
+      brandColor: [number, number, number];
+      documentTitle: string;
+    }
+  ) => {
+    const footerY = pageHeight - 24;
+    const showSalesOrderCaution = documentTitle === "SALES ORDER" && userRole !== "pharmacy";
+    const transactionId = (currentOrder as any).payment_transication || "";
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setLineWidth(0.3);
+    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(...brandColor);
+    doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(120, 120, 120);
+    if (currentOrder.payment_status === "paid") {
+      doc.text(
+        transactionId
+          ? `Transaction ID: ${transactionId}  |  Questions? Contact us at ${supportEmail}`
+          : `Payment Received  |  Questions? Contact us at ${supportEmail}`,
+        pageWidth / 2,
+        footerY + 6,
+        { align: "center" }
+      );
+    } else {
+      doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" });
+    }
+
+    if (showSalesOrderCaution) {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(...brandColor);
+      doc.text(
+        "Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC",
+        pageWidth / 2,
+        pageHeight - 12,
+        { align: "center" }
+      );
+    }
+
+    doc.setFillColor(...brandColor);
+    doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
+
+    doc.setFillColor(255, 255, 255);
+    doc.rect(pageWidth / 2 - 20, pageHeight - 9, 40, 6, "F");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth / 2, pageHeight - 4.5, { align: "center" });
+  };
+
   const buildOrderPdfBlob = async () => {
     const doc = new jsPDF({
       orientation: "portrait",
@@ -951,7 +1024,14 @@ export const OrderDetailsSheet = ({
                 ? [34, 197, 94]
                 : [100, 116, 139];
     const logo = await loadPdfLogo();
-    const showPublicPayNowArtifacts = userRole !== "pharmacy";
+    const normalizedPaymentMethod = String(
+      (currentOrder as any)?.payment_method ||
+      (currentOrder as any)?.paymentMethod ||
+      ((currentOrder as any)?.payment || {})?.method ||
+      ""
+    ).toLowerCase();
+    const usesCreditLinePayment = normalizedPaymentMethod === "credit_line" || normalizedPaymentMethod === "credit";
+    const showPublicPayNowArtifacts = userRole !== "pharmacy" && !usesCreditLinePayment;
 
     const subtotal = (currentOrder.items || []).reduce((sum: number, item: any) => {
       return sum + (item.sizes || []).reduce((sizeSum: number, size: any) => sizeSum + ((Number(size.quantity) || 0) * (Number(size.price) || 0)), 0);
@@ -1140,7 +1220,8 @@ export const OrderDetailsSheet = ({
         ? [["Subtotal", `$${subtotal.toFixed(2)}`], ["Freight", `$${freight.toFixed(2)}`], ["Handling", `$${handling.toFixed(2)}`]]
         : [["Subtotal", `$${subtotal.toFixed(2)}`], ["Shipping & Handling", `$${(handling + shipping).toFixed(2)}`], ["Tax", `$${(freight + tax).toFixed(2)}`]];
       let firstDiscountRowIndex: number | null = null;
-      const balanceDue = Math.max(0, total - paidAmount);
+      const rawBalanceDue = total - paidAmount;
+      const balanceDue = Math.abs(rawBalanceDue) < 0.01 ? 0 : Math.max(0, rawBalanceDue);
 
       if (!poIs && processingFee > 0) {
         summaryBody.push(["Card Processing Fee", `$${processingFee.toFixed(2)}`]);
@@ -1169,7 +1250,7 @@ export const OrderDetailsSheet = ({
         styles: { fontSize: 9, cellPadding: 2 },
         columnStyles: {
           0: { halign: "right", cellWidth: 45 },
-          1: { halign: "right", cellWidth: 35, fontStyle: "normal" },
+          1: { halign: "right", cellWidth: 30, fontStyle: "normal" },
         },
         margin: { left: summaryX, bottom: PDF_SUMMARY_BOTTOM_RESERVE },
         tableWidth: summaryWidth,
@@ -1215,7 +1296,7 @@ export const OrderDetailsSheet = ({
         doc.text(`$${paidAmount.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
       }
-      if (balanceDue > 0 && !poIs && showPublicPayNowArtifacts) {
+      if (balanceDue > 0 && !poIs) {
         // BALANCE DUE box - light red background only, no border
         doc.setFillColor(254, 242, 242); // Light red background
         doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
@@ -1226,40 +1307,50 @@ export const OrderDetailsSheet = ({
         doc.text(`$${balanceDue.toFixed(2)}`, summaryX + summaryWidth - 5, paymentY + 7, { align: "right" });
         paymentY += 12;
         
-        // Add QR code for payment link
-        try {
-          const paymentUrl = `${window.location.origin}/pay-now?orderid=${currentOrder.id}`;
-          const qrSize = 26;
-          const qrGap = 8;
-          const qrX = summaryX - qrSize - qrGap;
-          const maxQrY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + qrSize + 4);
-          const qrY = Math.min(Math.max(summaryFinalY + 2, margin + 4), maxQrY);
-          
-          // Generate QR code using qrcode library
-          const QRCode = (await import('qrcode')).default;
-          const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
-            width: 140,
-            margin: 1,
-            color: {
-              dark: '#000000',
-              light: '#FFFFFF'
-            }
-          });
-          
-          // Add QR code to PDF
-          doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
-          
-          // Add label below QR code
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(7);
-          doc.setTextColor(60, 60, 60);
-          doc.text("Scan to Pay", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" });
-          qrBottomAnchorY = qrY + qrSize + 4;
-          
-          console.log("✅ QR code added for payment:", paymentUrl);
-        } catch (qrError) {
-          console.error("❌ QR code generation failed:", qrError);
+        if (showPublicPayNowArtifacts) {
+          // Add QR code for payment link
+          try {
+            const paymentUrl = `${window.location.origin}/pay-now?orderid=${currentOrder.id}`;
+            const qrSize = 26;
+            const qrGap = 8;
+            const qrX = summaryX - qrSize - qrGap;
+            const maxQrY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT + qrSize + 4);
+            const qrY = Math.min(Math.max(summaryFinalY + 2, margin + 4), maxQrY);
+            
+            // Generate QR code using qrcode library
+            const QRCode = (await import('qrcode')).default;
+            const qrDataUrl = await QRCode.toDataURL(paymentUrl, {
+              width: 140,
+              margin: 1,
+              color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+              }
+            });
+            
+            // Add QR code to PDF
+            doc.addImage(qrDataUrl, 'PNG', qrX, qrY, qrSize, qrSize);
+            
+            // Add label below QR code
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(7);
+            doc.setTextColor(60, 60, 60);
+            doc.text("Scan to Pay", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" });
+            qrBottomAnchorY = qrY + qrSize + 4;
+            
+            console.log("✅ QR code added for payment:", paymentUrl);
+          } catch (qrError) {
+            console.error("❌ QR code generation failed:", qrError);
+          }
         }
+      } else if (!poIs && paidAmount > 0) {
+        doc.setFillColor(240, 253, 244);
+        doc.roundedRect(summaryX, paymentY, summaryWidth, 10, 1, 1, "F");
+        doc.setTextColor(34, 197, 94);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(11);
+        doc.text("FULLY PAID", summaryX + summaryWidth / 2, paymentY + 7, { align: "center" });
+        paymentY += 12;
       }
       if (poIs && pdfNotesText) {
         const notesBoxX = margin + 6;
@@ -1298,7 +1389,7 @@ export const OrderDetailsSheet = ({
     const footerPreferredY = footerAnchorY + 8;
     const footerMaxY = pageHeight - (PDF_DECORATION_BOTTOM_RESERVE + PDF_FOOTER_TEXT_HEIGHT);
     const footerY = Math.min(Math.max(footerPreferredY, footerPinnedNearBottomY), footerMaxY);
-    if (footerY <= footerMaxY) {
+    if (poIs && footerY <= footerMaxY) {
       doc.setDrawColor(220, 220, 220);
       doc.setLineWidth(0.3);
       doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
@@ -1313,20 +1404,25 @@ export const OrderDetailsSheet = ({
     }
 
     const totalPages = (doc as any).internal.getNumberOfPages();
-    const showSalesOrderCaution = documentTitle === "SALES ORDER" && showPublicPayNowArtifacts;
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
+      if (!poIs) {
+        drawAdminSalesOrderFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth,
+          pageHeight,
+          margin,
+          brandColor,
+          documentTitle,
+        });
+        continue;
+      }
+
       doc.setFillColor(...brandColor);
       doc.rect(0, pageHeight - 2, pageWidth, 2, "F");
       doc.setFillColor(255, 255, 255);
       doc.rect(pageWidth / 2 - 20, pageHeight - 9, 40, 6, "F");
-
-      if (showSalesOrderCaution) {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(9);
-        doc.setTextColor(...brandColor);
-        doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 14, { align: "center", maxWidth: pageWidth - margin * 2 });
-      }
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
@@ -1721,77 +1817,22 @@ export const OrderDetailsSheet = ({
         pdfPaidAmountY += 12;
       }
 
-      // ===== FOOTER =====
-      // Calculate footer position dynamically based on where summary ends
-      // Use the higher of: 15mm after summary OR fixed position from bottom (for short orders)
-      const summaryEndY = pdfPaidAmountY + 5; // Add some padding after last element
-      const minFooterY = pageHeight - 25; // Minimum position from bottom
-      const footerY = Math.max(summaryEndY + 10, minFooterY);
-
-      // Check if footer would go off page, if so add new page
-      if (footerY > pageHeight - 15) {
-        // Don't draw footer on this page if it would overlap with page number area
-        // The footer will only appear cleanly at the bottom
-      } else {
-        // Footer line
-        doc.setDrawColor(220, 220, 220);
-        doc.setLineWidth(0.3);
-        doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
-
-        // Thank you message
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(...brandColor);
-        doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
-
-        // Payment info - different for paid vs unpaid
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-
-        if (currentOrder.payment_status === "paid") {
-          // Show transaction ID for paid invoices
-          const transactionId = (currentOrder as any).payment_transication || "";
-          if (transactionId) {
-            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-          } else {
-            doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-          }
-        } else {
-          // Show payment terms for unpaid invoices
-          doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-        }
-      }
-
-      // Add page numbers to all pages (Page X of Y format)
+      // Add common footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      const showSalesOrderCaution = documentTitle === "SALES ORDER" && userRole !== "pharmacy";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-
-        // Ensure footer band is on this page
-        doc.setFillColor(40, 56, 136);
-        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
-
-        // Draw white background for page number visibility
-        doc.setFillColor(255, 255, 255);
-        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
-
-        if (showSalesOrderCaution) {
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(9);
-          doc.setTextColor(...brandColor);
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" });
-        }
-
-        // Draw page number text
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(60, 60, 60);
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" });
+        drawAdminSalesOrderFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth: pdfWidth,
+          pageHeight: pdfHeight,
+          margin,
+          brandColor,
+          documentTitle,
+        });
       }
 
       doc.save(`${currentOrder.order_number}.pdf`);
@@ -2180,70 +2221,22 @@ export const OrderDetailsSheet = ({
         printPaidAmountY += 12;
       }
 
-      // ===== FOOTER =====
-      // Calculate footer position dynamically based on where summary ends
-      const summaryEndY = printPaidAmountY + 5;
-      const minFooterY = pageHeight - 25;
-      const footerY = Math.max(summaryEndY + 10, minFooterY);
-
-      // Check if footer would go off page
-      if (footerY > pageHeight - 15) {
-        // Don't draw footer text if it would overlap with page number area
-      } else {
-        doc.setDrawColor(220, 220, 220);
-        doc.setLineWidth(0.3);
-        doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3);
-
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(10);
-        doc.setTextColor(...brandColor);
-        doc.text("Thank you for your business!", pageWidth / 2, footerY + 2, { align: "center" });
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        doc.setTextColor(120, 120, 120);
-
-        if (currentOrder.payment_status === "paid") {
-          const transactionId = (currentOrder as any).payment_transication || "";
-          if (transactionId) {
-            doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-          } else {
-            doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-          }
-        } else {
-          doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 8, { align: "center" });
-        }
-      }
-
-      // Add page numbers to all pages (Page X of Y format)
+      // Add common footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages();
       const pdfWidth = doc.internal.pageSize.getWidth();
       const pdfHeight = doc.internal.pageSize.getHeight();
-      const showSalesOrderCaution = documentTitle === "SALES ORDER" && userRole !== "pharmacy";
 
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
-
-        // Ensure footer band is on this page
-        doc.setFillColor(40, 56, 136);
-        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F");
-
-        // Draw white background for page number visibility
-        doc.setFillColor(255, 255, 255);
-        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F");
-
-        if (showSalesOrderCaution) {
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(9);
-          doc.setTextColor(...brandColor);
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" });
-        }
-
-        // Draw page number text
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(9);
-        doc.setTextColor(60, 60, 60);
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 5, { align: "center" });
+        drawAdminSalesOrderFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth: pdfWidth,
+          pageHeight: pdfHeight,
+          margin,
+          brandColor,
+          documentTitle,
+        });
       }
 
       // Open PDF in iframe for printing with proper margins

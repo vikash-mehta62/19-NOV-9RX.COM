@@ -287,6 +287,11 @@ export default function PaymentCallback() {
     try {
       if (pendingPayment.flowType === "create_order") {
         const createdOrder = await createOrderFromPendingPayment(pendingPayment, callbackData, result);
+        try {
+          await sendPaymentConfirmationEmail(createdOrder.order, result);
+        } catch (emailError) {
+          console.error("Email send failed:", emailError);
+        }
         setCompletedOrderNumber(createdOrder.orderNumber);
         toast.success("Payment successful! Order created.");
         return;
@@ -294,6 +299,11 @@ export default function PaymentCallback() {
 
       if (pendingPayment.flowType === "pharmacy_checkout") {
         const createdLocalOrder = finalizePharmacyCheckout(pendingPayment, result);
+        try {
+          await sendPaymentConfirmationEmail(createdLocalOrder.order, result);
+        } catch (emailError) {
+          console.error("Email send failed:", emailError);
+        }
         setCompletedOrderNumber(createdLocalOrder.orderNumber);
         toast.success("Payment successful! Order placed.");
         return;
@@ -333,6 +343,21 @@ export default function PaymentCallback() {
 
         if (response?.data?.orderNumber) {
           setCompletedOrderNumber(response.data.orderNumber);
+        }
+
+        try {
+          await sendPaymentConfirmationEmail(
+            {
+              id: orderId,
+              order_number: response?.data?.orderNumber || pendingPayment?.orderNumber || null,
+              payment_status: response?.data?.paymentStatus || "paid",
+              paid_amount: Number(result.chargedAmount || result.totalAmount || callbackData.totalAmount || 0),
+              payment_method: result.paymentMethod,
+            },
+            result,
+          );
+        } catch (emailError) {
+          console.error("Email send failed:", emailError);
         }
 
         toast.success(response?.data?.message || "Payment successful! Order updated.");
@@ -471,7 +496,17 @@ export default function PaymentCallback() {
       }
 
       try {
-        await sendPaymentConfirmationEmail(order, result);
+        await sendPaymentConfirmationEmail(
+          {
+            ...order,
+            payment_status: newPaymentStatus,
+            paid_amount: newPaidAmount,
+            total_amount: newTotalAmount,
+            processing_fee_amount: totalProcessingFee,
+            payment_method: result.paymentMethod,
+          },
+          result,
+        );
       } catch (emailError) {
         console.error("Email send failed:", emailError);
       }
@@ -653,6 +688,14 @@ export default function PaymentCallback() {
     return {
       orderId: insertedOrder.id,
       orderNumber: insertedOrder.order_number,
+      order: {
+        ...insertedOrder,
+        payment_status: "paid",
+        paid_amount: chargedAmount,
+        total_amount: orderTotal,
+        processing_fee_amount: processingFee,
+        payment_method: result.paymentMethod,
+      },
     };
   };
 
@@ -681,6 +724,22 @@ export default function PaymentCallback() {
 
     return {
       orderNumber,
+      order: {
+        id: orderDraft.id || null,
+        order_number: orderNumber,
+        items: orderDraft.items || orderDraft.cartItems || [],
+        customerInfo: orderDraft.customerInfo || orderDraft.customer || {},
+        shippingAddress: orderDraft.shippingAddress || {},
+        total_amount: finalizedOrder.total,
+        total: finalizedOrder.total,
+        tax_amount: Number(orderDraft.tax || orderDraft.tax_amount || pendingPayment.orderTax || 0),
+        shipping_cost: Number(orderDraft.shipping || orderDraft.shipping_cost || pendingPayment.orderShipping || 0),
+        paid_amount: Number(result.chargedAmount || finalizedOrder.total || 0),
+        payment_status: "paid",
+        payment_method: result.paymentMethod,
+        processing_fee_amount: Number(result.processingFee || 0),
+        status: finalizedOrder.status || "paid",
+      },
     };
   };
 
@@ -1148,7 +1207,37 @@ export default function PaymentCallback() {
   };
 
   const sendPaymentConfirmationEmail = async (order: any, result: IPosNormalizedPaymentResult) => {
-    console.log("Send confirmation email", { orderId: order.id, result });
+    if (!order) return;
+
+    const profileId = order.profile_id || order.customer || order.location_id || null;
+    if (profileId) {
+      try {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("email_notifaction, order_updates")
+          .eq("id", profileId)
+          .maybeSingle();
+
+        if (
+          profileData &&
+          !profileData.email_notifaction &&
+          !profileData.order_updates
+        ) {
+          return;
+        }
+      } catch (profileError) {
+        console.error("Failed to check email preferences:", profileError);
+      }
+    }
+
+    await axios.post("/order-place", {
+      ...order,
+      payment_status: order.payment_status || "paid",
+      payment_method: order.payment_method || result.paymentMethod,
+      paid_amount: Number(order.paid_amount || result.chargedAmount || 0),
+      total_amount: Number(order.total_amount || order.total || result.chargedAmount || 0),
+      processing_fee_amount: Number(order.processing_fee_amount || result.processingFee || 0),
+    });
   };
 
   const handleRetryPayment = async () => {

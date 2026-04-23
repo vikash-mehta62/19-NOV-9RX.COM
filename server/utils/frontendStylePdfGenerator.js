@@ -17,7 +17,7 @@ const PAGE_MARGIN = 12; // 12mm margin (matching frontend)
 const PAGE_WIDTH = 210; // A4 width in mm
 const PAGE_HEIGHT = 297; // A4 height in mm
 const TOP_BAND_HEIGHT = 5;
-const FOOTER_Y = PAGE_HEIGHT - 30;
+const FOOTER_Y = PAGE_HEIGHT - 24;
 const FOOTER_SAFE_TOP_Y = PAGE_HEIGHT - 58;
 const FOOTER_MIN_Y = PAGE_HEIGHT - 72;
 const FOOTER_GAP_AFTER_CONTENT = 14;
@@ -296,7 +296,6 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const discountAmount = toNumber(order?.discount_amount || 0);
       const processingFeeAmount = toNumber(order?.processing_fee_amount || 0);
       const discountDetails = order?.discount_details || [];
-      
       // Calculate total: subtotal + shipping + tax - discount, plus PO charge fields when present.
       const calculatedTotal = isPurchaseOrder
         ? subtotal + shipping + tax + freightCharges + handlingCharges - discountAmount
@@ -766,8 +765,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
         + 4
         + 2
         + finalBlockHeight;
-      const summaryAnchorY = FOOTER_SAFE_TOP_Y - estimatedSummaryHeight;
-      let totalY = Math.max(totalsStartY, summaryAnchorY);
+      let totalY = totalsStartY;
 
       const moveSummaryToNextPage = () => {
         totalY = addContinuationPage(doc, mm);
@@ -971,27 +969,22 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       }
 
       const pageRange = doc.bufferedPageRange();
-      const lastPageFooterY = Math.max(
-        FOOTER_MIN_Y,
-        Math.min(FOOTER_Y, contentBottomY + FOOTER_GAP_AFTER_CONTENT)
-      );
       for (let i = pageRange.start; i < pageRange.start + pageRange.count; i++) {
         doc.switchToPage(i);
 
         drawTopBand(doc, mm);
         drawBottomBand(doc, mm);
 
-        const isLastPage = i === pageRange.start + pageRange.count - 1;
-        const footerY = isLastPage ? lastPageFooterY : FOOTER_Y;
+        const footerY = FOOTER_Y;
         const contactY = footerY + 6;
-          const cautionY = contactY + 4.5;
-        const showSalesOrderCaution = documentTitle === 'SALES ORDER';
+        const cautionY = PAGE_HEIGHT - 12;
+        const showSalesOrderCaution = !isInvoice && !isPurchaseOrder;
         const cautionLine = 'Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC';
-          doc.moveTo(mm(PAGE_MARGIN), mm(footerY - 5))
-            .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(footerY - 5))
-            .strokeColor(DIVIDER_LINE)
-            .lineWidth(0.3)
-            .stroke();
+        doc.moveTo(mm(PAGE_MARGIN), mm(footerY - 5))
+          .lineTo(mm(PAGE_WIDTH - PAGE_MARGIN), mm(footerY - 5))
+          .strokeColor(DIVIDER_LINE)
+          .lineWidth(0.3)
+          .stroke();
 
         doc.fontSize(10)
            .fillColor(BRAND_BLUE)
@@ -1023,7 +1016,7 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
            );
 
         if (showSalesOrderCaution) {
-          doc.fontSize(6.4)
+          doc.fontSize(9)
              .fillColor(BRAND_BLUE)
              .font('Helvetica-Bold')
              .text(cautionLine, mm(PAGE_MARGIN), mm(cautionY), {

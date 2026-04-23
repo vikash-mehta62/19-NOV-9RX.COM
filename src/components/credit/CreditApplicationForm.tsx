@@ -90,7 +90,7 @@ const CreditApplicationForm = () => {
         .eq("user_id", userProfile.id)
         .order("created_at", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (application) setExistingApplication(application);
 
@@ -98,7 +98,7 @@ const CreditApplicationForm = () => {
         .from("user_credit_lines")
         .select("*")
         .eq("user_id", userProfile.id)
-        .single();
+        .maybeSingle();
 
       if (creditLine) setExistingCreditLine(creditLine);
 
