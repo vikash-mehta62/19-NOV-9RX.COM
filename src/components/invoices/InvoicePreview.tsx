@@ -521,6 +521,94 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
     }
   }
 
+  const drawInvoiceFooter = (
+    doc: jsPDF,
+    {
+      pageNumber,
+      totalPages,
+      pageWidth,
+      pageHeight,
+      margin,
+      brandColor,
+      invoiceNote,
+    }: {
+      pageNumber: number
+      totalPages: number
+      pageWidth: number
+      pageHeight: number
+      margin: number
+      brandColor: [number, number, number]
+      invoiceNote?: string
+    }
+  ) => {
+    const footerY = pageHeight - 20
+    let detailLine = `Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`
+
+    if (showTransactionId) {
+      detailLine = `Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`
+    } else if (invoiceNote) {
+      detailLine = `Invoice Notes: ${invoiceNote}  |  Questions? Contact us at ${supportEmail}`
+    } else if (isPaid || isPartialPaid) {
+      detailLine = invoice?.payment_notes
+        ? `Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`
+        : `Payment Received  |  Questions? Contact us at ${supportEmail}`
+    }
+
+    doc.setDrawColor(220, 220, 220)
+    doc.setLineWidth(0.3)
+    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...brandColor)
+    doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(120, 120, 120)
+    doc.text(detailLine, pageWidth / 2, footerY + 6, { align: "center" })
+
+    doc.setFillColor(...brandColor)
+    doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+
+    doc.setFillColor(255, 255, 255)
+    doc.rect(pageWidth / 2 - 20, pageHeight - 9, 40, 6, "F")
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.setTextColor(60, 60, 60)
+    doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth / 2, pageHeight - 4.5, { align: "center" })
+  }
+
+  const drawSummaryBar = (
+    doc: jsPDF,
+    x: number,
+    y: number,
+    width: number,
+    label: string,
+    value: string | null,
+    tone: "total" | "paid" | "due"
+  ) => {
+    const styles = {
+      total: { fill: [239, 243, 255] as [number, number, number], text: [40, 56, 136] as [number, number, number] },
+      paid: { fill: [240, 253, 244] as [number, number, number], text: [22, 163, 74] as [number, number, number] },
+      due: { fill: [254, 242, 242] as [number, number, number], text: [220, 38, 38] as [number, number, number] },
+    }[tone]
+
+    doc.setFillColor(...styles.fill)
+    doc.roundedRect(x, y, width, 10, 1, 1, "F")
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...styles.text)
+
+    if (value) {
+      doc.text(label, x + 5, y + 7)
+      doc.text(value, x + width - 5, y + 7, { align: "right" })
+    } else {
+      doc.text(label, x + width / 2, y + 7, { align: "center" })
+    }
+  }
+
   // Download PDF with same format as admin/pharmacy
   const handleDownloadPDF = async () => {
     setIsGeneratingPDF(true)
@@ -693,81 +781,35 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         summaryFinalY = 20
       }
-      doc.setFillColor(...brandColor)
-      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(255, 255, 255)
-      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${pdfTotalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      drawSummaryBar(doc, pageWidth - margin - 85, summaryFinalY + 2, 80, "TOTAL", `$${pdfTotalAmount.toFixed(2)}`, "total")
 
       // Add Paid Amount and Balance Due
       let paidAmountY = summaryFinalY + 14
       if (resolvedPaidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("PAID AMOUNT", pageWidth - margin - 80, paidAmountY + 7)
-        doc.text(`$${resolvedPaidAmount.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, paidAmountY, 80, "PAID AMOUNT", `$${resolvedPaidAmount.toFixed(2)}`, "paid")
         paidAmountY += 12
       }
       
       if (balanceDue > 0) {
-        doc.setFillColor(239, 68, 68) // Red
-        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("BALANCE DUE", pageWidth - margin - 80, paidAmountY + 7)
-        doc.text(`$${balanceDue.toFixed(2)}`, pageWidth - margin - 7, paidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, paidAmountY, 80, "BALANCE DUE", `$${balanceDue.toFixed(2)}`, "due")
       } else if (resolvedPaidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, paidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 45, paidAmountY + 7, { align: "center" })
+        drawSummaryBar(doc, pageWidth - margin - 85, paidAmountY, 80, "FULLY PAID", null, "paid")
       }
-
-      // ===== FOOTER =====
-      const footerY = pageHeight - 30
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(...brandColor)
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(120, 120, 120)
 
       const pdfInvoiceNote = invoice?.notes?.trim()
-      if (showTransactionId) {
-        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      } else if (pdfInvoiceNote) {
-        doc.text(`Invoice Notes: ${pdfInvoiceNote}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      } else if (isPaid || isPartialPaid) {
-        if (invoice?.payment_notes) {
-          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-        } else {
-          doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-        }
-      } else {
-        doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      }
-
-      // Add page numbers to all pages (Page X of Y format)
+      // Add footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
-        // Draw page number text above the green footer band
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: "center" })
+        drawInvoiceFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth,
+          pageHeight,
+          margin,
+          brandColor,
+          invoiceNote: pdfInvoiceNote,
+        })
       }
 
       doc.save(`Invoice_${invoice.invoice_number}.pdf`)
@@ -930,79 +972,35 @@ export function InvoicePreview({ invoice }: InvoicePreviewProps) {
         doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         summaryFinalY = 20
       }
-      doc.setFillColor(...brandColor)
-      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(255, 255, 255)
-      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${pdfTotalAmount.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      drawSummaryBar(doc, pageWidth - margin - 85, summaryFinalY + 2, 80, "TOTAL", `$${pdfTotalAmount.toFixed(2)}`, "total")
 
       // Add Paid Amount and Balance Due for Print
       let printPaidAmountY = summaryFinalY + 14
       if (resolvedPaidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
-        doc.text(`$${resolvedPaidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "PAID AMOUNT", `$${resolvedPaidAmount.toFixed(2)}`, "paid")
         printPaidAmountY += 12
       }
       
       if (printBalanceDue > 0) {
-        doc.setFillColor(239, 68, 68) // Red
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7)
-        doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "BALANCE DUE", `$${printBalanceDue.toFixed(2)}`, "due")
       } else if (resolvedPaidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "FULLY PAID", null, "paid")
       }
 
-      const footerY = pageHeight - 30
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(...brandColor)
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(120, 120, 120)
       const printInvoiceNote = invoice?.notes?.trim()
-      if (showTransactionId) {
-        doc.text(`Transaction ID: ${invoice.payment_transication}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      } else if (printInvoiceNote) {
-        doc.text(`Invoice Notes: ${printInvoiceNote}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      } else if (isPaid || isPartialPaid) {
-        if (invoice?.payment_notes) {
-          doc.text(`Payment Notes: ${invoice.payment_notes}  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-        } else {
-          doc.text(`Payment Received  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-        }
-      } else {
-        doc.text(`Payment Terms: Net 30  |  Questions? Contact us at ${supportEmail}`, pageWidth / 2, footerY + 6, { align: "center" })
-      }
-
-      // Add page numbers to all pages (Page X of Y format)
+      // Add footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
-        // Draw page number text above the green footer band
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(8)
-        doc.setTextColor(100, 100, 100)
-        doc.text(`Page ${i} of ${totalPages}`, pageWidth / 2, pageHeight - 5, { align: "center" })
+        drawInvoiceFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth,
+          pageHeight,
+          margin,
+          brandColor,
+          invoiceNote: printInvoiceNote,
+        })
       }
 
       const pdfBlob = doc.output('blob')

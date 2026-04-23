@@ -77,6 +77,13 @@ const buildDiscountSummaryRows = (
 
 const SUMMARY_BOTTOM_RESERVE = 58
 const SUMMARY_FOOTER_GAP = 8
+const SUMMARY_FOOTER_LINE_OFFSET = 29
+
+const getFinalSummaryBlockHeight = (paidAmount: number, balanceDue: number): number => {
+  if (paidAmount > 0) return 36
+  if (balanceDue > 0) return 24
+  return 12
+}
 
 export const PharmacyOrderDetails = ({ order, open, onOpenChange }: PharmacyOrderDetailsProps) => {
   const { toast } = useToast()
@@ -423,6 +430,98 @@ console.log(order,"PHARorder")
       },
     }
   }
+
+  const drawSalesOrderFooter = (
+    doc: jsPDF,
+    {
+      pageNumber,
+      totalPages,
+      pageWidth,
+      pageHeight,
+      margin,
+      brandColor,
+    }: {
+      pageNumber: number
+      totalPages: number
+      pageWidth: number
+      pageHeight: number
+      margin: number
+      brandColor: [number, number, number]
+    }
+  ) => {
+    const footerY = pageHeight - 24
+    const transactionId = (order as any).payment_transication || ""
+
+    doc.setDrawColor(220, 220, 220)
+    doc.setLineWidth(0.3)
+    doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
+
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...brandColor)
+    doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(8)
+    doc.setTextColor(120, 120, 120)
+    if (order.payment_status === "paid") {
+      doc.text(
+        transactionId
+          ? `Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`
+          : "Payment Received  |  Questions? Contact us at info@9rx.com",
+        pageWidth / 2,
+        footerY + 6,
+        { align: "center" }
+      )
+    } else {
+      doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
+    }
+
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9)
+    doc.setTextColor(...brandColor)
+    doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pageWidth / 2, pageHeight - 12, { align: "center" })
+
+    doc.setFillColor(40, 56, 136)
+    doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+
+    doc.setFillColor(255, 255, 255)
+    doc.rect(pageWidth / 2 - 20, pageHeight - 9, 40, 6, "F")
+
+    doc.setFont("helvetica", "normal")
+    doc.setFontSize(9)
+    doc.setTextColor(60, 60, 60)
+    doc.text(`Page ${pageNumber} of ${totalPages}`, pageWidth / 2, pageHeight - 4.5, { align: "center" })
+  }
+
+  const drawSummaryBar = (
+    doc: jsPDF,
+    x: number,
+    y: number,
+    width: number,
+    label: string,
+    value: string | null,
+    tone: "total" | "paid" | "due"
+  ) => {
+    const styles = {
+      total: { fill: [239, 243, 255] as [number, number, number], text: [40, 56, 136] as [number, number, number] },
+      paid: { fill: [240, 253, 244] as [number, number, number], text: [22, 163, 74] as [number, number, number] },
+      due: { fill: [254, 242, 242] as [number, number, number], text: [220, 38, 38] as [number, number, number] },
+    }[tone]
+
+    doc.setFillColor(...styles.fill)
+    doc.roundedRect(x, y, width, 10, 1, 1, "F")
+    doc.setFont("helvetica", "bold")
+    doc.setFontSize(10)
+    doc.setTextColor(...styles.text)
+
+    if (value) {
+      doc.text(label, x + 5, y + 7)
+      doc.text(value, x + width - 5, y + 7, { align: "right" })
+    } else {
+      doc.text(label, x + width / 2, y + 7, { align: "center" })
+    }
+  }
 	
 	  // Download PDF with barcode (same as admin)
 	  const handleDownloadPDF = async () => {
@@ -602,11 +701,20 @@ console.log(order,"PHARorder")
         firstDiscountRowIndex = summaryBody.length
         summaryBody.push(...buildDiscountSummaryRows(pdfDiscountAmount, discountDetails))
       }
+      const rawPdfBalanceDue = pdfTotal - paidAmount
+      const pdfBalanceDue = Math.abs(rawPdfBalanceDue) < 0.01 ? 0 : Math.max(0, rawPdfBalanceDue)
+      const finalSummaryBlockHeight = getFinalSummaryBlockHeight(paidAmount, pdfBalanceDue)
       const estimatedSummaryHeight = Math.max(18, summaryBody.length * 6 + 4)
-      const summaryAnchorY = pageHeight - SUMMARY_BOTTOM_RESERVE - estimatedSummaryHeight - SUMMARY_FOOTER_GAP
-      const finalY = Math.max(summaryBaseY, summaryAnchorY)
-
-      const pdfBalanceDue = Math.max(0, pdfTotal - paidAmount)
+      const maxSummaryStartY = pageHeight - SUMMARY_FOOTER_LINE_OFFSET - finalSummaryBlockHeight - estimatedSummaryHeight - SUMMARY_FOOTER_GAP
+      let finalY = summaryBaseY
+      if (summaryBaseY > maxSummaryStartY) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        finalY = 20
+      }
 
       autoTable(doc as any, {
         body: summaryBody,
@@ -630,7 +738,7 @@ console.log(order,"PHARorder")
 
       // Total row with highlight
       let summaryFinalY = (doc as any).lastAutoTable.finalY
-      if (summaryFinalY + 38 > pageHeight - 30) {
+      if (summaryFinalY + finalSummaryBlockHeight > pageHeight - SUMMARY_FOOTER_LINE_OFFSET) {
         doc.addPage()
         doc.setFillColor(...brandColor)
         doc.rect(0, 0, pageWidth, 5, "F")
@@ -638,96 +746,36 @@ console.log(order,"PHARorder")
         doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         summaryFinalY = 20
       }
-      doc.setFillColor(...brandColor)
-      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(255, 255, 255)
-      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      drawSummaryBar(doc, pageWidth - margin - 85, summaryFinalY + 2, 80, "TOTAL", `$${pdfTotal.toFixed(2)}`, "total")
 
       // Add Paid Amount and Balance Due
       let pdfPaidAmountY = summaryFinalY + 14
       if (paidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("PAID AMOUNT", pageWidth - margin - 80, pdfPaidAmountY + 7)
-        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "PAID AMOUNT", `$${paidAmount.toFixed(2)}`, "paid")
         pdfPaidAmountY += 12
       }
       
       if (pdfBalanceDue > 0) {
-        doc.setFillColor(239, 68, 68) // Red
-        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("BALANCE DUE", pageWidth - margin - 80, pdfPaidAmountY + 7)
-        doc.text(`$${pdfBalanceDue.toFixed(2)}`, pageWidth - margin - 7, pdfPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "BALANCE DUE", `$${pdfBalanceDue.toFixed(2)}`, "due")
       } else if (paidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, pdfPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 45, pdfPaidAmountY + 7, { align: "center" })
+        drawSummaryBar(doc, pageWidth - margin - 85, pdfPaidAmountY, 80, "FULLY PAID", null, "paid")
       }
 
-      // ===== FOOTER =====
-      const footerY = pageHeight - 24
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(...brandColor)
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(120, 120, 120)
-      if (order.payment_status === "paid") {
-        const transactionId = (order as any).payment_transication || ""
-        if (transactionId) {
-          doc.text(`Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com`, pageWidth / 2, footerY + 4, { align: "center" })
-        } else {
-          doc.text("Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
-        }
-      } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
-      }
-
-      // Add page numbers to all pages
+      // Add footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
-      const showSalesOrderCaution = false
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
-        
-        // Blue footer band at bottom
-        doc.setFillColor(40, 56, 136)
-        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
-        
-        // White background for page number
-        doc.setFillColor(255, 255, 255)
-        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
-
-        if (showSalesOrderCaution) {
-          doc.setFont("helvetica", "bold")
-          doc.setFontSize(9)
-          doc.setTextColor(...brandColor)
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" })
-        }
-        
-        // Page number text
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(9)
-        doc.setTextColor(60, 60, 60)
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 4.5, { align: "center" })
+        drawSalesOrderFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth: pdfWidth,
+          pageHeight: pdfHeight,
+          margin,
+          brandColor,
+        })
       }
 
       doc.save(`${order.order_number}.pdf`)
@@ -879,11 +927,20 @@ console.log(order,"PHARorder")
         printFirstDiscountRowIndex = printSummaryBody.length
         printSummaryBody.push(...buildDiscountSummaryRows(printDiscountAmount, discountDetails))
       }
+      const rawPrintBalanceDue = pdfTotal - paidAmount
+      const printBalanceDue = Math.abs(rawPrintBalanceDue) < 0.01 ? 0 : Math.max(0, rawPrintBalanceDue)
+      const finalPrintBlockHeight = getFinalSummaryBlockHeight(paidAmount, printBalanceDue)
       const estimatedPrintSummaryHeight = Math.max(18, printSummaryBody.length * 6 + 4)
-      const printSummaryAnchorY = pageHeight - SUMMARY_BOTTOM_RESERVE - estimatedPrintSummaryHeight - SUMMARY_FOOTER_GAP
-      const finalY = Math.max(printSummaryBaseY, printSummaryAnchorY)
-
-      const printBalanceDue = Math.max(0, pdfTotal - paidAmount)
+      const maxPrintSummaryStartY = pageHeight - SUMMARY_FOOTER_LINE_OFFSET - finalPrintBlockHeight - estimatedPrintSummaryHeight - SUMMARY_FOOTER_GAP
+      let finalY = printSummaryBaseY
+      if (printSummaryBaseY > maxPrintSummaryStartY) {
+        doc.addPage()
+        doc.setFillColor(...brandColor)
+        doc.rect(0, 0, pageWidth, 5, "F")
+        doc.setFillColor(...brandColor)
+        doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
+        finalY = 20
+      }
 
       autoTable(doc as any, {
         body: printSummaryBody,
@@ -900,8 +957,7 @@ console.log(order,"PHARorder")
       })
 
       let summaryFinalY = (doc as any).lastAutoTable.finalY
-      const finalPrintBlockHeight = paidAmount > 0 ? 34 : 22
-      if (summaryFinalY + finalPrintBlockHeight > pageHeight - 30) {
+      if (summaryFinalY + finalPrintBlockHeight > pageHeight - SUMMARY_FOOTER_LINE_OFFSET) {
         doc.addPage()
         doc.setFillColor(...brandColor)
         doc.rect(0, 0, pageWidth, 5, "F")
@@ -909,91 +965,36 @@ console.log(order,"PHARorder")
         doc.rect(0, pageHeight - 2, pageWidth, 2, "F")
         summaryFinalY = 20
       }
-      doc.setFillColor(...brandColor)
-      doc.roundedRect(pageWidth - margin - 85, summaryFinalY + 2, 80, 10, 1, 1, "F")
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(255, 255, 255)
-      doc.text("TOTAL", pageWidth - margin - 80, summaryFinalY + 9)
-      doc.text(`$${pdfTotal.toFixed(2)}`, pageWidth - margin - 7, summaryFinalY + 9, { align: "right" })
+      drawSummaryBar(doc, pageWidth - margin - 85, summaryFinalY + 2, 80, "TOTAL", `$${pdfTotal.toFixed(2)}`, "total")
 
       // Add Paid Amount and Balance Due for Print
       let printPaidAmountY = summaryFinalY + 14
       if (paidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("PAID AMOUNT", pageWidth - margin - 80, printPaidAmountY + 7)
-        doc.text(`$${paidAmount.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "PAID AMOUNT", `$${paidAmount.toFixed(2)}`, "paid")
         printPaidAmountY += 12
       }
       
       if (printBalanceDue > 0) {
-        doc.setFillColor(239, 68, 68) // Red
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("BALANCE DUE", pageWidth - margin - 80, printPaidAmountY + 7)
-        doc.text(`$${printBalanceDue.toFixed(2)}`, pageWidth - margin - 7, printPaidAmountY + 7, { align: "right" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "BALANCE DUE", `$${printBalanceDue.toFixed(2)}`, "due")
       } else if (paidAmount > 0) {
-        doc.setFillColor(34, 197, 94) // Green
-        doc.roundedRect(pageWidth - margin - 85, printPaidAmountY, 80, 10, 1, 1, "F")
-        doc.setFont("helvetica", "bold")
-        doc.setFontSize(10)
-        doc.setTextColor(255, 255, 255)
-        doc.text("FULLY PAID", pageWidth - margin - 45, printPaidAmountY + 7, { align: "center" })
+        drawSummaryBar(doc, pageWidth - margin - 85, printPaidAmountY, 80, "FULLY PAID", null, "paid")
       }
 
-      const footerY = pageHeight - 24
-      doc.setDrawColor(220, 220, 220)
-      doc.setLineWidth(0.3)
-      doc.line(margin, footerY - 5, pageWidth - margin, footerY - 5)
-      doc.setFont("helvetica", "bold")
-      doc.setFontSize(10)
-      doc.setTextColor(...brandColor)
-      doc.text("Thank you for your business!", pageWidth / 2, footerY, { align: "center" })
-      doc.setFont("helvetica", "normal")
-      doc.setFontSize(8)
-      doc.setTextColor(120, 120, 120)
-      if (order.payment_status === "paid") {
-        const transactionId = (order as any).payment_transication || ""
-        doc.text(transactionId ? `Transaction ID: ${transactionId}  |  Questions? Contact us at info@9rx.com` : "Payment Received  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 6, { align: "center" })
-      } else {
-        doc.text("Payment Terms: Net 30  |  Questions? Contact us at info@9rx.com", pageWidth / 2, footerY + 4, { align: "center" })
-      }
-
-      // Add page numbers to all pages
+      // Add footer and page numbers to all pages
       const totalPages = (doc as any).internal.getNumberOfPages()
       const pdfWidth = doc.internal.pageSize.getWidth()
       const pdfHeight = doc.internal.pageSize.getHeight()
-      const showSalesOrderCaution = false
       
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i)
-        
-        // Blue footer band at bottom
-        doc.setFillColor(40, 56, 136)
-        doc.rect(0, pdfHeight - 2, pdfWidth, 2, "F")
-        
-        // White background for page number
-        doc.setFillColor(255, 255, 255)
-        doc.rect(pdfWidth / 2 - 20, pdfHeight - 9, 40, 6, "F")
-
-        if (showSalesOrderCaution) {
-          doc.setFont("helvetica", "bold")
-          doc.setFontSize(9)
-          doc.setTextColor(...brandColor)
-          doc.text("Please Note: Send your payment with this invoice to 936 Broad river ln, Charlotte, NC 28211 in name of 9RX LLC", pdfWidth / 2, pdfHeight - 14, { align: "center" })
-        }
-        
-        // Page number text
-        doc.setFont("helvetica", "normal")
-        doc.setFontSize(9)
-        doc.setTextColor(60, 60, 60)
-        doc.text(`Page ${i} of ${totalPages}`, pdfWidth / 2, pdfHeight - 4.5, { align: "center" })
+        drawSalesOrderFooter(doc, {
+          pageNumber: i,
+          totalPages,
+          pageWidth: pdfWidth,
+          pageHeight: pdfHeight,
+          margin,
+          brandColor,
+        })
       }
 
       // Open PDF in iframe for printing
