@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -39,6 +40,7 @@ import { format } from "date-fns"
 import { Checkbox } from "@/components/ui/checkbox"
 import axios from "../../../axiosconfig"
 import DashboardLayout from "@/components/DashboardLayout"
+import { useToast } from "@/hooks/use-toast"
 
 interface LogEntry {
     _id: string
@@ -64,6 +66,8 @@ interface FilterState {
 }
 
 export default function AdminLogs() {
+    const navigate = useNavigate()
+    const { toast } = useToast()
     const [logs, setLogs] = useState<LogEntry[]>([])
     const [filteredLogs, setFilteredLogs] = useState<LogEntry[]>([])
     const [selectedLog, setSelectedLog] = useState<LogEntry | null>(null)
@@ -111,12 +115,31 @@ export default function AdminLogs() {
                 setLoading(false)
             } catch (error) {
                 console.error("Failed to fetch logs:", error)
+                const status = (error as any)?.response?.status
+                if (status === 401) {
+                    toast({
+                        title: "Session expired",
+                        description: "Please login again.",
+                        variant: "destructive",
+                    })
+                    navigate("/login")
+                    return
+                }
+                if (status === 403) {
+                    toast({
+                        title: "Access denied",
+                        description: "Only admin users can view logs.",
+                        variant: "destructive",
+                    })
+                    navigate("/admin/dashboard")
+                    return
+                }
                 setLoading(false)
             }
         }
 
         fetchLogs()
-    }, [currentPage, itemsPerPage, filters])
+    }, [currentPage, itemsPerPage, filters, navigate, toast])
 
     const handleSearch = (e: React.FormEvent) => {
         e.preventDefault()
