@@ -9,6 +9,9 @@ import { ConfirmationDialog } from "../table/actions/ConfirmationDialog";
 import { FedExDialogState, TrackingDialog, TrackingDialogSubmitPayload } from "../components/TrackingDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { OrderActivityService } from "@/services/orderActivityService";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import { hasAdminPermission } from "@/lib/adminAccess";
 import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from "../utils/poWorkflow";
 import { getOrderStatusDisplay, getPaymentStatusDisplay } from "../utils/orderDisplay";
 import {
@@ -55,6 +58,7 @@ export const OrderHeader = ({
   totalAmountOverride,
 }: OrderHeaderProps) => {
   const { toast } = useToast();
+  const currentUserProfile = useSelector((state: RootState) => state.user.profile);
   const [showShipConfirmDialog, setShowShipConfirmDialog] = useState(false);
   const [showTrackingDialog, setShowTrackingDialog] = useState(false);
   const [showLabelActions, setShowLabelActions] = useState(false);
@@ -333,6 +337,7 @@ export const OrderHeader = ({
     : [];
   const savedLabelActions = savedPackageLabels.length > 0 ? savedPackageLabels : order.shipping ? [order.shipping] : [];
   const hasSavedPackingSlip = Boolean((order.shipping as any)?.packingSlip);
+  const canManageOrderActions = hasAdminPermission(currentUserProfile, "orders");
 
   const poWorkflowState = getPoWorkflowState(order);
   const poStatusLabel = getPoWorkflowLabel(poWorkflowState);
@@ -493,7 +498,7 @@ export const OrderHeader = ({
       </div>
 
       {/* Quick Actions Bar */}
-      {userRole === "admin" && !order.void && order.status !== "cancelled" && (
+      {canManageOrderActions && !order.void && order.status !== "cancelled" && (
         <div className="mt-4 pt-4 border-t">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Admin Actions

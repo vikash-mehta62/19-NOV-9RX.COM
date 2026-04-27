@@ -57,6 +57,9 @@ import { sendPurchaseOrderEmail } from "@/services/purchaseOrderEmail";
 import { fetchOrderedSubcategories, insertSubcategorySafely } from "@/services/productTreeService";
 import { uploadShippingLabelToStorage } from "../utils/shippingLabelDocuments";
 import { generateWorkOrderPDF } from "@/utils/packing-slip";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
+import { hasAdminPermission } from "@/lib/adminAccess";
 
 // Helper function to safely get address fields
 const getAddressField = (
@@ -190,6 +193,7 @@ export const OrderDetailsSheet = ({
 }: OrderDetailsSheetProps) => {
   const { toast } = useToast();
   const { clearCart } = useCart();
+  const currentUserProfile = useSelector((state: RootState) => state.user.profile);
   const [currentOrder, setCurrentOrder] = useState<OrderFormValues>(order);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -274,6 +278,8 @@ export const OrderDetailsSheet = ({
       shippingData.labelUrl
     );
   }, [currentOrder]);
+
+  const canManageOrderActions = hasAdminPermission(currentUserProfile, "orders");
 
   // Cleanup on unmount
   useEffect(() => {
@@ -4040,7 +4046,7 @@ export const OrderDetailsSheet = ({
                 ? "Edit order details and click Update Order to save your changes."
                 : poIs
                   ? "Approve, schedule, receive, pay, and close the purchase order from one workspace"
-                  : userRole === "admin" && !hideFinancialData
+                  : canManageOrderActions && !hideFinancialData
                     ? "Review the order here. Click Edit Order to change details, then Update Order to save."
                     : "View and manage order information"}
             </SheetDescription>
@@ -4076,8 +4082,8 @@ export const OrderDetailsSheet = ({
                   onDelete={onDeleteOrder ? () => onDeleteOrder(currentOrder.id) : undefined}
                   onSendEmail={!hideFinancialData ? sendMail : undefined}
                   onPrint={!hideFinancialData ? handlePrint : undefined}
-                  onPackingSlip={!hideFinancialData && !poIs ? handleDownloadPackingSlip : undefined}
-                  onCreateLabel={!hideFinancialData && !poIs ? handleCreateLabelFlow : undefined}
+                  onPackingSlip={canManageOrderActions && !poIs ? handleDownloadPackingSlip : undefined}
+                  onCreateLabel={canManageOrderActions && !poIs ? handleCreateLabelFlow : undefined}
                   onOrderUpdate={persistCurrentOrder}
                   isGeneratingPDF={isGeneratingPDF}
                   isSendingEmail={loading}
@@ -4986,7 +4992,7 @@ export const OrderDetailsSheet = ({
                 )}
 
                 {/* Admin Actions */}
-                {userRole === "admin" && !poIs && (
+                {canManageOrderActions && !poIs && (
                   <div className="flex flex-col sm:flex-row justify-end sm:items-center gap-2 sm:gap-3 mt-4 pt-4 border-t">
                     <OrderActions
                       order={currentOrder}
