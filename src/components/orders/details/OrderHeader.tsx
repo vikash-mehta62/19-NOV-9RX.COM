@@ -16,6 +16,7 @@ import { getPoWorkflowBadgeClass, getPoWorkflowLabel, getPoWorkflowState } from 
 import { getOrderStatusDisplay, getPaymentStatusDisplay } from "../utils/orderDisplay";
 import {
   hasShippingLabelDocument,
+  printAllShippingLabelDocuments,
   printShippingLabelDocument,
   uploadShippingLabelToStorage,
 } from "../utils/shippingLabelDocuments";
@@ -106,11 +107,28 @@ export const OrderHeader = ({
     }
   };
 
+  const withSavedLabelContext = (label: any) => ({
+    ...label,
+    labelFormat: label?.labelFormat || (order.shipping as any)?.labelFormat || "ZPLII",
+    labelStockType: label?.labelStockType || (order.shipping as any)?.labelStockType || "STOCK_4X6",
+  });
+
   const handlePrintLabel = async (label: any, key: string) => {
     if (printingLabelKey) return;
     setPrintingLabelKey(key);
     try {
-      await printShippingLabelDocument(label);
+      await printShippingLabelDocument(withSavedLabelContext(label));
+    } finally {
+      setPrintingLabelKey("");
+    }
+  };
+
+  const handlePrintAllLabels = async () => {
+    if (printingLabelKey || savedLabelActions.length <= 1) return;
+    setPrintingLabelKey("all");
+    try {
+      await printAllShippingLabelDocuments(savedLabelActions.map((label: any) => withSavedLabelContext(label)));
+      setShowLabelActions(false);
     } finally {
       setPrintingLabelKey("");
     }
@@ -565,6 +583,21 @@ export const OrderHeader = ({
 
                 {showLabelActions && savedLabelActions.length > 1 && (
                   <div className="absolute left-0 top-full z-20 mt-2 w-56 rounded-lg border bg-white p-2 shadow-lg">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handlePrintAllLabels}
+                      disabled={Boolean(printingLabelKey)}
+                      className="w-full justify-start gap-2 font-semibold text-indigo-700"
+                    >
+                      {printingLabelKey === "all" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Printer className="h-4 w-4" />
+                      )}
+                      {printingLabelKey === "all" ? "Printing all..." : `Print All (${savedLabelActions.length})`}
+                    </Button>
+                    <div className="my-1 border-t border-slate-100" />
                     {savedLabelActions.map((label: any, index: number) => (
                       <div key={`${label.trackingNumber || label.labelStoragePath || index}`}>
                         <Button

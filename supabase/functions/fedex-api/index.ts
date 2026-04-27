@@ -462,7 +462,16 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
   const pkg = shipment.package || {};
   const weightUnits = pkg.weightUnits || settings.fedex_default_weight_units || "LB";
   const weightValue = Number(pkg.weightValue || settings.fedex_default_weight_value || 1);
-  const packageCount = Math.max(1, Math.floor(Number(pkg.packageCount || pkg.cartons || 1)));
+  const packageWeightsSource = Array.isArray(pkg.packageWeights) ? pkg.packageWeights : [];
+  const requestedPackageCount = Math.floor(
+    Number(pkg.packageCount || pkg.cartons || packageWeightsSource.length || 1),
+  );
+  const packageCount = Math.max(1, requestedPackageCount);
+  const packageWeights = Array.from({ length: packageCount }, (_, index) => {
+    const entry = Number(packageWeightsSource[index]);
+    return Number.isFinite(entry) && entry > 0 ? entry : weightValue;
+  });
+  const totalWeightValue = packageWeights.reduce((sum, entry) => sum + entry, 0);
   const dimensionUnits = pkg.dimensionUnits || settings.fedex_default_dimension_units || "IN";
   const length = Number(pkg.length || settings.fedex_default_length || 12);
   const width = Number(pkg.width || settings.fedex_default_width || 10);
@@ -499,7 +508,7 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
     ...(options?.minimal ? {} : { groupPackageCount: 1 }),
     weight: {
       units: weightUnits,
-      value: weightValue,
+      value: packageWeights[index],
     },
     dimensions: {
       length,
@@ -531,7 +540,7 @@ const buildRequestedShipment = (settings: JsonRecord, shipment: JsonRecord, opti
       : {
           totalWeight: {
             units: weightUnits,
-            value: weightValue,
+            value: totalWeightValue,
           },
         }),
     shipper,

@@ -23,13 +23,14 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { CheckCircle2, AlertCircle, Loader2, Eye, ChevronDown } from "lucide-react";
 import { OrderFormValues } from "../schemas/orderSchema";
 import {
   FedExRecipientInput,
@@ -44,6 +45,7 @@ import {
   downloadShippingLabelDocument,
   hasShippingLabelDocument,
   openShippingLabelDocument,
+  printAllShippingLabelDocuments,
   printShippingLabelDocument,
 } from "../utils/shippingLabelDocuments";
 
@@ -77,11 +79,8 @@ export interface FedExDialogState {
   quotedAmount?: number;
   quotedCurrency?: string;
   weight?: number;
+  packageWeights?: number[];
   weightUnits?: string;
-  length?: number;
-  width?: number;
-  height?: number;
-  dimensionUnits?: string;
   trackingRaw?: Record<string, any>;
 }
 
@@ -95,6 +94,7 @@ export interface TrackingDialogPackingSlipPayload {
   trackingNumber: string;
   cartons: number;
   weight: number;
+  cartonWeights: number[];
   packedBy: string;
   checkedBy: string;
   notes: string;
@@ -372,6 +372,29 @@ const buildPackingProductRows = (order?: OrderFormValues) => {
   return rows;
 };
 
+const normalizePackageWeights = (
+  raw: unknown,
+  fallbackCount = 1,
+  fallbackWeight = "1",
+): string[] => {
+  const normalizedFallbackWeight =
+    Number.isFinite(Number(fallbackWeight)) && Number(fallbackWeight) > 0
+      ? String(fallbackWeight)
+      : "1";
+
+  const source = Array.isArray(raw) ? raw : [];
+  const cleaned = source
+    .map((entry) => String(entry ?? "").trim())
+    .filter((entry) => Number.isFinite(Number(entry)) && Number(entry) > 0);
+
+  const targetCount = Math.max(1, Math.floor(Number(fallbackCount) || 1));
+  const weights = cleaned.slice(0, targetCount);
+  while (weights.length < targetCount) {
+    weights.push(normalizedFallbackWeight);
+  }
+  return weights;
+};
+
 export const TrackingDialog = ({
   isOpen,
   onOpenChange,
@@ -387,11 +410,11 @@ export const TrackingDialog = ({
   onDownloadPackingSlip,
 }: TrackingDialogProps) => {
   const { toast } = useToast();
-  const [weightValue, setWeightValue] = useState("1");
-  const [length, setLength] = useState("12");
-  const [width, setWidth] = useState("10");
-  const [height, setHeight] = useState("8");
+  const [packageWeights, setPackageWeights] = useState<string[]>(["1"]);
   const [packageCount, setPackageCount] = useState("1");
+  const [sameWeightForAllCartons, setSameWeightForAllCartons] = useState(false);
+  const [sharedCartonWeight, setSharedCartonWeight] = useState("1");
+  const [isWeightsSectionCollapsed, setIsWeightsSectionCollapsed] = useState(false);
   const [serviceType, setServiceType] = useState("FEDEX_GROUND");
   const [labelImageType, setLabelImageType] = useState<"PDF" | "PNG" | "ZPLII">("ZPLII");
   const [labelStockType, setLabelStockType] = useState("STOCK_4X6");
@@ -461,6 +484,7 @@ export const TrackingDialog = ({
             serviceType: storedShipping.serviceType,
             packagingType: storedShipping.packagingType,
             packageCount: storedShipping.packageCount,
+            packageWeights: storedShipping.packageWeights,
             packageLabels: storedShipping.packageLabels,
             estimatedDeliveryDate: storedShipping.estimatedDelivery,
             pickupConfirmationNumber: storedShipping.pickupConfirmationNumber,
@@ -493,14 +517,31 @@ export const TrackingDialog = ({
         ? storedShipping.labelStockType
         : nextStockOptions[0].value,
     );
-    setWeightValue(
-      String(
-        storedShipping?.weight ??
-          (storedShipping?.packingSlip as Record<string, any> | undefined)?.weight ??
-          "1",
-      ),
+    const storedPackageCount = Number(
+      storedShipping?.packageCount ||
+        storedShipping?.packingSlip?.cartons ||
+        1,
     );
-    setPackageCount(String(storedShipping?.packageCount || storedShipping?.packingSlip?.cartons || "1"));
+    const fallbackWeight = String(
+      storedShipping?.weight ??
+        (storedShipping?.packingSlip as Record<string, any> | undefined)?.weight ??
+        "1",
+    );
+    const nextPackageWeights = normalizePackageWeights(
+      storedShipping?.packageWeights ||
+        (storedShipping?.packingSlip as Record<string, any> | undefined)?.cartonWeights,
+      storedPackageCount,
+      fallbackWeight,
+    );
+    setPackageWeights(nextPackageWeights);
+    setPackageCount(String(nextPackageWeights.length));
+    const firstWeight = nextPackageWeights[0] || "1";
+    const allSameWeight =
+      nextPackageWeights.length > 1 &&
+      nextPackageWeights.every((entry) => Number(entry || 0).toFixed(2) === Number(firstWeight || 0).toFixed(2));
+    setSameWeightForAllCartons(allSameWeight);
+    setSharedCartonWeight(firstWeight);
+    setIsWeightsSectionCollapsed(false);
     const savedPackingSlip = (storedShipping?.packingSlip || {}) as Record<string, any>;
     setPackingData({
       shipVia: String(savedPackingSlip.shipVia || storedShipping?.method || "FedEx"),
@@ -509,7 +550,7 @@ export const TrackingDialog = ({
         savedPackingSlip.weight ||
           storedShipping?.weight ||
           fedexData?.weight ||
-          weightValue ||
+          nextPackageWeights.reduce((sum, item) => sum + Number(item || 0), 0) ||
           "",
       ),
       packedBy: String(savedPackingSlip.packedBy || ""),
@@ -518,6 +559,10 @@ export const TrackingDialog = ({
     });
     setPackingErrors([]);
   }, [isOpen]);
+
+  useEffect(() => {
+    setPackageCount(String(Math.max(1, packageWeights.length)));
+  }, [packageWeights]);
 
   useEffect(() => {
     if (!isOpen || !showPackingSection) return;
@@ -547,8 +592,11 @@ export const TrackingDialog = ({
 
   useEffect(() => {
     if (!isOpen || !showPackingSection) return;
-    const fallbackWeight = fedexData?.weight != null ? String(fedexData.weight) : "";
-    const syncedWeight = String(weightValue || fallbackWeight || "").trim();
+    const summedWeight = packageWeights.reduce((sum, item) => sum + (Number(item) || 0), 0);
+    const fallbackWeight = fedexData?.weight != null ? Number(fedexData.weight) : 0;
+    const syncedWeight = String(
+      Number((summedWeight > 0 ? summedWeight : fallbackWeight || 0).toFixed(2)),
+    ).trim();
     if (!syncedWeight) return;
     setPackingData((prev) =>
       prev.weight === syncedWeight
@@ -558,7 +606,7 @@ export const TrackingDialog = ({
             weight: syncedWeight,
           },
     );
-  }, [isOpen, showPackingSection, weightValue, fedexData?.weight]);
+  }, [isOpen, showPackingSection, packageWeights, fedexData?.weight]);
 
   const recipientSummary = useMemo(
     () =>
@@ -576,17 +624,68 @@ export const TrackingDialog = ({
   const packingProductRows = useMemo(() => buildPackingProductRows(order), [order]);
 
   const buildPackageInput = (serviceOverride?: string) => ({
-    weightValue: Number(weightValue) || 1,
+    weightValue: Number(packageWeights[0]) || 1,
+    packageWeights: packageWeights.map((entry) => Number(entry) || 1),
     weightUnits: "LB" as const,
-    length: Number(length) || 12,
-    width: Number(width) || 10,
-    height: Number(height) || 8,
-    dimensionUnits: "IN" as const,
-    packageCount: Math.max(1, Math.floor(Number(packageCount) || 1)),
+    packageCount: Math.max(1, packageWeights.length),
     serviceType: serviceOverride || serviceType,
     labelImageType,
     labelStockType,
   });
+
+  const updatePackageWeight = (index: number, value: string) => {
+    if (sameWeightForAllCartons) return;
+    setPackageWeights((prev) => prev.map((entry, idx) => (idx === index ? value : entry)));
+  };
+
+  const syncPackageWeightsForCount = (targetCount: number) => {
+    const normalizedCount = Math.max(1, Math.floor(Number(targetCount) || 1));
+    setPackageWeights((prev) => {
+      const next = prev.slice(0, normalizedCount);
+      const fallbackWeight = sameWeightForAllCartons
+        ? sharedCartonWeight || "1"
+        : prev[prev.length - 1] || prev[0] || "1";
+      while (next.length < normalizedCount) {
+        next.push(fallbackWeight);
+      }
+      if (sameWeightForAllCartons) {
+        return next.map(() => sharedCartonWeight || "1");
+      }
+      return next;
+    });
+    setPackageCount(String(normalizedCount));
+  };
+
+  const handlePackageCountChange = (value: string) => {
+    const digitsOnly = value.replace(/[^\d]/g, "");
+    if (!digitsOnly) {
+      setPackageCount("");
+      return;
+    }
+    syncPackageWeightsForCount(Number(digitsOnly));
+  };
+
+  const handlePackageCountBlur = () => {
+    if (!packageCount || Number(packageCount) < 1) {
+      syncPackageWeightsForCount(1);
+      return;
+    }
+    syncPackageWeightsForCount(Number(packageCount));
+  };
+
+  const handleSameWeightToggle = (checked: boolean) => {
+    setSameWeightForAllCartons(checked);
+    if (!checked) return;
+    const baseWeight = packageWeights[0] || sharedCartonWeight || "1";
+    setSharedCartonWeight(baseWeight);
+    setPackageWeights((prev) => prev.map(() => baseWeight));
+  };
+
+  useEffect(() => {
+    if (!sameWeightForAllCartons) return;
+    const nextSharedWeight = sharedCartonWeight || "1";
+    setPackageWeights((prev) => prev.map(() => nextSharedWeight));
+  }, [sameWeightForAllCartons, sharedCartonWeight]);
 
   const hasSuggestedAddress = useMemo(() => {
     if (!suggestedRecipientDraft) return false;
@@ -619,15 +718,35 @@ export const TrackingDialog = ({
     return labels.filter((label: any) => hasShippingLabelDocument(label));
   }, [fedexData?.packageLabels, existingShipping]);
   const hasActionableLabel = Boolean(actionableLabelData);
+
+  const withLabelContext = (label?: any) => {
+    if (!label) return label;
+    return {
+      ...label,
+      labelFormat:
+        label.labelFormat ||
+        fedexData?.labelFormat ||
+        (actionableLabelData as any)?.labelFormat ||
+        (existingShipping as any)?.labelFormat ||
+        labelImageType,
+      labelStockType:
+        label.labelStockType ||
+        fedexData?.labelStockType ||
+        (actionableLabelData as any)?.labelStockType ||
+        (existingShipping as any)?.labelStockType ||
+        labelStockType,
+    };
+  };
+
   const getPrimaryLabelData = async () => {
     // For multi-carton shipments, label documents often exist per package.
     // Use the first available package label as the primary fallback.
     if (packageLabelActions.length > 0) {
-      return packageLabelActions[0];
+      return withLabelContext(packageLabelActions[0]);
     }
 
     if (actionableLabelData) {
-      return actionableLabelData;
+      return withLabelContext(actionableLabelData);
     }
 
     return recoverLabelFromStorage();
@@ -725,6 +844,7 @@ export const TrackingDialog = ({
       serviceType: shipment.serviceType || selectedServiceType,
       packagingType: shipment.packagingType,
       packageCount: Math.max(1, Math.floor(Number(packageCount) || 1)),
+      packageWeights: packageWeights.map((entry) => Number(entry) || 1),
       packageLabels: shipment.packageLabels,
       estimatedDelivery: shipment.estimatedDeliveryDate || existingShipping.estimatedDelivery || "",
       quotedAmount: selectedQuotedAmount,
@@ -828,16 +948,10 @@ export const TrackingDialog = ({
       return "Cartons must be at least 1.";
     }
 
-    const numericFields = [
-      { label: "Weight", value: Number(weightValue), min: 0.1 },
-      { label: "Length", value: Number(length), min: 1 },
-      { label: "Width", value: Number(width), min: 1 },
-      { label: "Height", value: Number(height), min: 1 },
-    ];
-
-    for (const field of numericFields) {
-      if (!Number.isFinite(field.value) || field.value < field.min) {
-        return `${field.label} must be at least ${field.min}.`;
+    for (let index = 0; index < packageWeights.length; index += 1) {
+      const value = Number(packageWeights[index]);
+      if (!Number.isFinite(value) || value < 0.1) {
+        return `Weight (lb) for carton ${index + 1} must be at least 0.1.`;
       }
     }
 
@@ -1074,12 +1188,11 @@ export const TrackingDialog = ({
         labelStockType,
         serviceType,
         estimatedDeliveryDate: quote.deliveryTimestamp || fedexData?.estimatedDeliveryDate,
-        weight: packageInput.weightValue,
+        weight: Number(
+          packageInput.packageWeights.reduce((sum, entry) => sum + Number(entry || 0), 0).toFixed(2),
+        ),
+        packageWeights: packageInput.packageWeights,
         weightUnits: packageInput.weightUnits,
-        length: packageInput.length,
-        width: packageInput.width,
-        height: packageInput.height,
-        dimensionUnits: packageInput.dimensionUnits,
         packageCount: packageInput.packageCount,
       };
       
@@ -1154,12 +1267,11 @@ export const TrackingDialog = ({
         estimatedDeliveryDate: shipment.estimatedDeliveryDate,
         quotedAmount,
         quotedCurrency,
-        weight: packageInput.weightValue,
+        weight: Number(
+          packageInput.packageWeights.reduce((sum, entry) => sum + Number(entry || 0), 0).toFixed(2),
+        ),
+        packageWeights: packageInput.packageWeights,
         weightUnits: packageInput.weightUnits,
-        length: packageInput.length,
-        width: packageInput.width,
-        height: packageInput.height,
-        dimensionUnits: packageInput.dimensionUnits,
       };
       
       updateFedExData(newFedExData);
@@ -1384,44 +1496,6 @@ export const TrackingDialog = ({
     }
   };
 
-  const downloadPackageLabel = async (label: any, index: number) => {
-    try {
-      const downloaded = await downloadShippingLabelDocument(
-        label,
-        buildShippingLabelFileName(
-          `${order?.order_number || "fedex-label"}-box-${label.sequenceNumber || index + 1}`,
-          label.labelFormat || fedexData?.labelFormat,
-          label.labelFileName,
-        ),
-      );
-      if (!downloaded) {
-        throw new Error("No shipping label content found to download.");
-      }
-    } catch (error) {
-      toast({
-        title: "Download failed",
-        description: error instanceof Error ? error.message : "Unable to download label.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const printPackageLabel = async (label: any) => {
-    setIsPrintingLabel(true);
-    try {
-      const printed = await printShippingLabelDocument(label);
-      if (!printed) throw new Error("No shipping label content found to print.");
-    } catch (error) {
-      toast({
-        title: "Print failed",
-        description: error instanceof Error ? error.message : "Unable to print label.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsPrintingLabel(false);
-    }
-  };
-
   const downloadAllPackageLabels = async () => {
     if (packageLabelActions.length === 0) {
       await downloadLabel();
@@ -1429,7 +1503,26 @@ export const TrackingDialog = ({
     }
 
     for (const [index, label] of packageLabelActions.entries()) {
-      await downloadPackageLabel(label, index);
+      try {
+        const labelData = withLabelContext(label);
+        const downloaded = await downloadShippingLabelDocument(
+          labelData,
+          buildShippingLabelFileName(
+            `${order?.order_number || "fedex-label"}-box-${labelData.sequenceNumber || index + 1}`,
+            labelData.labelFormat || fedexData?.labelFormat,
+            labelData.labelFileName,
+          ),
+        );
+        if (!downloaded) {
+          throw new Error("No shipping label content found to download.");
+        }
+      } catch (error) {
+        toast({
+          title: "Download failed",
+          description: error instanceof Error ? error.message : "Unable to download label.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -1441,10 +1534,10 @@ export const TrackingDialog = ({
 
     setIsPrintingLabel(true);
     try {
-      for (const label of packageLabelActions) {
-        const printed = await printShippingLabelDocument(label);
-        if (!printed) throw new Error("No shipping label content found to print.");
-      }
+      const printed = await printAllShippingLabelDocuments(
+        packageLabelActions.map((label: any) => withLabelContext(label)),
+      );
+      if (!printed) throw new Error("No shipping label content found to print.");
     } catch (error) {
       toast({
         title: "Print failed",
@@ -1470,8 +1563,10 @@ export const TrackingDialog = ({
     if (!showPackingSection) return true;
     const errors: string[] = [];
     if (!packingData.shipVia.trim()) errors.push("Ship Via is required");
-    if (!packingData.cartons.trim() || Number(packingData.cartons) <= 0) errors.push("Cartons must be greater than 0");
-    if (!packingData.weight.trim() || Number(packingData.weight) <= 0) errors.push("Weight must be greater than 0");
+    if (packageWeights.length <= 0) errors.push("At least one carton is required");
+    if (packageWeights.some((entry) => !Number.isFinite(Number(entry)) || Number(entry) <= 0)) {
+      errors.push("All carton weights must be greater than 0");
+    }
     if (!packingData.packedBy.trim()) errors.push("Packed By is required");
     if (!packingData.checkedBy.trim()) errors.push("Checked By is required");
     if (
@@ -1488,8 +1583,11 @@ export const TrackingDialog = ({
   const buildPackingSlipPayload = (): TrackingDialogPackingSlipPayload => ({
     shipVia: packingData.shipVia.trim(),
     trackingNumber: trackingNumber.trim(),
-    cartons: Number(packingData.cartons || 0),
-    weight: Number(packingData.weight || 0),
+    cartons: packageWeights.length,
+    weight: Number(
+      packageWeights.reduce((sum, entry) => sum + (Number(entry) || 0), 0).toFixed(2),
+    ),
+    cartonWeights: packageWeights.map((entry) => Number(entry) || 0),
     packedBy: packingData.packedBy.trim(),
     checkedBy: packingData.checkedBy.trim(),
     notes: packingData.notes.trim(),
@@ -1520,7 +1618,11 @@ export const TrackingDialog = ({
         ...(((order as any)?.shipping || {}) as Record<string, any>),
         method: shippingMethod,
         trackingNumber: trackingNumber.trim(),
-        weight: fedexData?.weight || (order as any)?.shipping?.weight,
+        weight:
+          fedexData?.weight ||
+          Number(packageWeights.reduce((sum, entry) => sum + (Number(entry) || 0), 0).toFixed(2)) ||
+          (order as any)?.shipping?.weight,
+        packageWeights: fedexData?.packageWeights || packageWeights.map((entry) => Number(entry) || 0),
         weightUnits: fedexData?.weightUnits || (order as any)?.shipping?.weightUnits || "LB",
         labelUrl: fedexData?.labelUrl || (order as any)?.shipping?.labelUrl,
         labelStoragePath: fedexData?.labelStoragePath || (order as any)?.shipping?.labelStoragePath,
@@ -1549,10 +1651,8 @@ export const TrackingDialog = ({
     String(fedexData?.labelFormat || "").toUpperCase() === labelImageType &&
     String(fedexData?.labelStockType || "") === labelStockType &&
     Number(fedexData?.packageCount || 0) === Math.max(1, Math.floor(Number(packageCount) || 1)) &&
-    Number(fedexData?.weight || 0) === (Number(weightValue) || 1) &&
-    Number(fedexData?.length || 0) === (Number(length) || 12) &&
-    Number(fedexData?.width || 0) === (Number(width) || 10) &&
-    Number(fedexData?.height || 0) === (Number(height) || 8);
+    JSON.stringify((fedexData?.packageWeights || []).map((entry) => Number(entry || 0).toFixed(2))) ===
+      JSON.stringify(packageWeights.map((entry) => Number(entry || 0).toFixed(2)));
   const pickupScheduled = Boolean(fedexData?.pickupConfirmationNumber);
   const canSaveShipping = Boolean(trackingNumber.trim());
   const hasShipmentActions = Boolean(hasGeneratedLabel || trackingNumber.trim());
@@ -1856,39 +1956,86 @@ export const TrackingDialog = ({
                   <Input
                     readOnly={packageFieldsReadOnly}
                     value={packageCount}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setPackageCount(value);
-                      updatePackingField("cartons", value);
-                    }}
+                    onChange={(e) => handlePackageCountChange(e.target.value)}
+                    onBlur={handlePackageCountBlur}
                     type="number"
                     min="1"
                     step="1"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Length (in)</Label>
-                  <Input readOnly={packageFieldsReadOnly} value={length} onChange={(e) => setLength(e.target.value)} type="number" min="1" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Width (in)</Label>
-                  <Input readOnly={packageFieldsReadOnly} value={width} onChange={(e) => setWidth(e.target.value)} type="number" min="1" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Height (in)</Label>
-                  <Input readOnly={packageFieldsReadOnly} value={height} onChange={(e) => setHeight(e.target.value)} type="number" min="1" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Weight (lb)</Label>
-                  <Input readOnly={packageFieldsReadOnly} value={weightValue} onChange={(e) => setWeightValue(e.target.value)} type="number" min="0.1" step="0.1" />
+                <div className="space-y-2 md:col-span-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Weight (lb)</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-slate-600"
+                      onClick={() => setIsWeightsSectionCollapsed((prev) => !prev)}
+                    >
+                      {isWeightsSectionCollapsed ? "Expand" : "Collapse"}
+                      <ChevronDown className={`ml-1 h-3.5 w-3.5 transition-transform ${isWeightsSectionCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                    </Button>
+                  </div>
+                  {!isWeightsSectionCollapsed ? (
+                    <div className="space-y-3 rounded-md border border-slate-200 p-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id="same-weight-all-cartons"
+                          checked={sameWeightForAllCartons}
+                          onCheckedChange={(checked) => handleSameWeightToggle(Boolean(checked))}
+                          disabled={packageFieldsReadOnly || packageWeights.length <= 1}
+                        />
+                        <Label htmlFor="same-weight-all-cartons" className="text-xs font-medium text-slate-700">
+                          All cartons same weight
+                        </Label>
+                      </div>
+                      {sameWeightForAllCartons ? (
+                        <div className="flex items-center gap-2">
+                          <div className="w-24 shrink-0 text-xs font-medium text-slate-600">
+                            All Cartons
+                          </div>
+                          <Input
+                            readOnly={packageFieldsReadOnly}
+                            value={sharedCartonWeight}
+                            onChange={(e) => setSharedCartonWeight(e.target.value)}
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                          />
+                        </div>
+                      ) : null}
+                      {packageWeights.map((weight, index) => (
+                        <div key={`carton-weight-${index}`} className="flex items-center gap-2">
+                          <div className="w-24 shrink-0 text-xs font-medium text-slate-600">
+                            Carton {index + 1}
+                          </div>
+                          <Input
+                            readOnly={packageFieldsReadOnly || sameWeightForAllCartons}
+                            value={weight}
+                            onChange={(e) => updatePackageWeight(index, e.target.value)}
+                            type="number"
+                            min="0.1"
+                            step="0.1"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      {sameWeightForAllCartons
+                        ? `All cartons use ${Number(sharedCartonWeight || 0).toFixed(2)} lb`
+                        : `${packageWeights.length} carton weights configured`}
+                    </div>
+                  )}
                 </div>
               </div>
 
-              {Number(packageCount) > 1 ? (
+              {packageWeights.length > 1 ? (
                 <Alert className="border-amber-200 bg-amber-50">
                   <AlertCircle className="h-4 w-4 text-amber-600" />
                   <AlertDescription className="text-amber-800">
-                    Multiple cartons will use the same weight and dimensions for each carton. Use separate shipments if cartons have different sizes or weights.
+                    FedEx request will use carton-wise individual weights in this shipment.
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -2067,19 +2214,16 @@ export const TrackingDialog = ({
                                   <p className="text-xs text-slate-500">Tracking {label.trackingNumber}</p>
                                 ) : null}
                               </div>
-                              <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                                Label
-                              </Badge>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              <Button type="button" size="sm" variant="outline" onClick={() => openShippingLabelDocument(label)}>
-                                Preview
-                              </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={() => downloadPackageLabel(label, index)}>
-                                Download
-                              </Button>
-                              <Button type="button" size="sm" variant="outline" onClick={() => printPackageLabel(label)} disabled={isPrintingLabel}>
-                                Print
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                className="h-7 w-7 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                                onClick={() => openShippingLabelDocument(withLabelContext(label))}
+                                title="Preview Label"
+                                aria-label={`Preview label for box ${label.sequenceNumber || index + 1}`}
+                              >
+                                <Eye className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </div>
@@ -2216,12 +2360,12 @@ export const TrackingDialog = ({
                     type="number"
                     min="1"
                     value={packingData.cartons}
-                    onChange={(event) => updatePackingField("cartons", event.target.value)}
+                    readOnly
                     placeholder="1"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Weight (lbs)</Label>
+                  <Label>Weight (lb)</Label>
                   <Input
                     type="number"
                     min="0.1"
@@ -2230,6 +2374,12 @@ export const TrackingDialog = ({
                     readOnly
                     placeholder="0.0"
                   />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <Label>Carton Weights (lb)</Label>
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                    {packageWeights.map((entry, index) => `Carton ${index + 1}: ${Number(entry || 0).toFixed(2)} lb`).join("  |  ")}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>Packed By</Label>
