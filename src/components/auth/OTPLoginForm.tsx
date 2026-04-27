@@ -250,11 +250,6 @@ export const OTPLoginForm = () => {
           order_pay: user.order_pay,
         }));
 
-        toast({
-          title: "Login Successful",
-          description: `Welcome back, ${user.firstName}!`,
-        });
-
         // Check if user has accepted Terms & Privacy Policy
         const { data: profileCheck } = await supabase
           .from("profiles")
@@ -271,6 +266,11 @@ export const OTPLoginForm = () => {
           setShowTermsDialog(true);
           return;
         }
+
+        toast({
+          title: "Login Successful",
+          description: `Welcome back, ${user.firstName}!`,
+        });
 
         // Navigate to appropriate dashboard
         const dashboardRoutes: Record<string, string> = {
