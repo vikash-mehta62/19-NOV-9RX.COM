@@ -294,14 +294,22 @@ const generateFrontendStylePdf = async (order = {}, options = {}) => {
       const freightCharges = toNumber(order?.po_fred_charges || order?.po_freight_charges || 0);
       const handlingCharges = toNumber(order?.po_handling_charges || 0);
       const discountAmount = toNumber(order?.discount_amount || 0);
-      const processingFeeAmount = toNumber(order?.processing_fee_amount || 0);
+      const explicitProcessingFeeAmount = toNumber(order?.processing_fee_amount || 0);
       const discountDetails = order?.discount_details || [];
-      // Calculate total: subtotal + shipping + tax - discount, plus PO charge fields when present.
-      const calculatedTotal = isPurchaseOrder
+      const baseWithoutProcessingFee = isPurchaseOrder
         ? subtotal + shipping + tax + freightCharges + handlingCharges - discountAmount
         : subtotal + shipping + tax - discountAmount;
       const storedTotal = toNumber(order?.total_amount || order?.total || 0);
-      const total = isPurchaseOrder ? calculatedTotal : (storedTotal > 0 ? storedTotal : calculatedTotal);
+      const inferredProcessingFeeAmount = isPurchaseOrder
+        ? explicitProcessingFeeAmount
+        : (
+            explicitProcessingFeeAmount > 0
+              ? explicitProcessingFeeAmount
+              : Math.max(0, Number((storedTotal - baseWithoutProcessingFee).toFixed(2)))
+          );
+      const processingFeeAmount = inferredProcessingFeeAmount;
+      const calculatedTotal = baseWithoutProcessingFee + processingFeeAmount;
+      const total = storedTotal > 0 ? Number(storedTotal.toFixed(2)) : calculatedTotal;
       
       const paidAmount = toNumber(order?.paid_amount || 0);
       const actualPaid = (isPaid && paidAmount === 0) ? total : paidAmount;

@@ -1,5 +1,20 @@
 const paymentLink = (order) => {
-    const { id, customerInfo, order_number, status, items, total, date, tax_amount, shipping_cost, paid_amount, adjustment_amount, pay_now_url } = order;
+    const {
+        id,
+        customerInfo,
+        order_number,
+        status,
+        items,
+        total,
+        date,
+        tax_amount,
+        shipping_cost,
+        paid_amount,
+        adjustment_amount,
+        pay_now_url,
+        processing_fee_amount,
+        discount_amount,
+    } = order;
     console.log(order)
     const payNowUrl = pay_now_url || `https://9rx.com/pay-now?orderid=${id}`;
     // Calculate subtotal
@@ -13,6 +28,14 @@ const paymentLink = (order) => {
     // Calculate balance due
     const paidAmountNum = parseFloat(paid_amount) || 0;
     const totalNum = parseFloat(total) || 0;
+    const shippingAmountNum = parseFloat(shipping_cost) || 0;
+    const taxAmountNum = parseFloat(tax_amount) || 0;
+    const discountAmountNum = parseFloat(discount_amount) || 0;
+    const explicitProcessingFeeNum = parseFloat(processing_fee_amount) || 0;
+    const inferredProcessingFeeNum = explicitProcessingFeeNum > 0
+        ? explicitProcessingFeeNum
+        : Math.max(0, totalNum - subtotal - shippingAmountNum - taxAmountNum + discountAmountNum);
+    const processingFeeNum = Number(inferredProcessingFeeNum.toFixed(2));
     const balanceDue = adjustment_amount ? parseFloat(adjustment_amount) : Math.max(0, totalNum - paidAmountNum);
     const isPartialPayment = paidAmountNum > 0 && balanceDue > 0;
     const amountToPay = isPartialPayment ? balanceDue : totalNum;
@@ -171,6 +194,12 @@ const paymentLink = (order) => {
                                         <td style="padding: 8px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(tax_amount)}</td>
                                     </tr>
                                     ` : ''}
+                                    ${processingFeeNum > 0 ? `
+                                    <tr>
+                                        <td style="padding: 8px 0; font-size: 14px; color: #6b7280;">Credit Card Processing Fee</td>
+                                        <td style="padding: 8px 0; font-size: 14px; color: #374151; text-align: right;">${formatCurrency(processingFeeNum)}</td>
+                                    </tr>
+                                    ` : ''}
                                     <tr>
                                         <td colspan="2" style="padding: 12px 0 0 0;">
                                             <div style="border-top: 2px solid #e5e7eb; padding-top: 12px;">
@@ -221,9 +250,6 @@ const paymentLink = (order) => {
                                    style="display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff; text-decoration: none; padding: 18px 50px; border-radius: 12px; font-size: 18px; font-weight: 700; box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);">
                                     💳 ${isPartialPayment ? `Pay Balance - ${formatCurrency(balanceDue)}` : `Pay Now - ${formatCurrency(total)}`}
                                 </a>
-                                <p style="margin: 16px 0 0 0; font-size: 13px; color: #9ca3af;">
-                                    🔒 Secure payment powered by Authorize.net
-                                </p>
                             </div>
 
                             <!-- Customer Info -->

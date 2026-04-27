@@ -1,7 +1,7 @@
 import axios from "../../axiosconfig";
 import React, { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import PaymentForm from "./PaymentModal";
+import { processPaymentIPOSPay } from "@/services/paymentService";
 import {
   Loader,
   ShoppingCart,
@@ -19,37 +19,36 @@ function PayNowOrder() {
   const orderID = searchParams.get("orderid");
 
   const [orderData, setOrderData] = useState<any>(null);
-  const [modalIsOpen, setModalIsOpen] = useState(false);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [isRedirectingToPayment, setIsRedirectingToPayment] = useState(false);
 
   const money = (n: number) => Math.round(n * 100) / 100;
 
-  const fetchOrder = async () => {
-    if (!orderID) return;
-
-    try {
-      setFetchError(null);
-
-      const response = await axios.get(`/api/pay-now-order/${orderID}`);
-
-      if (response.data?.success && response.data?.order) {
-        console.log(response.data.order,"response.data.order")
-        setOrderData(response.data.order);
-      } else {
-        setFetchError(response.data?.message || "Failed to fetch order");
-      }
-    } catch (err: any) {
-      console.error("Error fetching order:", err);
-      setFetchError(
-        err?.response?.data?.message || "Failed to fetch order details"
-      );
-    }
-  };
-
   useEffect(() => {
+    const fetchOrder = async () => {
+      if (!orderID) return;
+
+      try {
+        setFetchError(null);
+
+        const response = await axios.get(`/api/pay-now-order/${orderID}`);
+
+        if (response.data?.success && response.data?.order) {
+          console.log(response.data.order, "response.data.order");
+          setOrderData(response.data.order);
+        } else {
+          setFetchError(response.data?.message || "Failed to fetch order");
+        }
+      } catch (err: any) {
+        console.error("Error fetching order:", err);
+        setFetchError(
+          err?.response?.data?.message || "Failed to fetch order details"
+        );
+      }
+    };
+
     fetchOrder();
-  }, [orderID, refreshTrigger]);
+  }, [orderID]);
 
   if (fetchError)
     return <p className="text-center text-red-500 p-8">{fetchError}</p>;
@@ -128,6 +127,63 @@ function PayNowOrder() {
     amountToPay,
   });
 
+  const handleDirectPayNow = async () => {
+    if (!orderData?.id || amountToPay <= 0 || isRedirectingToPayment) {
+      return;
+    }
+
+    try {
+      setFetchError(null);
+      setIsRedirectingToPayment(true);
+
+      const iPosResult = await processPaymentIPOSPay({
+        amount: amountToPay,
+        orderId: orderData.id,
+        paymentMethod: "card",
+        customerName: orderData.customerInfo?.name,
+        customerEmail: orderData.customerInfo?.email,
+        customerMobile: orderData.customerInfo?.phone,
+        description: `Order #${orderData.order_number}`,
+        merchantName: orderData.business_name || "9RX",
+        logoUrl: orderData.logo_url,
+        returnUrl: `${window.location.origin}/payment/callback`,
+        failureUrl: `${window.location.origin}/payment/callback`,
+        cancelUrl: `${window.location.origin}/payment/cancel`,
+        calculateFee: true,
+        calculateTax: false,
+        tipsInputPrompt: false,
+        themeColor: "#2563EB",
+      });
+
+      if (!iPosResult.success || !iPosResult.paymentUrl) {
+        throw new Error(iPosResult.error || "Failed to start secure checkout");
+      }
+
+      localStorage.setItem(
+        "pending_payment",
+        JSON.stringify({
+          transactionReferenceId: iPosResult.transactionReferenceId,
+          orderId: orderData.id,
+          orderNumber: orderData.order_number,
+          amount: amountToPay,
+          baseAmount: amountToPay,
+          estimatedChargedAmount: amountToPay,
+          estimatedProcessingFee: 0,
+          customerName: orderData.customerInfo?.name,
+          customerEmail: orderData.customerInfo?.email,
+          paymentMethod: "card",
+          timestamp: new Date().toISOString(),
+        }),
+      );
+
+      window.location.href = iPosResult.paymentUrl;
+    } catch (error: any) {
+      console.error("Error launching direct iPOSPay checkout:", error);
+      setFetchError(error?.message || "Failed to open secure payment page");
+      setIsRedirectingToPayment(false);
+    }
+  };
+
   return (
     <div className="max-w-3xl mx-auto p-6 bg-white shadow-xl rounded-xl border border-gray-200">
       <h2 className="text-2xl font-bold text-gray-800 mb-6 text-center flex items-center gap-2 justify-center">
@@ -189,11 +245,18 @@ function PayNowOrder() {
 
       {canPay && (
         <button
-          onClick={() => setModalIsOpen(true)}
-          className="bg-green-600 flex items-center gap-2 justify-center text-white px-5 py-3 rounded-md hover:bg-green-700 w-full mb-4 font-semibold"
+          onClick={handleDirectPayNow}
+          disabled={isRedirectingToPayment}
+          className="bg-blue-600 flex items-center gap-2 justify-center text-white px-5 py-3 rounded-md hover:bg-blue-700 w-full mb-4 font-semibold"
         >
-          <CreditCard size={18} />
-          Pay Now - ${amountToPay.toFixed(2)}
+          {isRedirectingToPayment ? (
+            <Loader className="animate-spin" size={18} />
+          ) : (
+            <CreditCard size={18} />
+          )}
+          {isRedirectingToPayment
+            ? "Redirecting to Secure Checkout..."
+            : `Pay Now - $${amountToPay.toFixed(2)}`}
         </button>
       )}
 
@@ -305,25 +368,6 @@ function PayNowOrder() {
           {orderData.customerInfo?.address?.city}
         </p>
       </div>
-
-      {/* PAYMENT MODAL */}
-
-      {modalIsOpen && (
-        <PaymentForm
-          modalIsOpen={modalIsOpen}
-          setModalIsOpen={setModalIsOpen}
-          customer={orderData.customerInfo}
-          amountP={amountToPay}
-          orderId={orderData.id}
-          orders={orderData}
-          payNow={true}
-          isBalancePayment={isPartiallyPaid}
-          previousPaidAmount={paidAmount}
-          onPaymentSuccess={() => {
-            setRefreshTrigger((prev) => prev + 1);
-          }}
-        />
-      )}
     </div>
   );
 }

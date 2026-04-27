@@ -38,6 +38,61 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
+const calculateItemsSubtotal = (items = []) => {
+  if (!Array.isArray(items)) return 0;
+
+  return items.reduce((total, item) => {
+    if (Array.isArray(item?.sizes) && item.sizes.length > 0) {
+      return (
+        total +
+        item.sizes.reduce(
+          (sizeSum, size) => sizeSum + toNumber(size?.price) * toNumber(size?.quantity),
+          0,
+        )
+      );
+    }
+
+    return total + toNumber(item?.price ?? item?.unit_price) * toNumber(item?.quantity);
+  }, 0);
+};
+
+const normalizeOrderTotals = (order = {}) => {
+  const subtotal = calculateItemsSubtotal(order.items || []);
+  const shippingCost = toNumber(order.shipping_cost);
+  const taxAmount = toNumber(order.tax_amount);
+  const explicitProcessingFeeAmount = toNumber(order.processing_fee_amount);
+  const handlingCharges = toNumber(order.po_handling_charges);
+  const freightCharges = toNumber(order.po_fred_charges);
+  const discountAmount = toNumber(order.discount_amount);
+  const storedTotalAmount = toNumber(order.total_amount ?? order.total);
+  const baseWithoutProcessingFee =
+    subtotal +
+    shippingCost +
+    taxAmount +
+    handlingCharges +
+    freightCharges -
+    discountAmount;
+  const inferredProcessingFeeAmount =
+    explicitProcessingFeeAmount > 0
+      ? explicitProcessingFeeAmount
+      : Math.max(0, Number((storedTotalAmount - baseWithoutProcessingFee).toFixed(2)));
+  const processingFeeAmount = inferredProcessingFeeAmount;
+
+  const calculatedTotal =
+    baseWithoutProcessingFee + processingFeeAmount;
+
+  return {
+    subtotal,
+    shipping_cost: shippingCost,
+    tax_amount: taxAmount,
+    processing_fee_amount: processingFeeAmount,
+    po_handling_charges: handlingCharges,
+    po_fred_charges: freightCharges,
+    discount_amount: discountAmount,
+    total_amount: Math.max(0, Number(calculatedTotal.toFixed(2))),
+  };
+};
+
 const getBalanceDue = (order = {}) => {
   const total = toNumber(order.total_amount ?? order.total ?? 0);
   const paid = toNumber(order.paid_amount ?? 0);
@@ -146,6 +201,16 @@ const resolveOrderFromDb = async (incomingOrder = {}) => {
   }
 
   const merged = mergeOrderData(incomingOrder, dbOrder || {});
+  const normalizedTotals = normalizeOrderTotals(merged);
+  merged.subtotal = normalizedTotals.subtotal;
+  merged.shipping_cost = normalizedTotals.shipping_cost;
+  merged.tax_amount = normalizedTotals.tax_amount;
+  merged.processing_fee_amount = normalizedTotals.processing_fee_amount;
+  merged.po_handling_charges = normalizedTotals.po_handling_charges;
+  merged.po_fred_charges = normalizedTotals.po_fred_charges;
+  merged.discount_amount = normalizedTotals.discount_amount;
+  merged.total_amount = normalizedTotals.total_amount;
+  merged.total = normalizedTotals.total_amount;
 
   // Only fetch invoice number if not already present
   if (!merged.invoice_number && merged.id && adminClient) {
@@ -194,6 +259,7 @@ const resolveOrderFromDb = async (incomingOrder = {}) => {
     discount_amount: merged.discount_amount,
     discount_details: merged.discount_details,
     total_amount: merged.total_amount,
+    total: merged.total,
     paid_amount: merged.paid_amount,
     payment_status: merged.payment_status,
     items_count: merged.items?.length,
