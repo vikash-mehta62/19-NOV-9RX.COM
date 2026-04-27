@@ -4044,7 +4044,7 @@ export const OrderDetailsSheet = ({
   return (
     <>
       <Sheet open={open} onOpenChange={handleSheetOpenChange}>
-        <SheetContent className="w-full sm:max-w-lg md:max-w-[52rem] lg:max-w-[60rem] xl:max-w-[66rem] max-h-[95vh] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
+        <SheetContent className="w-full sm:max-w-lg md:max-w-[52rem] lg:max-w-[60rem] xl:max-w-[66rem] overflow-hidden z-50 p-3 sm:p-4 md:p-6 flex flex-col gap-3">
           <SheetHeader className="mb-1 sm:mb-2">
             <SheetTitle className="text-base sm:text-lg md:text-xl">{poIs ? "Purchase Order Workspace" : "Order Details"}</SheetTitle>
             <SheetDescription className="text-xs sm:text-sm md:text-base">
