@@ -23,6 +23,7 @@ import { selectUserProfile } from "@/store/selectors/userSelectors"
 import { useSelector, useDispatch } from "react-redux"
 import { useWishlist } from "@/hooks/use-wishlist"
 import { getProductsWithOffers } from "@/services/productOfferService"
+import PharmacyFeedbackWidget from "@/components/feedback/PharmacyFeedbackWidget"
 import {
   Loader2, Filter, X, ArrowLeft,
   ShoppingCart, Settings,
@@ -1278,6 +1279,9 @@ console.log(userProfile)
 
       {/* Floating Cart Button for Mobile */}
       <FloatingCartButton />
+
+      {/* Floating Feedback for pharmacy users */}
+      <PharmacyFeedbackWidget />
     </div>
   )
 }

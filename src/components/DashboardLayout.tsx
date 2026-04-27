@@ -36,6 +36,7 @@ import {
   Bell,
   Layers,
   LogIn,
+  MessageSquare,
 } from "lucide-react"
 import { SidebarHeader } from "./dashboard/SidebarHeader";
 import { SidebarProfile } from "./dashboard/SidebarProfile";
@@ -48,6 +49,7 @@ import { useSelector } from "react-redux"
 import { RootState } from "@/store/store"
 import { AdminPermission, hasAdminPermission, isInternalAdminType, shouldHideAdminFinancials } from "@/lib/adminAccess"
 import { useLocation } from "react-router-dom"
+import PharmacyFeedbackWidget from "@/components/feedback/PharmacyFeedbackWidget"
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -157,6 +159,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
           { icon: Users, label: "Store Approval", path: "/admin/access-requests", requiredPermission: "users" },
           { icon: Logs, label: "Activity Logs", path: "/admin/logs", requiredPermission: "logs" },
           { icon: LogIn, label: "Login Logs", path: "/admin/login-logs", requiredPermission: "logs" },
+          { icon: MessageSquare, label: "Feedback", path: "/admin/feedback", requiredPermission: "logs" },
         ],
       },
     ],
@@ -374,6 +377,7 @@ export function DashboardLayout({ children, role = "admin" }: DashboardLayoutPro
               {children}
             </div>
           </div>
+          {role === "pharmacy" && <PharmacyFeedbackWidget />}
         </main>
       </div>
     </SidebarProvider>

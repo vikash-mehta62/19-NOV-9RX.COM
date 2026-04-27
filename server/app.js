@@ -9,6 +9,7 @@ const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 const { createClient } = require("@supabase/supabase-js");
 const axios = require("axios");
+const path = require("path");
 const {
   buildFortisHeaders,
   describeFortisStatus,
@@ -224,6 +225,8 @@ app.use(
   helmet({
     // API server response hardening; frontend CSP should be set at CDN/web tier.
     contentSecurityPolicy: false,
+    // Allow assets (e.g. feedback screenshots) to be rendered from API origin in frontend origin.
+    crossOriginResourcePolicy: { policy: "cross-origin" },
   })
 );
 app.use(express.json({ limit: requestBodyLimit }));
@@ -240,6 +243,7 @@ const { requireAuth, requireAdmin } = require("./middleware/auth");
 app.use(logger("dev"));
 
 app.use(cookieParser());
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // CORS setup
 const allowedOrigins = [
@@ -2534,6 +2538,7 @@ app.use("/api/terms-management", require("./routes/termsManagementRoutes")) // T
 app.use("/api/cart", require("./routes/cartRoutes")) // Cart management & abandoned cart reminders
 app.use("/api/profile", require("./routes/profileRoutes")) // Profile completion with secure magic links
 app.use("/api/login-logs", require("./routes/loginLogsRoutes")) // Login logs and security monitoring
+app.use("/api/feedback", require("./routes/feedbackRoutes")) // Pharmacy feedback capture
 
 // Email endpoints with stricter rate limiting
 app.post("/order-status", emailLimiter, orderSatusCtrl)
