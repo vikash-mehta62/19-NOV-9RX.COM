@@ -8,14 +8,12 @@ import { Mail, ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { PasswordResetNotification } from "@/components/auth/PasswordResetNotification";
 
 export const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState("");
-  const [showPasswordResetDialog, setShowPasswordResetDialog] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -34,41 +32,6 @@ export const ForgotPassword = () => {
         throw new Error("Please enter a valid email address");
       }
 
-      // Check if user requires admin password reset BEFORE sending reset email
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles")
-        .select("requires_password_reset, role, id")
-        .eq("email", email.trim().toLowerCase())
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') { // PGRST116 = no rows returned
-        console.error("Error checking password reset flag:", profileError);
-      }
-
-      // If user requires admin password reset (exclude admin role), show notification and don't send reset email
-      if (profileData && profileData.requires_password_reset === true && profileData.role !== "admin") {
-        // Show the password reset notification dialog
-        setShowPasswordResetDialog(true);
-        
-        // Log this attempt for admin visibility
-        try {
-          const { error: logError } = await supabase.rpc("log_password_reset_request", {
-            p_user_id: profileData.id,
-            p_email: email.trim().toLowerCase(),
-          });
-          if (logError) {
-            throw logError;
-          }
-        } catch (logError) {
-          console.error("Failed to log password reset request:", logError);
-        }
-        
-        setIsLoading(false);
-        return;
-      }
-
-      // User doesn't require admin reset or user not found, proceed with normal reset
-      // Send password reset email using Supabase Auth
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
         redirectTo: `${window.location.origin}/reset-password`,
       });
@@ -95,20 +58,8 @@ export const ForgotPassword = () => {
     }
   };
 
-  const handlePasswordResetDialogClose = () => {
-    setShowPasswordResetDialog(false);
-    // Reset form state
-    setEmail("");
-    setError("");
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
-      <PasswordResetNotification
-        open={showPasswordResetDialog}
-        onClose={handlePasswordResetDialogClose}
-      />
-      
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex items-center gap-2 mb-2">

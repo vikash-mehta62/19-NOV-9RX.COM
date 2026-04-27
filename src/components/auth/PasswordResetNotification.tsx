@@ -35,7 +35,7 @@ export const PasswordResetNotification = ({
               Due to recent system updates, your account requires a password reset for security purposes.
             </p>
             <p className="font-medium text-gray-900">
-              Please contact the administrator to reset your password.
+              Please contact the administrator OR reset your password.
             </p>
           </AlertDialogDescription>
         </AlertDialogHeader>
