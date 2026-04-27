@@ -19,7 +19,10 @@ interface SeoProps {
 }
 
 function getSiteUrl(): string {
-  const envBaseUrl = import.meta.env.VITE_APP_BASE_URL || import.meta.env.VITE_API_BASE_URL;
+  const envBaseUrl =
+    import.meta.env.VITE_SITE_URL ||
+    import.meta.env.VITE_APP_BASE_URL ||
+    import.meta.env.VITE_API_BASE_URL;
   const runtimeOrigin = typeof window !== "undefined" ? window.location.origin : "";
   return (envBaseUrl || runtimeOrigin || DEFAULT_SITE_URL).replace(/\/+$/, "");
 }

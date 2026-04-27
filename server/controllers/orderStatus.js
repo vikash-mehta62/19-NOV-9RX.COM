@@ -610,7 +610,7 @@ exports.userNotificationCtrl = async (req, res) => {
           throw new Error("Email and userId mismatch for profile completion link");
         }
 
-        const frontendUrl = process.env.FRONTEND_URL || "https://9rx.vercel.app";
+        const frontendUrl = process.env.FRONTEND_URL || "https://9rx.com";
         const redirectUrl = `${frontendUrl}/update-profile`;
         
         console.log("🔗 Generating magic link with redirect:", redirectUrl);

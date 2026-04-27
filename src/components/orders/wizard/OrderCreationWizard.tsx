@@ -1364,7 +1364,12 @@ const OrderCreationWizardComponent = ({
           />
         );
       case 3:
-        return <ProductSelectionStep onCartUpdate={onCartUpdate} />;
+        return (
+          <ProductSelectionStep
+            onCartUpdate={onCartUpdate}
+            pricingProfileId={selectedCustomer?.id}
+          />
+        );
       case 4:
         return (
           <div className="space-y-6">

@@ -57,9 +57,12 @@ interface ProductSize {
   size_value: string;
   size_unit: string;
   price: number;
+  originalPrice?: number;
   price_per_case: number;
   stock: number;
   sku?: string;
+  groupIds?: string[];
+  disAllogroupIds?: string[];
 }
 
 interface Product {
@@ -79,6 +82,91 @@ interface QuickOrderCreationProps {
 
 // Step type
 type Step = "search" | "confirm" | "products";
+
+interface GroupPricingEntry {
+  product_id: string;
+  new_price: string;
+}
+
+interface GroupPricingRule {
+  id: string;
+  group_ids?: string[];
+  product_arrayjson?: GroupPricingEntry[];
+}
+
+const fetchQuickOrderProductsWithGroupPricing = async (profileId?: string) => {
+  const { data, error } = await supabase
+    .from("products")
+    .select(`
+      id, name, sku, category, image_url, unitToggle,
+      product_sizes (
+        id, size_name, size_value, size_unit, price, price_per_case, stock, sku,
+        groupIds, disAllogroupIds
+      )
+    `)
+    .eq("is_active", true)
+    .order("name");
+
+  if (error) throw error;
+
+  const products = (data || []) as Product[];
+  if (!profileId) {
+    return products;
+  }
+
+  const { data: groupData } = await supabase
+    .from("group_pricing")
+    .select("*")
+    .eq("status", "active")
+    .contains("group_ids", [profileId])
+    .order("updated_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false, nullsFirst: false });
+
+  const pricingRules = (groupData || []) as GroupPricingRule[];
+
+  return products.map((product: Product) => ({
+    ...product,
+    product_sizes: (product.product_sizes || [])
+      .filter((size: ProductSize) => {
+        const disAllowGroupIds = size.disAllogroupIds || [];
+        const groupIds = size.groupIds || [];
+
+        const isDisallowed = pricingRules.some(
+          (group) => disAllowGroupIds.includes(group.id) && group.group_ids?.includes(profileId)
+        );
+        if (isDisallowed) return false;
+
+        if (groupIds.length === 0) return true;
+        return pricingRules.some(
+          (group) => group.group_ids?.includes(profileId) && groupIds.includes(group.id)
+        );
+      })
+      .map((size: ProductSize) => {
+        let newPrice = size.price;
+
+        const applicableGroup = pricingRules.find(
+          (group) =>
+            group.group_ids?.includes(profileId) &&
+            Array.isArray(group.product_arrayjson) &&
+            group.product_arrayjson.some((p) => p?.product_id === size.id)
+        );
+
+        if (applicableGroup) {
+          const groupProduct = applicableGroup.product_arrayjson?.find((p) => p?.product_id === size.id);
+          if (groupProduct?.new_price) {
+            const parsed = parseFloat(groupProduct.new_price);
+            newPrice = parsed > 0 ? parsed : size.price;
+          }
+        }
+
+        return {
+          ...size,
+          price: newPrice,
+          originalPrice: size.price === newPrice ? 0 : size.price,
+        };
+      }),
+  }));
+};
 
 const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreationProps) => {
   const navigate = useNavigate();
@@ -211,19 +299,8 @@ const QuickOrderCreationComponent = ({ onComplete, onCancel }: QuickOrderCreatio
 
   // Fetch products
   const { data: products = [], isLoading: loadingProducts } = useQuery({
-    queryKey: ['quick-order-products'],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("products")
-        .select(`
-          id, name, sku, category, image_url, unitToggle,
-          product_sizes (id, size_name, size_value, size_unit, price, price_per_case, stock, sku)
-        `)
-        .eq("is_active", true)
-        .order("name");
-      if (error) throw error;
-      return data || [];
-    },
+    queryKey: ['quick-order-products', selectedCustomer?.id],
+    queryFn: () => fetchQuickOrderProductsWithGroupPricing(selectedCustomer?.id),
     staleTime: 5 * 60 * 1000,
   });
 

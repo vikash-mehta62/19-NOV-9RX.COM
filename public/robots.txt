@@ -15,4 +15,4 @@ Disallow: /pay-now
 Disallow: /cart-price
 Disallow: /join-group
 Allow: /
-Sitemap: http://localhost:4001/sitemap.xml
+Sitemap: https://9rx.com/sitemap.xml

@@ -100,6 +100,7 @@ const resolveUnitToggle = (
 
 export interface ProductSelectionStepProps {
   onCartUpdate?: () => void;
+  pricingProfileId?: string | null;
 }
 
 // Optimized products fetcher with React Query
@@ -175,7 +176,7 @@ const fetchProductsWithGroupPricing = async (userId: string) => {
   }));
 };
 
-const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepProps) => {
+const ProductSelectionStepComponent = ({ onCartUpdate, pricingProfileId }: ProductSelectionStepProps) => {
   const { toast } = useToast();
   const { cartItems, addToCart, removeFromCart, updateQuantity, updateDescription } = useCart();
   const userProfile = useSelector(selectUserProfile);
@@ -212,15 +213,17 @@ const ProductSelectionStepComponent = ({ onCartUpdate }: ProductSelectionStepPro
   }, []);
 
   // Use React Query for products with caching
+  const pricingUserId = pricingProfileId || userProfile?.id || "";
+
   const { 
     data: products = [], 
     isLoading: loading, 
     error,
     refetch 
   } = useQuery({
-    queryKey: ['products-with-group-pricing', userProfile?.id],
-    queryFn: () => fetchProductsWithGroupPricing(userProfile?.id || ''),
-    enabled: !!userProfile?.id,
+    queryKey: ['products-with-group-pricing', pricingUserId],
+    queryFn: () => fetchProductsWithGroupPricing(pricingUserId),
+    enabled: !!pricingUserId,
     staleTime: 5 * 60 * 1000, // 5 minutes
     cacheTime: 10 * 60 * 1000, // 10 minutes
     refetchOnWindowFocus: false,

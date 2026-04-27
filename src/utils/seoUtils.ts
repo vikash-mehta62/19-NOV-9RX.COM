@@ -16,7 +16,11 @@ function shortenSlug(slug: string, maxWords = 4, maxLength = 40): string {
 }
 
 export function buildAbsoluteUrl(pathOrUrl: string): string {
-  const baseUrl = (import.meta.env.VITE_APP_BASE_URL || "https://9rx.com").replace(/\/+$/, "");
+  const baseUrl = (
+    import.meta.env.VITE_SITE_URL ||
+    import.meta.env.VITE_APP_BASE_URL ||
+    "https://9rx.com"
+  ).replace(/\/+$/, "");
   if (/^https?:\/\//i.test(pathOrUrl)) {
     return pathOrUrl;
   }

@@ -186,7 +186,7 @@ function buildRobotsTxt(baseSiteUrl) {
 async function main() {
   await fs.mkdir(PUBLIC_DIR, { recursive: true });
 
-  const siteUrl = (process.env.VITE_APP_BASE_URL || "https://9rx.com").replace(/\/+$/, "");
+  const siteUrl = (process.env.VITE_SITE_URL || "https://9rx.com").replace(/\/+$/, "");
   const [robotsTxt, sitemapXml] = await Promise.all([
     Promise.resolve(buildRobotsTxt(siteUrl)),
     buildSitemapEntries(siteUrl),
